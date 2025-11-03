@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -259,7 +260,7 @@ fun MovieDetailScreen(
                                         brush = Brush.verticalGradient(
                                             colors = listOf(
                                                 Color.Transparent,
-                                                Color(0xFF2D2D2D)
+                                                if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight
                                             ),
                                             startY = (windowHeight / 4.dp).dp.value, // 开始渐变的位置
                                             endY = (windowHeight / 2.dp).dp.value    // 结束渐变的位置
@@ -412,9 +413,11 @@ fun MediaInfo(
     LaunchedEffect(selectedVideoStreamIndex, guid) {
         currentMediaGuid = streamData.videoStreams[selectedVideoStreamIndex].mediaGuid
     }
-    LaunchedEffect(guid) {
+    LaunchedEffect(guid, streamData) {
         currentMediaGuid = playInfoResponse.mediaGuid
         mediaGuidAudioGuidMap.clear()
+        currentAudioStreamGuid = null // 重置音频流GUID
+        currentAudioStream = null // 重置音频流对象
         // 如果和 playInfo 的 audioGuid 相等，则使用，否则使用默认
         streamData.audioStreams.forEach { audioStream ->
             if (audioStream.guid == playInfoResponse.audioGuid) {
@@ -785,7 +788,8 @@ fun MiddleControls(
             // 第二行：4K 标签
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.height(24.dp)
             ) {
                 InfoIconText("中文字幕")
                 AudioSelector(
@@ -795,8 +799,26 @@ fun MiddleControls(
                     iso6392State
                 )
 
-                MediaQualityTag(streamData.videoStreams[selectedVideoStreamIndex].resolutionType)
-                MediaQualityTag(streamData.videoStreams[selectedVideoStreamIndex].colorRangeType)
+//                MediaQualityTag(streamData.videoStreams[selectedVideoStreamIndex].resolutionType)
+//                MediaQualityTag(streamData.videoStreams[selectedVideoStreamIndex].colorRangeType)
+                val safeCurrentVideoStream by remember(streamData, selectedVideoStreamIndex) {
+                    derivedStateOf {
+                        if (streamData.videoStreams.isNotEmpty() &&
+                            selectedVideoStreamIndex >= 0 &&
+                            selectedVideoStreamIndex < streamData.videoStreams.size
+                        ) {
+                            streamData.videoStreams[selectedVideoStreamIndex]
+                        } else {
+                            null
+                        }
+                    }
+                }
+
+                // 使用安全引用来渲染标签
+                safeCurrentVideoStream?.let { videoStream ->
+                    MediaQualityTag(videoStream.resolutionType)
+                    MediaQualityTag(videoStream.colorRangeType)
+                }
                 MediaQualityTag(currentAudioStream?.audioType ?: "")
             }
         }
@@ -840,8 +862,9 @@ fun AudioSelector(
             }
         }
     }
-    val selectedLanguage = (iso6392Map[currentAudioStream?.language]?.value ?: currentAudioStream?.language) + "音频"
-    if (audioOptions.isNotEmpty()) {
+    val selectedLanguage =
+        (iso6392Map[currentAudioStream?.language]?.value ?: currentAudioStream?.language) + "音频"
+    if (audioOptions.isNotEmpty() && audioOptions.size > 1) {
         val interactionSource = remember { MutableInteractionSource() }
         val isHovered by interactionSource.collectIsHoveredAsState()
         MenuFlyoutContainer(
@@ -865,7 +888,7 @@ fun AudioSelector(
                                         text = audioOption.language,
                                         color = if (audioOption.isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.primary,
                                         fontWeight = FontWeight.Normal,
-                                        fontSize = 14.sp,
+                                        fontSize = 15.sp,
                                         modifier = Modifier
                                             .width(120.dp)
                                     )
@@ -918,19 +941,25 @@ fun AudioSelector(
                     modifier = Modifier
                         .hoverable(interactionSource)
                 ) {
-                    Text(text = selectedLanguage, color = Color.White, fontSize = 12.sp)
+                    Text(text = selectedLanguage, color = FluentTheme.colors.text.text.secondary, fontSize = 14.sp)
                     Icon(
                         imageVector = ArrowUp,
                         contentDescription = "下拉框箭头",
-                        tint = FluentTheme.colors.text.text.secondary,
+                        tint = FluentTheme.colors.text.text.tertiary,
                         modifier = Modifier
-                            .size(14.dp)
+                            .size(16.dp)
                             .rotate(animatedRotation)
                     )
                 }
             },
 //            placement = FlyoutPlacement.BottomAlignedStart,
             placement = FlyoutPlacement.Auto,
+        )
+    } else {
+        Text(
+            text = selectedLanguage,
+            color = FluentTheme.colors.text.text.secondary,
+            fontSize = 14.sp
         )
     }
 }
@@ -959,7 +988,7 @@ fun MediaDescription(modifier: Modifier = Modifier, itemData: ItemResponse?) {
 }
 
 /**
- * 音频字幕下拉选择器
+ *
  */
 @Composable
 fun InfoIconText(text: String) {
@@ -967,12 +996,12 @@ fun InfoIconText(text: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(text = text, color = Color.White, fontSize = 12.sp)
+        Text(text = text, color = FluentTheme.colors.text.text.secondary, fontSize = 14.sp)
         Icon(
             imageVector = ArrowUp,
             contentDescription = text,
-            tint = FluentTheme.colors.text.text.secondary,
-            modifier = Modifier.size(14.dp)
+            tint = FluentTheme.colors.text.text.tertiary,
+            modifier = Modifier.size(16.dp)
         )
     }
 }
@@ -982,25 +1011,29 @@ fun InfoIconText(text: String) {
  */
 @Composable
 fun MediaQualityTag(qualityTag: String) {
+    val store = LocalStore.current
     if (qualityTag.endsWith("k")) {
         Box(
             modifier = Modifier
-                .padding(2.dp)
+//                .padding(2.dp)
+//                .height(16.dp)
                 .background(
-                    color = Color.White.copy(alpha = 0.8f),
+                    color = FluentTheme.colors.stroke.control.default.copy(alpha = 0.5f),
                     shape = RoundedCornerShape(4.dp)
                 )
                 .padding(
                     horizontal = 6.dp,
-                    vertical = 1.dp
+//                    vertical = 1.dp
                 ),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = qualityTag.uppercase(),
-                color = Color.Black.copy(alpha = 0.6f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.ExtraBold
+                style = LocalTypography.current.body,
+                color = if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight,
+                fontSize = 13.sp,
+//                lineHeight = 5.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     } else if (qualityTag.endsWith("p") || qualityTag in listOf(
@@ -1019,22 +1052,24 @@ fun MediaQualityTag(qualityTag: String) {
         }
         Box(
             modifier = Modifier
+//                .height(16.dp)
                 .border(
                     1.5.dp,
-                    Color.Gray,
+                    FluentTheme.colors.stroke.control.default.copy(alpha = 0.5f),
                     RoundedCornerShape(4.dp)
                 )
                 .padding(
-                    horizontal = 3.dp,
+                    horizontal = 4.dp,
                     vertical = 1.dp
                 ),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = qualityTag,
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
+                style = LocalTypography.current.body,
+                color = FluentTheme.colors.stroke.control.default.copy(alpha = 0.5f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
             )
         }
     } else if (qualityTag in listOf("DolbySurround", "DolbyVision", "DTS", "DolbyAtmos")) {
@@ -1044,7 +1079,8 @@ fun MediaQualityTag(qualityTag: String) {
                 painterResource(drawableSource),
                 contentDescription = "质量 logo",
                 modifier = Modifier
-                    .height(22.dp)
+                    .height(24.dp),
+                colorFilter = ColorFilter.tint(FluentTheme.colors.stroke.control.default.copy(alpha = 0.5f))
             )
         }
     }

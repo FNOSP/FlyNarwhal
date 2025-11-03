@@ -15,4 +15,8 @@ object Colors {
     val PrimaryColor = Color(0xFF2173DF)
 
     val DangerColor = Color(0xFFFF0420)
+
+    val BackgroundColorDark = Color(0xFF2D2D2D)
+
+    val BackgroundColorLight = Color(0xFFF7F7F7)
 }
