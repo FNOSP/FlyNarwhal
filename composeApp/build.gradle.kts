@@ -80,15 +80,15 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.jankinwu.fntv.client.MainKt"
-        buildTypes.release.proguard {
-            configurationFiles.from("compose-desktop.pro")
-        }
+//        buildTypes.release.proguard {
+//            configurationFiles.from("compose-desktop.pro")
+//        }
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.jankinwu.fntv"
             packageVersion = "1.0.0"
             windows {
-                iconFile.set(project.file("icons/icon.ico"))
+                iconFile.set(project.file("icons/favicon.ico"))
             }
         }
     }
