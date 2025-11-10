@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowState
 import com.jankinwu.fntv.client.data.store.Store
 import com.jankinwu.fntv.client.utils.isSystemInDarkMode
@@ -157,4 +158,9 @@ internal val LocalTypography = staticCompositionLocalOf {
             fontFamily = defaultVariableFamily
         )
     )
+}
+
+
+val LocalFrameWindowScope = staticCompositionLocalOf<FrameWindowScope> {
+    error("FrameWindowScope not provided")
 }

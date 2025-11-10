@@ -30,10 +30,13 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jankinwu.fntv.client.LocalFrameWindowScope
 import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.Computer
 import com.jankinwu.fntv.client.icons.Nas
 import com.jankinwu.fntv.client.icons.Search
+import com.jankinwu.fntv.client.utils.chooseFile
+import com.jankinwu.fntv.client.viewmodel.SubtitleUploadViewModel
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon
@@ -41,13 +44,26 @@ import io.github.composefluent.component.MenuFlyoutContainer
 import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.component.Text
 import org.jetbrains.compose.ui.tooling.preview.Preview
-
+import org.koin.compose.viewmodel.koinViewModel
+import java.io.File
 
 @Preview
 @Composable
 fun MediaDetailAddSubtitleFlyout(
+    guid: String,
     modifier: Modifier = Modifier
 ) {
+    val frameWindowScope = LocalFrameWindowScope.current
+    val subtitleUploadViewModel: SubtitleUploadViewModel = koinViewModel()
+    
+    fun handleFileSelection(file: File?) {
+        file?.let { selectedFile ->
+            // 将文件转换为ByteArray并上传
+            val byteArray = selectedFile.readBytes()
+            subtitleUploadViewModel.uploadSubtitle(guid, byteArray)
+        }
+    }
+    
     MenuFlyoutContainer(
         flyout = {
             MenuFlyoutItem(
@@ -128,6 +144,8 @@ fun MediaDetailAddSubtitleFlyout(
                 },
                 onClick = {
                     isFlyoutVisible = false
+                    val file = chooseFile(frameWindowScope, arrayOf("srt", "ass", "vtt"), "选择字幕文件")
+                    handleFileSelection(file)
                 },
                 icon = {
                     Icon(
@@ -202,5 +220,4 @@ private fun SubtitleButton(
         )
 
     }
-
 }

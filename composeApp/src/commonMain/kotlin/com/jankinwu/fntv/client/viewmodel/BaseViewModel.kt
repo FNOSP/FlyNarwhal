@@ -59,4 +59,5 @@ val viewModelModule = module {
     viewModelOf (::LoginViewModel)
     viewModelOf (::LogoutViewModel)
     viewModelOf (::PersonListViewModel)
+    viewModelOf (::SubtitleUploadViewModel)
 }

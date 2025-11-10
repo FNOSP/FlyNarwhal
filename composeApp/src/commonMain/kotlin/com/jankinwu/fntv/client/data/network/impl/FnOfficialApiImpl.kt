@@ -26,6 +26,7 @@ import com.jankinwu.fntv.client.data.model.response.PlayPlayResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
+import com.jankinwu.fntv.client.data.model.response.SubtitleUploadResponse
 import com.jankinwu.fntv.client.data.model.response.TagListResponse
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.data.network.FnOfficialApi
@@ -170,6 +171,15 @@ class FnOfficialApiImpl() : FnOfficialApi {
         return post("/v/api/v1/person/list/$guid")
     }
 
+    override suspend fun uploadSubtitle(
+        guid: String,
+        file: ByteArray
+    ): SubtitleUploadResponse {
+        val pair = "file" to file
+        val formDataParam = listOf<Pair<String, Any?>>(pair)
+        return post("/v/api/v1/subtitle/upload/$guid", isFormData = true, formData = formDataParam)
+    }
+
     private suspend inline fun <reified T> get(
         url: String,
         parameters: Map<String, Any?>? = null,
@@ -215,6 +225,8 @@ class FnOfficialApiImpl() : FnOfficialApi {
     private suspend inline fun <reified T> post(
         url: String,
         body: Any? = emptyMap<String, Any>(),
+        isFormData: Boolean = false,
+        formData: List<Pair<String, Any?>> = emptyList(),
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
     ): T {
         return try {
@@ -227,10 +239,19 @@ class FnOfficialApiImpl() : FnOfficialApi {
             println("whole url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body")
 
             val response = fnOfficialClient.post("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
-                header(HttpHeaders.ContentType, "application/json; charset=utf-8")
-                header("Authx", authx)
-                if (body != null) {
-                    setBody(body)
+                if (isFormData) {
+                    header("Authx", authx)
+                    formData.forEach { (key, value) ->
+                        if (value != null) {
+                            parameter(key, value)
+                        }
+                    }
+                } else {
+                    header(HttpHeaders.ContentType, "application/json; charset=utf-8")
+                    header("Authx", authx)
+                    if (body != null) {
+                        setBody(body)
+                    }
                 }
                 block?.invoke(this)
             }

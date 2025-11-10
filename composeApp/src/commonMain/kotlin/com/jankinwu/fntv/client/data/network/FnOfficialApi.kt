@@ -18,6 +18,7 @@ import com.jankinwu.fntv.client.data.model.response.PlayPlayResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
+import com.jankinwu.fntv.client.data.model.response.SubtitleUploadResponse
 import com.jankinwu.fntv.client.data.model.response.TagListResponse
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 
@@ -64,4 +65,6 @@ interface FnOfficialApi {
     suspend fun episodeList(guid: String): List<EpisodeListResponse>
 
     suspend fun personList(guid: String): PersonListResponse
+
+    suspend fun uploadSubtitle(guid: String, file: ByteArray): SubtitleUploadResponse
 }
