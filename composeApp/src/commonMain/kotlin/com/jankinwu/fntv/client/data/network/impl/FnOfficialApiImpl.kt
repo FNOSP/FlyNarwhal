@@ -193,7 +193,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
             val authx = genAuthx(url, parameters)
-            println("whole url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters")
+            println("GET request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters")
 
             val response = fnOfficialClient.get("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header("Authx", authx)
@@ -205,7 +205,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
                 block?.invoke(this)
             }
             val responseString = response.bodyAsText()
-            println("Get response content: $responseString")
+            println("url: $url Get response content: $responseString")
 
             val body = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (body.code != 0) {
@@ -239,7 +239,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val authx = genAuthx(url, data = body)
-            println("whole url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body")
+            println("POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body")
 
             val response = fnOfficialClient.post("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
@@ -251,7 +251,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val responseString = response.bodyAsText()
-            println("POST response content: $responseString")
+            println("url: $url POST response content: $responseString")
 
             // 解析为对象
             val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
@@ -289,7 +289,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val authx = genAuthx(url)
-
+            println("POST multipart file request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx")
             val response = fnOfficialClient.submitFormWithBinaryData(
                 url = "${AccountDataCache.getFnOfficialBaseUrl()}$url",
                 formData = formData {
@@ -311,7 +311,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val responseString = response.bodyAsText()
-            println("POST multipart file response content: $responseString")
+            println("url: $url POST multipart file response content: $responseString")
 
             val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (responseBody.code != 0) {
@@ -336,8 +336,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val authx = genAuthx(url, data = body)
-//            println("authx: $authx")
-
+            println("url: $url PUT request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body")
             val response = fnOfficialClient.put("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
                 header("Authx", authx)
@@ -381,7 +380,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val authx = genAuthx(url, data = body)
-//            println("authx: $authx")
+            println("DELETE request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body")
 
             val response = fnOfficialClient.delete("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
@@ -393,7 +392,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val responseString = response.bodyAsText()
-            println("Delete response content: $responseString")
+            println("url: $url Delete response content: $responseString")
 
             // 解析为对象
             val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
