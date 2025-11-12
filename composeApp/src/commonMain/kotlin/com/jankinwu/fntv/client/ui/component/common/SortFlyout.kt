@@ -1,4 +1,4 @@
-package com.jankinwu.fntv.client.ui.component
+package com.jankinwu.fntv.client.ui.component.common
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState

@@ -1,4 +1,4 @@
-package com.jankinwu.fntv.client.ui.component
+package com.jankinwu.fntv.client.ui.component.common
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -31,9 +31,10 @@ import io.github.composefluent.FluentTheme
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class ToastMessage(
-    val id: String = java.util.UUID.randomUUID().toString(), // 唯一标识符
+    val id: String = UUID.randomUUID().toString(), // 唯一标识符
     val message: String, // 提示文字
     val duration: Long = 2000L, // 显示时长（毫秒）
     val isSuccess: Boolean = true

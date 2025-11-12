@@ -1,4 +1,4 @@
-package com.jankinwu.fntv.client.ui.component
+package com.jankinwu.fntv.client.ui.component.common
 
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable

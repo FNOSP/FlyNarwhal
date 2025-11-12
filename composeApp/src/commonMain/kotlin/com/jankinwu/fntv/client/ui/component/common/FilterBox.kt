@@ -1,4 +1,4 @@
-package com.jankinwu.fntv.client.ui.component
+package com.jankinwu.fntv.client.ui.component.common
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -63,6 +63,7 @@ import io.github.composefluent.component.Text
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Dismiss
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -187,7 +188,7 @@ fun FilterButton(
                                     // 先隐藏该 FilterChip，再执行清除操作
                                     chipVisibility[title] = false
                                     // 延迟执行清除操作，让动画先完成
-                                    kotlinx.coroutines.MainScope().launch {
+                                    MainScope().launch {
                                         delay(150) // 等待动画完成
                                         onFilterClear(title)
                                     }
@@ -205,7 +206,7 @@ fun FilterButton(
                                 chipVisibility[key] = false
                             }
                             // 延迟执行清除操作，让动画先完成
-                            kotlinx.coroutines.MainScope().launch {
+                            MainScope().launch {
                                 delay(150) // 等待动画完成
                                 onFilterClear("all")
                             }

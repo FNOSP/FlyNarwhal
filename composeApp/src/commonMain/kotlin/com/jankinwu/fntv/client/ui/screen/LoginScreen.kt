@@ -70,11 +70,11 @@ import com.jankinwu.fntv.client.icons.History
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.LoginStateManager.handleLogin
 import com.jankinwu.fntv.client.manager.PreferencesManager
-import com.jankinwu.fntv.client.ui.component.ComponentNavigator
-import com.jankinwu.fntv.client.ui.component.ForgotPasswordDialog
-import com.jankinwu.fntv.client.ui.component.NumberInput
-import com.jankinwu.fntv.client.ui.component.ToastHost
-import com.jankinwu.fntv.client.ui.component.rememberToastManager
+import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
+import com.jankinwu.fntv.client.ui.component.common.ForgotPasswordDialog
+import com.jankinwu.fntv.client.ui.component.common.NumberInput
+import com.jankinwu.fntv.client.ui.component.common.ToastHost
+import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.selectedCheckBoxColors
 import com.jankinwu.fntv.client.ui.selectedSwitcherStyle
 import com.jankinwu.fntv.client.viewmodel.LoginViewModel

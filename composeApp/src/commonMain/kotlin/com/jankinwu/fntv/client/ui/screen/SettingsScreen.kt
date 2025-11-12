@@ -29,8 +29,8 @@ import com.jankinwu.fntv.client.LocalStore
 import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.manager.LoginStateManager
-import com.jankinwu.fntv.client.ui.component.ComponentItem
-import com.jankinwu.fntv.client.ui.component.ComponentNavigator
+import com.jankinwu.fntv.client.ui.component.common.ComponentItem
+import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.github_logo

@@ -19,7 +19,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.jankinwu.fntv.client.data.network.apiModule
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PreferencesManager
-import com.jankinwu.fntv.client.ui.component.rememberComponentNavigator
+import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
 import com.jankinwu.fntv.client.ui.screen.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.screen.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.screen.LoginScreen

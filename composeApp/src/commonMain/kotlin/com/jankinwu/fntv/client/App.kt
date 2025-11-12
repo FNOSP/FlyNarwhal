@@ -48,9 +48,9 @@ import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.CategoryIcon
 import com.jankinwu.fntv.client.icons.Home
 import com.jankinwu.fntv.client.icons.MediaLibrary
-import com.jankinwu.fntv.client.ui.component.ComponentItem
-import com.jankinwu.fntv.client.ui.component.ComponentNavigator
-import com.jankinwu.fntv.client.ui.component.rememberComponentNavigator
+import com.jankinwu.fntv.client.ui.component.common.ComponentItem
+import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
+import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
 import com.jankinwu.fntv.client.ui.screen.HomePageScreen
 import com.jankinwu.fntv.client.ui.screen.MediaDbScreen
 import com.jankinwu.fntv.client.ui.screen.SettingsScreen

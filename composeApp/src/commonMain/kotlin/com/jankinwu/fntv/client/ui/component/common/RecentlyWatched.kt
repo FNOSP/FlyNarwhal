@@ -1,4 +1,4 @@
-package com.jankinwu.fntv.client.ui.component
+package com.jankinwu.fntv.client.ui.component.common
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -81,6 +81,7 @@ import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import io.github.composefluent.icons.regular.MoreHorizontal
 import io.github.composefluent.icons.regular.PlayCircle
+import kotlinx.coroutines.delay
 
 /**
  * 最近观看
@@ -237,7 +238,7 @@ fun RecentlyWatchedItem(
     LaunchedEffect(!isVisible) {
         if (!isVisible) {
             // 等待动画完成
-            kotlinx.coroutines.delay(watchedAnimationDuration.toLong())
+            delay(watchedAnimationDuration.toLong())
             onMarkAsWatched?.invoke()
         }
     }
