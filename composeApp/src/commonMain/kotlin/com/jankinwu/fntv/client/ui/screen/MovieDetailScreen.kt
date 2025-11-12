@@ -449,7 +449,7 @@ fun MediaInfo(
         }
     }
     
-    LaunchedEffect(currentMediaGuid, guid) {
+    LaunchedEffect(currentMediaGuid, guid, streamData) {
         streamData.videoStreams.forEach {
             if (it.mediaGuid == currentMediaGuid) {
                 selectedVideoStreamIndex = streamData.videoStreams.indexOf(it)
