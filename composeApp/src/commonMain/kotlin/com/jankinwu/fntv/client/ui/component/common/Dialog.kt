@@ -30,6 +30,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.jankinwu.fntv.client.LocalStore
+import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.ui.screen.HintColor
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.DialogSize
@@ -85,16 +87,17 @@ fun CustomConfirmDialog(
     iconTint: Color = confirmButtonColor,
     title: String,
     contentText: String,
-    dismissButtonText: String,
-    onDismissClick: () -> Unit,
+    dismissButtonText: String = "取消",
+    onDismissClick: () -> Unit = {},
     confirmButtonText: String,
-    onConfirmClick: () -> Unit
+    onConfirmClick: () -> Unit = {}
 ) {
+    val store = LocalStore.current
     Dialog(onDismissRequest = onDismissRequest) {
         // 使用 Surface 来创建圆角和背景色
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = dialogBackgroundColor,
+            color = if (store.darkMode) dialogBackgroundColor else Colors.BackgroundColorLight,
             contentColor = primaryTextColor
         ) {
             Column(
