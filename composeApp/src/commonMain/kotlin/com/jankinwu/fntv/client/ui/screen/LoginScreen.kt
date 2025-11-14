@@ -81,8 +81,8 @@ import com.jankinwu.fntv.client.viewmodel.LoginViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.materials.CupertinoMaterials
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
+import dev.chrisbanes.haze.materials.FluentMaterials
 import dev.chrisbanes.haze.rememberHazeState
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.login_background
@@ -212,7 +212,7 @@ fun LoginScreen(navigator: ComponentNavigator) {
                 .clip(RoundedCornerShape(16.dp))
                 .hazeEffect(
                     state = hazeState,
-                    style = CupertinoMaterials.ultraThin(CardBackgroundColor)
+                    style = FluentMaterials.acrylicDefault(true)
                 )
         ) {
             Column(
