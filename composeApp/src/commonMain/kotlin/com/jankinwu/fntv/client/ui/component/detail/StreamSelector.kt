@@ -2,6 +2,7 @@ package com.jankinwu.fntv.client.ui.component.detail
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -21,7 +22,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -36,7 +39,9 @@ import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.Delete
+import com.jankinwu.fntv.client.ui.component.common.CustomConfirmDialog
 import com.jankinwu.fntv.client.ui.subtitleItemColors
+import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon
@@ -45,6 +50,7 @@ import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import kotlinx.coroutines.delay
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun StreamSelector(
@@ -133,7 +139,8 @@ fun StreamSelector(
                                     isExternal = streamOptionItem.isExternal,
                                     subtitle1 = streamOptionItem.subtitle1,
                                     subtitle2 = streamOptionItem.subtitle2,
-                                    subtitle3 = streamOptionItem.subtitle3
+                                    subtitle3 = streamOptionItem.subtitle3,
+                                    guid = streamOptionItem.optionGuid,
                                 )
                             },
                             onClick = {
@@ -179,9 +186,12 @@ fun StreamSelectorRow(
     subtitle1: String = "",
     subtitle2: String = "",
     subtitle3: String = "",
+    guid: String,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isItemHovered by interactionSource.collectIsHoveredAsState()
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    val subtitleDeleteViewModel: SubtitleDeleteViewModel = koinViewModel()
     Row(
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
@@ -220,7 +230,10 @@ fun StreamSelectorRow(
             Box(
                 modifier = Modifier
                     .hoverable(iconInteractionSource)
-                    .size(28.dp),
+                    .size(28.dp)
+                    .clickable(
+                        onClick = { showDeleteDialog = true }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
@@ -236,17 +249,29 @@ fun StreamSelectorRow(
 
                 Icon(
                     imageVector = Delete,
-                    contentDescription = "",
+                    contentDescription = "删除字幕",
                     tint = FluentTheme.colors.text.text.secondary,
                     modifier = Modifier
 //                        .weight(1f)
                         .size(14.dp)
                 )
             }
+            
+            if (showDeleteDialog) {
+                CustomConfirmDialog(
+                    onDismissRequest = { showDeleteDialog = false },
+                    title = "确认删除",
+                    contentText = "确定要删除此外挂字幕吗？此操作不可撤销。",
+                    confirmButtonText = "删除",
+                    onConfirmClick = {
+                        subtitleDeleteViewModel.deleteSubtitle(guid)
+                    }
+                )
+            }
         } else if (isSelected) {
             Icon(
                 imageVector = Icons.Regular.Checkmark,
-                contentDescription = "",
+                contentDescription = "已选择",
                 tint = Colors.PrimaryColor,
                 modifier = Modifier
                     .weight(1f)
