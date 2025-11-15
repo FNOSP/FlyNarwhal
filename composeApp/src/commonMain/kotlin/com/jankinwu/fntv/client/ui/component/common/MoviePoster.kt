@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -37,7 +36,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -372,7 +370,8 @@ fun MoviePoster(
                     }
                 },
                 scaleFactor = scaleFactor,
-                iconTint = if (isFavorite) Colors.DangerColor else Color.White
+                iconTint = if (isFavorite) Colors.DangerColor else Color.White,
+                iconYOffset = (1 * scaleFactor).dp
             )
 
             Box(
@@ -500,48 +499,5 @@ fun MoviePoster(
                 )
             }
         }
-    }
-}
-
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
-internal fun BottomIconButton(
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    scaleFactor: Float,
-    iconTint: Color = Color.White
-) {
-    var isHovered by remember { mutableStateOf(false) }
-    Box(
-        modifier = modifier
-            .onPointerEvent(PointerEventType.Enter) { isHovered = true }
-            .onPointerEvent(PointerEventType.Exit) { isHovered = false }
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { onClick() }
-            )
-    ) {
-        // 悬停时显示的圆形背景
-        Box(
-            modifier = Modifier
-                .size((24 * scaleFactor).dp)
-                .align(Alignment.Center)
-                .background(
-                    color = if (isHovered) Color.Gray.copy(alpha = 0.6f) else Color.Transparent,
-                    shape = CircleShape
-                )
-        )
-
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = iconTint,
-            modifier = Modifier
-                .size((16 * scaleFactor).dp)
-                .align(Alignment.Center)
-        )
     }
 }

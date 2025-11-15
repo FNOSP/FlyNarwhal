@@ -390,7 +390,8 @@ fun RecentlyWatchedItem(
                             }
                         },
                         scaleFactor = scaleFactor,
-                        iconTint = if (isFavorite) Color.Red else Color.White
+                        iconTint = if (isFavorite) Color.Red else Color.White,
+                        iconYOffset = (1 * scaleFactor).dp
                     )
 
                     Box(
