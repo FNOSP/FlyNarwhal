@@ -79,7 +79,7 @@ typealias CheckBoxColorScheme = PentaVisualScheme<CheckBoxColor>
 
 @Composable
 @Stable
-fun subtitleItemColors(
+fun FlyoutTitleItemColors(
     default: ListItemColor = ListItemColor(
         fillColor = FluentTheme.colors.subtleFill.transparent,
         contentColor = FluentTheme.colors.text.text.primary,

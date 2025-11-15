@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,7 +41,7 @@ import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.Delete
 import com.jankinwu.fntv.client.ui.component.common.CustomContentDialog
-import com.jankinwu.fntv.client.ui.subtitleItemColors
+import com.jankinwu.fntv.client.ui.FlyoutTitleItemColors
 import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
@@ -53,6 +53,8 @@ import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon
 import io.github.composefluent.component.MenuFlyoutContainer
 import io.github.composefluent.component.MenuFlyoutItem
+import io.github.composefluent.component.ScrollbarContainer
+import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import kotlinx.coroutines.delay
@@ -74,6 +76,7 @@ fun StreamSelector(
     val subtitleDeleteViewModel: SubtitleDeleteViewModel = koinViewModel()
     val subtitleDeleteState by subtitleDeleteViewModel.uiState.collectAsState()
     val streamListViewModel: StreamListViewModel = koinViewModel()
+
     LaunchedEffect(subtitleDeleteState) {
         // 当字幕上传成功后，刷新stream列表
         if (subtitleDeleteState is UiState.Success) {
@@ -81,9 +84,11 @@ fun StreamSelector(
             subtitleDeleteViewModel.clearError()
         }
     }
+
     if (streamOptions.isNotEmpty() && streamOptions.size > 1) {
         val interactionSource = remember { MutableInteractionSource() }
         val isHovered by interactionSource.collectIsHoveredAsState()
+        var flyoutHeight by remember(streamOptions) { mutableStateOf(if (streamOptions.size >= 5) 310.dp else 60.dp * streamOptions.size) }
         MenuFlyoutContainer(
             flyout = {
                 // 检查是否有 "_no_display_" 选项
@@ -115,39 +120,45 @@ fun StreamSelector(
                         onClick = {},
                         modifier = Modifier
                             .width(240.dp)
+                            .padding(vertical = 4.dp)
                             .hoverable(interactionSource),
-                        colors = subtitleItemColors()
+                        colors = FlyoutTitleItemColors()
                     )
                 }
-
-                Column(
+                ScrollbarContainer(
+                    adapter = rememberScrollbarAdapter(lazyListState),
                     modifier = Modifier
-                        .heightIn(max = 310.dp)
-                        .fillMaxWidth()
-                        .verticalScroll(lazyListState)
+                        .height(flyoutHeight)
+//                        .heightIn(max = 310.dp)
                 ) {
-                    // 如果有 "_no_display_" 选项，则先显示它
-                    noDisplayItem?.let { streamOptionItem ->
-                        MenuFlyoutItem(
-                            text = {
-                                NoDisplayRow(
-                                    modifier = Modifier.hoverable(interactionSource),
-                                    title = streamOptionItem.title,
-                                    isDefault = streamOptionItem.isDefault,
-                                    isSelected = streamOptionItem.isSelected,
-                                )
-                            },
-                            onClick = {
-                                onSelected(streamOptionItem.optionGuid)
-                                isFlyoutVisible = false
-                            },
-                            modifier = Modifier
-                                .width(240.dp)
-                                .hoverable(interactionSource)
-                        )
-                    }
-                    // 显示其他项目
-                    otherItems.forEach  { streamOptionItem ->
+                    Column(
+                        modifier = Modifier
+//                            .height(310.dp)
+                            .width(240.dp)
+                            .verticalScroll(lazyListState)
+                    ) {
+                        // 如果有 "_no_display_" 选项，则先显示它
+                        noDisplayItem?.let { streamOptionItem ->
+                            MenuFlyoutItem(
+                                text = {
+                                    NoDisplayRow(
+                                        modifier = Modifier.hoverable(interactionSource),
+                                        title = streamOptionItem.title,
+                                        isDefault = streamOptionItem.isDefault,
+                                        isSelected = streamOptionItem.isSelected,
+                                    )
+                                },
+                                onClick = {
+                                    onSelected(streamOptionItem.optionGuid)
+                                    isFlyoutVisible = false
+                                },
+                                modifier = Modifier
+                                    .width(240.dp)
+                                    .hoverable(interactionSource)
+                            )
+                        }
+                        // 显示其他项目
+                        otherItems.forEach { streamOptionItem ->
                             MenuFlyoutItem(
                                 text = {
                                     StreamSelectorRow(
@@ -176,6 +187,7 @@ fun StreamSelector(
                                     .hoverable(interactionSource)
                             )
 
+                        }
                     }
                 }
             },
@@ -221,7 +233,7 @@ fun StreamSelector(
         },
         content = {
             io.github.composefluent.component.Text(
-                "确定要删除 $deletedItemTitle - 外挂 外挂字幕吗？"
+                "确定要删除 $deletedItemTitle 外挂字幕吗？"
             )
         }
     )

@@ -949,13 +949,17 @@ fun AudioSelector(
         }
     }
     val selectedLanguage: String =
-        if (currentAudioStream?.language in listOf("", "und", "zxx", "qaa-qtz")) {
-            "未知音频"
-        } else if (currentAudioStream?.language == null) {
-            "未知音频"
-        } else {
-            (iso6392Map[currentAudioStream.language]?.value
-                ?: currentAudioStream.language) + "音频"
+        when (currentAudioStream?.language) {
+            in listOf("", "und", "zxx", "qaa-qtz") -> {
+                "未知音频"
+            }
+            null -> {
+                "未知音频"
+            }
+            else -> {
+                (iso6392Map[currentAudioStream.language]?.value
+                    ?: currentAudioStream.language) + "音频"
+            }
         }
     StreamSelector(
         selectorOptions,
@@ -986,7 +990,7 @@ fun SubtitleSelector(
     val selectorOptions by remember(currentSubtitleStreamList, iso6392Map, currentSubtitleStream) {
         derivedStateOf {
             currentSubtitleStreamList.map { subtitleStream ->
-                val language: String =
+                val languageTitle: String =
                     when {
                         subtitleStream.language in listOf("", "und", "zxx", "qaa-qtz") -> {
                             "未知"
@@ -1003,7 +1007,7 @@ fun SubtitleSelector(
                     }
                 StreamOptionItem(
                     optionGuid = subtitleStream.guid,
-                    title = language,
+                    title = if (subtitleStream.isExternal == 1) "$languageTitle - 外挂" else languageTitle,
                     subtitle1 = subtitleStream.format.uppercase(),
                     subtitle3 = subtitleStream.title,
 //                    subtitle2 = "",
@@ -1023,8 +1027,18 @@ fun SubtitleSelector(
                 "未知字幕"
             }
             else -> {
-                (iso6392Map[currentSubtitleStream.language]?.value
-                    ?: currentSubtitleStream.language) + "字幕"
+                val languageName = when {
+                currentSubtitleStream.language.length == 3 -> {
+                    iso6392Map[currentSubtitleStream.language]?.value ?: currentSubtitleStream.language
+                }
+                currentSubtitleStream.language.length == 2 -> {
+                    iso6391Map[currentSubtitleStream.language]?.value ?: currentSubtitleStream.language
+                }
+                else -> {
+                    currentSubtitleStream.language
+                }
+            }
+            "${languageName}字幕"
             }
         }
     StreamSelector(selectorOptions, selectedLanguage, onSubtitleSelected, true,
