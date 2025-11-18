@@ -12,7 +12,11 @@ object Constants {
 object Colors {
     val TextSecondaryColor = Color.White.copy(alpha = 0.7843f)
 
-    val PrimaryColor = Color(0xFF2173DF)
+    val AccentColorDefault = Color(0xFF2173DF)
+
+    val AccentColorSecondary = Color(0xFF327EE1)
+
+    val AccentColorTertiary = Color(0xFF1C65C4)
 
     val DangerColor = Color(0xFFFF0420)
 

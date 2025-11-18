@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.data.constants.Colors
 import io.github.composefluent.FluentTheme
+import io.github.composefluent.component.ButtonColor
 import io.github.composefluent.component.CheckBoxColor
 import io.github.composefluent.component.ListItemColor
 import io.github.composefluent.component.SwitcherStyle
@@ -48,7 +49,7 @@ typealias SwitcherStyleScheme = PentaVisualScheme<SwitcherStyle>
 
 @Stable
 @Composable
-fun selectedCheckBoxColors(
+fun customSelectedCheckBoxColors(
     default: CheckBoxColor = CheckBoxColor(
         fillColor = Color(0xFF3A7BFF),
         contentColor = Color.White,
@@ -79,7 +80,7 @@ typealias CheckBoxColorScheme = PentaVisualScheme<CheckBoxColor>
 
 @Composable
 @Stable
-fun FlyoutTitleItemColors(
+fun flyoutTitleItemColors(
     default: ListItemColor = ListItemColor(
         fillColor = FluentTheme.colors.subtleFill.transparent,
         contentColor = FluentTheme.colors.text.text.primary,
@@ -106,3 +107,34 @@ fun FlyoutTitleItemColors(
 )
 
 typealias ListItemColorScheme = PentaVisualScheme<ListItemColor>
+
+@Stable
+@Composable
+fun customAccentButtonColors(
+    default: ButtonColor = ButtonColor(
+        fillColor = Colors.AccentColorDefault,
+        contentColor = FluentTheme.colors.text.onAccent.primary,
+        borderBrush = FluentTheme.colors.borders.accentControl
+    ),
+    hovered: ButtonColor = default.copy(
+        fillColor = Colors.AccentColorSecondary
+    ),
+    pressed: ButtonColor = ButtonColor(
+        fillColor = Colors.AccentColorTertiary,
+        contentColor = FluentTheme.colors.text.onAccent.secondary,
+        borderBrush = SolidColor(FluentTheme.colors.stroke.control.onAccentDefault)
+    ),
+    disabled: ButtonColor = ButtonColor(
+        fillColor = FluentTheme.colors.fillAccent.disabled,
+        contentColor = FluentTheme.colors.text.onAccent.disabled,
+        borderBrush = SolidColor(Color.Transparent) // Disabled accent button does not have border
+    )
+) = ButtonColorScheme(
+    default = default,
+    hovered = hovered,
+    pressed = pressed,
+    disabled = disabled
+)
+
+typealias ButtonColorScheme = PentaVisualScheme<ButtonColor>
+

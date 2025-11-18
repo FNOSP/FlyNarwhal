@@ -32,6 +32,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -40,6 +41,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -72,6 +74,7 @@ import com.jankinwu.fntv.client.data.convertor.convertPersonToScrollRowItemData
 import com.jankinwu.fntv.client.data.convertor.formatSeconds
 import com.jankinwu.fntv.client.data.model.ScrollRowItemData
 import com.jankinwu.fntv.client.data.model.response.AudioStream
+import com.jankinwu.fntv.client.data.model.response.FileInfo
 import com.jankinwu.fntv.client.data.model.response.ItemResponse
 import com.jankinwu.fntv.client.data.model.response.PersonList
 import com.jankinwu.fntv.client.data.model.response.PersonListResponse
@@ -114,6 +117,10 @@ import io.github.composefluent.icons.regular.MoreHorizontal
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
+
+val LocalFileInfo = staticCompositionLocalOf<FileInfo?> {
+    error("No FileInfo provided")
+}
 
 @Composable
 fun MovieDetailScreen(
@@ -419,11 +426,12 @@ fun MediaInfo(
     var currentSubtitleStreamGuid: String? by remember { mutableStateOf("") }
     var currentSubtitleStream: SubtitleStream? by remember { mutableStateOf(null) }
     var currentSubtitleStreamList by remember { mutableStateOf<List<SubtitleStream>>(emptyList()) }
+    var currentFileInfo: FileInfo? by remember { mutableStateOf(null) }
     var totalDuration by remember { mutableIntStateOf(0) }
     val reminingDuration = totalDuration.minus(itemData.watchedTs)
     val formatReminingDuration = formatSeconds(reminingDuration)
     val formatTotalDuration = formatSeconds(totalDuration)
-    
+
     LaunchedEffect(guid, streamData, playInfoResponse) {
         currentMediaGuid = playInfoResponse.mediaGuid
         mediaGuidAudioGuidMap.clear()
@@ -454,7 +462,7 @@ fun MediaInfo(
             }
         }
     }
-    
+
     LaunchedEffect(currentMediaGuid, guid, streamData) {
         streamData.videoStreams.forEach {
             if (it.mediaGuid == currentMediaGuid) {
@@ -475,12 +483,15 @@ fun MediaInfo(
 //            .sortedByDescending { it.index }
         currentSubtitleStreamList = listOf(noDisplayStream) + currentSubtitleStreamList
         currentSubtitleStreamGuid = mediaGuidSubTitleGuidMap[currentMediaGuid]
+        currentFileInfo = streamData.files.firstOrNull {
+            it.guid == currentMediaGuid
+        }
     }
-    
+
     LaunchedEffect(selectedVideoStreamIndex, guid) {
         currentMediaGuid = streamData.videoStreams[selectedVideoStreamIndex].mediaGuid
     }
-    
+
     LaunchedEffect(currentAudioStreamGuid, guid) {
         currentAudioStream = streamData.audioStreams.firstOrNull {
             it.guid == currentAudioStreamGuid
@@ -512,32 +523,35 @@ fun MediaInfo(
                 )
             }
         }
-
-        MiddleControls(
-            modifier = Modifier.padding(bottom = 16.dp),
-            itemData,
-            formatTotalDuration,
-            guid,
-            toastManager,
-            currentMediaGuid,
-            selectedVideoStreamIndex,
-            streamData,
-            currentAudioStream,
-            currentAudioStreamList,
-            currentSubtitleStream,
-            currentSubtitleStreamList,
-            iso6392State,
-            iso3166State,
-            iso6391State,
-            onAudioSelected = {
-                currentAudioStreamGuid = it
-                mediaGuidAudioGuidMap[currentMediaGuid] = it
-            },
-            onSubtitleSelected = {
-                currentSubtitleStreamGuid = it
-                mediaGuidSubTitleGuidMap[currentMediaGuid] = it
-            }
-        )
+        CompositionLocalProvider(
+            LocalFileInfo provides currentFileInfo
+        ) {
+            MiddleControls(
+                modifier = Modifier.padding(bottom = 16.dp),
+                itemData,
+                formatTotalDuration,
+                guid,
+                toastManager,
+                currentMediaGuid,
+                selectedVideoStreamIndex,
+                streamData,
+                currentAudioStream,
+                currentAudioStreamList,
+                currentSubtitleStream,
+                currentSubtitleStreamList,
+                iso6392State,
+                iso3166State,
+                iso6391State,
+                onAudioSelected = {
+                    currentAudioStreamGuid = it
+                    mediaGuidAudioGuidMap[currentMediaGuid] = it
+                },
+                onSubtitleSelected = {
+                    currentSubtitleStreamGuid = it
+                    mediaGuidSubTitleGuidMap[currentMediaGuid] = it
+                }
+            )
+        }
 
         if (streamData.videoStreams.size > 1) {
             MediaSourceBoxes(modifier = Modifier.padding(bottom = 16.dp), streamData, onClick = {
@@ -604,7 +618,7 @@ fun ProgressBar(
                 (watchedTs.toFloat() / totalDuration.toFloat())
             },
             modifier = Modifier.width(300.dp),
-            color = Colors.PrimaryColor, // 蓝色
+            color = Colors.AccentColorDefault, // 蓝色
             trackColor = Color.DarkGray.copy(alpha = 0.4f),
             strokeCap = ProgressIndicatorDefaults.CircularDeterminateStrokeCap,
             gapSize = 0.dp,
@@ -718,7 +732,7 @@ fun MiddleControls(
                 onClick = {
                     playMedia()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Colors.PrimaryColor), // 蓝色背景
+                colors = ButtonDefaults.buttonColors(containerColor = Colors.AccentColorDefault), // 蓝色背景
                 shape = CircleShape, // 圆角
                 modifier = Modifier.height(56.dp).width(160.dp).pointerHoverIcon(PointerIcon.Hand)
             ) {
@@ -755,7 +769,7 @@ fun MiddleControls(
             // 是否已观看按钮
             CircleIconButton(
                 icon = Icons.Regular.Checkmark, description = "已观看",
-                iconColor = if (isWatched) Colors.PrimaryColor else FluentTheme.colors.text.text.primary,
+                iconColor = if (isWatched) Colors.AccentColorDefault else FluentTheme.colors.text.text.primary,
                 onClick = {
                     watchedViewModel.toggleWatched(
                         guid,
@@ -953,9 +967,11 @@ fun AudioSelector(
             in listOf("", "und", "zxx", "qaa-qtz") -> {
                 "未知音频"
             }
+
             null -> {
                 "未知音频"
             }
+
             else -> {
                 (iso6392Map[currentAudioStream.language]?.value
                     ?: currentAudioStream.language) + "音频"
@@ -1001,12 +1017,15 @@ fun SubtitleSelector(
                         subtitleStream.language in listOf("", "und", "zxx", "qaa-qtz") -> {
                             "未知"
                         }
+
                         subtitleStream.language.length == 3 -> {
                             iso6392Map[subtitleStream.language]?.value ?: subtitleStream.language
                         }
+
                         subtitleStream.language.length == 2 -> {
                             iso6391Map[subtitleStream.language]?.value ?: subtitleStream.language
                         }
+
                         else -> {
                             subtitleStream.language
                         }
@@ -1029,22 +1048,28 @@ fun SubtitleSelector(
             in listOf("", "und", "zxx", "qaa-qtz") -> {
                 "未知字幕"
             }
+
             null -> {
                 "未知字幕"
             }
+
             else -> {
                 val languageName = when {
-                currentSubtitleStream.language.length == 3 -> {
-                    iso6392Map[currentSubtitleStream.language]?.value ?: currentSubtitleStream.language
+                    currentSubtitleStream.language.length == 3 -> {
+                        iso6392Map[currentSubtitleStream.language]?.value
+                            ?: currentSubtitleStream.language
+                    }
+
+                    currentSubtitleStream.language.length == 2 -> {
+                        iso6391Map[currentSubtitleStream.language]?.value
+                            ?: currentSubtitleStream.language
+                    }
+
+                    else -> {
+                        currentSubtitleStream.language
+                    }
                 }
-                currentSubtitleStream.language.length == 2 -> {
-                    iso6391Map[currentSubtitleStream.language]?.value ?: currentSubtitleStream.language
-                }
-                else -> {
-                    currentSubtitleStream.language
-                }
-            }
-            "${languageName}字幕"
+                "${languageName}字幕"
             }
         }
     val selectedIndex by remember(currentSubtitleStream) {
@@ -1052,7 +1077,8 @@ fun SubtitleSelector(
             currentSubtitleStreamList.indexOfFirst { it.guid == currentSubtitleStream?.guid }
         }
     }
-    StreamSelector(selectorOptions, selectedLanguage, onSubtitleSelected, true,
+    StreamSelector(
+        selectorOptions, selectedLanguage, onSubtitleSelected, true,
         currentSubtitleStream?.mediaGuid ?: "", guid, selectedIndex
     )
 }
@@ -1230,13 +1256,13 @@ fun CircleIconButton(
 @Composable
 fun VideoSelectionBox(text: String, onClick: () -> Unit, isSelected: Boolean) {
     var isHovered by remember { mutableStateOf(false) }
-    val textColor = if (isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.primary
+    val textColor = if (isSelected) Colors.AccentColorDefault else FluentTheme.colors.text.text.primary
     val backgroundColor by animateColorAsState(
         targetValue = if (isHovered) FluentTheme.colors.stroke.control.default.copy(alpha = 0.02f) else Color.Transparent
     )
     val borderColor by animateColorAsState(
         targetValue = if (isSelected) {
-            Colors.PrimaryColor
+            Colors.AccentColorDefault
         } else if (isHovered) FluentTheme.colors.stroke.control.default.copy(alpha = 0.3f) else FluentTheme.colors.stroke.control.default.copy(
             alpha = 0.1f
         )

@@ -5,6 +5,10 @@ import com.jankinwu.fntv.client.data.model.request.LoginRequest
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
 import com.jankinwu.fntv.client.data.model.request.StreamRequest
+import com.jankinwu.fntv.client.data.model.request.SubtitleDownloadRequest
+import com.jankinwu.fntv.client.data.model.request.SubtitleMarkRequest
+import com.jankinwu.fntv.client.data.model.request.SubtitleSearchRequest
+import com.jankinwu.fntv.client.data.model.response.AuthDirResponse
 import com.jankinwu.fntv.client.data.model.response.EpisodeListResponse
 import com.jankinwu.fntv.client.data.model.response.GenresResponse
 import com.jankinwu.fntv.client.data.model.response.ItemListQueryResponse
@@ -16,8 +20,12 @@ import com.jankinwu.fntv.client.data.model.response.PlayDetailResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.PlayPlayResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
+import com.jankinwu.fntv.client.data.model.response.ServerPathResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
+import com.jankinwu.fntv.client.data.model.response.SubtitleDownloadResponse
+import com.jankinwu.fntv.client.data.model.response.SubtitleMarkResponse
+import com.jankinwu.fntv.client.data.model.response.SubtitleSearchResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleUploadResponse
 import com.jankinwu.fntv.client.data.model.response.TagListResponse
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
@@ -69,4 +77,14 @@ interface FnOfficialApi {
     suspend fun uploadSubtitle(guid: String, file: ByteArray, fileName: String): SubtitleUploadResponse
 
     suspend fun deleteSubtitle(subtitleGuid: String): Boolean
+
+    suspend fun getAppAuthorizedDir(withoutCache: Int): AuthDirResponse
+
+    suspend fun getFilesByServerPath(path: String): List<ServerPathResponse>
+
+    suspend fun subtitleMark(request: SubtitleMarkRequest): List<SubtitleMarkResponse>
+
+    suspend fun subtitleSearch(request: SubtitleSearchRequest): SubtitleSearchResponse
+
+    suspend fun subtitleDownload(request: SubtitleDownloadRequest): SubtitleDownloadResponse
 }

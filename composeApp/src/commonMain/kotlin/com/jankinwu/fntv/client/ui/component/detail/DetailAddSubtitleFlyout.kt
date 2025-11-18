@@ -56,7 +56,8 @@ import java.io.File
 fun MediaDetailAddSubtitleFlyout(
     mediaGuid: String,
     modifier: Modifier = Modifier,
-    guid: String
+    guid: String,
+    onAddNasSubtitleSelected: (String) -> Unit = {},
 ) {
     val frameWindowScope = LocalFrameWindowScope.current
     val subtitleUploadViewModel: SubtitleUploadViewModel = koinViewModel()
@@ -129,6 +130,7 @@ fun MediaDetailAddSubtitleFlyout(
                 },
                 onClick = {
                     isFlyoutVisible = false
+                    onAddNasSubtitleSelected(mediaGuid)
                 },
                 icon = {
                     Icon(

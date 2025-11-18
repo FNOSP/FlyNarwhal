@@ -41,10 +41,11 @@ import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.Delete
-import com.jankinwu.fntv.client.ui.FlyoutTitleItemColors
+import com.jankinwu.fntv.client.ui.flyoutTitleItemColors
 import com.jankinwu.fntv.client.ui.component.common.CustomContentDialog
 import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
+import com.jankinwu.fntv.client.viewmodel.SubtitleMarkViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ContentDialogButton
@@ -73,10 +74,12 @@ fun StreamSelector(
 ) {
     val lazyListState = rememberScrollState(0)
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showAddNasSubtitleDialog by remember { mutableStateOf(false) }
     var deletedItemTitle by remember { mutableStateOf("") }
     var deletedItemGuid by remember { mutableStateOf("") }
     val subtitleDeleteViewModel: SubtitleDeleteViewModel = koinViewModel()
     val subtitleDeleteState by subtitleDeleteViewModel.uiState.collectAsState()
+    val subtitleMarkViewModel: SubtitleMarkViewModel = koinViewModel()
     val streamListViewModel: StreamListViewModel = koinViewModel()
     val density = LocalDensity.current
 
@@ -126,7 +129,10 @@ fun StreamSelector(
                                 MediaDetailAddSubtitleFlyout(
                                     mediaGuid,
                                     modifier = Modifier.hoverable(interactionSource),
-                                    guid
+                                    guid,
+                                    onAddNasSubtitleSelected = {
+                                        showAddNasSubtitleDialog = true
+                                    }
                                 )
                             }
                         },
@@ -135,7 +141,7 @@ fun StreamSelector(
                             .width(240.dp)
                             .padding(bottom = 4.dp, top = 6.dp)
                             .hoverable(interactionSource),
-                        colors = FlyoutTitleItemColors()
+                        colors = flyoutTitleItemColors()
                     )
                 }
                 ScrollbarContainer(
@@ -151,7 +157,6 @@ fun StreamSelector(
                             .verticalScroll(lazyListState)
                     ) {
                         LaunchedEffect(Unit) {
-                            println("selectedIndex: $selectedIndex")
                             delay(100)
                             val itemHeightPx = with(density) { 57.dp.toPx() }
                             val titleHeightPx = with(density) { 36.dp.toPx() }
@@ -262,6 +267,29 @@ fun StreamSelector(
             )
         }
     )
+    AddNasSubtitleDialog(
+        title = "添加 NAS 字幕文件",
+        visible = showAddNasSubtitleDialog,
+        size = DialogSize.Max,
+        primaryButtonText = "选择",
+        secondaryButtonText = "取消",
+        onButtonClick = { contentDialogButton, selectedPaths ->
+            when (contentDialogButton) {
+                ContentDialogButton.Primary -> {
+                    // 添加 NAS 字幕
+                    selectedPaths?.let {
+                        subtitleMarkViewModel.markSubtitles(mediaGuid, selectedPaths.toList())
+                    }
+                }
+                ContentDialogButton.Secondary -> {
+
+                }
+
+                ContentDialogButton.Close -> {}
+            }
+            showAddNasSubtitleDialog = false
+        }
+    )
 }
 
 @Composable
@@ -296,7 +324,7 @@ fun FlyoutContainerScope.StreamSelectorRow(
         ) {
             Text(
                 text = title + if (isDefault) " - 默认" else "",
-                color = if (isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.primary,
+                color = if (isSelected) Colors.AccentColorDefault else FluentTheme.colors.text.text.primary,
                 fontWeight = FontWeight.Normal,
                 fontSize = 15.sp,
                 modifier = Modifier
@@ -304,7 +332,7 @@ fun FlyoutContainerScope.StreamSelectorRow(
             )
             Text(
                 text = "$subtitle1 $subtitle2  $subtitle3",
-                color = if (isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.secondary,
+                color = if (isSelected) Colors.AccentColorDefault else FluentTheme.colors.text.text.secondary,
                 fontWeight = FontWeight.Normal,
                 fontSize = 12.sp,
                 maxLines = 1,
@@ -366,7 +394,7 @@ fun FlyoutContainerScope.StreamSelectorRow(
             Icon(
                 imageVector = Icons.Regular.Checkmark,
                 contentDescription = "已选择",
-                tint = Colors.PrimaryColor,
+                tint = Colors.AccentColorDefault,
                 modifier = Modifier
                     .weight(1f)
                     .size(18.dp)
@@ -397,7 +425,7 @@ fun NoDisplayRow(
         ) {
             Text(
                 text = title + if (isDefault) " - 默认" else "",
-                color = if (isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.primary,
+                color = if (isSelected) Colors.AccentColorDefault else FluentTheme.colors.text.text.primary,
                 fontWeight = FontWeight.Normal,
                 fontSize = 15.sp,
                 modifier = Modifier
@@ -408,7 +436,7 @@ fun NoDisplayRow(
             Icon(
                 imageVector = Icons.Regular.Checkmark,
                 contentDescription = "",
-                tint = Colors.PrimaryColor,
+                tint = Colors.AccentColorDefault,
                 modifier = Modifier
                     .weight(1f)
                     .size(18.dp)

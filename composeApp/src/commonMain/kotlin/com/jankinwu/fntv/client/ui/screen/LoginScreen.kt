@@ -75,7 +75,7 @@ import com.jankinwu.fntv.client.ui.component.common.ForgotPasswordDialog
 import com.jankinwu.fntv.client.ui.component.common.NumberInput
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
-import com.jankinwu.fntv.client.ui.selectedCheckBoxColors
+import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
 import com.jankinwu.fntv.client.ui.selectedSwitcherStyle
 import com.jankinwu.fntv.client.viewmodel.LoginViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
@@ -347,7 +347,7 @@ fun LoginScreen(navigator: ComponentNavigator) {
                             "记住密码",
                             onCheckStateChange = { rememberMe = it },
                             colors = if (rememberMe) {
-                                selectedCheckBoxColors()
+                                customSelectedCheckBoxColors()
                             } else {
                                 CheckBoxDefaults.defaultCheckBoxColors()
                             }
