@@ -82,10 +82,10 @@ import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
+import com.jankinwu.fntv.client.data.model.response.VideoStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.enums.MediaQualityTagEnums
 import com.jankinwu.fntv.client.icons.ArrowLeft
-import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.HeartFilled
 import com.jankinwu.fntv.client.ui.component.common.CastScrollRow
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
@@ -93,11 +93,11 @@ import com.jankinwu.fntv.client.ui.component.common.ImgLoadingError
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.ToastManager
+import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
+import com.jankinwu.fntv.client.ui.component.detail.MediaInfo
 import com.jankinwu.fntv.client.ui.component.detail.StreamOptionItem
 import com.jankinwu.fntv.client.ui.component.detail.StreamSelector
 import com.jankinwu.fntv.client.ui.component.detail.noDisplayStream
-import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
-import com.jankinwu.fntv.client.ui.component.detail.MediaInfoScreen
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemViewModel
@@ -106,7 +106,6 @@ import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
-import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.Icon
@@ -123,6 +122,23 @@ val LocalFileInfo = staticCompositionLocalOf<FileInfo?> {
     error("No FileInfo provided")
 }
 
+data class CurrentStreamData(
+    val fileInfo: FileInfo,
+    val videoStream: VideoStream,
+    val audioStreamList: List<AudioStream>,
+    val subtitleStreamList: List<SubtitleStream>
+)
+
+data class IsoTagData(
+    val iso6391Map: Map<String, QueryTagResponse>,
+    val iso6392Map: Map<String, QueryTagResponse>,
+    val iso3166Map: Map<String, QueryTagResponse>
+)
+
+val LocalIsoTagData = staticCompositionLocalOf<IsoTagData> {
+    error("No IsoTagData provided")
+}
+
 @Composable
 fun MovieDetailScreen(
     guid: String,
@@ -134,25 +150,30 @@ fun MovieDetailScreen(
     val streamListViewModel: StreamListViewModel = koinViewModel()
     val streamUiState by streamListViewModel.uiState.collectAsState()
     var streamData: StreamListResponse? by remember { mutableStateOf(null) }
-    val userInfoViewModel: UserInfoViewModel = koinViewModel()
-    val userInfoUiState by userInfoViewModel.uiState.collectAsState()
     val playInfoViewModel: PlayInfoViewModel = koinViewModel()
     val playInfoUiState by playInfoViewModel.uiState.collectAsState()
-    val store = LocalStore.current
-    val windowHeight = store.windowHeightState
-    val toastManager = rememberToastManager()
     val personListViewModel: PersonListViewModel = koinViewModel()
     val personListState by personListViewModel.uiState.collectAsState()
     var personList: List<PersonList> by remember { mutableStateOf(emptyList()) }
-    var scrollRowItemList by remember { mutableStateOf(emptyList<ScrollRowItemData>()) }
+    var castScrollRowItemList by remember { mutableStateOf(emptyList<ScrollRowItemData>()) }
     var playInfoResponse: PlayInfoResponse? by remember { mutableStateOf(null) }
     val tagViewModel: TagViewModel = koinViewModel<TagViewModel>()
     val iso6392State by tagViewModel.iso6392State.collectAsState()
     val iso6391State by tagViewModel.iso6391State.collectAsState()
     val iso3166State by tagViewModel.iso3166State.collectAsState()
+    var isoTagData by remember {
+        mutableStateOf(
+            IsoTagData(
+                iso6391Map = emptyMap(),
+                iso6392Map = emptyMap(),
+                iso3166Map = emptyMap()
+            )
+        )
+    }
     val genresViewModel: GenresViewModel = koinViewModel<GenresViewModel>()
     val refreshState = LocalRefreshState.current
-
+    var currentMediaGuid by remember { mutableStateOf(playInfoResponse?.mediaGuid ?: "") }
+    var currentStreamData: CurrentStreamData? by remember { mutableStateOf(null) }
     LaunchedEffect(Unit) {
         itemViewModel.loadData(guid)
         streamListViewModel.loadData(guid)
@@ -213,8 +234,8 @@ fun MovieDetailScreen(
         when (personListState) {
             is UiState.Success -> {
                 personList = (personListState as UiState.Success<PersonListResponse>).data.list
-                scrollRowItemList = convertPersonToScrollRowItemData(personList)
-                print("scrollRowItemList: $scrollRowItemList")
+                castScrollRowItemList = convertPersonToScrollRowItemData(personList)
+                print("scrollRowItemList: $castScrollRowItemList")
             }
 
             is UiState.Error -> {
@@ -237,6 +258,92 @@ fun MovieDetailScreen(
             else -> {}
         }
     }
+    LaunchedEffect(currentMediaGuid) {
+        val streamData = streamData
+        if (currentMediaGuid.isNotEmpty() && streamData != null) {
+            val currentFileInfo = streamData.files.first {
+                it.guid == currentMediaGuid
+            }
+            val currentVideoStream = streamData.videoStreams
+                .first {
+                    it.mediaGuid == currentMediaGuid
+                }
+            val currentAudioStreamList = streamData.audioStreams
+                .filter {
+                    it.mediaGuid == currentMediaGuid
+                }
+            val currentSubtitleStreamList = streamData.subtitleStreams
+                .filter {
+                    it.mediaGuid == currentMediaGuid
+                }
+            currentStreamData = CurrentStreamData(
+                currentFileInfo,
+                currentVideoStream,
+                currentAudioStreamList,
+                currentSubtitleStreamList
+            )
+        }
+    }
+    LaunchedEffect(iso6391State, iso6392State, iso3166State) {
+        val newIso6391Map = if (iso6391State is UiState.Success) {
+            (iso6391State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+        } else {
+            emptyMap()
+        }
+
+        val newIso6392Map = if (iso6392State is UiState.Success) {
+            (iso6392State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+        } else {
+            emptyMap()
+        }
+
+        val newIso3166Map = if (iso3166State is UiState.Success) {
+            (iso3166State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+        } else {
+            emptyMap()
+        }
+
+        isoTagData = IsoTagData(
+            iso6391Map = newIso6391Map,
+            iso6392Map = newIso6392Map,
+            iso3166Map = newIso3166Map
+        )
+    }
+    CompositionLocalProvider(
+        LocalIsoTagData provides isoTagData
+    ) {
+        val currentItem = itemData
+        val currentStream = streamData
+        val playInfoResponse = playInfoResponse
+        if (currentItem != null && currentStream != null && playInfoResponse != null) {
+            MovieDetailBody(
+                currentItem,
+                currentStream,
+                playInfoResponse,
+                guid,
+                currentStreamData,
+                castScrollRowItemList,
+                navigator,
+                onMediaGuidChanged = { currentMediaGuid = it }
+            )
+        }
+    }
+}
+
+@Composable
+fun MovieDetailBody(
+    itemData: ItemResponse,
+    streamData: StreamListResponse,
+    playInfoResponse: PlayInfoResponse,
+    guid: String,
+    currentStreamData: CurrentStreamData?,
+    castScrollRowItemList: List<ScrollRowItemData>,
+    navigator: ComponentNavigator,
+    onMediaGuidChanged: (String) -> Unit
+) {
+    val store = LocalStore.current
+    val windowHeight = store.windowHeightState
+    val toastManager = rememberToastManager()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -250,28 +357,67 @@ fun MovieDetailScreen(
                 state = lazyListState,
             ) {
                 item {
-                    if (itemData != null) {
-                        Box(
+                    Box(
+                        modifier = Modifier
+                            .height((windowHeight / 2.dp).dp)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        val backdropsImg =
+                            if (!itemData.backdrops.isNullOrBlank()) itemData.backdrops else itemData.posters
+                        // 背景图
+                        SubcomposeAsyncImage(
+                            model = ImageRequest.Builder(PlatformContext.INSTANCE)
+                                .data("${AccountDataCache.getFnOfficialBaseUrl()}/v/api/v1/sys/img${backdropsImg}")
+                                .httpHeaders(store.fnImgHeaders)
+                                .crossfade(true)
+                                .size(Size.ORIGINAL)
+                                .build(),
+                            contentDescription = itemData.title,
                             modifier = Modifier
                                 .height((windowHeight / 2.dp).dp)
                                 .fillMaxWidth(),
-                            contentAlignment = Alignment.TopCenter
-                        ) {
-                            val backdropsImg =
-                                if (!itemData?.backdrops.isNullOrBlank()) itemData?.backdrops else itemData?.posters
-                            // 背景图
+                            contentScale = ContentScale.Crop,
+                            filterQuality = FilterQuality.High,
+                            loading = {
+                                ImgLoadingProgressRing()
+                            },
+                            error = {
+                                ImgLoadingError()
+                            },
+                        )
+                        // 渐变遮罩层
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight
+                                        ),
+                                        startY = (windowHeight / 4.dp).dp.value, // 开始渐变的位置
+                                        endY = (windowHeight / 2.dp).dp.value    // 结束渐变的位置
+                                    )
+                                )
+                        )
+                        // 标题
+                        if (itemData.logos != null) {
+                            var imageHeight by remember { mutableStateOf(90.dp) }
                             SubcomposeAsyncImage(
                                 model = ImageRequest.Builder(PlatformContext.INSTANCE)
-                                    .data("${AccountDataCache.getFnOfficialBaseUrl()}/v/api/v1/sys/img${backdropsImg}")
+                                    .data("${AccountDataCache.getFnOfficialBaseUrl()}/v/api/v1/sys/img${itemData.logos}")
                                     .httpHeaders(store.fnImgHeaders)
                                     .crossfade(true)
-                                    .size(Size.ORIGINAL)
+//                                        .size(Size.ORIGINAL)
+                                    .precision(Precision.EXACT)
                                     .build(),
-                                contentDescription = itemData?.title,
+                                contentDescription = itemData.title,
                                 modifier = Modifier
-                                    .height((windowHeight / 2.dp).dp)
-                                    .fillMaxWidth(),
-                                contentScale = ContentScale.Crop,
+                                    .align(Alignment.BottomStart)
+                                    .height(imageHeight)
+                                    .padding(start = 48.dp, bottom = 12.dp),
+                                contentScale = ContentScale.FillHeight,
                                 filterQuality = FilterQuality.High,
                                 loading = {
                                     ImgLoadingProgressRing()
@@ -279,113 +425,72 @@ fun MovieDetailScreen(
                                 error = {
                                     ImgLoadingError()
                                 },
-                            )
-                            // 渐变遮罩层
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        brush = Brush.verticalGradient(
-                                            colors = listOf(
-                                                Color.Transparent,
-                                                if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight
-                                            ),
-                                            startY = (windowHeight / 4.dp).dp.value, // 开始渐变的位置
-                                            endY = (windowHeight / 2.dp).dp.value    // 结束渐变的位置
-                                        )
-                                    )
-                            )
-                            // 标题
-                            if (itemData?.logos != null) {
-                                var imageHeight by remember { mutableStateOf(90.dp) }
-                                SubcomposeAsyncImage(
-                                    model = ImageRequest.Builder(PlatformContext.INSTANCE)
-                                        .data("${AccountDataCache.getFnOfficialBaseUrl()}/v/api/v1/sys/img${itemData?.logos}")
-                                        .httpHeaders(store.fnImgHeaders)
-                                        .crossfade(true)
-//                                        .size(Size.ORIGINAL)
-                                        .precision(Precision.EXACT)
-                                        .build(),
-                                    contentDescription = itemData?.title,
-                                    modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        .height(imageHeight)
-                                        .padding(start = 48.dp, bottom = 12.dp),
-                                    contentScale = ContentScale.FillHeight,
-                                    filterQuality = FilterQuality.High,
-                                    loading = {
-                                        ImgLoadingProgressRing()
-                                    },
-                                    error = {
-                                        ImgLoadingError()
-                                    },
-                                    onSuccess = { state ->
-                                        // 获取图片尺寸并判断是否需要调整高度
-                                        state.result.image.let { drawable ->
-                                            imageHeight = 90.dp
-                                            val width = drawable.width
-                                            val height = drawable.height
-                                            val actualWidth = width.toDouble() / height * 90
+                                onSuccess = { state ->
+                                    // 获取图片尺寸并判断是否需要调整高度
+                                    state.result.image.let { drawable ->
+                                        imageHeight = 90.dp
+                                        val width = drawable.width
+                                        val height = drawable.height
+                                        val actualWidth = width.toDouble() / height * 90
 //                                            println("width: $width, height: $height, actualWidth: $actualWidth")
-                                            if (actualWidth > 0 && actualWidth < 280) {
-                                                imageHeight = 150.dp
-                                            }
+                                        if (actualWidth > 0 && actualWidth < 280) {
+                                            imageHeight = 150.dp
                                         }
                                     }
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomStart)
-//                                        .width(200.dp)
-                                        .padding(start = 48.dp, end = 48.dp, bottom = 12.dp)
-                                ) {
-                                    itemData?.title?.let {
-                                        Text(
-                                            text = it,
-                                            style = LocalTypography.current.title,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color.White,
-                                            lineHeight = 80.sp,
-                                            fontSize = 60.sp,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
                                 }
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+//                                        .width(200.dp)
+                                    .padding(start = 48.dp, end = 48.dp, bottom = 12.dp)
+                            ) {
+                                Text(
+                                    text = itemData.title,
+                                    style = LocalTypography.current.title,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White,
+                                    lineHeight = 80.sp,
+                                    fontSize = 60.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
                 }
                 item {
-                    val currentItem = itemData
-                    val currentStream = streamData
-                    val playInfoResponse = playInfoResponse
-                    if (currentItem != null && currentStream != null && playInfoResponse != null) {
-                        MediaInfo(
-                            currentItem,
-                            currentStream,
-                            guid,
-                            toastManager,
-                            playInfoResponse,
-                            iso6392State,
-                            iso3166State,
-                            iso6391State,
-                            modifier = Modifier
-                                .padding(horizontal = 48.dp)
-                        )
-                    }
+//                    val currentItem = itemData
+//                    val currentStream = streamData
+//                    val playInfoResponse = playInfoResponse
+                    MediaInfo(
+                        itemData,
+                        streamData,
+                        guid,
+                        toastManager,
+                        playInfoResponse,
+                        modifier = Modifier
+                            .padding(horizontal = 48.dp),
+                        onMediaGuidChanged = {
+                            onMediaGuidChanged(it)
+                        }
+                    )
                 }
                 item {
                     CastScrollRow(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
-                        scrollRowItemList
+                        castScrollRowItemList
                     )
                 }
-                item{
-                    MediaInfoScreen(modifier = Modifier.padding(horizontal = 48.dp))
+                item {
+                    currentStreamData?.let {
+                        MediaInfo(modifier = Modifier.padding(horizontal = 48.dp), it,
+                            itemData.imdbId?: ""
+                        )
+                    }
                 }
             }
         }
@@ -418,10 +523,8 @@ fun MediaInfo(
     guid: String,
     toastManager: ToastManager,
     playInfoResponse: PlayInfoResponse,
-    iso6392State: UiState<List<QueryTagResponse>>,
-    iso3166State: UiState<List<QueryTagResponse>>,
-    iso6391State: UiState<List<QueryTagResponse>>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onMediaGuidChanged: (String) -> Unit = {},
 ) {
     var currentMediaGuid by remember { mutableStateOf(playInfoResponse.mediaGuid) }
     var selectedVideoStreamIndex by remember { mutableIntStateOf(0) }
@@ -493,6 +596,7 @@ fun MediaInfo(
         currentFileInfo = streamData.files.firstOrNull {
             it.guid == currentMediaGuid
         }
+        onMediaGuidChanged(currentMediaGuid)
     }
 
     LaunchedEffect(selectedVideoStreamIndex, guid) {
@@ -546,9 +650,6 @@ fun MediaInfo(
                 currentAudioStreamList,
                 currentSubtitleStream,
                 currentSubtitleStreamList,
-                iso6392State,
-                iso3166State,
-                iso6391State,
                 onAudioSelected = {
                     currentAudioStreamGuid = it
                     mediaGuidAudioGuidMap[currentMediaGuid] = it
@@ -654,9 +755,6 @@ fun MiddleControls(
     currentAudioStreamList: List<AudioStream>,
     currentSubtitleStream: SubtitleStream?,
     currentSubtitleStreamList: List<SubtitleStream>,
-    iso6392State: UiState<List<QueryTagResponse>>,
-    iso3166State: UiState<List<QueryTagResponse>>,
-    iso6391State: UiState<List<QueryTagResponse>>,
     onAudioSelected: (audioGuid: String) -> Unit,
     onSubtitleSelected: (subtitleGuid: String) -> Unit
 ) {
@@ -676,6 +774,7 @@ fun MiddleControls(
     var isWatched by remember(itemData.isWatched == 1) { mutableStateOf(itemData.isWatched == 1) }
     val streamListViewModel: StreamListViewModel = koinViewModel()
     val itemViewModel: ItemViewModel = koinViewModel()
+    val isoTagData = LocalIsoTagData.current
     // 监听收藏操作结果并显示提示
     LaunchedEffect(favoriteUiState) {
         when (val state = favoriteUiState) {
@@ -859,10 +958,9 @@ fun MiddleControls(
                     }
                     Separator()
                 }
-                if (iso3166State is UiState.Success) {
-                    val iso3166Map = iso3166State.data.associateBy { it.key }
+                if (isoTagData.iso6391Map.isNotEmpty()) {
                     val countriesText = itemData.productionCountries?.joinToString(" ") { locate ->
-                        iso3166Map[locate]?.value ?: locate
+                        isoTagData.iso6391Map[locate]?.value ?: locate
                     }
                     if (!countriesText.isNullOrBlank()) {
                         Text(
@@ -897,20 +995,14 @@ fun MiddleControls(
                     currentSubtitleStreamList,
                     currentSubtitleStream,
                     onSubtitleSelected,
-                    iso6392State,
-                    iso6391State,
                     guid
                 )
                 AudioSelector(
                     currentAudioStreamList,
                     currentAudioStream,
-                    onAudioSelected,
-                    iso6392State
+                    onAudioSelected
                 )
 
-
-//                MediaQualityTag(streamData.videoStreams[selectedVideoStreamIndex].resolutionType)
-//                MediaQualityTag(streamData.videoStreams[selectedVideoStreamIndex].colorRangeType)
                 val safeCurrentVideoStream by remember(streamData, selectedVideoStreamIndex) {
                     derivedStateOf {
                         if (streamData.videoStreams.isNotEmpty() &&
@@ -940,13 +1032,9 @@ fun AudioSelector(
     currentAudioStreamList: List<AudioStream>,
     currentAudioStream: AudioStream?,
     onAudioSelected: (String) -> Unit,
-    iso6392State: UiState<List<QueryTagResponse>>
 ) {
-    var iso6392Map: Map<String, QueryTagResponse> by remember { mutableStateOf(mapOf()) }
-
-    if (iso6392State is UiState.Success<List<QueryTagResponse>>) {
-        iso6392Map = iso6392State.data.associateBy { it.key }
-    }
+    val isoTagData = LocalIsoTagData.current
+    val iso6392Map = isoTagData.iso6392Map
 
     val selectorOptions by remember(currentAudioStreamList, iso6392Map, currentAudioStream) {
         derivedStateOf {
@@ -1002,19 +1090,11 @@ fun SubtitleSelector(
     currentSubtitleStreamList: List<SubtitleStream>,
     currentSubtitleStream: SubtitleStream?,
     onSubtitleSelected: (String) -> Unit,
-    iso6392State: UiState<List<QueryTagResponse>>,
-    iso6391State: UiState<List<QueryTagResponse>>,
     guid: String = ""
 ) {
-    var iso6392Map: Map<String, QueryTagResponse> by remember { mutableStateOf(mapOf()) }
-    var iso6391Map: Map<String, QueryTagResponse> by remember { mutableStateOf(mapOf()) }
-
-    if (iso6392State is UiState.Success<List<QueryTagResponse>>) {
-        iso6392Map = iso6392State.data.associateBy { it.key }
-    }
-    if (iso6391State is UiState.Success<List<QueryTagResponse>>) {
-        iso6391Map = iso6391State.data.associateBy { it.key }
-    }
+    val isoTagData = LocalIsoTagData.current
+    val iso6391Map = isoTagData.iso6391Map
+    val iso6392Map = isoTagData.iso6392Map
 
     val selectorOptions by remember(currentSubtitleStreamList, iso6392Map, currentSubtitleStream) {
         derivedStateOf {
@@ -1111,25 +1191,6 @@ fun MediaDescription(modifier: Modifier = Modifier, itemData: ItemResponse?) {
         lineHeight = 20.sp,
         modifier = modifier.fillMaxWidth()
     )
-}
-
-/**
- *
- */
-@Composable
-fun InfoIconText(text: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(text = text, color = FluentTheme.colors.text.text.secondary, fontSize = 14.sp)
-        Icon(
-            imageVector = ArrowUp,
-            contentDescription = text,
-            tint = FluentTheme.colors.text.text.tertiary,
-            modifier = Modifier.size(16.dp)
-        )
-    }
 }
 
 /**
@@ -1263,7 +1324,8 @@ fun CircleIconButton(
 @Composable
 fun VideoSelectionBox(text: String, onClick: () -> Unit, isSelected: Boolean) {
     var isHovered by remember { mutableStateOf(false) }
-    val textColor = if (isSelected) Colors.AccentColorDefault else FluentTheme.colors.text.text.primary
+    val textColor =
+        if (isSelected) Colors.AccentColorDefault else FluentTheme.colors.text.text.primary
     val backgroundColor by animateColorAsState(
         targetValue = if (isHovered) FluentTheme.colors.stroke.control.default.copy(alpha = 0.02f) else Color.Transparent
     )
