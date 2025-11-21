@@ -41,11 +41,11 @@ import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.Delete
-import com.jankinwu.fntv.client.ui.component.common.AddNasSubtitleDialog
-import com.jankinwu.fntv.client.ui.flyoutTitleItemColors
-import com.jankinwu.fntv.client.ui.component.common.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.AddSubtitleFlyout
-import com.jankinwu.fntv.client.ui.component.common.SubtitleSearchDialog
+import com.jankinwu.fntv.client.ui.component.common.dialog.AddNasSubtitleDialog
+import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
+import com.jankinwu.fntv.client.ui.component.common.dialog.SubtitleSearchDialog
+import com.jankinwu.fntv.client.ui.flyoutTitleItemColors
 import com.jankinwu.fntv.client.ui.screen.LocalFileInfo
 import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
@@ -75,6 +75,8 @@ fun StreamSelector(
     mediaGuid: String = "",
     guid: String = "",
     selectedIndex: Int = 0,
+    trimIdList: List<String> = emptyList(),
+    onToastShow: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     val lazyListState = rememberScrollState(0)
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -304,9 +306,21 @@ fun StreamSelector(
         visible = showSearchSubtitleDialog,
         size = DialogSize.Max,
         mediaGuid,
+        trimIdList,
         mediaFileName = fileInfo?.fileName ?: "",
-        onDismissRequest = { showSearchSubtitleDialog = false }
+        onDismissRequest = { showSearchSubtitleDialog = false },
+        onSubtitleDownloadSuccess = {
+            streamListViewModel.loadData(guid)
+            onToastShow("下载成功", true)
+        },
+        onSubtitleDownloadFailed = {
+            onToastShow(it, false)
+        }
     )
+//    ToastHost(
+//        toastManager = toastManager,
+//        modifier = Modifier.fillMaxSize()
+//    )
 }
 
 @Composable

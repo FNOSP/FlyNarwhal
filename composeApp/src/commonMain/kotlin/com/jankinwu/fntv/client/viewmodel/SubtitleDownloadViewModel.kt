@@ -20,7 +20,7 @@ class SubtitleDownloadViewModel : BaseViewModel() {
     fun downloadSubtitle(mediaGuid: String, trimId: String, syncDownload: Int = 1) {
         val request = SubtitleDownloadRequest(mediaGuid, trimId, syncDownload)
         viewModelScope.launch {
-            executeWithLoading(_uiState) {
+            executeWithLoading(_uiState, trimId) {
                 fnOfficialApi.subtitleDownload(request)
             }
         }

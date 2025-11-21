@@ -491,7 +491,8 @@ fun MovieDetailBody(
                 }
                 item {
                     currentStreamData?.let {
-                        MediaInfo(modifier = Modifier.padding(horizontal = 48.dp), it,
+                        MediaInfo(
+                            modifier = Modifier.padding(horizontal = 48.dp), it,
                             itemData?.imdbId ?: ""
                         )
                     }
@@ -999,7 +1000,8 @@ fun MiddleControls(
                     currentSubtitleStreamList,
                     currentSubtitleStream,
                     onSubtitleSelected,
-                    guid
+                    guid,
+                    toastManager
                 )
                 AudioSelector(
                     currentAudioStreamList,
@@ -1085,7 +1087,7 @@ fun AudioSelector(
         selectorOptions,
         selectedLanguage,
         onAudioSelected,
-        selectedIndex = selectedIndex,
+        selectedIndex = selectedIndex
     )
 }
 
@@ -1094,7 +1096,8 @@ fun SubtitleSelector(
     currentSubtitleStreamList: List<SubtitleStream>,
     currentSubtitleStream: SubtitleStream?,
     onSubtitleSelected: (String) -> Unit,
-    guid: String = ""
+    guid: String = "",
+    toastManager: ToastManager
 ) {
     val isoTagData = LocalIsoTagData.current
     val iso6391Map = isoTagData.iso6391Map
@@ -1168,9 +1171,19 @@ fun SubtitleSelector(
             currentSubtitleStreamList.indexOfFirst { it.guid == currentSubtitleStream?.guid }
         }
     }
+    val trimIdList = currentSubtitleStreamList.map { it.trimId }.filter { it.isNotBlank() }.toList()
     StreamSelector(
-        selectorOptions, selectedLanguage, onSubtitleSelected, true,
-        currentSubtitleStream?.mediaGuid ?: "", guid, selectedIndex
+        selectorOptions,
+        selectedLanguage,
+        onSubtitleSelected,
+        true,
+        currentSubtitleStream?.mediaGuid ?: "",
+        guid,
+        selectedIndex,
+        trimIdList,
+        onToastShow = { message, isSuccess ->
+            toastManager.showToast(message, isSuccess)
+        }
     )
 }
 
