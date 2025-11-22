@@ -139,6 +139,10 @@ val LocalIsoTagData = staticCompositionLocalOf<IsoTagData> {
     error("No IsoTagData provided")
 }
 
+val LocalToastManager = staticCompositionLocalOf<ToastManager> {
+    error("No ToastManager provided")
+}
+
 @Composable
 fun MovieDetailScreen(
     guid: String,
@@ -174,6 +178,8 @@ fun MovieDetailScreen(
     val refreshState = LocalRefreshState.current
     var currentMediaGuid by remember(guid) { mutableStateOf(playInfoResponse?.mediaGuid ?: "") }
     var currentStreamData: CurrentStreamData? by remember(guid) { mutableStateOf(null) }
+    val toastManager = rememberToastManager()
+
     LaunchedEffect(Unit) {
         itemViewModel.loadData(guid)
         streamListViewModel.loadData(guid)
@@ -312,7 +318,8 @@ fun MovieDetailScreen(
         )
     }
     CompositionLocalProvider(
-        LocalIsoTagData provides isoTagData
+        LocalIsoTagData provides isoTagData,
+        LocalToastManager provides toastManager
     ) {
         val currentItem = itemData
         val currentStream = streamData
@@ -343,7 +350,7 @@ fun MovieDetailBody(
 ) {
     val store = LocalStore.current
     val windowHeight = store.windowHeightState
-    val toastManager = rememberToastManager()
+    val toastManager = LocalToastManager.current
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -461,15 +468,12 @@ fun MovieDetailBody(
                     }
                 }
                 item {
-                    val currentItem = itemData
-                    val currentStream = streamData
                     val playInfoResponse = playInfoResponse
-                    if (currentItem != null && currentStream != null && playInfoResponse != null) {
+                    if (itemData != null && streamData != null && playInfoResponse != null) {
                         MediaInfo(
                             itemData,
                             streamData,
                             guid,
-                            toastManager,
                             playInfoResponse,
                             modifier = Modifier
                                 .padding(horizontal = 48.dp),
@@ -524,7 +528,6 @@ fun MediaInfo(
     itemData: ItemResponse,
     streamData: StreamListResponse,
     guid: String,
-    toastManager: ToastManager,
     playInfoResponse: PlayInfoResponse,
     modifier: Modifier = Modifier,
     onMediaGuidChanged: (String) -> Unit = {},
@@ -645,7 +648,6 @@ fun MediaInfo(
                 itemData,
                 formatTotalDuration,
                 guid,
-                toastManager,
                 currentMediaGuid,
                 selectedVideoStreamIndex,
                 streamData,
@@ -750,7 +752,6 @@ fun MiddleControls(
     itemData: ItemResponse,
     formatTotalDuration: String,
     guid: String,
-    toastManager: ToastManager,
     mediaGuid: String,
     selectedVideoStreamIndex: Int,
     streamData: StreamListResponse,
@@ -778,6 +779,8 @@ fun MiddleControls(
     val streamListViewModel: StreamListViewModel = koinViewModel()
     val itemViewModel: ItemViewModel = koinViewModel()
     val isoTagData = LocalIsoTagData.current
+    val toastManager = LocalToastManager.current
+
     // 监听收藏操作结果并显示提示
     LaunchedEffect(favoriteUiState) {
         when (val state = favoriteUiState) {
@@ -998,8 +1001,7 @@ fun MiddleControls(
                     currentSubtitleStreamList,
                     currentSubtitleStream,
                     onSubtitleSelected,
-                    guid,
-                    toastManager
+                    guid
                 )
                 AudioSelector(
                     currentAudioStreamList,
@@ -1095,7 +1097,6 @@ fun SubtitleSelector(
     currentSubtitleStream: SubtitleStream?,
     onSubtitleSelected: (String) -> Unit,
     guid: String = "",
-    toastManager: ToastManager
 ) {
     val isoTagData = LocalIsoTagData.current
     val iso6391Map = isoTagData.iso6391Map
@@ -1179,9 +1180,6 @@ fun SubtitleSelector(
         guid,
         selectedIndex,
         trimIdList,
-        onToastShow = { message, isSuccess ->
-            toastManager.showToast(message, isSuccess)
-        }
     )
 }
 

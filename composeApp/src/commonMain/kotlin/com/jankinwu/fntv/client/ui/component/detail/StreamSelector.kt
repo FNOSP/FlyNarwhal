@@ -76,7 +76,6 @@ fun StreamSelector(
     guid: String = "",
     selectedIndex: Int = 0,
     trimIdList: List<String> = emptyList(),
-    onToastShow: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     val lazyListState = rememberScrollState(0)
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -311,16 +310,8 @@ fun StreamSelector(
         onDismissRequest = { showSearchSubtitleDialog = false },
         onSubtitleDownloadSuccess = {
             streamListViewModel.loadData(guid)
-            onToastShow("下载成功", true)
-        },
-        onSubtitleDownloadFailed = {
-            onToastShow(it, false)
         }
     )
-//    ToastHost(
-//        toastManager = toastManager,
-//        modifier = Modifier.fillMaxSize()
-//    )
 }
 
 @Composable

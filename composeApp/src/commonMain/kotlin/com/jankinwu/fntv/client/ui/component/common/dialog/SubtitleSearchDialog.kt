@@ -46,10 +46,14 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jankinwu.fntv.client.LocalStore
 import com.jankinwu.fntv.client.LocalTypography
+import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.convertToSubtitleItemList
 import com.jankinwu.fntv.client.icons.Download
 import com.jankinwu.fntv.client.ui.component.common.FlyoutButton
+import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
+import com.jankinwu.fntv.client.ui.screen.LocalToastManager
 import com.jankinwu.fntv.client.viewmodel.SubtitleDownloadViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleSearchViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
@@ -96,15 +100,17 @@ fun SubtitleSearchDialog(
                     .fillMaxWidth()
                     .heightIn(max = 500.dp)
 //                    .background(FluentTheme.colors.background.layer.alt)
-                    .padding(24.dp)
+                    .padding(24.dp),
+                verticalArrangement = spacedBy(16.dp)
             ) {
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                 ) {
                     Text(
                         style = FluentTheme.typography.subtitle,
+                        fontSize = 16.sp,
                         text = title,
                     )
                     Icon(
@@ -118,32 +124,30 @@ fun SubtitleSearchDialog(
                                 }
                             )
                             .size(24.dp)
+                            .pointerHoverIcon(PointerIcon.Hand)
                     )
                 }
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
                 ) {
                     Text(
                         style = LocalTypography.current.subtitle,
                         text = mediaFileName,
+                        modifier = Modifier.weight(1f)
                     )
                     LanguageSwitchFlyout(onLanguageSelected = { language = it })
                 }
                 Text(
                     style = LocalTypography.current.body,
                     text = "按相关度排序：",
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier
                 )
                 when (subtitleSearchState) {
                     is UiState.Loading -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                                .background(Color.Gray)
-                        )
+                        ImgLoadingProgressRing()
                     }
 
                     is UiState.Success -> {
@@ -151,7 +155,7 @@ fun SubtitleSearchDialog(
                             (subtitleSearchState as UiState.Success).data
                         val subtitleItemList =
                             convertToSubtitleItemList(subtitleSearchResponse.subtitles)
-                        SubtitleResultList(subtitleItemList, mediaGuid, trimIdList, onSubtitleDownloadSuccess)
+                        SubtitleResultList(subtitleItemList, mediaGuid, trimIdList, onSubtitleDownloadSuccess, onSubtitleDownloadFailed)
                     }
 
                     else -> {}
@@ -166,6 +170,7 @@ private fun LanguageSwitchFlyout(
     onLanguageSelected: (String) -> Unit,
 ) {
     var buttonName by remember { mutableStateOf("中文") }
+    val store = LocalStore.current
     MenuFlyoutContainer(
         flyout = {
             languageList.forEach { language ->
@@ -173,7 +178,8 @@ private fun LanguageSwitchFlyout(
                     text = {
                         Row(
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
                         ) {
                             Text(
                                 text = language.name,
@@ -191,6 +197,7 @@ private fun LanguageSwitchFlyout(
                         onLanguageSelected(language.code)
                     },
                     modifier = Modifier
+                        .background(if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight)
                         .pointerHoverIcon(PointerIcon.Hand)
                 )
             }
@@ -202,10 +209,12 @@ private fun LanguageSwitchFlyout(
                     isFlyoutVisible = !isFlyoutVisible
                 },
                 buttonText = buttonName,
+                modifier = Modifier
+                    .pointerHoverIcon(PointerIcon.Hand)
             )
         },
         placement = FlyoutPlacement.BottomAlignedEnd,
-        modifier = Modifier.offset(x = 16.dp)
+        modifier = Modifier
     )
 }
 
@@ -222,6 +231,7 @@ fun SubtitleResultList(results: List<SubtitleItemData>,
     // 创建一个可变Map，用于存储每个trimId对应的下载状态, 初始值为0, 下载中为1, 下载完成为2
     val downloadStatusMap = remember(mediaGuid) { mutableStateMapOf<String, Int>() }
     val listState = rememberLazyListState()
+    val toastManager = LocalToastManager.current
 
     // 滚动条可见性逻辑：正在滚动时显示
     val isScrolling = listState.isScrollInProgress
@@ -231,6 +241,7 @@ fun SubtitleResultList(results: List<SubtitleItemData>,
             val subtitleDownloadResponse =
                 (subtitleDownloadState as UiState.Success).data
             downloadStatusMap[subtitleDownloadResponse.trimId] = 2
+            toastManager.showToast("下载成功")
             onSubtitleDownloadSuccess()
             subtitleDownloadViewModel.clearError()
         } else if (subtitleDownloadState is UiState.Error) {
@@ -238,6 +249,7 @@ fun SubtitleResultList(results: List<SubtitleItemData>,
                 (subtitleDownloadState as UiState.Error).message
             val operationId: String? = (subtitleDownloadState as UiState.Error).operationId
             downloadStatusMap[operationId as String] = 0
+            toastManager.showToast(subtitleDownloadError, false)
             onSubtitleDownloadFailed(subtitleDownloadError)
             subtitleDownloadViewModel.clearError()
         }
