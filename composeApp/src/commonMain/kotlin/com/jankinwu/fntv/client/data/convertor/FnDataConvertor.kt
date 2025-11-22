@@ -176,7 +176,7 @@ object FnDataConvertor {
     fun convertToMediaDetails(
         currentStreamData: CurrentStreamData,
         isoTagData: IsoTagData,
-        imdbId: String = ""
+        imdbId: String?
     ): MediaDetails {
         val fileInfo = if (currentStreamData.fileInfo != null) FileInfoData(
             location = currentStreamData.fileInfo.path,
@@ -243,12 +243,13 @@ object FnDataConvertor {
             }
             subtitleTrack.details = "$languageName ${it?.codecName?.uppercase()}"
         }
+        val imdbLink = if (!imdbId.isNullOrBlank()) "https://www.imdb.com/title/$imdbId/" else ""
         return MediaDetails(
             fileInfo,
             videoTrack,
             audioTrack,
             subtitleTrack,
-            "https://www.imdb.com/title/$imdbId/"
+            imdbLink
         )
     }
 

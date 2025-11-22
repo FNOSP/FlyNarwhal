@@ -495,7 +495,7 @@ fun MovieDetailBody(
                     currentStreamData?.let {
                         MediaInfo(
                             modifier = Modifier.padding(horizontal = 48.dp), it,
-                            itemData?.imdbId ?: ""
+                            itemData?.imdbId
                         )
                     }
                 }

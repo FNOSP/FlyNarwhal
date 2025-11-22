@@ -78,11 +78,11 @@ fun SubtitleSearchDialog(
     onSubtitleDownloadSuccess: () -> Unit = {},
     onSubtitleDownloadFailed: (String) -> Unit = {_ ->}
 ) {
-    var language by remember { mutableStateOf("zh-CN") }
+    var language by remember(visible) { mutableStateOf("zh-CN") }
     val subtitleSearchViewModel: SubtitleSearchViewModel = koinViewModel()
     val subtitleSearchState by subtitleSearchViewModel.uiState.collectAsState()
-    LaunchedEffect(language, mediaGuid) {
-        if (mediaGuid.isNotBlank()) {
+    LaunchedEffect(language, mediaGuid, visible) {
+        if (mediaGuid.isNotBlank() && visible) {
             subtitleSearchViewModel.searchSubtitles(language, mediaGuid)
         }
     }

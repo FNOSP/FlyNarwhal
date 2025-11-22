@@ -73,23 +73,9 @@ data class MediaDetails(
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun MediaInfo(modifier: Modifier = Modifier, currentStreamData: CurrentStreamData, imdbId: String) {
+fun MediaInfo(modifier: Modifier = Modifier, currentStreamData: CurrentStreamData, imdbId: String?) {
     val isoTagData = LocalIsoTagData.current
     val uriHandler = LocalUriHandler.current
-//    convertToMediaDetails(currentStreamData, isoTagData)
-    // 模拟数据
-//    val sampleData = MediaDetails(
-//        fileInfo = FileInfoData(
-//            location = "存储空间2/admin 的文件/files/video/电影/【高清影视之家发布 www.HDBTHD.com】查理和巧克力工厂[粤英多音轨+简繁英字幕].2005.1080p.BluRay.x265.10bit.DTS.3Audio-SONYHD/Charlie.and.the.Chocolate.Factory.2005.1080p.BluRay.x265.10bit.DTS.3Audio-SONYHD.mkv",
-//            size = "6.53 GB",
-//            createdDate = "2025-11-08 15:26",
-//            addedDate = "2025-11-08 15:26"
-//        ),
-//        videoTrack = MediaTrackInfo("视频", "1080P HEVC 5.65 Mbps • 10 bit", Video),
-//        audioTrack = MediaTrackInfo("音频", "英语 DTS 5.1(side) • 48000 Hz", Audio),
-//        subtitleTrack = MediaTrackInfo("字幕", "中文 HDMV_PGS_SUBTITLE", Subtitle),
-//        imdbLink = "https://www.imdb.com/title/tt0367594/"
-//    )
     val mediaDetailData =
         FnDataConvertor.convertToMediaDetails(currentStreamData, isoTagData, imdbId)
 
@@ -112,37 +98,38 @@ fun MediaInfo(modifier: Modifier = Modifier, currentStreamData: CurrentStreamDat
             subtitle = mediaDetailData.subtitleTrack
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
         // 3. 底部链接
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "链接:  ",
-                color = FluentTheme.colors.text.text.secondary,
-                fontSize = 14.sp
-            )
-            var isImdbHovered by remember { mutableStateOf(false) }
-            Text(
-                text = "IMDB链接",
-                color = FluentTheme.colors.text.text.primary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .onPointerEvent(PointerEventType.Enter) { isImdbHovered = true }
-                    .onPointerEvent(PointerEventType.Exit) { isImdbHovered = false }
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        uriHandler.openUri(mediaDetailData.imdbLink)
+        if (mediaDetailData.imdbLink.isNotBlank()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "链接:  ",
+                    color = FluentTheme.colors.text.text.secondary,
+                    fontSize = 14.sp
+                )
+                var isImdbHovered by remember { mutableStateOf(false) }
+                Text(
+                    text = "IMDB链接",
+                    color = FluentTheme.colors.text.text.primary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .onPointerEvent(PointerEventType.Enter) { isImdbHovered = true }
+                        .onPointerEvent(PointerEventType.Exit) { isImdbHovered = false }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            uriHandler.openUri(mediaDetailData.imdbLink)
+                        }
+                        .pointerHoverIcon(PointerIcon.Hand),
+                    style = if (isImdbHovered) {
+                        TextStyle(textDecoration = TextDecoration.Underline) // 悬停时添加下划线
+                    } else {
+                        LocalTextStyle.current
                     }
-                    .pointerHoverIcon(PointerIcon.Hand),
-                style = if (isImdbHovered) {
-                    TextStyle(textDecoration = TextDecoration.Underline) // 悬停时添加下划线
-                } else {
-                    LocalTextStyle.current
-                }
-            )
+                )
+            }
         }
     }
 }

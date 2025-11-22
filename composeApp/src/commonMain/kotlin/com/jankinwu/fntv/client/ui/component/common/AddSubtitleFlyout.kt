@@ -163,7 +163,7 @@ fun AddSubtitleFlyout(
                 },
                 onClick = {
                     isFlyoutVisible = false
-                    val file = chooseFile(frameWindowScope, arrayOf("srt", "ass", "vtt"), "选择字幕文件")
+                    val file = chooseFile(frameWindowScope, arrayOf("ass", "srt", "vtt", "sub", "ssa"), "选择字幕文件")
                     handleFileSelection(file)
                 },
                 icon = {

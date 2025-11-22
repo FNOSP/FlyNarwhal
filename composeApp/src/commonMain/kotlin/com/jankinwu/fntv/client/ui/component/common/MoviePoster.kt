@@ -136,7 +136,7 @@ fun MoviePoster(
                 interactionSource = interactionSource,
                 indication = null, // 移除点击波纹效果
                 onClick = {
-                    if (type == FnTvMediaType.MOVIE.value) {
+                    if (type == FnTvMediaType.MOVIE.value || type == FnTvMediaType.VIDEO.value) {
                         // 创建电影详情页面组件并导航到该页面
                         val movieDetailComponent = ComponentItem(
                             name = "电影详情",
