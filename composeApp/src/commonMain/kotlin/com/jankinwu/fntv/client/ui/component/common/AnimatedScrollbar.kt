@@ -39,6 +39,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import io.github.composefluent.FluentTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -54,6 +55,8 @@ fun AnimatedScrollbarLazyColumn(
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
     var hideScrollbarJob by remember { mutableStateOf<Job?>(null) }
+    var isScrollbarHovered by remember { mutableStateOf(false) }
+
 
     Box(
         modifier = modifier.pointerInput(Unit) {
@@ -86,7 +89,7 @@ fun AnimatedScrollbarLazyColumn(
         }
 
         AnimatedVisibility(
-            visible = listState.isScrollInProgress || isHovered || isDragging,
+            visible = listState.isScrollInProgress || isHovered || isDragging || isScrollbarHovered,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.CenterEnd)
@@ -120,12 +123,33 @@ fun AnimatedScrollbarLazyColumn(
 
                 val scrollbarOffsetPx = (scrollPosition / scrollableDistance * scrollbarMaxOffset)
                 val scrollbarOffset = with(density) { scrollbarOffsetPx.toDp() }
-
+                // 修改这里的颜色逻辑，根据是否悬浮显示不同颜色
+                val scrollbarColor = if (isScrollbarHovered) {
+                    FluentTheme.colors.text.text.secondary // 高亮颜色
+                } else {
+                    FluentTheme.colors.text.text.tertiary // 默认颜色
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .width(6.dp)
                         .background(Color.Transparent)
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    when (event.type) {
+                                        PointerEventType.Enter -> {
+                                            isScrollbarHovered = true
+                                            hideScrollbarJob?.cancel()
+                                        }
+                                        PointerEventType.Exit -> {
+                                            isScrollbarHovered = false
+                                        }
+                                    }
+                                }
+                            }
+                        }
                 ) {
                     Box(
                         modifier = Modifier
@@ -133,7 +157,7 @@ fun AnimatedScrollbarLazyColumn(
                             .fillMaxWidth()
                             .align(Alignment.TopCenter)
                             .offset(y = scrollbarOffset)
-                            .background(Color.Gray, CircleShape)
+                            .background(scrollbarColor, CircleShape)
                             .pointerInput(Unit) {
                                 detectDragGestures(
                                     onDragStart = {
