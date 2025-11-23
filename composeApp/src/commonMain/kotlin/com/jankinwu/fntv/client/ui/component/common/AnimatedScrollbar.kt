@@ -39,6 +39,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -51,6 +53,7 @@ fun AnimatedScrollbarLazyColumn(
     var isDragging by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
+    var hideScrollbarJob by remember { mutableStateOf<Job?>(null) }
 
     Box(
         modifier = modifier.pointerInput(Unit) {
@@ -58,8 +61,18 @@ fun AnimatedScrollbarLazyColumn(
                 while (true) {
                     val event = awaitPointerEvent()
                     when (event.type) {
-                        PointerEventType.Enter -> isHovered = true
-                        PointerEventType.Exit -> isHovered = false
+                        PointerEventType.Enter, PointerEventType.Move -> {
+                            isHovered = true
+                            hideScrollbarJob?.cancel()
+                            hideScrollbarJob = coroutineScope.launch {
+                                delay(1000)
+                                isHovered = false
+                            }
+                        }
+                        PointerEventType.Exit -> {
+                            hideScrollbarJob?.cancel()
+                            isHovered = false
+                        }
                     }
                 }
             }
@@ -123,7 +136,10 @@ fun AnimatedScrollbarLazyColumn(
                             .background(Color.Gray, CircleShape)
                             .pointerInput(Unit) {
                                 detectDragGestures(
-                                    onDragStart = { isDragging = true },
+                                    onDragStart = {
+                                        hideScrollbarJob?.cancel()
+                                        isDragging = true
+                                    },
                                     onDragEnd = { isDragging = false },
                                     onDragCancel = { isDragging = false }
                                 ) { change, dragAmount ->
