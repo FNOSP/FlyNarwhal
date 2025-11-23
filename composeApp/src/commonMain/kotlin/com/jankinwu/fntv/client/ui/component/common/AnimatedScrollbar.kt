@@ -22,15 +22,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,6 +41,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+@Suppress("FrequentlyChangingValue")
 @Composable
 fun AnimatedScrollbarLazyColumn(
     listState: LazyListState,
@@ -110,21 +108,14 @@ fun AnimatedScrollbarLazyColumn(
                 val scrollbarHeightPx = scrollbarHeightRatio * viewportHeight
                 val scrollbarHeight = with(density) { scrollbarHeightPx.toDp() }
 
-                var scrollPosition by remember { mutableFloatStateOf(0f) }
-                LaunchedEffect(listState) {
-                    snapshotFlow {
-                        listState.firstVisibleItemIndex * averageItemHeight + listState.firstVisibleItemScrollOffset
-                    }.collect {
-                        scrollPosition = it
-                    }
-                }
                 val scrollableDistance = totalContentHeight - viewportHeight
                 val scrollbarMaxOffset = viewportHeight - scrollbarHeightPx
 
-                val scrollbarOffsetPx = (scrollPosition / scrollableDistance * scrollbarMaxOffset)
+                val currentScrollPosition = listState.firstVisibleItemIndex * averageItemHeight + listState.firstVisibleItemScrollOffset
+                val scrollbarOffsetPx = if (scrollableDistance > 0) (currentScrollPosition / scrollableDistance * scrollbarMaxOffset) else 0f
                 val scrollbarOffset = with(density) { scrollbarOffsetPx.toDp() }
                 // 修改这里的颜色逻辑，根据是否悬浮显示不同颜色
-                val scrollbarColor = if (isScrollbarHovered) {
+                val scrollbarColor = if (isScrollbarHovered || isDragging) {
                     FluentTheme.colors.text.text.secondary // 高亮颜色
                 } else {
                     FluentTheme.colors.text.text.tertiary // 默认颜色

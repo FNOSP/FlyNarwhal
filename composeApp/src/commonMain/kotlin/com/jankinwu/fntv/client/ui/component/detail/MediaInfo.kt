@@ -98,6 +98,8 @@ fun MediaInfo(modifier: Modifier = Modifier, currentStreamData: CurrentStreamDat
             subtitle = mediaDetailData.subtitleTrack
         )
 
+        Spacer(modifier = Modifier.height(24.dp))
+
         // 3. 底部链接
         if (mediaDetailData.imdbLink.isNotBlank()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
