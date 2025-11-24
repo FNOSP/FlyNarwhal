@@ -33,27 +33,27 @@ fun MediaMoreFlyout(
     val scaleFactor = store.scaleFactor
     MenuFlyoutContainer(
         flyout = {
-            MenuFlyoutItem(
-                text = {
-                    Text(
-                        "管理版本",
-                        fontSize = (12 * scaleFactor).sp,
-                        fontWeight = FontWeight.Bold,
-                        color = FluentTheme.colors.text.text.tertiary
-                    )
-                },
-                onClick = {
-                    isFlyoutVisible = false
-                    // TODO: 处理手动匹配影片按钮点击事件
-                },
-                icon = {
-                    Icon(
-                        VersionManagement,
-                        contentDescription = "管理版本",
-                        tint = FluentTheme.colors.text.text.tertiary,
-                        modifier = Modifier.requiredSize((20 * scaleFactor).dp)
-                    )
-                })
+                MenuFlyoutItem(
+                    text = {
+                        Text(
+                            "管理版本",
+                            fontSize = (12 * scaleFactor).sp,
+                            fontWeight = FontWeight.Bold,
+                            color = FluentTheme.colors.text.text.tertiary
+                        )
+                    },
+                    onClick = {
+                        isFlyoutVisible = false
+                        // TODO: 处理手动匹配影片按钮点击事件
+                    },
+                    icon = {
+                        Icon(
+                            VersionManagement,
+                            contentDescription = "管理版本",
+                            tint = FluentTheme.colors.text.text.tertiary,
+                            modifier = Modifier.requiredSize((20 * scaleFactor).dp)
+                        )
+                    })
             MenuFlyoutItem(
                 text = {
                     Text(

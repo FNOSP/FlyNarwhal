@@ -89,5 +89,7 @@ interface FnOfficialApi {
 
     suspend fun subtitleDownload(request: SubtitleDownloadRequest): SubtitleDownloadResponse
 
-    suspend fun mediaItemFile(guid: String) : List<MediaItemResponse>
+    suspend fun mediaItemFile(guid: String): List<MediaItemResponse>
+
+    suspend fun scrap(guid: String, mediaGuids: List<String>): Boolean
 }

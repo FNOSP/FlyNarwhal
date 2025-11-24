@@ -220,6 +220,10 @@ class FnOfficialApiImpl() : FnOfficialApi {
         return get("/v/api/v1/media/itemfile/$guid")
     }
 
+    override suspend fun scrap(guid: String, mediaGuids: List<String>): Boolean {
+        return delete("/v/api/v1/media/scrap/$guid", mapOf("media_guids" to mediaGuids))
+    }
+
     private suspend inline fun <reified T> get(
         url: String,
         parameters: Map<String, Any?>? = null,
