@@ -221,7 +221,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
     }
 
     override suspend fun scrap(guid: String, mediaGuids: List<String>): Boolean {
-        return delete("/v/api/v1/media/scrap/$guid", mapOf("media_guids" to mediaGuids))
+        return delete("/v/api/v1/scrap/$guid", mapOf("media_guids" to mediaGuids))
     }
 
     private suspend inline fun <reified T> get(

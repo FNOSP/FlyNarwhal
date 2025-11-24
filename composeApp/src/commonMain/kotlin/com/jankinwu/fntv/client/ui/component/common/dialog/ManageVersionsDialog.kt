@@ -1,6 +1,5 @@
 package com.jankinwu.fntv.client.ui.component.common.dialog
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,12 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,18 +29,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jankinwu.fntv.client.LocalTypography
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.response.MediaItemResponse
-import com.jankinwu.fntv.client.enums.MediaQualityTagEnums
+import com.jankinwu.fntv.client.ui.LargeDialogSize
+import com.jankinwu.fntv.client.ui.component.common.AnimatedScrollbarLazyColumn
+import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.customAccentButtonColors
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
+import com.jankinwu.fntv.client.ui.screen.MediaQualityTag
 import com.jankinwu.fntv.client.viewmodel.MediaItemFileViewModel
 import com.jankinwu.fntv.client.viewmodel.ScrapViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
@@ -54,12 +57,9 @@ import io.github.composefluent.component.CheckBoxDefaults
 import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FluentDialog
 import io.github.composefluent.component.Icon
-import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.Text
-import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Dismiss
-import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -71,7 +71,7 @@ fun ManageVersionsDialog(
     onDelete: (guid: String, mediaGuids: List<String>) -> Unit,
     onUnmatchConfirmed: (guid: String, mediaGuids: List<String>) -> Unit,
     onMatchToOther: (guid: String, mediaGuids: List<String>) -> Unit,
-    size: DialogSize = DialogSize.Max
+    size: DialogSize = LargeDialogSize
 ) {
     val mediaItemFileViewModel: MediaItemFileViewModel = koinViewModel()
     val scrapViewModel: ScrapViewModel = koinViewModel()
@@ -88,10 +88,11 @@ fun ManageVersionsDialog(
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 400.dp, max = 600.dp)
                     .padding(top = 24.dp, bottom = 8.dp, start = 25.dp, end = 25.dp)
             ) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
+//                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+//                    Column(Modifier.weight(1f)) {
                         Row(
                             Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -119,7 +120,8 @@ fun ManageVersionsDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                style = FluentTheme.typography.body,
+                                style = LocalTypography.current.bodyStrong,
+                                fontSize = 18.sp,
                                 text = "《$itemTitle》",
                                 color = FluentTheme.colors.text.text.secondary
                             )
@@ -133,9 +135,9 @@ fun ManageVersionsDialog(
                                 color = FluentTheme.colors.text.text.secondary
                             )
                         }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
+//                    }
+//                }
+                Spacer(Modifier.height(8.dp))
                 CompositionLocalProvider(
                     LocalTextStyle provides FluentTheme.typography.body,
                     LocalContentColor provides FluentTheme.colors.text.text.primary
@@ -149,34 +151,28 @@ fun ManageVersionsDialog(
                                 val list =
                                     (uiState as UiState.Success<List<MediaItemResponse>>).data
                                 val listState = rememberLazyListState()
-                                ScrollbarContainer(
-                                    adapter = rememberScrollbarAdapter(
-                                        listState
-                                    )
-                                ) {
-                                    LazyColumn(state = listState) {
-                                        itemsIndexed(list) { index, item ->
-                                            VersionItemRow(
-                                                index = index,
-                                                item = item,
-                                                checked = selectedMediaGuids.contains(item.mediaGuid),
-                                                onCheckedChange = { checked ->
-                                                    selectedMediaGuids =
-                                                        if (checked) selectedMediaGuids + item.mediaGuid else selectedMediaGuids - item.mediaGuid
-                                                }
-                                            )
-                                        }
+                                AnimatedScrollbarLazyColumn(listState = listState, modifier = Modifier.fillMaxSize()) {
+                                    itemsIndexed(list, key = { _, item -> item.mediaGuid }) { index, item ->
+                                        VersionItemRow(
+                                            index = index,
+                                            item = item,
+                                            checked = selectedMediaGuids.contains(item.mediaGuid),
+                                            onCheckedChange = { checked ->
+                                                selectedMediaGuids =
+                                                    if (checked) selectedMediaGuids + item.mediaGuid else selectedMediaGuids - item.mediaGuid
+                                            }
+                                        )
                                     }
                                 }
                             }
 
                             is UiState.Loading -> {
-                                Text("加载中...")
+                                ImgLoadingProgressRing()
                             }
 
                             is UiState.Error -> {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text((uiState as UiState.Error).message ?: "加载失败")
+                                    Text((uiState as UiState.Error).message)
                                     Button(onClick = { mediaItemFileViewModel.refresh(guid) }) {
                                         Text(
                                             "重试"
@@ -215,7 +211,11 @@ fun ManageVersionsDialog(
                         onClick = { onMatchToOther(guid, selectedMediaGuids.toList()) },
                         disabled = selectedMediaGuids.isEmpty(),
                         buttonColors = customAccentButtonColors()
-                    ) { Text("匹配为其他影片") }
+                    ) { Text(
+                        "匹配为其他影片",
+                        style = LocalTypography.current.bodyStrong,
+                        color = FluentTheme.colors.text.text.primary
+                    ) }
                 }
             }
         }
@@ -247,7 +247,7 @@ private fun VersionItemRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
+            .padding(bottom = 8.dp)
             .background(FluentTheme.colors.stroke.control.default, RoundedCornerShape(8.dp))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -267,7 +267,7 @@ private fun VersionItemRow(
         Column(Modifier.weight(1f).padding(start = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = item.filename ?: "",
+                    text = item.filename,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -289,59 +289,19 @@ private fun VersionItemRow(
                     fontSize = 12.sp,
                     color = FluentTheme.colors.text.text.secondary
                 )
-            }
-            Spacer(Modifier.height(6.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
                 item.mediaStream?.resolutions?.forEach { res ->
-                    TagChipText(res)
+                    MediaQualityTag(res, 0.92f)
                 }
                 item.mediaStream?.colorRangeType?.forEach { tag ->
-                    MediaQualityTagEnums.getDrawableByTagName(tag)?.let { drawable ->
-//                        Icon(
-//                            painterResource(drawable),
-//                            contentDescription = tag,
-//                            tint = Color.Unspecified
-//                        )
-                        Image(
-                            painterResource(drawable),
-                            contentDescription = tag,
-                            modifier = Modifier
-                                .height(24.dp),
-                            colorFilter = ColorFilter.tint(
-                                FluentTheme.colors.stroke.control.default.copy(
-                                    alpha = 0.5f
-                                )
-                            )
-                        )
-                    }
+                    MediaQualityTag(tag, 0.92f)
                 }
                 item.mediaStream?.audioType?.forEach { tag ->
-                    MediaQualityTagEnums.getDrawableByTagName(tag)?.let { drawable ->
-//                        Icon(
-//                            painterResource(drawable),
-//                            contentDescription = tag,
-//                            tint = Color.Unspecified
-//                        )
-                        Image(
-                            painterResource(drawable),
-                            contentDescription = tag,
-                            modifier = Modifier
-                                .height(24.dp),
-                            colorFilter = ColorFilter.tint(
-                                FluentTheme.colors.stroke.control.default.copy(
-                                    alpha = 0.5f
-                                )
-                            )
-                        )
-                    }
+                    MediaQualityTag(tag, 0.92f)
                 }
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "位置: ${item.filePath ?: ""}",
+                text = "位置: ${item.filePath}",
                 fontSize = 12.sp,
                 color = FluentTheme.colors.text.text.secondary,
                 maxLines = 1,
@@ -356,7 +316,10 @@ private fun VersionItemRow(
                 customSelectedCheckBoxColors()
             } else {
                 CheckBoxDefaults.defaultCheckBoxColors()
-            }
+            },
+            modifier = Modifier
+                .pointerHoverIcon(PointerIcon.Hand)
+                .size(15.dp)
         )
     }
 }

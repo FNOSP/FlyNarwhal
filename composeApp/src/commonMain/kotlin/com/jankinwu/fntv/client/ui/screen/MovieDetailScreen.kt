@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -1212,20 +1213,18 @@ fun MediaDescription(modifier: Modifier = Modifier, itemData: ItemResponse?) {
  * 质量标签
  */
 @Composable
-fun MediaQualityTag(qualityTag: String) {
+fun MediaQualityTag(qualityTag: String, scale: Float = 1f) {
     val store = LocalStore.current
     if (qualityTag.endsWith("k")) {
         Box(
             modifier = Modifier
-//                .padding(2.dp)
-//                .height(16.dp)
+                .graphicsLayer(scaleX = scale, scaleY = scale)
                 .background(
                     color = FluentTheme.colors.stroke.control.default.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(4.dp)
+                    shape = RoundedCornerShape(4.dp * scale)
                 )
                 .padding(
-                    horizontal = 6.dp,
-//                    vertical = 1.dp
+                    horizontal = 7.dp * scale,
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -1233,8 +1232,7 @@ fun MediaQualityTag(qualityTag: String) {
                 text = qualityTag.uppercase(),
                 style = LocalTypography.current.body,
                 color = if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight,
-                fontSize = 14.sp,
-//                lineHeight = 5.sp,
+                fontSize = 14.sp * scale,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -1254,14 +1252,16 @@ fun MediaQualityTag(qualityTag: String) {
         }
         Box(
             modifier = Modifier
-//                .height(16.dp)
+                .graphicsLayer(scaleX = scale, scaleY = scale)
                 .border(
-                    1.5.dp,
+                    1.5.dp * scale,
                     FluentTheme.colors.stroke.control.default.copy(alpha = 0.5f),
-                    RoundedCornerShape(4.dp)
+                    RoundedCornerShape(4.dp * scale)
                 )
                 .padding(
-                    start = 4.dp, end = 4.dp, bottom = 2.dp
+                    start = 4.dp * scale,
+                    end = 4.dp * scale,
+                    bottom = 2.dp * scale
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -1269,7 +1269,7 @@ fun MediaQualityTag(qualityTag: String) {
                 text = qualityTag,
                 style = LocalTypography.current.body,
                 color = FluentTheme.colors.stroke.control.default.copy(alpha = 0.5f),
-                fontSize = 13.sp,
+                fontSize = 13.sp * scale,
                 fontWeight = FontWeight.Medium
             )
         }
@@ -1280,7 +1280,8 @@ fun MediaQualityTag(qualityTag: String) {
                 painterResource(drawableSource),
                 contentDescription = "质量 logo",
                 modifier = Modifier
-                    .height(24.dp),
+                    .graphicsLayer(scaleX = scale, scaleY = scale)
+                    .height(24.dp * scale),
                 colorFilter = ColorFilter.tint(FluentTheme.colors.stroke.control.default.copy(alpha = 0.5f))
             )
         }

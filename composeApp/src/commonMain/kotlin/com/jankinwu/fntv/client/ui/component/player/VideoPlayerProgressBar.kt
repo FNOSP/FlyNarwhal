@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -120,6 +121,7 @@ fun VideoPlayerProgressBarImpl(
                     change.consume()
                 }
             }
+            .padding(vertical = 4.dp)
     ) {
         // 使用自定义Layout来精确控制时间戳和进度条的位置
         Layout(

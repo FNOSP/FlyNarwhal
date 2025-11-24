@@ -4,12 +4,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.data.constants.Colors
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ButtonColor
 import io.github.composefluent.component.CheckBoxColor
+import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.ListItemColor
 import io.github.composefluent.component.SwitcherStyle
 import io.github.composefluent.scheme.PentaVisualScheme
@@ -137,4 +139,10 @@ fun customAccentButtonColors(
 )
 
 typealias ButtonColorScheme = PentaVisualScheme<ButtonColor>
+
+fun DialogSize.Companion.createCustomSize(min: Dp, max: Dp): DialogSize {
+    return DialogSize(min, max)
+}
+
+val LargeDialogSize = DialogSize.createCustomSize(720.dp, 720.dp)
 

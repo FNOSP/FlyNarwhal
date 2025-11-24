@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -66,7 +67,7 @@ fun AnimatedScrollbarLazyColumn(
                             isHovered = true
                             hideScrollbarJob?.cancel()
                             hideScrollbarJob = coroutineScope.launch {
-                                delay(1000)
+                                delay(1500)
                                 isHovered = false
                             }
                         }
@@ -81,7 +82,7 @@ fun AnimatedScrollbarLazyColumn(
     ) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().padding(end = 12.dp)
+            modifier = Modifier.fillMaxSize().offset(x = 8.dp)
         ) {
             content()
         }
@@ -116,9 +117,9 @@ fun AnimatedScrollbarLazyColumn(
                 val scrollbarOffset = with(density) { scrollbarOffsetPx.toDp() }
                 // 修改这里的颜色逻辑，根据是否悬浮显示不同颜色
                 val scrollbarColor = if (isScrollbarHovered || isDragging) {
-                    FluentTheme.colors.text.text.secondary // 高亮颜色
+                    FluentTheme.colors.text.text.secondary.copy(alpha = 0.6f) // 高亮颜色
                 } else {
-                    FluentTheme.colors.text.text.tertiary // 默认颜色
+                    FluentTheme.colors.text.text.tertiary.copy(alpha = 0.4f) // 默认颜色
                 }
                 Box(
                     modifier = Modifier
@@ -182,7 +183,7 @@ fun AnimatedScrollbarColumn(
 ) {
     var isHovered by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    var viewportHeight by remember { mutableStateOf(0f) }
+    var viewportHeight by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
 
     Box(

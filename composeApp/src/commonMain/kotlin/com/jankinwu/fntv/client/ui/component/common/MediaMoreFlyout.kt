@@ -10,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,7 +56,8 @@ fun MediaMoreFlyout(
                         tint = FluentTheme.colors.text.text.tertiary,
                         modifier = Modifier.requiredSize((20 * scaleFactor).dp)
                     )
-                })
+                },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand))
             MenuFlyoutItem(
                 text = {
                     Text(
@@ -75,7 +78,8 @@ fun MediaMoreFlyout(
                         tint = FluentTheme.colors.text.text.tertiary,
                         modifier = Modifier.requiredSize((20 * scaleFactor).dp)
                     )
-                })
+                },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand))
             MenuFlyoutItem(
                 text = {
                     Text(
@@ -96,7 +100,8 @@ fun MediaMoreFlyout(
                         contentDescription = "解除匹配影片",
                         modifier = Modifier.requiredSize((20 * scaleFactor).dp)
                     )
-                })
+                },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand))
             MenuFlyoutSeparator(modifier = Modifier.padding(horizontal = 1.dp))
             MenuFlyoutItem(
                 text = {
@@ -118,7 +123,8 @@ fun MediaMoreFlyout(
                         contentDescription = "删除",
                         modifier = Modifier.requiredSize((20 * scaleFactor).dp)
                     )
-                })
+                },
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand))
         },
         content = {
             Box(modifier = Modifier.clickable(interactionSource = remember { MutableInteractionSource() },

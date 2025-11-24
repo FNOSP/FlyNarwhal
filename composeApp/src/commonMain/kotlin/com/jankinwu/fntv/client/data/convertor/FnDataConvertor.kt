@@ -16,7 +16,10 @@ import com.jankinwu.fntv.client.ui.component.detail.MediaDetails
 import com.jankinwu.fntv.client.ui.component.detail.MediaTrackInfo
 import com.jankinwu.fntv.client.ui.screen.CurrentStreamData
 import com.jankinwu.fntv.client.ui.screen.IsoTagData
+import kotlinx.datetime.toLocalDateTime
 import java.util.concurrent.TimeUnit
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant.Companion.fromEpochMilliseconds
 
 fun convertMediaDbListResponseToScrollRowItem(item: MediaDbListResponse): ScrollRowItemData {
     return ScrollRowItemData(
@@ -300,10 +303,17 @@ object FnDataConvertor {
      * @param timestamp 时间戳（毫秒）
      * @return 格式化后的时间字符串
      */
+//    fun formatTimestampToDateTime(timestamp: Long): String {
+//        val date = java.util.Date(timestamp)
+//        val formatter =
+//            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+//        return formatter.format(date)
+//    }
+
+    @OptIn(ExperimentalTime::class)
     fun formatTimestampToDateTime(timestamp: Long): String {
-        val date = java.util.Date(timestamp)
-        val formatter =
-            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-        return formatter.format(date)
+        val instant = fromEpochMilliseconds(timestamp)
+        val localDateTime = instant.toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+        return "${localDateTime.date} ${localDateTime.time.toString().take(5)}"
     }
 }
