@@ -70,4 +70,6 @@ val viewModelModule = module {
     viewModelOf (::ScrapViewModel)
     viewModelOf (::ScrapSearchViewModel)
     viewModelOf (::ScrapRescrapViewModel)
+    viewModelOf (::EpisodeListViewModel)
+    viewModelOf (::SeasonListViewModel)
 }

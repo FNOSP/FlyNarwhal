@@ -32,6 +32,7 @@ import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.PlayPlayResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.model.response.ScrapSearchResponse
+import com.jankinwu.fntv.client.data.model.response.SeasonItemResponse
 import com.jankinwu.fntv.client.data.model.response.ServerPathResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
@@ -233,6 +234,10 @@ class FnOfficialApiImpl() : FnOfficialApi {
 
     override suspend fun scrapRescrap(request: ScrapRescrapRequest): Boolean {
         return post("/v/api/v1/scrap/rescrap", request)
+    }
+
+    override suspend fun seasonList(guid: String): List<SeasonItemResponse> {
+        return get("/v/api/v1/season/list/$guid")
     }
 
     private suspend inline fun <reified T> get(
