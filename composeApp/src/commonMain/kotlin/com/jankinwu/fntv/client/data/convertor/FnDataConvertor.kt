@@ -15,8 +15,8 @@ import com.jankinwu.fntv.client.ui.component.common.dialog.SubtitleItemData
 import com.jankinwu.fntv.client.ui.component.detail.FileInfoData
 import com.jankinwu.fntv.client.ui.component.detail.MediaDetails
 import com.jankinwu.fntv.client.ui.component.detail.MediaTrackInfo
-import com.jankinwu.fntv.client.ui.screen.CurrentStreamData
-import com.jankinwu.fntv.client.ui.screen.IsoTagData
+import com.jankinwu.fntv.client.ui.providable.CurrentStreamData
+import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import kotlinx.datetime.toLocalDateTime
 import java.util.concurrent.TimeUnit
 import kotlin.time.ExperimentalTime

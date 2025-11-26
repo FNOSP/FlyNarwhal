@@ -25,7 +25,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
-import com.jankinwu.fntv.client.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.manager.LoginStateManager

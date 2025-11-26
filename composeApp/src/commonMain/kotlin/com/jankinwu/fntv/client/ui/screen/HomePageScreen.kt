@@ -17,12 +17,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.jankinwu.fntv.client.LocalRefreshState
-import com.jankinwu.fntv.client.LocalTypography
 import com.jankinwu.fntv.client.components
 import com.jankinwu.fntv.client.data.convertor.convertMediaDbListResponseToScrollRowItem
 import com.jankinwu.fntv.client.data.convertor.convertPlayDetailToScrollRowItemData
@@ -37,6 +34,10 @@ import com.jankinwu.fntv.client.ui.component.common.MediaLibGallery
 import com.jankinwu.fntv.client.ui.component.common.RecentlyWatched
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
+import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
+import com.jankinwu.fntv.client.ui.providable.LocalUserInfo
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemListViewModel
 import com.jankinwu.fntv.client.viewmodel.MediaDbListViewModel
@@ -49,10 +50,6 @@ import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.Text
 import io.github.composefluent.component.rememberScrollbarAdapter
 import org.koin.compose.viewmodel.koinViewModel
-
-val LocalUserInfo = staticCompositionLocalOf<UserInfoResponse> {
-    error("PlayerManager not provided")
-}
 
 @Composable
 fun HomePageScreen(navigator: ComponentNavigator) {

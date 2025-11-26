@@ -6,15 +6,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowState
 import com.jankinwu.fntv.client.AppTheme
-import com.jankinwu.fntv.client.LocalStore
 import com.jankinwu.fntv.client.RefreshManager
+import com.jankinwu.fntv.client.ui.providable.LocalStore
 import io.github.composefluent.component.NavigationDisplayMode
 import io.github.composefluent.gallery.jna.windows.structure.isWindows10OrLater
 import io.github.composefluent.gallery.jna.windows.structure.isWindows11OrLater

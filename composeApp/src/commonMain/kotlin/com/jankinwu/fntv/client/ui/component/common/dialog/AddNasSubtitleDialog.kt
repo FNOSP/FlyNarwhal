@@ -43,7 +43,7 @@ import com.jankinwu.fntv.client.data.model.response.AuthDir
 import com.jankinwu.fntv.client.ui.component.common.FileTreePicker
 import com.jankinwu.fntv.client.ui.component.common.SelectionMode
 import com.jankinwu.fntv.client.ui.customAccentButtonColors
-import com.jankinwu.fntv.client.ui.screen.LocalFileInfo
+import com.jankinwu.fntv.client.ui.providable.LocalFileInfo
 import com.jankinwu.fntv.client.viewmodel.AppAuthorizedDirViewModel
 import com.jankinwu.fntv.client.viewmodel.ServerPathViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState

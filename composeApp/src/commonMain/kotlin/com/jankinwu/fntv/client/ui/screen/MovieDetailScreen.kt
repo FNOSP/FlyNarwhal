@@ -41,7 +41,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -67,9 +66,6 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.size.Precision
 import coil3.size.Size
-import com.jankinwu.fntv.client.LocalRefreshState
-import com.jankinwu.fntv.client.LocalStore
-import com.jankinwu.fntv.client.LocalTypography
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.convertPersonToScrollRowItemData
 import com.jankinwu.fntv.client.data.convertor.formatSeconds
@@ -83,7 +79,6 @@ import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
-import com.jankinwu.fntv.client.data.model.response.VideoStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.enums.MediaQualityTagEnums
 import com.jankinwu.fntv.client.icons.ArrowLeft
@@ -93,12 +88,20 @@ import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingError
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
-import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.detail.MediaInfo
 import com.jankinwu.fntv.client.ui.component.detail.StreamOptionItem
 import com.jankinwu.fntv.client.ui.component.detail.StreamSelector
 import com.jankinwu.fntv.client.ui.component.detail.noDisplayStream
+import com.jankinwu.fntv.client.ui.providable.CurrentStreamData
+import com.jankinwu.fntv.client.ui.providable.IsoTagData
+import com.jankinwu.fntv.client.ui.providable.LocalFileInfo
+import com.jankinwu.fntv.client.ui.providable.LocalIsoTagData
+import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
+import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
+import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalToastManager
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemViewModel
@@ -118,31 +121,6 @@ import io.github.composefluent.icons.regular.MoreHorizontal
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
-
-val LocalFileInfo = staticCompositionLocalOf<FileInfo?> {
-    error("No FileInfo provided")
-}
-
-data class CurrentStreamData(
-    val fileInfo: FileInfo?,
-    val videoStream: VideoStream?,
-    val audioStreamList: List<AudioStream>,
-    val subtitleStreamList: List<SubtitleStream>
-)
-
-data class IsoTagData(
-    val iso6391Map: Map<String, QueryTagResponse>,
-    val iso6392Map: Map<String, QueryTagResponse>,
-    val iso3166Map: Map<String, QueryTagResponse>
-)
-
-val LocalIsoTagData = staticCompositionLocalOf<IsoTagData> {
-    error("No IsoTagData provided")
-}
-
-val LocalToastManager = staticCompositionLocalOf<ToastManager> {
-    error("No ToastManager provided")
-}
 
 @Composable
 fun MovieDetailScreen(

@@ -42,8 +42,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
-import com.jankinwu.fntv.client.ui.screen.CurrentStreamData
-import com.jankinwu.fntv.client.ui.screen.LocalIsoTagData
+import com.jankinwu.fntv.client.ui.providable.CurrentStreamData
+import com.jankinwu.fntv.client.ui.providable.LocalIsoTagData
 import io.github.composefluent.FluentTheme
 
 // 文件信息数据

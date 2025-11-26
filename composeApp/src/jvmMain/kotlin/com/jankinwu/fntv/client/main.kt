@@ -20,8 +20,9 @@ import com.jankinwu.fntv.client.data.network.apiModule
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
-import com.jankinwu.fntv.client.ui.screen.LocalMediaPlayer
-import com.jankinwu.fntv.client.ui.screen.LocalPlayerManager
+import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
+import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay

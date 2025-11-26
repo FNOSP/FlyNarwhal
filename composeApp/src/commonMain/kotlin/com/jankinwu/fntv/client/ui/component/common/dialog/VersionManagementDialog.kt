@@ -35,7 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jankinwu.fntv.client.LocalTypography
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.response.MediaItemResponse
 import com.jankinwu.fntv.client.ui.LargeDialogSize
@@ -43,7 +43,7 @@ import com.jankinwu.fntv.client.ui.component.common.AnimatedScrollbarLazyColumn
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.customAccentButtonColors
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
-import com.jankinwu.fntv.client.ui.screen.LocalUserInfo
+import com.jankinwu.fntv.client.ui.providable.LocalUserInfo
 import com.jankinwu.fntv.client.ui.screen.MediaQualityTag
 import com.jankinwu.fntv.client.viewmodel.MediaItemFileViewModel
 import com.jankinwu.fntv.client.viewmodel.ScrapViewModel
