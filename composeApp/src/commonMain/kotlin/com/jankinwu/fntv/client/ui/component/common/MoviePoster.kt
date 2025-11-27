@@ -361,28 +361,29 @@ fun MoviePoster(
                 scaleFactor = scaleFactor,
                 iconTint = if (isAlreadyWatched) Colors.AccentColorDefault else Color.White
             )
-
-            // 收藏按钮
-            BottomIconButton(
-                modifier = Modifier
-                    .alpha(if (isPosterHovered) 1f else 0f)
-                    .padding((8 * scaleFactor).dp)
-                    .align(Alignment.BottomCenter),
-                icon = HeartFilled,
-                contentDescription = "collection",
-                onClick = {
-                    onFavoriteToggle?.invoke(guid, isFavorite) { success ->
-                        isFavorite = if (!success) {
-                            isFavorite
-                        } else {
-                            !isFavorite
+            if (type != FnTvMediaType.SEASON.value) {
+                // 收藏按钮
+                BottomIconButton(
+                    modifier = Modifier
+                        .alpha(if (isPosterHovered) 1f else 0f)
+                        .padding((8 * scaleFactor).dp)
+                        .align(Alignment.BottomCenter),
+                    icon = HeartFilled,
+                    contentDescription = "collection",
+                    onClick = {
+                        onFavoriteToggle?.invoke(guid, isFavorite) { success ->
+                            isFavorite = if (!success) {
+                                isFavorite
+                            } else {
+                                !isFavorite
+                            }
                         }
-                    }
-                },
-                scaleFactor = scaleFactor,
-                iconTint = if (isFavorite) Colors.DangerDefaultColor else Color.White,
-                iconYOffset = (1 * scaleFactor).dp
-            )
+                    },
+                    scaleFactor = scaleFactor,
+                    iconTint = if (isFavorite) Colors.DangerDefaultColor else Color.White,
+                    iconYOffset = (1 * scaleFactor).dp
+                )
+            }
 
             Box(
                 modifier = Modifier

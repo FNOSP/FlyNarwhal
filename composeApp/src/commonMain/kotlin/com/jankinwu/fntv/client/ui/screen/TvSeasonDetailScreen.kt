@@ -58,6 +58,7 @@ import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.detail.DetailPlayButton
 import com.jankinwu.fntv.client.ui.component.detail.DetailTags
+import com.jankinwu.fntv.client.ui.component.detail.ImdbLink
 import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import com.jankinwu.fntv.client.ui.providable.LocalIsoTagData
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
@@ -80,6 +81,7 @@ import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import io.github.composefluent.icons.regular.MoreHorizontal
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.collections.plus
 
 @Composable
 fun TvSeasonDetailScreen(
@@ -204,12 +206,52 @@ fun TvDetailBody(
     seasonList: List<SeasonItemResponse>,
     navigator: ComponentNavigator,
 ) {
-    println("seasonList1: $seasonList")
     val store = LocalStore.current
     val windowHeight = store.windowHeightState
     val toastManager = LocalToastManager.current
+    val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
+    val watchedUiState by watchedViewModel.uiState.collectAsState()
+    var pendingCallbacks by remember { mutableStateOf<Map<String, (Boolean) -> Unit>>(emptyMap()) }
+    val seasonListViewModel: SeasonListViewModel = koinViewModel()
+    val itemViewModel: ItemViewModel = koinViewModel()
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // 监听已观看操作结果并显示提示
+    LaunchedEffect(watchedUiState) {
+        when (val state = watchedUiState) {
+            is UiState.Success -> {
+                toastManager.showToast(state.data.message, state.data.success)
+                // 调用对应的回调函数
+                pendingCallbacks[state.data.guid]?.invoke(state.data.success)
+                // 从 pendingCallbacks 中移除已处理的回调
+                pendingCallbacks = pendingCallbacks - state.data.guid
+                seasonListViewModel.loadData(guid)
+                itemViewModel.loadData(guid)
+            }
+
+            is UiState.Error -> {
+                // 显示错误提示
+                toastManager.showToast("操作失败，${state.message}", false)
+                state.operationId?.let {
+                    pendingCallbacks[state.operationId]?.invoke(false)
+                    // 从 pendingCallbacks 中移除已处理的回调
+                    pendingCallbacks = pendingCallbacks - state.operationId
+                }
+            }
+
+            else -> {}
+        }
+
+        // 清除状态
+        if (watchedUiState is UiState.Success || watchedUiState is UiState.Error) {
+            kotlinx.coroutines.delay(2000) // 2秒后清除状态
+            watchedViewModel.clearError()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
         val lazyListState = rememberLazyListState()
         ScrollbarContainer(adapter = rememberScrollbarAdapter(lazyListState)) {
             LazyColumn(state = lazyListState) {
@@ -288,7 +330,7 @@ fun TvDetailBody(
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.BottomStart)
-                                        .padding(start = 48.dp, end = 48.dp, bottom = 12.dp)
+                                        .padding(horizontal = 48.dp)
                                 ) {
                                     Text(
                                         text = itemData.title,
@@ -313,7 +355,8 @@ fun TvDetailBody(
                             itemData,
                             guid,
                             playInfoResponse,
-                            modifier = Modifier.padding(horizontal = 48.dp)
+                            modifier = Modifier
+                                .padding(start = 48.dp, end = 48.dp, top = 24.dp)
                         )
                     }
                 }
@@ -328,7 +371,9 @@ fun TvDetailBody(
                         BoxWithConstraints(modifier = Modifier.padding(horizontal = 48.dp)) {
                             val availableWidth = maxWidth
 
-                            val itemsPerRow = ((availableWidth + spacing) / (posterMinWidth + spacing)).toInt().coerceAtLeast(1)
+                            val itemsPerRow =
+                                ((availableWidth + spacing) / (posterMinWidth + spacing)).toInt()
+                                    .coerceAtLeast(1)
 
                             val itemWidth = if (itemsPerRow >= 4) {
                                 val totalSpacing = spacing * (itemsPerRow - 1)
@@ -351,7 +396,7 @@ fun TvDetailBody(
                                         MoviePoster(
                                             modifier = Modifier.fillMaxSize(),
                                             title = season.title,
-                                            subtitle = "第 ${season.seasonNumber} 季",
+                                            subtitle = "共 ${season.episodeNumber} 集 · ${season.airDate.take(4)}",
                                             score = FnDataConvertor.formatVoteAverage(season.voteAverage),
                                             posterImg = season.poster,
                                             isFavorite = season.isFavorite == 1,
@@ -361,7 +406,17 @@ fun TvDetailBody(
                                             navigator = navigator,
                                             type = season.type,
                                             posterWidth = season.posterWidth,
-                                            posterHeight = season.posterHeight
+                                            posterHeight = season.posterHeight,
+                                            onWatchedToggle = { guid, currentWatchedState, resultCallback ->
+                                                // 保存回调函数
+                                                pendingCallbacks =
+                                                    pendingCallbacks + (guid to resultCallback)
+                                                // 调用 ViewModel 方法
+                                                watchedViewModel.toggleWatched(
+                                                    guid,
+                                                    currentWatchedState
+                                                )
+                                            }
                                         )
                                     }
                                 }
@@ -369,9 +424,16 @@ fun TvDetailBody(
                         }
                     }
                 }
+                item {
+                    if (itemData?.imdbId?.isNotBlank() ?: false) {
+                        ImdbLink(
+                            FnDataConvertor.getImdbLink(itemData.imdbId),
+                            modifier = Modifier.padding(horizontal = 48.dp, vertical = 24.dp)
+                        )
+                    }
+                }
             }
         }
-
         BackButton(navigator, modifier = Modifier.align(Alignment.TopStart))
         ToastHost(
             toastManager = toastManager,
@@ -390,8 +452,8 @@ private fun TvMediaInfo(
 
     Column(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 24.dp)
+            .fillMaxWidth(),
+        verticalArrangement = Arrangement.Center
     ) {
         TvMiddleControls(
             modifier = Modifier.padding(bottom = 16.dp),
@@ -425,52 +487,54 @@ private fun TvMiddleControls(
     val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
     val watchedUiState by watchedViewModel.uiState.collectAsState()
     var isWatched by remember(itemData.isWatched == 1) { mutableStateOf(itemData.isWatched == 1) }
+
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(end = 64.dp)
-            ) {
-                // 播放按钮
-                if (itemData.watchedTs == 0) {
-                    DetailPlayButton("播放") { playMedia() }
-                } else {
-                    DetailPlayButton("继续播放") { playMedia() }
-                }
-                // 收藏按钮
-                CircleIconButton(
-                    icon = HeartFilled,
-                    description = "收藏",
-                    iconColor = if (isFavorite) Colors.DangerDefaultColor else FluentTheme.colors.text.text.primary,
-                    onClick = {
-                        favoriteViewModel.toggleFavorite(
-                            guid,
-                            isFavorite
-                        )
-                    })
-
-                // 是否已观看按钮
-                CircleIconButton(
-                    icon = Icons.Regular.Checkmark, description = "已观看",
-                    iconColor = if (isWatched) Colors.AccentColorDefault else FluentTheme.colors.text.text.primary,
-                    onClick = {
-                        watchedViewModel.toggleWatched(
-                            guid,
-                            isWatched
-                        )
-                    })
-
-                // 更多按钮
-                CircleIconButton(
-                    icon = Icons.Regular.MoreHorizontal,
-                    description = "更多",
-                    onClick = {},
-                    iconColor = FluentTheme.colors.text.text.primary
-                )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(end = 64.dp)
+        ) {
+            // 播放按钮
+            if (itemData.watchedTs == 0) {
+                DetailPlayButton("播放") { playMedia() }
+            } else {
+                DetailPlayButton("继续播放") { playMedia() }
             }
+            // 收藏按钮
+            CircleIconButton(
+                icon = HeartFilled,
+                description = "收藏",
+                iconColor = if (isFavorite) Colors.DangerDefaultColor else FluentTheme.colors.text.text.primary,
+                onClick = {
+                    favoriteViewModel.toggleFavorite(
+                        guid,
+                        isFavorite
+                    )
+                })
+
+            // 是否已观看按钮
+            CircleIconButton(
+                icon = Icons.Regular.Checkmark, description = "已观看",
+                iconColor = if (isWatched) Colors.AccentColorDefault else FluentTheme.colors.text.text.primary,
+                onClick = {
+                    watchedViewModel.toggleWatched(
+                        guid,
+                        isWatched
+                    )
+                })
+
+            // 更多按钮
+            CircleIconButton(
+                icon = Icons.Regular.MoreHorizontal,
+                description = "更多",
+                onClick = {},
+                iconColor = FluentTheme.colors.text.text.primary
+            )
+        }
         Column(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)

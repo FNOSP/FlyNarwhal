@@ -1,22 +1,37 @@
 package com.jankinwu.fntv.client.ui.component.detail
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.data.constants.Colors
@@ -145,5 +160,47 @@ fun DetailTags(
             fontSize = 14.sp
         )
 
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+fun ImdbLink(
+    imdbLink: String,
+    modifier: Modifier = Modifier
+) {
+    val uriHandler = LocalUriHandler.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "链接:  ",
+            color = FluentTheme.colors.text.text.secondary,
+            fontSize = 14.sp
+        )
+        var isImdbHovered by remember { mutableStateOf(false) }
+        Text(
+            text = "IMDB链接",
+            color = FluentTheme.colors.text.text.primary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier
+                .onPointerEvent(PointerEventType.Enter) { isImdbHovered = true }
+                .onPointerEvent(PointerEventType.Exit) { isImdbHovered = false }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    uriHandler.openUri(imdbLink)
+                }
+                .pointerHoverIcon(PointerIcon.Hand),
+            style = if (isImdbHovered) {
+                TextStyle(textDecoration = TextDecoration.Underline) // 悬停时添加下划线
+            } else {
+                LocalTextStyle.current
+            }
+        )
     }
 }

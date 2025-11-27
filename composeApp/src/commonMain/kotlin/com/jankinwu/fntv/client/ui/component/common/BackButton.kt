@@ -31,13 +31,13 @@ fun BackButton(
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                Color.Black.copy(alpha = 0.3f),
+                                Color.Black.copy(alpha = 0.2f),
                                 Color.Black.copy(alpha = 0.15f),
                                 Color.Black.copy(alpha = 0.1f),
                                 Color.Black.copy(alpha = 0.01f),
                                 Color.Transparent
                             ),
-                            radius = size.minDimension / 1.5f,
+                            radius = size.minDimension / 1.7f,
                             center = center
                         )
                     )

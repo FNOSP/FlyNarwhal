@@ -225,7 +225,7 @@ object FnDataConvertor {
             val languageName = getLanguageName(it?.language, isoTagData)
             subtitleTrack.details = "$languageName ${it?.codecName?.uppercase()}"
         }
-        val imdbLink = if (!imdbId.isNullOrBlank()) "https://www.imdb.com/title/$imdbId/" else ""
+        val imdbLink = getImdbLink(imdbId)
         return MediaDetails(
             fileInfo,
             videoTrack,
@@ -233,6 +233,14 @@ object FnDataConvertor {
             subtitleTrack,
             imdbLink
         )
+    }
+
+    fun getImdbLink(imdbId: String?): String {
+        return if (!imdbId.isNullOrBlank()) {
+            "https://www.imdb.com/title/$imdbId/"
+        } else {
+            ""
+        }
     }
 
     fun getLanguageName(language: String?, isoTagData: IsoTagData): String {
