@@ -55,7 +55,7 @@ fun DetailPlayButton(
 @Composable
 fun DetailTags(
     itemData: ItemResponse,
-    formatedTotalDuration: String,
+    formatedTotalDuration: String? = "",
 ) {
     val isoTagData = LocalIsoTagData.current
     FlowRow(
@@ -131,12 +131,14 @@ fun DetailTags(
             }
             Separator()
         }
-        Text(
-            formatedTotalDuration,
-            color = FluentTheme.colors.text.text.secondary,
-            fontSize = 14.sp
-        )
-        Separator()
+        if (!formatedTotalDuration.isNullOrBlank()) {
+            Text(
+                formatedTotalDuration,
+                color = FluentTheme.colors.text.text.secondary,
+                fontSize = 14.sp
+            )
+            Separator()
+        }
         Text(
             itemData.ancestorName,
             color = FluentTheme.colors.text.text.secondary,

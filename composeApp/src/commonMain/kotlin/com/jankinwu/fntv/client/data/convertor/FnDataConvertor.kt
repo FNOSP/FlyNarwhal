@@ -56,11 +56,7 @@ fun convertToScrollRowItemData(item: MediaItem): ScrollRowItemData {
         item.releaseDate?.take(4)
     }
 
-    val score = try {
-        item.voteAverage?.toDoubleOrNull()?.toFloat()?.let { "%.1f".format(it) } ?: "0.0"
-    } catch (_: Exception) {
-        "0.0"
-    }
+    val score = FnDataConvertor.formatVoteAverage(item.voteAverage)
     val resolutions = item.mediaStream.resolutions?.filter { it != "Others" }?.distinct()
 
     return ScrollRowItemData(
@@ -363,5 +359,18 @@ object FnDataConvertor {
             }
         }
         return "未知存储空间"
+    }
+
+    /**
+     * 将评分转换为格式化的字符串，保留一位小数
+     * @param voteAverage 评分值
+     * @return 格式化后的评分字符串，如 "8.7"
+     */
+    fun formatVoteAverage(voteAverage: String?): String {
+        return try {
+            voteAverage?.toDoubleOrNull()?.toFloat()?.let { "%.1f".format(it) } ?: "0.0"
+        } catch (_: Exception) {
+            "0.0"
+        }
     }
 }

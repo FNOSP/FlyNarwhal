@@ -63,6 +63,7 @@ import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.screen.MovieDetailScreen
+import com.jankinwu.fntv.client.ui.screen.TvSeasonDetailScreen
 import com.jankinwu.fntv.client.ui.screen.rememberPlayMediaFunction
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.icons.Icons
@@ -145,6 +146,20 @@ fun MoviePoster(
                             }
                         )
                         navigator.navigate(movieDetailComponent)
+                    } else if (type == FnTvMediaType.TV.value) {
+                        val tvDetailComponent = ComponentItem(
+                            name = "剧集详情",
+                            group = "/详情",
+                            description = "剧集详情页面",
+                            guid = "tv_detail_$guid",
+                            content = { nav ->
+                                TvSeasonDetailScreen(
+                                    guid = guid,
+                                    navigator = nav
+                                )
+                            }
+                        )
+                        navigator.navigate(tvDetailComponent)
                     }
                 }
             )
