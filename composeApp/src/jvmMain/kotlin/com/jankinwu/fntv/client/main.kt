@@ -137,9 +137,21 @@ fun main() = application {
  */
 @Composable
 private fun createWindowConfiguration(): Triple<WindowState, String, Painter> {
+    val graphicsConfiguration = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
+        .defaultScreenDevice.defaultConfiguration
+    val defaultTransform = graphicsConfiguration.defaultTransform
+    val scaleX = defaultTransform.scaleX
+    val scaleY = defaultTransform.scaleY
+
+    val baseWidth = 1280
+    val baseHeight = 720
+
+    val adjustedWidth = (baseWidth * scaleX).toInt()
+    val adjustedHeight = (baseHeight * scaleY).toInt()
+
     val state = rememberWindowState(
         position = WindowPosition(Alignment.Center),
-        size = DpSize(1280.dp, 720.dp)
+        size = DpSize(adjustedWidth.dp, adjustedHeight.dp)
     )
     val title = "飞牛影视"
     val icon = painterResource(Res.drawable.icon)
