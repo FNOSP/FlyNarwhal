@@ -59,7 +59,18 @@ fun main() = application {
             val userInfoViewModel: UserInfoViewModel = koinInject()
             val userInfoState by userInfoViewModel.uiState.collectAsState()
             LaunchedEffect(Unit) {
-                window.minimumSize = Dimension(1280, 720)
+                val graphicsConfiguration = window.graphicsConfiguration
+                val defaultTransform = graphicsConfiguration.defaultTransform
+                val scaleX = defaultTransform.scaleX
+                val scaleY = defaultTransform.scaleY
+
+                val baseWidth = 1280
+                val baseHeight = 720
+
+                val adjustedWidth = (baseWidth * scaleX).toInt()
+                val adjustedHeight = (baseHeight * scaleY).toInt()
+
+                window.minimumSize = Dimension(adjustedWidth, adjustedHeight)
             }
             CompositionLocalProvider(
                 LocalPlayerManager provides playerManager,
