@@ -215,21 +215,7 @@ object FnDataConvertor {
             icon = Audio
         )
         currentStreamData.audioStreamList.firstOrNull().let {
-            val languageName = when (it?.language?.length) {
-                3 -> {
-                    isoTagData.iso6392Map[it.language]?.value
-                        ?: it.language
-                }
-
-                2 -> {
-                    isoTagData.iso6391Map[it.language]?.value
-                        ?: it.language
-                }
-
-                else -> {
-                    it?.language ?: ""
-                }
-            }
+            val languageName = getLanguageName(it?.language, isoTagData)
             audioTrack.details =
                 "$languageName ${it?.codecName?.uppercase()} ${it?.channelLayout} · ${it?.sampleRate} Hz"
         }
@@ -240,21 +226,7 @@ object FnDataConvertor {
             icon = Subtitle
         )
         currentStreamData.subtitleStreamList.firstOrNull().let {
-            val languageName = when (it?.language?.length) {
-                3 -> {
-                    isoTagData.iso6392Map[it.language]?.value
-                        ?: it.language
-                }
-
-                2 -> {
-                    isoTagData.iso6391Map[it.language]?.value
-                        ?: it.language
-                }
-
-                else -> {
-                    it?.language ?: ""
-                }
-            }
+            val languageName = getLanguageName(it?.language, isoTagData)
             subtitleTrack.details = "$languageName ${it?.codecName?.uppercase()}"
         }
         val imdbLink = if (!imdbId.isNullOrBlank()) "https://www.imdb.com/title/$imdbId/" else ""
@@ -265,6 +237,26 @@ object FnDataConvertor {
             subtitleTrack,
             imdbLink
         )
+    }
+
+    fun getLanguageName(language: String?, isoTagData: IsoTagData): String {
+        return when {
+            language == null -> {
+                "无"
+            }
+            language in listOf("", "und", "zxx", "qaa-qtz") -> {
+                "未知"
+            }
+            language.length == 2 -> {
+                isoTagData.iso6391Map[language]?.value ?: language
+            }
+            language.length == 3 -> {
+                isoTagData.iso6392Map[language]?.value ?: language
+            }
+            else -> {
+                language
+            }
+        }
     }
 
     /**

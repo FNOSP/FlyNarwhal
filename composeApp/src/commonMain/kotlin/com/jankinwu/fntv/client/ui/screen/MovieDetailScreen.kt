@@ -904,12 +904,7 @@ fun AudioSelector(
     val selectorOptions by remember(currentAudioStreamList, iso6392Map, currentAudioStream) {
         derivedStateOf {
             currentAudioStreamList.map { audioStream ->
-                val language: String =
-                    if (audioStream.language in listOf("", "und", "zxx", "qaa-qtz")) {
-                        "未知"
-                    } else {
-                        iso6392Map[audioStream.language]?.value ?: audioStream.language
-                    }
+                val language: String = FnDataConvertor.getLanguageName(audioStream.language, isoTagData)
                 StreamOptionItem(
                     optionGuid = audioStream.guid,
                     title = language,
@@ -922,21 +917,7 @@ fun AudioSelector(
             }
         }
     }
-    val selectedLanguage: String =
-        when (currentAudioStream?.language) {
-            in listOf("", "und", "zxx", "qaa-qtz") -> {
-                "未知音频"
-            }
-
-            null -> {
-                "未知音频"
-            }
-
-            else -> {
-                (iso6392Map[currentAudioStream.language]?.value
-                    ?: currentAudioStream.language) + "音频"
-            }
-        }
+    val selectedLanguage: String = FnDataConvertor.getLanguageName(currentAudioStream?.language, isoTagData) + "音频"
     val selectedIndex by remember(selectorOptions, currentAudioStream) {
         derivedStateOf {
             currentAudioStreamList.indexOfFirst { it.guid == currentAudioStream?.guid }
@@ -965,24 +946,10 @@ fun SubtitleSelector(
     val selectorOptions by remember(currentSubtitleStreamList, iso6392Map, currentSubtitleStream) {
         derivedStateOf {
             currentSubtitleStreamList.map { subtitleStream ->
-                val languageTitle: String =
-                    when {
-                        subtitleStream.language in listOf("", "und", "zxx", "qaa-qtz") -> {
-                            "未知"
-                        }
-
-                        subtitleStream.language.length == 3 -> {
-                            iso6392Map[subtitleStream.language]?.value ?: subtitleStream.language
-                        }
-
-                        subtitleStream.language.length == 2 -> {
-                            iso6391Map[subtitleStream.language]?.value ?: subtitleStream.language
-                        }
-
-                        else -> {
-                            subtitleStream.language
-                        }
-                    }
+                val languageTitle: String =FnDataConvertor.getLanguageName(
+                    subtitleStream.language,
+                    isoTagData
+                )
                 StreamOptionItem(
                     optionGuid = subtitleStream.guid,
                     title = if (subtitleStream.isExternal == 1) "$languageTitle - 外挂" else languageTitle,
@@ -996,35 +963,10 @@ fun SubtitleSelector(
             }
         }
     }
-    val selectedLanguage: String =
-        when (currentSubtitleStream?.language) {
-            in listOf("", "und", "zxx", "qaa-qtz") -> {
-                "未知字幕"
-            }
-
-            null -> {
-                "无字幕"
-            }
-
-            else -> {
-                val languageName = when {
-                    currentSubtitleStream.language.length == 3 -> {
-                        iso6392Map[currentSubtitleStream.language]?.value
-                            ?: currentSubtitleStream.language
-                    }
-
-                    currentSubtitleStream.language.length == 2 -> {
-                        iso6391Map[currentSubtitleStream.language]?.value
-                            ?: currentSubtitleStream.language
-                    }
-
-                    else -> {
-                        currentSubtitleStream.language
-                    }
-                }
-                "${languageName}字幕"
-            }
-        }
+    val selectedLanguage: String = FnDataConvertor.getLanguageName(
+        currentSubtitleStream?.language,
+        isoTagData
+    ) + "字幕"
     val selectedIndex by remember(currentSubtitleStream) {
         derivedStateOf {
             currentSubtitleStreamList.indexOfFirst { it.guid == currentSubtitleStream?.guid }
