@@ -59,18 +59,10 @@ fun main() = application {
             val userInfoViewModel: UserInfoViewModel = koinInject()
             val userInfoState by userInfoViewModel.uiState.collectAsState()
             LaunchedEffect(Unit) {
-                val graphicsConfiguration = window.graphicsConfiguration
-                val defaultTransform = graphicsConfiguration.defaultTransform
-                val scaleX = defaultTransform.scaleX
-                val scaleY = defaultTransform.scaleY
-
                 val baseWidth = 1280
                 val baseHeight = 720
-
-                val adjustedWidth = (baseWidth * scaleX).toInt()
-                val adjustedHeight = (baseHeight * scaleY).toInt()
-
-                window.minimumSize = Dimension(adjustedWidth, adjustedHeight)
+                window.minimumSize = Dimension(baseWidth, baseHeight)
+//                window.size = Dimension(baseWidth, baseHeight)
             }
             CompositionLocalProvider(
                 LocalPlayerManager provides playerManager,
@@ -137,21 +129,10 @@ fun main() = application {
  */
 @Composable
 private fun createWindowConfiguration(): Triple<WindowState, String, Painter> {
-    val graphicsConfiguration = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
-        .defaultScreenDevice.defaultConfiguration
-    val defaultTransform = graphicsConfiguration.defaultTransform
-    val scaleX = defaultTransform.scaleX
-    val scaleY = defaultTransform.scaleY
-
-    val baseWidth = 1280
-    val baseHeight = 720
-
-    val adjustedWidth = (baseWidth * scaleX).toInt()
-    val adjustedHeight = (baseHeight * scaleY).toInt()
-
     val state = rememberWindowState(
         position = WindowPosition(Alignment.Center),
-        size = DpSize(adjustedWidth.dp, adjustedHeight.dp)
+//        size = DpSize.Unspecified
+        size = DpSize(1280.dp, 720.dp)
     )
     val title = "飞牛影视"
     val icon = painterResource(Res.drawable.icon)
