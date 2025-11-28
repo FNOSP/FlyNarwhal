@@ -36,6 +36,7 @@ import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
+import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.providable.LocalUserInfo
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
@@ -189,6 +190,7 @@ fun HomePageScreen(navigator: ComponentNavigator) {
     }
     CompositionLocalProvider(
         LocalUserInfo provides currentUserInfo,
+        LocalToastManager provides toastManager
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(horizontalAlignment = Alignment.Start) {

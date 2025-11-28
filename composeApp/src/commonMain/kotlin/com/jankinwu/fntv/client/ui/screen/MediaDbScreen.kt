@@ -52,6 +52,7 @@ import com.jankinwu.fntv.client.ui.component.common.MoviePoster
 import com.jankinwu.fntv.client.ui.component.common.SortFlyout
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
+import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalUserInfo
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.GenresViewModel
@@ -375,6 +376,7 @@ fun MediaDbScreen(
     }
     CompositionLocalProvider(
         LocalUserInfo provides currentUserInfo,
+        LocalToastManager provides toastManager,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(

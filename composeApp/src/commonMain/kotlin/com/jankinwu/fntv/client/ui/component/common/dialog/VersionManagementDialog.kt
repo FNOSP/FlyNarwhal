@@ -42,6 +42,7 @@ import com.jankinwu.fntv.client.ui.component.common.AnimatedScrollbarLazyColumn
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.customAccentButtonColors
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
+import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalUserInfo
 import com.jankinwu.fntv.client.ui.screen.MediaQualityTag
 import com.jankinwu.fntv.client.viewmodel.MediaItemFileViewModel
@@ -76,12 +77,27 @@ fun VersionManagementDialog(
 ) {
     val mediaItemFileViewModel: MediaItemFileViewModel = koinViewModel()
     val scrapViewModel: ScrapViewModel = koinViewModel()
-    val uiState by mediaItemFileViewModel.uiState.collectAsState()
+    val scrapState by scrapViewModel.uiState.collectAsState()
+    val itemUiState by mediaItemFileViewModel.uiState.collectAsState()
     var selectedMediaGuids by remember { mutableStateOf(setOf<String>()) }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    val toastManager = LocalToastManager.current
 
     LaunchedEffect(visible, guid) {
         if (visible) mediaItemFileViewModel.loadData(guid)
+    }
+
+    LaunchedEffect(scrapState) {
+        when (scrapState) {
+            is UiState.Success -> {
+                toastManager.showToast("解除匹配成功")
+                onDismiss()
+            }
+            is UiState.Error -> {
+                toastManager.showToast("解除匹配失败：" + (scrapState as UiState.Error).message, false)
+            }
+            else -> {}
+        }
     }
 
     FluentDialog(visible, size) {
@@ -126,8 +142,8 @@ fun VersionManagementDialog(
                                 text = "《$itemTitle》",
                                 color = FluentTheme.colors.text.text.secondary
                             )
-                            val count = when (uiState) {
-                                is UiState.Success -> (uiState as UiState.Success<List<MediaItemResponse>>).data.size
+                            val count = when (itemUiState) {
+                                is UiState.Success -> (itemUiState as UiState.Success<List<MediaItemResponse>>).data.size
                                 else -> 0
                             }
                             Text(
@@ -147,10 +163,10 @@ fun VersionManagementDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                     ) {
-                        when (uiState) {
+                        when (itemUiState) {
                             is UiState.Success -> {
                                 val list =
-                                    (uiState as UiState.Success<List<MediaItemResponse>>).data
+                                    (itemUiState as UiState.Success<List<MediaItemResponse>>).data
                                 val listState = rememberLazyListState()
                                 AnimatedScrollbarLazyColumn(listState = listState, modifier = Modifier.fillMaxSize()) {
                                     itemsIndexed(list, key = { _, item -> item.mediaGuid }) { index, item ->
@@ -173,7 +189,7 @@ fun VersionManagementDialog(
 
                             is UiState.Error -> {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text((uiState as UiState.Error).message)
+                                    Text((itemUiState as UiState.Error).message)
                                     Button(onClick = { mediaItemFileViewModel.refresh(guid) }) {
                                         Text(
                                             "重试"
