@@ -3,6 +3,7 @@ package com.jankinwu.fntv.client
 import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -19,6 +20,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.jankinwu.fntv.client.data.network.apiModule
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PreferencesManager
+import com.jankinwu.fntv.client.manager.ProxyManager
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
 import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
@@ -39,6 +41,13 @@ import org.openani.mediamp.compose.rememberMediampPlayer
 import java.awt.Dimension
 
 fun main() = application {
+    DisposableEffect(Unit) {
+        ProxyManager.start()
+        onDispose {
+            ProxyManager.stop()
+        }
+    }
+
     val (state, title, icon) = createWindowConfiguration()
 
     // 加载登录信息到缓存

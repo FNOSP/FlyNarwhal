@@ -27,12 +27,14 @@ import com.jankinwu.fntv.client.data.convertor.convertToScrollRowItemData
 import com.jankinwu.fntv.client.data.model.ScrollRowItemData
 import com.jankinwu.fntv.client.data.model.request.Tags
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
+import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.MediaLibCardRow
 import com.jankinwu.fntv.client.ui.component.common.MediaLibGallery
 import com.jankinwu.fntv.client.ui.component.common.RecentlyWatched
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
+import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
@@ -43,6 +45,7 @@ import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemListViewModel
 import com.jankinwu.fntv.client.viewmodel.MediaDbListViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayListViewModel
+import com.jankinwu.fntv.client.viewmodel.ProxySettingViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
@@ -84,7 +87,7 @@ fun HomePageScreen(navigator: ComponentNavigator) {
     }
     val refreshState = LocalRefreshState.current
     val recentlyWatchedListState = rememberLazyListState()
-
+    FntvProxy(toastManager)
     // 监听刷新状态变化
     LaunchedEffect(refreshState.refreshKey) {
         // 当刷新状态变化时执行刷新逻辑
@@ -390,6 +393,33 @@ fun HomePageScreen(navigator: ComponentNavigator) {
                 toastManager = toastManager,
                 modifier = Modifier.fillMaxSize()
             )
+        }
+    }
+}
+
+@Composable
+fun FntvProxy(toastManager: ToastManager) {
+    val proxySettingViewModel = koinViewModel<ProxySettingViewModel>()
+    val proxyUiState by proxySettingViewModel.uiState.collectAsState()
+    LaunchedEffect(Unit) {
+        proxySettingViewModel.clearError()
+        proxySettingViewModel.setProxyInfo(
+            url = AccountDataCache.getFnOfficialBaseUrl(),
+            cookie = AccountDataCache.cookieState
+        )
+    }
+    LaunchedEffect(proxyUiState) {
+        when (proxyUiState) {
+            is UiState.Success -> {
+                toastManager.showToast("代理设置成功")
+            }
+
+            is UiState.Error -> {
+                toastManager.showToast("代理设置失败, cause: ${(proxyUiState as UiState.Error).message}")
+            }
+
+            else -> {
+            }
         }
     }
 }

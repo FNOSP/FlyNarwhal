@@ -3,6 +3,7 @@ package com.jankinwu.fntv.client.data.network
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
+import com.jankinwu.fntv.client.data.network.impl.ProxyApiImpl
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -74,4 +75,5 @@ actual val fnOfficialClient = HttpClient(OkHttp) {
 
 actual val apiModule = module {
     single { FnOfficialApiImpl() }
+    single { ProxyApiImpl() }
 }

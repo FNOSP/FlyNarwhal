@@ -40,6 +40,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
@@ -48,6 +51,7 @@ import com.jankinwu.fntv.client.data.model.request.StreamRequest
 import com.jankinwu.fntv.client.data.model.response.FileInfo
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
+import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.data.model.response.VideoStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.enums.FnTvMediaType
@@ -77,6 +81,7 @@ import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.MediampPlayerSurface
 import org.openani.mediamp.features.PlaybackSpeed
 import org.openani.mediamp.source.MediaExtraFiles
+import org.openani.mediamp.source.Subtitle
 import org.openani.mediamp.source.UriMediaData
 import org.openani.mediamp.togglePause
 
@@ -115,7 +120,18 @@ class PlayerManager {
     }
 }
 
+object PlayerScreen{
 
+    val mapper = jacksonObjectMapper().apply {
+        // 禁止格式化输出
+        disable(SerializationFeature.INDENT_OUTPUT)
+        // 忽略未知字段
+        disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+        // 不序列化null值
+        disable(SerializationFeature.WRITE_NULL_MAP_VALUES)
+//            setSerializationInclusion(JsonInclude.Include.NON_NULL)
+    }
+}
 
 // 全局播放信息缓存，生命周期跟随播放器
 var playingInfoCache: PlayingInfoCache? = null
@@ -559,9 +575,10 @@ fun PlayerControlRow(
 
 suspend fun MediampPlayer.playUri(
     uri: String,
-    headers: Map<String, String> = emptyMap()
+    headers: Map<String, String> = emptyMap(),
+    extraFiles: MediaExtraFiles
 ): Unit =
-    setMediaData(UriMediaData(uri, headers, MediaExtraFiles()))
+    setMediaData(UriMediaData(uri, headers, extraFiles))
 
 @Composable
 fun rememberPlayMediaFunction(
@@ -672,9 +689,13 @@ private suspend fun playMedia(
             videoStream, audioStream, subtitleStream, playInfoResponse.item.guid
         )
         println("startPosition: $startPosition")
+        // 设置字幕
+        val extraFiles = subtitleStream?.let {
+            val mediaExtraFiles = getMediaExtraFiles(it)
+            mediaExtraFiles
+        }?: MediaExtraFiles()
         // 启动播放器
-        startPlayback(player, playLink, startPosition)
-
+        startPlayback(player, playLink, startPosition, extraFiles)
         // 记录播放数据
         callPlayRecord(
 //            itemGuid = guid,
@@ -690,6 +711,17 @@ private suspend fun playMedia(
     } catch (e: Exception) {
         println("播放失败: ${e.message}")
     }
+}
+
+private fun getMediaExtraFiles(
+    subtitleStream: SubtitleStream
+) : MediaExtraFiles {
+    if (subtitleStream.isExternal == 1 && subtitleStream.format in listOf("srt", "ass")) {
+        val subtitleLink = "${AccountDataCache.getFnOfficialBaseUrl()}/v/api/v1/subtitle/dl/${subtitleStream.guid}"
+        val subtitle = Subtitle(subtitleLink)
+        return MediaExtraFiles(listOf(subtitle))
+    }
+    return MediaExtraFiles()
 }
 
 private suspend fun fetchStreamInfo(
@@ -739,7 +771,8 @@ private fun createPlayRequest(
 private suspend fun startPlayback(
     player: MediampPlayer,
     playLink: String,
-    startPosition: Long
+    startPosition: Long,
+    extraFiles: MediaExtraFiles
 ) {
     if (AccountDataCache.cookieState.isNotBlank()) {
         val headers = mapOf(
@@ -747,12 +780,16 @@ private suspend fun startPlayback(
             "Authorization" to AccountDataCache.authorization
         )
 //        headers["Authorization"] = AccountDataCache.authorization
-        println("headers: $headers, playUri: ${AccountDataCache.getFnOfficialBaseUrl()}$playLink")
-        player.playUri("${AccountDataCache.getFnOfficialBaseUrl()}$playLink", headers)
+        val extraFilesStr = PlayerScreen.mapper.writeValueAsString(extraFiles)
+        println("play param: headers: $headers, playUri: ${AccountDataCache.getFnOfficialBaseUrl()}$playLink, extraFiles: $extraFilesStr")
+        player.playUri("${AccountDataCache.getFnOfficialBaseUrl()}$playLink", headers, extraFiles)
     } else {
-        player.playUri("${AccountDataCache.getFnOfficialBaseUrl()}$playLink")
+        player.playUri(
+            "${AccountDataCache.getFnOfficialBaseUrl()}$playLink",
+            extraFiles = extraFiles
+        )
     }
-    delay(1000) // 等待播放器初始化
+    delay(1500) // 等待播放器初始化
     player.features[PlaybackSpeed]?.set(1.0f)
     println("startPlayback startPosition: $startPosition")
     player.seekTo(startPosition)

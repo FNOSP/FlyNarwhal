@@ -72,4 +72,5 @@ val viewModelModule = module {
     viewModelOf (::ScrapRescrapViewModel)
     viewModelOf (::EpisodeListViewModel)
     viewModelOf (::SeasonListViewModel)
+    viewModelOf (::ProxySettingViewModel)
 }

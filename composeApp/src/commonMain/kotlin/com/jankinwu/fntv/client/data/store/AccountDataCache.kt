@@ -38,6 +38,10 @@ object AccountDataCache {
         }
     }
 
+    fun getProxyBaseUrl(): String {
+        return "http://127.0.0.1:1999"
+    }
+
     private fun getCookie(): String {
         return cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
     }
