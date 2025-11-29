@@ -88,16 +88,21 @@ compose.desktop {
         }
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Deb, TargetFormat.Exe, TargetFormat.Rpm)
-            packageName = "飞牛影视"
+            packageName = "FNTVClient"
             packageVersion = "1.0.0"
             modules("jdk.unsupported")
             windows {
                 iconFile.set(project.file("icons/favicon.ico"))
                 shortcut = true
+                menu = true
+                menuGroup = "飞牛影视"
+                console = false
+                dirChooser = true
             }
             macOS {
                 iconFile.set(project.file("icons/favicon.icns"))
                 dockName = "飞牛影视"
+                setDockNameSameAsPackageName = false
             }
             linux {
                 iconFile.set(project.file("icons/favicon.png"))

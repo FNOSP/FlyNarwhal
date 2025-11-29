@@ -138,11 +138,39 @@ fun customAccentButtonColors(
     disabled = disabled
 )
 
+@Stable
+@Composable
+fun customDangerButtonColors(
+    default: ButtonColor = ButtonColor(
+        fillColor = Colors.DangerDefaultColor,
+        contentColor = FluentTheme.colors.text.onAccent.primary,
+        borderBrush = FluentTheme.colors.borders.accentControl
+    ),
+    hovered: ButtonColor = default.copy(
+        fillColor = Colors.DangerSecondaryColor
+    ),
+    pressed: ButtonColor = ButtonColor(
+        fillColor = Colors.DangerTertiaryColor,
+        contentColor = FluentTheme.colors.text.onAccent.secondary,
+        borderBrush = SolidColor(FluentTheme.colors.stroke.control.onAccentDefault)
+    ),
+    disabled: ButtonColor = ButtonColor(
+        fillColor = FluentTheme.colors.fillAccent.disabled,
+        contentColor = FluentTheme.colors.text.onAccent.disabled,
+        borderBrush = SolidColor(Color.Transparent) // Disabled accent button does not have border
+    )
+) = ButtonColorScheme(
+    default = default,
+    hovered = hovered,
+    pressed = pressed,
+    disabled = disabled
+)
+
 typealias ButtonColorScheme = PentaVisualScheme<ButtonColor>
 
 fun DialogSize.Companion.createCustomSize(min: Dp, max: Dp): DialogSize {
     return DialogSize(min, max)
 }
 
-val LargeDialogSize = DialogSize.createCustomSize(720.dp, 720.dp)
+val LargeDialogSize = DialogSize.createCustomSize(720.dp, 960.dp)
 

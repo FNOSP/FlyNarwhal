@@ -35,15 +35,16 @@ internal fun BottomIconButton(
     iconYOffset: Dp = 0.dp
 ) {
     var isHovered by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
             .onPointerEvent(PointerEventType.Enter) { isHovered = true }
             .onPointerEvent(PointerEventType.Exit) { isHovered = false }
-//            .clickable(
-//                interactionSource = remember { MutableInteractionSource() },
-//                indication = null,
-//                onClick = { onClick() }
-//            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = { onClick() }
+            )
     ) {
         // 悬停时显示的圆形背景
         Box(

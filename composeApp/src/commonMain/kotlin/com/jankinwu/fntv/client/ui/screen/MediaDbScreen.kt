@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,11 +37,12 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.jankinwu.fntv.client.LocalRefreshState
-import com.jankinwu.fntv.client.LocalStore
-import com.jankinwu.fntv.client.LocalTypography
+import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
+import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.data.convertor.convertToScrollRowItemData
 import com.jankinwu.fntv.client.data.model.request.Tags
+import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.FilterBox
@@ -50,12 +52,15 @@ import com.jankinwu.fntv.client.ui.component.common.MoviePoster
 import com.jankinwu.fntv.client.ui.component.common.SortFlyout
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
+import com.jankinwu.fntv.client.ui.providable.LocalToastManager
+import com.jankinwu.fntv.client.ui.providable.LocalUserInfo
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemListViewModel
 import com.jankinwu.fntv.client.viewmodel.TagListViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
+import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ScrollbarContainer
@@ -79,6 +84,12 @@ fun MediaDbScreen(
     val genresUiState by genresViewModel.uiState.collectAsState()
     val tagViewModel: TagViewModel = koinViewModel<TagViewModel>()
     val iso3166State by tagViewModel.iso3166State.collectAsState()
+    val userInfoViewModel: UserInfoViewModel = koinViewModel<UserInfoViewModel>()
+    val userInfoUiState by userInfoViewModel.uiState.collectAsState()
+    val currentUserInfo = when (userInfoUiState) {
+        is UiState.Success -> (userInfoUiState as UiState.Success<UserInfoResponse>).data
+        else -> UserInfoResponse.Empty
+    }
     val gridState = rememberLazyGridState()
     val store = LocalStore.current
     val scaleFactor = store.scaleFactor
@@ -107,31 +118,39 @@ fun MediaDbScreen(
                         builder.type(listOf(filterItem.value.toString()))
                     }
                 }
+
                 "类型" -> {
                     if (filterItem.value != null) {
                         builder.genres(filterItem.value as? Int)
                     }
                 }
+
                 "分辨率" -> {
                     builder.resolution(filterItem.value as? String)
                 }
+
                 "视频动态范围" -> {
                     builder.colorRange(filterItem.value as? String)
                 }
+
                 "音频规格" -> {
                     builder.audioType(filterItem.value as? String)
                 }
+
                 "国家和地区" -> {
                     builder.locate(filterItem.value as? String)
                 }
+
                 "发行年份" -> {
                     builder.decade(filterItem.value as? String)
                 }
+
                 "匹配状态" -> {
                     if (filterItem.value != null) {
                         builder.recognitionStatus((filterItem.value as? Int).toString())
                     }
                 }
+
                 "是否已观看" -> {
                     builder.watched(filterItem.value as? String)
                 }
@@ -198,7 +217,7 @@ fun MediaDbScreen(
     val currentDensity = LocalDensity.current
 
     // 获取窗口高度
-    val windowHeightPx = with(currentDensity) { store.windowHeightState.toPx()}.toInt()
+    val windowHeightPx = with(currentDensity) { store.windowHeightState.toPx() }.toInt()
     var previousFirstVisibleIndex by remember { mutableIntStateOf(0) }
     var shouldIgnoreScrollCheck by remember { mutableStateOf(false) }
 
@@ -215,7 +234,13 @@ fun MediaDbScreen(
     }
 
     // 监听滚动并判断是否需要收起筛选框
-    LaunchedEffect(gridState, isFilterButtonSelected, filterBoxHeightPx, headerHeightPx, windowHeightPx) {
+    LaunchedEffect(
+        gridState,
+        isFilterButtonSelected,
+        filterBoxHeightPx,
+        headerHeightPx,
+        windowHeightPx
+    ) {
         if (!isFilterButtonSelected || filterBoxHeightPx == 0) return@LaunchedEffect
 
         snapshotFlow { gridState.firstVisibleItemIndex }
@@ -223,7 +248,8 @@ fun MediaDbScreen(
                 // 只有在滚动过程中才检查（当前索引与之前索引不同，且都不是0）
                 if (!shouldIgnoreScrollCheck &&
                     firstVisibleIndex != previousFirstVisibleIndex &&
-                    (previousFirstVisibleIndex > 0 || firstVisibleIndex > 0)) {
+                    (previousFirstVisibleIndex > 0 || firstVisibleIndex > 0)
+                ) {
 
                     // 获取当前筛选框的底部位置（相对于窗口）
                     val filterBoxBottom = headerHeightPx + filterBoxHeightPx
@@ -348,203 +374,207 @@ fun MediaDbScreen(
             watchedViewModel.clearError()
         }
     }
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .onSizeChanged {
-                    screenWidthPx = it.width
-                },
-            horizontalAlignment = Alignment.Start
-        ) {
+    CompositionLocalProvider(
+        LocalUserInfo provides currentUserInfo,
+        LocalToastManager provides toastManager,
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
-                    .onGloballyPositioned { coordinates ->
-                        headerHeightPx = coordinates.size.height
-                    }
+                    .fillMaxHeight()
+                    .onSizeChanged {
+                        screenWidthPx = it.width
+                    },
+                horizontalAlignment = Alignment.Start
             ) {
-                Text(
-                    text = title,
-                    style = LocalTypography.current.subtitle,
-                    color = FluentTheme.colors.text.text.tertiary,
+                Column(
                     modifier = Modifier
-                        .padding(top = 36.dp, start = 32.dp, bottom = 32.dp)
-                )
-                Row(
-                    modifier = Modifier.padding(start = 32.dp, bottom = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .onGloballyPositioned { coordinates ->
+                            headerHeightPx = coordinates.size.height
+                        }
                 ) {
-                    FilterButton(
-                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                        isSelected = isFilterButtonSelected,
-                        selectedFilters = selectedFilters,
-                        onFilterClear = { title ->
-                            // 创建一个新的 map，将指定标题的筛选项重置为"全部"
-                            val updatedFilters = selectedFilters.toMutableMap()
-                            if (title in updatedFilters) {
-                                updatedFilters[title] = FilterItem("全部", null) // "全部"选项
-                                selectedFilters = updatedFilters.toMap()
-                            } else {
-                                // 如果标题不在 selectedFilters 中，则创建一个新的 map，将所有选项重置为"全部"
-                                val updatedFilters = selectedFilters.map { (key, _) ->
-                                    key to FilterItem("全部", null)
-                                }.toMap()
-                                selectedFilters = updatedFilters
-                            }
+                    Text(
+                        text = title,
+                        style = LocalTypography.current.subtitle,
+                        color = FluentTheme.colors.text.text.tertiary,
+                        modifier = Modifier
+                            .padding(top = 36.dp, start = 32.dp, bottom = 32.dp)
+                    )
+                    Row(
+                        modifier = Modifier.padding(start = 32.dp, bottom = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterButton(
+                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                            isSelected = isFilterButtonSelected,
+                            selectedFilters = selectedFilters,
+                            onFilterClear = { title ->
+                                // 创建一个新的 map，将指定标题的筛选项重置为"全部"
+                                val updatedFilters = selectedFilters.toMutableMap()
+                                if (title in updatedFilters) {
+                                    updatedFilters[title] = FilterItem("全部", null) // "全部"选项
+                                    selectedFilters = updatedFilters.toMap()
+                                } else {
+                                    // 如果标题不在 selectedFilters 中，则创建一个新的 map，将所有选项重置为"全部"
+                                    val updatedFilters = selectedFilters.map { (key, _) ->
+                                        key to FilterItem("全部", null)
+                                    }.toMap()
+                                    selectedFilters = updatedFilters
+                                }
 
-                            // 重新加载数据
+                                // 重新加载数据
+                                val tags = buildTagsFromFilters()
+                                itemListViewModel.loadData(
+                                    guid = mediaDbGuid,
+                                    tags = tags,
+                                    pageSize = 50,
+                                    sortColumn = sortColumnState,
+                                    sortOrder = sortOrderState
+                                )
+                            },
+                            onClick = {
+                                isFilterButtonSelected = !isFilterButtonSelected
+                            }
+                        )
+                        SortFlyout(
+                            onSortTypeSelected = { sortType ->
+                                sortColumnState = sortType
+                            },
+                            onSortOrderSelected = { sortOrder ->
+                                sortOrderState = sortOrder
+                            },
+                        )
+                    }
+                }
+
+                // 当筛选框展开时显示筛选框组件，直接嵌入到内容流中
+                AnimatedVisibility(
+                    visible = isFilterButtonSelected,
+                    enter = expandVertically(
+                        animationSpec = tween(durationMillis = 300)
+                    ) + fadeIn(
+                        animationSpec = tween(durationMillis = 300)
+                    ),
+                    exit = shrinkVertically(
+                        animationSpec = tween(durationMillis = 300)
+                    ) + fadeOut(
+                        animationSpec = tween(durationMillis = 300)
+                    )
+                ) {
+                    FilterBox(
+                        modifier = Modifier
+                            .padding(horizontal = 32.dp)
+                            .padding(bottom = 16.dp)
+                            .fillMaxWidth()
+                            .onGloballyPositioned { coordinates ->
+                                // 记录筛选框的高度和顶部位置
+                                filterBoxHeightPx = coordinates.size.height
+                            },
+                        tagListUiState = tagListUiState,
+                        genresUiState = genresUiState,
+                        iso3166State = iso3166State,
+                        initialSelectedFilters = selectedFilters,
+                        onFilterChanged = { filters ->
+                            selectedFilters = filters
+                            // 当筛选条件改变时，重新加载数据
                             val tags = buildTagsFromFilters()
                             itemListViewModel.loadData(
                                 guid = mediaDbGuid,
                                 tags = tags,
-                                pageSize = 50,
-                                sortColumn = sortColumnState,
-                                sortOrder = sortOrderState
+                                pageSize = 50
                             )
                         },
-                        onClick = {
-                            isFilterButtonSelected = !isFilterButtonSelected
+                        onFilterBoxCollapse = {
+                            isFilterButtonSelected = false
                         }
                     )
-                    SortFlyout(
-                        onSortTypeSelected = { sortType ->
-                            sortColumnState = sortType
-                        },
-                        onSortOrderSelected = { sortOrder ->
-                            sortOrderState = sortOrder
-                        },
-                    )
                 }
-            }
 
-            // 当筛选框展开时显示筛选框组件，直接嵌入到内容流中
-            AnimatedVisibility(
-                visible = isFilterButtonSelected,
-                enter = expandVertically(
-                    animationSpec = tween(durationMillis = 300)
-                ) + fadeIn(
-                    animationSpec = tween(durationMillis = 300)
-                ),
-                exit = shrinkVertically(
-                    animationSpec = tween(durationMillis = 300)
-                ) + fadeOut(
-                    animationSpec = tween(durationMillis = 300)
-                )
-            ) {
-                FilterBox(
-                    modifier = Modifier
-                        .padding(horizontal = 32.dp)
-                        .padding(bottom = 16.dp)
-                        .fillMaxWidth()
-                        .onGloballyPositioned { coordinates ->
-                            // 记录筛选框的高度和顶部位置
-                            filterBoxHeightPx = coordinates.size.height
-                        },
-                    tagListUiState = tagListUiState,
-                    genresUiState = genresUiState,
-                    iso3166State = iso3166State,
-                    initialSelectedFilters = selectedFilters,
-                    onFilterChanged = { filters ->
-                        selectedFilters = filters
-                        // 当筛选条件改变时，重新加载数据
-                        val tags = buildTagsFromFilters()
-                        itemListViewModel.loadData(
-                            guid = mediaDbGuid,
-                            tags = tags,
-                            pageSize = 50
-                        )
-                    },
-                    onFilterBoxCollapse = {
-                        isFilterButtonSelected = false
-                    }
-                )
-            }
+                ScrollbarContainer(
+                    adapter = rememberScrollbarAdapter(gridState)
+                ) {
+                    when (val state = itemListUiState) {
+                        is UiState.Success -> {
+                            val mediaItems = state.data.list
 
-            ScrollbarContainer(
-                adapter = rememberScrollbarAdapter(gridState)
-            ) {
-                when (val state = itemListUiState) {
-                    is UiState.Success -> {
-                        val mediaItems = state.data.list
-
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(spanCount),
-                            state = gridState,
-                            modifier = Modifier
-                                .padding(start = 32.dp, end = 32.dp, bottom = 16.dp)
-                            ,
-                            horizontalArrangement = Arrangement.spacedBy(spacing),
-                            verticalArrangement = Arrangement.spacedBy(spacing)
-                        ) {
-                            items(mediaItems) { mediaItem ->
-                                val itemData = convertToScrollRowItemData(mediaItem)
-                                Box(
-                                    modifier = Modifier
-                                        .height(posterHeight)
-                                        .fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    MoviePoster(
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(spanCount),
+                                state = gridState,
+                                modifier = Modifier
+                                    .padding(start = 32.dp, end = 32.dp, bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(spacing),
+                                verticalArrangement = Arrangement.spacedBy(spacing)
+                            ) {
+                                items(mediaItems) { mediaItem ->
+                                    val itemData = convertToScrollRowItemData(mediaItem)
+                                    Box(
                                         modifier = Modifier
-                                            .fillMaxHeight(),
-                                        title = itemData.title,
-                                        subtitle = itemData.subtitle,
-                                        score = itemData.score,
-                                        posterImg = itemData.posterImg,
-                                        isFavorite = itemData.isFavourite,
-                                        isAlreadyWatched = itemData.isAlreadyWatched,
-                                        resolutions = itemData.resolutions,
-                                        guid = itemData.guid,
-                                        onFavoriteToggle = { guid, currentFavoriteState, resultCallback ->
-                                            // 保存回调函数
-                                            pendingCallbacks =
-                                                pendingCallbacks + (guid to resultCallback)
-                                            // 调用 ViewModel 方法
-                                            favoriteViewModel.toggleFavorite(
-                                                guid,
-                                                currentFavoriteState
-                                            )
-                                        },
-                                        onWatchedToggle = { guid, currentWatchedState, resultCallback ->
-                                            // 保存回调函数
-                                            pendingCallbacks =
-                                                pendingCallbacks + (guid to resultCallback)
-                                            // 调用 ViewModel 方法
-                                            watchedViewModel.toggleWatched(
-                                                guid,
-                                                currentWatchedState
-                                            )
-                                        },
-                                        posterWidth = itemData.posterWidth,
-                                        posterHeight = itemData.posterHeight,
-                                        status = itemData.status,
-                                        navigator = navigator,
-                                        type = itemData.type
-                                    )
-                                }
+                                            .height(posterHeight)
+                                            .fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        MoviePoster(
+                                            modifier = Modifier
+                                                .fillMaxHeight(),
+                                            title = itemData.title,
+                                            subtitle = itemData.subtitle,
+                                            score = itemData.score,
+                                            posterImg = itemData.posterImg,
+                                            isFavorite = itemData.isFavourite,
+                                            isAlreadyWatched = itemData.isAlreadyWatched,
+                                            resolutions = itemData.resolutions,
+                                            guid = itemData.guid,
+                                            onFavoriteToggle = { guid, currentFavoriteState, resultCallback ->
+                                                // 保存回调函数
+                                                pendingCallbacks =
+                                                    pendingCallbacks + (guid to resultCallback)
+                                                // 调用 ViewModel 方法
+                                                favoriteViewModel.toggleFavorite(
+                                                    guid,
+                                                    currentFavoriteState
+                                                )
+                                            },
+                                            onWatchedToggle = { guid, currentWatchedState, resultCallback ->
+                                                // 保存回调函数
+                                                pendingCallbacks =
+                                                    pendingCallbacks + (guid to resultCallback)
+                                                // 调用 ViewModel 方法
+                                                watchedViewModel.toggleWatched(
+                                                    guid,
+                                                    currentWatchedState
+                                                )
+                                            },
+                                            posterWidth = itemData.posterWidth,
+                                            posterHeight = itemData.posterHeight,
+                                            status = itemData.status,
+                                            navigator = navigator,
+                                            type = itemData.type
+                                        )
+                                    }
 
+                                }
                             }
                         }
-                    }
 
-                    is UiState.Error -> {
-                        // 显示错误信息
-                        toastManager.showToast(
-                            "获取媒体列表失败, cause: ${state.message}",
-                            false,
-                            10000
-                        )
-                    }
+                        is UiState.Error -> {
+                            // 显示错误信息
+                            toastManager.showToast(
+                                "获取媒体列表失败, cause: ${state.message}",
+                                false,
+                                10000
+                            )
+                        }
 
-                    else -> {
-                        // 初始状态或其他状态
+                        else -> {
+                            // 初始状态或其他状态
+                        }
                     }
                 }
             }
+            ToastHost(
+                toastManager = toastManager,
+                modifier = Modifier.fillMaxSize()
+            )
         }
-        ToastHost(
-            toastManager = toastManager,
-            modifier = Modifier.fillMaxSize()
-        )
     }
 }

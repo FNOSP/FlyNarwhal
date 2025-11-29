@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -27,13 +25,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.jankinwu.fntv.client.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.data.constants.Colors
+import com.jankinwu.fntv.client.icons.Warning
+import com.jankinwu.fntv.client.ui.customAccentButtonColors
+import com.jankinwu.fntv.client.ui.customDangerButtonColors
 import com.jankinwu.fntv.client.ui.screen.HintColor
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.LocalContentColor
@@ -92,7 +96,7 @@ private val dismissButtonColor = Color(0xFF424242) // 深灰色
 @Composable
 fun CustomConfirmDialog(
     onDismissRequest: () -> Unit,
-    icon: ImageVector = Icons.Default.Warning,
+    icon: ImageVector? = null,
     iconTint: Color = confirmButtonColor,
     title: String,
     contentText: String,
@@ -114,13 +118,15 @@ fun CustomConfirmDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // 1. 图标
-                Icon(
-                    imageVector = icon,
-                    contentDescription = "Dialog Icon",
-                    tint = iconTint,
-                    modifier = Modifier.size(36.dp)
-                )
-                Spacer(Modifier.height(16.dp))
+                icon?.let {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = "Dialog Icon",
+                        tint = iconTint,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(Modifier.height(36.dp))
+                }
 
                 // 2. 标题
                 Text(
@@ -187,9 +193,9 @@ fun CustomContentDialog(
     content: @Composable () -> Unit,
     primaryButtonText: String,
     secondaryButtonText: String? = null,
-    closeButtonText: String? = null,
     onButtonClick: (ContentDialogButton) -> Unit,
-    size: DialogSize = DialogSize.Standard
+    size: DialogSize = DialogSize.Standard,
+    isWarning: Boolean = false
 ) {
     FluentDialog(visible, size) {
         Column {
@@ -199,41 +205,61 @@ fun CustomContentDialog(
 //                    .background(FluentTheme.colors.background.layer.alt)
                     .padding(24.dp)
             ) {
-                Text(
-                    style = FluentTheme.typography.subtitle,
-                    text = title,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isWarning) {
+                        Icon(
+                            imageVector = Warning,
+                            contentDescription = null,
+                            tint = Colors.DangerDefaultColor,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .padding(end = 8.dp)
+                        )
+                    }
+                    Text(
+                        style = FluentTheme.typography.subtitle,
+                        fontSize = 18.sp,
+                        text = title,
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
                 CompositionLocalProvider(
                     LocalTextStyle provides FluentTheme.typography.body,
                     LocalContentColor provides FluentTheme.colors.text.text.primary
                 ) {
-                    content()
+                    Box(Modifier
+                        .padding(start = if (isWarning) 32.dp else 0.dp)) {
+                        content()
+                    }
                 }
             }
-            // Divider
-//            Box(Modifier.height(1.dp).background(FluentTheme.colors.stroke.surface.default))
-            // Button Grid
-            Box(Modifier.height(80.dp).padding(horizontal = 25.dp), Alignment.CenterEnd) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AccentButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onButtonClick(ContentDialogButton.Primary) }
-                    ) {
-                        Text(primaryButtonText)
-                    }
+            Box(
+                Modifier
+                    .height(50.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 25.dp, vertical = 8.dp),
+                Alignment.CenterEnd
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     if (secondaryButtonText != null) Button(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onButtonClick(ContentDialogButton.Secondary) }
-                    ) {
-                        Text(secondaryButtonText)
-                    }
-                    if (closeButtonText != null) Button(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onButtonClick(ContentDialogButton.Close) }
-                    ) {
-                        Text(closeButtonText)
-                    }
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                        onClick = { onButtonClick(ContentDialogButton.Secondary) },
+                    ) { Text(secondaryButtonText,
+                        style = LocalTypography.current.bodyStrong,
+                        color = FluentTheme.colors.text.text.primary) }
+                    AccentButton(
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                        onClick = { onButtonClick(ContentDialogButton.Primary) },
+                        buttonColors = if (isWarning) customDangerButtonColors() else customAccentButtonColors()
+                    ) { Text(
+                        primaryButtonText,
+                        style = LocalTypography.current.bodyStrong,
+                        color = FluentTheme.colors.text.text.primary
+                    ) }
                 }
             }
         }

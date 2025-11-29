@@ -21,16 +21,27 @@ data class UserInfoResponse(
     val lastLoginTime: Int,
 
     @param:JsonProperty("sources")
-    val sources: List<Source>
+    val userSources: List<UserSource>
 ) {
-    data class Source(
-        @param:JsonProperty("source")
-        val source: String,
-
-        @param:JsonProperty("source_id")
-        val sourceId: String,
-
-        @param:JsonProperty("source_name")
-        val sourceName: String
-    )
+    companion object {
+        val Empty = UserInfoResponse(
+            guid = "",
+            username = "",
+            lan = "",
+            isAdmin = 0,
+            lastLoginTime = 0,
+            userSources = emptyList()
+        )
+    }
 }
+
+data class UserSource(
+    @param:JsonProperty("source")
+    val source: String,
+
+    @param:JsonProperty("source_id")
+    val sourceId: String,
+
+    @param:JsonProperty("source_name")
+    val sourceName: String
+)

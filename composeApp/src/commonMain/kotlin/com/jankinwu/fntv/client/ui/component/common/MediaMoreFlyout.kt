@@ -15,11 +15,11 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jankinwu.fntv.client.LocalStore
 import com.jankinwu.fntv.client.icons.Delete
 import com.jankinwu.fntv.client.icons.Edit
 import com.jankinwu.fntv.client.icons.Lifted
 import com.jankinwu.fntv.client.icons.VersionManagement
+import com.jankinwu.fntv.client.ui.providable.LocalStore
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.MenuFlyoutContainer
@@ -28,9 +28,8 @@ import io.github.composefluent.component.MenuFlyoutSeparator
 
 @Composable
 fun MediaMoreFlyout(
-    onMoreClick: () -> Unit = {},
     onManageVersionsClick: (() -> Unit)? = null,
-    content: @Composable () -> Unit,
+    content: @Composable (onClick: () -> Unit) -> Unit,
 ) {
     val store = LocalStore.current
     val scaleFactor = store.scaleFactor
@@ -57,7 +56,8 @@ fun MediaMoreFlyout(
                         modifier = Modifier.requiredSize((20 * scaleFactor).dp)
                     )
                 },
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand))
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            )
             MenuFlyoutItem(
                 text = {
                     Text(
@@ -79,7 +79,8 @@ fun MediaMoreFlyout(
                         modifier = Modifier.requiredSize((20 * scaleFactor).dp)
                     )
                 },
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand))
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            )
             MenuFlyoutItem(
                 text = {
                     Text(
@@ -101,7 +102,8 @@ fun MediaMoreFlyout(
                         modifier = Modifier.requiredSize((20 * scaleFactor).dp)
                     )
                 },
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand))
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            )
             MenuFlyoutSeparator(modifier = Modifier.padding(horizontal = 1.dp))
             MenuFlyoutItem(
                 text = {
@@ -124,15 +126,19 @@ fun MediaMoreFlyout(
                         modifier = Modifier.requiredSize((20 * scaleFactor).dp)
                     )
                 },
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand))
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+            )
         },
         content = {
-            Box(modifier = Modifier.clickable(interactionSource = remember { MutableInteractionSource() },
-                indication = null,) {
-                onMoreClick()
-                isFlyoutVisible = !isFlyoutVisible
-            }) {
-                content()
+            Box(
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) {
+                }) {
+                content() {
+                    isFlyoutVisible = !isFlyoutVisible
+                }
             }
         },
         adaptivePlacement = true,

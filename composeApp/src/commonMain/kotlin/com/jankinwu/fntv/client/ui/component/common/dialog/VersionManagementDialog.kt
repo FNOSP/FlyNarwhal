@@ -1,7 +1,6 @@
 package com.jankinwu.fntv.client.ui.component.common.dialog
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jankinwu.fntv.client.LocalTypography
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.response.MediaItemResponse
 import com.jankinwu.fntv.client.ui.LargeDialogSize
@@ -43,6 +42,8 @@ import com.jankinwu.fntv.client.ui.component.common.AnimatedScrollbarLazyColumn
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.customAccentButtonColors
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
+import com.jankinwu.fntv.client.ui.providable.LocalToastManager
+import com.jankinwu.fntv.client.ui.providable.LocalUserInfo
 import com.jankinwu.fntv.client.ui.screen.MediaQualityTag
 import com.jankinwu.fntv.client.viewmodel.MediaItemFileViewModel
 import com.jankinwu.fntv.client.viewmodel.ScrapViewModel
@@ -54,6 +55,7 @@ import io.github.composefluent.component.AccentButton
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.CheckBox
 import io.github.composefluent.component.CheckBoxDefaults
+import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FluentDialog
 import io.github.composefluent.component.Icon
@@ -63,7 +65,7 @@ import io.github.composefluent.icons.regular.Dismiss
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun ManageVersionsDialog(
+fun VersionManagementDialog(
     visible: Boolean,
     guid: String,
     itemTitle: String,
@@ -75,12 +77,27 @@ fun ManageVersionsDialog(
 ) {
     val mediaItemFileViewModel: MediaItemFileViewModel = koinViewModel()
     val scrapViewModel: ScrapViewModel = koinViewModel()
-    val uiState by mediaItemFileViewModel.uiState.collectAsState()
+    val scrapState by scrapViewModel.uiState.collectAsState()
+    val itemUiState by mediaItemFileViewModel.uiState.collectAsState()
     var selectedMediaGuids by remember { mutableStateOf(setOf<String>()) }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    val toastManager = LocalToastManager.current
 
     LaunchedEffect(visible, guid) {
         if (visible) mediaItemFileViewModel.loadData(guid)
+    }
+
+    LaunchedEffect(scrapState) {
+        when (scrapState) {
+            is UiState.Success -> {
+                toastManager.showToast("解除匹配成功")
+                onDismiss()
+            }
+            is UiState.Error -> {
+                toastManager.showToast("解除匹配失败：" + (scrapState as UiState.Error).message, false)
+            }
+            else -> {}
+        }
     }
 
     FluentDialog(visible, size) {
@@ -125,8 +142,8 @@ fun ManageVersionsDialog(
                                 text = "《$itemTitle》",
                                 color = FluentTheme.colors.text.text.secondary
                             )
-                            val count = when (uiState) {
-                                is UiState.Success -> (uiState as UiState.Success<List<MediaItemResponse>>).data.size
+                            val count = when (itemUiState) {
+                                is UiState.Success -> (itemUiState as UiState.Success<List<MediaItemResponse>>).data.size
                                 else -> 0
                             }
                             Text(
@@ -146,10 +163,10 @@ fun ManageVersionsDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                     ) {
-                        when (uiState) {
+                        when (itemUiState) {
                             is UiState.Success -> {
                                 val list =
-                                    (uiState as UiState.Success<List<MediaItemResponse>>).data
+                                    (itemUiState as UiState.Success<List<MediaItemResponse>>).data
                                 val listState = rememberLazyListState()
                                 AnimatedScrollbarLazyColumn(listState = listState, modifier = Modifier.fillMaxSize()) {
                                     itemsIndexed(list, key = { _, item -> item.mediaGuid }) { index, item ->
@@ -172,7 +189,7 @@ fun ManageVersionsDialog(
 
                             is UiState.Error -> {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text((uiState as UiState.Error).message)
+                                    Text((itemUiState as UiState.Error).message)
                                     Button(onClick = { mediaItemFileViewModel.refresh(guid) }) {
                                         Text(
                                             "重试"
@@ -193,45 +210,73 @@ fun ManageVersionsDialog(
                 Alignment.CenterEnd
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Button(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                         onClick = { onDelete(guid, selectedMediaGuids.toList()) },
                         disabled = selectedMediaGuids.isEmpty()
-                    ) { Text("删除") }
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        onClick = { showConfirmDialog = true },
-                        disabled = selectedMediaGuids.isEmpty()
-                    ) { Text("解除与当前影片的匹配") }
-                    AccentButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onMatchToOther(guid, selectedMediaGuids.toList()) },
-                        disabled = selectedMediaGuids.isEmpty(),
-                        buttonColors = customAccentButtonColors()
-                    ) { Text(
-                        "匹配为其他影片",
+                    ) { Text("删除",
                         style = LocalTypography.current.bodyStrong,
-                        color = FluentTheme.colors.text.text.primary
-                    ) }
+                        color = FluentTheme.colors.text.text.primary) }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                            onClick = { showConfirmDialog = true },
+                            disabled = selectedMediaGuids.isEmpty()
+                        ) { Text("解除与当前影片的匹配",
+                            style = LocalTypography.current.bodyStrong,
+                            color = FluentTheme.colors.text.text.primary) }
+                        AccentButton(
+                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                            onClick = { onMatchToOther(guid, selectedMediaGuids.toList()) },
+                            disabled = selectedMediaGuids.isEmpty(),
+                            buttonColors = customAccentButtonColors()
+                        ) { Text(
+                            "匹配为其他影片",
+                            style = LocalTypography.current.bodyStrong,
+                            color = FluentTheme.colors.text.text.primary
+                        ) }
+                    }
                 }
             }
         }
     }
 
     if (showConfirmDialog) {
-        CustomConfirmDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            title = "确认解除",
-            contentText = "是否解除与当前影片的匹配",
-            confirmButtonText = "确认解除",
-            onConfirmClick = {
-                onUnmatchConfirmed(guid, selectedMediaGuids.toList())
-                scrapViewModel.scrap(guid, selectedMediaGuids.toList())
-                showConfirmDialog = false
-                onDismiss()
+        CustomContentDialog(
+            title = "解除影片匹配",
+            visible = true,
+            size = DialogSize.Standard,
+            primaryButtonText = "确认解除",
+            secondaryButtonText = "取消",
+            onButtonClick = { contentDialogButton ->
+                when (contentDialogButton) {
+                    ContentDialogButton.Secondary -> {
+                        showConfirmDialog = false
+                    }
+
+                    ContentDialogButton.Primary -> {
+                        onUnmatchConfirmed(guid, selectedMediaGuids.toList())
+                        scrapViewModel.scrap(guid, selectedMediaGuids.toList())
+                        showConfirmDialog = false
+                        onDismiss()
+                    }
+
+                    ContentDialogButton.Close -> {}
+                }
+            },
+            content = {
+                androidx.compose.material3.Text(
+                    "是否解除与当前影片的匹配",
+                    style = LocalTypography.current.body,
+                    color = FluentTheme.colors.text.text.primary
+                )
             }
         )
     }
@@ -244,6 +289,7 @@ private fun VersionItemRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val currentUserInfo = LocalUserInfo.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -280,7 +326,7 @@ private fun VersionItemRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = formatDuration(item.duration),
+                    text = FnDataConvertor.formatSecondsToCNDateTime(item.duration),
                     fontSize = 12.sp,
                     color = FluentTheme.colors.text.text.secondary
                 )
@@ -301,7 +347,7 @@ private fun VersionItemRow(
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "位置: ${item.filePath}",
+                text = "位置: ${FnDataConvertor.humanizedFilePath(item.filePath, currentUserInfo.userSources)}",
                 fontSize = 12.sp,
                 color = FluentTheme.colors.text.text.secondary,
                 maxLines = 1,
@@ -323,32 +369,3 @@ private fun VersionItemRow(
         )
     }
 }
-
-@Composable
-private fun TagChipText(text: String) {
-    val display = when {
-        text.endsWith("k", true) -> text.uppercase()
-        else -> text
-    }
-    Box(
-        modifier = Modifier
-            .border(1.dp, FluentTheme.colors.stroke.control.default, RoundedCornerShape(4.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-    ) {
-        Text(text = display, fontSize = 12.sp)
-    }
-}
-
-private fun formatDuration(seconds: Int?): String {
-    if (seconds == null || seconds <= 0) return ""
-    val h = seconds / 3600
-    val m = (seconds % 3600) / 60
-    return if (m == 0) "${h}小时" else "${h}小时${m}分"
-}
-
-//private fun formatCreateTime(millis: Long?): String {
-//    if (millis == null || millis <= 0) return ""
-//    val instant = java.time.Instant.ofEpochMilli(millis)
-//    val dt = java.time.LocalDateTime.ofInstant(instant, java.time.ZoneId.systemDefault())
-//    return dt.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-//}

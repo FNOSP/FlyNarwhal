@@ -33,11 +33,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jankinwu.fntv.client.LocalFrameWindowScope
 import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.Computer
 import com.jankinwu.fntv.client.icons.Nas
 import com.jankinwu.fntv.client.icons.Search
+import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
 import com.jankinwu.fntv.client.utils.chooseFile
 import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleUploadViewModel

@@ -38,11 +38,12 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.response.AuthDir
 import com.jankinwu.fntv.client.ui.component.common.FileTreePicker
 import com.jankinwu.fntv.client.ui.component.common.SelectionMode
 import com.jankinwu.fntv.client.ui.customAccentButtonColors
-import com.jankinwu.fntv.client.ui.screen.LocalFileInfo
+import com.jankinwu.fntv.client.ui.providable.LocalFileInfo
 import com.jankinwu.fntv.client.viewmodel.AppAuthorizedDirViewModel
 import com.jankinwu.fntv.client.viewmodel.ServerPathViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
@@ -277,23 +278,18 @@ fun Sidebar(
         // 遍历 authDirList 构建存储空间项
         authDirList?.forEach { authDir ->
             val path = authDir.path
-            // 从路径中提取存储空间编号，例如 /vol2 -> 存储空间2
-            if (path.startsWith("/vol") && path.length >= 5) {
-                val volNumber = path.substring(4, 5)
-                if (volNumber.all { it.isDigit() }) {
-                    val storageTitle = "存储空间 $volNumber"
-                    // 检查是否已存在相同标题的项
-                    val existingItem = sidebarItems.find { it.title == storageTitle }
-                    if (existingItem != null) {
-                        // 如果存在，则添加路径到现有项
-                        sidebarItems.remove(existingItem)
-                        val updatedPaths = existingItem.path.toMutableList().apply { add(path) }
-                        sidebarItems.add(SidebarItem(updatedPaths.toList(), storageTitle))
-                    } else {
-                        // 如果不存在，则新建项
-                        sidebarItems.add(SidebarItem(listOf(path), storageTitle))
-                    }
-                }
+            // 从路径中提取存储空间编号，例如 /vol2 -> 存储空间 2
+            val storageTitle = FnDataConvertor.getVolumeCNName(path, hasSpace = true)
+            // 检查是否已存在相同标题的项
+            val existingItem = sidebarItems.find { it.title == storageTitle }
+            if (existingItem != null) {
+                // 如果存在，则添加路径到现有项
+                sidebarItems.remove(existingItem)
+                val updatedPaths = existingItem.path.toMutableList().apply { add(path) }
+                sidebarItems.add(SidebarItem(updatedPaths.toList(), storageTitle))
+            } else {
+                // 如果不存在，则新建项
+                sidebarItems.add(SidebarItem(listOf(path), storageTitle))
             }
         }
         sidebarItems

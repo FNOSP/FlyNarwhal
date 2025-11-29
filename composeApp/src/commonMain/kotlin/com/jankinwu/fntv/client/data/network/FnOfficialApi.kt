@@ -4,6 +4,8 @@ import com.jankinwu.fntv.client.data.model.request.ItemListQueryRequest
 import com.jankinwu.fntv.client.data.model.request.LoginRequest
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
+import com.jankinwu.fntv.client.data.model.request.ScrapRescrapRequest
+import com.jankinwu.fntv.client.data.model.request.ScrapSearchRequest
 import com.jankinwu.fntv.client.data.model.request.StreamRequest
 import com.jankinwu.fntv.client.data.model.request.SubtitleDownloadRequest
 import com.jankinwu.fntv.client.data.model.request.SubtitleMarkRequest
@@ -21,6 +23,8 @@ import com.jankinwu.fntv.client.data.model.response.PlayDetailResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.PlayPlayResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
+import com.jankinwu.fntv.client.data.model.response.ScrapSearchResponse
+import com.jankinwu.fntv.client.data.model.response.SeasonListResponse
 import com.jankinwu.fntv.client.data.model.response.ServerPathResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
@@ -92,4 +96,10 @@ interface FnOfficialApi {
     suspend fun mediaItemFile(guid: String): List<MediaItemResponse>
 
     suspend fun scrap(guid: String, mediaGuids: List<String>): Boolean
+
+    suspend fun scrapSearch(request: ScrapSearchRequest): List<ScrapSearchResponse>
+
+    suspend fun scrapRescrap(request: ScrapRescrapRequest): Boolean
+
+    suspend fun seasonList(guid: String): List<SeasonListResponse>
 }

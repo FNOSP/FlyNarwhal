@@ -20,8 +20,9 @@ import com.jankinwu.fntv.client.data.network.apiModule
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
-import com.jankinwu.fntv.client.ui.screen.LocalMediaPlayer
-import com.jankinwu.fntv.client.ui.screen.LocalPlayerManager
+import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
+import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay
@@ -58,7 +59,10 @@ fun main() = application {
             val userInfoViewModel: UserInfoViewModel = koinInject()
             val userInfoState by userInfoViewModel.uiState.collectAsState()
             LaunchedEffect(Unit) {
-                window.minimumSize = Dimension(1280, 720)
+                val baseWidth = 1280
+                val baseHeight = 720
+                window.minimumSize = Dimension(baseWidth, baseHeight)
+//                window.size = Dimension(baseWidth, baseHeight)
             }
             CompositionLocalProvider(
                 LocalPlayerManager provides playerManager,
@@ -127,6 +131,7 @@ fun main() = application {
 private fun createWindowConfiguration(): Triple<WindowState, String, Painter> {
     val state = rememberWindowState(
         position = WindowPosition(Alignment.Center),
+//        size = DpSize.Unspecified
         size = DpSize(1280.dp, 720.dp)
     )
     val title = "飞牛影视"

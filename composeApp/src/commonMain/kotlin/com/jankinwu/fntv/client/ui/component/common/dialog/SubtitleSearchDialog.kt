@@ -39,8 +39,8 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jankinwu.fntv.client.LocalStore
-import com.jankinwu.fntv.client.LocalTypography
+import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.convertToSubtitleItemList
 import com.jankinwu.fntv.client.icons.Download
@@ -48,7 +48,7 @@ import com.jankinwu.fntv.client.ui.component.common.AnimatedScrollbarLazyColumn
 import com.jankinwu.fntv.client.ui.component.common.EmptyFolder
 import com.jankinwu.fntv.client.ui.component.common.FlyoutButton
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
-import com.jankinwu.fntv.client.ui.screen.LocalToastManager
+import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.viewmodel.SubtitleDownloadViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleSearchViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState

@@ -18,7 +18,11 @@ object Colors {
 
     val AccentColorTertiary = Color(0xFF1C65C4)
 
-    val DangerColor = Color(0xFFFF0420)
+    val DangerDefaultColor = Color(0xFFFF0420)
+
+    val DangerSecondaryColor = Color(0xFFFF2941)
+
+    val DangerTertiaryColor = Color(0xFFC5071D)
 
     val BackgroundColorDark = Color(0xFF2D2D2D)
 

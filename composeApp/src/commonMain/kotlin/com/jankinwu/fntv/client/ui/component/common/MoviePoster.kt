@@ -52,16 +52,18 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import com.jankinwu.fntv.client.LocalStore
-import com.jankinwu.fntv.client.LocalTypography
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.HeartFilled
-import com.jankinwu.fntv.client.ui.component.common.dialog.ManageVersionsDialog
-import com.jankinwu.fntv.client.ui.screen.LocalMediaPlayer
+import com.jankinwu.fntv.client.ui.component.common.dialog.VersionManagementDialog
+import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
+import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.screen.MovieDetailScreen
+import com.jankinwu.fntv.client.ui.screen.TvSeasonDetailScreen
+import com.jankinwu.fntv.client.ui.screen.TvDetailScreen
 import com.jankinwu.fntv.client.ui.screen.rememberPlayMediaFunction
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.icons.Icons
@@ -144,6 +146,34 @@ fun MoviePoster(
                             }
                         )
                         navigator.navigate(movieDetailComponent)
+                    } else if (type == FnTvMediaType.TV.value) {
+                        val tvDetailComponent = ComponentItem(
+                            name = "剧集详情",
+                            group = "/详情",
+                            description = "剧集详情页面",
+                            guid = "tv_detail_$guid",
+                            content = { nav ->
+                                TvDetailScreen(
+                                    guid = guid,
+                                    navigator = nav
+                                )
+                            }
+                        )
+                        navigator.navigate(tvDetailComponent)
+                    } else if (type == FnTvMediaType.SEASON.value) {
+                        val tvDetailComponent = ComponentItem(
+                            name = "剧集分季详情",
+                            group = "/详情",
+                            description = "剧集分季详情页面",
+                            guid = "tv_detail_$guid",
+                            content = { nav ->
+                                TvSeasonDetailScreen(
+                                    guid = guid,
+                                    navigator = nav
+                                )
+                            }
+                        )
+                        navigator.navigate(tvDetailComponent)
                     }
                 }
             )
@@ -345,28 +375,29 @@ fun MoviePoster(
                 scaleFactor = scaleFactor,
                 iconTint = if (isAlreadyWatched) Colors.AccentColorDefault else Color.White
             )
-
-            // 收藏按钮
-            BottomIconButton(
-                modifier = Modifier
-                    .alpha(if (isPosterHovered) 1f else 0f)
-                    .padding((8 * scaleFactor).dp)
-                    .align(Alignment.BottomCenter),
-                icon = HeartFilled,
-                contentDescription = "collection",
-                onClick = {
-                    onFavoriteToggle?.invoke(guid, isFavorite) { success ->
-                        isFavorite = if (!success) {
-                            isFavorite
-                        } else {
-                            !isFavorite
+            if (type != FnTvMediaType.SEASON.value) {
+                // 收藏按钮
+                BottomIconButton(
+                    modifier = Modifier
+                        .alpha(if (isPosterHovered) 1f else 0f)
+                        .padding((8 * scaleFactor).dp)
+                        .align(Alignment.BottomCenter),
+                    icon = HeartFilled,
+                    contentDescription = "collection",
+                    onClick = {
+                        onFavoriteToggle?.invoke(guid, isFavorite) { success ->
+                            isFavorite = if (!success) {
+                                isFavorite
+                            } else {
+                                !isFavorite
+                            }
                         }
-                    }
-                },
-                scaleFactor = scaleFactor,
-                iconTint = if (isFavorite) Colors.DangerColor else Color.White,
-                iconYOffset = (1 * scaleFactor).dp
-            )
+                    },
+                    scaleFactor = scaleFactor,
+                    iconTint = if (isFavorite) Colors.DangerDefaultColor else Color.White,
+                    iconYOffset = (1 * scaleFactor).dp
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -374,93 +405,14 @@ fun MoviePoster(
                     .padding((8 * scaleFactor).dp)
                     .align(Alignment.BottomEnd)
             ) {
-                MediaMoreFlyout(onManageVersionsClick = { isManageVersionsDialogVisible = true }){
+                MediaMoreFlyout(onManageVersionsClick = { isManageVersionsDialogVisible = true }){ onClick ->
                     BottomIconButton(
                         icon = Icons.Regular.MoreHorizontal,
                         contentDescription = "more",
-                        scaleFactor = scaleFactor
+                        scaleFactor = scaleFactor,
+                        onClick = onClick
                     )
                 }
-//                MenuFlyoutContainer(
-//                    flyout = {
-//                        MenuFlyoutItem(
-//                            text = {
-//                                Text(
-//                                    "手动匹配影片",
-//                                    fontSize = (12 * scaleFactor).sp,
-//                                    fontWeight = FontWeight.Bold,
-//                                    color = FluentTheme.colors.text.text.tertiary
-//                                )
-//                            },
-//                            onClick = {
-//                                isFlyoutVisible = false
-//                                // TODO: 处理手动匹配影片按钮点击事件
-//                            },
-//                            icon = {
-//                                Icon(
-//                                    Edit,
-//                                    contentDescription = "手动匹配影片",
-//                                    tint = FluentTheme.colors.text.text.tertiary,
-//                                    modifier = Modifier.requiredSize((20 * scaleFactor).dp)
-//                                )
-//                            })
-//                        MenuFlyoutItem(
-//                            text = {
-//                                Text(
-//                                    "解除匹配影片",
-//                                    fontSize = (12 * scaleFactor).sp,
-//                                    fontWeight = FontWeight.Bold,
-//                                    color = FluentTheme.colors.text.text.tertiary
-//                                )
-//                            },
-//                            onClick = {
-//                                isFlyoutVisible = false
-//                                // TODO: 处理解除匹配影片按钮点击事件
-//                            },
-//                            icon = {
-//                                Icon(
-//                                    Lifted,
-//                                    tint = FluentTheme.colors.text.text.tertiary,
-//                                    contentDescription = "解除匹配影片",
-//                                    modifier = Modifier.requiredSize((20 * scaleFactor).dp)
-//                                )
-//                            })
-//                        MenuFlyoutSeparator(modifier = Modifier.padding(horizontal = 1.dp))
-//                        MenuFlyoutItem(
-//                            text = {
-//                                Text(
-//                                    "删除",
-//                                    fontSize = (12 * scaleFactor).sp,
-//                                    color = FluentTheme.colors.text.text.tertiary,
-//                                    fontWeight = FontWeight.Bold,
-//                                )
-//                            },
-//                            onClick = {
-//                                isFlyoutVisible = false
-//                                // TODO: 处理删除按钮点击事件
-//                            },
-//                            icon = {
-//                                Icon(
-//                                    Delete,
-//                                    tint = FluentTheme.colors.text.text.tertiary,
-//                                    contentDescription = "删除",
-//                                    modifier = Modifier.requiredSize((20 * scaleFactor).dp)
-//                                )
-//                            })
-//                    },
-//                    content = {
-//                        BottomIconButton(
-//                            icon = Icons.Regular.MoreHorizontal,
-//                            contentDescription = "more",
-//                            onClick = {
-//                                isFlyoutVisible = !isFlyoutVisible
-//                            },
-//                            scaleFactor = scaleFactor
-//                        )
-//                    },
-//                    adaptivePlacement = true,
-//                    placement = FlyoutPlacement.BottomAlignedEnd
-//                )
             }
 
         }
@@ -501,7 +453,7 @@ fun MoviePoster(
             }
         }
 
-        ManageVersionsDialog(
+        VersionManagementDialog(
             visible = isManageVersionsDialogVisible,
             guid = guid,
             itemTitle = title,

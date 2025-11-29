@@ -18,32 +18,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.onPointerEvent
-import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
-import com.jankinwu.fntv.client.ui.screen.CurrentStreamData
-import com.jankinwu.fntv.client.ui.screen.LocalIsoTagData
+import com.jankinwu.fntv.client.ui.providable.CurrentStreamData
+import com.jankinwu.fntv.client.ui.providable.LocalIsoTagData
 import io.github.composefluent.FluentTheme
 
 // 文件信息数据
@@ -84,7 +74,6 @@ fun MediaInfo(modifier: Modifier = Modifier, currentStreamData: CurrentStreamDat
         modifier = modifier
             .fillMaxSize()
             .background(Color.Transparent)
-            .padding(vertical = 24.dp)
     ) {
         // 1. 文件信息部分
         FileInfoSection(mediaDetailData.fileInfo)
@@ -102,36 +91,7 @@ fun MediaInfo(modifier: Modifier = Modifier, currentStreamData: CurrentStreamDat
 
         // 3. 底部链接
         if (mediaDetailData.imdbLink.isNotBlank()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "链接:  ",
-                    color = FluentTheme.colors.text.text.secondary,
-                    fontSize = 14.sp
-                )
-                var isImdbHovered by remember { mutableStateOf(false) }
-                Text(
-                    text = "IMDB链接",
-                    color = FluentTheme.colors.text.text.primary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .onPointerEvent(PointerEventType.Enter) { isImdbHovered = true }
-                        .onPointerEvent(PointerEventType.Exit) { isImdbHovered = false }
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            uriHandler.openUri(mediaDetailData.imdbLink)
-                        }
-                        .pointerHoverIcon(PointerIcon.Hand),
-                    style = if (isImdbHovered) {
-                        TextStyle(textDecoration = TextDecoration.Underline) // 悬停时添加下划线
-                    } else {
-                        LocalTextStyle.current
-                    }
-                )
-            }
+            ImdbLink(mediaDetailData.imdbLink)
         }
     }
 }

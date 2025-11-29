@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,10 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Text
@@ -41,7 +37,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -67,12 +62,9 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.size.Precision
 import coil3.size.Size
-import com.jankinwu.fntv.client.LocalRefreshState
-import com.jankinwu.fntv.client.LocalStore
-import com.jankinwu.fntv.client.LocalTypography
 import com.jankinwu.fntv.client.data.constants.Colors
+import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.convertor.convertPersonToScrollRowItemData
-import com.jankinwu.fntv.client.data.convertor.formatSeconds
 import com.jankinwu.fntv.client.data.model.ScrollRowItemData
 import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.model.response.FileInfo
@@ -83,22 +75,31 @@ import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
-import com.jankinwu.fntv.client.data.model.response.VideoStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.enums.MediaQualityTagEnums
-import com.jankinwu.fntv.client.icons.ArrowLeft
 import com.jankinwu.fntv.client.icons.HeartFilled
+import com.jankinwu.fntv.client.ui.component.common.BackButton
 import com.jankinwu.fntv.client.ui.component.common.CastScrollRow
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingError
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
-import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
+import com.jankinwu.fntv.client.ui.component.detail.DetailPlayButton
+import com.jankinwu.fntv.client.ui.component.detail.DetailTags
 import com.jankinwu.fntv.client.ui.component.detail.MediaInfo
 import com.jankinwu.fntv.client.ui.component.detail.StreamOptionItem
 import com.jankinwu.fntv.client.ui.component.detail.StreamSelector
 import com.jankinwu.fntv.client.ui.component.detail.noDisplayStream
+import com.jankinwu.fntv.client.ui.providable.CurrentStreamData
+import com.jankinwu.fntv.client.ui.providable.IsoTagData
+import com.jankinwu.fntv.client.ui.providable.LocalFileInfo
+import com.jankinwu.fntv.client.ui.providable.LocalIsoTagData
+import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
+import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
+import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalToastManager
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemViewModel
@@ -118,31 +119,6 @@ import io.github.composefluent.icons.regular.MoreHorizontal
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
-
-val LocalFileInfo = staticCompositionLocalOf<FileInfo?> {
-    error("No FileInfo provided")
-}
-
-data class CurrentStreamData(
-    val fileInfo: FileInfo?,
-    val videoStream: VideoStream?,
-    val audioStreamList: List<AudioStream>,
-    val subtitleStreamList: List<SubtitleStream>
-)
-
-data class IsoTagData(
-    val iso6391Map: Map<String, QueryTagResponse>,
-    val iso6392Map: Map<String, QueryTagResponse>,
-    val iso3166Map: Map<String, QueryTagResponse>
-)
-
-val LocalIsoTagData = staticCompositionLocalOf<IsoTagData> {
-    error("No IsoTagData provided")
-}
-
-val LocalToastManager = staticCompositionLocalOf<ToastManager> {
-    error("No ToastManager provided")
-}
 
 @Composable
 fun MovieDetailScreen(
@@ -269,7 +245,7 @@ fun MovieDetailScreen(
         val streamData = streamData
         if (currentMediaGuid.isNotBlank() && streamData != null) {
             println("currentGuid: $currentMediaGuid, streamData: $streamData")
-            val currentFileInfo = streamData.files.firstOrNull {
+            val currentFileInfo = streamData.files?.firstOrNull {
                 it.guid == currentMediaGuid
             }
 
@@ -424,7 +400,7 @@ fun MovieDetailBody(
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
                                     .height(imageHeight)
-                                    .padding(start = 48.dp, bottom = 12.dp),
+                                    .padding(start = 48.dp),
                                 contentScale = ContentScale.FillHeight,
                                 filterQuality = FilterQuality.High,
                                 loading = {
@@ -452,7 +428,7 @@ fun MovieDetailBody(
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
 //                                        .width(200.dp)
-                                    .padding(start = 48.dp, end = 48.dp, bottom = 12.dp)
+                                    .padding(start = 48.dp, end = 48.dp)
                             ) {
                                 Text(
                                     text = itemData?.title ?: "",
@@ -471,7 +447,8 @@ fun MovieDetailBody(
                 item {
                     val playInfoResponse = playInfoResponse
                     if (itemData != null && streamData != null && playInfoResponse != null) {
-                        MediaInfo(
+                        Spacer(modifier = Modifier.height(24.dp))
+                        MediaIntroduction(
                             itemData,
                             streamData,
                             guid,
@@ -483,40 +460,34 @@ fun MovieDetailBody(
                             }
                         )
                     }
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+                if (castScrollRowItemList.isNotEmpty()) {
+                    item {
+//                        Spacer(modifier = Modifier.height(24.dp))
+                        CastScrollRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            castScrollRowItemList
+                        )
+                        Spacer(modifier = Modifier.height(48.dp))
+                    }
                 }
                 item {
-                    CastScrollRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        castScrollRowItemList
-                    )
-                }
-                item {
+//                    Spacer(modifier = Modifier.height(24.dp))
                     currentStreamData?.let {
                         MediaInfo(
                             modifier = Modifier.padding(horizontal = 48.dp), it,
                             itemData?.imdbId
                         )
                     }
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
         }
         // 返回按钮
-        IconButton(
-            onClick = { navigator.navigateUp() },
-            modifier = Modifier
-                .padding(16.dp)
-                .align(Alignment.TopStart)
-                .pointerHoverIcon(PointerIcon.Hand)
-        ) {
-            Icon(
-                imageVector = ArrowLeft,
-                contentDescription = "返回",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
-        }
+        BackButton(navigator, modifier = Modifier.align(Alignment.TopStart))
         ToastHost(
             toastManager = toastManager,
             modifier = Modifier.fillMaxSize()
@@ -525,7 +496,7 @@ fun MovieDetailBody(
 }
 
 @Composable
-fun MediaInfo(
+fun MediaIntroduction(
     itemData: ItemResponse,
     streamData: StreamListResponse,
     guid: String,
@@ -546,8 +517,8 @@ fun MediaInfo(
     var currentFileInfo: FileInfo? by remember { mutableStateOf(null) }
     var totalDuration by remember { mutableIntStateOf(0) }
     val reminingDuration = totalDuration.minus(itemData.watchedTs)
-    val formatReminingDuration = formatSeconds(reminingDuration)
-    val formatTotalDuration = formatSeconds(totalDuration)
+    val formatReminingDuration = FnDataConvertor.formatSecondsToCNDateTime(reminingDuration)
+    val formatedTotalDuration = FnDataConvertor.formatSecondsToCNDateTime(totalDuration)
 
     LaunchedEffect(guid, streamData, playInfoResponse) {
         currentMediaGuid = playInfoResponse.mediaGuid
@@ -600,7 +571,7 @@ fun MediaInfo(
 //            .sortedByDescending { it.index }
         currentSubtitleStreamList = listOf(noDisplayStream) + currentSubtitleStreamList
         currentSubtitleStreamGuid = mediaGuidSubTitleGuidMap[currentMediaGuid]
-        currentFileInfo = streamData.files.firstOrNull {
+        currentFileInfo = streamData.files?.firstOrNull {
             it.guid == currentMediaGuid
         }
         onMediaGuidChanged(currentMediaGuid)
@@ -628,7 +599,7 @@ fun MediaInfo(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 24.dp)
+//            .padding(vertical = 24.dp)
     ) {
         // 进度条
         itemData.watchedTs.let {
@@ -647,7 +618,7 @@ fun MediaInfo(
             MiddleControls(
                 modifier = Modifier.padding(bottom = 16.dp),
                 itemData,
-                formatTotalDuration,
+                formatedTotalDuration,
                 guid,
                 currentMediaGuid,
                 selectedVideoStreamIndex,
@@ -672,8 +643,9 @@ fun MediaInfo(
                 selectedVideoStreamIndex = it
             }, selectedVideoStreamIndex)
         }
-
-        MediaDescription(modifier = Modifier.padding(bottom = 32.dp), itemData)
+        if (!itemData.overview.isNullOrBlank()) {
+            MediaDescription(modifier = Modifier.padding(bottom = 32.dp), itemData)
+        }
     }
 }
 
@@ -751,7 +723,7 @@ fun ProgressBar(
 fun MiddleControls(
     modifier: Modifier = Modifier,
     itemData: ItemResponse,
-    formatTotalDuration: String,
+    formatedTotalDuration: String,
     guid: String,
     mediaGuid: String,
     selectedVideoStreamIndex: Int,
@@ -841,37 +813,16 @@ fun MiddleControls(
             modifier = Modifier.padding(end = 64.dp)
         ) {
             // 播放按钮
-            Button(
-                onClick = {
-                    playMedia()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Colors.AccentColorDefault), // 蓝色背景
-                shape = CircleShape, // 圆角
-                modifier = Modifier.height(56.dp).width(160.dp).pointerHoverIcon(PointerIcon.Hand)
-            ) {
-                if (itemData.watchedTs == 0) {
-                    Text(
-                        "▶  播放",
-                        style = LocalTypography.current.title,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                } else {
-                    Text(
-                        "▶  继续播放",
-                        style = LocalTypography.current.title,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+            if (itemData.watchedTs == 0) {
+                DetailPlayButton("播放") { playMedia() }
+            } else {
+                DetailPlayButton("继续播放") { playMedia() }
             }
             // 收藏按钮
             CircleIconButton(
                 icon = HeartFilled,
                 description = "收藏",
-                iconColor = if (isFavorite) Colors.DangerColor else FluentTheme.colors.text.text.primary,
+                iconColor = if (isFavorite) Colors.DangerDefaultColor else FluentTheme.colors.text.text.primary,
                 onClick = {
                     favoriteViewModel.toggleFavorite(
                         guid,
@@ -905,92 +856,7 @@ fun MiddleControls(
         ) {
             // 右侧：评分、标签
             // 使用 FlowRow 可以在空间不足时自动换行
-            FlowRow(
-                modifier = Modifier, // 占据右侧约 60% 宽度
-                horizontalArrangement = Arrangement.spacedBy(
-                    8.dp,
-                    Alignment.End
-                ),
-                verticalArrangement = Arrangement.Center
-            ) {
-                val voteAverage = itemData.voteAverage.toDoubleOrNull()?.let {
-                    "%.1f".format(it)
-                } ?: ""
-                if (voteAverage.isNotEmpty() && voteAverage != "0.0") {
-                    Text(
-                        "$voteAverage 分",
-                        color = Color(0xFFFACC15),
-                        fontWeight = FontWeight.Normal,
-                        fontSize = 14.sp,
-//                        modifier = Modifier.offset(y = (-3).dp)
-                    )
-                    Separator()
-                }
-                val contentRatings = itemData.contentRatings ?: ""
-                if (contentRatings.isNotEmpty()) {
-                    Text(
-                        contentRatings,
-                        color = FluentTheme.colors.text.text.secondary,
-                        fontSize = 14.sp
-                    )
-                    Separator()
-                }
-                val year = itemData.airDate?.take(4) ?: ""
-                if (year.isNotEmpty()) {
-                    Text(
-                        year,
-                        color = FluentTheme.colors.text.text.secondary,
-                        fontSize = 14.sp
-                    )
-                    Separator()
-                }
-                val genresViewModel: GenresViewModel = koinViewModel<GenresViewModel>()
-                val genresUiState = genresViewModel.uiState.collectAsState().value
-                LaunchedEffect(genresUiState) {
-                    if (genresUiState !is UiState.Success) {
-                        genresViewModel.loadGenres()
-                    }
-                }
-                if (genresUiState is UiState.Success) {
-                    val genresMap = genresUiState.data.associateBy { it.id }
-                    val genresText = itemData.genres?.joinToString(" ") { genreId ->
-                        genresMap[genreId]?.value ?: ""
-                    }
-                    if (!genresText.isNullOrBlank()) {
-                        Text(
-                            genresText,
-                            color = FluentTheme.colors.text.text.secondary,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Separator()
-                }
-                if (isoTagData.iso6391Map.isNotEmpty()) {
-                    val countriesText = itemData.productionCountries?.joinToString(" ") { locate ->
-                        isoTagData.iso6391Map[locate]?.value ?: locate
-                    }
-                    if (!countriesText.isNullOrBlank()) {
-                        Text(
-                            countriesText,
-                            color = FluentTheme.colors.text.text.secondary,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Separator()
-                }
-                Text(
-                    formatTotalDuration,
-                    color = FluentTheme.colors.text.text.secondary,
-                    fontSize = 14.sp
-                )
-                Separator()
-                Text(
-                    itemData.ancestorName,
-                    color = FluentTheme.colors.text.text.secondary,
-                    fontSize = 14.sp
-                )
-
-            }
+            DetailTags(itemData, formatedTotalDuration)
             // 第二行：4K 标签
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1047,12 +913,7 @@ fun AudioSelector(
     val selectorOptions by remember(currentAudioStreamList, iso6392Map, currentAudioStream) {
         derivedStateOf {
             currentAudioStreamList.map { audioStream ->
-                val language: String =
-                    if (audioStream.language in listOf("", "und", "zxx", "qaa-qtz")) {
-                        "未知"
-                    } else {
-                        iso6392Map[audioStream.language]?.value ?: audioStream.language
-                    }
+                val language: String = FnDataConvertor.getLanguageName(audioStream.language, isoTagData)
                 StreamOptionItem(
                     optionGuid = audioStream.guid,
                     title = language,
@@ -1065,21 +926,7 @@ fun AudioSelector(
             }
         }
     }
-    val selectedLanguage: String =
-        when (currentAudioStream?.language) {
-            in listOf("", "und", "zxx", "qaa-qtz") -> {
-                "未知音频"
-            }
-
-            null -> {
-                "未知音频"
-            }
-
-            else -> {
-                (iso6392Map[currentAudioStream.language]?.value
-                    ?: currentAudioStream.language) + "音频"
-            }
-        }
+    val selectedLanguage: String = FnDataConvertor.getLanguageName(currentAudioStream?.language, isoTagData) + "音频"
     val selectedIndex by remember(selectorOptions, currentAudioStream) {
         derivedStateOf {
             currentAudioStreamList.indexOfFirst { it.guid == currentAudioStream?.guid }
@@ -1108,24 +955,10 @@ fun SubtitleSelector(
     val selectorOptions by remember(currentSubtitleStreamList, iso6392Map, currentSubtitleStream) {
         derivedStateOf {
             currentSubtitleStreamList.map { subtitleStream ->
-                val languageTitle: String =
-                    when {
-                        subtitleStream.language in listOf("", "und", "zxx", "qaa-qtz") -> {
-                            "未知"
-                        }
-
-                        subtitleStream.language.length == 3 -> {
-                            iso6392Map[subtitleStream.language]?.value ?: subtitleStream.language
-                        }
-
-                        subtitleStream.language.length == 2 -> {
-                            iso6391Map[subtitleStream.language]?.value ?: subtitleStream.language
-                        }
-
-                        else -> {
-                            subtitleStream.language
-                        }
-                    }
+                val languageTitle: String =FnDataConvertor.getLanguageName(
+                    subtitleStream.language,
+                    isoTagData
+                )
                 StreamOptionItem(
                     optionGuid = subtitleStream.guid,
                     title = if (subtitleStream.isExternal == 1) "$languageTitle - 外挂" else languageTitle,
@@ -1139,35 +972,10 @@ fun SubtitleSelector(
             }
         }
     }
-    val selectedLanguage: String =
-        when (currentSubtitleStream?.language) {
-            in listOf("", "und", "zxx", "qaa-qtz") -> {
-                "未知字幕"
-            }
-
-            null -> {
-                "无字幕"
-            }
-
-            else -> {
-                val languageName = when {
-                    currentSubtitleStream.language.length == 3 -> {
-                        iso6392Map[currentSubtitleStream.language]?.value
-                            ?: currentSubtitleStream.language
-                    }
-
-                    currentSubtitleStream.language.length == 2 -> {
-                        iso6391Map[currentSubtitleStream.language]?.value
-                            ?: currentSubtitleStream.language
-                    }
-
-                    else -> {
-                        currentSubtitleStream.language
-                    }
-                }
-                "${languageName}字幕"
-            }
-        }
+    val selectedLanguage: String = FnDataConvertor.getLanguageName(
+        currentSubtitleStream?.language,
+        isoTagData
+    ) + "字幕"
     val selectedIndex by remember(currentSubtitleStream) {
         derivedStateOf {
             currentSubtitleStreamList.indexOfFirst { it.guid == currentSubtitleStream?.guid }

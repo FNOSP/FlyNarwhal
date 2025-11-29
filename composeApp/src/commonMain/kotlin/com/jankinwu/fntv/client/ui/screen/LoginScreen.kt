@@ -59,7 +59,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jankinwu.fntv.client.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.components
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.LoginHistory

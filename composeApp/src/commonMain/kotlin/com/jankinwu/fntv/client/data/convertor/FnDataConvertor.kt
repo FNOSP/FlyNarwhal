@@ -6,6 +6,7 @@ import com.jankinwu.fntv.client.data.model.response.MediaItem
 import com.jankinwu.fntv.client.data.model.response.PersonList
 import com.jankinwu.fntv.client.data.model.response.PlayDetailResponse
 import com.jankinwu.fntv.client.data.model.response.SearchingSubtitleInfo
+import com.jankinwu.fntv.client.data.model.response.UserSource
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.Audio
 import com.jankinwu.fntv.client.icons.Subtitle
@@ -14,8 +15,8 @@ import com.jankinwu.fntv.client.ui.component.common.dialog.SubtitleItemData
 import com.jankinwu.fntv.client.ui.component.detail.FileInfoData
 import com.jankinwu.fntv.client.ui.component.detail.MediaDetails
 import com.jankinwu.fntv.client.ui.component.detail.MediaTrackInfo
-import com.jankinwu.fntv.client.ui.screen.CurrentStreamData
-import com.jankinwu.fntv.client.ui.screen.IsoTagData
+import com.jankinwu.fntv.client.ui.providable.CurrentStreamData
+import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import kotlinx.datetime.toLocalDateTime
 import java.util.concurrent.TimeUnit
 import kotlin.time.ExperimentalTime
@@ -55,11 +56,7 @@ fun convertToScrollRowItemData(item: MediaItem): ScrollRowItemData {
         item.releaseDate?.take(4)
     }
 
-    val score = try {
-        item.voteAverage?.toDoubleOrNull()?.toFloat()?.let { "%.1f".format(it) } ?: "0.0"
-    } catch (_: Exception) {
-        "0.0"
-    }
+    val score = FnDataConvertor.formatVoteAverage(item.voteAverage)
     val resolutions = item.mediaStream.resolutions?.filter { it != "Others" }?.distinct()
 
     return ScrollRowItemData(
@@ -149,22 +146,6 @@ fun convertPersonToScrollRowItemData(personList: List<PersonList>): List<ScrollR
     return scrollRowList
 }
 
-/**
- * 将秒数格式化为 m 分钟 s 秒或 H 小时 m 分钟格式的字符串
- * 当时间不满一小时时，不显示小时位
- */
-@Suppress("DefaultLocale")
-fun formatSeconds(seconds: Int): String {
-    val hours = TimeUnit.SECONDS.toHours(seconds.toLong())
-    val minutes = TimeUnit.SECONDS.toMinutes(seconds.toLong()) % 60
-    val remainingSeconds = seconds % 60
-    return if (hours > 0) {
-        String.format("%d 小时 %d 分钟", hours, minutes)
-    } else {
-        String.format("%d 分钟 %d 秒", minutes, remainingSeconds)
-    }
-}
-
 fun convertToSubtitleItemList(subtitles: List<SearchingSubtitleInfo>): List<SubtitleItemData> {
     return subtitles.map {
         SubtitleItemData(
@@ -176,6 +157,32 @@ fun convertToSubtitleItemList(subtitles: List<SearchingSubtitleInfo>): List<Subt
 }
 
 object FnDataConvertor {
+
+    /**
+     * 将秒数格式化为 m 分钟 s 秒或 H 小时 m 分钟格式的字符串
+     * 当时间不满一小时时，不显示小时位
+     */
+    @Suppress("DefaultLocale")
+    fun formatSecondsToCNDateTime(seconds: Int): String {
+        val hours = TimeUnit.SECONDS.toHours(seconds.toLong())
+        val minutes = TimeUnit.SECONDS.toMinutes(seconds.toLong()) % 60
+        val remainingSeconds = seconds % 60
+        return when {
+            hours > 0 && minutes > 0 -> {
+                String.format("%d 小时 %d 分钟", hours, minutes)
+            }
+            hours > 0 && minutes.toInt() == 0 -> {
+                String.format("%d 小时", hours)
+            }
+            minutes > 0 && remainingSeconds > 0 -> {
+                String.format("%d 分钟 %d 秒", minutes, remainingSeconds)
+            }
+            else -> {
+                String.format("%d 分钟", minutes)
+            }
+        }
+    }
+
     fun convertToMediaDetails(
         currentStreamData: CurrentStreamData,
         isoTagData: IsoTagData,
@@ -204,21 +211,7 @@ object FnDataConvertor {
             icon = Audio
         )
         currentStreamData.audioStreamList.firstOrNull().let {
-            val languageName = when (it?.language?.length) {
-                3 -> {
-                    isoTagData.iso6392Map[it.language]?.value
-                        ?: it.language
-                }
-
-                2 -> {
-                    isoTagData.iso6391Map[it.language]?.value
-                        ?: it.language
-                }
-
-                else -> {
-                    it?.language ?: ""
-                }
-            }
+            val languageName = getLanguageName(it?.language, isoTagData)
             audioTrack.details =
                 "$languageName ${it?.codecName?.uppercase()} ${it?.channelLayout} · ${it?.sampleRate} Hz"
         }
@@ -229,24 +222,10 @@ object FnDataConvertor {
             icon = Subtitle
         )
         currentStreamData.subtitleStreamList.firstOrNull().let {
-            val languageName = when (it?.language?.length) {
-                3 -> {
-                    isoTagData.iso6392Map[it.language]?.value
-                        ?: it.language
-                }
-
-                2 -> {
-                    isoTagData.iso6391Map[it.language]?.value
-                        ?: it.language
-                }
-
-                else -> {
-                    it?.language ?: ""
-                }
-            }
+            val languageName = getLanguageName(it?.language, isoTagData)
             subtitleTrack.details = "$languageName ${it?.codecName?.uppercase()}"
         }
-        val imdbLink = if (!imdbId.isNullOrBlank()) "https://www.imdb.com/title/$imdbId/" else ""
+        val imdbLink = getImdbLink(imdbId)
         return MediaDetails(
             fileInfo,
             videoTrack,
@@ -254,6 +233,34 @@ object FnDataConvertor {
             subtitleTrack,
             imdbLink
         )
+    }
+
+    fun getImdbLink(imdbId: String?): String {
+        return if (!imdbId.isNullOrBlank()) {
+            "https://www.imdb.com/title/$imdbId/"
+        } else {
+            ""
+        }
+    }
+
+    fun getLanguageName(language: String?, isoTagData: IsoTagData): String {
+        return when {
+            language == null -> {
+                "无"
+            }
+            language in listOf("", "und", "zxx", "qaa-qtz", "zz-unknow") -> {
+                "未知"
+            }
+            language.length == 2 -> {
+                isoTagData.iso6391Map[language]?.value ?: language
+            }
+            language.length == 3 -> {
+                isoTagData.iso6392Map[language]?.value ?: language
+            }
+            else -> {
+                language
+            }
+        }
     }
 
     /**
@@ -315,5 +322,63 @@ object FnDataConvertor {
         val instant = fromEpochMilliseconds(timestamp)
         val localDateTime = instant.toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
         return "${localDateTime.date} ${localDateTime.time.toString().take(5)}"
+    }
+
+    fun humanizedFilePath(path: String, userSources: List<UserSource>): String {
+        if (path.startsWith("/vol") && path.length >= 5) {
+            // 查找第一个非数字字符的位置，用来提取完整的卷号
+            var volEndIndex = 4
+            while (volEndIndex < path.length && path[volEndIndex].isDigit()) {
+                volEndIndex++
+            }
+
+            if (volEndIndex > 4) { // 确保至少有一位数字
+                val volNumber = path.substring(4, volEndIndex)
+
+                // 查找匹配的用户源
+                val pathParts = path.split("/")
+                if (pathParts.size >= 3) {
+                    val sourceId = pathParts[2] // 提取source_id (例如: 1000)
+                    val matchedSource = userSources.find { it.sourceId == sourceId }
+
+                    // 构建人性化路径
+                    val storageTitle = "存储空间$volNumber"
+                    val userName = matchedSource?.sourceName ?: sourceId
+                    val remainingPath = path.substring(volEndIndex + sourceId.length + 1) // 去除/vol{number}/{sourceId}部分
+
+                    return "$storageTitle/$userName 的文件$remainingPath"
+                }
+            }
+        }
+        return path
+    }
+
+    fun getVolumeCNName(path: String, hasSpace:  Boolean = false): String {
+        if (path.startsWith("/vol") && path.length >= 5) {
+            // 查找第一个非数字字符的位置，用来提取完整的卷号
+            var volEndIndex = 4
+            while (volEndIndex < path.length && path[volEndIndex].isDigit()) {
+                volEndIndex++
+            }
+
+            if (volEndIndex > 4) { // 确保至少有一位数字
+                val volNumber = path.substring(4, volEndIndex)
+                return if (hasSpace) "存储空间 $volNumber" else "存储空间$volNumber"
+            }
+        }
+        return "未知存储空间"
+    }
+
+    /**
+     * 将评分转换为格式化的字符串，保留一位小数
+     * @param voteAverage 评分值
+     * @return 格式化后的评分字符串，如 "8.7"
+     */
+    fun formatVoteAverage(voteAverage: String?): String {
+        return try {
+            voteAverage?.toDoubleOrNull()?.toFloat()?.let { "%.1f".format(it) } ?: "0.0"
+        } catch (_: Exception) {
+            "0.0"
+        }
     }
 }

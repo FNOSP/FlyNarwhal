@@ -54,7 +54,7 @@ data class ItemResponse(
     val productionCountries: List<String>?,
 
     @param:JsonProperty("overview")
-    val overview: String,
+    val overview: String?,
 
     @param:JsonProperty("is_favorite")
     val isFavorite: Int,

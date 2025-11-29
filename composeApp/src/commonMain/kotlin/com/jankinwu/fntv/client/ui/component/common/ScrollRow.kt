@@ -41,7 +41,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.jankinwu.fntv.client.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.ScrollRowItemData
 import io.github.composefluent.LocalContentColor

@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 @Immutable
 data class StreamListResponse(
     @param:JsonProperty("files")
-    val files: List<FileInfo>,
+    val files: List<FileInfo>?,
     @param:JsonProperty("video_streams")
     val videoStreams: List<VideoStream>,
     @param:JsonProperty("audio_streams")

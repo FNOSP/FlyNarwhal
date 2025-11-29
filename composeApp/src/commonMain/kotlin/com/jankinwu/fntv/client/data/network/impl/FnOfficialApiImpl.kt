@@ -10,6 +10,8 @@ import com.jankinwu.fntv.client.data.model.request.LoginRequest
 import com.jankinwu.fntv.client.data.model.request.PlayInfoRequest
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
+import com.jankinwu.fntv.client.data.model.request.ScrapRescrapRequest
+import com.jankinwu.fntv.client.data.model.request.ScrapSearchRequest
 import com.jankinwu.fntv.client.data.model.request.StreamRequest
 import com.jankinwu.fntv.client.data.model.request.SubtitleDownloadRequest
 import com.jankinwu.fntv.client.data.model.request.SubtitleMarkRequest
@@ -29,6 +31,8 @@ import com.jankinwu.fntv.client.data.model.response.PlayDetailResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.PlayPlayResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
+import com.jankinwu.fntv.client.data.model.response.ScrapSearchResponse
+import com.jankinwu.fntv.client.data.model.response.SeasonListResponse
 import com.jankinwu.fntv.client.data.model.response.ServerPathResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
@@ -222,6 +226,18 @@ class FnOfficialApiImpl() : FnOfficialApi {
 
     override suspend fun scrap(guid: String, mediaGuids: List<String>): Boolean {
         return delete("/v/api/v1/scrap/$guid", mapOf("media_guids" to mediaGuids))
+    }
+
+    override suspend fun scrapSearch(request: ScrapSearchRequest): List<ScrapSearchResponse> {
+        return post("/v/api/v1/scrap/search", request)
+    }
+
+    override suspend fun scrapRescrap(request: ScrapRescrapRequest): Boolean {
+        return post("/v/api/v1/scrap/rescrap", request)
+    }
+
+    override suspend fun seasonList(guid: String): List<SeasonListResponse> {
+        return get("/v/api/v1/season/list/$guid")
     }
 
     private suspend inline fun <reified T> get(
