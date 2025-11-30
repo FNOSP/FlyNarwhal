@@ -115,16 +115,16 @@ object ProxyManager {
         return when {
             osName.contains("win") -> {
                 when {
-                    osArch.contains("aarch64") || osArch.contains("arm64") -> "windows_arm64"
+                    osArch.contains("aarch64") || osArch.contains("arm64") -> "windows_aarch64"
                     osArch.contains("amd64") -> "windows_amd64"
                     else -> "windows_386"
                 }
             }
             osName.contains("mac") -> {
-                if (osArch.contains("aarch64") || osArch.contains("arm")) "darwin_arm64" else "darwin_amd64"
+                if (osArch.contains("aarch64") || osArch.contains("arm")) "darwin_aarch64" else "darwin_amd64"
             }
             osName.contains("nix") || osName.contains("nux") -> {
-                if (osArch.contains("aarch64") || osArch.contains("arm")) "linux_arm64" else "linux_amd64"
+                if (osArch.contains("aarch64") || osArch.contains("arm")) "linux_aarch64" else "linux_amd64"
             }
             else -> null
         }
