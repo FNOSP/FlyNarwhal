@@ -1,5 +1,6 @@
 package com.jankinwu.fntv.client.data.network.impl
 
+import co.touchlab.kermit.Logger
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.jankinwu.fntv.client.data.model.request.ProxyInfoRequest
 import com.jankinwu.fntv.client.data.model.response.FnBaseResponse
@@ -32,7 +33,7 @@ class ProxyApiImpl(): ProxyApi {
                 throw IllegalArgumentException("飞牛影视代理 URL 未配置")
             }
 
-            println("proxy POST request, url: ${AccountDataCache.getProxyBaseUrl()}$url, body: $body")
+            Logger.i { "proxy POST request, url: ${AccountDataCache.getProxyBaseUrl()}$url, body: $body" }
 
             val response = fnOfficialClient.post("${AccountDataCache.getProxyBaseUrl()}$url") {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
@@ -43,12 +44,12 @@ class ProxyApiImpl(): ProxyApi {
             }
 
             val responseString = response.bodyAsText()
-            println("url: $url POST response content: $responseString")
+            Logger.i { "url: $url POST response content: $responseString" }
 
             // 解析为对象
             val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (responseBody.code != 0) {
-                println("请求异常: ${responseBody.msg}, url: $url, request body: $body")
+                Logger.e { "请求异常: ${responseBody.msg}, url: $url, request body: $body" }
                 throw Exception("请求失败, url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
             }
 
@@ -62,7 +63,7 @@ class ProxyApiImpl(): ProxyApi {
         } catch (e: Exception) {
             if (e.message?.contains("302") == true) {
                 val response = fnOfficialClient.get("${AccountDataCache.getFnOfficialBaseUrl()}/v")
-                println("302 response: ${response.bodyAsText()}")
+                Logger.e(e) { "302 response: ${response.bodyAsText()}" }
             }
             throw Exception("请求失败: ${e.message}", e)
         }

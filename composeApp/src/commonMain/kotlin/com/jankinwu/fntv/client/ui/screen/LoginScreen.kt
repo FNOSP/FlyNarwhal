@@ -59,6 +59,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.components
 import com.jankinwu.fntv.client.data.constants.Colors
@@ -146,7 +147,7 @@ fun LoginScreen(navigator: ComponentNavigator) {
                 AccountDataCache.authorization = state.data.token
                 AccountDataCache.isLoggedIn = true
                 AccountDataCache.insertCookie("Trim-MC-token" to state.data.token)
-                println("登录成功，cookie: ${AccountDataCache.cookieState}")
+                Logger.i("登录成功，cookie: ${AccountDataCache.cookieState}")
                 val preferencesManager = PreferencesManager.getInstance()
                 preferencesManager.saveToken(state.data.token)
                 loginViewModel.clearError()
@@ -175,12 +176,12 @@ fun LoginScreen(navigator: ComponentNavigator) {
             is UiState.Error -> {
                 // 登录失败，可以显示错误信息
                 toastManager.showToast("登录失败，${state.message}", false)
-                println("登录失败: ${state.message}")
+                Logger.e("登录失败: ${state.message}")
 
                 // 检查是否是证书错误
                 if (state.message.contains("PKIX path building failed") || state.message.contains("unable to find valid certification path")) {
                     // Todo 这里应该显示一个对话框询问用户是否信任证书
-                    println("检测到SSL证书错误，需要用户确认是否信任证书")
+                    Logger.w ("检测到SSL证书错误，需要用户确认是否信任证书")
                 }
             }
 

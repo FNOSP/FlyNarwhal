@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import coil3.PlatformContext
 import coil3.compose.SubcomposeAsyncImage
 import coil3.network.httpHeaders
@@ -207,7 +208,7 @@ fun MovieDetailScreen(
             }
 
             is UiState.Error -> {
-                println("message: ${(itemUiState as UiState.Error).message}")
+                Logger.i("message: ${(itemUiState as UiState.Error).message}")
             }
 
             else -> {}
@@ -220,7 +221,7 @@ fun MovieDetailScreen(
             }
 
             is UiState.Error -> {
-                println("message: ${(streamUiState as UiState.Error).message}")
+                Logger.i("message: ${(streamUiState as UiState.Error).message}")
             }
 
             else -> {}
@@ -235,7 +236,7 @@ fun MovieDetailScreen(
             }
 
             is UiState.Error -> {
-                println("message: ${(personListState as UiState.Error).message}")
+                Logger.e("message: ${(personListState as UiState.Error).message}")
             }
 
             else -> {}
@@ -248,7 +249,7 @@ fun MovieDetailScreen(
             }
 
             is UiState.Error -> {
-                println("message: ${(playInfoUiState as UiState.Error).message}")
+                Logger.e("message: ${(playInfoUiState as UiState.Error).message}")
             }
 
             else -> {}
@@ -257,7 +258,7 @@ fun MovieDetailScreen(
     LaunchedEffect(currentMediaGuid) {
         val streamData = streamData
         if (currentMediaGuid.isNotBlank() && streamData != null) {
-            println("currentGuid: $currentMediaGuid, streamData: $streamData")
+            Logger.i("currentGuid: $currentMediaGuid, streamData: $streamData")
             val currentFileInfo = streamData.files?.firstOrNull {
                 it.guid == currentMediaGuid
             }
@@ -430,7 +431,6 @@ fun MovieDetailBody(
                                         val width = drawable.width
                                         val height = drawable.height
                                         val actualWidth = width.toDouble() / height * 90
-//                                            println("width: $width, height: $height, actualWidth: $actualWidth")
                                         if (actualWidth > 0 && actualWidth < 280) {
                                             imageHeight = 150.dp
                                         }

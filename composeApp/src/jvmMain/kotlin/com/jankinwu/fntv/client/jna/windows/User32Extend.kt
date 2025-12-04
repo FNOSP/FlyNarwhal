@@ -1,5 +1,6 @@
 package com.jankinwu.fntv.client.jna.windows
 
+import co.touchlab.kermit.Logger
 import io.github.composefluent.gallery.jna.windows.structure.MENUITEMINFO
 import com.sun.jna.Native
 import com.sun.jna.Platform
@@ -57,7 +58,7 @@ internal interface User32Extend : User32 {
                     W32APIOptions.DEFAULT_OPTIONS
                 )
             }
-                .onFailure { println("Could not load user32 library") }
+                .onFailure { Logger.e("Could not load user32 library") }
                 .getOrNull()
         }
     }

@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -223,10 +224,10 @@ fun PlayerOverlay(
                 ts = (mediaPlayer.currentPositionMillis.value / 1000).toInt(),
                 playRecordViewModel = playRecordViewModel,
                 onSuccess = {
-                    println("暂停时调用playRecord成功")
+                    Logger.i("暂停时调用playRecord成功")
                 },
                 onError = {
-                    println("暂停时调用playRecord失败：缓存为空")
+                    Logger.i("暂停时调用playRecord失败：缓存为空")
                 },
             )
         }
@@ -247,10 +248,10 @@ fun PlayerOverlay(
                     ts = (mediaPlayer.currentPositionMillis.value / 1000).toInt(),
                     playRecordViewModel = playRecordViewModel,
                     onSuccess = {
-                        println("每隔15s调用playRecord成功")
+                        Logger.i("每隔15s调用playRecord成功")
                     },
                     onError = {
-                        println("每隔15s调用playRecord失败：缓存为空")
+                        Logger.i("每隔15s调用playRecord失败：缓存为空")
                     }
                 )
             }
@@ -405,7 +406,7 @@ fun PlayerOverlay(
                         onSeek = { newProgress ->
                             val seekPosition = (newProgress * totalDuration).toLong()
                             mediaPlayer.seekTo(seekPosition)
-                            println("Seek to: ${newProgress * 100}%")
+                            Logger.i("Seek to: ${newProgress * 100}%")
 
                             // 调用playRecord接口
                             callPlayRecord(
@@ -413,10 +414,10 @@ fun PlayerOverlay(
                                 ts = (seekPosition / 1000).toInt(),
                                 playRecordViewModel = playRecordViewModel,
                                 onSuccess = {
-                                    println("Seek时调用playRecord成功")
+                                    Logger.i("Seek时调用playRecord成功")
                                 },
                                 onError = {
-                                    println("Seek时调用playRecord失败：缓存为空")
+                                    Logger.i("Seek时调用playRecord失败：缓存为空")
                                 },
                             )
                         },
@@ -678,7 +679,7 @@ private suspend fun playMedia(
             playLink = playResponse.playLink
         } catch (e: Exception) {
             if (e.message?.contains("8192") ?: true) {
-                println("使用直链播放")
+                Logger.i("使用直链播放")
                 playLink = "/v/api/v1/media/range/${playInfoResponse.mediaGuid}"
             }
         }
@@ -688,7 +689,7 @@ private suspend fun playMedia(
             streamInfo, playLink, fileStream,
             videoStream, audioStream, subtitleStream, playInfoResponse.item.guid
         )
-        println("startPosition: $startPosition")
+        Logger.i("startPosition: $startPosition")
         // 设置字幕
         val extraFiles = subtitleStream?.let {
             val mediaExtraFiles = getMediaExtraFiles(it)
@@ -702,14 +703,14 @@ private suspend fun playMedia(
             ts = if ((startPosition / 1000).toInt() == 0) 1 else (startPosition / 1000).toInt(),
             playRecordViewModel = playRecordViewModel,
             onSuccess = {
-                println("起播时调用playRecord成功")
+                Logger.i("起播时调用playRecord成功")
             },
             onError = {
-                println("起播时调用playRecord失败：缓存为空")
+                Logger.e("起播时调用playRecord失败：缓存为空")
             },
         )
     } catch (e: Exception) {
-        println("播放失败: ${e.message}")
+        Logger.e("播放失败: ${e.message}",  e)
     }
 }
 
@@ -781,7 +782,7 @@ private suspend fun startPlayback(
         )
 //        headers["Authorization"] = AccountDataCache.authorization
         val extraFilesStr = PlayerScreen.mapper.writeValueAsString(extraFiles)
-        println("play param: headers: $headers, playUri: ${AccountDataCache.getFnOfficialBaseUrl()}$playLink, extraFiles: $extraFilesStr")
+        Logger.i("play param: headers: $headers, playUri: ${AccountDataCache.getFnOfficialBaseUrl()}$playLink, extraFiles: $extraFilesStr")
         player.playUri("${AccountDataCache.getFnOfficialBaseUrl()}$playLink", headers, extraFiles)
     } else {
         player.playUri(
@@ -791,6 +792,6 @@ private suspend fun startPlayback(
     }
     delay(1500) // 等待播放器初始化
     player.features[PlaybackSpeed]?.set(1.0f)
-    println("startPlayback startPosition: $startPosition")
+    Logger.i("startPlayback startPosition: $startPosition")
     player.seekTo(startPosition)
 }

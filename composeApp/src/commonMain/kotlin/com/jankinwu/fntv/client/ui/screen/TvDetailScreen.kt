@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import coil3.PlatformContext
 import coil3.compose.SubcomposeAsyncImage
 import coil3.network.httpHeaders
@@ -170,7 +171,7 @@ fun TvDetailScreen(
         }
     }
     LaunchedEffect(seasonListState) {
-        println("seasonListState: $seasonListState")
+        Logger.i("seasonListState: $seasonListState")
         if (seasonListState is UiState.Success) {
             seasonList = (seasonListState as UiState.Success<List<SeasonListResponse>>).data
         }

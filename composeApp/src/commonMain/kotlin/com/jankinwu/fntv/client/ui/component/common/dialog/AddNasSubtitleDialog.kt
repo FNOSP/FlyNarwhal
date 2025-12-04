@@ -38,6 +38,7 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.response.AuthDir
 import com.jankinwu.fntv.client.ui.component.common.FileTreePicker
@@ -201,7 +202,7 @@ fun AddNasSubtitleBox(
                         onSelectionChanged = { paths ->
                             onSelectionChanged(paths)
                             // 调试：打印选中的路径
-                            println("Selected Paths: $paths")
+                            Logger.i("Selected Paths: $paths")
                         },
                         modifier = Modifier.fillMaxSize() // 占据剩余空间
                     )

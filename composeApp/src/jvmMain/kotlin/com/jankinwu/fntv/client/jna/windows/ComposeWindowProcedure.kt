@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.graphics.Color
+import co.touchlab.kermit.Logger
 import io.github.composefluent.gallery.jna.windows.structure.MENUITEMINFO
 import io.github.composefluent.gallery.jna.windows.structure.WinUserConst
 import io.github.composefluent.gallery.jna.windows.structure.WinUserConst.HTBOTTOM
@@ -329,11 +330,11 @@ internal class ComposeWindowProcedure(
     private fun enableBorderAndShadow() {
         val dwmApi = "dwmapi"
             .runCatching(NativeLibrary::getInstance)
-            .onFailure { println("Could not load dwmapi library") }
+            .onFailure { Logger.e("Could not load dwmapi library") }
             .getOrNull()
         dwmApi
             ?.runCatching { getFunction("DwmExtendFrameIntoClientArea") }
-            ?.onFailure { println("Could not enable window native decorations (border/shadow/rounded corners)") }
+            ?.onFailure { Logger.e("Could not enable window native decorations (border/shadow/rounded corners)") }
             ?.getOrNull()
             ?.invoke(arrayOf(windowHandle, margins))
 

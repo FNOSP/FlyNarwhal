@@ -171,7 +171,6 @@ fun RecentlyWatched(
                         )
                         navigator.navigate(movieDetailComponent)
                     } else if (movie.type == FnTvMediaType.EPISODE.value) {
-//                        println("parentGuid: $parentGuid")
                         val tvDetailComponent = ComponentItem(
                             name = "剧集分季详情",
                             group = "/详情",

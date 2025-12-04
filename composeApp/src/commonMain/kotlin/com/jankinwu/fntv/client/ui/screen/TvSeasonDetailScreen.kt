@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import coil3.PlatformContext
 import coil3.compose.AsyncImagePainter
 import coil3.compose.rememberAsyncImagePainter
@@ -181,7 +182,6 @@ fun TvSeasonDetailScreen(
         }
     }
     LaunchedEffect(episodeListState) {
-        println("seasonListState: $episodeListState")
         if (episodeListState is UiState.Success) {
             episodeList = (episodeListState as UiState.Success<List<EpisodeListResponse>>).data
         }
@@ -194,7 +194,7 @@ fun TvSeasonDetailScreen(
             }
 
             is UiState.Error -> {
-                println("message: ${(playInfoUiState as UiState.Error).message}")
+                Logger.e("message: ${(playInfoUiState as UiState.Error).message}")
             }
 
             else -> {}
@@ -210,7 +210,7 @@ fun TvSeasonDetailScreen(
             }
 
             is UiState.Error -> {
-                println("message: ${(personListState as UiState.Error).message}")
+                Logger.e("message: ${(personListState as UiState.Error).message}")
             }
 
             else -> {}

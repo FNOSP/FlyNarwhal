@@ -1,5 +1,6 @@
 package com.jankinwu.fntv.client.manager
 
+import co.touchlab.kermit.Logger
 import java.io.File
 import java.util.Locale
 
@@ -16,7 +17,7 @@ object ProxyManager {
 
         val platformDir = getPlatformDir(osName, osArch)
         if (platformDir == null) {
-            println("ProxyManager: Unsupported platform: $osName / $osArch")
+            Logger.i("ProxyManager: Unsupported platform: $osName / $osArch")
             return
         }
 
@@ -81,7 +82,7 @@ object ProxyManager {
                     // Copy if not exists or size differs (simple check)
                     // Ideally check version or hash, but here we just ensure it exists
                     if (!targetFile.exists()) {
-                        println("ProxyManager: Extracting proxy to ${targetFile.absolutePath}")
+                        Logger.i("ProxyManager: Extracting proxy to ${targetFile.absolutePath}")
                         targetFile.outputStream().use { output ->
                             resourceStream.copyTo(output)
                         }
@@ -91,10 +92,10 @@ object ProxyManager {
                     }
                     proxyDir = extractDir
                 } else {
-                    println("ProxyManager: Resource not found in classpath: $resourcePath")
+                    Logger.i("ProxyManager: Resource not found in classpath: $resourcePath")
                 }
             } catch (e: Exception) {
-                println("ProxyManager: Failed to extract proxy: ${e.message}")
+                Logger.e("ProxyManager: Failed to extract proxy: ${e.message}", e)
                 e.printStackTrace()
             }
         }
@@ -102,7 +103,7 @@ object ProxyManager {
         val executableFile = File(proxyDir, "$platformDir/$executableName")
         
         if (!executableFile.exists()) {
-            println("ProxyManager: Executable not found at ${executableFile.absolutePath}")
+            Logger.w("ProxyManager: Executable not found at ${executableFile.absolutePath}")
             return
         }
 
@@ -116,13 +117,12 @@ object ProxyManager {
             
             // Start process
             proxyProcess = pb.start()
-            println("ProxyManager: Started proxy at ${executableFile.absolutePath}")
+            Logger.i("ProxyManager: Started proxy at ${executableFile.absolutePath}")
 
             // Consume output streams to prevent blocking
             Thread {
                 try {
                     proxyProcess?.inputStream?.bufferedReader()?.forEachLine { 
-                        // println("Proxy: $it") 
                     }
                 } catch (_: Exception) {
                     // Ignore stream close errors
@@ -135,7 +135,7 @@ object ProxyManager {
             Thread {
                 try {
                     proxyProcess?.errorStream?.bufferedReader()?.forEachLine {
-                        System.err.println("ProxyManager Error: $it")
+                        Logger.e("ProxyManager Error: $it")
                     }
                 } catch (_: Exception) {
                      // Ignore stream close errors
@@ -151,7 +151,7 @@ object ProxyManager {
             })
 
         } catch (e: Exception) {
-            println("ProxyManager: Failed to start proxy: ${e.message}")
+            Logger.e("ProxyManager: Failed to start proxy: ${e.message}", e)
             e.printStackTrace()
         }
     }
@@ -161,7 +161,7 @@ object ProxyManager {
             try {
                 if (proxyProcess!!.isAlive) {
                     proxyProcess!!.destroy()
-                    println("ProxyManager: Proxy stopped")
+                    Logger.i("ProxyManager: Proxy stopped")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
