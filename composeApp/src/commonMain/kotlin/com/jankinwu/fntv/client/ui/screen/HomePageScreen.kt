@@ -134,6 +134,7 @@ fun HomePageScreen(navigator: ComponentNavigator) {
         }
     }
 
+    // 监听收藏操作结果并显示提示
     HandleFavoriteResult(
         favoriteUiState = favoriteUiState,
         toastManager = toastManager,
@@ -144,6 +145,7 @@ fun HomePageScreen(navigator: ComponentNavigator) {
         clearError = { favoriteViewModel.clearError() }
     )
 
+    // 监听已观看操作结果并显示提示
     HandleWatchedResult(
         watchedUiState = watchedUiState,
         toastManager = toastManager,
@@ -154,67 +156,6 @@ fun HomePageScreen(navigator: ComponentNavigator) {
         clearError = { watchedViewModel.clearError() }
     )
 
-    // 监听收藏操作结果并显示提示
-//    LaunchedEffect(favoriteUiState) {
-//        when (val state = favoriteUiState) {
-//            is UiState.Success -> {
-//                toastManager.showToast(state.data.message, state.data.success)
-//                // 调用对应的回调函数
-//                pendingCallbacks[state.data.guid]?.invoke(state.data.success)
-//                // 从 pendingCallbacks 中移除已处理的回调
-//                pendingCallbacks = pendingCallbacks - state.data.guid
-//            }
-//
-//            is UiState.Error -> {
-//                // 显示错误提示
-//                toastManager.showToast("操作失败，${state.message}", false)
-//                state.operationId?.let {
-//                    pendingCallbacks[state.operationId]?.invoke(false)
-//                    // 从 pendingCallbacks 中移除已处理的回调
-//                    pendingCallbacks = pendingCallbacks - state.operationId
-//                }
-//            }
-//
-//            else -> {}
-//        }
-//
-//        // 清除状态
-//        if (favoriteUiState is UiState.Success || favoriteUiState is UiState.Error) {
-//            kotlinx.coroutines.delay(2000) // 2秒后清除状态
-//            favoriteViewModel.clearError()
-//        }
-//    }
-//
-//    // 监听已观看操作结果并显示提示
-//    LaunchedEffect(watchedUiState) {
-//        when (val state = watchedUiState) {
-//            is UiState.Success -> {
-//                toastManager.showToast(state.data.message, state.data.success)
-//                // 调用对应的回调函数
-//                pendingCallbacks[state.data.guid]?.invoke(state.data.success)
-//                // 从 pendingCallbacks 中移除已处理的回调
-//                pendingCallbacks = pendingCallbacks - state.data.guid
-//            }
-//
-//            is UiState.Error -> {
-//                // 显示错误提示
-//                toastManager.showToast("操作失败，${state.message}", false)
-//                state.operationId?.let {
-//                    pendingCallbacks[state.operationId]?.invoke(false)
-//                    // 从 pendingCallbacks 中移除已处理的回调
-//                    pendingCallbacks = pendingCallbacks - state.operationId
-//                }
-//            }
-//
-//            else -> {}
-//        }
-//
-//        // 清除状态
-//        if (watchedUiState is UiState.Success || watchedUiState is UiState.Error) {
-//            kotlinx.coroutines.delay(2000) // 2秒后清除状态
-//            watchedViewModel.clearError()
-//        }
-//    }
     CompositionLocalProvider(
         LocalUserInfo provides currentUserInfo,
         LocalToastManager provides toastManager
