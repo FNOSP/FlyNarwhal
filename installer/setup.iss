@@ -3,6 +3,7 @@
 #define MyAppPublisher "JankinWu"
 #define MyAppExeName "FnMedia.exe"
 #define MyAppPackageName "FnMedia"
+#pragma encoding("utf-8")
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -18,6 +19,7 @@ DisableDirPage=no
 
 OutputDir=.
 OutputBaseFilename=FnMedia_Setup_{#MyAppVersion}
+SetupIconFile=favicon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -30,7 +32,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; NOTE: You must run "./gradlew createReleaseDistributable" before compiling this script
-Source: "..\composeApp\build\compose\binaries\main\app\{#MyAppPackageName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\composeApp\build\compose\binaries\main-release\app\{#MyAppPackageName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

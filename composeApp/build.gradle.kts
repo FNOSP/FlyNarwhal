@@ -140,7 +140,8 @@ compose.desktop {
             // Use English package name to avoid garbled text on Windows
             packageName = "FnMedia"
             packageVersion = "1.0.0"
-            description = "飞牛影视"
+            // Description acts as the process name in Task Manager. Using Chinese here causes garbled text due to jpackage limitations.
+            description = "FnMedia"
             vendor = "JankinWu"
             appResourcesRootDir.set(proxyResourcesDir)
 
@@ -149,7 +150,7 @@ compose.desktop {
                 iconFile.set(project.file("icons/favicon.ico"))
                 shortcut = true
                 menu = true
-                menuGroup = "飞牛影视"
+                menuGroup = "FnMedia"
                 console = false
                 dirChooser = true
                 upgradeUuid = "9A262498-6C63-4816-A346-056028719600"
