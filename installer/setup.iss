@@ -3,6 +3,7 @@
 #define MyAppPublisher "JankinWu"
 #define MyAppExeName "FnMedia.exe"
 #define MyAppPackageName "FnMedia"
+#define MyAppId "9A262498-6C63-4816-A346-056028719600"
 
 #ifndef MyAppArch
   #if GetEnv('PROCESSOR_ARCHITEW6432') == 'AMD64' || GetEnv('PROCESSOR_ARCHITECTURE') == 'AMD64'
@@ -19,7 +20,7 @@
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-AppId={{9A262498-6C63-4816-A346-056028719600}
+AppId={#MyAppId}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}

@@ -399,4 +399,9 @@ object FnDataConvertor {
             )
         }
     }
+
+    fun formatToMb(bytes: Long): String {
+        val mb = bytes.toDouble() / (1024 * 1024)
+        return ((mb * 100).toLong() / 100.0).toString()
+    }
 }

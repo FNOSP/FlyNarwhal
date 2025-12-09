@@ -14,6 +14,8 @@ import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.jackson.jackson
 import org.koin.dsl.module
+import com.jankinwu.fntv.client.manager.DesktopUpdateManager
+import com.jankinwu.fntv.client.manager.UpdateManager
 
 actual val fnOfficialClient = HttpClient(OkHttp) {
     expectSuccess = true
@@ -76,4 +78,5 @@ actual val fnOfficialClient = HttpClient(OkHttp) {
 actual val apiModule = module {
     single { FnOfficialApiImpl() }
     single { ProxyApiImpl() }
+    single<UpdateManager> { DesktopUpdateManager() }
 }

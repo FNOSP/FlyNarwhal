@@ -240,7 +240,7 @@ fun VersionManagementDialog(
                         ) { Text(
                             "匹配为其他影片",
                             style = LocalTypography.current.bodyStrong,
-                            color = FluentTheme.colors.text.text.primary
+                            color = Color.White
                         ) }
                     }
                 }

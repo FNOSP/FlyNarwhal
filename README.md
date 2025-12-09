@@ -86,7 +86,7 @@
 | 任务计划       | ![Progress](https://progress-bar.xyz/0/)  |
 | 搜索         | ![Progress](https://progress-bar.xyz/0/)  |
 | 弹幕         | ![Progress](https://progress-bar.xyz/0/)  |
-| 更新检测       | ![Progress](https://progress-bar.xyz/0/)  |
+| 版本更新       | ![Progress](https://progress-bar.xyz/60/) |
 | 集成 mpv 播放器 | ![Progress](https://progress-bar.xyz/0/)  |
 | 文件夹视图      | ![Progress](https://progress-bar.xyz/0/)  |
 
