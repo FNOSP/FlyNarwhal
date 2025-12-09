@@ -57,8 +57,12 @@ object ProxyManager {
         if (!proxyDir.exists()) {
             try {
                 val exeDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
+                val appResourcesProxyDir = File(exeDir, "app/resources/fntv-proxy")
                 val exeProxyDir = File(exeDir, "fntv-proxy")
-                if (exeProxyDir.exists()) {
+
+                if (appResourcesProxyDir.exists()) {
+                    proxyDir = appResourcesProxyDir
+                } else if (exeProxyDir.exists()) {
                     proxyDir = exeProxyDir
                 }
             } catch (e: Exception) {
@@ -71,7 +75,7 @@ object ProxyManager {
             try {
                 // Extract to the directory where the executable is located
                 val exeDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
-                val extractDir = File(exeDir, "fntv-proxy")
+                val extractDir = File(exeDir, "app/resources/fntv-proxy")
                 
                 if (!extractDir.exists()) {
                     extractDir.mkdirs()
