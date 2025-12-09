@@ -296,6 +296,11 @@ func cleanInstallDir(dir string, installerPath string) error {
 			continue
 		}
 
+		// Check if it's the logs directory
+		if strings.EqualFold(entry.Name(), "logs") {
+			continue
+		}
+
 		// Delete
 		info("Deleting: %s", path)
 		if err := os.RemoveAll(path); err != nil {

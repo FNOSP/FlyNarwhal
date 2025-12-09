@@ -50,7 +50,7 @@ class FileLogWriter(private val logDir: File) : LogWriter() {
                     if (daysBetween >= retentionDays) {
                         file.delete()
                     }
-                } catch (e: DateTimeParseException) {
+                } catch (_: DateTimeParseException) {
                     // Ignore files with invalid date format
                 }
             }
