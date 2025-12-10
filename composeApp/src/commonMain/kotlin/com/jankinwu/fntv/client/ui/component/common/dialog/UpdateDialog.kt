@@ -63,6 +63,27 @@ fun UpdateDialog(
                         }
                     }
 
+                    is UpdateStatus.ReadyToInstall -> {
+                        Text("更新", style = FluentTheme.typography.subtitle)
+                        Spacer(Modifier.height(12.dp))
+                        Text("有新版本可以更新。最新版本为 ${status.info.version}，当前版本为 ${BuildConfig.VERSION_NAME}")
+                        Spacer(Modifier.height(12.dp))
+                        Text("【更新内容】")
+                        Spacer(Modifier.height(8.dp))
+                        Text(status.info.releaseNotes)
+                        Spacer(Modifier.height(24.dp))
+                        Text("安装包已下载，是否立即安装？", style = FluentTheme.typography.bodyStrong)
+                        Spacer(Modifier.height(24.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.End,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            DialogSecondaryButton("稍后", onClick = onDismiss)
+                            Spacer(Modifier.width(8.dp))
+                            DialogAccentButton("退出并安装", onClick = { onInstall(status.info) })
+                        }
+                    }
+
                     is UpdateStatus.Downloading -> {
                         Text("下载中...", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))
@@ -97,7 +118,7 @@ fun UpdateDialog(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            DialogSecondaryButton("取消", onClick = onDismiss)
+                            DialogSecondaryButton("稍后", onClick = onDismiss)
                             Spacer(Modifier.width(8.dp))
                             DialogAccentButton("退出并安装", onClick = { onInstall(status.info) })
                         }

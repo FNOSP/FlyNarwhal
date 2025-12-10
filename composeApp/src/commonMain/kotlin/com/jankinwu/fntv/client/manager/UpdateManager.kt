@@ -40,6 +40,7 @@ sealed class UpdateStatus {
     data class Error(val message: String) : UpdateStatus()
     data class Downloading(val progress: Float, val currentBytes: Long, val totalBytes: Long) : UpdateStatus()
     data class Downloaded(val info: UpdateInfo, val filePath: String) : UpdateStatus()
+    data class ReadyToInstall(val info: UpdateInfo, val filePath: String) : UpdateStatus()
 }
 
 interface UpdateManager {

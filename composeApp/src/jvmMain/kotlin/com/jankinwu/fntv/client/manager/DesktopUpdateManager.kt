@@ -49,12 +49,6 @@ class DesktopUpdateManager : UpdateManager {
         scope.launch {
             _status.value = UpdateStatus.Checking
             try {
-                val baseUrl = if (proxyUrl.isNotBlank()) {
-                    if (proxyUrl.endsWith("/")) proxyUrl else "$proxyUrl/"
-                } else {
-                    ""
-                }
-                
                 val targetUrl = "https://api.github.com/repos/FNOSP/fntv-client-multiplatform/releases/latest"
 
                 Logger.i("Checking update from: $targetUrl")
@@ -92,7 +86,7 @@ class DesktopUpdateManager : UpdateManager {
                          val file = File(executableDir, asset.name)
                          
                          if (file.exists() && file.length() == asset.size) {
-                             _status.value = UpdateStatus.Downloaded(updateInfo, file.absolutePath)
+                             _status.value = UpdateStatus.ReadyToInstall(updateInfo, file.absolutePath)
                          } else {
                              _status.value = UpdateStatus.Available(updateInfo)
                          }
@@ -153,7 +147,7 @@ class DesktopUpdateManager : UpdateManager {
                     }
                 }
                 _status.value = UpdateStatus.Downloaded(info, file.absolutePath)
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 Logger.i("Download cancelled")
                 if (file.exists()) {
                     file.delete()
