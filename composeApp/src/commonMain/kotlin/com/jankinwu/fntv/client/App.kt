@@ -9,6 +9,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -47,6 +49,7 @@ import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.CategoryIcon
 import com.jankinwu.fntv.client.icons.Home
 import com.jankinwu.fntv.client.icons.MediaLibrary
+import com.jankinwu.fntv.client.manager.UpdateStatus
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
@@ -56,6 +59,7 @@ import com.jankinwu.fntv.client.ui.screen.MediaDbScreen
 import com.jankinwu.fntv.client.ui.screen.SettingsScreen
 import com.jankinwu.fntv.client.viewmodel.MediaDbListViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
+import com.jankinwu.fntv.client.viewmodel.UpdateViewModel
 import io.github.composefluent.ExperimentalFluentApi
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.animation.FluentDuration
@@ -70,6 +74,7 @@ import io.github.composefluent.component.NavigationDisplayMode
 import io.github.composefluent.component.NavigationMenuItemScope
 import io.github.composefluent.component.NavigationView
 import io.github.composefluent.component.SideNavItem
+import io.github.composefluent.component.Text
 import io.github.composefluent.component.TextBoxButton
 import io.github.composefluent.component.TextBoxButtonDefaults
 import io.github.composefluent.component.TextField
@@ -180,6 +185,15 @@ fun Navigation(
     icon: Painter?,
     title: String
 ) {
+    val updateViewModel: UpdateViewModel = koinViewModel()
+    val updateStatus by updateViewModel.status.collectAsState()
+
+    LaunchedEffect(Unit) {
+        if (updateViewModel.status.value is UpdateStatus.Idle) {
+            updateViewModel.checkUpdate()
+        }
+    }
+
     val homePageItem =
         ComponentItem(
             "首页",
@@ -252,23 +266,41 @@ fun Navigation(
             }
         },
         title = {
-            if (isCollapsed) {
-                if (icon != null) {
-                    Image(
-                        painter = icon,
-                        contentDescription = null,
-                        modifier = Modifier.padding(start = 12.dp).size(16.dp)
-                    )
+            Row(
+                modifier = Modifier
+                    .width(100.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isCollapsed) {
+                    if (icon != null) {
+                        Image(
+                            painter = icon,
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 12.dp).size(16.dp)
+                        )
+                    }
+                    if (title.isNotEmpty()) {
+                        Text(
+                            text = title,
+                            style = FluentTheme.typography.caption,
+                            modifier = Modifier.padding(start = 12.dp)
+                        )
+                    }
+                } else {
+                    Text("")
                 }
-                if (title.isNotEmpty()) {
-                    io.github.composefluent.component.Text(
-                        text = title,
-                        style = FluentTheme.typography.caption,
-                        modifier = Modifier.padding(start = 12.dp)
-                    )
-                }
-            } else {
-                io.github.composefluent.component.Text("")
+
+//                if (updateStatus is UpdateStatus.Available || updateStatus is UpdateStatus.ReadyToInstall) {
+//                    Text(
+//                        text = "New",
+//                        style = FluentTheme.typography.caption,
+//                        color = Colors.AccentColorDefault,
+//                        modifier = Modifier
+//                            .padding(start = 8.dp)
+//                            .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(4.dp))
+//                            .padding(horizontal = 4.dp, vertical = 0.dp)
+//                    )
+//                }
             }
         },
         backButton = {

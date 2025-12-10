@@ -82,8 +82,7 @@ class DesktopUpdateManager : UpdateManager {
                              size = asset.size
                          )
                          
-                         val executableDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
-                         val file = File(executableDir, asset.name)
+                         val file = findUpdateFile(asset.name)
                          
                          if (file.exists() && file.length() == asset.size) {
                              _status.value = UpdateStatus.ReadyToInstall(updateInfo, file.absolutePath)
@@ -102,6 +101,19 @@ class DesktopUpdateManager : UpdateManager {
                 _status.value = UpdateStatus.Error("Update check failed: ${e.message}")
             }
         }
+    }
+
+    private fun findUpdateFile(fileName: String): File {
+        val executableDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
+        val fileInExeDir = File(executableDir, fileName)
+        if (fileInExeDir.exists()) return fileInExeDir
+        
+        // Fallback to user.dir (current working directory)
+        val workingDir = File(System.getProperty("user.dir"))
+        val fileInWorkingDir = File(workingDir, fileName)
+        if (fileInWorkingDir.exists()) return fileInWorkingDir
+        
+        return fileInExeDir
     }
 
     override fun downloadUpdate(proxyUrl: String, info: UpdateInfo) {
@@ -164,8 +176,7 @@ class DesktopUpdateManager : UpdateManager {
     }
     
     override fun installUpdate(info: UpdateInfo) {
-        val executableDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
-        val file = File(executableDir, info.fileName)
+        val file = findUpdateFile(info.fileName)
         
         val systemPath = file.toKtPath().inSystem
         

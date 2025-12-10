@@ -29,11 +29,12 @@ import io.github.composefluent.component.Text
 @Composable
 fun UpdateDialog(
     status: UpdateStatus,
+    showDialog: Boolean,
     onDownload: (UpdateInfo) -> Unit,
     onInstall: (UpdateInfo) -> Unit,
     onDismiss: () -> Unit
 ) {
-    if (status !is UpdateStatus.Idle) {
+    if (showDialog && status !is UpdateStatus.Idle) {
         FluentDialog(
             visible = true,
             size = DialogSize.Standard

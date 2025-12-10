@@ -1,12 +1,14 @@
 package com.jankinwu.fntv.client.ui.screen
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -24,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -31,11 +35,13 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.BuildConfig
+import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.data.store.AppSettings
 import com.jankinwu.fntv.client.icons.Logout
-import com.jankinwu.fntv.client.icons.UpdateVersion
+import com.jankinwu.fntv.client.icons.VersionInfo
 import com.jankinwu.fntv.client.manager.LoginStateManager
+import com.jankinwu.fntv.client.manager.UpdateStatus
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
@@ -77,14 +83,18 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
     val scrollState = rememberScrollState()
     val uriHandler = LocalUriHandler.current
     val focusManager = LocalFocusManager.current
+    var showUpdateDialog by remember { mutableStateOf(false) }
 
     UpdateDialog(
         status = updateStatus,
+        showDialog = showUpdateDialog,
         onDownload = { info -> updateViewModel.downloadUpdate(info) },
         onInstall = { info -> updateViewModel.installUpdate(info) },
         onDismiss = {
             updateViewModel.cancelDownload()
-            updateViewModel.clearStatus()
+            showUpdateDialog = false
+            // 不再清除全局状态，以保留更新提示标签
+            // updateViewModel.clearStatus()
         }
     )
 
@@ -286,9 +296,9 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                 // Update Settings
                 Header("Update")
                 CardExpanderItem(
-                    heading = { Text("Update Proxy") },
+                    heading = { Text("Proxy") },
                     caption = { Text("Proxy URL for downloading updates (e.g. https://ghfast.top/)") },
-                    icon = { Icon(Icons.Regular.Globe, null) },
+                    icon = { Icon(Icons.Regular.Globe, null, modifier = Modifier.size(18.dp)) },
                     trailing = {
                         TextField(
                             value = proxyUrl,
@@ -308,16 +318,51 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                     caption = { Text(BuildConfig.VERSION_NAME) },
                     icon = {
                         Icon(
-                            UpdateVersion,
+                            VersionInfo,
                             "版本升级", modifier = Modifier.size(18.dp)
                         )
                     },
                     trailing = {
-                        Button(
-                            modifier = Modifier
-                                .pointerHoverIcon(PointerIcon.Hand),
-                            onClick = { updateViewModel.checkUpdate() }) {
-                            Text("检查更新")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val newVersion = when (val status = updateStatus) {
+                                is UpdateStatus.Available -> status.info.version
+                                is UpdateStatus.ReadyToInstall -> status.info.version
+                                else -> null
+                            }
+
+                            if (newVersion != null) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(start = 8.dp)
+                                        .background(Colors.AccentColorDefault, RoundedCornerShape(50))
+//                                        .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
+                                        .padding(horizontal = 8.dp, vertical = 1.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+//                                    Icon(
+//                                        UpdateNoBorder,
+//                                        "版本升级", modifier = Modifier.size(10.dp),
+//                                        tint = Color.White
+//                                    )
+                                    Text(
+                                        text = newVersion,
+                                        style = FluentTheme.typography.bodyStrong,
+                                        color = Color.White,
+                                        modifier = Modifier
+                                            .padding(start = 2.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                modifier = Modifier
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                onClick = {
+                                    updateViewModel.checkUpdate()
+                                    showUpdateDialog = true
+                                }) {
+                                Text("检查更新")
+                            }
                         }
                     }
                 )

@@ -9,6 +9,7 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -24,10 +25,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,9 +58,17 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.zIndex
+import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.icons.RefreshCircle
+import com.jankinwu.fntv.client.icons.UpdateNoBorder
+import com.jankinwu.fntv.client.jna.windows.ComposeWindowProcedure
+import com.jankinwu.fntv.client.manager.UpdateStatus
+import com.jankinwu.fntv.client.viewmodel.UpdateViewModel
 import com.mayakapps.compose.windowstyler.WindowBackdrop
 import com.mayakapps.compose.windowstyler.WindowStyle
+import com.sun.jna.platform.win32.User32
+import com.sun.jna.platform.win32.WinDef.HWND
+import com.sun.jna.platform.win32.WinUser
 import io.github.composefluent.ExperimentalFluentApi
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.animation.FluentDuration
@@ -70,7 +81,6 @@ import io.github.composefluent.component.Icon
 import io.github.composefluent.component.NavigationDefaults
 import io.github.composefluent.component.Text
 import io.github.composefluent.component.TooltipBox
-import com.jankinwu.fntv.client.jna.windows.ComposeWindowProcedure
 import io.github.composefluent.gallery.jna.windows.structure.WinUserConst.HTCAPTION
 import io.github.composefluent.gallery.jna.windows.structure.WinUserConst.HTCLIENT
 import io.github.composefluent.gallery.jna.windows.structure.WinUserConst.HTCLOSE
@@ -85,10 +95,8 @@ import io.github.composefluent.icons.regular.Subtract
 import io.github.composefluent.scheme.PentaVisualScheme
 import io.github.composefluent.scheme.VisualStateScheme
 import io.github.composefluent.scheme.collectVisualState
-import com.sun.jna.platform.win32.User32
-import com.sun.jna.platform.win32.WinDef.HWND
-import com.sun.jna.platform.win32.WinUser
 import kotlinx.coroutines.launch
+import org.koin.compose.viewmodel.koinViewModel
 import java.awt.Window
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -125,6 +133,8 @@ fun FrameWindowScope.WindowsWindowFrame(
     val captionBarRect = remember { mutableStateOf(Rect.Zero) }
     val layoutHitTestOwner = rememberLayoutHitTestOwner()
     val contentPaddingInset = remember { MutableWindowInsets() }
+    val updateViewModel: UpdateViewModel = koinViewModel()
+    val updateStatus by updateViewModel.status.collectAsState()
     val procedure = remember(window) {
         ComposeWindowProcedure(
             window = window,
@@ -191,6 +201,28 @@ fun FrameWindowScope.WindowsWindowFrame(
                     style = FluentTheme.typography.caption,
                     modifier = Modifier.padding(start = 16.dp)
                 )
+            }
+            if (updateStatus is UpdateStatus.Available || updateStatus is UpdateStatus.ReadyToInstall) {
+                Row(
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
+                        .padding(horizontal = 4.dp, vertical = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        UpdateNoBorder,
+                        "版本升级", modifier = Modifier.size(10.dp),
+                        tint = Colors.AccentColorDefault
+                    )
+                    Text(
+                        text = "NEW",
+                        style = FluentTheme.typography.caption,
+                        color = Colors.AccentColorDefault,
+                        modifier = Modifier
+                            .padding(start = 2.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.weight(1f))
             window.CaptionButtonRow(
