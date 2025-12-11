@@ -64,6 +64,7 @@ import com.jankinwu.fntv.client.icons.Play
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.component.player.SpeedControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.VideoPlayerProgressBar
+import com.jankinwu.fntv.client.ui.component.player.VolumeControl
 import com.jankinwu.fntv.client.ui.component.player.formatDuration
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
@@ -80,6 +81,7 @@ import org.koin.compose.koinInject
 import org.openani.mediamp.MediampPlayer
 import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.MediampPlayerSurface
+import org.openani.mediamp.features.AudioLevelController
 import org.openani.mediamp.features.PlaybackSpeed
 import org.openani.mediamp.source.MediaExtraFiles
 import org.openani.mediamp.source.Subtitle
@@ -194,7 +196,9 @@ fun PlayerOverlay(
     var lastMouseMoveTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val interactionSource = remember { MutableInteractionSource() }
     var isProgressBarHovered by remember { mutableStateOf(false) }
-    var isPlayControlHovered by remember { mutableStateOf(false) }
+    var isSpeedControlHovered by remember { mutableStateOf(false) }
+    var isVolumeControlHovered by remember { mutableStateOf(false) }
+    val isPlayControlHovered = isSpeedControlHovered || isVolumeControlHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
     val playerManager = LocalPlayerManager.current
     val totalDuration = playerManager.playerState.duration
@@ -431,8 +435,12 @@ fun PlayerOverlay(
                         videoProgress,
                         totalDuration,
                         onSpeedControlHoverChanged = { isHovered ->
-                            isPlayControlHovered = isHovered
-                        })
+                            isSpeedControlHovered = isHovered
+                        },
+                        onVolumeControlHoverChanged = { isHovered ->
+                            isVolumeControlHovered = isHovered
+                        }
+                    )
                 }
             }
         }
@@ -481,7 +489,8 @@ fun PlayerControlRow(
     mediaPlayer: MediampPlayer,
     videoProgress: Float,
     totalDuration: Long,
-    onSpeedControlHoverChanged: ((Boolean) -> Unit)? = null
+    onSpeedControlHoverChanged: ((Boolean) -> Unit)? = null,
+    onVolumeControlHoverChanged: ((Boolean) -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Row(
@@ -554,6 +563,7 @@ fun PlayerControlRow(
             modifier = Modifier
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             // 倍速
             SpeedControlFlyout(
@@ -570,6 +580,17 @@ fun PlayerControlRow(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier
+            )
+            val audioLevelController = remember(mediaPlayer) { mediaPlayer.features[AudioLevelController] }
+            val volume by audioLevelController?.volume?.collectAsState() ?: remember { mutableFloatStateOf(1f) }
+
+            VolumeControl(
+                volume = volume,
+                onVolumeChange = {
+                    audioLevelController?.setVolume(it)
+                },
+                onHoverStateChanged = onVolumeControlHoverChanged,
+                modifier = Modifier.size(35.dp)
             )
         }
     }
