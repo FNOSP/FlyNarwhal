@@ -264,6 +264,7 @@ android {
 
 tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
     dependsOn(prepareProxyResources)
+    val version = appVersion
 
     doLast {
         val destDir = destinationDir.get().asFile
@@ -283,7 +284,7 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageT
         destDir.listFiles()?.forEach { file ->
             val ext = file.extension
             if (ext in listOf("dmg", "deb", "rpm")) {
-                val newName = "FnMedia_Setup_${osName}_${arch}_${appVersion}.${ext}"
+                val newName = "FnMedia_Setup_${osName}_${arch}_${version}.${ext}"
                 val newFile = file.parentFile.resolve(newName)
                 if (file.name != newName) {
                     file.renameTo(newFile)
