@@ -85,7 +85,7 @@ object ProxyManager {
                 } else {
                     val appDataDir = when {
                         osName.contains("mac") -> File(userHome, "Library/Application Support/FnMedia")
-                        else -> File(userHome, ".local/share/FnMedia") // Linux/Unix
+                        else -> File(userHome, ".local/share/fn-media") // Linux/Unix
                     }
                     File(appDataDir, "proxy")
                 }
