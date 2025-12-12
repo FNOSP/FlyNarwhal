@@ -45,6 +45,9 @@
 
   Linux 或 macOS
   ```bash
+  # 给脚本加上可执行权限
+  chmod +x gradlew
+  # 运行项目
   ./gradlew :composeApp:run
   ```
   Windows
@@ -59,6 +62,9 @@
 
     Linux 或 macOS
     ```bash
+    # 给脚本加上可执行权限
+    chmod +x gradlew
+    # 打包项目
     ./gradlew :composeApp:packageReleaseDistributionForCurrentOS
     ```
     Windows
