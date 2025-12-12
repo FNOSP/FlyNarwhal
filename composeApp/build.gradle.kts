@@ -27,15 +27,14 @@ val platformStr = when {
 val proxyResourcesDir = layout.buildDirectory.dir("compose/proxy-resources")
 
 val prepareProxyResources by tasks.registering(Copy::class) {
-    val currentPlatform = platformStr
-    val sourceDir = project.rootDir.resolve("fntv-proxy").resolve(currentPlatform)
+    val sourceDir = project.rootDir.resolve("fntv-proxy")
     
     from(sourceDir)
-    into(proxyResourcesDir.map { it.dir("fntv-proxy/$currentPlatform") })
+    into(proxyResourcesDir.map { it.dir("fntv-proxy") })
     
     doFirst {
         if (!sourceDir.exists()) {
-             throw GradleException("Proxy executable not found at ${sourceDir.absolutePath}")
+             throw GradleException("Proxy executable directory not found at ${sourceDir.absolutePath}")
         }
     }
 }
