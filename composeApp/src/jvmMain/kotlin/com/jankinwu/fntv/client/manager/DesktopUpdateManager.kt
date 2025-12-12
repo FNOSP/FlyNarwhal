@@ -109,25 +109,49 @@ class DesktopUpdateManager : UpdateManager {
         }
     }
 
+    private fun getUpdateDirectory(): File {
+        val osName = System.getProperty("os.name").lowercase(Locale.getDefault())
+        return if (osName.contains("win")) {
+            // Windows: Use the executable directory (usually writable by user in AppData or Portable mode)
+            ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
+        } else {
+            // Linux/macOS: Use a user-writable directory
+            val userHome = System.getProperty("user.home")
+            val appDataDir = when {
+                osName.contains("mac") -> File(userHome, "Library/Caches/FnMedia/updates")
+                else -> File(userHome, ".cache/FnMedia/updates") // Linux/Unix
+            }
+            if (!appDataDir.exists()) {
+                appDataDir.mkdirs()
+            }
+            appDataDir
+        }
+    }
+
     private fun findUpdateFile(fileName: String): File {
+        val updateDir = getUpdateDirectory()
+        val fileInUpdateDir = File(updateDir, fileName)
+        if (fileInUpdateDir.exists()) return fileInUpdateDir
+        
+        // Fallback to executable dir for backward compatibility (mostly for Windows)
         val executableDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
         val fileInExeDir = File(executableDir, fileName)
         if (fileInExeDir.exists()) return fileInExeDir
         
-        // Fallback to user.dir (current working directory)
+        // Fallback to user.dir
         val workingDir = File(System.getProperty("user.dir"))
         val fileInWorkingDir = File(workingDir, fileName)
         if (fileInWorkingDir.exists()) return fileInWorkingDir
         
-        return fileInExeDir
+        return fileInUpdateDir // Default to update dir even if not exists
     }
 
     override fun downloadUpdate(proxyUrl: String, info: UpdateInfo) {
         downloadJob?.cancel()
         downloadJob = scope.launch {
             _status.value = UpdateStatus.Downloading(0f, 0, info.size)
-            val executableDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
-            val file = File(executableDir, info.fileName)
+            val updateDir = getUpdateDirectory()
+            val file = File(updateDir, info.fileName)
             try {
                 val baseUrl = if (proxyUrl.isNotBlank()) {
                     if (proxyUrl.endsWith("/")) proxyUrl else "$proxyUrl/"
