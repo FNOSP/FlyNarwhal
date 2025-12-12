@@ -29,6 +29,7 @@
 - JDK 17 或以上版本并配置环境变量
   - 确保 `JAVA_HOME` 环境变量指向 JDK 安装目录
   - 确保 `PATH` 环境变量包含 `%JAVA_HOME%\bin`
+- 安装 [VLC 播放器](https://www.videolan.org/vlc) 播放器（必装，否则打不开软件）
 
 ### 运行桌面端
 
