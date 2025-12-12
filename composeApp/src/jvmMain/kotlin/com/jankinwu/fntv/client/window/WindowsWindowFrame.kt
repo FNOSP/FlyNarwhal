@@ -9,7 +9,6 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -25,12 +24,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,12 +55,9 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.zIndex
-import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.icons.RefreshCircle
-import com.jankinwu.fntv.client.icons.UpdateNoBorder
 import com.jankinwu.fntv.client.jna.windows.ComposeWindowProcedure
-import com.jankinwu.fntv.client.manager.UpdateStatus
-import com.jankinwu.fntv.client.viewmodel.UpdateViewModel
+import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
 import com.mayakapps.compose.windowstyler.WindowBackdrop
 import com.mayakapps.compose.windowstyler.WindowStyle
 import com.sun.jna.platform.win32.User32
@@ -96,7 +90,6 @@ import io.github.composefluent.scheme.PentaVisualScheme
 import io.github.composefluent.scheme.VisualStateScheme
 import io.github.composefluent.scheme.collectVisualState
 import kotlinx.coroutines.launch
-import org.koin.compose.viewmodel.koinViewModel
 import java.awt.Window
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -133,121 +126,114 @@ fun FrameWindowScope.WindowsWindowFrame(
     val captionBarRect = remember { mutableStateOf(Rect.Zero) }
     val layoutHitTestOwner = rememberLayoutHitTestOwner()
     val contentPaddingInset = remember { MutableWindowInsets() }
-    val updateViewModel: UpdateViewModel = koinViewModel()
-    val updateStatus by updateViewModel.status.collectAsState()
+    
+    val isFullscreen = state.placement == WindowPlacement.Fullscreen
+
     val procedure = remember(window) {
         ComposeWindowProcedure(
             window = window,
             hitTest = { x, y ->
-                when {
-                    maxButtonRect.value.contains(x, y) -> HTMAXBUTTON
-                    minButtonRect.value.contains(x, y) -> HTMINBUTTON
-                    closeButtonRect.value.contains(x, y) -> HTCLOSE
-                    captionBarRect.value.contains(x, y) && !layoutHitTestOwner.hitTest(x, y) -> HTCAPTION
-
-                    else -> HTCLIENT
+                if (state.placement == WindowPlacement.Fullscreen) {
+                     HTCLIENT
+                } else {
+                    when {
+                        maxButtonRect.value.contains(x, y) -> HTMAXBUTTON
+                        minButtonRect.value.contains(x, y) -> HTMINBUTTON
+                        closeButtonRect.value.contains(x, y) -> HTCLOSE
+                        captionBarRect.value.contains(x, y) && !layoutHitTestOwner.hitTest(x, y) -> HTCAPTION
+    
+                        else -> HTCLIENT
+                    }
                 }
             },
             onWindowInsetUpdate = { paddingInset.insets = it }
         )
     }
+
+    LaunchedEffect(isFullscreen) {
+        procedure.isFullscreen = isFullscreen
+    }
+
     Box(
-        modifier = Modifier.windowInsetsPadding(paddingInset)
+        modifier = Modifier.windowInsetsPadding(if (isFullscreen) WindowInsets(0) else paddingInset)
     ) {
-        content(WindowInsets(top = captionBarHeight), contentPaddingInset)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.height(captionBarHeight)
-                .zIndex(10f)
-                .onGloballyPositioned { captionBarRect.value = it.boundsInWindow() }
-        ) {
-            AnimatedContent(
-                targetState = backButtonVisible,
-                transitionSpec = {
-                    ContentTransform(
-                        targetContentEnter = expandHorizontally(),
-                        initialContentExit = shrinkHorizontally(),
-                        sizeTransform = SizeTransform { _, _ ->
-                            tween(
-                                FluentDuration.ShortDuration,
-                                easing = FluentEasing.FastInvokeEasing
-                            )
-                        }
-                    )
-                }
+        if (isFullscreen) {
+             content(WindowInsets(0), WindowInsets(0))
+        } else {
+             content(WindowInsets(top = captionBarHeight), contentPaddingInset)
+             Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.height(captionBarHeight)
+                    .zIndex(10f)
+                    .onGloballyPositioned { captionBarRect.value = it.boundsInWindow() }
             ) {
-                if (it) {
-                    val interactionSource = remember { MutableInteractionSource() }
-                    NavigationDefaults.BackButton(
-                        onClick = backButtonClick,
-                        disabled = !backButtonEnabled,
-                        interaction = interactionSource,
-                        icon = { FontIconDefaults.BackIcon(interactionSource, size = FontIconSize(10f)) }
-                    )
-                } else {
-                    Spacer(modifier = Modifier.width(14.dp).height(36.dp))
-                }
-            }
-            if (icon != null) {
-                Image(
-                    painter = icon,
-                    contentDescription = null,
-                    modifier = Modifier.padding(start = 6.dp).size(16.dp)
-                )
-            }
-            if (title.isNotEmpty()) {
-                Text(
-                    text = title,
-                    style = FluentTheme.typography.caption,
-                    modifier = Modifier.padding(start = 16.dp)
-                )
-            }
-            if (updateStatus is UpdateStatus.Available || updateStatus is UpdateStatus.ReadyToInstall) {
-                Row(
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
-                        .padding(horizontal = 4.dp, vertical = 1.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                AnimatedContent(
+                    targetState = backButtonVisible,
+                    transitionSpec = {
+                        ContentTransform(
+                            targetContentEnter = expandHorizontally(),
+                            initialContentExit = shrinkHorizontally(),
+                            sizeTransform = SizeTransform { _, _ ->
+                                tween(
+                                    FluentDuration.ShortDuration,
+                                    easing = FluentEasing.FastInvokeEasing
+                                )
+                            }
+                        )
+                    }
                 ) {
-                    Icon(
-                        UpdateNoBorder,
-                        "版本升级", modifier = Modifier.size(10.dp),
-                        tint = Colors.AccentColorDefault
+                    if (it) {
+                        val interactionSource = remember { MutableInteractionSource() }
+                        NavigationDefaults.BackButton(
+                            onClick = backButtonClick,
+                            disabled = !backButtonEnabled,
+                            interaction = interactionSource,
+                            icon = { FontIconDefaults.BackIcon(interactionSource, size = FontIconSize(10f)) }
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.width(14.dp).height(36.dp))
+                    }
+                }
+                if (icon != null) {
+                    Image(
+                        painter = icon,
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = 6.dp).size(16.dp)
                     )
+                }
+                if (title.isNotEmpty()) {
                     Text(
-                        text = "NEW",
+                        text = title,
                         style = FluentTheme.typography.caption,
-                        color = Colors.AccentColorDefault,
-                        modifier = Modifier
-                            .padding(start = 2.dp)
+                        modifier = Modifier.padding(start = 16.dp)
                     )
+                    HasNewVersionTag()
                 }
+                Spacer(modifier = Modifier.weight(1f))
+                window.CaptionButtonRow(
+                    windowHandle = procedure.windowHandle,
+                    isMaximize = state.placement == WindowPlacement.Maximized,
+                    onCloseRequest = onCloseRequest,
+                    onRefreshClick = onRefreshClick,
+                    onRefreshAnimationStart = onRefreshAnimationStart,
+                    onRefreshAnimationEnd = onRefreshAnimationEnd,
+                    onMaximizeButtonRectUpdate = {
+                        maxButtonRect.value = it
+                    },
+                    onMinimizeButtonRectUpdate = {
+                        minButtonRect.value = it
+                    },
+                    onCloseButtonRectUpdate = {
+                        closeButtonRect.value = it
+                    },
+                    accentColor = procedure.windowFrameColor,
+                    frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
+                    isActive = procedure.isWindowActive,
+                    modifier = Modifier.align(Alignment.CenterVertically).onSizeChanged {
+                        contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
+                    }
+                )
             }
-            Spacer(modifier = Modifier.weight(1f))
-            window.CaptionButtonRow(
-                windowHandle = procedure.windowHandle,
-                isMaximize = state.placement == WindowPlacement.Maximized,
-                onCloseRequest = onCloseRequest,
-                onRefreshClick = onRefreshClick,
-                onRefreshAnimationStart = onRefreshAnimationStart,
-                onRefreshAnimationEnd = onRefreshAnimationEnd,
-                onMaximizeButtonRectUpdate = {
-                    maxButtonRect.value = it
-                },
-                onMinimizeButtonRectUpdate = {
-                    minButtonRect.value = it
-                },
-                onCloseButtonRectUpdate = {
-                    closeButtonRect.value = it
-                },
-                accentColor = procedure.windowFrameColor,
-                frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
-                isActive = procedure.isWindowActive,
-                modifier = Modifier.align(Alignment.CenterVertically).onSizeChanged {
-                    contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
-                }
-            )
         }
     }
 }

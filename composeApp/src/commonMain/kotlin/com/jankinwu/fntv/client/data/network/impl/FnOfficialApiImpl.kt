@@ -8,6 +8,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import com.jankinwu.fntv.client.data.model.request.FavoriteRequest
 import com.jankinwu.fntv.client.data.model.request.ItemListQueryRequest
 import com.jankinwu.fntv.client.data.model.request.LoginRequest
+import com.jankinwu.fntv.client.data.model.request.MediaPRequest
 import com.jankinwu.fntv.client.data.model.request.PlayInfoRequest
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
@@ -27,6 +28,8 @@ import com.jankinwu.fntv.client.data.model.response.ItemResponse
 import com.jankinwu.fntv.client.data.model.response.LoginResponse
 import com.jankinwu.fntv.client.data.model.response.MediaDbListResponse
 import com.jankinwu.fntv.client.data.model.response.MediaItemResponse
+import com.jankinwu.fntv.client.data.model.response.MediaResetQualityResponse
+import com.jankinwu.fntv.client.data.model.response.MediaTranscodeResponse
 import com.jankinwu.fntv.client.data.model.response.PersonListResponse
 import com.jankinwu.fntv.client.data.model.response.PlayDetailResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
@@ -235,6 +238,14 @@ class FnOfficialApiImpl() : FnOfficialApi {
 
     override suspend fun scrapRescrap(request: ScrapRescrapRequest): Boolean {
         return post("/v/api/v1/scrap/rescrap", request)
+    }
+
+    override suspend fun mediaTranscodeStatus(request: MediaPRequest): MediaTranscodeResponse {
+        return post("/v/api/v1/media/p", request)
+    }
+
+    override suspend fun mediaResetQuality(request: MediaPRequest): MediaResetQualityResponse {
+        return post("/v/api/v1/media/p", request)
     }
 
     override suspend fun seasonList(guid: String): List<SeasonListResponse> {

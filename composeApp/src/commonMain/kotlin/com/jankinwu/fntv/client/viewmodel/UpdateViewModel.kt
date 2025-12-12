@@ -8,14 +8,15 @@ import org.koin.java.KoinJavaComponent.inject
 class UpdateViewModel : BaseViewModel() {
     private val updateManager: UpdateManager by inject(UpdateManager::class.java)
     val status = updateManager.status
+    val latestVersion = updateManager.latestVersion
 
     fun checkUpdate() {
-        val proxyUrl = AppSettings.updateProxyUrl
+        val proxyUrl = AppSettings.githubResourceProxyUrl
         updateManager.checkUpdate(proxyUrl)
     }
 
     fun downloadUpdate(info: UpdateInfo) {
-        val proxyUrl = AppSettings.updateProxyUrl
+        val proxyUrl = AppSettings.githubResourceProxyUrl
         updateManager.downloadUpdate(proxyUrl, info)
     }
     

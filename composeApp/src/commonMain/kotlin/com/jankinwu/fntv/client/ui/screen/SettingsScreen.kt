@@ -41,7 +41,6 @@ import com.jankinwu.fntv.client.data.store.AppSettings
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.icons.VersionInfo
 import com.jankinwu.fntv.client.manager.LoginStateManager
-import com.jankinwu.fntv.client.manager.UpdateStatus
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
@@ -79,7 +78,8 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
     val logoutViewModel: LogoutViewModel = koinViewModel()
     val updateViewModel: UpdateViewModel = koinViewModel()
     val updateStatus by updateViewModel.status.collectAsState()
-    var proxyUrl by remember { mutableStateOf(AppSettings.updateProxyUrl) }
+    val latestVersion by updateViewModel.latestVersion.collectAsState()
+    var proxyUrl by remember { mutableStateOf(AppSettings.githubResourceProxyUrl) }
     val scrollState = rememberScrollState()
     val uriHandler = LocalUriHandler.current
     val focusManager = LocalFocusManager.current
@@ -304,7 +304,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                             value = proxyUrl,
                             onValueChange = {
                                 proxyUrl = it
-                                AppSettings.updateProxyUrl = it
+                                AppSettings.githubResourceProxyUrl = it
                             },
                             modifier = Modifier.width(200.dp),
                             singleLine = true,
@@ -324,13 +324,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                     },
                     trailing = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            val newVersion = when (val status = updateStatus) {
-                                is UpdateStatus.Available -> status.info.version
-                                is UpdateStatus.ReadyToInstall -> status.info.version
-                                else -> null
-                            }
-
-                            if (newVersion != null) {
+                            if (latestVersion != null) {
                                 Row(
                                     modifier = Modifier
                                         .padding(start = 8.dp)
@@ -344,13 +338,16 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
 //                                        "版本升级", modifier = Modifier.size(10.dp),
 //                                        tint = Color.White
 //                                    )
-                                    Text(
-                                        text = newVersion,
-                                        style = FluentTheme.typography.bodyStrong,
-                                        color = Color.White,
-                                        modifier = Modifier
-                                            .padding(start = 2.dp)
-                                    )
+                                    latestVersion?.let {
+                                        Text(
+                                            text = it.version,
+                                            style = FluentTheme.typography.bodyStrong,
+                                            color = Color.White,
+                                            modifier = Modifier
+                                                .padding(start = 2.dp)
+                                        )
+                                    }
+
                                 }
                             }
                             Spacer(modifier = Modifier.width(8.dp))

@@ -191,8 +191,8 @@ fun SpeedControlFlyout(
             text = if (selectedSpeed.label == "1.0x") "倍速" else selectedSpeed.label,
             style = LocalTypography.current.title,
             color = if (isButtonHovered) Color.White else DefaultTextColor,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Normal
         )
     }
 }

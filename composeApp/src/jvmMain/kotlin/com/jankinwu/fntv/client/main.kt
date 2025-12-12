@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
@@ -26,6 +27,7 @@ import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
 import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
+import com.jankinwu.fntv.client.ui.providable.LocalWindowState
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay
@@ -82,10 +84,12 @@ fun main() = application {
                 window.minimumSize = Dimension(baseWidth, baseHeight)
 //                window.size = Dimension(baseWidth, baseHeight)
             }
+
             CompositionLocalProvider(
                 LocalPlayerManager provides playerManager,
                 LocalMediaPlayer provides player,
-                LocalFrameWindowScope provides this@Window
+                LocalFrameWindowScope provides this@Window,
+                LocalWindowState provides state
             ) {
                 WindowFrame(
                     onCloseRequest = {
@@ -125,7 +129,7 @@ fun main() = application {
                         )
                     }
                     // 显示播放器覆盖层
-                    if (playerManager.playerState.isVisible) {
+                    if (playerManager.playerState.isVisible && state.placement != WindowPlacement.Fullscreen) {
                         WindowDraggableArea {
                             PlayerOverlay(
                                 mediaTitle = playerManager.playerState.mediaTitle,
@@ -135,6 +139,14 @@ fun main() = application {
                                 mediaPlayer = player
                             )
                         }
+                    } else if (playerManager.playerState.isVisible && state.placement == WindowPlacement.Fullscreen) {
+                        PlayerOverlay(
+                            mediaTitle = playerManager.playerState.mediaTitle,
+                            subhead = playerManager.playerState.subhead,
+                            isEpisode = playerManager.playerState.isEpisode,
+                            onBack = { playerManager.hidePlayer() },
+                            mediaPlayer = player
+                        )
                     }
                 }
             }
@@ -164,8 +176,21 @@ private fun initializeLoggingDirectory(): File {
         }
     } else {
         // Packaged mode: use app dir / logs
-        val appDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
-        File(appDir, "logs")
+        val platform = currentPlatformDesktop()
+        when (platform) {
+            is Platform.Linux -> {
+                val userHome = System.getProperty("user.home")
+                File(userHome, ".local/share/fn-media/logs")
+            }
+            is Platform.MacOS -> {
+                val userHome = System.getProperty("user.home")
+                File(userHome, "Library/Logs/fn-media")
+            }
+            is Platform.Windows -> {
+                val appDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
+                File(appDir, "logs")
+            }
+        }
     }
 
     if (!logDir.exists()) {

@@ -382,13 +382,14 @@ fun FntvProxy(toastManager: ToastManager) {
         if (!store.proxyInitialized) {
             when (proxyUiState) {
                 is UiState.Success -> {
-                    toastManager.showToast("代理设置成功")
+//                    toastManager.showToast("代理设置成功")
+                    logger.i { "VLC 代理设置成功" }
                     store.updateProxyInitialized(true)
                 }
 
                 is UiState.Error -> {
-                    logger.e { "代理设置失败, cause: ${(proxyUiState as UiState.Error).message}" }
-                    toastManager.showToast("代理设置失败, cause: ${(proxyUiState as UiState.Error).message}")
+                    logger.e { "VLC 代理设置失败, cause: ${(proxyUiState as UiState.Error).message}" }
+                    toastManager.showToast("VLC 代理设置失败, cause: ${(proxyUiState as UiState.Error).message}")
                 }
 
                 else -> {

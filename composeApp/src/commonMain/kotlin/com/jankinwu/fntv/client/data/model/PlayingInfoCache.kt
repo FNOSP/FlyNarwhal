@@ -2,6 +2,7 @@ package com.jankinwu.fntv.client.data.model
 
 import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.model.response.FileInfo
+import com.jankinwu.fntv.client.data.model.response.QualityResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.data.model.response.VideoStream
@@ -19,4 +20,6 @@ data class PlayingInfoCache(
     val currentAudioStream: AudioStream? = null,
     val currentSubtitleStream: SubtitleStream? = null,
     val itemGuid: String,
+    val currentQualities: List<QualityResponse>? = null,
+    val currentQuality: QualityResponse? = null
 )

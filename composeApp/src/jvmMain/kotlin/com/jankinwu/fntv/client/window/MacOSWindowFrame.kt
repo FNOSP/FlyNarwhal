@@ -34,6 +34,7 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import com.jankinwu.fntv.client.icons.RefreshCircle
+import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.animation.FluentDuration
 import io.github.composefluent.animation.FluentEasing
@@ -114,6 +115,7 @@ fun FrameWindowScope.MacOSWindowFrame(
                         modifier = Modifier.padding(start = 16.dp)
                     )
                 }
+                HasNewVersionTag()
                 Spacer(modifier = Modifier.weight(1f))
                 // 添加刷新按钮
                 if (onRefreshClick != null) {

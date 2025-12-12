@@ -2,6 +2,7 @@ package com.jankinwu.fntv.client.data.network
 
 import com.jankinwu.fntv.client.data.model.request.ItemListQueryRequest
 import com.jankinwu.fntv.client.data.model.request.LoginRequest
+import com.jankinwu.fntv.client.data.model.request.MediaPRequest
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
 import com.jankinwu.fntv.client.data.model.request.ScrapRescrapRequest
@@ -18,6 +19,8 @@ import com.jankinwu.fntv.client.data.model.response.ItemResponse
 import com.jankinwu.fntv.client.data.model.response.LoginResponse
 import com.jankinwu.fntv.client.data.model.response.MediaDbListResponse
 import com.jankinwu.fntv.client.data.model.response.MediaItemResponse
+import com.jankinwu.fntv.client.data.model.response.MediaResetQualityResponse
+import com.jankinwu.fntv.client.data.model.response.MediaTranscodeResponse
 import com.jankinwu.fntv.client.data.model.response.PersonListResponse
 import com.jankinwu.fntv.client.data.model.response.PlayDetailResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
@@ -100,6 +103,10 @@ interface FnOfficialApi {
     suspend fun scrapSearch(request: ScrapSearchRequest): List<ScrapSearchResponse>
 
     suspend fun scrapRescrap(request: ScrapRescrapRequest): Boolean
+
+    suspend fun mediaTranscodeStatus(request: MediaPRequest): MediaTranscodeResponse
+
+    suspend fun mediaResetQuality(request: MediaPRequest): MediaResetQualityResponse
 
     suspend fun seasonList(guid: String): List<SeasonListResponse>
 }

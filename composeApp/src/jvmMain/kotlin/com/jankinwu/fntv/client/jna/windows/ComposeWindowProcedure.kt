@@ -103,6 +103,8 @@ internal class ComposeWindowProcedure(
 
     var isWindowActive by mutableStateOf(true)
 
+    var isFullscreen = false
+
     val skiaLayerProcedure = (window as? ComposeWindow)?.findSkiaLayer()?.let {
         SkiaLayerWindowProcedure(
             skiaLayer = it,
@@ -112,8 +114,8 @@ internal class ComposeWindowProcedure(
                 val verticalPadding = frameY
                 // Hit test for resizer border
                 hitResult = when {
-                    // skip resizer border hit test if window is maximized
-                    isMaximized -> hitTest(x, y)
+                    // skip resizer border hit test if window is maximized or fullscreen
+                    isMaximized || isFullscreen -> hitTest(x, y)
                     x <= horizontalPadding && y > verticalPadding && y < height - verticalPadding -> HTLEFT
                     x <= horizontalPadding && y <= verticalPadding -> HTTOPLEFT
                     x <= horizontalPadding -> HTBOTTOMLEFT

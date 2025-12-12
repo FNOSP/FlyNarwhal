@@ -45,6 +45,7 @@ sealed class UpdateStatus {
 
 interface UpdateManager {
     val status: StateFlow<UpdateStatus>
+    val latestVersion: StateFlow<UpdateInfo?>
     fun checkUpdate(proxyUrl: String)
     fun downloadUpdate(proxyUrl: String, info: UpdateInfo)
     fun installUpdate(info: UpdateInfo)

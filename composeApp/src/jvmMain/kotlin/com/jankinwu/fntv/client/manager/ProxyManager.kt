@@ -77,9 +77,18 @@ object ProxyManager {
         // Try to extract from classpath if not found
         if (!proxyDir.exists() || !File(proxyDir, "$platformDir/$executableName").exists()) {
             try {
-                // Extract to the directory where the executable is located
-                val exeDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
-                val extractDir = File(exeDir, "app/resources/fntv-proxy")
+                // Extract to a user-writable directory (for Linux/macOS) or keep relative (for Windows)
+                val userHome = System.getProperty("user.home")
+                val extractDir = if (osName.contains("win")) {
+                    val exeDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
+                    File(exeDir, "app/resources/fntv-proxy")
+                } else {
+                    val appDataDir = when {
+                        osName.contains("mac") -> File(userHome, "Library/Application Support/FnMedia")
+                        else -> File(userHome, ".local/share/fn-media") // Linux/Unix
+                    }
+                    File(appDataDir, "proxy")
+                }
                 
                 if (!extractDir.exists()) {
                     extractDir.mkdirs()
