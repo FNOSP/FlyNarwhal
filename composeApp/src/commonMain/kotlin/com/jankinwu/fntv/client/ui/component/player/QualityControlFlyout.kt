@@ -306,6 +306,33 @@ private fun SimpleQualityPage(
         qualities.map { it.resolution }.distinct()
     }
 
+    // Check if current selection is "Custom"
+    // Custom means: It is NOT the "Original" (first item), AND it is NOT the highest bitrate for its resolution group.
+    val isCustomSelection = remember(currentResolution, currentBitrate, qualities) {
+        if (originalQuality == null) return@remember false
+        
+        // If it matches Original, it's not custom
+        if (currentResolution == originalQuality.resolution && currentBitrate == originalQuality.bitrate) {
+            return@remember false
+        }
+        
+        // Find highest bitrate for current resolution
+        val highestForCurrentRes = grouped[currentResolution]?.maxByOrNull { it.bitrate }
+        
+        // If current bitrate matches the highest, it's standard selection (not custom)
+        // Unless... what if Original is NOT the highest for its resolution? 
+        // The requirement says: "Default selects highest bitrate for same resolution".
+        // So standard selection is highest bitrate.
+        // Original is special.
+        
+        // If I am at 1080p highest bitrate, it is standard "1080p".
+        // If I am at 1080p lower bitrate, it is "Custom".
+        
+        // So: Not Original AND Not Highest for resolution.
+        val isHighest = highestForCurrentRes?.bitrate == currentBitrate
+        !isHighest
+    }
+
     Column(
         modifier = Modifier
             .width(240.dp) // Wider to accommodate extra info
@@ -345,8 +372,21 @@ private fun SimpleQualityPage(
             }
         }
         
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         
+        // Custom Item (if active)
+        if (isCustomSelection) {
+            val label = "自定义"
+            val rightInfo = "${formatResolution(currentResolution)} ${currentBitrate?.let { formatBitrateSimple(it) } ?: ""}"
+            QualityItem(
+                label = label,
+                rightText = rightInfo,
+                isSelected = true,
+                showCheck = false,
+                onClick = { /* Already selected, maybe nothing or just re-select current? */ }
+            )
+        }
+
         // List
         distinctResolutions.forEach { resolution ->
             val isOriginal = originalQuality != null && originalQuality.resolution == resolution &&
@@ -358,21 +398,36 @@ private fun SimpleQualityPage(
                 grouped[resolution]?.maxByOrNull { it.bitrate } ?: qualities.first()
             }
 
-            val isSelected = currentResolution == resolution && 
-                             (if (isOriginal) currentBitrate == targetQuality.bitrate else true)
-
+            // Selection logic:
+            // If isCustomSelection is true, then NONE of the standard list items should appear selected 
+            // (even if resolution matches, because the specific bitrate doesn't match the "standard" target).
+            // BUT, the user might want to see which resolution group they are in? 
+            // Usually "Custom" implies we stepped out of the standard buckets.
+            // The requirement says: "When I switch from Custom to others, Custom disappears".
+            // It implies Custom is a separate state.
+            // So if isCustomSelection is true, standard items are NOT selected.
             
+            // If !isCustomSelection:
+            // Is this item selected?
+            // It is selected if currentResolution matches AND (if Original, currentBitrate matches Original).
+            // Note: If I am at 1080p (standard), currentResolution is 1080p, currentBitrate is max.
+            // targetQuality is max. So it matches.
+            
+            val isSelected = if (isCustomSelection) false else {
+                 currentResolution == resolution && 
+                 (if (isOriginal) currentBitrate == targetQuality.bitrate else true)
+            }
+
             val label = if (isOriginal) "原画质" else formatResolution(resolution)
             val rightInfo = if (isOriginal) {
                 "${formatResolution(targetQuality.resolution)} ${formatBitrateSimple(targetQuality.bitrate)}"
             } else null
             
-            val isCurrentResolution = currentResolution == resolution
-            
             QualityItem(
                 label = label,
                 rightText = rightInfo,
-                isSelected = isCurrentResolution,
+                isSelected = isSelected,
+                showCheck = false, // Requirement: No checkmark in simple list
                 onClick = { onQualitySelected(targetQuality) }
             )
         }
@@ -430,7 +485,7 @@ private fun CustomQualityPage(
              }
         }
         
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         
         Row(modifier = Modifier.weight(1f)) {
             // Left Column: Resolutions
@@ -498,7 +553,7 @@ private fun QualityItem(
             .clip(RoundedCornerShape(4.dp))
             .background(if (isHovered || (isSelected && !showCheck)) HoverBackgroundColor else Color.Transparent) // Highlight if selected in left col
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
             .onPointerEvent(PointerEventType.Enter) { isHovered = true }
             .onPointerEvent(PointerEventType.Exit) { isHovered = false },
         verticalAlignment = Alignment.CenterVertically,

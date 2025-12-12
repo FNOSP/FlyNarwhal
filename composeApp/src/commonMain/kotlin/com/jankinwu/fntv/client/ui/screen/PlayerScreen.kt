@@ -668,7 +668,7 @@ fun PlayerControlRow(
         Row(
             modifier = Modifier
                 .padding(horizontal = 16.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End),
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 倍速
@@ -681,6 +681,7 @@ fun PlayerControlRow(
             )
             if (qualities != null) {
                 QualityControlFlyout(
+                    modifier = Modifier.padding(start = 4.dp),
                     qualities = qualities,
                     currentResolution = currentResolution,
                     currentBitrate = currentBitrate,
@@ -697,7 +698,7 @@ fun PlayerControlRow(
                     color = Color.White.copy(alpha = 0.7843f),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Normal,
-                    modifier = Modifier
+                    modifier = Modifier.padding(start = 4.dp)
                 )
             }
             Icon(
@@ -705,7 +706,7 @@ fun PlayerControlRow(
                 contentDescription = "字幕",
                 tint = Color.White,
                 modifier = Modifier
-                    .padding(start = 8.dp)
+                    .padding(start = 12.dp)
                     .size(24.dp)
             )
             Icon(
@@ -713,7 +714,7 @@ fun PlayerControlRow(
                 contentDescription = "设置",
                 tint = Color.White,
                 modifier = Modifier
-                    .padding(start = 8.dp)
+                    .padding(start = 12.dp)
                     .size(24.dp)
             )
             val audioLevelController =
@@ -727,7 +728,7 @@ fun PlayerControlRow(
                     audioLevelController?.setVolume(it)
                 },
                 onHoverStateChanged = onVolumeControlHoverChanged,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(40.dp).padding(start = 4.dp)
             )
             // 全屏
             val windowState = LocalWindowState.current
