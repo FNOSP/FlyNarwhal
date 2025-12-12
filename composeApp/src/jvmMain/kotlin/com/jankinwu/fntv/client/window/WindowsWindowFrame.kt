@@ -133,7 +133,7 @@ fun FrameWindowScope.WindowsWindowFrame(
         ComposeWindowProcedure(
             window = window,
             hitTest = { x, y ->
-                if (isFullscreen) {
+                if (state.placement == WindowPlacement.Fullscreen) {
                      HTCLIENT
                 } else {
                     when {
@@ -149,6 +149,11 @@ fun FrameWindowScope.WindowsWindowFrame(
             onWindowInsetUpdate = { paddingInset.insets = it }
         )
     }
+
+    LaunchedEffect(isFullscreen) {
+        procedure.isFullscreen = isFullscreen
+    }
+
     Box(
         modifier = Modifier.windowInsetsPadding(if (isFullscreen) WindowInsets(0) else paddingInset)
     ) {
