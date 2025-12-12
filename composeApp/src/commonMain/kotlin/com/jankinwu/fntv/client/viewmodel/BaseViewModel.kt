@@ -74,4 +74,5 @@ val viewModelModule = module {
     viewModelOf (::SeasonListViewModel)
     viewModelOf (::ProxySettingViewModel)
     viewModelOf (::UpdateViewModel)
+    viewModelOf (::MediaPViewModel)
 }
