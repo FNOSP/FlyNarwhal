@@ -22,6 +22,7 @@ import com.jankinwu.fntv.client.icons.ExitFullScreen
 import com.jankinwu.fntv.client.icons.FullScreen
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import io.github.alexzhirkevich.compottie.LottieCompositionSpec
+import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import org.jetbrains.compose.resources.ExperimentalResourceApi
@@ -64,12 +65,22 @@ fun FullScreenControl(
     }
 
     if (composition != null) {
+        val progress by animateLottieCompositionAsState(
+            composition = composition,
+            isPlaying = isPlaying,
+            iterations = 1,
+            restartOnPlay = true
+        )
+        LaunchedEffect(progress) {
+            if (progress == 1f && isPlaying) {
+                isPlaying = false
+            }
+        }
+
         Image(
             painter = rememberLottiePainter(
                 composition = composition,
-                isPlaying = isPlaying,
-                iterations = 1,
-                restartOnPlay = true
+                progress = { progress }
             ),
             contentDescription = if (isFullScreen) "退出全屏" else "全屏",
             modifier = modifier
@@ -83,7 +94,7 @@ fun FullScreenControl(
                     isPlaying = true
                 }
                 .onPointerEvent(PointerEventType.Exit) {
-                    isPlaying = false
+                    // isPlaying = false
                 }
         )
     } else {

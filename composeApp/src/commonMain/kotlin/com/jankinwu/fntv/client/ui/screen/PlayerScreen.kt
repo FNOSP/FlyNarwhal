@@ -94,6 +94,7 @@ import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import io.github.alexzhirkevich.compottie.LottieCompositionSpec
+import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import korlibs.crypto.MD5
@@ -746,8 +747,20 @@ fun PlayerControlRow(
             var isPlaying by remember { mutableStateOf(false) }
 
             if (composition != null) {
+                val progress by animateLottieCompositionAsState(
+                    composition = composition,
+                    isPlaying = isPlaying,
+                    iterations = 1,
+                    restartOnPlay = true
+                )
+                LaunchedEffect(progress) {
+                    if (progress == 1f && isPlaying) {
+                        isPlaying = false
+                    }
+                }
+
                 Image(
-                    painter = rememberLottiePainter(composition, isPlaying = isPlaying, iterations = 1, restartOnPlay = true),
+                    painter = rememberLottiePainter(composition, progress = { progress }),
                     contentDescription = "设置",
 //                    tint = Color.White,
                     modifier = Modifier
@@ -757,7 +770,7 @@ fun PlayerControlRow(
                             isPlaying = true
                         }
                         .onPointerEvent(PointerEventType.Exit) {
-                            isPlaying = false
+                            // isPlaying = false
                         },
                 )
             } else {
