@@ -1,5 +1,8 @@
+@file:OptIn(ExperimentalResourceApi::class)
+
 package com.jankinwu.fntv.client.ui.screen
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -48,11 +51,8 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
 import com.jankinwu.fntv.client.data.model.request.MediaPRequest
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
-import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.data.model.request.StreamRequest
 import com.jankinwu.fntv.client.data.model.response.FileInfo
 import com.jankinwu.fntv.client.data.model.response.MediaResetQualityResponse
@@ -60,20 +60,20 @@ import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.QualityResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
+import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.data.model.response.VideoStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.ArrowLeft
 import com.jankinwu.fntv.client.icons.Back10S
-import com.jankinwu.fntv.client.icons.ExitFullScreen
 import com.jankinwu.fntv.client.icons.Forward10S
-import com.jankinwu.fntv.client.icons.FullScreen
 import com.jankinwu.fntv.client.icons.Pause
 import com.jankinwu.fntv.client.icons.Play
 import com.jankinwu.fntv.client.icons.Setting
 import com.jankinwu.fntv.client.icons.Subtitle
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
+import com.jankinwu.fntv.client.ui.component.player.FullScreenControl
 import com.jankinwu.fntv.client.ui.component.player.QualityControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SpeedControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.VideoPlayerProgressBar
@@ -92,9 +92,16 @@ import com.jankinwu.fntv.client.viewmodel.PlayRecordViewModel
 import com.jankinwu.fntv.client.viewmodel.StreamViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
+import fntv_client_multiplatform.composeapp.generated.resources.Res
+import io.github.alexzhirkevich.compottie.LottieCompositionSpec
+import io.github.alexzhirkevich.compottie.rememberLottieComposition
+import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import korlibs.crypto.MD5
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.koin.compose.koinInject
 import org.openani.mediamp.MediampPlayer
 import org.openani.mediamp.PlaybackState
@@ -593,6 +600,7 @@ fun buildEpisodeTitle(mediaTitle: String, subhead: String): AnnotatedString {
     return annotatedString
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PlayerControlRow(
     playState: PlaybackState,
@@ -719,14 +727,49 @@ fun PlayerControlRow(
                     .padding(start = 12.dp)
                     .size(24.dp)
             )
-            Icon(
-                imageVector = Setting,
-                contentDescription = "设置",
-                tint = Color.White,
-                modifier = Modifier
-                    .padding(start = 12.dp)
-                    .size(24.dp)
-            )
+            var compositionSpec by remember { mutableStateOf<LottieCompositionSpec?>(null) }
+            LaunchedEffect(Unit) {
+                try {
+                    val bytes = Res.readBytes("files/settings_lottie.json")
+                    compositionSpec = LottieCompositionSpec.JsonString(bytes.decodeToString())
+                } catch (e: Exception) {
+                    Logger.e { "Failed to load lottie: $e" }
+                }
+            }
+            val composition = if (compositionSpec != null) {
+                val c by rememberLottieComposition { compositionSpec!! }
+                c
+            } else {
+                null
+            }
+
+            var isPlaying by remember { mutableStateOf(false) }
+
+            if (composition != null) {
+                Image(
+                    painter = rememberLottiePainter(composition, isPlaying = isPlaying, iterations = 1, restartOnPlay = true),
+                    contentDescription = "设置",
+//                    tint = Color.White,
+                    modifier = Modifier
+                        .padding(start = 12.dp)
+                        .size(24.dp)
+                        .onPointerEvent(PointerEventType.Enter) {
+                            isPlaying = true
+                        }
+                        .onPointerEvent(PointerEventType.Exit) {
+                            isPlaying = false
+                        },
+                )
+            } else {
+                Icon(
+                    imageVector = Setting,
+                    contentDescription = "设置",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .padding(start = 12.dp)
+                        .size(24.dp)
+                )
+            }
             val audioLevelController =
                 remember(mediaPlayer) { mediaPlayer.features[AudioLevelController] }
             val volume by audioLevelController?.volume?.collectAsState()
@@ -744,23 +787,15 @@ fun PlayerControlRow(
             // 全屏
             val windowState = LocalWindowState.current
             val store = LocalStore.current
-            Icon(
-                imageVector = if (windowState.placement == WindowPlacement.Fullscreen) ExitFullScreen else FullScreen,
-                contentDescription = "全屏/退出全屏",
-                tint = Color.White,
-                modifier = Modifier
-                    .size(26.dp)
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                        onClick = {
-                            if (windowState.placement == WindowPlacement.Fullscreen) {
-                                windowState.placement = WindowPlacement.Floating
-                            } else {
-                                windowState.placement = WindowPlacement.Fullscreen
-                            }
-                        }
-                    )
+            FullScreenControl(
+                isFullScreen = windowState.placement == WindowPlacement.Fullscreen,
+                onClick = {
+                    if (windowState.placement == WindowPlacement.Fullscreen) {
+                        windowState.placement = WindowPlacement.Floating
+                    } else {
+                        windowState.placement = WindowPlacement.Fullscreen
+                    }
+                }
             )
         }
     }

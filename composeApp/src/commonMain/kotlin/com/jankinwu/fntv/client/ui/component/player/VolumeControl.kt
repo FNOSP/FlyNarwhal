@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,7 +47,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import com.jankinwu.fntv.client.icons.Volume
+import co.touchlab.kermit.Logger
+import fntv_client_multiplatform.composeapp.generated.resources.Res
+import io.github.alexzhirkevich.compottie.LottieCompositionSpec
+import io.github.alexzhirkevich.compottie.rememberLottieComposition
+import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -153,12 +157,43 @@ fun VolumeControl(
                 }
             }
         }
-        Icon(
-            imageVector = Volume,
-            contentDescription = "音量",
-            tint = Color.White,
-            modifier = Modifier.size(40.dp)
-        )
+        var compositionSpec by remember { mutableStateOf<LottieCompositionSpec?>(null) }
+        LaunchedEffect(Unit) {
+            try {
+                val bytes = Res.readBytes("files/volume_lottie.json")
+                compositionSpec = LottieCompositionSpec.JsonString(bytes.decodeToString())
+            } catch (e: Exception) {
+                Logger.e { "Failed to load lottie: $e" }
+            }
+        }
+        val composition by rememberLottieComposition {
+            compositionSpec!!
+        }
+
+        var isPlaying by remember { mutableStateOf(false) }
+
+        if (composition != null) {
+            Image(
+                painter = rememberLottiePainter(composition, isPlaying = isPlaying, iterations = 1, restartOnPlay = true),
+                contentDescription = "音量",
+//                    tint = Color.White,
+                modifier = Modifier
+//                    .padding(start = 12.dp)
+                    .size(22.dp)
+                    .onPointerEvent(PointerEventType.Enter) {
+                        isPlaying = true
+                    }
+                    .onPointerEvent(PointerEventType.Exit) {
+                        isPlaying = false
+                    },
+            )
+        }
+//        Icon(
+//            imageVector = Volume,
+//            contentDescription = "音量",
+//            tint = Color.White,
+//            modifier = Modifier.size(40.dp)
+//        )
     }
 }
 

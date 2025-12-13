@@ -163,6 +163,7 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.kermit)
             implementation(libs.kotlinx.io.core)
+            implementation(libs.compottie)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
