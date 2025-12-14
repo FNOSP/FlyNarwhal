@@ -1,12 +1,9 @@
 name: Build Desktop Apps
 
 on:
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch:
   push:
-    branches: [ "main", "master" ] # 推送到主分支时触发
-    tags: [ "v*" ] # 匹配 v 开头的 tag，例如 v1.0.0
-  pull_request:
-    branches: [ "main", "master" ]
+    tags: [ "v*" ]
 
 permissions:
   contents: write
