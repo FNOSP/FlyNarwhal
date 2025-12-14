@@ -131,12 +131,12 @@ jobs:
         run: ./gradlew :composeApp:createReleaseDistributable
 
       - name: Setup Inno Setup
-        uses: thirdwigger/inno-setup-action@v1.4.1
-        with:
-          version: "6.2.2"
+        run: |
+          choco install innosetup
 
       - name: Build Installer with Inno Setup
-        run: iscc installer/setup.iss
+        # 显式传入 aarch64 架构参数，这将影响生成的安装包文件名
+        run: iscc /DMyAppArch=aarch64 installer/setup.iss
         
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
