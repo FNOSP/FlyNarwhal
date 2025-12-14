@@ -13,13 +13,15 @@ import com.jankinwu.fntv.client.data.model.response.VideoStream
  * 生命周期跟随播放器
  */
 data class PlayingInfoCache(
-    val streamInfo: StreamResponse,
+    var streamInfo: StreamResponse,
     val playLink: String,
     val currentFileStream: FileInfo,
     val currentVideoStream: VideoStream,
-    val currentAudioStream: AudioStream? = null,
-    val currentSubtitleStream: SubtitleStream? = null,
+    var currentAudioStream: AudioStream? = null,
+    var currentSubtitleStream: SubtitleStream? = null,
     val itemGuid: String,
     val currentQualities: List<QualityResponse>? = null,
-    val currentQuality: QualityResponse? = null
+    val currentQuality: QualityResponse? = null,
+    val currentAudioStreamList: List<AudioStream>? = null,
+    var currentSubtitleStreamList: List<SubtitleStream>? = null,
 )

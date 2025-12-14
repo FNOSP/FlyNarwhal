@@ -15,13 +15,25 @@ data class MediaPRequest(
     val playLink: String,
 
     @param:JsonProperty("quality")
-    val quality: Quality?,
+    val quality: Quality? = null,
 
     @param:JsonProperty("startTimestamp")
     val startTimestamp: Int?,
 
     @param:JsonProperty("clearCache")
-    val clearCache: Boolean?
+    val clearCache: Boolean? = null,
+
+    @param:JsonProperty("audioEncoder")
+    val audioEncoder: String? = null,
+
+    @param:JsonProperty("channels")
+    val channels: Int? = null,
+
+    @param:JsonProperty("audioIndex")
+    val audioIndex: Int? = null,
+
+    @param:JsonProperty("subtitleIndex")
+    val subtitleIndex: Int? = null
 ) {
     @Immutable
     data class Quality(

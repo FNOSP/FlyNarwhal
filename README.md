@@ -22,16 +22,22 @@
 ![image-20251019000006440](http://oss.jankinwu.com/img/image-20251019000006440.png)
 
 ## 使用说明
+### 使用安装包安装
 
-### 准备环境
+1. 安装 [VLC](https://www.videolan.org/vlc) 播放器（必装，否则打不开软件）
+2. 下载 [releases](https://github.com/FNOSP/fntv-client-multiplatform/releases) 中的安装包并安装
+
+### 从项目构建
+
+#### 准备环境
 
 - 安装 [Android Studio](https://developer.android.com/studio) 或 [IntelliJ IDEA](https://www.jetbrains.com/idea/)
 - JDK 17 或以上版本并配置环境变量
   - 确保 `JAVA_HOME` 环境变量指向 JDK 安装目录
   - 确保 `PATH` 环境变量包含 `%JAVA_HOME%\bin`
-- 安装 [VLC 播放器](https://www.videolan.org/vlc) 播放器（必装，否则打不开软件）
+- 安装 [VLC](https://www.videolan.org/vlc) 播放器（必装，否则打不开软件）
 
-### 运行桌面端
+#### 运行桌面端
 
 - 克隆项目到本地：
   ```bash
@@ -48,6 +54,7 @@
   ```bash
   # 给脚本加上可执行权限
   chmod +x gradlew
+  
   # 运行项目
   ./gradlew :composeApp:run
   ```
@@ -55,22 +62,39 @@
   ```shell
   .\gradlew.bat :composeApp:run
   ```
-### 打包为可执行文件
+#### 打包为可执行文件
 
 - 打包桌面端项目：
-  - 在 Android Studio 或 IntelliJ IDEA 中，在 Gradle Tasks 中找到 `compose desktop` -> `packageReleaseDistributionForCurrentOS` 任务，双击运行
+  - 在 Android Studio 或 IntelliJ IDEA 中，在 Gradle Tasks 中找到 `compose desktop` -> `packageReleaseDistributionForCurrentOS` 或者带当前系统支持的安装包格式的 `packageRelease` 任务，双击运行
   - 或者，使用命令行运行：
 
-    Linux 或 macOS
-    ```bash
-    # 给脚本加上可执行权限
-    chmod +x gradlew
-    # 打包项目
-    ./gradlew :composeApp:packageReleaseDistributionForCurrentOS
-    ```
-    Windows
     ```shell
-    .\gradlew.bat :composeApp:packageReleaseDistributionForCurrentOS
+    # Linux 或 MacOS 端需要给脚本增加可执行权限
+    chmod +x gradlew
+    ```
+    
+    Ubuntu 或 Debian
+    
+    ```bash
+    ./gradlew :composeApp:packageReleaseDeb
+    ```
+    
+    Fedora 或 CentOS
+    
+    ```shell
+    ./gradlew :composeApp:packageReleaseRpm
+    ```
+    
+    Arch Linux
+    
+    ```shell
+    ./gradlew :composeApp:packageReleasePkg
+    ```
+    
+    Windows
+    
+    ```shell
+    .\gradlew.bat :composeApp:packageReleaseExe
     ```
   - 打包完成后，可在 `composeApp\build\compose\binaries\main-release` 目录下找到可执行文件
 

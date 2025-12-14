@@ -1,5 +1,10 @@
 package com.jankinwu.fntv.client.ui.screen
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,7 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.BuildConfig
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
-import com.jankinwu.fntv.client.data.store.AppSettings
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.icons.VersionInfo
 import com.jankinwu.fntv.client.manager.LoginStateManager
@@ -79,7 +84,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
     val updateViewModel: UpdateViewModel = koinViewModel()
     val updateStatus by updateViewModel.status.collectAsState()
     val latestVersion by updateViewModel.latestVersion.collectAsState()
-    var proxyUrl by remember { mutableStateOf(AppSettings.githubResourceProxyUrl) }
+    var proxyUrl by remember { mutableStateOf(AppSettingsStore.githubResourceProxyUrl) }
     val scrollState = rememberScrollState()
     val uriHandler = LocalUriHandler.current
     val focusManager = LocalFocusManager.current
@@ -126,25 +131,59 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                     .padding(bottom = 24.dp)
             ) {
                 Header("Appearance & behavior")
+                val followSystemTheme = store.isFollowingSystemTheme
+
                 CardExpanderItem(
                     heading = {
-                        Text("App Theme")
+                        Text("主题模式")
                     },
                     icon = {
                         Icon(Icons.Regular.Color, contentDescription = null)
                     },
                     caption = {
-                        Text("Select which app theme to display")
+                        Text("是否跟随系统主题")
                     },
                     trailing = {
                         Switcher(
-                            checked = store.darkMode,
-                            text = if (store.darkMode) "Dark" else "Light",
+                            checked = followSystemTheme,
+                            text = if (followSystemTheme) "跟随系统" else "手动设置",
                             textBefore = true,
-                            onCheckStateChange = { store.darkMode = it }
+                            onCheckStateChange = {
+                                store.isFollowingSystemTheme = it
+                                AppSettingsStore.isFollowingSystemTheme = it
+                            }
                         )
                     }
                 )
+                AnimatedVisibility(
+                    visible = !followSystemTheme,
+                    enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                    exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top)
+                ) {
+                    CardExpanderItem(
+                        heading = {
+                            Text("深色模式")
+                        },
+                        icon = {
+                            Icon(Icons.Regular.Color, contentDescription = null)
+                        },
+                        caption = {
+                            Text("请选择是否使用深色模式")
+                        },
+                        trailing = {
+                            Switcher(
+                                checked = store.darkMode,
+                                text = if (store.darkMode) "是" else "否",
+                                textBefore = true,
+                                onCheckStateChange = {
+                                    store.darkMode = it
+                                    AppSettingsStore.darkMode = it
+                                }
+                            )
+                        }
+                    )
+                }
+
                 CardExpanderItem(
                     heading = {
                         Text("Acrylic Flyout")
@@ -304,7 +343,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                             value = proxyUrl,
                             onValueChange = {
                                 proxyUrl = it
-                                AppSettings.githubResourceProxyUrl = it
+                                AppSettingsStore.githubResourceProxyUrl = it
                             },
                             modifier = Modifier.width(200.dp),
                             singleLine = true,
@@ -328,7 +367,10 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                                 Row(
                                     modifier = Modifier
                                         .padding(start = 8.dp)
-                                        .background(Colors.AccentColorDefault, RoundedCornerShape(50))
+                                        .background(
+                                            Colors.AccentColorDefault,
+                                            RoundedCornerShape(50)
+                                        )
 //                                        .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
                                         .padding(horizontal = 8.dp, vertical = 1.dp),
                                     verticalAlignment = Alignment.CenterVertically

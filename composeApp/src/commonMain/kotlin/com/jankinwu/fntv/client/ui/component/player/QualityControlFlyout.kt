@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -52,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.jankinwu.fntv.client.data.model.response.QualityResponse
+import com.jankinwu.fntv.client.ui.component.common.AnimatedScrollbarLazyColumn
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -106,7 +109,7 @@ fun QualityControlFlyout(
     var isButtonHovered by remember { mutableStateOf(false) }
     var popupHovered by remember { mutableStateOf(false) }
     var showPopup by remember { mutableStateOf(false) }
-    
+
     // reset to page 1 when closed
     var isCustomPage by remember { mutableStateOf(false) }
 
@@ -195,7 +198,9 @@ fun QualityControlFlyout(
             }
         }
         Text(
-            text = if (qualities.firstOrNull()?.resolution == currentResolution && currentBitrate == qualities.firstOrNull()?.bitrate) "原画质" else formatResolution(currentResolution),
+            text = if (qualities.firstOrNull()?.resolution == currentResolution && currentBitrate == qualities.firstOrNull()?.bitrate) "原画质" else formatResolution(
+                currentResolution
+            ),
             style = LocalTypography.current.title,
             color = if (isButtonHovered) Color.White else DefaultTextColor,
             fontSize = 17.sp,
@@ -285,23 +290,18 @@ private fun SimpleQualityPage(
     onToCustom: () -> Unit,
     onQualitySelected: (QualityResponse) -> Unit
 ) {
-    // Group by resolution, but keep the first item (Original) distinct if needed, 
-    // or just follow the rule: First item is Original.
-    // Requirement: "画质选择框第一页显示的是qualities根据resolution分组后distinct的结果"
-    // "只有原画质右边会显示具体的resolution和bitrate"
-    
     // Group qualities by resolution. 
     // We assume the first quality in the list is always "Original" regardless of its resolution value matching others.
-    
+
     val originalQuality = qualities.firstOrNull()
     val grouped = remember(qualities) {
         qualities.groupBy { it.resolution }
     }
-    
+
     // We need a list of display items. 
     // If original quality exists, it should be the first item.
     // Then other resolutions.
-    
+
     val distinctResolutions = remember(qualities) {
         qualities.map { it.resolution }.distinct()
     }
@@ -310,24 +310,16 @@ private fun SimpleQualityPage(
     // Custom means: It is NOT the "Original" (first item), AND it is NOT the highest bitrate for its resolution group.
     val isCustomSelection = remember(currentResolution, currentBitrate, qualities) {
         if (originalQuality == null) return@remember false
-        
+
         // If it matches Original, it's not custom
         if (currentResolution == originalQuality.resolution && currentBitrate == originalQuality.bitrate) {
             return@remember false
         }
-        
+
         // Find highest bitrate for current resolution
         val highestForCurrentRes = grouped[currentResolution]?.maxByOrNull { it.bitrate }
-        
-        // If current bitrate matches the highest, it's standard selection (not custom)
-        // Unless... what if Original is NOT the highest for its resolution? 
-        // The requirement says: "Default selects highest bitrate for same resolution".
-        // So standard selection is highest bitrate.
-        // Original is special.
-        
-        // If I am at 1080p highest bitrate, it is standard "1080p".
-        // If I am at 1080p lower bitrate, it is "Custom".
-        
+
+
         // So: Not Original AND Not Highest for resolution.
         val isHighest = highestForCurrentRes?.bitrate == currentBitrate
         !isHighest
@@ -371,13 +363,17 @@ private fun SimpleQualityPage(
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.height(10.dp))
-        
+
         // Custom Item (if active)
         if (isCustomSelection) {
             val label = "自定义"
-            val rightInfo = "${formatResolution(currentResolution)} ${currentBitrate?.let { formatBitrateSimple(it) } ?: ""}"
+            val rightInfo = "${formatResolution(currentResolution)} ${
+                currentBitrate?.let {
+                    formatBitrateSimple(it)
+                } ?: ""
+            }"
             QualityItem(
                 label = label,
                 rightText = rightInfo,
@@ -390,39 +386,24 @@ private fun SimpleQualityPage(
         // List
         distinctResolutions.forEach { resolution ->
             val isOriginal = originalQuality != null && originalQuality.resolution == resolution &&
-                             resolution == qualities.first().resolution
-            
+                    resolution == qualities.first().resolution
+
             val targetQuality = if (isOriginal) {
                 qualities.first()
             } else {
                 grouped[resolution]?.maxByOrNull { it.bitrate } ?: qualities.first()
             }
 
-            // Selection logic:
-            // If isCustomSelection is true, then NONE of the standard list items should appear selected 
-            // (even if resolution matches, because the specific bitrate doesn't match the "standard" target).
-            // BUT, the user might want to see which resolution group they are in? 
-            // Usually "Custom" implies we stepped out of the standard buckets.
-            // The requirement says: "When I switch from Custom to others, Custom disappears".
-            // It implies Custom is a separate state.
-            // So if isCustomSelection is true, standard items are NOT selected.
-            
-            // If !isCustomSelection:
-            // Is this item selected?
-            // It is selected if currentResolution matches AND (if Original, currentBitrate matches Original).
-            // Note: If I am at 1080p (standard), currentResolution is 1080p, currentBitrate is max.
-            // targetQuality is max. So it matches.
-            
             val isSelected = if (isCustomSelection) false else {
-                 currentResolution == resolution && 
-                 (if (isOriginal) currentBitrate == targetQuality.bitrate else true)
+                currentResolution == resolution &&
+                        (if (isOriginal) currentBitrate == targetQuality.bitrate else true)
             }
 
             val label = if (isOriginal) "原画质" else formatResolution(resolution)
             val rightInfo = if (isOriginal) {
                 "${formatResolution(targetQuality.resolution)} ${formatBitrateSimple(targetQuality.bitrate)}"
             } else null
-            
+
             QualityItem(
                 label = label,
                 rightText = rightInfo,
@@ -444,20 +425,20 @@ private fun CustomQualityPage(
 ) {
     // Two columns.
     // Left: Resolutions. Right: Bitrates for selected resolution.
-    
+
     // We need state for selected resolution in this view (initially currentResolution).
     var selectedRes by remember { mutableStateOf(currentResolution) }
-    
+
     val grouped = remember(qualities) { qualities.groupBy { it.resolution } }
     val resolutions = remember(qualities) { qualities.map { it.resolution }.distinct() }
-    
+
     Column(
         modifier = Modifier
-            .width(350.dp)
-            .height(330.dp) // Fixed height for scrolling
+            .width(360.dp)
+            .height(345.dp) // Fixed height for scrolling
             .padding(vertical = 10.dp)
     ) {
-         // Header
+        // Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -465,28 +446,31 @@ private fun CustomQualityPage(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-             Text(
+            Text(
                 text = "自定义视频质量",
                 color = DefaultTextColor,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium
             )
-             // Current info on right
-             val currentQ = qualities.find { it.resolution == currentResolution && it.bitrate == currentBitrate }
-             // Or construct from params
-             if (currentQ != null) {
-                 val isOriginal = currentQ == qualities.first()
-                 val info = "${formatBitrateSimple(currentQ.bitrate)} - ${if(isOriginal) "原画质" else formatResolution(currentQ.resolution)}"
-                 Text(
+            // Current info on right
+            val currentQ =
+                qualities.find { it.resolution == currentResolution && it.bitrate == currentBitrate }
+            // Or construct from params
+            if (currentQ != null) {
+                val isOriginal = currentQ == qualities.first()
+                val info = "${formatBitrateSimple(currentQ.bitrate)} - ${
+                    if (isOriginal) "原画质" else formatResolution(currentQ.resolution)
+                }"
+                Text(
                     text = info,
                     color = SelectedTextColor,
                     fontSize = 14.sp
                 )
-             }
+            }
         }
-        
+
         Spacer(modifier = Modifier.height(10.dp))
-        
+
         Row(modifier = Modifier.weight(1f)) {
             // Left Column: Resolutions
             Column(
@@ -506,23 +490,28 @@ private fun CustomQualityPage(
                     )
                 }
             }
-            
+
             // Divider
-            Box(modifier = Modifier.width(1.dp).fillMaxWidth().background(Color.Gray.copy(alpha = 0.2f)))
-            
-            // Right Column: Bitrates
-            Column(
-                modifier = Modifier
-                    .weight(0.6f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 4.dp)
+            Box(
+                modifier = Modifier.width(1.dp).fillMaxWidth()
+                    .background(Color.Gray.copy(alpha = 0.2f))
+            )
+            val lazyListState = rememberLazyListState()
+
+            AnimatedScrollbarLazyColumn(
+                listState = lazyListState,
+                modifier = Modifier.weight(0.6f).padding(horizontal = 4.dp),
+                scrollbarWidth = 2.dp
             ) {
                 val bitrates = grouped[selectedRes] ?: emptyList()
-                bitrates.forEach { q ->
+                items(bitrates) { q ->
                     val isOriginal = q == qualities.first()
-                    val label = if (isOriginal) "${formatBitrateSimple(q.bitrate)} - 原画质" else formatBitrateSimple(q.bitrate)
-                    val isSelected = currentResolution == q.resolution && currentBitrate == q.bitrate
-                    
+                    val label =
+                        if (isOriginal) "${formatBitrateSimple(q.bitrate)} - 原画质" else formatBitrateSimple(
+                            q.bitrate
+                        )
+                    val isSelected =
+                        currentResolution == q.resolution && currentBitrate == q.bitrate
                     QualityItem(
                         label = label,
                         isSelected = isSelected,
@@ -565,7 +554,7 @@ private fun QualityItem(
             fontSize = 16.sp,
             fontWeight = FontWeight.Normal
         )
-        
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (rightText != null) {
                 Text(
@@ -575,7 +564,7 @@ private fun QualityItem(
                     modifier = Modifier.padding(end = 8.dp)
                 )
             }
-            
+
             if (isSelected && showCheck) {
                 Icon(
                     imageVector = Icons.Default.Check,
@@ -584,9 +573,9 @@ private fun QualityItem(
                     modifier = Modifier.size(20.dp)
                 )
             }
-            
+
             if (showArrow) {
-                 Icon(
+                Icon(
                     imageVector = Icons.Default.ChevronRight,
                     contentDescription = null,
                     tint = if (isSelected) SelectedTextColor else DefaultTextColor,

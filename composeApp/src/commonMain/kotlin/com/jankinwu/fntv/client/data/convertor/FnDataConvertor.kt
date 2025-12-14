@@ -245,13 +245,16 @@ object FnDataConvertor {
         }
     }
 
-    fun getLanguageName(language: String?, isoTagData: IsoTagData): String {
+    fun getLanguageName(language: String?, isoTagData: IsoTagData?): String {
         return when {
             language == null -> {
                 "无"
             }
             language in listOf("", "und", "zxx", "qaa-qtz", "zz-unknow") -> {
                 "未知"
+            }
+            isoTagData == null -> {
+                language
             }
             language.length == 2 -> {
                 isoTagData.iso6391Map[language]?.value ?: language

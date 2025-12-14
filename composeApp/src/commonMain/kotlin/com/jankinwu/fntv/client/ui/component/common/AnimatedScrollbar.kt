@@ -36,6 +36,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.composefluent.FluentTheme
 import kotlinx.coroutines.Job
@@ -47,6 +48,8 @@ import kotlinx.coroutines.launch
 fun AnimatedScrollbarLazyColumn(
     listState: LazyListState,
     modifier: Modifier = Modifier,
+    scrollbarWidth: Dp = 6.dp,
+    scrollbarOffsetX: Dp = (-1).dp,
     content: LazyListScope.() -> Unit
 ) {
     var isHovered by remember { mutableStateOf(false) }
@@ -82,7 +85,7 @@ fun AnimatedScrollbarLazyColumn(
     ) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().offset(x = 8.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
             content()
         }
@@ -124,7 +127,7 @@ fun AnimatedScrollbarLazyColumn(
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .width(6.dp)
+                        .width(scrollbarWidth)
                         .background(Color.Transparent)
                         .pointerInput(Unit) {
                             awaitPointerEventScope {
@@ -148,7 +151,7 @@ fun AnimatedScrollbarLazyColumn(
                             .height(scrollbarHeight)
                             .fillMaxWidth()
                             .align(Alignment.TopCenter)
-                            .offset(y = scrollbarOffset)
+                            .offset(y = scrollbarOffset, x = scrollbarOffsetX)
                             .background(scrollbarColor, CircleShape)
                             .pointerInput(Unit) {
                                 detectDragGestures(

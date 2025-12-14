@@ -42,7 +42,7 @@ import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.icon
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.KoinApplication
-import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 import org.openani.mediamp.compose.rememberMediampPlayer
 import java.awt.Dimension
 import java.io.File
@@ -76,7 +76,7 @@ fun main() = application {
             val navigator = rememberComponentNavigator()
             val playerManager = remember { PlayerManager() }
             val player = rememberMediampPlayer()
-            val userInfoViewModel: UserInfoViewModel = koinInject()
+            val userInfoViewModel: UserInfoViewModel = koinViewModel()
             val userInfoState by userInfoViewModel.uiState.collectAsState()
             LaunchedEffect(Unit) {
                 val baseWidth = 1280

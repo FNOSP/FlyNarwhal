@@ -187,6 +187,7 @@ fun MovieDetailScreen(
         if (iso3166State !is UiState.Success) {
             tagViewModel.loadIso3166Tags()
         }
+        isFirstLoad = false
     }
     // 监听刷新状态变化
     LaunchedEffect(refreshState.refreshKey) {

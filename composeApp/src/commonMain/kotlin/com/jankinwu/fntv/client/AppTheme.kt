@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -12,7 +14,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.BrushPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.WindowState
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.Store
+import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
@@ -43,9 +47,17 @@ fun AppTheme(
             windowHeight = state.size.height,
         )
     }
-
-    LaunchedEffect(systemDarkMode) {
-        store.darkMode = systemDarkMode
+    val isLoggedIn by LoginStateManager.isLoggedIn.collectAsState()
+    LaunchedEffect(systemDarkMode, store.isFollowingSystemTheme, AppSettingsStore.darkMode, isLoggedIn) {
+        if (!isLoggedIn) {
+            store.darkMode = true
+        } else {
+            if (store.isFollowingSystemTheme) {
+                store.darkMode = systemDarkMode
+            } else {
+                store.darkMode = AppSettingsStore.darkMode
+            }
+        }
     }
     LaunchedEffect(state.size.width, state.size.height) {
         store.updateWindowWidth(state.size.width)

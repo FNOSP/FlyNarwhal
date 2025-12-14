@@ -254,7 +254,7 @@ fun SubtitleResultList(results: List<SubtitleItemData>,
         }
     }
     if (results.isNotEmpty()) {
-        AnimatedScrollbarLazyColumn(listState = listState, modifier = Modifier.fillMaxSize()) {
+        AnimatedScrollbarLazyColumn(listState = listState, modifier = Modifier.fillMaxSize(), scrollbarOffsetX = 10.dp) {
             items(results, key = { item -> item.trimId }) { item ->
                 val downloadStatus = downloadStatusMap[item.trimId] ?: 0
                 SubtitleListItem(item, downloadStatus) { trimId ->

@@ -276,15 +276,84 @@ object MacOSUpdateInstaller : DesktopUpdateInstaller {
 }
 
 object LinuxUpdateInstaller : DesktopUpdateInstaller {
+    private val logger = Logger.withTag("LinuxUpdateInstaller")
+
     override fun deleteOldUpdater() {
         // no-op
     }
 
     override fun install(file: SystemPath, context: ContextMP?): InstallationResult {
-        runBlocking {
-            DesktopFileRevealer.revealFile(file)
+        val updateFile = file.toFile()
+        if (!updateFile.exists()) {
+            return failed("Update file does not exist: ${updateFile.absolutePath}")
         }
-        return InstallationResult.Succeed
+
+        val extension = updateFile.extension.lowercase()
+        val installCommand = when (extension) {
+            "deb" -> "pkexec dpkg -i"
+            "rpm" -> "pkexec rpm -Uvh"
+            "pkg" -> "pkexec pacman -U --noconfirm"
+            else -> {
+                runBlocking {
+                    DesktopFileRevealer.revealFile(file)
+                }
+                return InstallationResult.Succeed
+            }
+        }
+
+        val tempDir = createTempDirectory(prefix = "ani-linux-update-").toFile()
+        val scriptFile = File(tempDir, "linux-update.sh")
+        val oldPid = ProcessHandle.current().pid()
+
+        val scriptContent = generateShellScriptForLinux(
+            oldPid = oldPid,
+            filePath = updateFile.absolutePath,
+            installCommand = installCommand
+        )
+
+        scriptFile.writeText(scriptContent)
+        scriptFile.setExecutable(true)
+
+        logger.i { "Launching update script: ${scriptFile.absolutePath}" }
+        try {
+            ProcessBuilder(scriptFile.absolutePath)
+                .start()
+            logger.i { "Exiting old instance." }
+            Thread.sleep(1000)
+            exitProcess(0)
+        } catch (e: Exception) {
+            return failed("Failed to launch installer: ${e.message}", InstallationFailureReason.UNSUPPORTED_FILE_STRUCTURE)
+        }
+    }
+
+    private fun generateShellScriptForLinux(
+        oldPid: Long,
+        filePath: String,
+        installCommand: String
+    ): String {
+        return $$"""
+            #!/usr/bin/env bash
+            set -e
+
+            OLD_PID=$$oldPid
+            UPDATE_FILE="$$filePath"
+
+            # Wait for the old process to fully exit.
+            while kill -0 "$OLD_PID" 2>/dev/null; do
+              sleep 1
+            done
+
+            # Run the install command
+            $$installCommand "$UPDATE_FILE"
+        """.trimIndent()
+    }
+
+    private fun failed(
+        message: String,
+        reason: InstallationFailureReason? = InstallationFailureReason.UNSUPPORTED_FILE_STRUCTURE
+    ): InstallationResult.Failed {
+        logger.i { message }
+        return InstallationResult.Failed(reason ?: InstallationFailureReason.UNSUPPORTED_FILE_STRUCTURE, message)
     }
 }
 

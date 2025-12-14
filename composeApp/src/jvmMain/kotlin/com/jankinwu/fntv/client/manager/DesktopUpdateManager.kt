@@ -67,14 +67,18 @@ class DesktopUpdateManager : UpdateManager {
                 if (compareVersions(remoteVersion, currentVersion) > 0) {
                     val arch = getSystemArch()
                     val osName = getSystemOS()
+                    val targetExtension = when {
+                        osName.equals("Windows", ignoreCase = true) -> ".exe"
+                        osName.equals("MacOS", ignoreCase = true) -> ".dmg"
+                        osName.equals("Linux", ignoreCase = true) -> getLinuxPackageExtension()
+                        else -> null
+                    }
+
                     // Naming convention: FnMedia_Setup_{System}_{Arch}_{Version}.{Ext}
-                    val asset = release.assets.find { 
+                    val asset = release.assets.find {
                         it.name.contains(osName, ignoreCase = true) &&
-                        it.name.contains(arch, ignoreCase = true) && 
-                        (it.name.endsWith(".exe", ignoreCase = true) || 
-                         it.name.endsWith(".dmg", ignoreCase = true) || 
-                         it.name.endsWith(".deb", ignoreCase = true) ||
-                         it.name.endsWith(".rpm", ignoreCase = true))
+                        it.name.contains(arch, ignoreCase = true) &&
+                        (targetExtension == null || it.name.endsWith(targetExtension, ignoreCase = true))
                     }
                     
                     if (asset != null) {
@@ -258,6 +262,22 @@ class DesktopUpdateManager : UpdateManager {
             osName.contains("mac") -> "MacOS"
             osName.contains("nix") || osName.contains("nux") -> "Linux"
             else -> "Unknown"
+        }
+    }
+
+    private fun getLinuxPackageExtension(): String {
+        try {
+            val process = ProcessBuilder("cat", "/etc/os-release").start()
+            val output = process.inputStream.bufferedReader().readText().lowercase()
+
+            return when {
+                output.contains("debian") || output.contains("ubuntu") -> ".deb"
+                output.contains("fedora") || output.contains("rhel") || output.contains("centos") || output.contains("suse") -> ".rpm"
+                output.contains("arch") || output.contains("manjaro") -> ".pkg"
+                else -> ".deb" // Default to deb if unknown, or maybe handle differently
+            }
+        } catch (e: Exception) {
+            return ".deb" // Fallback
         }
     }
 }

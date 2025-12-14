@@ -75,4 +75,5 @@ val viewModelModule = module {
     viewModelOf (::ProxySettingViewModel)
     viewModelOf (::UpdateViewModel)
     viewModelOf (::MediaPViewModel)
+    viewModelOf (::PlayerViewModel)
 }

@@ -57,6 +57,28 @@ class MediaPViewModel : BaseViewModel() {
         }
     }
 
+    /**
+     * Logic for reqId: 1234567890ABCDEF2s (Reset Audio)
+     */
+    fun resetAudio(request: MediaPRequest) {
+        request.req = "media.resetAudio"
+        request.reqId = "1234567890ABCDEF2s"
+        loadData(_resetQualityState) {
+            fnOfficialApi.mediaResetQuality(request)
+        }
+    }
+
+    /**
+     * Logic for reqId: 1234567890ABCDEF (Reset Subtitle)
+     */
+    fun resetSubtitle(request: MediaPRequest) {
+        request.req = "media.resetSubtitle"
+        request.reqId = "1234567890ABCDEF"
+        loadData(_resetQualityState) {
+            fnOfficialApi.mediaResetQuality(request)
+        }
+    }
+
     fun clearError() {
         _transcodeState.value = UiState.Initial
         _resetQualityState.value = UiState.Initial

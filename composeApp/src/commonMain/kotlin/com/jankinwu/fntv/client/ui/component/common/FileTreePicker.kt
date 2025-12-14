@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
 import com.jankinwu.fntv.client.ui.component.common.DirectoryContentFetcher.fetchDirectoryContents
+import com.jankinwu.fntv.client.utils.DisabledPointerIcon
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.empty_folder
@@ -551,7 +552,7 @@ private fun FileNodeItem(
                         CheckBoxDefaults.defaultCheckBoxColors()
                     },
                     modifier = Modifier
-                        .pointerHoverIcon(if (isSelectable) PointerIcon.Hand else PointerIcon.Default)
+                        .pointerHoverIcon(if (isSelectable) PointerIcon.Hand else DisabledPointerIcon)
                         .size(15.dp)
                 )
             }

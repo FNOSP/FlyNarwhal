@@ -373,7 +373,7 @@ fun MainContent(
 
     // 当选中的侧边栏项改变时，加载对应的文件列表
     LaunchedEffect(selectedSidebarItem) {
-        if (selectedSidebarItem.title == "视频所在位置" && selectedSidebarItem.path.isNotEmpty()) {
+        if (selectedSidebarItem.title == "视频所在位置" && selectedSidebarItem.path.isNotEmpty() && selectedSidebarItem.path.first().isNotEmpty()) {
             serverPathViewModel.loadFilesByServerPath(selectedSidebarItem.path.first())
         }
     }

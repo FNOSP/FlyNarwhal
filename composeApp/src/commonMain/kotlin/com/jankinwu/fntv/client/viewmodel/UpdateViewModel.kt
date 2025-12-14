@@ -1,6 +1,6 @@
 package com.jankinwu.fntv.client.viewmodel
 
-import com.jankinwu.fntv.client.data.store.AppSettings
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.manager.UpdateInfo
 import com.jankinwu.fntv.client.manager.UpdateManager
 import org.koin.java.KoinJavaComponent.inject
@@ -11,12 +11,12 @@ class UpdateViewModel : BaseViewModel() {
     val latestVersion = updateManager.latestVersion
 
     fun checkUpdate() {
-        val proxyUrl = AppSettings.githubResourceProxyUrl
+        val proxyUrl = AppSettingsStore.githubResourceProxyUrl
         updateManager.checkUpdate(proxyUrl)
     }
 
     fun downloadUpdate(info: UpdateInfo) {
-        val proxyUrl = AppSettings.githubResourceProxyUrl
+        val proxyUrl = AppSettingsStore.githubResourceProxyUrl
         updateManager.downloadUpdate(proxyUrl, info)
     }
     

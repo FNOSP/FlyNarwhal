@@ -60,7 +60,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.touchlab.kermit.Logger
-import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.components
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.LoginHistory
@@ -72,9 +71,9 @@ import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.LoginStateManager.handleLogin
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
-import com.jankinwu.fntv.client.ui.component.common.dialog.ForgotPasswordDialog
 import com.jankinwu.fntv.client.ui.component.common.NumberInput
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
+import com.jankinwu.fntv.client.ui.component.common.dialog.ForgotPasswordDialog
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
 import com.jankinwu.fntv.client.ui.selectedSwitcherStyle
@@ -122,8 +121,6 @@ fun LoginScreen(navigator: ComponentNavigator) {
     var showHistorySidebar by remember { mutableStateOf(false) }
     // 登录历史记录列表
     var loginHistoryList by remember { mutableStateOf<List<LoginHistory>>(emptyList()) }
-    val store = LocalStore.current
-    store.darkMode = true
 
     // 初始化时加载保存的账号信息
     remember {
