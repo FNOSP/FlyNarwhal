@@ -1436,7 +1436,7 @@ private fun handlePlayerKeyEvent(
                 audioLevelController?.let {
                     val newVolume = (it.volume.value + 0.1f).coerceIn(0f, 1f)
                     it.setVolume(newVolume)
-                    toastManager.showToast("当前音量：${newVolume * 100}%", ToastType.Info)
+                    toastManager.showToast("当前音量：${(newVolume * 100).toInt()}%", ToastType.Info)
                     PlayingSettingsStore.saveVolume(newVolume)
                 }
             }
@@ -1444,7 +1444,7 @@ private fun handlePlayerKeyEvent(
                 audioLevelController?.let {
                     val newVolume = (it.volume.value - 0.1f).coerceIn(0f, 1f)
                     it.setVolume(newVolume)
-                    toastManager.showToast("当前音量：${newVolume * 100}%", ToastType.Info)
+                    toastManager.showToast("当前音量：${(newVolume * 100).toInt()}%", ToastType.Info)
                     PlayingSettingsStore.saveVolume(newVolume)
                 }
             }
