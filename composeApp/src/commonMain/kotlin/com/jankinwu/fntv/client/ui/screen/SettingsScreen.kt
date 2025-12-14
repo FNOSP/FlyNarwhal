@@ -45,6 +45,7 @@ import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.icons.PreRelease
+import com.jankinwu.fntv.client.icons.Statement
 import com.jankinwu.fntv.client.icons.VersionInfo
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
@@ -294,45 +295,6 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
 //                        }
 //                    )
 //                }
-                Header("About")
-                CardExpanderItem(
-                    heading = {
-                        Text("Fntv Client Multiplatform")
-                    },
-                    icon = {
-                        Image(
-                            painter = painterResource(Res.drawable.github_logo),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(18.dp)
-                        )
-                    },
-                    caption = {
-                        Text(Constants.PROJECT_URL)
-                    },
-                    trailing = {
-                        Button(
-                            onClick = {
-                                uriHandler.openUri(Constants.PROJECT_URL)
-                            },
-                            modifier = Modifier
-                                .pointerHoverIcon(PointerIcon.Hand)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("访问仓库")
-                                Icon(
-                                    imageVector = Icons.Regular.ArrowUpRight,
-                                    contentDescription = "访问仓库",
-                                    modifier = Modifier
-                                        .padding(start = 4.dp)
-                                        .size(12.dp)
-                                )
-                            }
-                        }
-                    },
-                )
 
                 // Update Settings
                 Header("Update")
@@ -426,19 +388,70 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                     }
                 )
 
+                Header("About")
+                CardExpanderItem(
+                    heading = {
+                        Text("Fntv Client Multiplatform")
+                    },
+                    icon = {
+                        Image(
+                            painter = painterResource(Res.drawable.github_logo),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(18.dp)
+                        )
+                    },
+                    caption = {
+                        Text(Constants.PROJECT_URL)
+                    },
+                    trailing = {
+                        Button(
+                            onClick = {
+                                uriHandler.openUri(Constants.PROJECT_URL)
+                            },
+                            modifier = Modifier
+                                .pointerHoverIcon(PointerIcon.Hand)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("访问仓库")
+                                Icon(
+                                    imageVector = Icons.Regular.ArrowUpRight,
+                                    contentDescription = "访问仓库",
+                                    modifier = Modifier
+                                        .padding(start = 4.dp)
+                                        .size(12.dp)
+                                )
+                            }
+                        }
+                    },
+                )
+                CardExpanderItem(
+                    heading = {
+                        Text("免责声明")
+                    },
+                    icon = {
+                        Icon(Statement, null, modifier = Modifier.size(18.dp))
+                    },
+                    caption = {
+                        Text("本项目为飞牛 OS 爱好者开发的第三方影视客户端，与飞牛影视官方无关。使用前请确保遵守相关服务条款。")
+                    }
+                )
+
                 // 添加登出按钮
                 Header("Account")
                 CardExpanderItem(
                     icon = {
                         Icon(
                             imageVector = Logout,
-                            contentDescription = "访问仓库",
+                            contentDescription = "退出登录",
                             modifier = Modifier
                                 .size(18.dp)
                         )
                     },
                     heading = {
-                        Text("Log out")
+                        Text("退出登录")
                     },
                     caption = {
                         Text("Sign out of your account")

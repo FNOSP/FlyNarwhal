@@ -151,3 +151,5 @@
     <img src="https://img.shields.io/badge/-返回顶部-7d09f1.svg" alt="#" align="right">
 </a>
 
+温馨提示：本项目为飞牛 OS 爱好者开发的第三方影视客户端，与飞牛影视官方无关。使用前请确保遵守相关服务条款。
+
