@@ -110,8 +110,8 @@ jobs:
           path: composeApp/build/compose/binaries/**/*.deb
           if-no-files-found: error
 
-  build-windows:
-    name: Build Windows
+  build-windows-x64:
+    name: Build Windows (x64)
     runs-on: windows-latest
     
     steps:
@@ -135,15 +135,50 @@ jobs:
           choco install innosetup
 
       - name: Build Installer with Inno Setup
-        # 显式传入 aarch64 架构参数，这将影响生成的安装包文件名
-        run: iscc /DMyAppArch=aarch64 installer/setup.iss
-        
+        # 显式传入 amd64 架构参数
+        run: iscc /DMyAppArch=amd64 installer/setup.iss
+
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-App-Exe
-          path: installer/*.exe
+          name: Windows-App-Exe-amd64
+          path: installer/*_amd64_*.exe
           if-no-files-found: error
+
+#  build-windows-arm64:
+#    name: Build Windows (ARM64)
+#    runs-on: windows-latest # 注意：目前 GitHub Hosted Runner 主要是 x64，这里生成的包可能仍然包含 x64 JVM，除非手动配置交叉编译
+#
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#
+#      - name: Set up JDK 17
+#        uses: actions/setup-java@v4
+#        with:
+#          java-version: '17'
+#          distribution: 'temurin'
+#
+#      - name: Setup Gradle
+#        uses: gradle/actions/setup-gradle@v3
+#
+#      - name: Create Release Distributable
+#        run: ./gradlew :composeApp:createReleaseDistributable
+#
+#      - name: Setup Inno Setup
+#        run: |
+#          choco install innosetup
+#
+#      - name: Build Installer with Inno Setup
+#        # 显式传入 aarch64 架构参数，这将影响生成的安装包文件名
+#        run: iscc /DMyAppArch=aarch64 installer/setup.iss
+#
+#      - name: Upload Windows Artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: Windows-App-Exe-arm64
+#          path: installer/*_aarch64_*.exe
+#          if-no-files-found: error
 
   release:
     name: Create Release
@@ -161,11 +196,23 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R artifacts
 
+      - name: Generate Release Body
+        id: release_body
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" =~ [Aa]lpha ]]; then
+            echo "WARNING_TEXT=⚠️ **此版本为开发中的版本，请酌情下载安装**" >> $GITHUB_ENV
+          else
+            echo "WARNING_TEXT=" >> $GITHUB_ENV
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
           # 如果 tag 包含 '-' (如 v1.0.0-alpha)，则标记为预发布 (Pre-release)
           prerelease: ${{ contains(github.ref, '-') }}
+          body: ${{ env.WARNING_TEXT }}
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
