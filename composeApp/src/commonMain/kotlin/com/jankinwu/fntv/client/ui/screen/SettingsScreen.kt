@@ -73,10 +73,8 @@ import io.github.composefluent.component.TextField
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.ArrowUpRight
-import io.github.composefluent.icons.regular.Blur
 import io.github.composefluent.icons.regular.Color
 import io.github.composefluent.icons.regular.Globe
-import io.github.composefluent.icons.regular.List
 import io.github.composefluent.icons.regular.Navigation
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -118,7 +116,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
             }
     ) {
         Text(
-            text = "Settings",
+            text = "设置",
             style = FluentTheme.typography.titleLarge,
             modifier = Modifier.alignHorizontalSpace()
                 .padding(top = 36.dp)
@@ -135,7 +133,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                     .padding(top = 8.dp)
                     .padding(bottom = 24.dp)
             ) {
-                Header("Appearance & behavior")
+                Header("外观")
                 val followSystemTheme = store.isFollowingSystemTheme
 
                 CardExpanderItem(
@@ -189,53 +187,53 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                     )
                 }
 
+//                CardExpanderItem(
+//                    heading = {
+//                        Text("Acrylic Flyout")
+//                    },
+//                    icon = {
+//                        Icon(
+//                            imageVector = Icons.Regular.Blur,
+//                            contentDescription = "Blur"
+//                        )
+//                    },
+//                    caption = {
+//                        Text("Enable Acrylic effect on Flyout")
+//                    },
+//                    trailing = {
+//                        Switcher(
+//                            checked = store.enabledAcrylicPopup,
+//                            text = if (store.enabledAcrylicPopup) "On" else "Off",
+//                            textBefore = true,
+//                            onCheckStateChange = { store.enabledAcrylicPopup = it }
+//                        )
+//                    }
+//                )
+//                CardExpanderItem(
+//                    heading = {
+//                        Text("Compact Mode")
+//                    },
+//                    icon = {
+//                        Icon(
+//                            imageVector = Icons.Regular.List,
+//                            contentDescription = "List"
+//                        )
+//                    },
+//                    caption = {
+//                        Text("Adjust ListItem height")
+//                    },
+//                    trailing = {
+//                        Switcher(
+//                            checked = store.compactMode,
+//                            text = if (store.compactMode) "Compact" else "Standard",
+//                            textBefore = true,
+//                            onCheckStateChange = { store.compactMode = it }
+//                        )
+//                    }
+//                )
                 CardExpanderItem(
                     heading = {
-                        Text("Acrylic Flyout")
-                    },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Regular.Blur,
-                            contentDescription = "Blur"
-                        )
-                    },
-                    caption = {
-                        Text("Enable Acrylic effect on Flyout")
-                    },
-                    trailing = {
-                        Switcher(
-                            checked = store.enabledAcrylicPopup,
-                            text = if (store.enabledAcrylicPopup) "On" else "Off",
-                            textBefore = true,
-                            onCheckStateChange = { store.enabledAcrylicPopup = it }
-                        )
-                    }
-                )
-                CardExpanderItem(
-                    heading = {
-                        Text("Compact Mode")
-                    },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Regular.List,
-                            contentDescription = "List"
-                        )
-                    },
-                    caption = {
-                        Text("Adjust ListItem height")
-                    },
-                    trailing = {
-                        Switcher(
-                            checked = store.compactMode,
-                            text = if (store.compactMode) "Compact" else "Standard",
-                            textBefore = true,
-                            onCheckStateChange = { store.compactMode = it }
-                        )
-                    }
-                )
-                CardExpanderItem(
-                    heading = {
-                        Text("Navigation Style")
+                        Text("导航栏样式")
                     },
                     icon = {
                         Icon(
@@ -244,7 +242,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                         )
                     },
                     caption = {
-                        Text("Choose the Navigation View Layout")
+                        Text("请选择导航视图布局")
                     },
                     trailing = {
                         MenuFlyoutContainer(
@@ -299,10 +297,10 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
 //                }
 
                 // Update Settings
-                Header("Update")
+                Header("更新")
                 CardExpanderItem(
-                    heading = { Text("Proxy") },
-                    caption = { Text("Proxy URL for downloading updates (e.g. https://ghfast.top/)") },
+                    heading = { Text("代理") },
+                    caption = { Text("下载更新包的 github 代理 URL (e.g. https://ghfast.top/)") },
                     icon = { Icon(Icons.Regular.Globe, null, modifier = Modifier.size(18.dp)) },
                     trailing = {
                         TextField(
@@ -338,7 +336,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
 
                 CardExpanderItem(
                     heading = { Text("自动下载更新") },
-                    caption = { Text("自动检查更新时是否允许自动下载安装包") },
+                    caption = { Text("是否允许在有新版本时自动下载更新安装包") },
                     icon = { Icon(Download, null, modifier = Modifier.size(18.dp)) },
                     trailing = {
                         Switcher(
@@ -407,7 +405,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                     }
                 )
 
-                Header("About")
+                Header("关于")
                 CardExpanderItem(
                     heading = {
                         Text("Fntv Client Multiplatform")
@@ -459,7 +457,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                 )
 
                 // 添加登出按钮
-                Header("Account")
+                Header("账户")
                 CardExpanderItem(
                     icon = {
                         Icon(

@@ -229,7 +229,7 @@ fun Navigation(
 
     val settingItem = remember(navigator) {
         ComponentItem(
-            "Settings",
+            "设置",
             group = "",
             description = "",
             icon = Icons.Default.Settings,
