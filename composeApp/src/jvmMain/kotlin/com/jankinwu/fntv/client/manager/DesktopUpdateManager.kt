@@ -50,8 +50,11 @@ class DesktopUpdateManager : UpdateManager {
     private val client = HttpClient(OkHttp) {
         engine {
             config {
-                val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+                val trustAllCerts = arrayOf<TrustManager>(@Suppress("CustomX509TrustManager")
+                object : X509TrustManager {
+                    @Suppress("TrustAllX509TrustManager")
                     override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    @Suppress("TrustAllX509TrustManager")
                     override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
                     override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
                 })
