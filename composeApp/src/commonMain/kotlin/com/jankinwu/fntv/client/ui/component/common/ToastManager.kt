@@ -17,11 +17,24 @@ class ToastManager {
     private val _toasts = mutableStateListOf<ToastMessage>()
     val toasts: SnapshotStateList<ToastMessage> = _toasts
 
-    fun showToast(message: String, type: Int = ToastType.Success, duration: Long = 2000L) {
+    fun showToast(message: String, type: Int = ToastType.Success, duration: Long = 2000L, category: String? = null) {
+        if (category != null) {
+            val existingIndex = _toasts.indexOfFirst { it.category == category }
+            if (existingIndex != -1) {
+                val existing = _toasts[existingIndex]
+                _toasts[existingIndex] = existing.copy(
+                    message = message,
+                    duration = duration,
+                    updateTime = System.currentTimeMillis()
+                )
+                return
+            }
+        }
         val toast = ToastMessage(
             message = message,
             type = type,
-            duration = duration
+            duration = duration,
+            category = category
         )
         _toasts.add(toast)
     }
@@ -53,7 +66,8 @@ fun ToastHost(
                 Toast(
                     message = toast.message,
                     type = toast.type,
-                    duration = toast.duration
+                    duration = toast.duration,
+                    updateTime = toast.updateTime
                 ) {
                     toastManager.removeToast(toast.id)
                 }

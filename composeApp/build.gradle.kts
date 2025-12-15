@@ -5,7 +5,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.0.3"
+val appVersion = "1.0.4"
+val appVersionSuffix = "Alpha"
 
 val platformStr = when {
     osName.contains("win") -> {
@@ -85,17 +86,20 @@ val buildConfigDir = layout.buildDirectory.dir("generated/source/buildConfig/com
 val generateBuildConfig by tasks.registering {
     val outputDir = buildConfigDir
     val version = appVersion
+    val suffix = appVersionSuffix
     inputs.property("version", version)
+    inputs.property("suffix", suffix)
     outputs.dir(outputDir)
 
     doLast {
+        val fullVersion = if (suffix.isEmpty()) version else "$version-$suffix"
         val configFile = outputDir.get().file("com/jankinwu/fntv/client/BuildConfig.kt").asFile
         configFile.parentFile.mkdirs()
         configFile.writeText("""
             package com.jankinwu.fntv.client
 
             object BuildConfig {
-                const val VERSION_NAME = "$version"
+                const val VERSION_NAME = "$fullVersion"
             }
         """.trimIndent())
     }

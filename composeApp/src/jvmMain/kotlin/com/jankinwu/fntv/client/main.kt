@@ -20,6 +20,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.network.apiModule
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.manager.ProxyManager
@@ -93,6 +94,8 @@ fun main() = application {
             ) {
                 WindowFrame(
                     onCloseRequest = {
+                        AppSettingsStore.windowWidth = state.size.width.value
+                        AppSettingsStore.windowHeight = state.size.height.value
                         player.close() // 关闭播放器
                         exitApplication() // 退出应用
                     },
@@ -208,7 +211,7 @@ private fun createWindowConfiguration(): Triple<WindowState, String, Painter> {
     val state = rememberWindowState(
         position = WindowPosition(Alignment.Center),
 //        size = DpSize.Unspecified
-        size = DpSize(1280.dp, 720.dp)
+        size = DpSize(AppSettingsStore.windowWidth.dp, AppSettingsStore.windowHeight.dp)
     )
     val title = "飞牛影视"
     val icon = painterResource(Res.drawable.icon)

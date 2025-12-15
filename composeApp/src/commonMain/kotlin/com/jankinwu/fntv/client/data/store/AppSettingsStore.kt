@@ -19,6 +19,22 @@ object AppSettingsStore {
         set(value) = settings.set("dark_mode", value)
 
     var includePrerelease: Boolean
-        get() = settings.getBoolean("include_prerelease", false)
+        get() = settings.getBoolean("include_prerelease", true)
         set(value) = settings.set("include_prerelease", value)
+
+    var autoDownloadUpdates: Boolean
+        get() = settings.getBoolean("auto_download_updates", false)
+        set(value) = settings.set("auto_download_updates", value)
+
+    var lastUpdateCheckTime: Long
+        get() = settings.getLong("last_update_check_time", 0L)
+        set(value) = settings.set("last_update_check_time", value)
+
+    var windowWidth: Float
+        get() = settings.getFloat("window_width", 1280f)
+        set(value) = settings.set("window_width", value)
+
+    var windowHeight: Float
+        get() = settings.getFloat("window_height", 720f)
+        set(value) = settings.set("window_height", value)
 }

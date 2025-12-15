@@ -56,10 +56,9 @@ import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
 import com.jankinwu.fntv.client.data.model.response.AudioStream
+import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import com.jankinwu.fntv.client.ui.component.common.AnimatedScrollbarLazyColumn
 import com.jankinwu.fntv.client.ui.providable.IsoTagData
-import fntv_client_multiplatform.composeapp.generated.resources.Res
-import io.github.alexzhirkevich.compottie.LottieCompositionSpec
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
@@ -87,17 +86,9 @@ fun PlayerSettingsMenu(
     modifier: Modifier = Modifier,
     onHoverStateChanged: ((Boolean) -> Unit)? = null
 ) {
-    var compositionSpec by remember { mutableStateOf<LottieCompositionSpec?>(null) }
-    LaunchedEffect(Unit) {
-        try {
-            val bytes = Res.readBytes("files/settings_lottie.json")
-            compositionSpec = LottieCompositionSpec.JsonString(bytes.decodeToString())
-        } catch (e: Exception) {
-            Logger.e { "Failed to load lottie: $e" }
-        }
-    }
+    val compositionSpec = PlayerResourceManager.settingsSpec
     val composition = if (compositionSpec != null) {
-        val c by rememberLottieComposition { compositionSpec!! }
+        val c by rememberLottieComposition { compositionSpec }
         c
     } else {
         null

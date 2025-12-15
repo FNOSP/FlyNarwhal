@@ -17,11 +17,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.dp
-import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.icons.ExitFullScreen
 import com.jankinwu.fntv.client.icons.FullScreen
-import fntv_client_multiplatform.composeapp.generated.resources.Res
-import io.github.alexzhirkevich.compottie.LottieCompositionSpec
+import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
@@ -34,24 +32,12 @@ fun FullScreenControl(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var fullScreenSpec by remember { mutableStateOf<LottieCompositionSpec?>(null) }
-    var quitFullScreenSpec by remember { mutableStateOf<LottieCompositionSpec?>(null) }
-
-    LaunchedEffect(Unit) {
-        try {
-            val fsBytes = Res.readBytes("files/full_screen_lottie.json")
-            fullScreenSpec = LottieCompositionSpec.JsonString(fsBytes.decodeToString())
-            
-            val qfsBytes = Res.readBytes("files/quit_full_screen_lottie.json")
-            quitFullScreenSpec = LottieCompositionSpec.JsonString(qfsBytes.decodeToString())
-        } catch (e: Exception) {
-            Logger.e { "Failed to load lottie: $e" }
-        }
-    }
+    val fullScreenSpec = PlayerResourceManager.fullScreenSpec
+    val quitFullScreenSpec = PlayerResourceManager.quitFullScreenSpec
 
     val currentSpec = if (isFullScreen) quitFullScreenSpec else fullScreenSpec
     val composition = if (currentSpec != null) {
-        val c by rememberLottieComposition { currentSpec!! }
+        val c by rememberLottieComposition { currentSpec }
         c
     } else {
         null

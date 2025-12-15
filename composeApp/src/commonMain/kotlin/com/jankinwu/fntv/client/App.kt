@@ -47,6 +47,7 @@ import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.CategoryIcon
 import com.jankinwu.fntv.client.icons.Home
 import com.jankinwu.fntv.client.icons.MediaLibrary
+import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import com.jankinwu.fntv.client.manager.UpdateStatus
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
@@ -125,6 +126,9 @@ fun App(
     icon: Painter? = null,
     title: String = ""
 ) {
+    LaunchedEffect(Unit) {
+        PlayerResourceManager.preload()
+    }
     CoilSetting()
     Navigation(navigator, windowInset, contentInset, collapseWindowInset, icon, title)
 }
@@ -225,7 +229,7 @@ fun Navigation(
 
     val settingItem = remember(navigator) {
         ComponentItem(
-            "Settings",
+            "设置",
             group = "",
             description = "",
             icon = Icons.Default.Settings,

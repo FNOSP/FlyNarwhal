@@ -50,7 +50,7 @@ class DesktopUpdateManager : UpdateManager {
         }
     }
 
-    override fun checkUpdate(proxyUrl: String, includePrerelease: Boolean) {
+    override fun checkUpdate(proxyUrl: String, includePrerelease: Boolean, isManual: Boolean, autoDownload: Boolean) {
         scope.launch {
             _status.value = UpdateStatus.Checking
             try {
@@ -128,6 +128,7 @@ class DesktopUpdateManager : UpdateManager {
                 if (releases.isEmpty()) {
                     logger.i("No releases found")
                     _status.value = UpdateStatus.UpToDate
+                    _latestVersion.value = null
                     return@launch
                 }
 
@@ -152,6 +153,7 @@ class DesktopUpdateManager : UpdateManager {
                 if (validReleases.isEmpty()) {
                     logger.i("No compatible releases found")
                     _status.value = UpdateStatus.UpToDate
+                    _latestVersion.value = null
                     return@launch
                 }
 
@@ -190,12 +192,17 @@ class DesktopUpdateManager : UpdateManager {
                             _status.value = UpdateStatus.ReadyToInstall(updateInfo, file.absolutePath)
                         } else {
                             _status.value = UpdateStatus.Available(updateInfo)
+                            if (!isManual && autoDownload) {
+                                downloadUpdate(proxyUrl, updateInfo)
+                            }
                         }
                     } else {
                         _status.value = UpdateStatus.UpToDate
+                        _latestVersion.value = null
                     }
                 } else {
                     _status.value = UpdateStatus.UpToDate
+                    _latestVersion.value = null
                 }
             } catch (e: Exception) {
                 logger.e("Update check failed", e)

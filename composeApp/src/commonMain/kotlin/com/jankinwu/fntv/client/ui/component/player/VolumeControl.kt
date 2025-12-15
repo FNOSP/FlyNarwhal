@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -47,9 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import co.touchlab.kermit.Logger
-import fntv_client_multiplatform.composeapp.generated.resources.Res
-import io.github.alexzhirkevich.compottie.LottieCompositionSpec
+import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
@@ -158,24 +157,50 @@ fun VolumeControl(
                 }
             }
         }
-        var compositionSpec by remember { mutableStateOf<LottieCompositionSpec?>(null) }
-        LaunchedEffect(Unit) {
-            try {
-                val bytes = Res.readBytes("files/volume_lottie.json")
-                compositionSpec = LottieCompositionSpec.JsonString(bytes.decodeToString())
-            } catch (e: Exception) {
-                Logger.e { "Failed to load lottie: $e" }
+        var isPlaying by remember { mutableStateOf(false) }
+
+        val volumeLevel = remember(volume) {
+            when {
+                volume > 0.5f -> 2
+                volume > 0f -> 1
+                else -> 0
             }
         }
-        val composition by rememberLottieComposition {
-            compositionSpec!!
+
+        val highSpec = PlayerResourceManager.volumeHighSpec
+        val lowSpec = PlayerResourceManager.volumeLowSpec
+        val offSpec = PlayerResourceManager.volumeOffSpec
+
+        val highComposition = if (highSpec != null) {
+            val c by rememberLottieComposition { highSpec }
+            c
+        } else null
+
+        val lowComposition = if (lowSpec != null) {
+            val c by rememberLottieComposition { lowSpec }
+            c
+        } else null
+
+        val offComposition = if (offSpec != null) {
+            val c by rememberLottieComposition { offSpec }
+            c
+        } else null
+
+        val composition = when (volumeLevel) {
+            2 -> highComposition
+            1 -> lowComposition
+            else -> offComposition
         }
 
-        var isPlaying by remember { mutableStateOf(false) }
+        LaunchedEffect(volumeLevel) {
+            isPlaying = true
+        }
+
+//        var isPlaying by remember { mutableStateOf(false) }
 
         if (composition != null) {
             val progress by animateLottieCompositionAsState(
-                composition = composition!!,
+                composition = composition,
                 isPlaying = isPlaying,
                 iterations = 1,
                 restartOnPlay = true
@@ -187,18 +212,19 @@ fun VolumeControl(
             }
 
             Image(
-                painter = rememberLottiePainter(composition!!, progress = { progress }),
+                painter = rememberLottiePainter(composition, progress = { progress }),
                 contentDescription = "音量",
 //                    tint = Color.White,
                 modifier = Modifier
 //                    .padding(start = 12.dp)
-                    .size(22.dp)
+                    .size(40.dp)
                     .onPointerEvent(PointerEventType.Enter) {
                         isPlaying = true
                     }
                     .onPointerEvent(PointerEventType.Exit) {
                         // isPlaying = false
                     },
+                colorFilter = ColorFilter.tint(Color.White)
             )
         }
 //        Icon(

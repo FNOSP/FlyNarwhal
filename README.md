@@ -109,7 +109,7 @@
 | 收藏页        | ![Progress](https://progress-bar.xyz/0/)  |
 | 媒体库页       | ![Progress](https://progress-bar.xyz/90/) |
 | 媒体详情页      | ![Progress](https://progress-bar.xyz/60/) |
-| 播放器        | ![Progress](https://progress-bar.xyz/60/) |
+| 播放器        | ![Progress](https://progress-bar.xyz/80/) |
 | 通用设置       | ![Progress](https://progress-bar.xyz/0/)  |
 | 媒体库管理      | ![Progress](https://progress-bar.xyz/0/)  |
 | 影视服务器设置    | ![Progress](https://progress-bar.xyz/0/)  |
@@ -117,7 +117,7 @@
 | 任务计划       | ![Progress](https://progress-bar.xyz/0/)  |
 | 搜索         | ![Progress](https://progress-bar.xyz/0/)  |
 | 弹幕         | ![Progress](https://progress-bar.xyz/0/)  |
-| 版本更新       | ![Progress](https://progress-bar.xyz/60/) |
+| 版本更新       | ![Progress](https://progress-bar.xyz/90/) |
 | 集成 mpv 播放器 | ![Progress](https://progress-bar.xyz/0/)  |
 | 文件夹视图      | ![Progress](https://progress-bar.xyz/0/)  |
 

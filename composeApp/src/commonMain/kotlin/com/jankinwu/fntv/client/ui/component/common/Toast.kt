@@ -14,10 +14,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -44,7 +41,9 @@ data class ToastMessage(
     val id: String = UUID.randomUUID().toString(), // 唯一标识符
     val message: String, // 提示文字
     val duration: Long = 2000L, // 显示时长（毫秒）
-    val type: Int = ToastType.Success
+    val type: Int = ToastType.Success,
+    val category: String? = null, // 分类，用于合并同一类消息
+    val updateTime: Long = System.currentTimeMillis() // 更新时间，用于重置计时器
 )
 
 @Composable
@@ -52,14 +51,14 @@ fun Toast(
     message: String,
     type: Int = ToastType.Success,
     duration: Long = 2000L,
+    updateTime: Long = 0L,
     onDismiss: () -> Unit
 ) {
-    var isVisible by remember { mutableStateOf(true) }
     val alpha = remember { Animatable(0f) }
     val offsetY = remember { Animatable((-50f)) } // 初始位置在上方
 
-    LaunchedEffect(Unit) {
-        // 同时执行淡入和下移动画
+    LaunchedEffect(updateTime) {
+        // 同时执行淡入和下移动画 (确保可见)
         coroutineScope {
             launch {
                 alpha.animateTo(
@@ -97,22 +96,20 @@ fun Toast(
         }
 
         // 动画结束后通知消失
-        isVisible = false
         onDismiss()
     }
 
-    if (isVisible) {
-        Box(
-            modifier = Modifier
-                .offset(y = offsetY.value.dp) // 应用垂直偏移动画
-                .alpha(alpha.value) // 应用透明度动画
-                .background(
-                    color = FluentTheme.colors.controlSolid.default,
-                    shape = RoundedCornerShape(6.dp)
-                )
-                .padding(start = 10.dp, end = 15.dp, top = 8.dp, bottom = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
+    Box(
+        modifier = Modifier
+            .offset(y = offsetY.value.dp) // 应用垂直偏移动画
+            .alpha(alpha.value) // 应用透明度动画
+            .background(
+                color = FluentTheme.colors.controlSolid.default,
+                shape = RoundedCornerShape(6.dp)
+            )
+            .padding(start = 10.dp, end = 15.dp, top = 8.dp, bottom = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
             Row(
                 modifier = Modifier
                     .align(Alignment.Center),
@@ -149,5 +146,4 @@ fun Toast(
                 )
             }
         }
-    }
 }

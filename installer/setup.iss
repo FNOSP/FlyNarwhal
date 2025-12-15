@@ -1,5 +1,5 @@
 #define MyAppName "飞牛影视"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.4"
 #define MyAppOS "Windows"
 #define MyAppPublisher "JankinWu"
 #define MyAppExeName "FnMedia.exe"
@@ -25,7 +25,7 @@ AppId={#MyAppId}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\{#MyAppPackageName}
+DefaultDirName={localappdata}\{#MyAppPackageName}
 DisableProgramGroupPage=yes
 ; Remove the following line if you want the standard folder selection
 DisableDirPage=no
