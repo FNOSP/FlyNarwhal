@@ -32,6 +32,7 @@ fun UpdateDialog(
     showDialog: Boolean,
     onDownload: (UpdateInfo) -> Unit,
     onInstall: (UpdateInfo) -> Unit,
+    onSkip: (UpdateInfo) -> Unit,
     onDismiss: () -> Unit
 ) {
     if (showDialog && status !is UpdateStatus.Idle) {
@@ -58,6 +59,8 @@ fun UpdateDialog(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
+                            DialogSecondaryButton("跳过此版本", onClick = { onSkip(status.info) })
+                            Spacer(Modifier.width(8.dp))
                             DialogSecondaryButton("稍后再说", onClick = onDismiss)
                             Spacer(Modifier.width(8.dp))
                             DialogAccentButton("下载更新", onClick = { onDownload(status.info) })
@@ -79,6 +82,8 @@ fun UpdateDialog(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
+                            DialogSecondaryButton("跳过此版本", onClick = { onSkip(status.info) })
+                            Spacer(Modifier.width(8.dp))
                             DialogSecondaryButton("稍后", onClick = onDismiss)
                             Spacer(Modifier.width(8.dp))
                             DialogAccentButton("退出并安装", onClick = { onInstall(status.info) })

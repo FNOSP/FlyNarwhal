@@ -2,6 +2,7 @@ package com.jankinwu.fntv.client.manager
 
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.BuildConfig
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.utils.DesktopUpdateInstaller
 import com.jankinwu.fntv.client.utils.ExecutableDirectoryDetector
 import com.jankinwu.fntv.client.utils.InstallationResult
@@ -186,12 +187,30 @@ class DesktopUpdateManager : UpdateManager {
                     compareVersions(v2, v1) // Descending
                 }
 
-                val bestRelease = sortedReleases.first()
-                val remoteVersion = bestRelease.name.removePrefix("v").trim()
+                val skippedVersions = AppSettingsStore.skippedVersions
+                var bestRelease: GitHubRelease? = null
+                var remoteVersion = ""
 
-                logger.i("Current version: $currentVersion, Best remote version: $remoteVersion")
+                for (release in sortedReleases) {
+                    val v = release.name.removePrefix("v").trim()
+                    if (skippedVersions.contains(v)) {
+                        logger.i("Skipping version: $v")
+                        continue
+                    }
+                    // Since sortedReleases is sorted descending, the first one we find
+                    // that is not skipped is potentially the best candidate.
+                    // But we still need to check if it's newer than current.
+                    // If it's not newer, then subsequent ones won't be either.
+                    if (compareVersions(v, currentVersion) > 0) {
+                        bestRelease = release
+                        remoteVersion = v
+                        break
+                    }
+                }
 
-                if (compareVersions(remoteVersion, currentVersion) > 0) {
+                if (bestRelease != null) {
+                    logger.i("Current version: $currentVersion, Best remote version: $remoteVersion")
+
                     val asset = bestRelease.assets.find {
                         it.name.contains(osName, ignoreCase = true) &&
                         it.name.contains(arch, ignoreCase = true) &&

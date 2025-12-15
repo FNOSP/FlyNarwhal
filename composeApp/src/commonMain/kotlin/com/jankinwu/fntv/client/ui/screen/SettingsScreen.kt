@@ -98,6 +98,11 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
         showDialog = showUpdateDialog,
         onDownload = { info -> updateViewModel.downloadUpdate(info) },
         onInstall = { info -> updateViewModel.installUpdate(info) },
+        onSkip = { info ->
+            val skipped = AppSettingsStore.skippedVersions
+            AppSettingsStore.skippedVersions = skipped + info.version
+            showUpdateDialog = false
+        },
         onDismiss = {
             updateViewModel.cancelDownload()
             showUpdateDialog = false
