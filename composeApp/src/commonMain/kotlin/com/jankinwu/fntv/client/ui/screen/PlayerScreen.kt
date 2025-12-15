@@ -825,7 +825,9 @@ fun PlayerOverlay(
                             onRequestDeleteSubtitle = { subtitle ->
                                 subtitleToDelete = subtitle
                                 showDeleteSubtitleDialog = true
-                            }
+                            },
+                            lastVolume = lastVolume,
+                            onLastVolumeChange = { lastVolume = it }
                         )
                     }
                 }
@@ -966,7 +968,9 @@ fun PlayerControlRow(
     onOpenAddLocalSubtitle: (() -> Unit)? = null,
     onSubtitleControlHoverChanged: ((Boolean) -> Unit)? = null,
     onSettingsMenuHoverChanged: ((Boolean) -> Unit)? = null,
-    onRequestDeleteSubtitle: ((SubtitleStream) -> Unit)? = null
+    onRequestDeleteSubtitle: ((SubtitleStream) -> Unit)? = null,
+    lastVolume: Float = 0f,
+    onLastVolumeChange: (Float) -> Unit = {}
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Row(
@@ -1102,6 +1106,7 @@ fun PlayerControlRow(
                 onVolumeChange = {
                     audioLevelController?.setVolume(it)
                     PlayingSettingsStore.saveVolume(it)
+                    onLastVolumeChange(0f)
                 },
                 onHoverStateChanged = onVolumeControlHoverChanged,
                 modifier = Modifier.size(40.dp)
@@ -1459,6 +1464,7 @@ private fun handlePlayerKeyEvent(
                     it.setVolume(newVolume)
                     toastManager.showToast("当前音量：${(newVolume * 100).toInt()}%", ToastType.Info, category = "volume")
                     PlayingSettingsStore.saveVolume(newVolume)
+                    onLastVolumeChange(0f)
                 }
             }
             Key.DirectionDown -> {
@@ -1467,6 +1473,7 @@ private fun handlePlayerKeyEvent(
                     it.setVolume(newVolume)
                     toastManager.showToast("当前音量：${(newVolume * 100).toInt()}%", ToastType.Info, category = "volume")
                     PlayingSettingsStore.saveVolume(newVolume)
+                    onLastVolumeChange(0f)
                 }
             }
             Key.Spacebar -> {
