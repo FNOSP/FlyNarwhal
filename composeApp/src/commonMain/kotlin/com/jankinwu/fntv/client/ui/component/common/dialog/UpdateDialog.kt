@@ -122,7 +122,7 @@ fun UpdateDialog(
                     is UpdateStatus.Downloaded -> {
                         Text("安装更新", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))
-                        Text("是否安装更新？")
+                        Text("更新包已下载完毕，是否现在安装更新？")
                         Spacer(Modifier.height(24.dp))
                         Row(
                             horizontalArrangement = Arrangement.End,
