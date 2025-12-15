@@ -200,21 +200,18 @@ jobs:
         id: release_body
         shell: bash
         run: |
-          WARNING_MSG="> ⚠️ **运行此应用程序前请保证本地已安装 VLC 播放器，否则会导致此应用程序无法正常运行**"
           if [[ "${{ github.ref }}" =~ [Aa]lpha ]]; then
             {
               echo "WARNING_TEXT<<EOF"
-              echo "新增若干功能，优化使用体验，详情请参考 git commit 日志"
-              echo ""
-              echo "⚠️ **此版本为开发中的版本，请酌情下载安装。**"
+              echo "集成 VLC 播放器，详情请参考 git commit 日志"
               echo ""
               echo "**当前应用中没有展示出来或者点击没有反应的就是还没做的功能，后面陆续都会实现，请仅对已实现的功能提出合理意见**"
+              echo "> **此版本为开发中的版本，请酌情下载安装。**"
+              echo ""
               echo "EOF"
             } >> $GITHUB_ENV
-            echo "VLC_WARNING=$WARNING_MSG" >> $GITHUB_ENV
           else
             echo "WARNING_TEXT=" >> $GITHUB_ENV
-            echo "VLC_WARNING=$WARNING_MSG" >> $GITHUB_ENV
           fi
 
       - name: Create Release
@@ -225,8 +222,6 @@ jobs:
           prerelease: ${{ contains(github.ref, '-') }}
           body: |
             ${{ env.WARNING_TEXT }}
-            
-            ${{ env.VLC_WARNING }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

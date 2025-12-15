@@ -24,8 +24,7 @@
 ## 使用说明
 ### 使用安装包安装
 
-1. 安装 [VLC](https://www.videolan.org/vlc) 播放器（必装，否则打不开软件）
-2. 下载 [releases](https://github.com/FNOSP/fntv-client-multiplatform/releases) 中的安装包并安装
+下载 [releases](https://github.com/FNOSP/fntv-client-multiplatform/releases) 中的安装包并安装
 
 ### 从项目构建
 
@@ -35,7 +34,6 @@
 - JDK 17 或以上版本并配置环境变量
   - 确保 `JAVA_HOME` 环境变量指向 JDK 安装目录
   - 确保 `PATH` 环境变量包含 `%JAVA_HOME%\bin`
-- 安装 [VLC](https://www.videolan.org/vlc) 播放器（必装，否则打不开软件）
 
 #### 运行桌面端
 

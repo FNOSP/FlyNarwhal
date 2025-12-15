@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.0.4"
+val appVersion = "1.0.5"
 val appVersionSuffix = "Alpha"
 
 val platformStr = when {
@@ -209,7 +209,7 @@ compose.desktop {
             description = "FnMedia"
             vendor = "JankinWu"
             appResourcesRootDir.set(proxyResourcesDir)
-
+            appResourcesRootDir.set(file("appResources"))
             modules("jdk.unsupported")
             windows {
                 iconFile.set(project.file("icons/favicon.ico"))
