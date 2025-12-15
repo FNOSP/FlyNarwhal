@@ -1083,7 +1083,7 @@ fun PlayerControlRow(
                 onOpenSubtitleSearch = { onOpenSubtitleSearch?.invoke() },
                 onOpenAddNasSubtitle = { onOpenAddNasSubtitle?.invoke() },
                 onOpenAddLocalSubtitle = { onOpenAddLocalSubtitle?.invoke() },
-                modifier = Modifier.padding(start = 8.dp),
+                modifier = Modifier.padding(start = 12.dp),
                 onHoverStateChanged = onSubtitleControlHoverChanged,
                 onRequestDelete = onRequestDeleteSubtitle
             )
@@ -1093,7 +1093,7 @@ fun PlayerControlRow(
                 onAudioSelected = { audio ->
                     onAudioSelected?.invoke(audio)
                 },
-                modifier = Modifier.padding(start = 8.dp),
+                modifier = Modifier.padding(start = 12.dp),
                 onHoverStateChanged = onSettingsMenuHoverChanged
             )
             val audioLevelController =
@@ -1109,7 +1109,7 @@ fun PlayerControlRow(
                     onLastVolumeChange(0f)
                 },
                 onHoverStateChanged = onVolumeControlHoverChanged,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(50.dp)
             )
             // 全屏
             val windowState = LocalWindowState.current

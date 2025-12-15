@@ -192,7 +192,7 @@ fun Navigation(
 
     LaunchedEffect(Unit) {
         if (updateViewModel.status.value is UpdateStatus.Idle) {
-            updateViewModel.checkUpdate()
+            updateViewModel.checkUpdate(isManual = false)
         }
     }
 

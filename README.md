@@ -1,4 +1,4 @@
-# fntv-client-multiplatform
+# 	fntv-client-multiplatform
 
 [![GitHub stars](https://img.shields.io/github/stars/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/network)
@@ -9,9 +9,9 @@
 
 基于 Compose Multiplatform 框架开发的跨平台飞牛影视客户端
 
+## 声明
 
-## 开发中，敬请期待...
-
+**本项目为飞牛 OS 爱好者开发的第三方影视客户端，与飞牛影视官方无关。使用前请确保遵守相关服务条款。**
 
 ## 界面预览
 
@@ -148,6 +148,4 @@
 <a href="#readme">
     <img src="https://img.shields.io/badge/-返回顶部-7d09f1.svg" alt="#" align="right">
 </a>
-
-温馨提示：本项目为飞牛 OS 爱好者开发的第三方影视客户端，与飞牛影视官方无关。使用前请确保遵守相关服务条款。
 

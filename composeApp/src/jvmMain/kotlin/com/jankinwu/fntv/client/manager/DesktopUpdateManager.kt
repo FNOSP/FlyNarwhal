@@ -193,6 +193,7 @@ class DesktopUpdateManager : UpdateManager {
                         } else {
                             _status.value = UpdateStatus.Available(updateInfo)
                             if (!isManual && autoDownload) {
+                                logger.i("Auto downloading update")
                                 downloadUpdate(proxyUrl, updateInfo)
                             }
                         }
