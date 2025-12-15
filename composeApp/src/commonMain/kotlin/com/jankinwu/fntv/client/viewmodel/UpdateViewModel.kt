@@ -93,13 +93,17 @@ class UpdateViewModel : BaseViewModel() {
         }
     }
 
-    fun downloadUpdate(info: UpdateInfo) {
+    fun downloadUpdate(info: UpdateInfo, force: Boolean = false) {
         val proxyUrl = AppSettingsStore.githubResourceProxyUrl
-        updateManager.downloadUpdate(proxyUrl, info)
+        updateManager.downloadUpdate(proxyUrl, info, force)
     }
     
     fun installUpdate(info: UpdateInfo) {
         updateManager.installUpdate(info)
+    }
+
+    fun deleteUpdate(info: UpdateInfo) {
+        updateManager.deleteUpdate(info)
     }
 
     fun cancelDownload() {

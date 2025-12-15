@@ -235,11 +235,16 @@ class DesktopUpdateManager : UpdateManager {
                 (targetExtension == null || it.name.endsWith(targetExtension, ignoreCase = true))
             }
             asset?.let {
+                val signatureAsset = release.assets.find { sa ->
+                    sa.name.equals(it.name + ".sha256", ignoreCase = true)
+                }
                 UpdateInfo(
                     version = remoteVersion,
                     releaseNotes = release.body,
                     downloadUrl = it.browserDownloadUrl,
+                    signatureDownloadUrl = signatureAsset?.browserDownloadUrl,
                     fileName = it.name,
+                    signatureFileName = signatureAsset?.name,
                     size = it.size
                 )
             }
@@ -327,13 +332,15 @@ class DesktopUpdateManager : UpdateManager {
         return fileInUpdateDir // Default to update dir even if not exists
     }
 
-    override fun downloadUpdate(proxyUrl: String, info: UpdateInfo) {
-        startDownload(proxyUrl, info, isBackground = false)
+    override fun downloadUpdate(proxyUrl: String, info: UpdateInfo, force: Boolean) {
+        startDownload(proxyUrl, info, isBackground = false, force = force)
     }
 
-    private fun startDownload(proxyUrl: String, info: UpdateInfo, isBackground: Boolean) {
-        if (handleExistingDownload(info, isBackground)) return
-        if (checkFileExists(info)) return
+    private fun startDownload(proxyUrl: String, info: UpdateInfo, isBackground: Boolean, force: Boolean = false) {
+        if (!force) {
+            if (handleExistingDownload(info, isBackground)) return
+            if (checkFileExists(info)) return
+        }
 
         downloadJob?.cancel()
         currentDownloadInfo = info
@@ -376,6 +383,20 @@ class DesktopUpdateManager : UpdateManager {
             val updateDir = getUpdateDirectory()
             val file = File(updateDir, info.fileName)
             try {
+                // Download signature first if available
+                if (info.signatureDownloadUrl != null) {
+                    val signatureFile = File(updateDir, info.fileName + ".sha256")
+                    val sigUrl = prepareDownloadUrl(proxyUrl, info.signatureDownloadUrl)
+                    logger.i("Downloading signature from: $sigUrl")
+                    val response = client.get(sigUrl)
+                    if (response.status == HttpStatusCode.OK) {
+                         val bytes = response.body<ByteArray>()
+                         FileOutputStream(signatureFile).use { it.write(bytes) }
+                    } else {
+                        logger.w("Failed to download signature: ${response.status}")
+                    }
+                }
+
                 val url = prepareDownloadUrl(proxyUrl, info.downloadUrl)
                 logger.i("Downloading update from: $url")
                 
@@ -443,6 +464,10 @@ class DesktopUpdateManager : UpdateManager {
         if (file.exists()) {
             file.delete()
         }
+        val signatureFile = File(file.parentFile, file.name + ".sha256")
+        if (signatureFile.exists()) {
+            signatureFile.delete()
+        }
         _status.value = UpdateStatus.Idle
         currentDownloadInfo = null
         lastDownloadStatus = null
@@ -454,6 +479,10 @@ class DesktopUpdateManager : UpdateManager {
         if (file.exists()) {
             file.delete()
         }
+        val signatureFile = File(file.parentFile, file.name + ".sha256")
+        if (signatureFile.exists()) {
+            signatureFile.delete()
+        }
         currentDownloadInfo = null
         lastDownloadStatus = null
     }
@@ -461,15 +490,103 @@ class DesktopUpdateManager : UpdateManager {
     override fun installUpdate(info: UpdateInfo) {
         val file = findUpdateFile(info.fileName)
         
-        val systemPath = file.toKtPath().inSystem
-        
-        val installer = DesktopUpdateInstaller.currentOS()
         scope.launch {
+            val signatureFile = File(file.parentFile, file.name + ".sha256")
+            if (signatureFile.exists()) {
+                 _status.value = UpdateStatus.Verifying
+                 val isVerified = verifyLocalSignature(file, signatureFile)
+                 if (!isVerified) {
+                     _status.value = UpdateStatus.VerificationFailed(info)
+                     return@launch
+                 }
+            } else if (info.signatureDownloadUrl != null) {
+                _status.value = UpdateStatus.Verifying
+                val proxyUrl = AppSettingsStore.githubResourceProxyUrl
+                val isVerified = verifySignature(file, info.signatureDownloadUrl, proxyUrl)
+                if (!isVerified) {
+                    _status.value = UpdateStatus.VerificationFailed(info)
+                    return@launch
+                }
+            }
+
+            val systemPath = file.toKtPath().inSystem
+            val installer = DesktopUpdateInstaller.currentOS()
             val result = installer.install(systemPath, null)
              if (result is InstallationResult.Failed) {
                  _status.value = UpdateStatus.Error("Installation failed: ${result.message}")
             }
         }
+    }
+
+    override fun deleteUpdate(info: UpdateInfo) {
+        val file = findUpdateFile(info.fileName)
+        if (file.exists()) {
+            file.delete()
+        }
+        val signatureFile = File(file.parentFile, file.name + ".sha256")
+        if (signatureFile.exists()) {
+            signatureFile.delete()
+        }
+        // If we are deleting the currently tracked update, clear status
+        if (currentDownloadInfo?.version == info.version) {
+            _status.value = UpdateStatus.Idle
+            currentDownloadInfo = null
+            lastDownloadStatus = null
+        } else if (_status.value is UpdateStatus.VerificationFailed && (_status.value as UpdateStatus.VerificationFailed).info.version == info.version) {
+            _status.value = UpdateStatus.Idle
+        }
+    }
+
+    private fun verifyLocalSignature(updateFile: File, signatureFile: File): Boolean {
+        try {
+            val signatureContent = signatureFile.readText()
+            val expectedHash = signatureContent.trim().split("\\s+".toRegex())[0]
+            val actualHash = calculateSha256(updateFile)
+            
+            logger.i("Local signature check - Expected: $expectedHash, Actual: $actualHash")
+            
+            return expectedHash.equals(actualHash, ignoreCase = true)
+        } catch (e: Exception) {
+            logger.e("Local verification failed", e)
+            return false
+        }
+    }
+
+    private suspend fun verifySignature(updateFile: File, signatureUrl: String, proxyUrl: String): Boolean {
+        try {
+            val url = prepareDownloadUrl(proxyUrl, signatureUrl)
+            logger.i("Downloading signature from: $url")
+            val response = client.get(url)
+            if (response.status != HttpStatusCode.OK) {
+                logger.e("Failed to download signature: ${response.status}")
+                return false
+            }
+            val signatureContent = response.body<String>()
+            // Support both "hash filename" and just "hash" formats
+            val expectedHash = signatureContent.trim().split("\\s+".toRegex())[0]
+            val actualHash = calculateSha256(updateFile)
+            
+            logger.i("Expected hash: $expectedHash")
+            logger.i("Actual hash: $actualHash")
+            
+            return expectedHash.equals(actualHash, ignoreCase = true)
+        } catch (e: Exception) {
+            logger.e("Verification error", e)
+            return false
+        }
+    }
+
+    private fun calculateSha256(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(8192)
+        val fis = java.io.FileInputStream(file)
+        var bytesRead: Int
+        while (fis.read(buffer).also { bytesRead = it } != -1) {
+            digest.update(buffer, 0, bytesRead)
+        }
+        fis.close()
+        val hash = digest.digest()
+        return hash.joinToString("") { "%02x".format(it) }
     }
 
     override fun cancelDownload() {

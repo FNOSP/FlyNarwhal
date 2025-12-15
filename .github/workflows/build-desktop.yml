@@ -33,12 +33,18 @@ jobs:
         # 执行 Compose Desktop 的打包任务
         run: ./gradlew :composeApp:packageReleaseDmg
 
+      - name: Generate SHA256 Checksums
+        run: |
+          find composeApp/build/compose/binaries -name "*.dmg" -exec sh -c 'shasum -a 256 "$1" > "$1.sha256"' _ {} \;
+
       - name: Upload DMG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MacOS-App-DMG-arm64
           # 上传生成的 DMG 文件
-          path: composeApp/build/compose/binaries/**/*.dmg
+          path: |
+            composeApp/build/compose/binaries/**/*.dmg
+            composeApp/build/compose/binaries/**/*.sha256
           if-no-files-found: error
 
   build-macos-x64:
@@ -65,12 +71,18 @@ jobs:
         # 执行 Compose Desktop 的打包任务
         run: ./gradlew :composeApp:packageReleaseDmg
 
+      - name: Generate SHA256 Checksums
+        run: |
+          find composeApp/build/compose/binaries -name "*.dmg" -exec sh -c 'shasum -a 256 "$1" > "$1.sha256"' _ {} \;
+
       - name: Upload DMG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MacOS-App-DMG-amd64
           # 上传生成的 DMG 文件
-          path: composeApp/build/compose/binaries/**/*.dmg
+          path: |
+            composeApp/build/compose/binaries/**/*.dmg
+            composeApp/build/compose/binaries/**/*.sha256
           if-no-files-found: error
 
   build-linux-deb-x64:
@@ -102,12 +114,18 @@ jobs:
         # 执行 Compose Desktop 的打包任务
         run: ./gradlew :composeApp:packageReleaseDeb
 
+      - name: Generate SHA256 Checksums
+        run: |
+          find composeApp/build/compose/binaries -name "*.deb" -exec sh -c 'sha256sum "$1" > "$1.sha256"' _ {} \;
+
       - name: Upload Deb Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Linux-App-Deb-x64
           # 上传生成的 Deb 文件
-          path: composeApp/build/compose/binaries/**/*.deb
+          path: |
+            composeApp/build/compose/binaries/**/*.deb
+            composeApp/build/compose/binaries/**/*.sha256
           if-no-files-found: error
 
   build-windows-x64:
@@ -138,11 +156,21 @@ jobs:
         # 显式传入 amd64 架构参数
         run: iscc /DMyAppArch=amd64 installer/setup.iss
 
+      - name: Generate SHA256 Checksums
+        run: |
+          Get-ChildItem installer/*.exe | ForEach-Object {
+              $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+              $fileName = $_.Name
+              "$hash *$fileName" | Out-File "$($_.FullName).sha256" -Encoding ASCII
+          }
+
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Windows-App-Exe-amd64
-          path: installer/*_amd64_*.exe
+          path: |
+            installer/*_amd64_*.exe
+            installer/*.sha256
           if-no-files-found: error
 
 #  build-windows-arm64:

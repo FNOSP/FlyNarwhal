@@ -30,10 +30,11 @@ import io.github.composefluent.component.Text
 fun UpdateDialog(
     status: UpdateStatus,
     showDialog: Boolean,
-    onDownload: (UpdateInfo) -> Unit,
+    onDownload: (UpdateInfo, Boolean) -> Unit,
     onInstall: (UpdateInfo) -> Unit,
     onSkip: (UpdateInfo) -> Unit,
     onCancelDownload: () -> Unit,
+    onDeleteAndDismiss: (UpdateInfo) -> Unit,
     onBackground: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -65,7 +66,26 @@ fun UpdateDialog(
                             Spacer(Modifier.width(8.dp))
                             DialogSecondaryButton("稍后再说", onClick = onDismiss)
                             Spacer(Modifier.width(8.dp))
-                            DialogAccentButton("下载更新", onClick = { onDownload(status.info) })
+                            DialogAccentButton("下载更新", onClick = { onDownload(status.info, false) })
+                        }
+                    }
+
+                    is UpdateStatus.Verifying -> {
+                        Text("正在校验文件完整性...", style = FluentTheme.typography.bodyLarge)
+                    }
+
+                    is UpdateStatus.VerificationFailed -> {
+                        Text("校验失败", style = FluentTheme.typography.subtitle)
+                        Spacer(Modifier.height(12.dp))
+                        Text("安装包完整性校验不通过，是否需要重新下载安装包？")
+                        Spacer(Modifier.height(24.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.End,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            DialogSecondaryButton("稍后下载", onClick = { onDeleteAndDismiss(status.info) })
+                            Spacer(Modifier.width(8.dp))
+                            DialogAccentButton("重新下载", onClick = { onDownload(status.info, true) })
                         }
                     }
 

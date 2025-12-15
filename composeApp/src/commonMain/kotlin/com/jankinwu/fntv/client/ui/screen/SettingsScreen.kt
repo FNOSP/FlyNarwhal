@@ -96,7 +96,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
     UpdateDialog(
         status = updateStatus,
         showDialog = showUpdateDialog,
-        onDownload = { info -> updateViewModel.downloadUpdate(info) },
+        onDownload = { info, force -> updateViewModel.downloadUpdate(info, force) },
         onInstall = { info -> updateViewModel.installUpdate(info) },
         onSkip = { info ->
             updateViewModel.skipVersion(info.version)
@@ -104,6 +104,10 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
         },
         onCancelDownload = {
             updateViewModel.cancelDownload()
+            showUpdateDialog = false
+        },
+        onDeleteAndDismiss = { info ->
+            updateViewModel.deleteUpdate(info)
             showUpdateDialog = false
         },
         onBackground = {

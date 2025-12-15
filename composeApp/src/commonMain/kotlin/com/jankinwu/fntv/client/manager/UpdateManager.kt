@@ -29,7 +29,9 @@ data class UpdateInfo(
     val version: String,
     val releaseNotes: String,
     val downloadUrl: String,
+    val signatureDownloadUrl: String? = null,
     val fileName: String,
+    val signatureFileName: String? = null,
     val size: Long
 )
 
@@ -42,14 +44,17 @@ sealed class UpdateStatus {
     data class Downloading(val progress: Float, val currentBytes: Long, val totalBytes: Long) : UpdateStatus()
     data class Downloaded(val info: UpdateInfo, val filePath: String) : UpdateStatus()
     data class ReadyToInstall(val info: UpdateInfo, val filePath: String) : UpdateStatus()
+    object Verifying : UpdateStatus()
+    data class VerificationFailed(val info: UpdateInfo) : UpdateStatus()
 }
 
 interface UpdateManager {
     val status: StateFlow<UpdateStatus>
     val latestVersion: StateFlow<UpdateInfo?>
     fun checkUpdate(proxyUrl: String, includePrerelease: Boolean, isManual: Boolean = true, autoDownload: Boolean = false)
-    fun downloadUpdate(proxyUrl: String, info: UpdateInfo)
+    fun downloadUpdate(proxyUrl: String, info: UpdateInfo, force: Boolean = false)
     fun installUpdate(info: UpdateInfo)
+    fun deleteUpdate(info: UpdateInfo)
     fun cancelDownload()
     fun clearStatus()
     fun skipVersion(version: String)
