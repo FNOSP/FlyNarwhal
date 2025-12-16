@@ -35,6 +35,7 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import com.jankinwu.fntv.client.icons.RefreshCircle
 import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.animation.FluentDuration
 import io.github.composefluent.animation.FluentEasing
@@ -68,6 +69,8 @@ fun FrameWindowScope.MacOSWindowFrame(
     LaunchedEffect(window, captionBarHeight) {
         window.findSkiaLayer()?.disableTitleBar(captionBarHeight.value)
     }
+    val playerManager = LocalPlayerManager.current
+    val playerVisible = playerManager.playerState.isVisible
     //TODO Get real macOS caption bar width.
     Box {
         val contentInset = WindowInsets(left = 80.dp)
@@ -101,19 +104,21 @@ fun FrameWindowScope.MacOSWindowFrame(
                         Spacer(modifier = Modifier.width(2.dp).height(36.dp))
                     }
                 }
-                if (icon != null) {
-                    Image(
-                        painter = icon,
-                        contentDescription = null,
-                        modifier = Modifier.padding(start = 6.dp).size(16.dp)
-                    )
-                }
-                if (title.isNotEmpty()) {
-                    Text(
-                        text = title,
-                        style = FluentTheme.typography.caption,
-                        modifier = Modifier.padding(start = 16.dp)
-                    )
+                if (!playerVisible) {
+                    if (icon != null) {
+                        Image(
+                            painter = icon,
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 6.dp).size(16.dp)
+                        )
+                    }
+                    if (title.isNotEmpty()) {
+                        Text(
+                            text = title,
+                            style = FluentTheme.typography.caption,
+                            modifier = Modifier.padding(start = 16.dp)
+                        )
+                    }
                 }
                 HasNewVersionTag()
                 Spacer(modifier = Modifier.weight(1f))

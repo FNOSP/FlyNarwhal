@@ -58,6 +58,8 @@ import co.touchlab.kermit.Logger
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.jankinwu.fntv.client.Platform
+import com.jankinwu.fntv.client.currentPlatform
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
@@ -611,11 +613,12 @@ fun PlayerOverlay(
                     ImgLoadingProgressRing(modifier = Modifier.size(32.dp))
                 }
             }
+            val platform = currentPlatform()
             // 播放器 UI
             if (uiVisible) {
                 Row(
                     modifier = Modifier
-                        .padding(top = 12.dp)
+                        .padding(top = if(platform is Platform.MacOS) 48.dp else 12.dp)
                         .align(Alignment.TopStart)
                         .padding(start = 20.dp, top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.Start),
