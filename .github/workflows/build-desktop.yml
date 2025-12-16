@@ -203,8 +203,8 @@ jobs:
           if [[ "${{ github.ref }}" =~ [Aa]lpha ]]; then
             {
               echo "WARNING_TEXT<<EOF"
-              echo "1. 支持本地 MP4 SDR 视频使用直链播放。"
-              echo "2. 优化 MacOS 端的界面布局。"
+              echo "1. 优化 MacOS 端的播放器界面布局"
+              echo "2. 其他 UI 相关优化"
               echo ""
               echo "详情请参考 git commit 日志"
               echo ""
