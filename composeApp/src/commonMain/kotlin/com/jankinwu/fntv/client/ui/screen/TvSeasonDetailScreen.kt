@@ -488,6 +488,7 @@ fun TvEpisodeBody(
                                 .padding(horizontal = 16.dp),
                             castScrollRowItemList
                         )
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
 
@@ -495,7 +496,7 @@ fun TvEpisodeBody(
                     if (itemData?.imdbId?.isNotBlank() ?: false) {
                         ImdbLink(
                             FnDataConvertor.getImdbLink(itemData.imdbId),
-                            modifier = Modifier.padding(horizontal = 48.dp, vertical = 24.dp)
+                            modifier = Modifier.padding(start = 48.dp, end = 48.dp, bottom = 24.dp)
                         )
                     }
                 }

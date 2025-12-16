@@ -119,7 +119,7 @@ fun EpisodesScrollRow(
     )
     Column(
         modifier = modifier
-            .height(230.dp)
+            .height(235.dp)
     ) {
         ScrollRow(
             itemsData = scrollRowItemDataList,
@@ -420,9 +420,9 @@ fun EpisodeScrollItem(
         Column(
             horizontalAlignment = Alignment.Start,
             modifier = if (textContainerWidthDp > 0.dp) {
-                Modifier.width(textContainerWidthDp)
+                Modifier.width(textContainerWidthDp).weight(1f)
             } else {
-                Modifier.fillMaxWidth()
+                Modifier.fillMaxWidth().weight(1f)
             }
         ) {
             // 电影标题
