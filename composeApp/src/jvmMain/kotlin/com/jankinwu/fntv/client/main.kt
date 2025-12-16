@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
@@ -132,23 +131,14 @@ fun main() = application {
                         )
                     }
                     // 显示播放器覆盖层
-                    if (playerManager.playerState.isVisible && state.placement != WindowPlacement.Fullscreen) {
-                        WindowDraggableArea {
-                            PlayerOverlay(
-                                mediaTitle = playerManager.playerState.mediaTitle,
-                                subhead = playerManager.playerState.subhead,
-                                isEpisode = playerManager.playerState.isEpisode,
-                                onBack = { playerManager.hidePlayer() },
-                                mediaPlayer = player
-                            )
-                        }
-                    } else if (playerManager.playerState.isVisible && state.placement == WindowPlacement.Fullscreen) {
+                    if (playerManager.playerState.isVisible) {
                         PlayerOverlay(
                             mediaTitle = playerManager.playerState.mediaTitle,
                             subhead = playerManager.playerState.subhead,
                             isEpisode = playerManager.playerState.isEpisode,
                             onBack = { playerManager.hidePlayer() },
-                            mediaPlayer = player
+                            mediaPlayer = player,
+                            draggableArea = { content -> WindowDraggableArea(content = content) }
                         )
                     }
                 }

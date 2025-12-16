@@ -255,7 +255,8 @@ fun PlayerOverlay(
     subhead: String,
     isEpisode: Boolean,
     onBack: () -> Unit,
-    mediaPlayer: MediampPlayer
+    mediaPlayer: MediampPlayer,
+    draggableArea: @Composable (content: @Composable () -> Unit) -> Unit = { it() }
 ) {
     // 控制UI可见性的状态
     var uiVisible by remember { mutableStateOf(true) }
@@ -628,21 +629,10 @@ fun PlayerOverlay(
                     true
                 )
         ) {
-            if (windowState.placement != WindowPlacement.Fullscreen) {
-                // 添加标题栏占位区域，允许窗口拖动
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp) // 与标题栏高度一致
-                )
-            }
-
             // 视频层 - 从标题栏下方开始显示
             MediampPlayerSurface(
                 mediaPlayer, Modifier
                     .fillMaxSize()
-//                    .padding(top = if (windowState.placement != WindowPlacement.Fullscreen) 48.dp else 0.dp)
-                    .padding(top = 0.dp)
                     .clickable(
                         interactionSource = interactionSource,
                         indication = null,
@@ -656,6 +646,17 @@ fun PlayerOverlay(
                         uiVisible = true
                         isCursorVisible = true
                     })
+
+            if (windowState.placement != WindowPlacement.Fullscreen) {
+                // 添加标题栏占位区域，允许窗口拖动
+                draggableArea {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp) // 与标题栏高度一致
+                    )
+                }
+            }
             // 加载进度条
             if (playState == PlaybackState.READY || playState == PlaybackState.PAUSED_BUFFERING) {
                 Box(
@@ -1588,7 +1589,7 @@ private fun handlePlayerKeyEvent(
                 mediaPlayer.pause()
             }
 
-            Key.F -> {
+            Key.F, Key.Escape -> {
                 if (windowState.placement == WindowPlacement.Fullscreen) {
                     windowState.placement = WindowPlacement.Floating
                 } else {
