@@ -17,6 +17,8 @@ import org.koin.dsl.module
 import com.jankinwu.fntv.client.manager.DesktopUpdateManager
 import com.jankinwu.fntv.client.manager.UpdateManager
 
+import com.jankinwu.fntv.client.utils.Mp4Parser
+
 actual val fnOfficialClient = HttpClient(OkHttp) {
     expectSuccess = true
     // 启用自动重定向跟随
@@ -78,5 +80,6 @@ actual val fnOfficialClient = HttpClient(OkHttp) {
 actual val apiModule = module {
     single { FnOfficialApiImpl() }
     single { ProxyApiImpl() }
+    single { Mp4Parser(fnOfficialClient) }
     single<UpdateManager> { DesktopUpdateManager() }
 }

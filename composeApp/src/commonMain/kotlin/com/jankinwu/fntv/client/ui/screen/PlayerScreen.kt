@@ -112,6 +112,7 @@ import com.jankinwu.fntv.client.ui.providable.LocalWindowState
 import com.jankinwu.fntv.client.ui.providable.defaultVariableFamily
 import com.jankinwu.fntv.client.utils.HiddenPointerIcon
 import com.jankinwu.fntv.client.utils.chooseFile
+import com.jankinwu.fntv.client.utils.Mp4Parser
 import com.jankinwu.fntv.client.viewmodel.MediaPViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayPlayViewModel
@@ -133,6 +134,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.ExperimentalResourceApi
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.openani.mediamp.MediampPlayer
 import org.openani.mediamp.PlaybackState
@@ -1152,6 +1154,7 @@ fun rememberPlayMediaFunction(
     val userInfoViewModel: UserInfoViewModel = koinViewModel()
     val playRecordViewModel: PlayRecordViewModel = koinViewModel()
     val playerViewModel: PlayerViewModel = koinViewModel()
+    val mp4Parser: Mp4Parser = koinInject()
     val scope = rememberCoroutineScope()
     val playerManager = LocalPlayerManager.current
     return remember(
@@ -1164,6 +1167,7 @@ fun rememberPlayMediaFunction(
         mediaGuid,
         currentAudioGuid,
         currentSubtitleGuid,
+        mp4Parser
     ) {
         {
             scope.launch {
@@ -1179,7 +1183,8 @@ fun rememberPlayMediaFunction(
                     playerManager = playerManager,
                     mediaGuid = mediaGuid,
                     currentAudioGuid = currentAudioGuid,
-                    currentSubtitleGuid = currentSubtitleGuid
+                    currentSubtitleGuid = currentSubtitleGuid,
+                    mp4Parser = mp4Parser
                 )
             }
         }
@@ -1198,7 +1203,8 @@ private suspend fun playMedia(
     playerManager: PlayerManager,
     mediaGuid: String?,
     currentAudioGuid: String?,
-    currentSubtitleGuid: String?
+    currentSubtitleGuid: String?,
+    mp4Parser: Mp4Parser
 ) {
     try {
         // 获取播放信息
@@ -1276,14 +1282,28 @@ private suspend fun playMedia(
             createPlayRequest(videoStream, fileStream, audioGuid, subtitleGuid, forcedSdr)
 
         var playLink = ""
-        // 获取播放链接
-        try {
-            val playResponse = playPlayViewModel.loadDataAndWait(playRequest)
-            playLink = playResponse.playLink
-        } catch (e: Exception) {
-            if (e.message?.contains("8192") ?: true) {
-                logger.i("使用直链播放")
-                playLink = "/v/api/v1/media/range/${playInfoResponse.mediaGuid}"
+        var effectiveStartPosition = startPosition
+
+        // 检查是否可以使用直链播放
+        val useDirectLink = videoStream.wrapper == "MP4" && videoStream.colorRangeType == "SDR"
+
+        if (useDirectLink) {
+            logger.i("满足直链播放条件: wrapper=MP4, colorRangeType=SDR")
+            val (link, start) = getDirectPlayLink(playInfoResponse.mediaGuid, startPosition, mp4Parser)
+            playLink = link
+            effectiveStartPosition = start
+        } else {
+            // 获取播放链接
+            try {
+                val playResponse = playPlayViewModel.loadDataAndWait(playRequest)
+                playLink = playResponse.playLink
+            } catch (e: Exception) {
+                if (e.message?.contains("8192") ?: true) {
+                    logger.i("播放接口返回8192，降级使用直链播放")
+                    val (link, start) = getDirectPlayLink(playInfoResponse.mediaGuid, startPosition, mp4Parser)
+                    playLink = link
+                    effectiveStartPosition = start
+                }
             }
         }
 
@@ -1291,14 +1311,14 @@ private suspend fun playMedia(
         val finalCache = cache.copy(playLink = playLink)
         playerViewModel.updatePlayingInfo(finalCache)
 
-        logger.i("startPosition: $startPosition")
+        logger.i("startPosition: $startPosition, effectiveStartPosition: $effectiveStartPosition")
         // 设置字幕
         val extraFiles = subtitleStream?.let {
             val mediaExtraFiles = getMediaExtraFiles(it)
             mediaExtraFiles
         } ?: MediaExtraFiles()
         // 启动播放器
-        startPlayback(player, playLink, startPosition, extraFiles)
+        startPlayback(player, playLink, effectiveStartPosition, extraFiles)
         // 调用playRecord接口
             callPlayRecord(
 //            itemGuid = guid,
@@ -1351,6 +1371,29 @@ private suspend fun fetchStreamInfo(
     )
 }
 
+private suspend fun getDirectPlayLink(
+    mediaGuid: String,
+    startPosition: Long,
+    mp4Parser: Mp4Parser
+): Pair<String, Long> {
+    val directLinkBase = "/v/api/v1/media/range/${mediaGuid}"
+    val fullUrl = "${AccountDataCache.getProxyBaseUrl()}$directLinkBase"
+    val ts = startPosition / 1000.0
+
+    return try {
+        val offset = mp4Parser.getOffset(fullUrl, ts)
+        if (offset > 0) {
+            val link = "$directLinkBase?range=bytes=$offset-"
+            link to 0L
+        } else {
+            directLinkBase to startPosition
+        }
+    } catch (ex: Exception) {
+        logger.e(ex) { "Failed to calculate offset" }
+        directLinkBase to startPosition
+    }
+}
+
 private fun createPlayRequest(
     videoStream: VideoStream,
     fileStream: FileInfo,
@@ -1379,6 +1422,13 @@ private suspend fun startPlayback(
     startPosition: Long,
     extraFiles: MediaExtraFiles
 ) {
+    val isDirectLink = playLink.contains("/v/api/v1/media/range/")
+    val baseUrl = if (AccountDataCache.cookieState.isNotBlank() && isDirectLink) {
+        AccountDataCache.getProxyBaseUrl()
+    } else {
+        AccountDataCache.getFnOfficialBaseUrl()
+    }
+
     if (AccountDataCache.cookieState.isNotBlank()) {
         val headers = mapOf(
             "cookie" to AccountDataCache.cookieState,
@@ -1386,15 +1436,17 @@ private suspend fun startPlayback(
         )
 //        headers["Authorization"] = AccountDataCache.authorization
         val extraFilesStr = PlayerScreen.mapper.writeValueAsString(extraFiles)
-        logger.i("play param: headers: $headers, playUri: ${AccountDataCache.getFnOfficialBaseUrl()}$playLink, extraFiles: $extraFilesStr")
-        player.playUri("${AccountDataCache.getFnOfficialBaseUrl()}$playLink", headers, extraFiles)
+        logger.i("play param: headers: $headers, playUri: $baseUrl$playLink, extraFiles: $extraFilesStr")
+        player.playUri("$baseUrl$playLink", headers, extraFiles)
     } else {
         player.playUri(
-            "${AccountDataCache.getFnOfficialBaseUrl()}$playLink",
+            "$baseUrl$playLink",
             extraFiles = extraFiles
         )
     }
-    delay(1500) // 等待播放器初始化
+    if (!isDirectLink) {
+        delay(1500) // 等待播放器初始化
+    }
     player.features[PlaybackSpeed]?.set(1.0f)
     // 恢复音量
     val savedVolume = PlayingSettingsStore.getVolume()
