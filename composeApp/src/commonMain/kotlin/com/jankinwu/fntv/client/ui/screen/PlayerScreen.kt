@@ -150,6 +150,7 @@ private val logger = Logger.withTag("PlayerScreen")
 
 data class PlayerState(
     val isVisible: Boolean = false,
+    val isUiVisible: Boolean = true,
     val itemGuid: String = "",
     val mediaTitle: String = "",
     val subhead: String = "",
@@ -169,6 +170,7 @@ class PlayerManager {
     ) {
         playerState = PlayerState(
             isVisible = true,
+            isUiVisible = true,
             itemGuid = itemGuid,
             mediaTitle = mediaTitle,
             subhead = subhead,
@@ -179,6 +181,12 @@ class PlayerManager {
 
     fun hidePlayer() {
         playerState = playerState.copy(isVisible = false)
+    }
+
+    fun setUiVisible(visible: Boolean) {
+        if (playerState.isVisible && playerState.isUiVisible != visible) {
+            playerState = playerState.copy(isUiVisible = visible)
+        }
     }
 }
 
@@ -248,6 +256,10 @@ fun PlayerOverlay(
 ) {
     // 控制UI可见性的状态
     var uiVisible by remember { mutableStateOf(true) }
+    val playerManager = LocalPlayerManager.current
+    LaunchedEffect(uiVisible) {
+        playerManager.setUiVisible(uiVisible)
+    }
     var isCursorVisible by remember { mutableStateOf(true) }
     var lastMouseMoveTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -261,7 +273,6 @@ fun PlayerOverlay(
     val isPlayControlHovered =
         isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
-    val playerManager = LocalPlayerManager.current
     val frameWindowScope = LocalFrameWindowScope.current
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val tagViewModel: TagViewModel = koinViewModel()

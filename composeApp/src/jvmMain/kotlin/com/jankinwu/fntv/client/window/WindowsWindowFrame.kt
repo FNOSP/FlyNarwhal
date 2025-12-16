@@ -195,49 +195,62 @@ fun FrameWindowScope.WindowsWindowFrame(
                         Spacer(modifier = Modifier.width(14.dp).height(36.dp))
                     }
                 }
-                 val playerManager = LocalPlayerManager.current
-                 val playerVisible = playerManager.playerState.isVisible
-                 if (!playerVisible) {
-                     if (icon != null) {
-                         Image(
-                             painter = icon,
-                             contentDescription = null,
-                             modifier = Modifier.padding(start = 6.dp).size(16.dp)
-                         )
-                     }
-                     if (title.isNotEmpty()) {
-                         Text(
-                             text = title,
-                             style = FluentTheme.typography.caption,
-                             modifier = Modifier.padding(start = 16.dp)
-                         )
-                         HasNewVersionTag()
-                     }
-                 }
-                Spacer(modifier = Modifier.weight(1f))
-                window.CaptionButtonRow(
-                    windowHandle = procedure.windowHandle,
-                    isMaximize = state.placement == WindowPlacement.Maximized,
-                    onCloseRequest = onCloseRequest,
-                    onRefreshClick = onRefreshClick,
-                    onRefreshAnimationStart = onRefreshAnimationStart,
-                    onRefreshAnimationEnd = onRefreshAnimationEnd,
-                    onMaximizeButtonRectUpdate = {
-                        maxButtonRect.value = it
-                    },
-                    onMinimizeButtonRectUpdate = {
-                        minButtonRect.value = it
-                    },
-                    onCloseButtonRectUpdate = {
-                        closeButtonRect.value = it
-                    },
-                    accentColor = procedure.windowFrameColor,
-                    frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
-                    isActive = procedure.isWindowActive,
-                    modifier = Modifier.align(Alignment.CenterVertically).onSizeChanged {
-                        contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
+                val playerManager = LocalPlayerManager.current
+                val playerVisible = playerManager.playerState.isVisible
+                val uiVisible = playerManager.playerState.isUiVisible
+                val showCaptionButtons = !playerVisible || uiVisible
+
+                LaunchedEffect(showCaptionButtons) {
+                    if (!showCaptionButtons) {
+                        maxButtonRect.value = Rect.Zero
+                        minButtonRect.value = Rect.Zero
+                        closeButtonRect.value = Rect.Zero
                     }
-                )
+                }
+
+                if (!playerVisible) {
+                    if (icon != null) {
+                        Image(
+                            painter = icon,
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 6.dp).size(16.dp)
+                        )
+                    }
+                    if (title.isNotEmpty()) {
+                        Text(
+                            text = title,
+                            style = FluentTheme.typography.caption,
+                            modifier = Modifier.padding(start = 16.dp)
+                        )
+                        HasNewVersionTag()
+                    }
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                if (showCaptionButtons) {
+                    window.CaptionButtonRow(
+                        windowHandle = procedure.windowHandle,
+                        isMaximize = state.placement == WindowPlacement.Maximized,
+                        onCloseRequest = onCloseRequest,
+                        onRefreshClick = onRefreshClick,
+                        onRefreshAnimationStart = onRefreshAnimationStart,
+                        onRefreshAnimationEnd = onRefreshAnimationEnd,
+                        onMaximizeButtonRectUpdate = {
+                            maxButtonRect.value = it
+                        },
+                        onMinimizeButtonRectUpdate = {
+                            minButtonRect.value = it
+                        },
+                        onCloseButtonRectUpdate = {
+                            closeButtonRect.value = it
+                        },
+                        accentColor = procedure.windowFrameColor,
+                        frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
+                        isActive = procedure.isWindowActive,
+                        modifier = Modifier.align(Alignment.CenterVertically).onSizeChanged {
+                            contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
+                        }
+                    )
+                }
             }
         }
     }

@@ -71,6 +71,13 @@ fun FrameWindowScope.MacOSWindowFrame(
     }
     val playerManager = LocalPlayerManager.current
     val playerVisible = playerManager.playerState.isVisible
+    val uiVisible = playerManager.playerState.isUiVisible
+    val showTrafficLights = !playerVisible || uiVisible
+
+    LaunchedEffect(showTrafficLights) {
+        com.jankinwu.fntv.client.utils.MacOSTrafficLightUtils.setTrafficLightButtonsVisible(window, showTrafficLights)
+    }
+
     //TODO Get real macOS caption bar width.
     Box {
         val contentInset = WindowInsets(left = 80.dp)
