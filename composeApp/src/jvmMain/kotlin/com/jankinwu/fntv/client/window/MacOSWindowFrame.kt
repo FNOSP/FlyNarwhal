@@ -127,7 +127,6 @@ fun FrameWindowScope.MacOSWindowFrame(
                         )
                     }
 
-                    HasNewVersionTag()
                     // 添加刷新按钮
                     if (onRefreshClick != null) {
                         val rotation = remember { Animatable(0f) }
@@ -156,6 +155,7 @@ fun FrameWindowScope.MacOSWindowFrame(
                                 }
                         )
                     }
+                    HasNewVersionTag()
                     Spacer(modifier = Modifier.weight(1f))
                 }
             }

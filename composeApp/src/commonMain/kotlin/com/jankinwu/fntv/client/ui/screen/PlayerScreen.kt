@@ -129,6 +129,8 @@ import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.DialogSize
+import io.github.composefluent.component.FontIconDefaults
+import io.github.composefluent.component.FontIconSize
 import korlibs.crypto.MD5
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
@@ -639,7 +641,8 @@ fun PlayerOverlay(
             MediampPlayerSurface(
                 mediaPlayer, Modifier
                     .fillMaxSize()
-                    .padding(top = if (windowState.placement != WindowPlacement.Fullscreen) 48.dp else 0.dp)
+//                    .padding(top = if (windowState.placement != WindowPlacement.Fullscreen) 48.dp else 0.dp)
+                    .padding(top = 0.dp)
                     .clickable(
                         interactionSource = interactionSource,
                         indication = null,
@@ -1691,7 +1694,7 @@ fun PlayerTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 10.dp)
+//                .padding(top = 10.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -1699,6 +1702,7 @@ fun PlayerTopBar(
                     .padding(start = 80.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val interaction = remember { MutableInteractionSource() }
                 NavigationDefaults.BackButton(
                     onClick = {
                         mediaPlayer.stopPlayback()
@@ -1707,6 +1711,10 @@ fun PlayerTopBar(
                         if (windowState.placement == WindowPlacement.Fullscreen) {
                             windowState.placement = WindowPlacement.Floating
                         }
+                    },
+                    interaction = interaction,
+                    icon = {
+                        FontIconDefaults.BackIcon(interaction, size = FontIconSize(16f))
                     }
                 )
             }

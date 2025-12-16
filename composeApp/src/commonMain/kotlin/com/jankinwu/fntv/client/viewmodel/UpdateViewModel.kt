@@ -22,7 +22,7 @@ class UpdateViewModel : BaseViewModel() {
     private var lastCheckTime = 0L
     private var scheduledCheckJob: Job? = null
     private val checkInterval = 5 * 60 * 1000L // 5 minutes (for prerelease toggle)
-    private val periodicCheckInterval = 4 * 60 * 60 * 1000L // 4 hours
+    private val periodicCheckInterval = 1 * 60 * 60 * 1000L // 4 hours
 
     init {
         startPeriodicCheck()
