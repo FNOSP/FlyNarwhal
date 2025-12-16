@@ -35,6 +35,7 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import com.jankinwu.fntv.client.icons.RefreshCircle
 import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.animation.FluentDuration
 import io.github.composefluent.animation.FluentEasing
@@ -68,6 +69,8 @@ fun FrameWindowScope.MacOSWindowFrame(
     LaunchedEffect(window, captionBarHeight) {
         window.findSkiaLayer()?.disableTitleBar(captionBarHeight.value)
     }
+    val playerManager = LocalPlayerManager.current
+    val playerVisible = playerManager.playerState.isVisible
     //TODO Get real macOS caption bar width.
     Box {
         val contentInset = WindowInsets(left = 80.dp)
@@ -101,58 +104,61 @@ fun FrameWindowScope.MacOSWindowFrame(
                         Spacer(modifier = Modifier.width(2.dp).height(36.dp))
                     }
                 }
-                if (icon != null) {
-                    Image(
-                        painter = icon,
-                        contentDescription = null,
-                        modifier = Modifier.padding(start = 6.dp).size(16.dp)
-                    )
-                }
-                if (title.isNotEmpty()) {
-                    Text(
-                        text = title,
-                        style = FluentTheme.typography.caption,
-                        modifier = Modifier.padding(start = 16.dp)
-                    )
-                }
-                HasNewVersionTag()
-                Spacer(modifier = Modifier.weight(1f))
-                // 添加刷新按钮
-                if (onRefreshClick != null) {
-                    val rotation = remember { Animatable(0f) }
-                    val coroutineScope = rememberCoroutineScope()
-                    Icon(
-                        imageVector = RefreshCircle,
-                        contentDescription = "Refresh",
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .size(16.dp)
-                            .clickable {
-                                // 启动旋转动画
-                                coroutineScope.launch {
-                                    rotation.animateTo(
-                                        targetValue = 360f,
-                                        animationSpec = tween(durationMillis = 1000)
-                                    )
-                                    // 重置旋转角度
-                                    rotation.snapTo(0f)
+                if (!playerVisible) {
+                    if (icon != null) {
+                        Image(
+                            painter = icon,
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 6.dp).size(16.dp)
+                        )
+                    }
+                    if (title.isNotEmpty()) {
+                        Text(
+                            text = title,
+                            style = FluentTheme.typography.caption,
+                            modifier = Modifier.padding(start = 16.dp)
+                        )
+                    }
+
+                    HasNewVersionTag()
+                    // 添加刷新按钮
+                    if (onRefreshClick != null) {
+                        val rotation = remember { Animatable(0f) }
+                        val coroutineScope = rememberCoroutineScope()
+                        Icon(
+                            imageVector = RefreshCircle,
+                            contentDescription = "Refresh",
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .size(16.dp)
+                                .clickable {
+                                    // 启动旋转动画
+                                    coroutineScope.launch {
+                                        rotation.animateTo(
+                                            targetValue = 360f,
+                                            animationSpec = tween(durationMillis = 1000)
+                                        )
+                                        // 重置旋转角度
+                                        rotation.snapTo(0f)
+                                    }
+                                    // 执行刷新逻辑
+                                    onRefreshClick()
                                 }
-                                // 执行刷新逻辑
-                                onRefreshClick()
-                            }
-                            .graphicsLayer {
-                                rotationZ = rotation.value
-                            }
-                    )
+                                .graphicsLayer {
+                                    rotationZ = rotation.value
+                                }
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
+
         }
 
-    }
-
-    window.rootPane.apply {
-        rootPane.putClientProperty("apple.awt.fullWindowContent", true)
-        rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
-        rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
+        window.rootPane.apply {
+            rootPane.putClientProperty("apple.awt.fullWindowContent", true)
+            rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
+            rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
+        }
     }
 }

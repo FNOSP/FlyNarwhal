@@ -37,4 +37,8 @@ object AppSettingsStore {
     var windowHeight: Float
         get() = settings.getFloat("window_height", 720f)
         set(value) = settings.set("window_height", value)
+
+    var skippedVersions: Set<String>
+        get() = settings.getString("skipped_versions", "").split(",").filter { it.isNotEmpty() }.toSet()
+        set(value) = settings.set("skipped_versions", value.joinToString(","))
 }

@@ -96,13 +96,25 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
     UpdateDialog(
         status = updateStatus,
         showDialog = showUpdateDialog,
-        onDownload = { info -> updateViewModel.downloadUpdate(info) },
+        onDownload = { info, force -> updateViewModel.downloadUpdate(info, force) },
         onInstall = { info -> updateViewModel.installUpdate(info) },
-        onDismiss = {
+        onSkip = { info ->
+            updateViewModel.skipVersion(info.version)
+            showUpdateDialog = false
+        },
+        onCancelDownload = {
             updateViewModel.cancelDownload()
             showUpdateDialog = false
-            // 不再清除全局状态，以保留更新提示标签
-            // updateViewModel.clearStatus()
+        },
+        onDeleteAndDismiss = { info ->
+            updateViewModel.deleteUpdate(info)
+            showUpdateDialog = false
+        },
+        onBackground = {
+            showUpdateDialog = false
+        },
+        onDismiss = {
+            showUpdateDialog = false
         }
     )
 

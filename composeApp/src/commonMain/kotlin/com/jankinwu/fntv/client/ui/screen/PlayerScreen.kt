@@ -58,6 +58,8 @@ import co.touchlab.kermit.Logger
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.jankinwu.fntv.client.Platform
+import com.jankinwu.fntv.client.currentPlatform
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
@@ -611,11 +613,12 @@ fun PlayerOverlay(
                     ImgLoadingProgressRing(modifier = Modifier.size(32.dp))
                 }
             }
+            val platform = currentPlatform()
             // 播放器 UI
             if (uiVisible) {
                 Row(
                     modifier = Modifier
-                        .padding(top = 12.dp)
+                        .padding(top = if(platform is Platform.MacOS) 48.dp else 12.dp)
                         .align(Alignment.TopStart)
                         .padding(start = 20.dp, top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.Start),
@@ -1416,7 +1419,7 @@ private fun handlePlayerKeyEvent(
     if (event.type == KeyEventType.KeyDown) {
         var handled = true
         when (event.key) {
-            Key.M -> {
+            Key.M, Key.VolumeMute -> {
                 audioLevelController?.let {
                     val currentVolume = it.volume.value
                     if (currentVolume > 0) {
@@ -1432,7 +1435,7 @@ private fun handlePlayerKeyEvent(
                     }
                 }
             }
-            Key.DirectionLeft -> {
+            Key.DirectionLeft, Key.MediaStepBackward -> {
                 val seekPosition = (mediaPlayer.currentPositionMillis.value - 10000).coerceAtLeast(0)
                 mediaPlayer.seekTo(seekPosition)
                 val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
@@ -1445,7 +1448,7 @@ private fun handlePlayerKeyEvent(
                     onError = { logger.i("Seek时调用playRecord失败：缓存为空") }
                 )
             }
-            Key.DirectionRight -> {
+            Key.DirectionRight, Key.MediaStepForward-> {
                 val seekPosition = (mediaPlayer.currentPositionMillis.value + 10000).coerceAtMost(playerManager.playerState.duration)
                 mediaPlayer.seekTo(seekPosition)
                 val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
@@ -1458,7 +1461,7 @@ private fun handlePlayerKeyEvent(
                     onError = { logger.i("Seek时调用playRecord失败：缓存为空") }
                 )
             }
-            Key.DirectionUp -> {
+            Key.DirectionUp, Key.VolumeUp -> {
                 audioLevelController?.let {
                     val newVolume = (it.volume.value + 0.1f).coerceIn(0f, 1f)
                     it.setVolume(newVolume)
@@ -1467,7 +1470,7 @@ private fun handlePlayerKeyEvent(
                     onLastVolumeChange(0f)
                 }
             }
-            Key.DirectionDown -> {
+            Key.DirectionDown, Key.VolumeDown -> {
                 audioLevelController?.let {
                     val newVolume = (it.volume.value - 0.1f).coerceIn(0f, 1f)
                     it.setVolume(newVolume)
@@ -1476,8 +1479,11 @@ private fun handlePlayerKeyEvent(
                     onLastVolumeChange(0f)
                 }
             }
-            Key.Spacebar -> {
+            Key.Spacebar, Key.MediaPlayPause -> {
                 mediaPlayer.togglePause()
+            }
+            Key.MediaStop -> {
+                mediaPlayer.pause()
             }
             Key.F -> {
                 if (windowState.placement == WindowPlacement.Fullscreen) {

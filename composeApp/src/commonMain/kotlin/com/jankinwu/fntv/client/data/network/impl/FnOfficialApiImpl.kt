@@ -277,7 +277,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             val body = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (body.code != 0) {
                 logger.e { "请求异常: ${body.msg}, url: $url" }
-                throw Exception("请求失败, url: $url, code: ${body.code}, msg: ${body.msg}")
+                throw Exception("url: $url, code: ${body.code}, msg: ${body.msg}")
             }
 
             body.data ?: throw Exception("返回数据为空")
@@ -320,7 +320,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (responseBody.code != 0) {
                 logger.e { "请求异常: ${responseBody.msg}, url: $url, request body: $body" }
-                throw Exception("请求失败, url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
+                throw Exception("url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
             }
 
             responseBody.data ?: throw Exception("返回数据为空")
@@ -378,7 +378,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
 
             val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (responseBody.code != 0) {
-                throw Exception("请求失败, url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
+                throw Exception("url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
             }
 
             responseBody.data ?: throw Exception("返回数据为空")
@@ -416,7 +416,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (responseBody.code != 0) {
                 logger.e { "请求异常: ${responseBody.msg}, url: $url, request body: $body" }
-                throw Exception("请求失败, url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
+                throw Exception("url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
             }
 
             responseBody.data ?: throw Exception("返回数据为空")
@@ -461,7 +461,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (responseBody.code != 0) {
                 logger.e { "请求异常: ${responseBody.msg}, url: $url, request body: $body" }
-                throw Exception("请求失败, url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
+                throw Exception("url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
             }
 
             responseBody.data ?: throw Exception("返回数据为空")

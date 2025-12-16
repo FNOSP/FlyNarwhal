@@ -35,6 +35,9 @@ haze = "1.7.1"
 kermit = "2.0.8"
 kotlinx-io = "0.8.2"
 compottie = "2.0.2"
+jfa = "1.2.0"
+jna = "5.18.1"
+jSystemThemeDetector = "3.9"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -84,6 +87,10 @@ haze-materials = { group = "dev.chrisbanes.haze", name = "haze-materials", versi
 kermit = { group = "co.touchlab", name = "kermit", version.ref = "kermit" }
 kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
 compottie = { module = "io.github.alexzhirkevich:compottie", version.ref = "compottie" }
+jfa = { group = "de.jangassen", name = "jfa", version.ref = "jfa" }
+#jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+#jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
+jSystemThemeDetector = { module = "org.openani.jsystemthemedetector:jSystemThemeDetector", version.ref = "jSystemThemeDetector" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
