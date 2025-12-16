@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.0.7"
+val appVersion = "1.0.5"
 val appVersionSuffix = "Alpha"
 
 val platformStr = when {
@@ -180,12 +180,10 @@ kotlin {
             implementation(libs.oshi.core)
             implementation(libs.versioncompare)
             implementation(libs.jSystemThemeDetector)
-//            implementation(files("libs/jSystemThemeDetector-3.8.jar"))
-//            implementation(libs.jfa)
-//            implementation(libs.jpms)
-//            implementation(libs.jna.platform)
-//            implementation(libs.mediamp.vlc)
-//            implementation(libs.mediamp.vlc.compose)
+            implementation(libs.jfa.get().toString()) {
+                exclude(group = "net.java.dev.jna")
+            }
+//            implementation(libs.jna)
         }
     }
     
