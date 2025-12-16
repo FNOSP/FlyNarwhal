@@ -1557,7 +1557,9 @@ private suspend fun startPlayback(
         )
     }
     if (!isDirectLink) {
-        delay(1500) // 等待播放器初始化
+        delay(1000) // 等待播放器初始化
+    } else {
+        delay(500) // 延迟500ms，等待播放器初始化
     }
     player.features[PlaybackSpeed]?.set(1.0f)
     // 恢复音量
