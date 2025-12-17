@@ -1284,8 +1284,10 @@ fun PlayerControlRow(
                 onClick = {
                     if (windowState.placement == WindowPlacement.Fullscreen) {
                         windowState.placement = WindowPlacement.Floating
+                        AppSettingsStore.playerIsFullscreen = false
                     } else {
                         windowState.placement = WindowPlacement.Fullscreen
+                        AppSettingsStore.playerIsFullscreen = true
                     }
                 }
             )
@@ -1920,11 +1922,19 @@ private fun handlePlayerKeyEvent(
                 mediaPlayer.pause()
             }
 
-            Key.F, Key.Escape -> {
+            Key.F -> {
                 if (windowState.placement == WindowPlacement.Fullscreen) {
                     windowState.placement = WindowPlacement.Floating
+                    AppSettingsStore.playerIsFullscreen = false
                 } else {
                     windowState.placement = WindowPlacement.Fullscreen
+                    AppSettingsStore.playerIsFullscreen = true
+                }
+            }
+            Key.Escape -> {
+                if (windowState.placement == WindowPlacement.Fullscreen) {
+                    windowState.placement = WindowPlacement.Floating
+                    AppSettingsStore.playerIsFullscreen = false
                 }
             }
 
@@ -2053,7 +2063,8 @@ fun PlayerTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-//                .padding(top = 10.dp)
+                .padding(top = 5.dp),
+            contentAlignment = Alignment.Center
         ) {
             Box(
                 modifier = Modifier
@@ -2067,9 +2078,6 @@ fun PlayerTopBar(
                         mediaPlayer.stopPlayback()
                         playerViewModel.updatePlayingInfo(null)
                         onBack()
-                        if (windowState.placement == WindowPlacement.Fullscreen) {
-                            windowState.placement = WindowPlacement.Floating
-                        }
                     },
                     interaction = interaction,
                     icon = {
@@ -2137,9 +2145,6 @@ fun PlayerTopBar(
                             // 清除缓存
                             playerViewModel.updatePlayingInfo(null)
                             onBack()
-                            if (windowState.placement == WindowPlacement.Fullscreen) {
-                                windowState.placement = WindowPlacement.Floating
-                            }
                         }
                     ),
                 contentAlignment = Alignment.Center
