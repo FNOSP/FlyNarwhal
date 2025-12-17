@@ -71,6 +71,7 @@ import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.model.response.FileInfo
 import com.jankinwu.fntv.client.data.model.response.MediaResetQualityResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
+import com.jankinwu.fntv.client.data.model.response.PlayPlayResponse
 import com.jankinwu.fntv.client.data.model.response.QualityResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
@@ -278,10 +279,12 @@ fun PlayerOverlay(
         isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
     val frameWindowScope = LocalFrameWindowScope.current
+//    val scope = rememberCoroutineScope()
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val tagViewModel: TagViewModel = koinViewModel()
     val playerViewModel: PlayerViewModel = koinViewModel()
     val playPlayViewModel: PlayPlayViewModel = koinViewModel()
+    val playPlayState by playPlayViewModel.uiState.collectAsState()
     val mp4Parser: Mp4Parser = koinInject()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
     val resetQualityState by mediaPViewModel.resetQualityState.collectAsState()
@@ -409,6 +412,17 @@ fun PlayerOverlay(
             subtitleUploadViewModel.clearError()
         }
     }
+    LaunchedEffect(playPlayState) {
+        if (playPlayState is UiState.Success) {
+            (playPlayState as UiState.Success<PlayPlayResponse>).data.let { playResponse ->
+                val newPlayLink = playResponse.playLink
+                playerViewModel.updatePlayingInfo(playingInfoCache?.copy(playLink = newPlayLink, isUseDirectLink = false))
+                val extraFiles = playingInfoCache?.currentSubtitleStream?.let { getMediaExtraFiles(it) }
+                    ?: MediaExtraFiles()
+                startPlayback(mediaPlayer, newPlayLink, mediaPlayer.getCurrentPositionMillis(), extraFiles)
+            }
+        }
+    }
 
     var currentResolution by remember { mutableStateOf("") }
     var currentBitrate by remember { mutableStateOf<Int?>(null) }
@@ -477,23 +491,23 @@ fun PlayerOverlay(
                     var newPlayLink = ""
                     val videoStream = cache.currentVideoStream
 
-                    if (!cache.isUseDirectLink) {
-                        val forcedSdr = if (videoStream.colorRangeType != "SDR") 1 else 0
-                        val playRequest = createPlayRequest(
-                            videoStream,
-                            cache.currentFileStream,
-                            cache.currentAudioStream?.guid ?: "",
-                            cache.currentSubtitleStream?.guid,
-                            forcedSdr
-                        )
-                        try {
-                            val playResponse = playPlayViewModel.loadDataAndWait(playRequest)
-                            newPlayLink = playResponse.playLink
-                            playerViewModel.updatePlayingInfo(cache.copy(playLink = newPlayLink))
-                        } catch (e: Exception) {
-                            logger.e("Failed to fetch HLS link", e)
-                        }
-                    }
+                    // if (!cache.isUseDirectLink) {
+                    //     val forcedSdr = if (videoStream.colorRangeType != "SDR") 1 else 0
+                    //     val playRequest = createPlayRequest(
+                    //         videoStream,
+                    //         cache.currentFileStream,
+                    //         cache.currentAudioStream?.guid ?: "",
+                    //         cache.currentSubtitleStream?.guid,
+                    //         forcedSdr
+                    //     )
+                    //     try {
+                    //         val playResponse = playPlayViewModel.loadDataAndWait(playRequest)
+                    //         newPlayLink = playResponse.playLink
+                    //         playerViewModel.updatePlayingInfo(cache.copy(playLink = newPlayLink))
+                    //     } catch (e: Exception) {
+                    //         logger.e("Failed to fetch HLS link", e)
+                    //     }
+                    // }
 
                     val extraFiles = cache.currentSubtitleStream?.let { getMediaExtraFiles(it) }
                         ?: MediaExtraFiles()
@@ -722,11 +736,14 @@ fun PlayerOverlay(
                             mediaPlayer,
                             playerViewModel,
                             mediaPViewModel,
+                            playPlayViewModel,
                             updateResolution = { res, bitrate ->
                                 currentResolution = res
                                 currentBitrate = bitrate
                             }
                         )
+//                        scope.launch {
+//                        }
                     },
                     onAudioSelected = { audio ->
                         val cache = playingInfoCache
@@ -1227,7 +1244,12 @@ private suspend fun playMedia(
             mediaExtraFiles
         } ?: MediaExtraFiles()
         // 启动播放器
-        startPlayback(player, playLinkResult.playLink, playLinkResult.effectiveStartPosition, extraFiles)
+        startPlayback(
+            player,
+            playLinkResult.playLink,
+            playLinkResult.effectiveStartPosition,
+            extraFiles
+        )
         // 调用playRecord接口
         callPlayRecord(
 //            itemGuid = guid,
@@ -1611,16 +1633,16 @@ private fun handleQualitySelection(
     mediaPlayer: MediampPlayer,
     playerViewModel: PlayerViewModel,
     mediaPViewModel: MediaPViewModel,
+    playPlayViewModel: PlayPlayViewModel,
     updateResolution: (String, Int?) -> Unit
 ) {
     updateResolution(quality.resolution, quality.bitrate)
     PlayingSettingsStore.saveQuality(quality.resolution, quality.bitrate)
 
-    val cache = playingInfoCache
-    if (cache != null) {
-        val currentQuality = cache.currentQuality
-        val originalQuality = cache.streamInfo.qualities.firstOrNull()
-        val videoStream = cache.currentVideoStream
+    if (playingInfoCache != null) {
+        val currentQuality = playingInfoCache.currentQuality
+        val originalQuality = playingInfoCache.streamInfo.qualities.firstOrNull()
+        val videoStream = playingInfoCache.currentVideoStream
         val currentResolution = quality.resolution
         val currentBitrate = quality.bitrate
 
@@ -1632,9 +1654,9 @@ private fun handleQualitySelection(
         val canUseDirectLink = videoStream.wrapper == "MP4" &&
                 videoStream.colorRangeType == "SDR"
         // If currently not using direct link, and video can be direct linked, and target quality is original, call media.quit
-        if (!cache.isUseDirectLink && isTargetOriginalQuality && canUseDirectLink) {
+        if (!playingInfoCache.isUseDirectLink && isTargetOriginalQuality && canUseDirectLink) {
             playerViewModel.updatePlayingInfo(
-                cache.copy(
+                playingInfoCache.copy(
                     currentQuality = quality,
                     isUseDirectLink = true,
                     playLink = null
@@ -1642,17 +1664,15 @@ private fun handleQualitySelection(
             )
             mediaPViewModel.quit(
                 MediaPRequest(
-                    playLink = cache.playLink ?: ""
+                    playLink = playingInfoCache.playLink ?: ""
                 )
             )
         }
         // If current video can be direct linked and target is not original, or cannot be direct linked and target is original, call media.resetQuality
-        // If currently using direct link and switching to other quality, no need to call media.resetQuality (handled by quit logic?) 
-        // Wait, the logic in original code was: if(!cache.isUseDirectLink) { ... }
-        if (!cache.isUseDirectLink) {
+        if (!playingInfoCache.isUseDirectLink) {
             if ((!isTargetOriginalQuality && canUseDirectLink) || (!canUseDirectLink && isTargetOriginalQuality)) {
                 playerViewModel.updatePlayingInfo(
-                    cache.copy(
+                    playingInfoCache.copy(
                         currentQuality = quality,
                         isUseDirectLink = false
                     )
@@ -1660,7 +1680,7 @@ private fun handleQualitySelection(
                 val request = MediaPRequest(
                     req = "media.resetQuality",
                     reqId = "${System.currentTimeMillis()}",
-                    playLink = cache.playLink ?: "",
+                    playLink = playingInfoCache.playLink ?: "",
                     quality = MediaPRequest.Quality(
                         quality.resolution,
                         quality.bitrate
@@ -1670,11 +1690,26 @@ private fun handleQualitySelection(
                 )
                 mediaPViewModel.resetQuality(request)
                 playerViewModel.updatePlayingInfo(
-                    cache.copy(
+                    playingInfoCache.copy(
                         currentQuality = quality,
                         isUseDirectLink = false
                     )
                 )
+            }
+        }
+        if (playingInfoCache.isUseDirectLink) {
+            val forcedSdr = if (videoStream.colorRangeType != "SDR") 1 else 0
+            val playRequest = createPlayRequest(
+                videoStream,
+                playingInfoCache.currentFileStream,
+                playingInfoCache.currentAudioStream?.guid ?: "",
+                playingInfoCache.currentSubtitleStream?.guid,
+                forcedSdr
+            )
+            try {
+                playPlayViewModel.loadData(playRequest)
+            } catch (e: Exception) {
+                logger.e("Failed to fetch HLS link", e)
             }
         }
     }
@@ -1851,6 +1886,7 @@ fun PlayerDialogs(
                 ContentDialogButton.Primary -> {
                     onSubtitleDeleteConfirm()
                 }
+
                 else -> {}
             }
             onDeleteSubtitleDialogDismiss()
