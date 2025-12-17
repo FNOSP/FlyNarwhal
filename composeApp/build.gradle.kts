@@ -168,6 +168,7 @@ kotlin {
             implementation(libs.kermit)
             implementation(libs.kotlinx.io.core)
             implementation(libs.compottie)
+            implementation(libs.multiplatform.markdown.renderer)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

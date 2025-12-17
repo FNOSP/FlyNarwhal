@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ProgressIndicatorDefaults
@@ -20,6 +21,8 @@ import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.manager.UpdateInfo
 import com.jankinwu.fntv.client.manager.UpdateStatus
+import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FluentDialog
@@ -56,7 +59,11 @@ fun UpdateDialog(
                         Spacer(Modifier.height(12.dp))
                         Text("【更新内容】")
                         Spacer(Modifier.height(8.dp))
-                        Text(status.info.releaseNotes)
+                        Markdown(
+                            status.info.releaseNotes,
+                            markdownColor(text = FluentTheme.colors.text.text.primary),
+                            modifier = Modifier.wrapContentHeight()
+                        )
                         Spacer(Modifier.height(24.dp))
                         Row(
                             horizontalArrangement = Arrangement.End,
@@ -66,7 +73,9 @@ fun UpdateDialog(
                             Spacer(Modifier.width(8.dp))
                             DialogSecondaryButton("稍后再说", onClick = onDismiss)
                             Spacer(Modifier.width(8.dp))
-                            DialogAccentButton("下载更新", onClick = { onDownload(status.info, false) })
+                            DialogAccentButton(
+                                "下载更新",
+                                onClick = { onDownload(status.info, false) })
                         }
                     }
 
@@ -77,9 +86,16 @@ fun UpdateDialog(
                         Spacer(Modifier.height(12.dp))
                         Text("【更新内容】")
                         Spacer(Modifier.height(8.dp))
-                        Text(status.info.releaseNotes)
+                        Markdown(
+                            status.info.releaseNotes,
+                            markdownColor(text = FluentTheme.colors.text.text.primary),
+                            modifier = Modifier.wrapContentHeight()
+                        )
                         Spacer(Modifier.height(24.dp))
-                        Text("安装包已下载，是否立即安装？", style = FluentTheme.typography.bodyStrong)
+                        Text(
+                            "安装包已下载，是否立即安装？",
+                            style = FluentTheme.typography.bodyStrong
+                        )
                         Spacer(Modifier.height(24.dp))
                         Row(
                             horizontalArrangement = Arrangement.End,
@@ -140,7 +156,10 @@ fun UpdateDialog(
                     }
 
                     is UpdateStatus.VerificationSuccess -> {
-                        Text("文件完整性校验成功，准备执行安装程序...", style = FluentTheme.typography.bodyLarge)
+                        Text(
+                            "文件完整性校验成功，准备执行安装程序...",
+                            style = FluentTheme.typography.bodyLarge
+                        )
                     }
 
                     is UpdateStatus.VerificationFailed -> {
@@ -152,9 +171,13 @@ fun UpdateDialog(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            DialogSecondaryButton("稍后下载", onClick = { onDeleteAndDismiss(status.info) })
+                            DialogSecondaryButton(
+                                "稍后下载",
+                                onClick = { onDeleteAndDismiss(status.info) })
                             Spacer(Modifier.width(8.dp))
-                            DialogAccentButton("重新下载", onClick = { onDownload(status.info, true) })
+                            DialogAccentButton(
+                                "重新下载",
+                                onClick = { onDownload(status.info, true) })
                         }
                     }
 
