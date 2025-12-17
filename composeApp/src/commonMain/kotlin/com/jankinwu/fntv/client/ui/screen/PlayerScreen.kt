@@ -305,7 +305,7 @@ fun PlayerOverlay(
     val episodeListViewModel: EpisodeListViewModel = koinViewModel()
     val episodeListState by episodeListViewModel.uiState.collectAsState()
     var episodeList by remember { mutableStateOf(emptyList<EpisodeListResponse>()) }
-    var isAutoPlay by remember { mutableStateOf(true) }
+    var isAutoPlay by remember { mutableStateOf(AppSettingsStore.autoPlay) }
     val playPlayState by playPlayViewModel.uiState.collectAsState()
     val mp4Parser: Mp4Parser = koinInject()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
@@ -939,7 +939,10 @@ fun PlayerOverlay(
                     currentEpisodeGuid = playingInfoCache?.itemGuid ?: "",
                     onEpisodeSelected = { episode -> playEpisode(episode.guid) },
                     isAutoPlay = isAutoPlay,
-                    onAutoPlayChanged = { isAutoPlay = it },
+                    onAutoPlayChanged = {
+                        isAutoPlay = it
+                        AppSettingsStore.autoPlay = it
+                    },
                     onEpisodeControlHoverChanged = { isEpisodeControlHovered = it },
                     nextEpisode = nextEpisode,
                     onNextEpisode = {

@@ -62,4 +62,8 @@ object AppSettingsStore {
     var skippedVersions: Set<String>
         get() = settings.getString("skipped_versions", "").split(",").filter { it.isNotEmpty() }.toSet()
         set(value) = settings.set("skipped_versions", value.joinToString(","))
+
+    var autoPlay: Boolean
+        get() = settings.getBoolean("auto_play", true)
+        set(value) = settings.set("auto_play", value)
 }
