@@ -99,7 +99,6 @@ import com.jankinwu.fntv.client.ui.component.player.PlayerSettingsMenu
 import com.jankinwu.fntv.client.ui.component.player.QualityControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SpeedControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SubtitleControlFlyout
-import io.github.composefluent.component.NavigationDefaults
 import com.jankinwu.fntv.client.ui.component.player.VideoPlayerProgressBar
 import com.jankinwu.fntv.client.ui.component.player.VolumeControl
 import com.jankinwu.fntv.client.ui.providable.IsoTagData
@@ -113,8 +112,8 @@ import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
 import com.jankinwu.fntv.client.ui.providable.defaultVariableFamily
 import com.jankinwu.fntv.client.utils.HiddenPointerIcon
-import com.jankinwu.fntv.client.utils.chooseFile
 import com.jankinwu.fntv.client.utils.Mp4Parser
+import com.jankinwu.fntv.client.utils.chooseFile
 import com.jankinwu.fntv.client.viewmodel.MediaPViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayPlayViewModel
@@ -132,12 +131,12 @@ import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FontIconDefaults
 import io.github.composefluent.component.FontIconSize
+import io.github.composefluent.component.NavigationDefaults
 import korlibs.crypto.MD5
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -425,42 +424,6 @@ fun PlayerOverlay(
         }
     }
 
-    var currentResolution by remember { mutableStateOf("") }
-    var currentBitrate by remember { mutableStateOf<Int?>(null) }
-
-    // Initialize quality
-    if (currentResolution.isEmpty() && playingInfoCache?.currentQualities != null) {
-        val qualities = playingInfoCache!!.currentQualities!!
-        val saved = PlayingSettingsStore.getQuality()
-        var found = false
-        if (saved != null) {
-            val matched =
-                qualities.find { it.resolution == saved.resolution && (saved.bitrate == null || it.bitrate == saved.bitrate) }
-            if (matched != null) {
-                currentResolution = matched.resolution
-                currentBitrate = matched.bitrate
-                found = true
-            } else {
-                // Try match resolution only, pick highest bitrate
-                val matchedRes = qualities.filter { it.resolution == saved.resolution }
-                    .maxByOrNull { it.bitrate }
-                if (matchedRes != null) {
-                    currentResolution = matchedRes.resolution
-                    currentBitrate = matchedRes.bitrate
-                    found = true
-                }
-            }
-        }
-
-        if (!found) {
-            val default = qualities.firstOrNull()
-            if (default != null) {
-                currentResolution = default.resolution
-                currentBitrate = default.bitrate
-            }
-        }
-        logger.i("Initialize quality, Current resolution: $currentResolution, bitrate: $currentBitrate")
-    }
     LaunchedEffect(quitMediaState) {
         if (quitMediaState is UiState.Success) {
             logger.i("Quality switch: Switching to Direct Link")
@@ -486,36 +449,18 @@ fun PlayerOverlay(
             val response =
                 (resetQualityState as UiState.Success<*>).data as? MediaResetQualityResponse
             if (response != null && response.result == "succ") {
-                val cache = playingInfoCache
-                if (cache != null) {
-                    val startPos = mediaPlayer.getCurrentPositionMillis()
-
-                    val newPlayLink = cache.playLink ?: ""
-                    val videoStream = cache.currentVideoStream
-
-                    // if (!cache.isUseDirectLink) {
-                    //     val forcedSdr = if (videoStream.colorRangeType != "SDR") 1 else 0
-                    //     val playRequest = createPlayRequest(
-                    //         videoStream,
-                    //         cache.currentFileStream,
-                    //         cache.currentAudioStream?.guid ?: "",
-                    //         cache.currentSubtitleStream?.guid,
-                    //         forcedSdr
-                    //     )
-                    //     try {
-                    //         val playResponse = playPlayViewModel.loadDataAndWait(playRequest)
-                    //         newPlayLink = playResponse.playLink
-                    //         playerViewModel.updatePlayingInfo(cache.copy(playLink = newPlayLink))
-                    //     } catch (e: Exception) {
-                    //         logger.e("Failed to fetch HLS link", e)
-                    //     }
-                    // }
-
-                    val extraFiles = cache.currentSubtitleStream?.let { getMediaExtraFiles(it) }
-                        ?: MediaExtraFiles()
+//                val cache = playingInfoCache
+//                if (cache != null) {
+//                    val startPos = mediaPlayer.getCurrentPositionMillis()
+//
+//                    val newPlayLink = cache.playLink ?: ""
+//                    val videoStream = cache.currentVideoStream
+//
+//                    val extraFiles = cache.currentSubtitleStream?.let { getMediaExtraFiles(it) }
+//                        ?: MediaExtraFiles()
 //                    mediaPlayer.stopPlayback()
 //                    startPlayback(mediaPlayer, newPlayLink, startPos, extraFiles)
-                }
+//                }
                 mediaPViewModel.clearError()
             }
         }
@@ -704,11 +649,8 @@ fun PlayerOverlay(
                     videoProgress = videoProgress,
                     totalDuration = totalDuration,
                     playingInfoCache = playingInfoCache,
-                    currentResolution = currentResolution,
-                    currentBitrate = currentBitrate,
                     isoTagData = isoTagData,
                     lastVolume = lastVolume,
-                    playRecordViewModel = playRecordViewModel,
                     onProgressBarHoverChanged = { isProgressBarHovered = it },
                     onResetMouseMoveTimer = { lastMouseMoveTime = System.currentTimeMillis() },
                     onSeek = { newProgress ->
@@ -738,11 +680,7 @@ fun PlayerOverlay(
                             mediaPlayer,
                             playerViewModel,
                             mediaPViewModel,
-                            playPlayViewModel,
-                            updateResolution = { res, bitrate ->
-                                currentResolution = res
-                                currentBitrate = bitrate
-                            }
+                            playPlayViewModel
                         )
                     },
                     onAudioSelected = { audio ->
@@ -928,9 +866,6 @@ fun PlayerControlRow(
     videoProgress: Float,
     totalDuration: Long,
     playingInfoCache: PlayingInfoCache? = null,
-    qualities: List<QualityResponse>? = null,
-    currentResolution: String = "",
-    currentBitrate: Int? = null,
     onSpeedControlHoverChanged: ((Boolean) -> Unit)? = null,
     onVolumeControlHoverChanged: ((Boolean) -> Unit)? = null,
     onQualityControlHoverChanged: ((Boolean) -> Unit)? = null,
@@ -1030,12 +965,13 @@ fun PlayerControlRow(
                     mediaPlayer.features[PlaybackSpeed]?.set(item.value)
                 }
             )
+            val qualities = playingInfoCache?.currentQualities
             if (qualities != null) {
                 QualityControlFlyout(
                     modifier = Modifier,
                     qualities = qualities,
-                    currentResolution = currentResolution,
-                    currentBitrate = currentBitrate,
+                    currentResolution = playingInfoCache?.currentQuality?.resolution ?: "",
+                    currentBitrate = playingInfoCache?.currentQuality?.bitrate,
                     yOffset = 65,
                     onHoverStateChanged = onQualityControlHoverChanged,
                     onQualitySelected = {
@@ -1408,6 +1344,34 @@ private suspend fun getUserInfo(userInfoViewModel: UserInfoViewModel): UserInfoR
     }
 }
 
+private fun initializeQuality(qualities: List<QualityResponse>?): QualityResponse? {
+    if (qualities.isNullOrEmpty()) return null
+
+    val saved = PlayingSettingsStore.getQuality()
+    var result: QualityResponse? = null
+
+    if (saved != null) {
+        val matched = qualities.find { it.resolution == saved.resolution && (saved.bitrate == null || it.bitrate == saved.bitrate) }
+        if (matched != null) {
+            result = matched
+        } else {
+            // Try match resolution only, pick highest bitrate
+            val matchedRes = qualities.filter { it.resolution == saved.resolution }
+                .maxByOrNull { it.bitrate }
+            if (matchedRes != null) {
+                result = matchedRes
+            }
+        }
+    }
+
+    if (result == null) {
+        result = qualities.firstOrNull()
+    }
+
+    logger.i("Initialize quality, Current resolution: ${result?.resolution}, bitrate: ${result?.bitrate}")
+    return result
+}
+
 private fun createPlayingInfoCache(
     streamInfo: StreamResponse,
     fileStream: FileInfo,
@@ -1416,6 +1380,7 @@ private fun createPlayingInfoCache(
     subtitleStream: SubtitleStream?,
     playInfoResponse: PlayInfoResponse
 ): PlayingInfoCache {
+    val currentQuality = initializeQuality(streamInfo.qualities)
     return PlayingInfoCache(
         streamInfo,
         "",
@@ -1425,6 +1390,7 @@ private fun createPlayingInfoCache(
         subtitleStream,
         playInfoResponse.item.guid,
         streamInfo.qualities,
+        currentQuality = currentQuality,
         currentAudioStreamList = streamInfo.audioStreams,
         currentSubtitleStreamList = streamInfo.subtitleStreams
     )
@@ -1633,10 +1599,8 @@ private fun handleQualitySelection(
     mediaPlayer: MediampPlayer,
     playerViewModel: PlayerViewModel,
     mediaPViewModel: MediaPViewModel,
-    playPlayViewModel: PlayPlayViewModel,
-    updateResolution: (String, Int?) -> Unit
+    playPlayViewModel: PlayPlayViewModel
 ) {
-    updateResolution(quality.resolution, quality.bitrate)
     PlayingSettingsStore.saveQuality(quality.resolution, quality.bitrate)
 //    logger.i("1 change quality to: ${quality.resolution}")
     if (playingInfoCache != null) {
@@ -1922,11 +1886,8 @@ fun PlayerBottomBar(
     videoProgress: Float,
     totalDuration: Long,
     playingInfoCache: PlayingInfoCache?,
-    currentResolution: String,
-    currentBitrate: Int?,
     isoTagData: IsoTagData,
     lastVolume: Float,
-    playRecordViewModel: PlayRecordViewModel,
     onProgressBarHoverChanged: (Boolean) -> Unit,
     onResetMouseMoveTimer: () -> Unit,
     onSeek: (Float) -> Unit,
@@ -1975,9 +1936,6 @@ fun PlayerBottomBar(
                 videoProgress,
                 totalDuration,
                 playingInfoCache = playingInfoCache,
-                qualities = playingInfoCache?.currentQualities,
-                currentResolution = currentResolution,
-                currentBitrate = currentBitrate,
                 onSpeedControlHoverChanged = onSpeedControlHoverChanged,
                 onVolumeControlHoverChanged = onVolumeControlHoverChanged,
                 onQualityControlHoverChanged = onQualityControlHoverChanged,
