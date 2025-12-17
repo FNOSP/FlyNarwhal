@@ -93,8 +93,15 @@ fun main() = application {
             ) {
                 WindowFrame(
                     onCloseRequest = {
-                        AppSettingsStore.windowWidth = state.size.width.value
-                        AppSettingsStore.windowHeight = state.size.height.value
+                        if (playerManager.playerState.isVisible) {
+                            if (!AppSettingsStore.playerIsFullscreen) {
+                                AppSettingsStore.playerWindowWidth = state.size.width.value
+                                AppSettingsStore.playerWindowHeight = state.size.height.value
+                            }
+                        } else {
+                            AppSettingsStore.windowWidth = state.size.width.value
+                            AppSettingsStore.windowHeight = state.size.height.value
+                        }
                         player.close() // 关闭播放器
                         exitApplication() // 退出应用
                     },

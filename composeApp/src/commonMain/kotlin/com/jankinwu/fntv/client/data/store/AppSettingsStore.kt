@@ -38,6 +38,23 @@ object AppSettingsStore {
         get() = settings.getFloat("window_height", 720f)
         set(value) = settings.set("window_height", value)
 
+    var playerWindowWidth: Float
+        get() = settings.getFloat("player_window_width", 1280f)
+        set(value) = settings.set("player_window_width", value)
+
+    var playerWindowHeight: Float
+        get() = settings.getFloat("player_window_height", 720f)
+        set(value) = settings.set("player_window_height", value)
+
+    var playerIsFullscreen: Boolean
+        get() = settings.getBoolean("player_is_fullscreen", false)
+        set(value) = settings.set("player_is_fullscreen", value)
+
+    // 允许自动伸缩窗口大小时手动补偿的窗口宽度
+    var playerWindowWidthCompensation: Float
+        get() = settings.getFloat("player_window_width_compensation", -40f)
+        set(value) = settings.set("player_window_width_compensation", value)
+
     var skippedVersions: Set<String>
         get() = settings.getString("skipped_versions", "").split(",").filter { it.isNotEmpty() }.toSet()
         set(value) = settings.set("skipped_versions", value.joinToString(","))

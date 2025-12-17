@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalResourceApi::class)
+@file:OptIn(ExperimentalResourceApi::class, kotlinx.coroutines.FlowPreview::class)
 
 package com.jankinwu.fntv.client.ui.screen
 
@@ -9,6 +9,7 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -79,6 +81,7 @@ import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.data.model.response.VideoStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.ArrowLeft
@@ -134,9 +137,12 @@ import io.github.composefluent.component.FontIconSize
 import io.github.composefluent.component.NavigationDefaults
 import korlibs.crypto.MD5
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.unit.DpSize
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -145,6 +151,8 @@ import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.MediampPlayerSurface
 import org.openani.mediamp.features.AudioLevelController
 import org.openani.mediamp.features.PlaybackSpeed
+import org.openani.mediamp.features.VideoAspectRatio
+import org.openani.mediamp.features.AspectRatioMode
 import org.openani.mediamp.source.MediaExtraFiles
 import org.openani.mediamp.source.Subtitle
 import org.openani.mediamp.source.UriMediaData
@@ -345,6 +353,11 @@ fun PlayerOverlay(
     LaunchedEffect(audioLevelController) {
         val savedVolume = PlayingSettingsStore.getVolume()
         audioLevelController?.setVolume(savedVolume)
+    }
+
+    val aspectRatioFeature = remember(mediaPlayer) { mediaPlayer.features[VideoAspectRatio] }
+    LaunchedEffect(aspectRatioFeature) {
+        aspectRatioFeature?.setMode(AspectRatioMode.FIT)
     }
 
     var showSubtitleSearchDialog by remember { mutableStateOf(false) }
@@ -554,6 +567,75 @@ fun PlayerOverlay(
         }
     }
     val windowState = LocalWindowState.current
+
+    // region Window Resize Logic
+    var isProgrammaticResize by remember { mutableStateOf(true) }
+
+    DisposableEffect(Unit) {
+        val originalWidth = windowState.size.width
+        val originalHeight = windowState.size.height
+        val originalPlacement = windowState.placement
+
+        // Save main window size on entry
+        if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
+            AppSettingsStore.windowWidth = originalWidth.value
+            AppSettingsStore.windowHeight = originalHeight.value
+        }
+
+        // Apply Player Fullscreen preference
+        if (AppSettingsStore.playerIsFullscreen) {
+            windowState.placement = WindowPlacement.Fullscreen
+        }
+
+        onDispose {
+            // Save Player Preference on exit
+            if (windowState.placement == WindowPlacement.Fullscreen) {
+                AppSettingsStore.playerIsFullscreen = true
+            } else {
+                AppSettingsStore.playerIsFullscreen = false
+                // Note: playerWindowWidth/Height are updated via LaunchedEffect below
+            }
+
+            // Restore Main Window State
+            windowState.placement = originalPlacement
+            if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
+                windowState.size = DpSize(originalWidth, originalHeight)
+            }
+        }
+    }
+
+    // Dynamic Resize based on Video
+    LaunchedEffect(playingInfoCache?.currentVideoStream) {
+        val videoStream = playingInfoCache?.currentVideoStream
+        if (videoStream != null && !AppSettingsStore.playerIsFullscreen && windowState.placement != WindowPlacement.Fullscreen) {
+            val baseWidth = AppSettingsStore.playerWindowWidth
+            val baseHeight = AppSettingsStore.playerWindowHeight
+
+            val optimalSize = calculateOptimalPlayerWindowSize(videoStream, baseWidth, baseHeight)
+            if (optimalSize != null) {
+                isProgrammaticResize = true
+                windowState.size = optimalSize
+            }
+        }
+    }
+
+    // Monitor Manual Resize
+    LaunchedEffect(windowState) {
+        snapshotFlow { windowState.size }
+            .debounce(500)
+            .collect { size ->
+                if (isProgrammaticResize) {
+                    isProgrammaticResize = false
+                } else {
+                    if (windowState.placement != WindowPlacement.Fullscreen && windowState.placement != WindowPlacement.Maximized) {
+                        AppSettingsStore.playerWindowWidth = size.width.value
+                        AppSettingsStore.playerWindowHeight = size.height.value
+                    }
+                }
+            }
+    }
+    // endregion
+
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -564,7 +646,7 @@ fun PlayerOverlay(
         LocalToastManager provides toastManager,
         LocalFileInfo provides playingInfoCache?.currentFileStream
     ) {
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .hoverable(interactionSource)
@@ -593,7 +675,7 @@ fun PlayerOverlay(
             // 视频层 - 从标题栏下方开始显示
             MediampPlayerSurface(
                 mediaPlayer, Modifier
-                    .fillMaxSize()
+                    .size(maxWidth, maxHeight)
                     .clickable(
                         interactionSource = interactionSource,
                         indication = null,
@@ -1472,6 +1554,68 @@ private suspend fun resolvePlayLink(
             }
             throw e
         }
+    }
+}
+
+private fun calculateOptimalPlayerWindowSize(
+    videoStream: VideoStream,
+    baseWidth: Float,
+    baseHeight: Float
+): DpSize? {
+    val videoW = videoStream.width.toFloat()
+    val videoH = videoStream.height.toFloat()
+
+    if (videoW <= 0 || videoH <= 0) return null
+
+    // 优先使用 displayAspectRatio 计算宽高比，解决非 1:1 像素比视频的黑边问题
+    val videoAR = parseAspectRatio(videoStream.displayAspectRatio) ?: (videoW / videoH)
+
+    var targetH = baseHeight
+    var targetW = targetH * videoAR
+
+    // Constraints: +/- 30% of Base (Adjusted to +/- 50% based on recent context)
+    val minW = baseWidth * 0.5f
+    val maxW = baseWidth * 1.5f
+
+    // If width is out of bounds, try fixing width
+    if (targetW < minW || targetW > maxW) {
+        val targetW2 = baseWidth
+        val targetH2 = targetW2 / videoAR
+
+        val minH = baseHeight * 0.5f
+        val maxH = baseHeight * 1.5f
+
+        if (targetH2 >= minH && targetH2 <= maxH) {
+            targetW = targetW2
+            targetH = targetH2
+        } else {
+            // Both out of bounds?
+            // Just clamp width to nearest bound and adjust height to match AR
+            if (targetW < minW) targetW = minW
+            if (targetW > maxW) targetW = maxW
+            targetH = targetW / videoAR
+        }
+    }
+    
+    // Apply user defined width compensation
+    targetW += AppSettingsStore.playerWindowWidthCompensation
+    
+    return DpSize(targetW.dp, targetH.dp)
+}
+
+private fun parseAspectRatio(dar: String?): Float? {
+    if (dar.isNullOrBlank()) return null
+    return try {
+        val parts = dar.split(":")
+        if (parts.size == 2) {
+            val w = parts[0].toFloat()
+            val h = parts[1].toFloat()
+            if (h > 0) w / h else null
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        null
     }
 }
 
