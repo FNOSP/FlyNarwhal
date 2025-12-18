@@ -536,7 +536,7 @@ private fun TvMiddleControls(
     val playMedia = rememberPlayMediaFunction(
         guid = guid,
         player = player,
-        mediaGuid = playInfo.mediaGuid,
+//        mediaGuid = playInfo.mediaGuid,
 //        currentAudioGuid = currentAudioStream?.guid,
 //        currentSubtitleGuid = currentSubtitleStream?.guid
     )

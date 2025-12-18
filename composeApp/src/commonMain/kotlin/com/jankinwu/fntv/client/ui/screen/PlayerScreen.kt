@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
+import kotlin.math.roundToInt
 import co.touchlab.kermit.Logger
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
@@ -2111,7 +2112,7 @@ private fun handlePlayerKeyEvent(
 
             Key.DirectionUp, Key.VolumeUp -> {
                 audioLevelController?.let {
-                    val newVolume = (it.volume.value + 0.1f).coerceIn(0f, 1f)
+                    val newVolume = (((it.volume.value + 0.1f) * 10).roundToInt() / 10f).coerceIn(0f, 1f)
                     it.setVolume(newVolume)
                     toastManager.showToast(
                         "当前音量：${(newVolume * 100).toInt()}%",
@@ -2125,7 +2126,7 @@ private fun handlePlayerKeyEvent(
 
             Key.DirectionDown, Key.VolumeDown -> {
                 audioLevelController?.let {
-                    val newVolume = (it.volume.value - 0.1f).coerceIn(0f, 1f)
+                    val newVolume = (((it.volume.value - 0.1f) * 10).roundToInt() / 10f).coerceIn(0f, 1f)
                     it.setVolume(newVolume)
                     toastManager.showToast(
                         "当前音量：${(newVolume * 100).toInt()}%",

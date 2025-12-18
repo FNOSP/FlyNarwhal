@@ -34,7 +34,7 @@ class HlsSubtitleUtil(
     private val playLink: String,
     private val subtitleStream: SubtitleStream
 ) {
-    private val logger = Logger.withTag("HlsSubtitleRepository")
+    private val logger = Logger.withTag("HlsSubtitleUtil")
     
     private val segments = mutableListOf<SubtitleSegment>()
     private val cues = mutableListOf<SubtitleCue>()
@@ -132,12 +132,12 @@ class HlsSubtitleUtil(
                     parseSegments(playlistContent)
                     isInitialized = true
                 }
-                logger.i { "Initialized HLS subtitle repository with ${segments.size} segments" }
+                logger.i { "Initialized HLS subtitle util with ${segments.size} segments" }
                 
                 // 5. Immediately update for the current position
                 update(startPositionMs)
             } catch (e: Exception) {
-                logger.e(e) { "Failed to initialize HlsSubtitleRepository" }
+                logger.e(e) { "Failed to initialize HlsSubtitleUtil" }
             }
         }
     }

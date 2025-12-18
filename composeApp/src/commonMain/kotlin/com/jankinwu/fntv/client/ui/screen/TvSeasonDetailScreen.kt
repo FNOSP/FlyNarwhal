@@ -143,7 +143,12 @@ fun TvSeasonDetailScreen(
             episodeListViewModel.loadData(guid)
         }
     }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(guid) {
+        itemViewModel.clearError()
+        playInfoViewModel.clearError()
+        episodeListViewModel.clearError()
+        personListViewModel.clearError()
+
         itemViewModel.loadData(guid)
         playInfoViewModel.loadData(guid)
         episodeListViewModel.loadData(guid)
@@ -177,16 +182,16 @@ fun TvSeasonDetailScreen(
     LaunchedEffect(itemUiState) {
         if (itemUiState is UiState.Success) {
             itemData = (itemUiState as UiState.Success<ItemResponse>).data
+        } else {
+            itemData = null
         }
     }
-    LaunchedEffect(playInfoUiState) {
-        if (playInfoUiState is UiState.Success) {
-            playInfoResponse = (playInfoUiState as UiState.Success<PlayInfoResponse>).data
-        }
-    }
+
     LaunchedEffect(episodeListState) {
         if (episodeListState is UiState.Success) {
             episodeList = (episodeListState as UiState.Success<List<EpisodeListResponse>>).data
+        } else {
+            episodeList = emptyList()
         }
     }
 
@@ -198,9 +203,12 @@ fun TvSeasonDetailScreen(
 
             is UiState.Error -> {
                 logger.e("message: ${(playInfoUiState as UiState.Error).message}")
+                playInfoResponse = null
             }
 
-            else -> {}
+            else -> {
+                playInfoResponse = null
+            }
         }
     }
 
@@ -214,9 +222,14 @@ fun TvSeasonDetailScreen(
 
             is UiState.Error -> {
                 logger.e("message: ${(personListState as UiState.Error).message}")
+                personList = emptyList()
+                castScrollRowItemList = emptyList()
             }
 
-            else -> {}
+            else -> {
+                personList = emptyList()
+                castScrollRowItemList = emptyList()
+            }
         }
     }
 
