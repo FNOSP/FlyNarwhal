@@ -1,5 +1,13 @@
 package com.jankinwu.fntv.client.utils
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
@@ -9,13 +17,45 @@ import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+data class AssStyle(
+    val name: String,
+    val fontName: String,
+    val fontSize: Float,
+    val primaryColor: Color,
+    val secondaryColor: Color,
+    val outlineColor: Color,
+    val backColor: Color,
+    val bold: Boolean,
+    val italic: Boolean,
+    val underline: Boolean,
+    val strikeOut: Boolean
+) {
+    companion object {
+        val Default = AssStyle(
+            name = "Default",
+            fontName = "Arial",
+            fontSize = 20f,
+            primaryColor = Color.White,
+            secondaryColor = Color.Red,
+            outlineColor = Color.Black,
+            backColor = Color.Black,
+            bold = false,
+            italic = false,
+            underline = false,
+            strikeOut = false
+        )
+    }
+}
+
 class ExternalSubtitleUtil(
     private val client: HttpClient,
     private val subtitleStream: SubtitleStream
 ) {
     private val logger = Logger.withTag("ExternalSubtitleUtil")
     private val cues = mutableListOf<SubtitleCue>()
+    private val styles = mutableMapOf<String, AssStyle>()
     private var isInitialized = false
+    private var playResY = 288 // Default ASS height if not specified
 
     suspend fun initialize() {
         if (isInitialized) return
@@ -48,25 +88,28 @@ class ExternalSubtitleUtil(
         }
     }
 
-    fun getCurrentSubtitle(currentPositionMs: Long): String? {
+    fun getCurrentSubtitle(currentPositionMs: Long): AnnotatedString? {
         val activeCues = cues.filter { cue ->
             currentPositionMs >= cue.startTime && currentPositionMs < cue.endTime
         }
         if (activeCues.isEmpty()) return null
-        return activeCues.joinToString("\n") { it.text }
+        
+        return buildAnnotatedString {
+            activeCues.forEachIndexed { index, cue ->
+                if (index > 0) append("\n")
+                append(cue.text)
+            }
+        }
     }
 
     private fun parseSrt(content: String): List<SubtitleCue> {
         val cues = mutableListOf<SubtitleCue>()
-        // Normalize line endings
         val text = content.replace("\r\n", "\n").replace("\r", "\n")
         val blocks = text.split("\n\n")
 
         for (block in blocks) {
             val lines = block.trim().lines()
             if (lines.size >= 3) {
-                // Line 0: Index (can be ignored)
-                // Line 1: Timecode
                 val timeCodeLine = lines.find { it.contains("-->") } ?: continue
                 val timeParts = timeCodeLine.split("-->")
                 if (timeParts.size != 2) continue
@@ -74,15 +117,16 @@ class ExternalSubtitleUtil(
                 val startTime = parseSrtTime(timeParts[0].trim())
                 val endTime = parseSrtTime(timeParts[1].trim())
                 
-                // Content starts after timecode line
                 val timeCodeIndex = lines.indexOf(timeCodeLine)
                 if (timeCodeIndex < 0 || timeCodeIndex >= lines.size - 1) continue
                 
                 val textLines = lines.subList(timeCodeIndex + 1, lines.size)
+                // Simple SRT HTML-like tag stripping for now, or basic support
                 val subtitleText = textLines.joinToString("\n")
+                    .replace(Regex("<.*?>"), "") // Strip tags for SRT for now to keep it simple or implement basic parsing later
 
                 if (subtitleText.isNotBlank()) {
-                    cues.add(SubtitleCue(startTime, endTime, subtitleText))
+                    cues.add(SubtitleCue(startTime, endTime, AnnotatedString(subtitleText)))
                 }
             }
         }
@@ -90,7 +134,6 @@ class ExternalSubtitleUtil(
     }
 
     private fun parseSrtTime(timeStr: String): Long {
-        // Format: HH:MM:SS,mmm or HH:MM:SS.mmm
         try {
             val parts = timeStr.replace(',', '.').split(':')
             if (parts.size == 3) {
@@ -112,26 +155,59 @@ class ExternalSubtitleUtil(
         val cues = mutableListOf<SubtitleCue>()
         val lines = content.lines()
         var formatIndexMap = mutableMapOf<String, Int>()
+        var styleFormatIndexMap = mutableMapOf<String, Int>()
         
-        // Find [Events] section and Format line
-        var inEventsSection = false
+        var section = ""
         
         for (line in lines) {
             val trimmed = line.trim()
-            if (trimmed.equals("[Events]", ignoreCase = true)) {
-                inEventsSection = true
+            if (trimmed.startsWith("[")) {
+                section = trimmed
                 continue
             }
             
-            if (inEventsSection) {
+            if (section.equals("[Script Info]", ignoreCase = true)) {
+                if (trimmed.startsWith("PlayResY:", ignoreCase = true)) {
+                    playResY = trimmed.substringAfter(":").trim().toIntOrNull() ?: 288
+                }
+            } else if (section.equals("[V4+ Styles]", ignoreCase = true)) {
+                if (trimmed.startsWith("Format:", ignoreCase = true)) {
+                    val formatLine = trimmed.substringAfter("Format:").trim()
+                    val parts = formatLine.split(",").map { it.trim().lowercase() }
+                    parts.forEachIndexed { index, name -> styleFormatIndexMap[name] = index }
+                } else if (trimmed.startsWith("Style:", ignoreCase = true)) {
+                    val styleLine = trimmed.substringAfter("Style:").trim()
+                    val formatCount = styleFormatIndexMap.size
+                    if (formatCount > 0) {
+                        val parts = styleLine.split(",", limit = formatCount).map { it.trim() }
+                        if (parts.size >= formatCount) {
+                            val name = parts.getOrNull(styleFormatIndexMap["name"] ?: -1) ?: "Default"
+                            val fontName = parts.getOrNull(styleFormatIndexMap["fontname"] ?: -1) ?: "Arial"
+                            val fontSize = parts.getOrNull(styleFormatIndexMap["fontsize"] ?: -1)?.toFloatOrNull() ?: 20f
+                            val primaryColor = parseAssColor(parts.getOrNull(styleFormatIndexMap["primarycolour"] ?: -1) ?: "")
+                            val secondaryColor = parseAssColor(parts.getOrNull(styleFormatIndexMap["secondarycolour"] ?: -1) ?: "")
+                            val outlineColor = parseAssColor(parts.getOrNull(styleFormatIndexMap["outlinecolour"] ?: -1) ?: "")
+                            val backColor = parseAssColor(parts.getOrNull(styleFormatIndexMap["backcolour"] ?: -1) ?: "")
+                            val bold = (parts.getOrNull(styleFormatIndexMap["bold"] ?: -1) ?: "0") != "0"
+                            val italic = (parts.getOrNull(styleFormatIndexMap["italic"] ?: -1) ?: "0") != "0"
+                            val underline = (parts.getOrNull(styleFormatIndexMap["underline"] ?: -1) ?: "0") != "0"
+                            val strikeOut = (parts.getOrNull(styleFormatIndexMap["strikeout"] ?: -1) ?: "0") != "0"
+                            
+                            val style = AssStyle(
+                                name, fontName, fontSize, primaryColor, secondaryColor, outlineColor, backColor,
+                                bold, italic, underline, strikeOut
+                            )
+                            styles[name] = style
+                        }
+                    }
+                }
+            } else if (section.equals("[Events]", ignoreCase = true)) {
                 if (trimmed.startsWith("Format:", ignoreCase = true)) {
                     val formatLine = trimmed.substringAfter("Format:").trim()
                     val parts = formatLine.split(",").map { it.trim().lowercase() }
                     parts.forEachIndexed { index, name -> formatIndexMap[name] = index }
                 } else if (trimmed.startsWith("Dialogue:", ignoreCase = true)) {
                     val dialogueLine = trimmed.substringAfter("Dialogue:").trim()
-                    // ASS CSV is tricky because the last field (Text) can contain commas.
-                    // We need to limit the split.
                     val formatCount = formatIndexMap.size
                     if (formatCount > 0) {
                         val parts = dialogueLine.split(",", limit = formatCount).map { it.trim() }
@@ -139,19 +215,18 @@ class ExternalSubtitleUtil(
                             val startIndex = formatIndexMap["start"] ?: -1
                             val endIndex = formatIndexMap["end"] ?: -1
                             val textIndex = formatIndexMap["text"] ?: -1
+                            val styleIndex = formatIndexMap["style"] ?: -1
                             
                             if (startIndex != -1 && endIndex != -1 && textIndex != -1) {
                                 val startTime = parseAssTime(parts[startIndex])
                                 val endTime = parseAssTime(parts[endIndex])
-                                var text = parts[textIndex]
+                                val textRaw = parts[textIndex]
+                                val styleName = if (styleIndex != -1) parts[styleIndex] else "Default"
                                 
-                                // Clean ASS tags (e.g., {\pos(100,100)})
-                                text = text.replace(Regex("\\{.*?\\}"), "")
-                                text = text.replace("\\N", "\n", ignoreCase = true)
-                                text = text.replace("\\n", "\n", ignoreCase = true)
+                                val annotatedString = parseAssText(textRaw, styleName)
                                 
-                                if (text.isNotBlank()) {
-                                    cues.add(SubtitleCue(startTime, endTime, text))
+                                if (annotatedString.isNotEmpty()) {
+                                    cues.add(SubtitleCue(startTime, endTime, annotatedString))
                                 }
                             }
                         }
@@ -160,6 +235,135 @@ class ExternalSubtitleUtil(
             }
         }
         return cues
+    }
+
+    private fun parseAssText(textRaw: String, styleName: String): AnnotatedString {
+        val baseStyle = styles[styleName] ?: styles["Default"] ?: AssStyle.Default
+        
+        return buildAnnotatedString {
+            // Replace \h with space, \n with space, \N with newline
+            val cleanText = textRaw
+                .replace("\\h", " ")
+                .replace("\\n", " ")
+                .replace("\\N", "\n")
+            
+            val tagRegex = Regex("\\{.*?\\}")
+            var currentIndex = 0
+            
+            // State variables
+            var bold = baseStyle.bold
+            var italic = baseStyle.italic
+            var underline = baseStyle.underline
+            var strikeOut = baseStyle.strikeOut
+            var color = baseStyle.primaryColor
+            
+            tagRegex.findAll(cleanText).forEach { match ->
+                // Append text before tag
+                if (match.range.first > currentIndex) {
+                    val segment = cleanText.substring(currentIndex, match.range.first)
+                    withStyle(
+                        SpanStyle(
+                            color = color,
+                            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+                            fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
+                            textDecoration = combineTextDecoration(underline, strikeOut)
+                        )
+                    ) {
+                        append(segment)
+                    }
+                }
+                
+                // Parse tag
+                val tagContent = match.value.removePrefix("{").removeSuffix("}")
+                val tags = tagContent.split("\\")
+                for (tag in tags) {
+                    if (tag.isEmpty()) continue
+                    
+                    if (tag.startsWith("b")) {
+                        val param = tag.removePrefix("b")
+                        if (param.isEmpty() || param == "1") bold = true
+                        else if (param == "0") bold = false
+                        else {
+                            // \b<weight>
+                            bold = (param.toIntOrNull() ?: 0) > 400
+                        }
+                    } else if (tag.startsWith("i")) {
+                        italic = tag.removePrefix("i") != "0"
+                    } else if (tag.startsWith("u")) {
+                        underline = tag.removePrefix("u") != "0"
+                    } else if (tag.startsWith("s")) {
+                        strikeOut = tag.removePrefix("s") != "0"
+                    } else if (tag.startsWith("c") || tag.startsWith("1c")) {
+                        val colorStr = tag.substringAfter("&H").substringBefore("&")
+                        if (colorStr.isNotEmpty()) {
+                            color = parseAssColorString(colorStr)
+                        } else if (tag == "c" || tag == "1c") {
+                            color = baseStyle.primaryColor // Reset to style default
+                        }
+                    } else if (tag.startsWith("r")) {
+                        // Reset style
+                        val newStyleName = tag.removePrefix("r")
+                        val newStyle = if (newStyleName.isEmpty()) baseStyle else (styles[newStyleName] ?: baseStyle)
+                        bold = newStyle.bold
+                        italic = newStyle.italic
+                        underline = newStyle.underline
+                        strikeOut = newStyle.strikeOut
+                        color = newStyle.primaryColor
+                    }
+                }
+                
+                currentIndex = match.range.last + 1
+            }
+            
+            // Append remaining text
+            if (currentIndex < cleanText.length) {
+                withStyle(
+                    SpanStyle(
+                        color = color,
+                        fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+                        fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
+                        textDecoration = combineTextDecoration(underline, strikeOut)
+                    )
+                ) {
+                    append(cleanText.substring(currentIndex))
+                }
+            }
+        }
+    }
+
+    private fun combineTextDecoration(underline: Boolean, strikeOut: Boolean): TextDecoration {
+        val decorations = mutableListOf<TextDecoration>()
+        if (underline) decorations.add(TextDecoration.Underline)
+        if (strikeOut) decorations.add(TextDecoration.LineThrough)
+        return if (decorations.isEmpty()) TextDecoration.None else TextDecoration.combine(decorations)
+    }
+
+    private fun parseAssColor(colorStr: String): Color {
+        // Format: &HBBGGRR& or &HAABBGGRR& (Alpha is 00=opaque, FF=transparent)
+        val clean = colorStr.replace("&H", "").replace("&", "")
+        return parseAssColorString(clean)
+    }
+    
+    private fun parseAssColorString(clean: String): Color {
+        try {
+            val longVal = clean.toLong(16)
+            return if (clean.length > 6) {
+                // AABBGGRR
+                val alpha = ((longVal shr 24) and 0xFF).toInt()
+                val blue = ((longVal shr 16) and 0xFF).toInt()
+                val green = ((longVal shr 8) and 0xFF).toInt()
+                val red = (longVal and 0xFF).toInt()
+                Color(red, green, blue, 255 - alpha)
+            } else {
+                // BBGGRR
+                val blue = ((longVal shr 16) and 0xFF).toInt()
+                val green = ((longVal shr 8) and 0xFF).toInt()
+                val red = (longVal and 0xFF).toInt()
+                Color(red, green, blue, 255)
+            }
+        } catch (e: Exception) {
+            return Color.White
+        }
     }
 
     private fun parseAssTime(timeStr: String): Long {
@@ -207,7 +411,7 @@ class ExternalSubtitleUtil(
                     val text = textBuilder.toString().trim()
                     
                     if (text.isNotEmpty()) {
-                        cues.add(SubtitleCue(startMs, endMs, text))
+                        cues.add(SubtitleCue(startMs, endMs, AnnotatedString(text)))
                     }
                 } catch (e: Exception) {
                     // Ignore malformed

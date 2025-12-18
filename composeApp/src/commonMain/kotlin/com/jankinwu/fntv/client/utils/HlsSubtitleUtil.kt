@@ -1,5 +1,7 @@
 package com.jankinwu.fntv.client.utils
 
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
@@ -17,7 +19,7 @@ import kotlin.math.abs
 data class SubtitleCue(
     val startTime: Long, // milliseconds
     val endTime: Long,   // milliseconds
-    val text: String
+    val text: AnnotatedString
 )
 
 data class SubtitleSegment(
@@ -177,13 +179,18 @@ class HlsSubtitleUtil(
         }
     }
     
-    suspend fun getCurrentSubtitle(currentPositionMs: Long): String? {
+    suspend fun getCurrentSubtitle(currentPositionMs: Long): AnnotatedString? {
         mutex.withLock {
             val activeCues = cues.filter { cue ->
                 currentPositionMs >= cue.startTime && currentPositionMs < cue.endTime
             }
             if (activeCues.isEmpty()) return null
-            return activeCues.joinToString("\n") { it.text }
+            return buildAnnotatedString {
+                activeCues.forEachIndexed { index, cue ->
+                    if (index > 0) append("\n")
+                    append(cue.text)
+                }
+            }
         }
     }
     
@@ -272,7 +279,7 @@ class HlsSubtitleUtil(
                     val text = textBuilder.toString().trim()
                     
                     if (text.isNotEmpty()) {
-                        cues.add(SubtitleCue(startMs, endMs, text))
+                        cues.add(SubtitleCue(startMs, endMs, AnnotatedString(text)))
                     }
                 } catch (e: Exception) {
                     // Ignore malformed

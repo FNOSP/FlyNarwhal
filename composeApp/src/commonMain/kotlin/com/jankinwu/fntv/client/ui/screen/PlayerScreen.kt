@@ -450,7 +450,7 @@ fun PlayerOverlay(
         externalSubtitleUtil?.initialize()
     }
 
-    var subtitleText by remember { mutableStateOf<String?>(null) }
+    var subtitleText by remember { mutableStateOf<androidx.compose.ui.text.AnnotatedString?>(null) }
     LaunchedEffect(hlsSubtitleUtil, externalSubtitleUtil, mediaPlayer) {
         if (hlsSubtitleUtil != null) {
             // Loop 1: Fetch loop (runs on IO, less frequent)
@@ -947,7 +947,7 @@ fun PlayerOverlay(
                         isCursorVisible = true
                     })
 
-            if (!subtitleText.isNullOrBlank()) {
+            if (subtitleText != null && subtitleText!!.isNotEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

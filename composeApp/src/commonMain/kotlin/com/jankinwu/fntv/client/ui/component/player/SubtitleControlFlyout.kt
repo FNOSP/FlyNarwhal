@@ -381,7 +381,7 @@ fun SubtitleFlyoutContent(
             AnimatedScrollbarLazyColumn(
                 listState = lazyListState,
                 modifier = Modifier.height(300.dp),
-                scrollbarWidth = 2.dp,
+                scrollbarWidth = 6.dp,
                 scrollbarOffsetX = 3.dp
             ) {
                 // Off option
