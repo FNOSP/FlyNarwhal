@@ -15,11 +15,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
-data class SubtitleCue(
-    val startTime: Long, // milliseconds
-    val endTime: Long,   // milliseconds
-    val text: AnnotatedString
-)
 
 data class SubtitleSegment(
     val index: Int,
@@ -184,18 +179,12 @@ class HlsSubtitleUtil(
         }
     }
     
-    suspend fun getCurrentSubtitle(currentPositionMs: Long): AnnotatedString? {
+    suspend fun getCurrentSubtitle(currentPositionMs: Long): List<SubtitleCue> {
         mutex.withLock {
             val activeCues = cues.filter { cue ->
                 currentPositionMs >= cue.startTime && currentPositionMs < cue.endTime
             }
-            if (activeCues.isEmpty()) return null
-            return buildAnnotatedString {
-                activeCues.forEachIndexed { index, cue ->
-                    if (index > 0) append("\n")
-                    append(cue.text)
-                }
-            }
+            return activeCues
         }
     }
     

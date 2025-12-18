@@ -125,7 +125,14 @@ import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
 import com.jankinwu.fntv.client.ui.providable.defaultVariableFamily
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.State
+import kotlin.math.abs
 import com.jankinwu.fntv.client.utils.HiddenPointerIcon
+import com.jankinwu.fntv.client.utils.SubtitleCue
 import com.jankinwu.fntv.client.utils.HlsSubtitleUtil
 import com.jankinwu.fntv.client.utils.Mp4Parser
 import com.jankinwu.fntv.client.utils.chooseFile
@@ -273,6 +280,37 @@ private fun callPlayRecord(
     } ?: run {
         onError?.invoke()
     }
+}
+
+@Composable
+fun rememberSmoothVideoTime(mediaPlayer: MediampPlayer): State<Long> {
+    val targetTime by mediaPlayer.currentPositionMillis.collectAsState()
+    val isPlaying by mediaPlayer.playbackState.collectAsState()
+    val smoothTime = remember { mutableLongStateOf(targetTime) }
+    
+    // Sync when paused or seeking (large diff)
+    LaunchedEffect(targetTime, isPlaying) {
+        if (isPlaying != PlaybackState.PLAYING || abs(smoothTime.longValue - targetTime) > 1000) {
+            smoothTime.longValue = targetTime
+        }
+    }
+
+    // Smooth update loop
+    LaunchedEffect(isPlaying) {
+        if (isPlaying == PlaybackState.PLAYING) {
+            var lastFrameTime = withFrameNanos { it }
+            while (isActive) {
+                withFrameNanos { frameTime ->
+                    val delta = (frameTime - lastFrameTime) / 1_000_000 // ns to ms
+                    if (delta > 0) {
+                        smoothTime.longValue += delta
+                    }
+                    lastFrameTime = frameTime
+                }
+            }
+        }
+    }
+    return smoothTime
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -451,7 +489,9 @@ fun PlayerOverlay(
         externalSubtitleUtil?.initialize()
     }
 
-    var subtitleText by remember { mutableStateOf<androidx.compose.ui.text.AnnotatedString?>(null) }
+    var subtitleCues by remember { mutableStateOf<List<SubtitleCue>>(emptyList()) }
+    val currentRenderTime by rememberSmoothVideoTime(mediaPlayer)
+
     LaunchedEffect(hlsSubtitleUtil, externalSubtitleUtil, mediaPlayer) {
         if (hlsSubtitleUtil != null) {
             // Loop 1: Fetch loop (runs on IO, less frequent)
@@ -462,24 +502,31 @@ fun PlayerOverlay(
                     delay(2000) // Trigger update check every 2 seconds
                 }
             }
-            // Loop 2: Display loop (runs on Main, frequent for sync)
+            // Loop 2: List update loop (runs on Main, less frequent than render)
             launch {
                 while (isActive) {
                     val currentPos = mediaPlayer.getCurrentPositionMillis()
-                    subtitleText = hlsSubtitleUtil.getCurrentSubtitle(currentPos)
-                    delay(200)
+                    // We fetch cues with a small buffer window to ensure smoothness
+                    // But actually, getCurrentSubtitle filters by time.
+                    // For smooth animation, we need to ensure the list includes items that MIGHT be visible soon?
+                    // No, getCurrentSubtitle returns items visible AT that timestamp.
+                    // If we update this list every 50ms, we still have the recomposition issue.
+                    // Ideally, we fetch a larger window of cues and filter locally in drawing?
+                    // For now, let's keep it simple: update list every 100ms.
+                    subtitleCues = hlsSubtitleUtil.getCurrentSubtitle(currentPos)
+                    delay(100)
                 }
             }
         } else if (externalSubtitleUtil != null) {
              launch {
                 while (isActive) {
                     val currentPos = mediaPlayer.getCurrentPositionMillis()
-                    subtitleText = externalSubtitleUtil.getCurrentSubtitle(currentPos)
-                    delay(200)
+                    subtitleCues = externalSubtitleUtil.getCurrentSubtitle(currentPos)
+                    delay(100)
                 }
             }
         } else {
-            subtitleText = null
+            subtitleCues = emptyList()
         }
     }
 
@@ -948,30 +995,159 @@ fun PlayerOverlay(
                         isCursorVisible = true
                     })
 
-            if (subtitleText != null && subtitleText!!.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = 64.dp), // Adjust based on control bar height
-                    contentAlignment = Alignment.BottomCenter
+            if (subtitleCues.isNotEmpty()) {
+                BoxWithConstraints(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Text(
-                        text = subtitleText!!,
-                        style = TextStyle(
-                            color = Color.White,
-                            fontSize = 40.sp,
-                            fontWeight = FontWeight.Bold,
-                            shadow = Shadow(
-                                color = Color.Black,
-                                offset = Offset(2f, 2f),
-                                blurRadius = 4f
-                            )
-                        ),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-//                            .background(Color.Black.copy(alpha = 0.3f), shape = RoundedCornerShape(4.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                    val screenWidth = maxWidth.value
+                    val screenHeight = maxHeight.value
+                    val currentPos = currentPosition
+                    
+                    subtitleCues.forEach { cue ->
+                        val props = cue.assProps
+                        if (props != null) {
+                            // ASS Rendering
+                            val playResX = if (props.playResX > 0) props.playResX else 384 
+                            val playResY = if (props.playResY > 0) props.playResY else 288
+                            
+                            val scaleX = screenWidth / playResX
+                            val scaleY = screenHeight / playResY
+                            
+                            // Font Size
+                            val fontSizeDp = props.fontSize * scaleY
+                            val fontSizeSp = with(LocalDensity.current) { fontSizeDp.dp.toSp() }
+                            
+                            // Position
+                            var x = 0f
+                            var y = 0f
+                            
+                            if (props.move != null) {
+                                val move = props.move
+                                val t1 = move.t1 ?: 0L
+                                val t2 = move.t2 ?: (cue.endTime - cue.startTime)
+                                val progress = (currentPos - cue.startTime).coerceIn(t1, t2).toFloat()
+                                val duration = (t2 - t1).toFloat()
+                                val fraction = if (duration > 0) progress / duration else 1f
+                                
+                                x = move.x1 + (move.x2 - move.x1) * fraction
+                                y = move.y1 + (move.y2 - move.y1) * fraction
+                            } else if (props.position != null) {
+                                x = props.position.x
+                                y = props.position.y
+                            }
+                            
+                            if (props.move != null || props.position != null) {
+                                // Absolute positioning with GPU acceleration
+                                val align = props.alignment
+                                
+                                Text(
+                                    text = cue.text,
+                                    style = TextStyle(
+                                        color = Color.White,
+                                        fontSize = fontSizeSp,
+                                        fontWeight = FontWeight.Bold, 
+                                        shadow = Shadow(Color.Black, Offset(1f, 1f), 2f)
+                                    ),
+                                    modifier = Modifier
+                                        .layout { measurable, constraints ->
+                                            val placeable = measurable.measure(constraints)
+                                            // Place at top-left (0,0) initially, then transform
+                                            layout(placeable.width, placeable.height) {
+                                                placeable.place(0, 0)
+                                            }
+                                        }
+                                        .graphicsLayer {
+                                            // Calculate current position frame-perfectly
+                                            // We need to re-calc x and y based on currentRenderTime inside graphicsLayer
+                                            // But props.move parameters are static, only time changes.
+                                            
+                                            var currX = x
+                                            var currY = y
+                                            
+                                            if (props.move != null) {
+                                                val move = props.move
+                                                val t1 = move.t1 ?: 0L
+                                                val t2 = move.t2 ?: (cue.endTime - cue.startTime)
+                                                val progress = (currentRenderTime - cue.startTime).coerceIn(t1, t2).toFloat()
+                                                val duration = (t2 - t1).toFloat()
+                                                val fraction = if (duration > 0) progress / duration else 1f
+                                                
+                                                currX = move.x1 + (move.x2 - move.x1) * fraction
+                                                currY = move.y1 + (move.y2 - move.y1) * fraction
+                                            } else if (props.position != null) {
+                                                currX = props.position.x
+                                                currY = props.position.y
+                                            }
+                                            
+                                            val screenX = currX * scaleX
+                                            val screenY = currY * scaleY
+                                            
+                                            // Apply alignment offset
+                                            // We use `this.size` which gives us the size of the Text composable
+                                            val pWidth = this.size.width
+                                            val pHeight = this.size.height
+                                            
+                                            val offsetX = when (align % 3) {
+                                                1 -> 0f
+                                                2 -> -pWidth / 2f
+                                                0 -> -pWidth.toFloat()
+                                                else -> 0f
+                                            }
+                                            val offsetY = when ((align - 1) / 3) {
+                                                0 -> -pHeight.toFloat()
+                                                1 -> -pHeight / 2f
+                                                2 -> 0f
+                                                else -> 0f
+                                            }
+                                            
+                                            translationX = screenX.dp.toPx() + offsetX
+                                            translationY = screenY.dp.toPx() + offsetY
+                                        }
+                                )
+                            } else {
+                                // Default positioning (Bottom Center)
+                                Box(
+                                    modifier = Modifier.fillMaxSize().padding(bottom = 64.dp),
+                                    contentAlignment = Alignment.BottomCenter
+                                ) {
+                                     Text(
+                                        text = cue.text,
+                                        style = TextStyle(
+                                            color = Color.White,
+                                            fontSize = fontSizeSp,
+                                            fontWeight = FontWeight.Bold,
+                                            shadow = Shadow(Color.Black, Offset(1f, 1f), 2f)
+                                        )
+                                    )
+                                }
+                            }
+
+                        } else {
+                            // Legacy/Simple Rendering for non-ASS
+                             Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(bottom = 64.dp),
+                                contentAlignment = Alignment.BottomCenter
+                            ) {
+                                Text(
+                                    text = cue.text,
+                                    style = TextStyle(
+                                        color = Color.White,
+                                        fontSize = 40.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        shadow = Shadow(
+                                            color = Color.Black,
+                                            offset = Offset(2f, 2f),
+                                            blurRadius = 4f
+                                        )
+                                    ),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

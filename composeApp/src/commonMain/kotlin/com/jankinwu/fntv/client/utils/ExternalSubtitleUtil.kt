@@ -28,7 +28,8 @@ data class AssStyle(
     val bold: Boolean,
     val italic: Boolean,
     val underline: Boolean,
-    val strikeOut: Boolean
+    val strikeOut: Boolean,
+    val alignment: Int = 2
 ) {
     companion object {
         val Default = AssStyle(
@@ -42,7 +43,8 @@ data class AssStyle(
             bold = false,
             italic = false,
             underline = false,
-            strikeOut = false
+            strikeOut = false,
+            alignment = 2
         )
     }
 }
@@ -56,19 +58,15 @@ class ExternalSubtitleUtil(
     private val styles = mutableMapOf<String, AssStyle>()
     private var isInitialized = false
     private var playResY = 288 // Default ASS height if not specified
+    private var playResX = 0 // Will be parsed
 
     suspend fun initialize() {
         if (isInitialized) return
         withContext(Dispatchers.IO) {
             try {
                 val subtitleUrl = "${AccountDataCache.getProxyBaseUrl()}/v/api/v1/subtitle/dl/${subtitleStream.guid}"
-//                val token = AccountDataCache.getAccessToken()
                 
-                val response = client.get(subtitleUrl) {
-//                    if (!token.isNullOrBlank()) {
-//                        header("Authorization", "Bearer $token")
-//                    }
-                }
+                val response = client.get(subtitleUrl)
                 val content = response.bodyAsText()
                 
                 val parsedCues = when (subtitleStream.format.lowercase()) {
@@ -88,17 +86,9 @@ class ExternalSubtitleUtil(
         }
     }
 
-    fun getCurrentSubtitle(currentPositionMs: Long): AnnotatedString? {
-        val activeCues = cues.filter { cue ->
+    fun getCurrentSubtitle(currentPositionMs: Long): List<SubtitleCue> {
+        return cues.filter { cue ->
             currentPositionMs >= cue.startTime && currentPositionMs < cue.endTime
-        }
-        if (activeCues.isEmpty()) return null
-        
-        return buildAnnotatedString {
-            activeCues.forEachIndexed { index, cue ->
-                if (index > 0) append("\n")
-                append(cue.text)
-            }
         }
     }
 
@@ -121,9 +111,8 @@ class ExternalSubtitleUtil(
                 if (timeCodeIndex < 0 || timeCodeIndex >= lines.size - 1) continue
                 
                 val textLines = lines.subList(timeCodeIndex + 1, lines.size)
-                // Simple SRT HTML-like tag stripping for now, or basic support
                 val subtitleText = textLines.joinToString("\n")
-                    .replace(Regex("<.*?>"), "") // Strip tags for SRT for now to keep it simple or implement basic parsing later
+                    .replace(Regex("<.*?>"), "") 
 
                 if (subtitleText.isNotBlank()) {
                     cues.add(SubtitleCue(startTime, endTime, AnnotatedString(subtitleText)))
@@ -169,6 +158,8 @@ class ExternalSubtitleUtil(
             if (section.equals("[Script Info]", ignoreCase = true)) {
                 if (trimmed.startsWith("PlayResY:", ignoreCase = true)) {
                     playResY = trimmed.substringAfter(":").trim().toIntOrNull() ?: 288
+                } else if (trimmed.startsWith("PlayResX:", ignoreCase = true)) {
+                    playResX = trimmed.substringAfter(":").trim().toIntOrNull() ?: 0
                 }
             } else if (section.equals("[V4+ Styles]", ignoreCase = true)) {
                 if (trimmed.startsWith("Format:", ignoreCase = true)) {
@@ -192,10 +183,11 @@ class ExternalSubtitleUtil(
                             val italic = (parts.getOrNull(styleFormatIndexMap["italic"] ?: -1) ?: "0") != "0"
                             val underline = (parts.getOrNull(styleFormatIndexMap["underline"] ?: -1) ?: "0") != "0"
                             val strikeOut = (parts.getOrNull(styleFormatIndexMap["strikeout"] ?: -1) ?: "0") != "0"
+                            val alignment = parts.getOrNull(styleFormatIndexMap["alignment"] ?: -1)?.toIntOrNull() ?: 2
                             
                             val style = AssStyle(
                                 name, fontName, fontSize, primaryColor, secondaryColor, outlineColor, backColor,
-                                bold, italic, underline, strikeOut
+                                bold, italic, underline, strikeOut, alignment
                             )
                             styles[name] = style
                         }
@@ -223,10 +215,24 @@ class ExternalSubtitleUtil(
                                 val textRaw = parts[textIndex]
                                 val styleName = if (styleIndex != -1) parts[styleIndex] else "Default"
                                 
+                                val baseStyle = styles[styleName] ?: styles["Default"] ?: AssStyle.Default
+                                val move = parseAssMove(textRaw)
+                                val pos = parseAssPos(textRaw)
+                                val align = parseAssAlign(textRaw) ?: baseStyle.alignment
+                                
+                                val assProps = AssProperties(
+                                    playResX = playResX,
+                                    playResY = playResY,
+                                    fontSize = baseStyle.fontSize,
+                                    alignment = align,
+                                    position = pos,
+                                    move = move
+                                )
+
                                 val annotatedString = parseAssText(textRaw, styleName)
                                 
                                 if (annotatedString.isNotEmpty()) {
-                                    cues.add(SubtitleCue(startTime, endTime, annotatedString))
+                                    cues.add(SubtitleCue(startTime, endTime, annotatedString, assProps))
                                 }
                             }
                         }
@@ -235,6 +241,33 @@ class ExternalSubtitleUtil(
             }
         }
         return cues
+    }
+
+    private fun parseAssMove(text: String): AssMove? {
+        // \move(x1,y1,x2,y2) or \move(x1,y1,x2,y2,t1,t2)
+        // Allow spaces after commas
+        val regex = Regex("""\\move\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*(?:,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*)?\)""")
+        val match = regex.find(text) ?: return null
+        val (x1, y1, x2, y2) = match.destructured
+        val t1 = match.groups[5]?.value?.toLongOrNull()
+        val t2 = match.groups[6]?.value?.toLongOrNull()
+        return AssMove(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), t1, t2)
+    }
+
+    private fun parseAssPos(text: String): AssPosition? {
+        // \pos(x,y)
+        // Allow spaces after commas
+        val regex = Regex("""\\pos\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)""")
+        val match = regex.find(text) ?: return null
+        val (x, y) = match.destructured
+        return AssPosition(x.toFloat(), y.toFloat())
+    }
+
+    private fun parseAssAlign(text: String): Int? {
+        // \anX
+        val regex = Regex("""\\an(\d)""")
+        val match = regex.find(text)
+        return match?.groupValues?.get(1)?.toIntOrNull()
     }
 
     private fun parseAssText(textRaw: String, styleName: String): AnnotatedString {
