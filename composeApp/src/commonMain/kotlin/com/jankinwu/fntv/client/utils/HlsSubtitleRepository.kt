@@ -135,6 +135,18 @@ class HlsSubtitleRepository(
         }
     }
 
+    suspend fun reload() {
+        mutex.withLock {
+            segments.clear()
+            cues.clear()
+            fetchedSegmentIndices.clear()
+            isInitialized = false
+            lastUpdateCheckTime = 0L
+            lastProcessedPositionSec = -1.0
+        }
+        initialize()
+    }
+
     suspend fun update(currentPositionMs: Long) = withContext(Dispatchers.IO) {
         if (!isInitialized) return@withContext
         

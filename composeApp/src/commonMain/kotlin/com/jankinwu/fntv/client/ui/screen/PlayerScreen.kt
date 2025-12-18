@@ -243,8 +243,8 @@ private fun createPlayRecordRequest(
         videoGuid = cache.currentVideoStream.guid,
         audioGuid = cache.currentAudioStream?.guid ?: "",
         subtitleGuid = cache.currentSubtitleStream?.guid,
-        resolution = cache.currentVideoStream.resolutionType,
-        bitrate = cache.currentVideoStream.bps,
+        resolution = cache.currentQuality?.resolution ?: cache.currentVideoStream.resolutionType,
+        bitrate = cache.currentQuality?.bitrate ?: cache.currentVideoStream.bps,
         ts = ts,
         duration = cache.currentVideoStream.duration,
         playLink = cache.playLink
@@ -421,6 +421,109 @@ fun PlayerOverlay(
         }
     }
 
+
+
+    // HLS Subtitle Logic
+    val hlsSubtitleRepository =
+        remember(playingInfoCache?.playLink, playingInfoCache?.currentSubtitleStream) {
+            val link = playingInfoCache?.playLink
+            val subtitle = playingInfoCache?.currentSubtitleStream
+            if (!link.isNullOrBlank() && link.contains(".m3u8") && subtitle != null && subtitle.isExternal == 0) {
+                HlsSubtitleRepository(fnOfficialClient, link, subtitle)
+            } else {
+                null
+            }
+        }
+
+    LaunchedEffect(hlsSubtitleRepository) {
+        hlsSubtitleRepository?.initialize()
+    }
+
+    var subtitleText by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(hlsSubtitleRepository, mediaPlayer) {
+        if (hlsSubtitleRepository != null) {
+            // Loop 1: Fetch loop (runs on IO, less frequent)
+            launch(kotlinx.coroutines.Dispatchers.IO) {
+                while (isActive) {
+                    val currentPos = mediaPlayer.getCurrentPositionMillis()
+                    hlsSubtitleRepository.update(currentPos)
+                    delay(2000) // Trigger update check every 2 seconds
+                }
+            }
+            // Loop 2: Display loop (runs on Main, frequent for sync)
+            launch {
+                while (isActive) {
+                    val currentPos = mediaPlayer.getCurrentPositionMillis()
+                    subtitleText = hlsSubtitleRepository.getCurrentSubtitle(currentPos)
+                    delay(200)
+                }
+            }
+        } else {
+            subtitleText = null
+        }
+    }
+
+    val resetSubtitleState by mediaPViewModel.resetSubtitleState.collectAsState()
+
+    LaunchedEffect(resetSubtitleState) {
+        if (resetSubtitleState is UiState.Success) {
+            val cache = playingInfoCache
+            val startPos = mediaPlayer.getCurrentPositionMillis()
+            if (cache != null) {
+                // Re-fetch play link or use existing one? 
+                // Usually resetSubtitle just changes state on server, we might need to re-request play link or just reuse.
+                // Assuming we can reuse existing playLink logic but re-evaluate subtitles.
+                
+                // We need to re-evaluate how to play based on new subtitle selection
+                val subtitleStream = cache.currentSubtitleStream
+                val playLink = cache.playLink ?: ""
+                
+                var extraFiles = MediaExtraFiles()
+                var actualPlayLink = playLink
+                var isM3u8 = false
+                var shouldStartPlayback = true
+
+                if (subtitleStream != null) {
+                    extraFiles = getMediaExtraFiles(subtitleStream, playLink)
+                }
+
+                if (playLink.contains(".m3u8")) {
+                    isM3u8 = true
+                    // HLS logic
+                    try {
+                        // Check if it's an internal subtitle
+                        if (subtitleStream != null && subtitleStream.isExternal == 0) {
+                            // Reload HLS subtitle repository to fetch new segments
+                            hlsSubtitleRepository?.reload()
+                            // Don't restart playback for internal subtitles
+                            shouldStartPlayback = false
+                        }
+                    } catch (e: Exception) {
+                        logger.w("ResetSubtitle: Failed to parse m3u8: ${e.message}")
+                    }
+                } else if (cache.isUseDirectLink) {
+                     // Direct link logic (usually for external subtitles or non-HLS)
+                     val (link, start) = getDirectPlayLink(
+                        cache.currentVideoStream.mediaGuid,
+                        startPos,
+                        mp4Parser
+                    )
+                    actualPlayLink = link
+                }
+
+                if (shouldStartPlayback) {
+                    startPlayback(
+                        mediaPlayer,
+                        actualPlayLink,
+                        startPos,
+                        extraFiles,
+                        isM3u8
+                    )
+                }
+            }
+            mediaPViewModel.clearError()
+        }
+    }
     val resetQualityState by mediaPViewModel.resetQualityState.collectAsState()
     val quitMediaState by mediaPViewModel.quitState.collectAsState()
     val iso6391State by tagViewModel.iso6391State.collectAsState()
@@ -769,46 +872,6 @@ fun PlayerOverlay(
     }
     // endregion
 
-    // HLS Subtitle Logic
-    val hlsSubtitleRepository =
-        remember(playingInfoCache?.playLink, playingInfoCache?.currentSubtitleStream) {
-            val link = playingInfoCache?.playLink
-            val subtitle = playingInfoCache?.currentSubtitleStream
-            if (!link.isNullOrBlank() && link.contains(".m3u8") && subtitle != null && subtitle.isExternal == 0) {
-                HlsSubtitleRepository(fnOfficialClient, link, subtitle)
-            } else {
-                null
-            }
-        }
-
-    LaunchedEffect(hlsSubtitleRepository) {
-        hlsSubtitleRepository?.initialize()
-    }
-
-    var subtitleText by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(hlsSubtitleRepository, mediaPlayer) {
-        if (hlsSubtitleRepository != null) {
-            // Loop 1: Fetch loop (runs on IO, less frequent)
-            launch(kotlinx.coroutines.Dispatchers.IO) {
-                while (isActive) {
-                    val currentPos = mediaPlayer.getCurrentPositionMillis()
-                    hlsSubtitleRepository.update(currentPos)
-                    delay(2000) // Trigger update check every 2 seconds
-                }
-            }
-            // Loop 2: Display loop (runs on Main, frequent for sync)
-            launch {
-                while (isActive) {
-                    val currentPos = mediaPlayer.getCurrentPositionMillis()
-                    subtitleText = hlsSubtitleRepository.getCurrentSubtitle(currentPos)
-                    delay(200)
-                }
-            }
-        } else {
-            subtitleText = null
-        }
-    }
-
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -874,7 +937,7 @@ fun PlayerOverlay(
                         text = subtitleText!!,
                         style = TextStyle(
                             color = Color.White,
-                            fontSize = 30.sp,
+                            fontSize = 40.sp,
                             fontWeight = FontWeight.Bold,
                             shadow = Shadow(
                                 color = Color.Black,
@@ -961,7 +1024,8 @@ fun PlayerOverlay(
                             mediaPlayer,
                             playerViewModel,
                             mediaPViewModel,
-                            playPlayViewModel
+                            playPlayViewModel,
+                            playRecordViewModel
                         )
                     },
                     onAudioSelected = { audio ->
@@ -988,6 +1052,17 @@ fun PlayerOverlay(
                                 cache.copy(
                                     currentSubtitleStream = subtitle
                                 )
+                            )
+                            callPlayRecord(
+                                ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                playingInfoCache = playingInfoCache,
+                                playRecordViewModel = playRecordViewModel,
+                                onSuccess = {
+                                    logger.i("切换字幕时调用playRecord成功")
+                                },
+                                onError = {
+                                    logger.i("切换字幕时调用playRecord失败：缓存为空")
+                                },
                             )
                             if (subtitle != null) {
                                 val request = MediaPRequest(
@@ -2070,7 +2145,8 @@ private fun handleQualitySelection(
     mediaPlayer: MediampPlayer,
     playerViewModel: PlayerViewModel,
     mediaPViewModel: MediaPViewModel,
-    playPlayViewModel: PlayPlayViewModel
+    playPlayViewModel: PlayPlayViewModel,
+    playRecordViewModel: PlayRecordViewModel
 ) {
     PlayingSettingsStore.saveQuality(quality.resolution, quality.bitrate)
 //    logger.i("1 change quality to: ${quality.resolution}")
@@ -2080,7 +2156,6 @@ private fun handleQualitySelection(
         val videoStream = playingInfoCache.currentVideoStream
         val currentResolution = quality.resolution
         val currentBitrate = quality.bitrate
-
         val isTargetOriginalQuality =
             currentQuality != null && originalQuality != null &&
                     currentResolution == originalQuality.resolution &&
@@ -2160,6 +2235,17 @@ private fun handleQualitySelection(
                 logger.e("Failed to fetch HLS link", e)
             }
         }
+        callPlayRecord(
+            ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+            playingInfoCache = playingInfoCache,
+            playRecordViewModel = playRecordViewModel,
+            onSuccess = {
+                logger.i("切换画质时调用playRecord成功")
+            },
+            onError = {
+                logger.i("切换画质时调用playRecord失败：缓存为空")
+            },
+        )
     }
 }
 

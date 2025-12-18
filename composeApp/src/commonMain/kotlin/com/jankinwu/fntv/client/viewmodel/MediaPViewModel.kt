@@ -24,6 +24,9 @@ class MediaPViewModel : BaseViewModel() {
     private val _quitState = MutableStateFlow<UiState<MediaResetQualityResponse>>(UiState.Initial)
     val quitState: StateFlow<UiState<MediaResetQualityResponse>> = _quitState.asStateFlow()
 
+    private val _resetSubtitleState = MutableStateFlow<UiState<MediaResetQualityResponse>>(UiState.Initial)
+    val resetSubtitleState: StateFlow<UiState<MediaResetQualityResponse>> = _resetSubtitleState.asStateFlow()
+
     /**
      * Generic function to handle data loading
      */
@@ -77,7 +80,7 @@ class MediaPViewModel : BaseViewModel() {
     fun resetSubtitle(request: MediaPRequest) {
         request.req = "media.resetSubtitle"
         request.reqId = "1234567890ABCDEF"
-        loadData(_resetQualityState) {
+        loadData(_resetSubtitleState) {
             fnOfficialApi.mediaResetQuality(request)
         }
     }
@@ -104,5 +107,6 @@ class MediaPViewModel : BaseViewModel() {
         _transcodeState.value = UiState.Initial
         _resetQualityState.value = UiState.Initial
         _quitState.value = UiState.Initial
+        _resetSubtitleState.value = UiState.Initial
     }
 }
