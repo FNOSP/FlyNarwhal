@@ -315,7 +315,7 @@ fun EpisodeListContent(
                 listState = lazyListState,
                 modifier = Modifier.height(400.dp),
                 scrollbarWidth = 2.dp,
-                scrollbarOffsetX = 3.dp
+                scrollbarOffsetX = (-2).dp
             ) {
                 items(episodes) { episode ->
                     EpisodeItem(

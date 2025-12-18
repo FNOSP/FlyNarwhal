@@ -18,7 +18,9 @@ import io.github.composefluent.component.Icon
 @Composable
 fun BackButton(
     navigator: ComponentNavigator,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    iconColor: Color = Color.White,
+    hasShadow: Boolean = true
 ) {
     Box(
         modifier = modifier
@@ -28,26 +30,28 @@ fun BackButton(
             onClick = { navigator.navigateUp() },
             modifier = Modifier
                 .drawBehind {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.2f),
-                                Color.Black.copy(alpha = 0.15f),
-                                Color.Black.copy(alpha = 0.1f),
-                                Color.Black.copy(alpha = 0.01f),
-                                Color.Transparent
-                            ),
-                            radius = size.minDimension / 1.7f,
-                            center = center
+                    if (hasShadow) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.2f),
+                                    Color.Black.copy(alpha = 0.15f),
+                                    Color.Black.copy(alpha = 0.1f),
+                                    Color.Black.copy(alpha = 0.01f),
+                                    Color.Transparent
+                                ),
+                                radius = size.minDimension / 1.7f,
+                                center = center
+                            )
                         )
-                    )
+                    }
                 }
                 .pointerHoverIcon(PointerIcon.Hand)
         ) {
             Icon(
                 imageVector = ArrowLeft,
                 contentDescription = "返回",
-                tint = Color.White,
+                tint = iconColor,
                 modifier = Modifier.size(24.dp)
             )
         }

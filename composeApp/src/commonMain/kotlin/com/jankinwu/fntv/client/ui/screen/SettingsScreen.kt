@@ -49,6 +49,7 @@ import com.jankinwu.fntv.client.icons.PreRelease
 import com.jankinwu.fntv.client.icons.Statement
 import com.jankinwu.fntv.client.icons.VersionInfo
 import com.jankinwu.fntv.client.manager.LoginStateManager
+import com.jankinwu.fntv.client.ui.component.common.BackButton
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
@@ -80,7 +81,7 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun SettingsScreen(componentNavigator: ComponentNavigator) {
+fun SettingsScreen(navigator: ComponentNavigator) {
     val logoutViewModel: LogoutViewModel = koinViewModel()
     val updateViewModel: UpdateViewModel = koinViewModel()
     val updateStatus by updateViewModel.status.collectAsState()
@@ -127,11 +128,17 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                 focusManager.clearFocus()
             }
     ) {
+        BackButton(
+            navigator,
+            modifier = Modifier,
+            iconColor = FluentTheme.colors.text.text.primary,
+            hasShadow = false
+        )
         Text(
             text = "设置",
-            style = FluentTheme.typography.titleLarge,
+            style = FluentTheme.typography.title,
             modifier = Modifier.alignHorizontalSpace()
-                .padding(top = 36.dp)
+//                .padding(top = 36.dp)
         )
         ScrollbarContainer(
             adapter = rememberScrollbarAdapter(scrollState)
