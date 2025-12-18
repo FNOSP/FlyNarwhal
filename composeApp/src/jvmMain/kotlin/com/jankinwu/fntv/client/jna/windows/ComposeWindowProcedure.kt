@@ -103,7 +103,13 @@ internal class ComposeWindowProcedure(
 
     var isWindowActive by mutableStateOf(true)
 
-    var isFullscreen = false
+    var isFullscreen: Boolean = false
+        set(value) {
+            if (field != value) {
+                field = value
+                updateBorderAndShadow()
+            }
+        }
 
     val skiaLayerProcedure = (window as? ComposeWindow)?.findSkiaLayer()?.let {
         SkiaLayerWindowProcedure(
@@ -138,7 +144,7 @@ internal class ComposeWindowProcedure(
 
     init {
         enableResizability()
-        enableBorderAndShadow()
+        updateBorderAndShadow()
     }
 
     override fun callback(hWnd: HWND, uMsg: Int, wParam: WPARAM, lParam: LPARAM): LRESULT {
@@ -331,18 +337,26 @@ internal class ComposeWindowProcedure(
      * To disable window border and shadow, pass (0, 0, 0, 0) as window margins
      * (or, simply, don't call this function).
      */
-    private fun enableBorderAndShadow() {
+    private fun updateBorderAndShadow() {
         val dwmApi = "dwmapi"
             .runCatching(NativeLibrary::getInstance)
             .onFailure { logger.e("Could not load dwmapi library") }
             .getOrNull()
+        
+        val currentMargins = if (isFullscreen) {
+            WindowMargins(0, 0, 0, 0)
+        } else {
+            margins
+        }
+
         dwmApi
             ?.runCatching { getFunction("DwmExtendFrameIntoClientArea") }
             ?.onFailure { logger.e("Could not enable window native decorations (border/shadow/rounded corners)") }
             ?.getOrNull()
-            ?.invoke(arrayOf(windowHandle, margins))
+            ?.invoke(arrayOf(windowHandle, currentMargins))
 
         if (isWindows11OrLater()) {
+            val cornerPreference = if (isFullscreen) 1 else 2 // 1: DoNotRound, 2: Round
             dwmApi?.getFunction("DwmSetWindowAttribute")?.apply {
                 invoke(
                     WinNT.HRESULT::class.java,
@@ -350,7 +364,7 @@ internal class ComposeWindowProcedure(
                 )
                 invoke(
                     WinNT.HRESULT::class.java,
-                    arrayOf(windowHandle, 38, IntByReference(2), 4)
+                    arrayOf(windowHandle, 38, IntByReference(cornerPreference), 4)
                 )
             }
         }
