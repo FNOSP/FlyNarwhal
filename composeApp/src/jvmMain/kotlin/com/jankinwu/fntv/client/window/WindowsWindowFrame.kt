@@ -282,33 +282,36 @@ fun Window.CaptionButtonRow(
         } else {
             CaptionButtonDefaults.defaultColors()
         }
-        // 添加刷新按钮（如果提供了 onRefreshClick 回调）
-        if (onRefreshClick != null) {
-            val rotation = remember { Animatable(0f) }
-            val coroutineScope = rememberCoroutineScope()
-            CaptionButton(
-                onClick = {
-                    // 启动旋转动画
-                    coroutineScope.launch {
-                        onRefreshAnimationStart?.invoke()
-                        rotation.animateTo(
-                            targetValue = 360f,
-                            animationSpec = tween(durationMillis = 800)
-                        ) {
-                            // 动画过程中持续更新
+        val playerManager = LocalPlayerManager.current
+        if (!playerManager.playerState.isVisible) {
+            // 添加刷新按钮（如果提供了 onRefreshClick 回调）
+            if (onRefreshClick != null) {
+                val rotation = remember { Animatable(0f) }
+                val coroutineScope = rememberCoroutineScope()
+                CaptionButton(
+                    onClick = {
+                        // 启动旋转动画
+                        coroutineScope.launch {
+                            onRefreshAnimationStart?.invoke()
+                            rotation.animateTo(
+                                targetValue = 360f,
+                                animationSpec = tween(durationMillis = 800)
+                            ) {
+                                // 动画过程中持续更新
+                            }
+                            // 重置旋转角度
+                            rotation.snapTo(0f)
+                            onRefreshAnimationEnd?.invoke()
                         }
-                        // 重置旋转角度
-                        rotation.snapTo(0f)
-                        onRefreshAnimationEnd?.invoke()
-                    }
-                    // 执行刷新逻辑
-                    onRefreshClick()
-                },
-                icon = CaptionButtonIcon.Refresh,
-                isActive = isActive,
-                colors = colors,
-                rotation = rotation.value
-            )
+                        // 执行刷新逻辑
+                        onRefreshClick()
+                    },
+                    icon = CaptionButtonIcon.Refresh,
+                    isActive = isActive,
+                    colors = colors,
+                    rotation = rotation.value
+                )
+            }
         }
         CaptionButton(
             onClick = {
