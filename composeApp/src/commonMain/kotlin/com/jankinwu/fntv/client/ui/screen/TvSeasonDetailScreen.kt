@@ -71,6 +71,7 @@ import com.jankinwu.fntv.client.ui.component.detail.MediaDescription
 import com.jankinwu.fntv.client.ui.component.detail.MediaDescriptionDialog
 import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import com.jankinwu.fntv.client.ui.providable.LocalIsoTagData
+import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
@@ -244,7 +245,7 @@ fun TvSeasonDetailScreen(
     ) {
         TvEpisodeBody(
             itemData = itemData,
-            playInfoResponse = playInfoResponse,
+            playInfo = playInfoResponse,
             guid = guid,
             episodeList = episodeList,
             castScrollRowItemList,
@@ -256,7 +257,7 @@ fun TvSeasonDetailScreen(
 @Composable
 fun TvEpisodeBody(
     itemData: ItemResponse?,
-    playInfoResponse: PlayInfoResponse?,
+    playInfo: PlayInfoResponse?,
     guid: String,
     episodeList: List<EpisodeListResponse>,
     castScrollRowItemList: List<ScrollRowItemData>,
@@ -427,15 +428,17 @@ fun TvEpisodeBody(
 
                                     // Tags
                                     DetailTags(itemData)
-
+                                    val player = LocalMediaPlayer.current
+                                    val playMedia = rememberPlayMediaFunction(
+                                        guid = guid,
+                                        player = player,
+                                    )
                                     // Buttons
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        DetailPlayButton("第1集") {
-                                            // TODO: Play first episode
-                                        }
+                                        DetailPlayButton("第 ${playInfo?.item?.episodeNumber} 集") { playMedia() }
                                         CircleIconButton(
                                             icon = Icons.Regular.Checkmark,
                                             description = "已观看",

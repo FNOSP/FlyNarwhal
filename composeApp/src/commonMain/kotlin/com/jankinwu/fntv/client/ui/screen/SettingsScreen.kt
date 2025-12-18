@@ -33,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -430,11 +432,22 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         Text("Fntv Client Multiplatform")
                     },
                     icon = {
+                        val colorMatrix = floatArrayOf(
+                            -1f, 0f, 0f, 0f, 255f,
+                            0f, -1f, 0f, 0f, 255f,
+                            0f, 0f, -1f, 0f, 255f,
+                            0f, 0f, 0f, 1f, 0f
+                        )
                         Image(
                             painter = painterResource(Res.drawable.github_logo),
                             contentDescription = null,
                             modifier = Modifier
-                                .size(18.dp)
+                                .size(18.dp),
+                            colorFilter = if (store.darkMode) ColorFilter.colorMatrix(
+                                ColorMatrix(
+                                    colorMatrix
+                                )
+                            ) else null
                         )
                     },
                     caption = {

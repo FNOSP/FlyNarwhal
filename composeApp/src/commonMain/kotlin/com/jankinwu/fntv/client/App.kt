@@ -300,64 +300,64 @@ fun Navigation(
                 )
             }
         },
-        autoSuggestBox = {
-            var expandedSuggestion by remember { mutableStateOf(false) }
-            AutoSuggestionBox(
-                expanded = expandedSuggestion,
-                onExpandedChange = { expandedSuggestion = it }
-            ) {
-                TextField(
-                    value = textFieldValue,
-                    onValueChange = { textFieldValue = it },
-                    placeholder = { io.github.composefluent.component.Text("Search") },
-                    trailing = {
-                        TextBoxButton(onClick = {}) { TextBoxButtonDefaults.SearchIcon() }
-                    },
-                    isClearable = true,
-                    shape = AutoSuggestBoxDefaults.textFieldShape(expandedSuggestion),
-                    modifier = Modifier.fillMaxWidth().focusHandle().flyoutAnchor()
-                )
-                val searchResult = remember(flatMapComponents) {
-                    snapshotFlow {
-                        textFieldValue.text
-                    }.debounce { if (it.isBlank()) 0 else 200 }
-                        .map {
-                            flatMapComponents.filter { item ->
-                                item.name.contains(
-                                    it,
-                                    ignoreCase = true
-                                ) || item.description.contains(it, ignoreCase = true)
-                            }
-                        }
-                }.collectAsState(flatMapComponents)
-                AutoSuggestBoxDefaults.suggestFlyout(
-                    expanded = expandedSuggestion,
-                    onDismissRequest = { expandedSuggestion = false },
-                    modifier = Modifier.flyoutSize(matchAnchorWidth = true),
-                    itemsContent = {
-                        items(
-                            items = searchResult.value,
-                            contentType = { "Item" },
-                            key = { it.hashCode().toString() }
-                        ) {
-                            ListItem(
-                                onClick = {
-                                    navigator.navigate(it)
-                                    expandedSuggestion = false
-                                },
-                                text = {
-                                    io.github.composefluent.component.Text(
-                                        it.name,
-                                        maxLines = 1
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                )
-            }
-        },
+//        autoSuggestBox = {
+//            var expandedSuggestion by remember { mutableStateOf(false) }
+//            AutoSuggestionBox(
+//                expanded = expandedSuggestion,
+//                onExpandedChange = { expandedSuggestion = it }
+//            ) {
+//                TextField(
+//                    value = textFieldValue,
+//                    onValueChange = { textFieldValue = it },
+//                    placeholder = { Text("Search") },
+//                    trailing = {
+//                        TextBoxButton(onClick = {}) { TextBoxButtonDefaults.SearchIcon() }
+//                    },
+//                    isClearable = true,
+//                    shape = AutoSuggestBoxDefaults.textFieldShape(expandedSuggestion),
+//                    modifier = Modifier.fillMaxWidth().focusHandle().flyoutAnchor()
+//                )
+//                val searchResult = remember(flatMapComponents) {
+//                    snapshotFlow {
+//                        textFieldValue.text
+//                    }.debounce { if (it.isBlank()) 0 else 200 }
+//                        .map {
+//                            flatMapComponents.filter { item ->
+//                                item.name.contains(
+//                                    it,
+//                                    ignoreCase = true
+//                                ) || item.description.contains(it, ignoreCase = true)
+//                            }
+//                        }
+//                }.collectAsState(flatMapComponents)
+//                AutoSuggestBoxDefaults.suggestFlyout(
+//                    expanded = expandedSuggestion,
+//                    onDismissRequest = { expandedSuggestion = false },
+//                    modifier = Modifier.flyoutSize(matchAnchorWidth = true),
+//                    itemsContent = {
+//                        items(
+//                            items = searchResult.value,
+//                            contentType = { "Item" },
+//                            key = { it.hashCode().toString() }
+//                        ) {
+//                            ListItem(
+//                                onClick = {
+//                                    navigator.navigate(it)
+//                                    expandedSuggestion = false
+//                                },
+//                                text = {
+//                                    io.github.composefluent.component.Text(
+//                                        it.name,
+//                                        maxLines = 1
+//                                    )
+//                                },
+//                                modifier = Modifier.fillMaxWidth()
+//                            )
+//                        }
+//                    }
+//                )
+//            }
+//        },
         pane = {
             AnimatedContent(selectedItemWithContent, Modifier.fillMaxSize(), transitionSpec = {
                 (fadeIn(
