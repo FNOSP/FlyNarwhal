@@ -18,9 +18,7 @@ data class AssProperties(
     val move: AssMove? = null,
     val fade: AssFade? = null,
     val rotationZ: Float? = null,
-    val alpha: Float? = null, // 0.0 (opaque) to 1.0 (transparent) in ASS usually, but let's store as 0..1 opacity? 
-    // Wait, ASS alpha is &H00 (opaque) to &HFF (transparent). Let's store as opacity (1.0 = opaque, 0.0 = transparent) for Compose easier use?
-    // Or stick to raw and convert later. Let's use opacity: 1f = visible, 0f = invisible.
+    val alpha: Float? = null,
     val clip: AssClip? = null
 )
 

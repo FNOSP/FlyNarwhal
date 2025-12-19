@@ -93,7 +93,7 @@ class ExternalSubtitleUtil(
     fun getCurrentSubtitle(currentPositionMs: Long): List<SubtitleCue> {
         return cues.filter { cue ->
             currentPositionMs >= cue.startTime && currentPositionMs < cue.endTime
-        }
+        }.distinctBy { it.text to it.assProps }
     }
 
     private fun parseSrt(content: String): List<SubtitleCue> {
@@ -154,8 +154,8 @@ class ExternalSubtitleUtil(
     private fun parseAss(content: String): List<SubtitleCue> {
         val cues = mutableListOf<SubtitleCue>()
         val lines = content.lines()
-        var formatIndexMap = mutableMapOf<String, Int>()
-        var styleFormatIndexMap = mutableMapOf<String, Int>()
+        val formatIndexMap = mutableMapOf<String, Int>()
+        val styleFormatIndexMap = mutableMapOf<String, Int>()
         
         var section = ""
         
@@ -355,29 +355,11 @@ class ExternalSubtitleUtil(
                 if (match.range.first > currentIndex) {
                     val segment = cleanText.substring(currentIndex, match.range.first)
                     
-                    // Create shadow if distance > 0
-                    // Compose SpanStyle only supports one shadow. We prioritize shadow (\shad) over outline (\bord) if both exist,
-                    // or maybe we can try to use it for Outline if Shadow is 0?
-                    // Actually \4c is Shadow Colour. \3c is Outline Colour.
-                    // If we have Shadow Distance, we use Shadow Color.
-                    
-                    val shadowEffect = if (shadowDistance > 0f) {
-                        // Shadow distance in ASS is pixels. 
-                        // Compose Shadow offset is in pixels.
-                        androidx.compose.ui.graphics.Shadow(
-                            color = shadowColor,
-                            offset = androidx.compose.ui.geometry.Offset(shadowDistance, shadowDistance),
-                            blurRadius = blurRadius
-                        )
-                    } else if (outlineWidth > 0f) {
-                         // Simulate Outline with Shadow? No, that looks like drop shadow.
-                         // But better than nothing if user wants outline color.
-                         // However, typically Outline is a stroke around text.
-                         // Compose doesn't support stroke in SpanStyle.
-                         null
-                    } else {
-                        null
-                    }
+                    pushStringAnnotation("AssOutlineWidth", outlineWidth.toString())
+                    pushStringAnnotation("AssOutlineColor", outlineColor.value.toString())
+                    pushStringAnnotation("AssShadowDistance", shadowDistance.toString())
+                    pushStringAnnotation("AssShadowColor", shadowColor.value.toString())
+                    pushStringAnnotation("AssBlurRadius", blurRadius.toString())
                     
                     withStyle(
                         SpanStyle(
@@ -385,11 +367,16 @@ class ExternalSubtitleUtil(
                             fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
                             fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
                             textDecoration = combineTextDecoration(underline, strikeOut),
-                            shadow = shadowEffect
+                            shadow = null // Shadow handled by annotations in AssStyledText
                         )
                     ) {
                         append(segment)
                     }
+                    pop()
+                    pop()
+                    pop()
+                    pop()
+                    pop()
                 }
                 
                 // Parse tag
@@ -422,14 +409,7 @@ class ExternalSubtitleUtil(
                     } else if (tag.startsWith("u")) {
                          underline = tag.removePrefix("u") != "0"
                     } else if (tag.startsWith("s")) {
-                        // Ensure it's not 'shad' (handled above) or 'sc' etc.
-                        // 'shad' starts with 's'. We handled 'shad' before.
-                        // But wait, we iterate tags. If tag is 'shad1', it enters here?
-                        // No, because we check 'shad' first in this if-else chain.
-                        // BUT, if we put 'shad' check AFTER 's' check, it would be a bug.
-                        // So order matters.
-                        // 'shad' check must be BEFORE 's' check.
-                        
+
                         // Also check for 'sc' (Scale constraint?) - ASS tags: \scx, \scy.
                         if (!tag.startsWith("sc")) {
                             strikeOut = tag.removePrefix("s") != "0"
@@ -488,15 +468,11 @@ class ExternalSubtitleUtil(
             
             // Append remaining text
             if (currentIndex < cleanText.length) {
-                val shadowEffect = if (shadowDistance > 0f) {
-                    androidx.compose.ui.graphics.Shadow(
-                        color = shadowColor,
-                        offset = androidx.compose.ui.geometry.Offset(shadowDistance, shadowDistance),
-                        blurRadius = blurRadius
-                    )
-                } else {
-                    null
-                }
+                pushStringAnnotation("AssOutlineWidth", outlineWidth.toString())
+                pushStringAnnotation("AssOutlineColor", outlineColor.value.toString())
+                pushStringAnnotation("AssShadowDistance", shadowDistance.toString())
+                pushStringAnnotation("AssShadowColor", shadowColor.value.toString())
+                pushStringAnnotation("AssBlurRadius", blurRadius.toString())
                 
                 withStyle(
                     SpanStyle(
@@ -504,11 +480,16 @@ class ExternalSubtitleUtil(
                         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
                         fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
                         textDecoration = combineTextDecoration(underline, strikeOut),
-                        shadow = shadowEffect
+                        shadow = null // Shadow handled by annotations in AssStyledText
                     )
                 ) {
                     append(cleanText.substring(currentIndex))
                 }
+                pop()
+                pop()
+                pop()
+                pop()
+                pop()
             }
         }
     }
