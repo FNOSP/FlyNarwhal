@@ -50,6 +50,7 @@ fun AnimatedScrollbarLazyColumn(
     modifier: Modifier = Modifier,
     scrollbarWidth: Dp = 6.dp,
     scrollbarOffsetX: Dp = (-1).dp,
+    autoHidden: Boolean = true,
     content: LazyListScope.() -> Unit
 ) {
     var isHovered by remember { mutableStateOf(false) }
@@ -74,6 +75,7 @@ fun AnimatedScrollbarLazyColumn(
                                 isHovered = false
                             }
                         }
+
                         PointerEventType.Exit -> {
                             hideScrollbarJob?.cancel()
                             isHovered = false
@@ -91,7 +93,7 @@ fun AnimatedScrollbarLazyColumn(
         }
 
         AnimatedVisibility(
-            visible = listState.isScrollInProgress || isHovered || isDragging || isScrollbarHovered,
+            visible = if (autoHidden) listState.isScrollInProgress || isHovered || isDragging || isScrollbarHovered else true,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.CenterEnd)
@@ -103,7 +105,8 @@ fun AnimatedScrollbarLazyColumn(
             if (visibleItemsInfo.isNotEmpty() && layoutInfo.totalItemsCount > 0) {
                 val viewportHeight = layoutInfo.viewportSize.height.toFloat()
 
-                val averageItemHeight = visibleItemsInfo.sumOf { it.size } / visibleItemsInfo.size.toFloat()
+                val averageItemHeight =
+                    visibleItemsInfo.sumOf { it.size } / visibleItemsInfo.size.toFloat()
                 val totalContentHeight = averageItemHeight * layoutInfo.totalItemsCount
 
                 if (totalContentHeight <= viewportHeight) return@AnimatedVisibility
@@ -115,8 +118,10 @@ fun AnimatedScrollbarLazyColumn(
                 val scrollableDistance = totalContentHeight - viewportHeight
                 val scrollbarMaxOffset = viewportHeight - scrollbarHeightPx
 
-                val currentScrollPosition = listState.firstVisibleItemIndex * averageItemHeight + listState.firstVisibleItemScrollOffset
-                val scrollbarOffsetPx = if (scrollableDistance > 0) (currentScrollPosition / scrollableDistance * scrollbarMaxOffset) else 0f
+                val currentScrollPosition =
+                    listState.firstVisibleItemIndex * averageItemHeight + listState.firstVisibleItemScrollOffset
+                val scrollbarOffsetPx =
+                    if (scrollableDistance > 0) (currentScrollPosition / scrollableDistance * scrollbarMaxOffset) else 0f
                 val scrollbarOffset = with(density) { scrollbarOffsetPx.toDp() }
                 // 修改这里的颜色逻辑，根据是否悬浮显示不同颜色
                 val scrollbarColor = if (isScrollbarHovered || isDragging) {
@@ -138,6 +143,7 @@ fun AnimatedScrollbarLazyColumn(
                                             isScrollbarHovered = true
                                             hideScrollbarJob?.cancel()
                                         }
+
                                         PointerEventType.Exit -> {
                                             isScrollbarHovered = false
                                         }
@@ -165,7 +171,8 @@ fun AnimatedScrollbarLazyColumn(
                                     change.consume()
                                     coroutineScope.launch {
                                         if (scrollbarMaxOffset > 0) {
-                                            val scrollDelta = (dragAmount.y / scrollbarMaxOffset) * scrollableDistance
+                                            val scrollDelta =
+                                                (dragAmount.y / scrollbarMaxOffset) * scrollableDistance
                                             listState.scrollBy(scrollDelta)
                                         }
                                     }
@@ -229,7 +236,8 @@ fun AnimatedScrollbarColumn(
                 val scrollableDistance = contentHeight - viewportHeight
                 val scrollbarMaxOffset = viewportHeight - scrollbarHeightPx
 
-                val scrollbarOffsetPx = (scrollState.value.toFloat() / scrollableDistance * scrollbarMaxOffset)
+                val scrollbarOffsetPx =
+                    (scrollState.value.toFloat() / scrollableDistance * scrollbarMaxOffset)
                 val scrollbarOffset = with(density) { scrollbarOffsetPx.toDp() }
 
                 Box(
@@ -250,7 +258,8 @@ fun AnimatedScrollbarColumn(
                                     change.consume()
                                     coroutineScope.launch {
                                         if (scrollbarMaxOffset > 0) {
-                                            val scrollDelta = (dragAmount.y / scrollbarMaxOffset) * scrollableDistance
+                                            val scrollDelta =
+                                                (dragAmount.y / scrollbarMaxOffset) * scrollableDistance
                                             scrollState.scrollBy(scrollDelta)
                                         }
                                     }

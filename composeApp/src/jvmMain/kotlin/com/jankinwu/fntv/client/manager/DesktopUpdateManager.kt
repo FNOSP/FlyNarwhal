@@ -87,14 +87,14 @@ class DesktopUpdateManager : UpdateManager {
         scope.launch {
             _status.value = UpdateStatus.Checking
             try {
-                val releases = fetchReleases(includePrerelease)
+                val releases = fetchReleases()
                 
                 if (releases.isEmpty()) {
                     handleNoReleasesFound()
                     return@launch
                 }
 
-                val bestReleaseInfo = findBestRelease(releases)
+                val bestReleaseInfo = findBestRelease(releases, includePrerelease)
                 if (bestReleaseInfo != null) {
                     processUpdateInfo(bestReleaseInfo, isManual, autoDownload, proxyUrl)
                 } else {
@@ -107,12 +107,8 @@ class DesktopUpdateManager : UpdateManager {
         }
     }
 
-    private suspend fun fetchReleases(includePrerelease: Boolean): List<GitHubRelease> {
-        return if (includePrerelease) {
-            fetchReleasesWithPagination()
-        } else {
-            fetchLatestRelease()
-        }
+    private suspend fun fetchReleases(): List<GitHubRelease> {
+        return fetchReleasesWithPagination()
     }
 
     private suspend fun fetchReleasesWithPagination(): List<GitHubRelease> {
@@ -167,17 +163,6 @@ class DesktopUpdateManager : UpdateManager {
         }
     }
 
-    private suspend fun fetchLatestRelease(): List<GitHubRelease> {
-        val targetUrl = "https://api.github.com/repos/FNOSP/fntv-client-multiplatform/releases/latest"
-        logger.i("Checking update from: $targetUrl")
-        val response = client.get(targetUrl)
-        return if (response.status == HttpStatusCode.NotFound) {
-            emptyList()
-        } else {
-            listOf(response.body<GitHubRelease>())
-        }
-    }
-
     private fun handleNoReleasesFound() {
         logger.i("No releases found")
         _status.value = UpdateStatus.UpToDate
@@ -190,7 +175,7 @@ class DesktopUpdateManager : UpdateManager {
         _latestVersion.value = null
     }
 
-    private fun findBestRelease(releases: List<GitHubRelease>): UpdateInfo? {
+    private fun findBestRelease(releases: List<GitHubRelease>, includePrerelease: Boolean): UpdateInfo? {
         val currentVersion = BuildConfig.VERSION_NAME
         val arch = getSystemArch()
         val osName = getSystemOS()
@@ -202,35 +187,57 @@ class DesktopUpdateManager : UpdateManager {
                 asset.name.contains(arch, ignoreCase = true) &&
                 (targetExtension == null || asset.name.endsWith(targetExtension, ignoreCase = true))
             }
-        }
-
-        if (validReleases.isEmpty()) return null
-
-        val sortedReleases = validReleases.sortedWith { r1, r2 ->
+        }.sortedWith { r1, r2 ->
             val v1 = r1.name.removePrefix("v").trim()
             val v2 = r2.name.removePrefix("v").trim()
             compareVersions(v2, v1) // Descending
         }
 
-        val skippedVersions = AppSettingsStore.skippedVersions
-        var bestRelease: GitHubRelease? = null
-        var remoteVersion = ""
+        if (validReleases.isEmpty()) return null
 
-        for (release in sortedReleases) {
+        val skippedVersions = AppSettingsStore.skippedVersions
+        var targetRelease: GitHubRelease? = null
+        var targetVersionString = ""
+
+        for (release in validReleases) {
             val v = release.name.removePrefix("v").trim()
+            
             if (skippedVersions.contains(v)) {
                 logger.i("Skipping version: $v")
                 continue
             }
-            if (compareVersions(v, currentVersion) > 0) {
-                bestRelease = release
-                remoteVersion = v
+            
+            if (compareVersions(v, currentVersion) <= 0) {
                 break
+            }
+
+            if (!includePrerelease && release.prerelease) {
+                continue
+            }
+
+            targetRelease = release
+            targetVersionString = v
+            break
+        }
+
+        if (targetRelease == null) return null
+
+        val notesBuilder = StringBuilder()
+        var addedCount = 0
+        for (release in validReleases) {
+            val v = release.name.removePrefix("v").trim()
+            if (compareVersions(v, targetVersionString) <= 0 && compareVersions(v, currentVersion) > 0) {
+                if (addedCount > 0) {
+                    notesBuilder.append("\n\n")
+                }
+                notesBuilder.append("#### ${release.name}\n")
+                notesBuilder.append(release.body)
+                addedCount++
             }
         }
 
-        return bestRelease?.let { release ->
-            logger.i("Current version: $currentVersion, Best remote version: $remoteVersion")
+        return targetRelease.let { release ->
+            logger.i("Current version: $currentVersion, Target version: $targetVersionString")
             val asset = release.assets.find {
                 it.name.contains(osName, ignoreCase = true) &&
                 it.name.contains(arch, ignoreCase = true) &&
@@ -238,8 +245,8 @@ class DesktopUpdateManager : UpdateManager {
             }
             asset?.let {
                 UpdateInfo(
-                    version = remoteVersion,
-                    releaseNotes = release.body,
+                    version = targetVersionString,
+                    releaseNotes = notesBuilder.toString(),
                     downloadUrl = it.browserDownloadUrl,
                     hash = it.digest?.removePrefix("sha256:"),
                     fileName = it.name,

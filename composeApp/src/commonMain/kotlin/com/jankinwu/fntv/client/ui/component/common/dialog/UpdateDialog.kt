@@ -67,8 +67,9 @@ fun UpdateDialog(
                         AnimatedScrollbarLazyColumn(
                             listState = lazyListState,
                             modifier = Modifier.height(290.dp),
-                            scrollbarWidth = 2.dp,
-                            scrollbarOffsetX = (-2).dp
+                            scrollbarWidth = 4.dp,
+                            scrollbarOffsetX = (-2).dp,
+                            autoHidden = false
                         ) {
                             item {
                                 Markdown(
@@ -105,8 +106,9 @@ fun UpdateDialog(
                         AnimatedScrollbarLazyColumn(
                             listState = lazyListState,
                             modifier = Modifier.height(290.dp).padding(horizontal = 8.dp),
-                            scrollbarWidth = 2.dp,
-                            scrollbarOffsetX = (-2).dp
+                            scrollbarWidth = 4.dp,
+                            scrollbarOffsetX = (-2).dp,
+                            autoHidden = false
                         ) {
                             item {
                                 Markdown(
