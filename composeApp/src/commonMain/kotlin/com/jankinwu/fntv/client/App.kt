@@ -12,12 +12,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -26,7 +24,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,6 +50,7 @@ import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
+import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.screen.HomePageScreen
 import com.jankinwu.fntv.client.ui.screen.MediaDbScreen
@@ -64,10 +62,7 @@ import io.github.composefluent.ExperimentalFluentApi
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.animation.FluentDuration
 import io.github.composefluent.animation.FluentEasing
-import io.github.composefluent.component.AutoSuggestBoxDefaults
-import io.github.composefluent.component.AutoSuggestionBox
 import io.github.composefluent.component.Icon
-import io.github.composefluent.component.ListItem
 import io.github.composefluent.component.MenuItem
 import io.github.composefluent.component.NavigationDefaults
 import io.github.composefluent.component.NavigationDisplayMode
@@ -75,16 +70,11 @@ import io.github.composefluent.component.NavigationMenuItemScope
 import io.github.composefluent.component.NavigationView
 import io.github.composefluent.component.SideNavItem
 import io.github.composefluent.component.Text
-import io.github.composefluent.component.TextBoxButton
-import io.github.composefluent.component.TextBoxButtonDefaults
-import io.github.composefluent.component.TextField
 import io.github.composefluent.component.rememberNavigationState
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.ArrowLeft
 import io.github.composefluent.icons.regular.Settings
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.map
 import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -581,7 +571,14 @@ fun MediaLibraryNavigationComponent() {
 
     val mediaDbListViewModel: MediaDbListViewModel = koinViewModel<MediaDbListViewModel>()
     val mediaUiState by mediaDbListViewModel.uiState.collectAsState()
-
+    val refreshState = LocalRefreshState.current
+    // 监听刷新状态变化
+    LaunchedEffect(refreshState.refreshKey) {
+        // 当刷新状态变化时执行刷新逻辑
+        if (refreshState.refreshKey.isNotEmpty()) {
+            mediaDbListViewModel.loadData()
+        }
+    }
     // 动态生成组件列表
     LaunchedEffect(mediaUiState) {
         val categoryItems = listOf(
