@@ -8,11 +8,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
@@ -40,6 +42,7 @@ import com.jankinwu.fntv.client.viewmodel.viewModelModule
 import com.jankinwu.fntv.client.window.WindowFrame
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.icon
+import kotlinx.coroutines.flow.debounce
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.KoinApplication
 import org.koin.compose.viewmodel.koinViewModel
@@ -85,6 +88,25 @@ fun main() = application {
 //                window.size = Dimension(baseWidth, baseHeight)
             }
 
+            // 监听窗口位置变化并自动保存
+            LaunchedEffect(state, playerManager.playerState.isVisible) {
+                snapshotFlow { state.position to state.size }
+                    .debounce(500)
+                    .collect { (position, size) ->
+                        // 只有当播放器不可见时才保存主窗口位置
+                        if (!playerManager.playerState.isVisible) {
+                            if (state.placement != WindowPlacement.Fullscreen && state.placement != WindowPlacement.Maximized) {
+                                AppSettingsStore.windowWidth = size.width.value
+                                AppSettingsStore.windowHeight = size.height.value
+                                if (position is WindowPosition.Absolute) {
+                                    AppSettingsStore.windowX = position.x.value
+                                    AppSettingsStore.windowY = position.y.value
+                                }
+                            }
+                        }
+                    }
+            }
+
             CompositionLocalProvider(
                 LocalPlayerManager provides playerManager,
                 LocalMediaPlayer provides player,
@@ -97,10 +119,24 @@ fun main() = application {
                             if (!AppSettingsStore.playerIsFullscreen) {
                                 AppSettingsStore.playerWindowWidth = state.size.width.value
                                 AppSettingsStore.playerWindowHeight = state.size.height.value
+                                // 保存播放器位置
+                                val position = state.position
+                                if (position is WindowPosition.Absolute) {
+                                    AppSettingsStore.playerWindowX = position.x.value
+                                    AppSettingsStore.playerWindowY = position.y.value
+                                }
                             }
                         } else {
-                            AppSettingsStore.windowWidth = state.size.width.value
-                            AppSettingsStore.windowHeight = state.size.height.value
+                            if (state.placement != WindowPlacement.Fullscreen && state.placement != WindowPlacement.Maximized) {
+                                AppSettingsStore.windowWidth = state.size.width.value
+                                AppSettingsStore.windowHeight = state.size.height.value
+                                // 保存主窗口位置
+                                val position = state.position
+                                if (position is WindowPosition.Absolute) {
+                                    AppSettingsStore.windowX = position.x.value
+                                    AppSettingsStore.windowY = position.y.value
+                                }
+                            }
                         }
                         player.close() // 关闭播放器
                         exitApplication() // 退出应用
@@ -205,8 +241,15 @@ private fun initializeLoggingDirectory(): File {
  */
 @Composable
 private fun createWindowConfiguration(): Triple<WindowState, String, Painter> {
+    val windowX = AppSettingsStore.windowX
+    val windowY = AppSettingsStore.windowY
+    val position = if (!windowX.isNaN() && !windowY.isNaN()) {
+        WindowPosition(windowX.dp, windowY.dp)
+    } else {
+        WindowPosition(Alignment.Center)
+    }
     val state = rememberWindowState(
-        position = WindowPosition(Alignment.Center),
+        position = position,
 //        size = DpSize.Unspecified
         size = DpSize(AppSettingsStore.windowWidth.dp, AppSettingsStore.windowHeight.dp)
     )

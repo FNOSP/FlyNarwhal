@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import co.touchlab.kermit.Logger
 import com.fasterxml.jackson.databind.DeserializationFeature
@@ -863,6 +864,7 @@ fun PlayerOverlay(
         val originalWidth = windowState.size.width
         val originalHeight = windowState.size.height
         val originalPlacement = windowState.placement
+        val originalPosition = windowState.position
 
         // Save main window size on entry
         if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
@@ -873,6 +875,13 @@ fun PlayerOverlay(
         // Apply Player Fullscreen preference
         if (AppSettingsStore.playerIsFullscreen) {
             windowState.placement = WindowPlacement.Fullscreen
+        } else {
+            // Restore Player Window Position
+            val savedX = AppSettingsStore.playerWindowX
+            val savedY = AppSettingsStore.playerWindowY
+            if (!savedX.isNaN() && !savedY.isNaN()) {
+                windowState.position = WindowPosition(savedX.dp, savedY.dp)
+            }
         }
 
         onDispose {
@@ -882,12 +891,22 @@ fun PlayerOverlay(
             } else {
                 AppSettingsStore.playerIsFullscreen = false
                 // Note: playerWindowWidth/Height are updated via LaunchedEffect below
+
+                // Save position on exit
+                if (windowState.placement != WindowPlacement.Maximized) {
+                    val position = windowState.position
+                    if (position is WindowPosition.Absolute) {
+                        AppSettingsStore.playerWindowX = position.x.value
+                        AppSettingsStore.playerWindowY = position.y.value
+                    }
+                }
             }
 
             // Restore Main Window State
             windowState.placement = originalPlacement
             if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
                 windowState.size = DpSize(originalWidth, originalHeight)
+                windowState.position = originalPosition
             }
         }
     }
@@ -912,17 +931,22 @@ fun PlayerOverlay(
         }
     }
 
-    // Monitor Manual Resize
+    // Monitor Manual Resize and Move
     LaunchedEffect(windowState) {
-        snapshotFlow { windowState.size }
+        snapshotFlow { windowState.size to windowState.position }
             .debounce(500)
-            .collect { size ->
+            .collect { (size, position) ->
                 if (isProgrammaticResize) {
                     isProgrammaticResize = false
                 } else {
                     if (windowState.placement != WindowPlacement.Fullscreen && windowState.placement != WindowPlacement.Maximized) {
                         AppSettingsStore.playerWindowWidth = size.width.value
                         AppSettingsStore.playerWindowHeight = size.height.value
+
+                        if (position is WindowPosition.Absolute) {
+                            AppSettingsStore.playerWindowX = position.x.value
+                            AppSettingsStore.playerWindowY = position.y.value
+                        }
                     }
                 }
             }

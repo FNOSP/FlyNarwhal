@@ -38,6 +38,14 @@ object AppSettingsStore {
         get() = settings.getFloat("window_height", 720f)
         set(value) = settings.set("window_height", value)
 
+    var windowX: Float
+        get() = settings.getFloat("window_x", Float.NaN)
+        set(value) = settings.set("window_x", value)
+
+    var windowY: Float
+        get() = settings.getFloat("window_y", Float.NaN)
+        set(value) = settings.set("window_y", value)
+
     var playerWindowWidth: Float
         get() = settings.getFloat("player_window_width", 1280f)
         set(value) = settings.set("player_window_width", value)
@@ -45,6 +53,14 @@ object AppSettingsStore {
     var playerWindowHeight: Float
         get() = settings.getFloat("player_window_height", 720f)
         set(value) = settings.set("player_window_height", value)
+
+    var playerWindowX: Float
+        get() = settings.getFloat("player_window_x", Float.NaN)
+        set(value) = settings.set("player_window_x", value)
+
+    var playerWindowY: Float
+        get() = settings.getFloat("player_window_y", Float.NaN)
+        set(value) = settings.set("player_window_y", value)
 
     var playerIsFullscreen: Boolean
         get() = settings.getBoolean("player_is_fullscreen", false)

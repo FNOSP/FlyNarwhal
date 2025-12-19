@@ -80,7 +80,7 @@ fun SubtitleOverlay(
                     text = cue.text,
                     style = TextStyle(
                         fontSize = fontSizeSp,
-                        shadow = Shadow(Color.Black, Offset(1f, 1f), 2f)
+//                        shadow = Shadow(Color.Black, Offset(1f, 1f), 2f)
                     ),
                     modifier = Modifier
                         .layout { measurable, constraints ->
