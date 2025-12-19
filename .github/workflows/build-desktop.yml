@@ -216,10 +216,8 @@ jobs:
           if [[ "${{ github.ref }}" =~ [Aa]lpha ]]; then
             {
               echo "WARNING_TEXT<<EOF"
-              echo "1.支持对字幕时移、位置和字号大小进行调整  "
-              echo "2.增强 ASS 字幕特效的渲染效果  "
-              echo "3.增加窗口置顶功能  "
-              echo "4.其他 UI 方面的优化  "
+              echo "1.修复 ASS 双语字幕重叠的问题  "
+              echo "2.更新弹窗支持显示多版本的更新内容  "
               echo "　  "
               echo "感谢以下飞牛共建团队成员在内测期间提供了宝贵的技术支持和建议：  "
               echo "@[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[MR_XIAOBO](https://github.com/xiaobonet) @[汪仔饭](https://club.fnnas.com/home.php?mod=space&uid=5021) @*观如  "
