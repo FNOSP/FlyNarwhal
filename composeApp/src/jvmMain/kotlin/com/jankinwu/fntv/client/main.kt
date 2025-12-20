@@ -1,16 +1,29 @@
 package com.jankinwu.fntv.client
 
 import androidx.compose.foundation.window.WindowDraggableArea
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -25,6 +38,7 @@ import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.manager.ProxyManager
+import com.jankinwu.fntv.client.player.CustomVlcEmbeddedMediampPlayerSurface
 import com.jankinwu.fntv.client.player.CustomVlcMediampPlayer
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
 import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
@@ -50,7 +64,10 @@ import org.koin.compose.KoinApplication
 import org.koin.compose.viewmodel.koinViewModel
 import com.jankinwu.fntv.client.player.rememberCustomMediampPlayer
 import java.awt.Dimension
+import java.awt.Frame
 import java.io.File
+import java.awt.event.WindowStateListener
+import kotlin.math.roundToInt
 
 @OptIn(FlowPreview::class)
 fun main() = application {
@@ -94,19 +111,16 @@ fun main() = application {
             }
 
             // 监听窗口位置变化并自动保存
-            LaunchedEffect(state, playerManager.playerState.isVisible) {
+            LaunchedEffect(state) {
                 snapshotFlow { state.position to state.size }
                     .debounce(500)
                     .collect { (position, size) ->
-                        // 只有当播放器不可见时才保存主窗口位置
-                        if (!playerManager.playerState.isVisible) {
-                            if (state.placement != WindowPlacement.Fullscreen && state.placement != WindowPlacement.Maximized) {
-                                AppSettingsStore.windowWidth = size.width.value
-                                AppSettingsStore.windowHeight = size.height.value
-                                if (position is WindowPosition.Absolute) {
-                                    AppSettingsStore.windowX = position.x.value
-                                    AppSettingsStore.windowY = position.y.value
-                                }
+                        if (state.placement != WindowPlacement.Fullscreen && state.placement != WindowPlacement.Maximized) {
+                            AppSettingsStore.windowWidth = size.width.value
+                            AppSettingsStore.windowHeight = size.height.value
+                            if (position is WindowPosition.Absolute) {
+                                AppSettingsStore.windowX = position.x.value
+                                AppSettingsStore.windowY = position.y.value
                             }
                         }
                     }
@@ -120,27 +134,13 @@ fun main() = application {
             ) {
                 WindowFrame(
                     onCloseRequest = {
-                        if (playerManager.playerState.isVisible) {
-                            if (!AppSettingsStore.playerIsFullscreen) {
-                                AppSettingsStore.playerWindowWidth = state.size.width.value
-                                AppSettingsStore.playerWindowHeight = state.size.height.value
-                                // 保存播放器位置
-                                val position = state.position
-                                if (position is WindowPosition.Absolute) {
-                                    AppSettingsStore.playerWindowX = position.x.value
-                                    AppSettingsStore.playerWindowY = position.y.value
-                                }
-                            }
-                        } else {
-                            if (state.placement != WindowPlacement.Fullscreen && state.placement != WindowPlacement.Maximized) {
-                                AppSettingsStore.windowWidth = state.size.width.value
-                                AppSettingsStore.windowHeight = state.size.height.value
-                                // 保存主窗口位置
-                                val position = state.position
-                                if (position is WindowPosition.Absolute) {
-                                    AppSettingsStore.windowX = position.x.value
-                                    AppSettingsStore.windowY = position.y.value
-                                }
+                        if (state.placement != WindowPlacement.Fullscreen && state.placement != WindowPlacement.Maximized) {
+                            AppSettingsStore.windowWidth = state.size.width.value
+                            AppSettingsStore.windowHeight = state.size.height.value
+                            val position = state.position
+                            if (position is WindowPosition.Absolute) {
+                                AppSettingsStore.windowX = position.x.value
+                                AppSettingsStore.windowY = position.y.value
                             }
                         }
                         player.close() // 关闭播放器
@@ -180,18 +180,153 @@ fun main() = application {
                     }
                     // 显示播放器覆盖层
                     if (playerManager.playerState.isVisible) {
-                        PlayerOverlay(
+                        DesktopPlayerWindows(
                             mediaTitle = playerManager.playerState.mediaTitle,
                             subhead = playerManager.playerState.subhead,
                             isEpisode = playerManager.playerState.isEpisode,
                             onBack = { playerManager.hidePlayer() },
                             mediaPlayer = player,
-                            draggableArea = { content -> WindowDraggableArea(content = content) }
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DesktopPlayerWindows(
+    mediaTitle: String,
+    subhead: String,
+    isEpisode: Boolean,
+    onBack: () -> Unit,
+    mediaPlayer: org.openani.mediamp.MediampPlayer,
+) {
+    // Two-window player: a video window for VLC (heavyweight) and a transparent UI window on top.
+    val savedX = AppSettingsStore.playerWindowX
+    val savedY = AppSettingsStore.playerWindowY
+    val position = if (!savedX.isNaN() && !savedY.isNaN()) {
+        WindowPosition(savedX.dp, savedY.dp)
+    } else {
+        WindowPosition(Alignment.Center)
+    }
+
+    val windowState = rememberWindowState(
+        position = position,
+        size = DpSize(AppSettingsStore.playerWindowWidth.dp, AppSettingsStore.playerWindowHeight.dp)
+    )
+
+    var videoFrame by remember { mutableStateOf<Frame?>(null) }
+    var isVideoIconified by remember { mutableStateOf(false) }
+
+    Window(
+        onCloseRequest = onBack,
+        state = windowState,
+        title = mediaTitle,
+        undecorated = true,
+        resizable = true
+    ) {
+        val frame = (LocalFrameWindowScope.current.window as? Frame)
+        SideEffect {
+            if (videoFrame !== frame) {
+                videoFrame = frame
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            val vlcPlayer = mediaPlayer as? CustomVlcMediampPlayer
+            if (vlcPlayer != null && vlcPlayer.mode == CustomVlcMediampPlayer.VlcRenderMode.EMBEDDED) {
+                // Render VLC directly inside its own window to avoid mixing with Compose layers.
+                CustomVlcEmbeddedMediampPlayerSurface(
+                    mediampPlayer = vlcPlayer,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+
+    DisposableEffect(videoFrame) {
+        val frame = videoFrame
+        if (frame == null) {
+            return@DisposableEffect onDispose { }
+        }
+
+        fun updateIconifiedState() {
+            isVideoIconified = (frame.extendedState and Frame.ICONIFIED) != 0
+        }
+
+        updateIconifiedState()
+        val listener = WindowStateListener { updateIconifiedState() }
+        frame.addWindowStateListener(listener)
+        onDispose {
+            frame.removeWindowStateListener(listener)
+        }
+    }
+
+    Window(
+        visible = !isVideoIconified,
+        onCloseRequest = onBack,
+        state = windowState,
+        title = "",
+        transparent = true,
+        undecorated = true,
+        resizable = true,
+        alwaysOnTop = true
+    ) {
+        // UI window renders only Compose overlay (no video) and shares the same WindowState with the video window.
+        PlayerOverlay(
+            mediaTitle = mediaTitle,
+            subhead = subhead,
+            isEpisode = isEpisode,
+            onBack = onBack,
+            mediaPlayer = mediaPlayer,
+            manageHostWindow = false,
+            showVideoLayer = false,
+            backgroundColor = Color.Transparent,
+            draggableArea = { content ->
+                SharedWindowDraggableArea(windowState = windowState, content = content)
+            }
+        )
+    }
+}
+
+@Composable
+private fun SharedWindowDraggableArea(
+    windowState: WindowState,
+    content: @Composable () -> Unit
+) {
+    // Dragging this area updates the shared WindowState so both windows move together.
+    val awtWindow = LocalFrameWindowScope.current.window
+    val density = LocalDensity.current
+
+    Box(
+        modifier = Modifier.pointerInput(awtWindow) {
+            var startLocation = IntOffset.Zero
+            var totalDrag = Offset.Zero
+            detectDragGestures(
+                onDragStart = {
+                    val p = awtWindow.location
+                    startLocation = IntOffset(p.x, p.y)
+                    totalDrag = Offset.Zero
+                },
+                onDragEnd = { },
+                onDragCancel = { }
+            ) { change, dragAmount ->
+                change.consume()
+                totalDrag += dragAmount
+                val newX = startLocation.x + totalDrag.x.roundToInt()
+                val newY = startLocation.y + totalDrag.y.roundToInt()
+                with(density) {
+                    windowState.position = WindowPosition(newX.toDp(), newY.toDp())
+                }
+            }
+        }
+    ) {
+        content()
     }
 }
 

@@ -180,6 +180,7 @@ private val logger = Logger.withTag("PlayerScreen")
 data class PlayerState(
     val isVisible: Boolean = false,
     val isUiVisible: Boolean = true,
+    val lastMouseActivityAt: Long = 0L,
     val isLoading: Boolean = false,
     val itemGuid: String = "",
     val mediaTitle: String = "",
@@ -202,6 +203,7 @@ class PlayerManager {
         playerState = PlayerState(
             isVisible = true,
             isUiVisible = true,
+            lastMouseActivityAt = System.currentTimeMillis(),
             isLoading = isLoading,
             itemGuid = itemGuid,
             mediaTitle = mediaTitle,
@@ -223,6 +225,16 @@ class PlayerManager {
         if (playerState.isVisible && playerState.isUiVisible != visible) {
             playerState = playerState.copy(isUiVisible = visible)
         }
+    }
+
+    fun notifyMouseActivity() {
+        if (!playerState.isVisible) return
+        val now = System.currentTimeMillis()
+        if (now - playerState.lastMouseActivityAt < 50) return
+        playerState = playerState.copy(
+            isUiVisible = true,
+            lastMouseActivityAt = now
+        )
     }
 }
 
@@ -323,7 +335,7 @@ fun OverlayContainer(
         Popup(
             alignment = Alignment.TopStart,
             properties = PopupProperties(
-                focusable = true,
+                focusable = false,
                 dismissOnBackPress = false,
                 dismissOnClickOutside = false,
                 clippingEnabled = false
@@ -349,6 +361,9 @@ fun PlayerOverlay(
     isEpisode: Boolean,
     onBack: () -> Unit,
     mediaPlayer: MediampPlayer,
+    manageHostWindow: Boolean = true,
+    showVideoLayer: Boolean = true,
+    backgroundColor: Color = Color.Black,
     draggableArea: @Composable (content: @Composable () -> Unit) -> Unit = { it() }
 ) {
     // Detect Embedded mode using toString() hack since we can't access JVM class directly in commonMain
@@ -369,6 +384,25 @@ fun PlayerOverlay(
 
     var isCursorVisible by remember { mutableStateOf(true) }
     var lastMouseMoveTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val managerUiVisible = playerManager.playerState.isUiVisible
+    val managerMouseActivityAt = playerManager.playerState.lastMouseActivityAt
+    LaunchedEffect(managerUiVisible) {
+        if (uiVisible != managerUiVisible) {
+            uiVisible = managerUiVisible
+        }
+        if (managerUiVisible) {
+            isCursorVisible = true
+        }
+    }
+    LaunchedEffect(managerMouseActivityAt) {
+        if (managerMouseActivityAt > 0L) {
+            lastMouseMoveTime = managerMouseActivityAt
+            if (!uiVisible) {
+                uiVisible = true
+            }
+            isCursorVisible = true
+        }
+    }
     val interactionSource = remember { MutableInteractionSource() }
     var isProgressBarHovered by remember { mutableStateOf(false) }
     var isSpeedControlHovered by remember { mutableStateOf(false) }
@@ -928,10 +962,11 @@ fun PlayerOverlay(
         val originalPlacement = windowState.placement
         val originalPosition = windowState.position
 
-        // Save main window size on entry
-        if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
-            AppSettingsStore.windowWidth = originalWidth.value
-            AppSettingsStore.windowHeight = originalHeight.value
+        if (manageHostWindow) {
+            if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
+                AppSettingsStore.windowWidth = originalWidth.value
+                AppSettingsStore.windowHeight = originalHeight.value
+            }
         }
 
         // Apply Player Fullscreen preference
@@ -964,11 +999,12 @@ fun PlayerOverlay(
                 }
             }
 
-            // Restore Main Window State
-            windowState.placement = originalPlacement
-            if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
-                windowState.size = DpSize(originalWidth, originalHeight)
-                windowState.position = originalPosition
+            if (manageHostWindow) {
+                windowState.placement = originalPlacement
+                if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
+                    windowState.size = DpSize(originalWidth, originalHeight)
+                    windowState.position = originalPosition
+                }
             }
         }
     }
@@ -1029,7 +1065,7 @@ fun PlayerOverlay(
             modifier = Modifier
                 .fillMaxSize()
                 .hoverable(interactionSource)
-                .background(Color.Black)
+                .background(backgroundColor)
                 .onKeyEvent { event ->
                     handlePlayerKeyEvent(
                         event,
@@ -1055,16 +1091,90 @@ fun PlayerOverlay(
             val constraintsMaxHeight = maxHeight
             // 视频层 - 从标题栏下方开始显示
             if (isEmbedded) {
-                // Use the custom JLayeredPane based surface for Embedded mode to handle UI overlay
-                EmbeddedPlayerSurface(
-                    mediampPlayer = mediaPlayer,
-                    modifier = Modifier.size(constraintsMaxWidth, constraintsMaxHeight)
-                ) {
+                if (showVideoLayer) {
+                    EmbeddedPlayerSurface(
+                        mediampPlayer = mediaPlayer,
+                        modifier = Modifier.size(constraintsMaxWidth, constraintsMaxHeight)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .onPointerEvent(PointerEventType.Move) {
+                                    lastMouseMoveTime = System.currentTimeMillis()
+                                    uiVisible = true
+                                    isCursorVisible = true
+                                }
+                        ) {
+                            PlayerUIOverlay(
+                                mediaPlayer = mediaPlayer,
+                                uiVisible = uiVisible,
+                                isEmbedded = isEmbedded,
+                                mediaTitle = mediaTitle,
+                                subhead = subhead,
+                                isEpisode = isEpisode,
+                                onBack = onBack,
+                                windowState = windowState,
+                                playState = playState,
+                                videoProgress = videoProgress,
+                                totalDuration = totalDuration,
+                                playingInfoCache = playingInfoCache,
+                                isoTagData = isoTagData,
+                                lastVolume = lastVolume,
+                                isProgressBarHovered = isProgressBarHovered,
+                                onProgressBarHoverChanged = { isProgressBarHovered = it },
+                                onResetMouseMoveTimer = { lastMouseMoveTime = System.currentTimeMillis() },
+                                subtitleSettings = subtitleSettings,
+                                onSubtitleSettingsChanged = { subtitleSettings = it },
+                                hlsSubtitleUtil = hlsSubtitleUtil,
+                                playRecordViewModel = playRecordViewModel,
+                                playerViewModel = playerViewModel,
+                                mediaPViewModel = mediaPViewModel,
+                                playPlayViewModel = playPlayViewModel,
+                                subtitleUploadViewModel = subtitleUploadViewModel,
+                                subtitleDeleteViewModel = subtitleDeleteViewModel,
+                                episodeList = episodeList,
+                                isAutoPlay = isAutoPlay,
+                                onAutoPlayChanged = {
+                                    isAutoPlay = it
+                                    AppSettingsStore.autoPlay = it
+                                },
+                                nextEpisode = nextEpisode,
+                                playEpisode = playEpisode,
+                                onPlayNextEpisode = {
+                                    if (nextEpisode != null) {
+                                        playEpisode(nextEpisode.guid)
+                                    }
+                                },
+                                refreshSubtitleList = refreshSubtitleList,
+                                toastManager = toastManager,
+                                onLastVolumeChange = { lastVolume = it },
+                                onSpeedControlHoverChanged = { isSpeedControlHovered = it },
+                                onVolumeControlHoverChanged = { isVolumeControlHovered = it },
+                                onQualityControlHoverChanged = { isQualityControlHovered = it },
+                                onSubtitleControlHoverChanged = { isSubtitleControlHovered = it },
+                                onSettingsMenuHoverChanged = { isSettingsMenuHovered = it },
+                                onEpisodeControlHoverChanged = { isEpisodeControlHovered = it },
+                                onNextEpisodeHoverChanged = { isNextEpisodeHovered = it },
+                                isNextEpisodeHovered = isNextEpisodeHovered,
+                                isSpeedControlHovered = isSpeedControlHovered,
+                                isVolumeControlHovered = isVolumeControlHovered,
+                                isQualityControlHovered = isQualityControlHovered,
+                                isEpisodeControlHovered = isEpisodeControlHovered,
+                                isSettingsMenuHovered = isSettingsMenuHovered,
+                                subtitleCues = subtitleCues,
+                                currentRenderTime = currentRenderTime - (subtitleSettings.offsetSeconds * 1000).toLong(),
+                                maxWidth = constraintsMaxWidth,
+                                maxHeight = constraintsMaxHeight,
+                                currentPosition = currentPosition - (subtitleSettings.offsetSeconds * 1000).toLong(),
+                                draggableArea = draggableArea
+                            )
+                        }
+                    }
+                } else {
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .size(constraintsMaxWidth, constraintsMaxHeight)
                             .onPointerEvent(PointerEventType.Move) {
-                                // 鼠标移动时更新时间并显示UI
                                 lastMouseMoveTime = System.currentTimeMillis()
                                 uiVisible = true
                                 isCursorVisible = true
@@ -1136,24 +1246,24 @@ fun PlayerOverlay(
                     }
                 }
             } else {
-                MediampPlayerSurface(
-                    mediaPlayer, Modifier
-                        .size(maxWidth, maxHeight)
-                        .clickable(
-                            interactionSource = interactionSource,
-                            indication = null,
-                            onClick = {
-                                mediaPlayer.togglePause()
-                            }
-                        )
-                        .onPointerEvent(PointerEventType.Move) {
-                            // 鼠标移动时更新时间并显示UI
-                            lastMouseMoveTime = System.currentTimeMillis()
-                            uiVisible = true
-                            isCursorVisible = true
-                        })
+                if (showVideoLayer) {
+                    MediampPlayerSurface(
+                        mediaPlayer, Modifier
+                            .size(maxWidth, maxHeight)
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                onClick = {
+                                    mediaPlayer.togglePause()
+                                }
+                            )
+                            .onPointerEvent(PointerEventType.Move) {
+                                lastMouseMoveTime = System.currentTimeMillis()
+                                uiVisible = true
+                                isCursorVisible = true
+                            })
+                }
 
-                // Overlay Container Logic for non-embedded (standard) mode
                 OverlayContainer(
                     modifier = Modifier.size(maxWidth, maxHeight),
                     isEmbedded = false
