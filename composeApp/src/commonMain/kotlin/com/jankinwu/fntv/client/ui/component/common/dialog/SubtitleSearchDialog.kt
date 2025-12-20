@@ -77,7 +77,7 @@ fun SubtitleSearchDialog(
     trimIdList: List<String>,
     mediaFileName: String,
     onDismissRequest: () -> Unit = {},
-    onSubtitleDownloadSuccess: () -> Unit = {},
+    onSubtitleDownloadSuccess: (String) -> Unit = {},
     onSubtitleDownloadFailed: (String) -> Unit = {_ ->}
 ) {
     var language by remember(visible) { mutableStateOf("zh-CN") }
@@ -220,7 +220,7 @@ private fun LanguageSwitchFlyout(
 fun SubtitleResultList(results: List<SubtitleItemData>,
                        mediaGuid: String,
                        trimIdList: List<String>,
-                       onSubtitleDownloadSuccess: () -> Unit = {},
+                       onSubtitleDownloadSuccess: (String) -> Unit = {},
                        onSubtitleDownloadFailed: (String) -> Unit = {_ ->}
 ) {
     val subtitleDownloadViewModel: SubtitleDownloadViewModel = koinViewModel()
@@ -236,7 +236,7 @@ fun SubtitleResultList(results: List<SubtitleItemData>,
                 (subtitleDownloadState as UiState.Success).data
             downloadStatusMap[subtitleDownloadResponse.trimId] = 2
             toastManager.showToast("下载成功")
-            onSubtitleDownloadSuccess()
+            onSubtitleDownloadSuccess(subtitleDownloadResponse.trimId)
             subtitleDownloadViewModel.clearError()
         } else if (subtitleDownloadState is UiState.Error) {
             val subtitleDownloadError =

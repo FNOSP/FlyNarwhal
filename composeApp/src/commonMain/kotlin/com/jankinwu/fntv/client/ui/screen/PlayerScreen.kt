@@ -670,7 +670,7 @@ fun PlayerOverlay(
 
     val refreshSubtitleList =
         remember(playerViewModel, userInfoViewModel, streamViewModel, subtitleDeleteState) {
-            {
+            { targetTrimId: String? ->
                 val cache = playerViewModel.playingInfoCache.value
                 if (cache != null) {
                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
@@ -698,6 +698,17 @@ fun PlayerOverlay(
                                 playerViewModel.updateSubtitleList(
                                     streamResponse.subtitleStreams ?: emptyList(), streamResponse
                                 )
+                                if (targetTrimId != null) {
+                                    val targetSubtitle =
+                                        streamResponse.subtitleStreams?.find { it.trimId == targetTrimId }
+                                    if (targetSubtitle != null) {
+                                        playerViewModel.updatePlayingInfo(
+                                            playerViewModel.playingInfoCache.value?.copy(
+                                                currentSubtitleStream = targetSubtitle
+                                            )
+                                        )
+                                    }
+                                }
                             }
                         } catch (e: Exception) {
                             logger.e("Failed to refresh subtitle list", e)
@@ -709,14 +720,14 @@ fun PlayerOverlay(
 
     LaunchedEffect(subtitleDeleteState) {
         if (subtitleDeleteState is UiState.Success) {
-            refreshSubtitleList()
+            refreshSubtitleList(null)
             subtitleDeleteViewModel.clearError()
         }
     }
 
     LaunchedEffect(subtitleUploadState) {
         if (subtitleUploadState is UiState.Success) {
-            refreshSubtitleList()
+            refreshSubtitleList(null)
             subtitleUploadViewModel.clearError()
         }
     }
@@ -2497,7 +2508,7 @@ fun PlayerDialogs(
     playingInfoCache: PlayingInfoCache?,
     subtitleToDelete: SubtitleStream?,
     onSubtitleDeleteConfirm: () -> Unit,
-    refreshSubtitleList: () -> Unit
+    refreshSubtitleList: (String?) -> Unit
 ) {
     if (showSubtitleSearchDialog) {
         val mediaGuid = playingInfoCache?.currentFileStream?.guid ?: ""
@@ -2512,8 +2523,8 @@ fun PlayerDialogs(
             trimIdList = trimIdList,
             mediaFileName = mediaFileName,
             onDismissRequest = onSubtitleSearchDialogDismiss,
-            onSubtitleDownloadSuccess = {
-                refreshSubtitleList()
+            onSubtitleDownloadSuccess = { trimId ->
+                refreshSubtitleList(trimId)
             }
         )
     }
@@ -2530,7 +2541,7 @@ fun PlayerDialogs(
             onButtonClick = { button, paths ->
                 if (button == ContentDialogButton.Primary && !paths.isNullOrEmpty()) {
                     subtitleMarkViewModel.markSubtitles(mediaGuid, paths.toList())
-                    refreshSubtitleList()
+                    refreshSubtitleList(null)
                     onAddNasSubtitleDialogDismiss()
                 } else if (button == ContentDialogButton.Close) {
                     onAddNasSubtitleDialogDismiss()
