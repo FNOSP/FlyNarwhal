@@ -238,6 +238,9 @@ object MacOSUpdateInstaller : DesktopUpdateInstaller {
             # 7) Launch the newly copied app
             echo "Launching updated app: $TARGET_PARENT/$APP_NAME"
             open "$TARGET_PARENT/$APP_NAME"
+            
+            echo "Deleting update package..."
+            rm "$DMG_FILE"
 
             echo "Update script for DMG finished."
         """.trimIndent()
@@ -308,6 +311,9 @@ object MacOSUpdateInstaller : DesktopUpdateInstaller {
             # 7) Launch the newly copied app
             echo "Launching updated app: $TARGET_PARENT/$APP_NAME"
             open "$TARGET_PARENT/$APP_NAME"
+
+            echo "Deleting update package..."
+            rm "$ZIP_FILE"
 
             echo "Update script for ZIP finished."
         """.trimIndent()
@@ -397,7 +403,10 @@ object LinuxUpdateInstaller : DesktopUpdateInstaller {
             done
 
             # Run the install command
-            $$installCommand "$UPDATE_FILE"
+            $installCommand "$UPDATE_FILE"
+
+            echo "Deleting update package..."
+            rm "$UPDATE_FILE"
         """.trimIndent()
     }
 
