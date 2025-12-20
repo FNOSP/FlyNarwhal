@@ -33,16 +33,16 @@ data class EpisodeListResponse(
     val type: String,
 
     @param:JsonProperty("poster")
-    val poster: String,
+    val poster: String?,
 
     @param:JsonProperty("poster_width")
-    val posterWidth: Int,
+    val posterWidth: Int?,
 
     @param:JsonProperty("poster_height")
-    val posterHeight: Int,
+    val posterHeight: Int?,
 
     @param:JsonProperty("runtime")
-    val runtime: Int,
+    val runtime: Int?,
 
     @param:JsonProperty("is_favorite")
     val isFavorite: Int,
@@ -66,7 +66,7 @@ data class EpisodeListResponse(
     val episodeNumber: Int,
 
     @param:JsonProperty("air_date")
-    val airDate: String,
+    val airDate: String?,
 
     @param:JsonProperty("number_of_seasons")
     val numberOfSeasons: Int,
