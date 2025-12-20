@@ -216,7 +216,7 @@ jobs:
           if [[ "${{ github.ref }}" =~ [Aa]lpha ]]; then
             {
               echo "WARNING_TEXT<<EOF"
-              echo "修复电视节目剧集列表不显示的问题  "
+              echo "优化 UI 方面用户体验 "
               echo "　  "
               echo "感谢以下飞牛共建团队成员在内测期间提供了宝贵的技术支持和建议：  "
               echo "@[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[MR_XIAOBO](https://github.com/xiaobonet) @[汪仔饭](https://club.fnnas.com/home.php?mod=space&uid=5021) @*观如  "
