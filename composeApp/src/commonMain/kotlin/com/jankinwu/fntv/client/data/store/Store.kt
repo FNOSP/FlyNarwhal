@@ -24,7 +24,16 @@ class Store(
 
     var compactMode by mutableStateOf(compactMode)
 
-    var navigationDisplayMode by mutableStateOf(NavigationDisplayMode.Left)
+    private var navigationDisplayModeState by mutableStateOf(
+        resolveNavigationDisplayMode(AppSettingsStore.navigationDisplayMode)
+    )
+
+    var navigationDisplayMode: NavigationDisplayMode
+        get() = navigationDisplayModeState
+        set(value) {
+            navigationDisplayModeState = value
+            AppSettingsStore.navigationDisplayMode = value.name
+        }
 
     // 缩放因子，用于调整组件大小
     var scaleFactor by mutableFloatStateOf((windowWidth / 1280.dp))
@@ -56,5 +65,9 @@ class Store(
 
     fun updateProxyInitialized(state: Boolean) {
         proxyInitialized = state
+    }
+
+    private fun resolveNavigationDisplayMode(rawValue: String): NavigationDisplayMode {
+        return NavigationDisplayMode.entries.firstOrNull { it.name == rawValue } ?: NavigationDisplayMode.Left
     }
 }

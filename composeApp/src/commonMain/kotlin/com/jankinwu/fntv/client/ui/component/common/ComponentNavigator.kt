@@ -37,6 +37,7 @@ private class ComponentNavigatorImpl() : ComponentNavigator {
 
     override fun navigate(componentItem: ComponentItem) {
         if (!NOT_ADD_ITEM_NAME_LIST.contains(componentItem.guid)) {
+            if (backstack.lastOrNull() == componentItem) return
             backstack.add(componentItem)
         }
         if (backstack.size > 20) {

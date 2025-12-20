@@ -82,4 +82,8 @@ object AppSettingsStore {
     var autoPlay: Boolean
         get() = settings.getBoolean("auto_play", true)
         set(value) = settings.set("auto_play", value)
+
+    var navigationDisplayMode: String
+        get() = settings.getString("navigation_display_mode", "Left")
+        set(value) = settings.set("navigation_display_mode", value)
 }

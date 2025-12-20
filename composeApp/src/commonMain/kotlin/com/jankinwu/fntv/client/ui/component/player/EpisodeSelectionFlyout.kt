@@ -373,8 +373,8 @@ fun EpisodeItem(
             )
             
             // Progress Bar (if watched)
-            if (episode.ts > 0 && episode.runtime > 0) {
-                 val progress = (episode.ts.toFloat() / episode.runtime.toFloat()).coerceIn(0f, 1f)
+            if (episode.ts > 0 && episode.duration > 0) {
+                 val progress = (episode.ts.toFloat() / episode.duration.toFloat()).coerceIn(0f, 1f)
                  Box(
                      modifier = Modifier
                          .align(Alignment.BottomStart)
@@ -405,9 +405,9 @@ fun EpisodeItem(
                 overflow = TextOverflow.Ellipsis
             )
             
-            if (episode.runtime > 0) {
+            if (episode.duration > 0) {
                 Text(
-                    text = FnDataConvertor.formatSecondsToCNDateTime(episode.runtime),
+                    text = FnDataConvertor.formatSecondsToCNDateTime(episode.duration),
                     color = DefaultTextColor.copy(alpha = 0.6f),
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 4.dp)

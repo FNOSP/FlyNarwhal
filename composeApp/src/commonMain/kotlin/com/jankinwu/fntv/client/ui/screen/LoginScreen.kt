@@ -401,17 +401,17 @@ fun LoginScreen(navigator: ComponentNavigator) {
                 }
 
                 // 6. NAS 登录按钮
-                Button(
-                    onClick = { /* TODO: NAS 登录逻辑 */ },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .pointerHoverIcon(PointerIcon.Hand),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3C3C4D))
-                ) {
-                    Text("使用 NAS 登录", fontSize = 16.sp)
-                }
+//                Button(
+//                    onClick = { /* TODO: NAS 登录逻辑 */ },
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .height(48.dp)
+//                        .pointerHoverIcon(PointerIcon.Hand),
+//                    shape = RoundedCornerShape(8.dp),
+//                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3C3C4D))
+//                ) {
+//                    Text("使用 NAS 登录", fontSize = 16.sp)
+//                }
             }
         }
         ToastHost(
