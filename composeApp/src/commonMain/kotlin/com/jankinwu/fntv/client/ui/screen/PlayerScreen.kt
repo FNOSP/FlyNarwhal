@@ -1012,6 +1012,17 @@ fun PlayerOverlay(
                 .fillMaxSize()
                 .hoverable(interactionSource)
                 .background(Color.Black)
+                .onPointerEvent(PointerEventType.Exit) {
+                    isProgressBarHovered = false
+                    isSpeedControlHovered = false
+                    isVolumeControlHovered = false
+                    isQualityControlHovered = false
+                    isEpisodeControlHovered = false
+                    isNextEpisodeHovered = false
+                    isSettingsMenuHovered = false
+                    isSubtitleControlHovered = false
+                    lastMouseMoveTime = System.currentTimeMillis()
+                }
                 .onKeyEvent { event ->
                     handlePlayerKeyEvent(
                         event,
