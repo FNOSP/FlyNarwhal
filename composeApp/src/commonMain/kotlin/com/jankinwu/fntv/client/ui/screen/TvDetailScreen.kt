@@ -238,7 +238,10 @@ fun TvDetailBody(
     LaunchedEffect(watchedUiState) {
         when (val state = watchedUiState) {
             is UiState.Success -> {
-                toastManager.showToast(state.data.message, if (state.data.success) ToastType.Success else ToastType.Failed)
+                toastManager.showToast(
+                    state.data.message,
+                    if (state.data.success) ToastType.Success else ToastType.Failed
+                )
                 // 调用对应的回调函数
                 pendingCallbacks[state.data.guid]?.invoke(state.data.success)
                 // 从 pendingCallbacks 中移除已处理的回调
@@ -271,7 +274,10 @@ fun TvDetailBody(
     LaunchedEffect(favoriteUiState) {
         when (val state = favoriteUiState) {
             is UiState.Success -> {
-                toastManager.showToast(state.data.message, if (state.data.success) ToastType.Success else ToastType.Failed)
+                toastManager.showToast(
+                    state.data.message,
+                    if (state.data.success) ToastType.Success else ToastType.Failed
+                )
                 itemViewModel.loadData(guid)
             }
 
@@ -439,10 +445,17 @@ fun TvDetailBody(
                                             .width(itemWidth)
                                             .height((253 * scaleFactor).dp)
                                     ) {
+                                        val episodeNumber = if (season.episodeNumber > 0) {
+                                            season.episodeNumber
+                                        } else {
+                                            season.localNumberOfEpisodes
+                                        }
                                         MoviePoster(
                                             modifier = Modifier.fillMaxSize(),
                                             title = season.title,
-                                            subtitle = "共 ${season.episodeNumber} 集 · ${season.airDate.take(4)}",
+                                            subtitle = if (season.airDate != null) "共 $episodeNumber 集 · ${
+                                                season.airDate.take(4)
+                                            }" else "共 $episodeNumber 集",
                                             score = FnDataConvertor.formatVoteAverage(season.voteAverage),
                                             posterImg = season.poster,
                                             isFavorite = season.isFavorite == 1,
@@ -518,7 +531,8 @@ private fun TvMediaInfo(
             playInfo
         )
         if (!itemData.overview.isNullOrBlank()) {
-            MediaDescription(modifier = Modifier.padding(bottom = 32.dp), itemData,
+            MediaDescription(
+                modifier = Modifier.padding(bottom = 32.dp), itemData,
                 onClick = { showDescriptionDialog() })
         }
     }

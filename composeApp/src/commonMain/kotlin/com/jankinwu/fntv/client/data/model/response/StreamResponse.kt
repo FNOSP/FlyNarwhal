@@ -40,71 +40,71 @@ data class CloudStorageInfo(
      * DAV用户名
      */
     @param:JsonProperty("dav_username")
-    val davUsername: String,
+    val davUsername: String?,
 
     /**
      * 是否有效
      */
     @param:JsonProperty("valid")
-    val valid: Boolean,
+    val valid: Boolean?,
 
     /**
      * 是否禁用
      */
     @param:JsonProperty("disabled")
-    val disabled: Boolean,
+    val disabled: Boolean?,
 
     /**
      * 云存储类型
      */
     @param:JsonProperty("cloud_storage_type")
-    val cloudStorageType: Int,
+    val cloudStorageType: Int?,
 
     /**
      * 云存储昵称
      */
     @param:JsonProperty("cloud_nick_name")
-    val cloudNickName: String,
+    val cloudNickName: String?,
 
     /**
      * 文件系统大小
      */
     @param:JsonProperty("fssize")
-    val fsSize: Long,
+    val fsSize: Long?,
 
     /**
      * 文件系统剩余大小
      */
     @param:JsonProperty("frsize")
-    val frSize: Long,
+    val frSize: Long?,
 
     /**
      * 文件系统已用大小
      */
     @param:JsonProperty("fusize")
-    val fuSize: Long,
+    val fuSize: Long?,
 
     /**
      * 是否是会员
      */
     @param:JsonProperty("is_vip")
-    val isVip: Boolean,
+    val isVip: Boolean?,
 
     /**
      * 夸克会员类型
      */
     @param:JsonProperty("quark_vip_type")
-    val quarkVipType: String,
+    val quarkVipType: String?,
 
     /**
      * 夸克PC支付链接
      */
     @param:JsonProperty("quark_pc_pay_link")
-    val quarkPcPayLink: String,
+    val quarkPcPayLink: String?,
 
     /**
      * 夸克WAP支付链接
      */
     @param:JsonProperty("quark_wap_pay_link")
-    val quarkWapPayLink: String
+    val quarkWapPayLink: String?
 )
