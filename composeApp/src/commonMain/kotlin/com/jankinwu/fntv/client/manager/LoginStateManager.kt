@@ -1,6 +1,7 @@
 package com.jankinwu.fntv.client.manager
 
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.utils.DomainIpValidator
@@ -32,10 +33,11 @@ object LoginStateManager {
 //            AccountDataCache.password = ""
 //            AccountDataCache.cookieMap = mutableMapOf()
             AccountDataCache.clearCookie()
+            UserInfoMemoryCache.clear()
         }
 
         // 持久化登录状态
-        PreferencesManager.Companion.getInstance().saveAllLoginInfo()
+        PreferencesManager.getInstance().saveAllLoginInfo()
     }
 
     /**

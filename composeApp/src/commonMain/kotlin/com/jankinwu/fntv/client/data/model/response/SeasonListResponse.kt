@@ -33,7 +33,7 @@ data class SeasonListResponse(
     val type: String,
 
     @param:JsonProperty("poster")
-    val poster: String,
+    val poster: String?,
 
     @param:JsonProperty("poster_width")
     val posterWidth: Int,
@@ -63,7 +63,7 @@ data class SeasonListResponse(
     val episodeNumber: Int,
 
     @param:JsonProperty("air_date")
-    val airDate: String,
+    val airDate: String?,
 
     @param:JsonProperty("number_of_seasons")
     val numberOfSeasons: Int,

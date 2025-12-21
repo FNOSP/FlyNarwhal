@@ -82,21 +82,36 @@ fun VersionManagementDialog(
     val itemUiState by mediaItemFileViewModel.uiState.collectAsState()
     var selectedMediaGuids by remember { mutableStateOf(setOf<String>()) }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var isScrapRequested by remember(guid) { mutableStateOf(false) }
     val toastManager = LocalToastManager.current
 
     LaunchedEffect(visible, guid) {
-        if (visible) mediaItemFileViewModel.loadData(guid)
+        if (visible) {
+            isScrapRequested = false
+            scrapViewModel.clearError()
+            mediaItemFileViewModel.loadData(guid)
+        }
     }
 
-    LaunchedEffect(scrapState) {
+    LaunchedEffect(scrapState, isScrapRequested) {
+        if (!isScrapRequested) return@LaunchedEffect
         when (scrapState) {
             is UiState.Success -> {
-                toastManager.showToast("解除匹配成功")
+                toastManager.showToast("解除匹配成功，请刷新页面后再查看")
+                isScrapRequested = false
+                scrapViewModel.clearError()
                 onDismiss()
             }
+
             is UiState.Error -> {
-                toastManager.showToast("解除匹配失败：" + (scrapState as UiState.Error).message, ToastType.Failed)
+                toastManager.showToast(
+                    "解除匹配失败：" + (scrapState as UiState.Error).message,
+                    ToastType.Failed
+                )
+                isScrapRequested = false
+                scrapViewModel.clearError()
             }
+
             else -> {}
         }
     }
@@ -265,8 +280,8 @@ fun VersionManagementDialog(
                     ContentDialogButton.Primary -> {
                         onUnmatchConfirmed(guid, selectedMediaGuids.toList())
                         scrapViewModel.scrap(guid, selectedMediaGuids.toList())
+                        isScrapRequested = true
                         showConfirmDialog = false
-                        onDismiss()
                     }
 
                     ContentDialogButton.Close -> {}

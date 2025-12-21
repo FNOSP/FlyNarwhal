@@ -29,6 +29,7 @@ import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
 import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
+import com.jankinwu.fntv.client.ui.providable.LocalWindowHandle
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
@@ -113,7 +114,8 @@ fun main() = application {
                 LocalPlayerManager provides playerManager,
                 LocalMediaPlayer provides player,
                 LocalFrameWindowScope provides this@Window,
-                LocalWindowState provides state
+                LocalWindowState provides state,
+                LocalWindowHandle provides window.windowHandle
             ) {
                 WindowFrame(
                     onCloseRequest = {

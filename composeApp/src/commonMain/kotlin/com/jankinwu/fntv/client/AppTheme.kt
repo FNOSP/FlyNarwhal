@@ -16,6 +16,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.WindowState
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.Store
+import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
@@ -49,8 +50,15 @@ fun AppTheme(
         )
     }
     val isLoggedIn by LoginStateManager.isLoggedIn.collectAsState()
+    val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
+    val guid = userInfo?.guid.orEmpty()
     val playerManager = LocalPlayerManager.current
     val playerVisible = playerManager.playerState.isVisible
+    LaunchedEffect(isLoggedIn, guid) {
+        if (isLoggedIn && guid.isNotBlank()) {
+            store.reloadUserScopedSettings()
+        }
+    }
     LaunchedEffect(systemDarkMode, store.isFollowingSystemTheme, AppSettingsStore.darkMode, isLoggedIn, playerVisible) {
         if (!isLoggedIn) {
             store.darkMode = true

@@ -35,6 +35,11 @@ class Store(
             AppSettingsStore.navigationDisplayMode = value.name
         }
 
+    fun reloadUserScopedSettings() {
+        isFollowingSystemTheme = AppSettingsStore.isFollowingSystemTheme
+        navigationDisplayModeState = resolveNavigationDisplayMode(AppSettingsStore.navigationDisplayMode)
+    }
+
     // 缩放因子，用于调整组件大小
     var scaleFactor by mutableFloatStateOf((windowWidth / 1280.dp))
 

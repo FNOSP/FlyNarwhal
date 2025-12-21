@@ -12,7 +12,7 @@ data class EpisodeListResponse(
     val lan: String,
 
     @param:JsonProperty("imdb_id")
-    val imdbId: String,
+    val imdbId: String?,
 
     @param:JsonProperty("trim_id")
     val trimId: String,

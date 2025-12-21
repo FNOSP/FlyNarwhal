@@ -28,8 +28,10 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -50,6 +52,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -881,6 +884,22 @@ fun PlayerOverlay(
         }
     }
     val windowState = LocalWindowState.current
+    val windowInfo = LocalWindowInfo.current
+    val isMinimized = windowState.isMinimized
+    val isWindowFocused = windowInfo.isWindowFocused
+    var surfaceRecreateKey by remember { mutableIntStateOf(0) }
+    var lastMinimized by remember { mutableStateOf(isMinimized) }
+    var lastWindowFocused by remember { mutableStateOf(isWindowFocused) }
+
+    LaunchedEffect(isMinimized, isWindowFocused) {
+        val restoredFromMinimize = lastMinimized && !isMinimized
+        val regainedFocus = !lastWindowFocused && isWindowFocused
+        if (restoredFromMinimize || regainedFocus) {
+            surfaceRecreateKey++
+        }
+        lastMinimized = isMinimized
+        lastWindowFocused = isWindowFocused
+    }
 
     // region Window Resize Logic
     var isProgrammaticResize by remember { mutableStateOf(true) }
@@ -993,6 +1012,10 @@ fun PlayerOverlay(
                 .fillMaxSize()
                 .hoverable(interactionSource)
                 .background(Color.Black)
+                .onPointerEvent(PointerEventType.Exit) {
+                    isProgressBarHovered = false
+                    lastMouseMoveTime = System.currentTimeMillis()
+                }
                 .onKeyEvent { event ->
                     handlePlayerKeyEvent(
                         event,
@@ -1015,22 +1038,24 @@ fun PlayerOverlay(
                 )
         ) {
             // 视频层 - 从标题栏下方开始显示
-            MediampPlayerSurface(
-                mediaPlayer, Modifier
-                    .size(maxWidth, maxHeight)
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                        onClick = {
-                            mediaPlayer.togglePause()
-                        }
-                    )
-                    .onPointerEvent(PointerEventType.Move) {
-                        // 鼠标移动时更新时间并显示UI
-                        lastMouseMoveTime = System.currentTimeMillis()
-                        uiVisible = true
-                        isCursorVisible = true
-                    })
+            key(surfaceRecreateKey) {
+                MediampPlayerSurface(
+                    mediaPlayer, Modifier
+                        .size(maxWidth, maxHeight)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = {
+                                mediaPlayer.togglePause()
+                            }
+                        )
+                        .onPointerEvent(PointerEventType.Move) {
+                            // 鼠标移动时更新时间并显示UI
+                            lastMouseMoveTime = System.currentTimeMillis()
+                            uiVisible = true
+                            isCursorVisible = true
+                        })
+            }
 
             if (subtitleCues.isNotEmpty()) {
                 BoxWithConstraints(

@@ -244,6 +244,21 @@ internal class ComposeWindowProcedure(
                 } ?: LRESULT(0)
             }
 
+            WinUser.WM_SYSCOMMAND -> {
+                val result =
+                    User32Extend.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam)
+                        ?: LRESULT(0)
+                if (wParam.toInt() == SC_RESTORE) {
+                    User32Extend.instance?.RedrawWindow(
+                        hWnd,
+                        null,
+                        null,
+                        WinUser.RDW_INVALIDATE or WinUser.RDW_UPDATENOW or WinUser.RDW_FRAME or WinUser.RDW_ALLCHILDREN or WinUser.RDW_ERASE
+                    )
+                }
+                result
+            }
+
             WM_NCRBUTTONUP -> {
                 if (wParam.toInt() == HTCAPTION) {
                     val user32 = User32Extend.instance ?: return LRESULT(0)
@@ -304,7 +319,18 @@ internal class ComposeWindowProcedure(
 
             else -> {
                 if (uMsg == WM_ACTIVATE) {
-                    isWindowActive = wParam.toInt() != WA_INACTIVE
+                    val newActive = wParam.toInt() != WA_INACTIVE
+                    val wasActive = isWindowActive
+                    isWindowActive = newActive
+                    if (!wasActive && newActive) {
+                        (window as? ComposeWindow)?.findSkiaLayer()?.transparency = true
+                        User32Extend.instance?.RedrawWindow(
+                            hWnd,
+                            null,
+                            null,
+                            WinUser.RDW_INVALIDATE or WinUser.RDW_UPDATENOW or WinUser.RDW_FRAME or WinUser.RDW_ALLCHILDREN or WinUser.RDW_ERASE
+                        )
+                    }
                 }
                 if (uMsg == WM_NCMOUSEMOVE) {
                      skiaLayerProcedure?.let {

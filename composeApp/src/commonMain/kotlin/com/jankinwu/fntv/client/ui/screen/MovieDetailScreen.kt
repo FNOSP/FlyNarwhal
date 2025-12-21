@@ -1084,6 +1084,7 @@ fun MediaQualityTag(qualityTag: String, scale: Float = 1f) {
                     RoundedCornerShape(4.dp * scale)
                 )
                 .padding(
+                    top = if(qualityTag.contains("立体声")) 2.dp * scale else 0.dp,
                     start = 4.dp * scale,
                     end = 4.dp * scale,
                     bottom = 2.dp * scale

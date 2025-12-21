@@ -133,4 +133,6 @@ val LocalRefreshState = staticCompositionLocalOf<RefreshState> {
 
 val LocalWindowState = compositionLocalOf<WindowState> { error("WindowState not provided") }
 
+val LocalWindowHandle = compositionLocalOf<Long?> { null }
+
 val LocalStore = compositionLocalOf<Store> { error("Not provided") }

@@ -1,4 +1,4 @@
-# 	fntv-client-multiplatform
+# 	Fntv Client Multiplatform
 
 [![GitHub stars](https://img.shields.io/github/stars/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/network)
@@ -107,7 +107,7 @@
 
 #### 2. 此客户端是否支持使用 FN Connect 域名登录？
 
-目前暂时不支持，只支持使用 ip 或自己的域名登录，后面会支持使用 FN Connect 登录。
+目前暂时不支持，只支持使用 IP 或非飞牛中继域名登录，后面会支持使用 FN Connect 登录。
 
 #### 3. 此客户端是否支持使用飞牛 OS 中的自签证书进行 HTTPS 连接？
 
@@ -150,6 +150,10 @@
 - [jSystemThemeDetector](https://github.com/open-ani/jSystemThemeDetector) - 用于检测（桌面）操作系统是否使用深色 UI 主题的 Java 库
 - [fntv-electron](https://github.com/QiaoKes/fntv-electron) - 飞牛影视PC版 electron 封装
 - [fnos-tv](https://github.com/thshu/fnos-tv) - 基于飞牛影视接口开发的网页端
+
+感谢以下飞牛共建团队成员在内测期间提供了宝贵的技术支持和建议：
+
+@[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[MR_XIAOBO](https://github.com/xiaobonet) @[汪仔饭](https://club.fnnas.com/home.php?mod=space&uid=5021) @*观如
 
 ## 🌟 Star History
 

@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -38,6 +39,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,12 +51,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -77,7 +82,9 @@ import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.ui.component.common.dialog.ForgotPasswordDialog
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
+import com.jankinwu.fntv.client.ui.providable.LocalWindowHandle
 import com.jankinwu.fntv.client.ui.selectedSwitcherStyle
+import com.jankinwu.fntv.client.utils.setWindowImeDisabled
 import com.jankinwu.fntv.client.viewmodel.LoginViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import dev.chrisbanes.haze.hazeEffect
@@ -120,6 +127,7 @@ fun LoginScreen(navigator: ComponentNavigator) {
     val toastManager = rememberToastManager()
     val hazeState = rememberHazeState()
     var showHistorySidebar by remember { mutableStateOf(false) }
+    val windowHandle = LocalWindowHandle.current
     // 登录历史记录列表
     var loginHistoryList by remember { mutableStateOf<List<LoginHistory>>(emptyList()) }
 
@@ -187,6 +195,13 @@ fun LoginScreen(navigator: ComponentNavigator) {
 
             else -> {
                 // 其他状态，如Initial或Loading，可以不做处理
+            }
+        }
+    }
+    DisposableEffect(windowHandle) {
+        onDispose {
+            if (windowHandle != null) {
+                setWindowImeDisabled(windowHandle, false)
             }
         }
     }
@@ -299,13 +314,26 @@ fun LoginScreen(navigator: ComponentNavigator) {
                     textStyle = LocalTextStyle.current.copy(fontSize = 18.sp)
                 )
                 var isPasswordVisibilityHovered by remember { mutableStateOf(false) }
+                var isPasswordFocused by remember { mutableStateOf(false) }
+                LaunchedEffect(windowHandle, isPasswordFocused) {
+                    if (windowHandle != null) {
+                        setWindowImeDisabled(windowHandle, isPasswordFocused)
+                    }
+                }
                 // 3. 密码输入框
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { isPasswordFocused = it.isFocused },
                     label = { Text("密码") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = if (passwordVisible) KeyboardType.Ascii else KeyboardType.Password,
+                        autoCorrect = false,
+                        imeAction = ImeAction.Done
+                    ),
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
                         val image =
