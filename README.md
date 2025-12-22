@@ -17,9 +17,11 @@
 
 > 最终效果以未来发布版本为准
 
-![image-20251018195526377](http://oss.jankinwu.com/img/image-20251018195526377.png)
+![image-20251221171527491](http://oss.jankinwu.com/img/image-20251221171527491.png)
 
-![image-20251019000006440](http://oss.jankinwu.com/img/image-20251019000006440.png)
+![image-20251221171344697](http://oss.jankinwu.com/img/image-20251221171344697.png)
+
+![image-20251221180048751](http://oss.jankinwu.com/img/image-20251221180048751.png)
 
 ## 使用说明
 ### 使用安装包安装
