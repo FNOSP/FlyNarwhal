@@ -1882,7 +1882,7 @@ private suspend fun startPlayback(
     extraFiles: MediaExtraFiles,
     isM3u8: Boolean = false
 ) {
-    val isDirectLink = playLink.contains("/v/api/v1/media/range/")
+//    val isDirectLink = playLink.contains("/v/api/v1/media/range/")
     var baseUrl = if (AccountDataCache.cookieState.isNotBlank()) {
         AccountDataCache.getProxyBaseUrl()
     } else {
@@ -1913,11 +1913,7 @@ private suspend fun startPlayback(
             )
         }
     }
-    if (!isDirectLink) {
-        delay(1000) // 等待播放器初始化
-    } else {
-        delay(200)
-    }
+    delay(300)
     player.features[PlaybackSpeed]?.set(1.0f)
     // 恢复音量
     val savedVolume = PlayingSettingsStore.getVolume()
