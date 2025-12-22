@@ -69,6 +69,7 @@ import com.jankinwu.fntv.client.components
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.LoginHistory
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.icons.Delete
 import com.jankinwu.fntv.client.icons.DoubleArrowLeft
 import com.jankinwu.fntv.client.icons.History
@@ -149,15 +150,14 @@ fun LoginScreen(navigator: ComponentNavigator) {
     LaunchedEffect(loginUiState) {
         when (val state = loginUiState) {
             is UiState.Success -> {
-                // 登录成功，更新缓存中的登录状态
-                LoginStateManager.updateLoginStatus(true)
-                // 保存token到SystemAccountData
+                // Update auth state before switching UI to logged-in to avoid unauthorized requests.
+                UserInfoMemoryCache.clear()
                 AccountDataCache.authorization = state.data.token
-                AccountDataCache.isLoggedIn = true
                 AccountDataCache.insertCookie("Trim-MC-token" to state.data.token)
                 logger.i("登录成功，cookie: ${AccountDataCache.cookieState}")
                 val preferencesManager = PreferencesManager.getInstance()
                 preferencesManager.saveToken(state.data.token)
+                LoginStateManager.updateLoginStatus(true)
                 loginViewModel.clearError()
                 val targetComponent = components
                     .firstOrNull { it.name == "首页" }
@@ -382,9 +382,6 @@ fun LoginScreen(navigator: ComponentNavigator) {
                         )
                     }
                     ForgotPasswordDialog()
-//                    TextButton(onClick = { /* TODO: 忘记密码逻辑 */ }) {
-//                        Text("忘记密码?", color = HintColor, fontSize = 14.sp)
-//                    }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
