@@ -226,8 +226,10 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.修复切换用户后导航栏媒体库列表未更新的问题  
-          2.修复切换用户后 VLC 代理信息未更新的问题  
+          NOTES="1.修复倍速播放时字幕被跳过的问题  
+          2.修复切换窗口置顶后快捷键不生效的问题  
+          3.优化更新弹窗错误信息显示  
+          4.其他若干 UI 方面的优化  
           　  
           感谢以下飞牛共建团成员反馈问题并协助排查：  
           @[zhengbf](https://club.fnnas.com/home.php?mod=space&uid=187) @[空城](https://club.fnnas.com/home.php?mod=space&uid=2332)  
