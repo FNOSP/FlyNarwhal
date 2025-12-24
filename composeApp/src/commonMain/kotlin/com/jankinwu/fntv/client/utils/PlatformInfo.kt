@@ -7,4 +7,6 @@ expect object PlatformInfo {
     val osName: String
     val osArch: String
     val cpuModel: String
+    val gpuModel: String
+    val gpuType: String
 }

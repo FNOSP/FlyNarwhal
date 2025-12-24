@@ -78,6 +78,8 @@ class ReportingService(private val context: Context) {
                     "osName" to PlatformInfo.osName,
                     "osArch" to PlatformInfo.osArch,
                     "cpuModel" to PlatformInfo.cpuModel,
+                    "gpuModel" to PlatformInfo.gpuModel,
+                    "gpuType" to PlatformInfo.gpuType,
                     "version" to currentVersion,
                     "timestamp" to timestamp
                 )
