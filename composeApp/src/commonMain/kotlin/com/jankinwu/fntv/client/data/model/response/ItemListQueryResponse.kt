@@ -5,9 +5,11 @@ import com.fasterxml.jackson.annotation.JsonProperty
 
 @Immutable
 data class ItemListQueryResponse(
+    @param:JsonProperty("dir")
     val dir: String?,
     @param:JsonProperty("jump_list")
     val jumpList: List<String>? = null,
+    @param:JsonProperty("list")
     val list: List<MediaItem>,
     @param:JsonProperty("mdb_category")
     val mdbCategory: String?,
@@ -15,12 +17,15 @@ data class ItemListQueryResponse(
     val mdbName: String?,
     @param:JsonProperty("top_dir")
     val topDir: String?,
+    @param:JsonProperty("total")
     val total: Int
 )
 
 @Immutable
 data class MediaItem(
+    @param:JsonProperty("guid")
     val guid: String,
+    @param:JsonProperty("lan")
     val lan: String?,
     @param:JsonProperty("douban_id")
     val doubanId: Int?,
@@ -34,8 +39,11 @@ data class MediaItem(
     val parentGuid: String?,
     @param:JsonProperty("parent_title")
     val parentTitle: String?,
+    @param:JsonProperty("title")
     val title: String,
+    @param:JsonProperty("type")
     val type: String?,
+    @param:JsonProperty("poster")
     val poster: String?,
     @param:JsonProperty("poster_width")
     val posterWidth: Int?,
@@ -43,6 +51,7 @@ data class MediaItem(
     val posterHeight: Int?,
     @param:JsonProperty("is_favorite")
     val isFavorite: Int,
+    @param:JsonProperty("watched")
     val watched: Int?,
     @param:JsonProperty("watched_ts")
     val watchedTs: Int?,
@@ -66,7 +75,9 @@ data class MediaItem(
     val localNumberOfSeasons: Int?,
     @param:JsonProperty("local_number_of_episodes")
     val localNumberOfEpisodes: Int?,
+    @param:JsonProperty("status")
     val status: String?,
+    @param:JsonProperty("overview")
     val overview: String?,
     @param:JsonProperty("ancestor_guid")
     val ancestorGuid: String?,
@@ -74,7 +85,9 @@ data class MediaItem(
     val ancestorName: String?,
     @param:JsonProperty("ancestor_category")
     val ancestorCategory: String?,
+    @param:JsonProperty("ts")
     val ts: Int?,
+    @param:JsonProperty("duration")
     val duration: Int,
     @param:JsonProperty("single_child_guid")
     val singleChildGuid: String?,
@@ -90,6 +103,7 @@ data class MediaItem(
 
 @Immutable
 data class MediaStream(
+    @param:JsonProperty("resolutions")
     val resolutions: List<String>? = null,
     @param:JsonProperty("audio_type")
     val audioType: String? = null,

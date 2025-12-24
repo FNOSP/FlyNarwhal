@@ -7,21 +7,27 @@ import kotlinx.serialization.Serializable
 @Immutable
 @Serializable
 data class ItemListQueryRequest (
+    @get:JsonProperty("ancestor_guid")
     @param:JsonProperty("ancestor_guid")
     val ancestorGuid: String?,
 
+    @get:JsonProperty("exclude_grouped_video")
     @param:JsonProperty("exclude_grouped_video")
     val excludeGroupedVideo: Int = 1,
 
+    @get:JsonProperty("sort_type")
     @param:JsonProperty("sort_type")
     val sortType: String = "DESC",
 
+    @get:JsonProperty("sort_column")
     @param:JsonProperty("sort_column")
     val sortColumn: String = "create_time",
 
+    @get:JsonProperty("page_size")
     @param:JsonProperty("page_size")
     val pageSize: Int = 22,
 
+    @get:JsonProperty("page")
     @param:JsonProperty("page")
     val page: Int = 1,
 
@@ -34,22 +40,27 @@ data class Tags(
 
     val resolution : String? = null,
 
+    @get:JsonProperty("color_range")
     @param:JsonProperty("color_range")
     val colorRange: String? = null,
 
+    @get:JsonProperty("locate")
     @param:JsonProperty("locate")
     val locate: String? = null,
 
     val decade: String? = null,
 
+    @get:JsonProperty("recognition_status")
     @param:JsonProperty("recognition_status")
     val recognitionStatus: String? = null,
 
     val watched: String? = null,
 
+    @get:JsonProperty("audio_type")
     @param:JsonProperty("audio_type")
     val audioType: String? = null,
 
+    @get:JsonProperty("type")
     @param:JsonProperty("type")
     val type: List<String>
 ) {

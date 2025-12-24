@@ -4,25 +4,47 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import kotlinx.coroutines.flow.StateFlow
 
 data class GitHubRelease(
+    @get:JsonProperty("url")
+    @param:JsonProperty("url")
     val url: String,
+    @get:JsonProperty("assets_url")
     @param:JsonProperty("assets_url")
     val assetsUrl: String,
+    @get:JsonProperty("html_url")
     @param:JsonProperty("html_url")
     val htmlUrl: String,
+    @get:JsonProperty("tag_name")
     @param:JsonProperty("tag_name")
     val tagName: String,
+    @get:JsonProperty("name")
+    @param:JsonProperty("name")
     val name: String,
+    @get:JsonProperty("assets")
+    @param:JsonProperty("assets")
     val assets: List<GitHubAsset>,
+    @get:JsonProperty("body")
+    @param:JsonProperty("body")
     val body: String,
+    @get:JsonProperty("prerelease")
+    @param:JsonProperty("prerelease")
     val prerelease: Boolean = false
 )
 
 data class GitHubAsset(
+    @get:JsonProperty("url")
+    @param:JsonProperty("url")
     val url: String,
+    @get:JsonProperty("name")
+    @param:JsonProperty("name")
     val name: String,
+    @get:JsonProperty("browser_download_url")
     @param:JsonProperty("browser_download_url")
     val browserDownloadUrl: String,
+    @get:JsonProperty("size")
+    @param:JsonProperty("size")
     val size: Long,
+    @get:JsonProperty("digest")
+    @param:JsonProperty("digest")
     val digest: String? = null
 )
 

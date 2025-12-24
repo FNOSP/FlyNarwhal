@@ -4,9 +4,11 @@ import com.fasterxml.jackson.annotation.JsonProperty
 
 data class ProxyInfoRequest (
 
+    @get:JsonProperty("url")
     @param:JsonProperty("url")
     val url: String,
 
+    @get:JsonProperty("cookie")
     @param:JsonProperty("cookie")
     val cookie: String
 )

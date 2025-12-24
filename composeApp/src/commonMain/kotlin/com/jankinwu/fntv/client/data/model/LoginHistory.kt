@@ -3,24 +3,31 @@ package com.jankinwu.fntv.client.data.model
 import com.fasterxml.jackson.annotation.JsonProperty
 
 data class LoginHistory(
+    @get:JsonProperty("host")
     @param:JsonProperty("host")
     val host: String,
     
+    @get:JsonProperty("port")
     @param:JsonProperty("port")
     val port: Int,
     
+    @get:JsonProperty("username")
     @param:JsonProperty("username")
     val username: String,
     
+    @get:JsonProperty("password")
     @param:JsonProperty("password")
     val password: String?,
     
+    @get:JsonProperty("isHttps")
     @param:JsonProperty("isHttps")
     val isHttps: Boolean,
     
+    @get:JsonProperty("rememberMe")
     @param:JsonProperty("rememberMe")
     val rememberMe: Boolean,
     
+    @get:JsonProperty("lastLoginTimestamp")
     @param:JsonProperty("lastLoginTimestamp")
     val lastLoginTimestamp: Long = System.currentTimeMillis()
 ) {

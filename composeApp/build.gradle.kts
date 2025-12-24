@@ -64,16 +64,31 @@ val prepareUpdaterResources by tasks.registering(Copy::class) {
     into(proxyResourcesDir.map { it.dir("fntv-updater/$currentPlatform") })
 }
 
+val mergeResources by tasks.registering(Copy::class) {
+    dependsOn(prepareProxyResources, prepareUpdaterResources)
+    from(proxyResourcesDir)
+    from(file("appResources"))
+    into(layout.buildDirectory.dir("mergedResources"))
+}
+
 // Tasks will be configured after project evaluation to ensure task existence
 afterEvaluate {
     // Ensure resources are prepared before processing
     listOf(
         "processJvmMainResources",
         "jvmProcessResources",
-        "processResources"
+        "processResources",
+        "prepareAppResources",
+        "createDistributable",
+        "packageRelease",
+        "packageDebug",
+        "package"
     ).mapNotNull { tasks.findByName(it) }.forEach { task ->
-        task.dependsOn(prepareProxyResources)
-        task.dependsOn(prepareUpdaterResources)
+        task.dependsOn(mergeResources)
+    }
+    
+    tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
+        dependsOn(mergeResources)
     }
     
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
@@ -119,10 +134,15 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-    alias(libs.plugins.composeHotReload)
+    // alias(libs.plugins.composeHotReload)
 }
 
 kotlin {
+    @OptIn(ExperimentalKotlinGradlePluginApi::class)
+    compilerOptions {
+        freeCompilerArgs.add("-Xmulti-dollar-interpolation")
+    }
+
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
@@ -208,8 +228,9 @@ compose.desktop {
         mainClass = "com.jankinwu.fntv.client.MainKt"
 
         buildTypes.release.proguard {
-            isEnabled = false
-//            configurationFiles.from("compose-desktop.pro")
+            isEnabled = true
+            obfuscate.set(true)
+            configurationFiles.from(project.rootDir.resolve("compose-desktop.pro"))
         }
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Deb, TargetFormat.Exe, TargetFormat.Rpm, TargetFormat.Pkg)
@@ -220,8 +241,7 @@ compose.desktop {
             // Description acts as the process name in Task Manager. Using Chinese here causes garbled text due to jpackage limitations.
             description = "FnMedia"
             vendor = "JankinWu"
-            appResourcesRootDir.set(proxyResourcesDir)
-            appResourcesRootDir.set(file("appResources"))
+            appResourcesRootDir.set(layout.buildDirectory.dir("mergedResources"))
             modules("jdk.unsupported")
             windows {
                 iconFile.set(project.file("icons/favicon.ico"))
@@ -271,7 +291,11 @@ android {
     }
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {
@@ -316,3 +340,10 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageT
 tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractRunDistributableTask>().configureEach {
     dependsOn(prepareProxyResources)
 }
+
+/*
+// Fix for ProGuard crashing on newer Kotlin module metadata
+tasks.withType<Jar>().configureEach {
+    exclude("META-INF/*.kotlin_module")
+}
+*/
