@@ -31,8 +31,8 @@ void main(List<String> args) async {
   if (args.isNotEmpty) {
     url = args[0];
     if (args.length > 1) {
-      title = args[1];
-    }
+        title = args[1];
+      }
     if (args.length > 2) {
       try {
         final posMs = int.parse(args[2]);
@@ -99,15 +99,44 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
   AppSettings? _appSettings;
   PlayerSettings? _playerSettings;
 
+  // Player State
+  bool _isBuffering = false;
+  Duration _duration = Duration.zero;
+  Duration _position = Duration.zero;
+  Duration _buffer = Duration.zero;
+  double _volume = 100.0;
+  double _playbackSpeed = 1.0;
+  
+  StreamSubscription? _durationSubscription;
+  StreamSubscription? _positionSubscription;
+  StreamSubscription? _bufferSubscription;
+  StreamSubscription? _bufferingSubscription;
+  StreamSubscription? _volumeSubscription;
+  StreamSubscription? _rateSubscription;
+
+  // Small Window State
+  Rect? _lastWindowBounds;
+
   @override
   void initState() {
     super.initState();
     windowManager.addListener(this);
     _initPlayer();
+    _initStreams();
     _startHttpServer();
     _initWindow();
     _fetchBridgeSettings();
   }
+
+  void _initStreams() {
+    _durationSubscription = player.stream.duration.listen((d) => setState(() => _duration = d));
+    _positionSubscription = player.stream.position.listen((p) => setState(() => _position = p));
+    _bufferSubscription = player.stream.buffer.listen((b) => setState(() => _buffer = b));
+    _bufferingSubscription = player.stream.buffering.listen((b) => setState(() => _isBuffering = b));
+    _volumeSubscription = player.stream.volume.listen((v) => setState(() => _volume = v));
+    _rateSubscription = player.stream.rate.listen((r) => setState(() => _playbackSpeed = r));
+  }
+
 
   Future<void> _fetchBridgeSettings() async {
     try {
@@ -227,24 +256,36 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
   void dispose() {
     windowManager.removeListener(this);
     _hideControlsTimer?.cancel();
+    _durationSubscription?.cancel();
+    _positionSubscription?.cancel();
+    _bufferSubscription?.cancel();
+    _bufferingSubscription?.cancel();
+    _volumeSubscription?.cancel();
+    _rateSubscription?.cancel();
     player.dispose();
     _server?.close();
     super.dispose();
   }
 
-  void _toggleSmallWindow() async {
-    setState(() {
-      _isSmallWindow = !_isSmallWindow;
-    });
-    
+  Future<void> _toggleSmallWindow() async {
+    setState(() => _isSmallWindow = !_isSmallWindow);
     if (_isSmallWindow) {
-      await windowManager.setAlwaysOnTop(true);
+      _lastWindowBounds = await windowManager.getBounds();
+      // Load saved bounds from preferences/bridge if available (mock for now)
+      // For now, use default small size
+      await windowManager.setMinimumSize(const Size(320, 180));
       await windowManager.setSize(const Size(480, 270));
-      await windowManager.setAlignment(Alignment.bottomRight);
+      await windowManager.setAlwaysOnTop(true);
+      // Optional: Position bottom right
     } else {
       await windowManager.setAlwaysOnTop(false);
-      await windowManager.setSize(const Size(1280, 720)); // Restore default or saved size
-      await windowManager.center();
+      await windowManager.setMinimumSize(const Size(800, 600)); // Restore min size
+      if (_lastWindowBounds != null) {
+        await windowManager.setBounds(_lastWindowBounds!);
+      } else {
+        await windowManager.setSize(const Size(1280, 720));
+        await windowManager.center();
+      }
     }
   }
 
@@ -265,7 +306,43 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
       onKey: (event) {
         if (event is RawKeyDownEvent) {
           _onUserInteraction();
-          // Handle shortcuts (Space, Arrows, etc.)
+          if (event.logicalKey == LogicalKeyboardKey.space) {
+            player.playOrPause();
+            // Optional: Toast for play/pause?
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+             final seekTo = (_position + const Duration(seconds: 10));
+             player.seek(seekTo);
+             ToastManager.show(context, "快进至: ${_formatDuration(seekTo)}", category: "seek", icon: Icons.fast_forward);
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+             final seekTo = (_position - const Duration(seconds: 10));
+             player.seek(seekTo);
+             ToastManager.show(context, "快退至: ${_formatDuration(seekTo)}", category: "seek", icon: Icons.fast_rewind);
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            final newVol = (_volume + 10).clamp(0.0, 100.0);
+            player.setVolume(newVol);
+            ToastManager.show(context, "当前音量: ${newVol.toInt()}%", category: "volume", icon: Icons.volume_up);
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+            final newVol = (_volume - 10).clamp(0.0, 100.0);
+            player.setVolume(newVol);
+             ToastManager.show(context, "当前音量: ${newVol.toInt()}%", category: "volume", icon: Icons.volume_down);
+          } else if (event.logicalKey == LogicalKeyboardKey.keyM) {
+             final newVol = _volume > 0 ? 0.0 : 100.0;
+             player.setVolume(newVol);
+             ToastManager.show(
+               context, 
+               newVol == 0 ? "静音" : "解除静音: 100%", 
+               category: "volume", 
+               icon: newVol == 0 ? Icons.volume_off : Icons.volume_up
+             );
+          } else if (event.logicalKey == LogicalKeyboardKey.keyF) {
+            _toggleFullScreen();
+          } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+             if (_isSettingsOpen) {
+               setState(() => _isSettingsOpen = false);
+             } else {
+               windowManager.setFullScreen(false);
+             }
+          }
         }
       },
       child: Scaffold(
@@ -357,7 +434,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                   bottom: 80,
                   right: 16,
                   child: SettingsMenu(
-                    isTvEpisode: true, // TODO: Determine from metadata
+                    player: player,
                     currentAspectRatio: _aspectRatio,
                     currentWindowRatio: _windowRatio,
                     onAspectRatioChanged: (val) {
@@ -380,6 +457,10 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
         ),
       ),
     );
+  }
+
+  void _showSettingsMenu() {
+    setState(() => _isSettingsOpen = !_isSettingsOpen);
   }
 
   Widget _buildBottomControls() {
@@ -410,40 +491,30 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                 buffered = buffer.inMilliseconds / duration.inMilliseconds;
               }
 
-              return Column(
-                children: [
-                  Row(
-                    children: [
-                      Text(_formatDuration(position), style: const TextStyle(color: Colors.white)),
-                      const Spacer(),
-                      Text(_formatDuration(duration), style: const TextStyle(color: Colors.white)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTapDown: (details) {
-                      final box = context.findRenderObject() as RenderBox;
-                      final width = box.size.width - 32; // padding
-                      final tapPos = details.localPosition.dx;
-                      final relative = tapPos / width;
-                      final seekMs = relative * duration.inMilliseconds;
-                      player.seek(Duration(milliseconds: seekMs.toInt()));
-                    },
-                    child: CustomProgressBar(
-                      progress: progress,
-                      buffered: buffered,
-                      progressColor: Theme.of(context).colorScheme.secondary,
-                    ),
-                  ),
-                ],
+              return GestureDetector(
+                onTapDown: (details) {
+                  final box = context.findRenderObject() as RenderBox;
+                  final width = box.size.width - 32; // padding
+                  final tapPos = details.localPosition.dx;
+                  final relative = tapPos / width;
+                  final seekMs = relative * duration.inMilliseconds;
+                  player.seek(Duration(milliseconds: seekMs.toInt()));
+                },
+                child: CustomProgressBar(
+                  progress: progress,
+                  buffered: buffered,
+                  progressColor: Theme.of(context).colorScheme.secondary,
+                ),
               );
             },
           ),
-          const SizedBox(height: 16),
-          // Buttons
+          const SizedBox(height: 8),
+          
+          // Buttons Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // Left Group
               Row(
                 children: [
                   StreamBuilder<bool>(
@@ -456,23 +527,91 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                       );
                     },
                   ),
-                  // Volume, Speed, etc.
+                  IconButton(
+                    icon: const Icon(Icons.replay_10, color: Colors.white),
+                    onPressed: () {
+                       player.seek(_position - const Duration(seconds: 10));
+                       ToastManager.show(context, "快退 10s", category: "seek", icon: Icons.fast_rewind);
+                    },
+                    tooltip: "快退 10s",
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.forward_10, color: Colors.white),
+                    onPressed: () {
+                       player.seek(_position + const Duration(seconds: 10));
+                       ToastManager.show(context, "快进 10s", category: "seek", icon: Icons.fast_forward);
+                    },
+                    tooltip: "快进 10s",
+                  ),
+                  const SizedBox(width: 8),
+                  StreamBuilder<Duration>(
+                    stream: player.stream.position,
+                    builder: (context, snapshot) {
+                      final pos = snapshot.data ?? Duration.zero;
+                      final dur = player.state.duration;
+                      return Text(
+                        "${_formatDuration(pos)} / ${_formatDuration(dur)}", 
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                      );
+                    },
+                  ),
                 ],
               ),
+              
+              // Right Group
               Row(
                 children: [
+                  // Speed
+                  TextButton(
+                    onPressed: () {
+                      // TODO: Open Speed Flyout
+                    },
+                    child: Text("${_playbackSpeed}x", style: const TextStyle(color: Colors.white)),
+                  ),
+                  
+                  // Quality
+                  TextButton(
+                    onPressed: _showQualityMenu,
+                    child: const Text("原画质", style: TextStyle(color: Colors.white)),
+                  ),
+                  
+                  // Subtitle
+                  IconButton(
+                    icon: const Icon(Icons.subtitles, color: Colors.white),
+                    onPressed: _showSubtitleMenu,
+                  ),
+                  
+                  // PIP
                   IconButton(
                     icon: const Icon(Icons.picture_in_picture_alt, color: Colors.white),
                     onPressed: _toggleSmallWindow,
                     tooltip: "小窗模式",
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.settings, color: Colors.white),
-                    onPressed: () => setState(() => _isSettingsOpen = !_isSettingsOpen),
+                  
+                  // Settings (Lottie)
+                  LottieIconButton(
+                    assetName: 'settings_lottie.json',
+                    onTap: () => setState(() => _isSettingsOpen = !_isSettingsOpen),
+                    tooltip: "设置",
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.fullscreen, color: Colors.white),
-                    onPressed: _toggleFullScreen,
+                  
+                  // Volume (Lottie)
+                  LottieIconButton(
+                    assetName: _volume == 0 ? 'volume_off_lottie.json' : 'volume_lottie.json',
+                    onTap: () {
+                       final newVol = _volume == 0 ? 100.0 : 0.0;
+                       player.setVolume(newVol);
+                    },
+                    tooltip: "音量",
+                  ),
+                  
+                  // Fullscreen (Lottie)
+                  LottieIconButton(
+                    assetName: _playerSettings?.playerIsFullscreen == true 
+                        ? 'quit_full_screen_lottie.json' 
+                        : 'full_screen_lottie.json',
+                    onTap: _toggleFullScreen,
+                    tooltip: "全屏",
                   ),
                 ],
               ),
@@ -488,30 +627,61 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          Video(controller: controller, controls: NoVideoControls),
-          // Simple overlay for drag and close
-          Positioned.fill(
-            child: GestureDetector(
-              onPanUpdate: (details) async {
-                await windowManager.startDragging();
-              },
-              child: Container(color: Colors.transparent),
+          Center(
+            child: Video(
+              controller: controller,
+              controls: NoVideoControls,
             ),
           ),
           Positioned(
-            top: 8,
-            right: 8,
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
-              onPressed: () => exit(0),
+            top: 0,
+            left: 0,
+            right: 0,
+            child: MouseRegion(
+               cursor: SystemMouseCursors.move,
+               child: GestureDetector(
+                 onPanStart: (details) {
+                   windowManager.startDragging();
+                 },
+                 child: Container(
+                  color: Colors.transparent, // Invisible grip area
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  alignment: Alignment.topRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                       IconButton(
+                         icon: const Icon(Icons.open_in_full, color: Colors.white, size: 20),
+                         onPressed: _toggleSmallWindow, // Restore
+                         tooltip: "恢复窗口",
+                       ),
+                       IconButton(
+                         icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                         onPressed: () => exit(0),
+                         tooltip: "关闭",
+                       ),
+                     ],
+                   ),
+                 ),
+               ),
             ),
           ),
+          // Resize handle (bottom right)
           Positioned(
-            bottom: 8,
-            right: 8,
-            child: IconButton(
-              icon: const Icon(Icons.open_in_full, color: Colors.white),
-              onPressed: _toggleSmallWindow,
+            bottom: 0,
+            right: 0,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.resizeUpLeftDownRight,
+              child: GestureDetector(
+                onPanStart: (_) => windowManager.startResizing(ResizeEdge.bottomRight),
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  color: Colors.transparent,
+                  child: const Icon(Icons.drag_handle, color: Colors.white54, size: 12),
+                ),
+              ),
             ),
           ),
         ],
@@ -547,5 +717,99 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
     String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
     return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
+  }
+
+  void _showQualityMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.9),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text("画质选择", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(color: Colors.white24, height: 1),
+            if (player.state.tracks.video.isEmpty)
+               const Padding(padding: EdgeInsets.all(16), child: Text("无可用画质信息", style: TextStyle(color: Colors.white70))),
+            ...player.state.tracks.video.map((track) {
+              return ListTile(
+                title: Text(track.title ?? "${track.w}x${track.h}", style: const TextStyle(color: Colors.white)),
+                trailing: player.state.track.video == track ? const Icon(Icons.check, color: Colors.blue) : null,
+                onTap: () {
+                  player.setVideoTrack(track);
+                  Navigator.pop(ctx);
+                },
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSubtitleMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.9),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text("字幕选择", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(color: Colors.white24, height: 1),
+             ListTile(
+                title: const Text("无", style: TextStyle(color: Colors.white)),
+                trailing: player.state.track.subtitle == SubtitleTrack.no() ? const Icon(Icons.check, color: Colors.blue) : null,
+                onTap: () {
+                  player.setSubtitleTrack(SubtitleTrack.no());
+                  Navigator.pop(ctx);
+                },
+              ),
+            ...player.state.tracks.subtitle.map((track) {
+              return ListTile(
+                title: Text(track.title ?? track.language ?? "Unknown", style: const TextStyle(color: Colors.white)),
+                trailing: player.state.track.subtitle == track ? const Icon(Icons.check, color: Colors.blue) : null,
+                onTap: () {
+                  player.setSubtitleTrack(track);
+                  Navigator.pop(ctx);
+                },
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showToast(String message, {IconData? icon}) {
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: 100,
+        left: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: CustomToast(message: message, icon: icon),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+    Future.delayed(const Duration(seconds: 2), () {
+      entry.remove();
+    });
   }
 }
