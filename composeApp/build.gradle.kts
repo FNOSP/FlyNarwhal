@@ -130,13 +130,13 @@ val prepareAllAppResources by tasks.registering(Copy::class) {
     from(flutterSourceDir) {
         if (flutterSourceDir.exists()) {
             if (osName.contains("win")) {
-                include("flutter_player.exe")
+                include("flutter-player.exe")
                 include("*.dll")
                 include("data/**")
             } else if (osName.contains("mac")) {
-                include("flutter_player.app/**")
+                include("flutter-player.app/**")
             } else {
-                include("flutter_player")
+                include("flutter-player")
                 include("lib/**")
                 include("data/**")
             }

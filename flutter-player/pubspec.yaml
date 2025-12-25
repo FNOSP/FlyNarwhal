@@ -1,4 +1,4 @@
-name: flutter_player
+name: flutter-player
 description: A Flutter-based external player for FnTV Client.
 version: 1.0.0+1
 publish_to: 'none'
