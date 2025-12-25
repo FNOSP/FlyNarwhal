@@ -72,6 +72,7 @@ import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.jankinwu.fntv.client.Platform
 import com.jankinwu.fntv.client.currentPlatform
+import com.jankinwu.fntv.client.launchExternalPlayer
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
@@ -376,6 +377,8 @@ fun PlayerOverlay(
     val streamViewModel: StreamViewModel = koinViewModel()
     val playRecordViewModel: PlayRecordViewModel = koinViewModel()
     val playState by mediaPlayer.playbackState.collectAsState()
+    val toastManager = rememberToastManager()
+    val useExternalPlayer = AppSettingsStore.useExternalPlayer && currentPlatform() is Platform.Desktop
 
     LaunchedEffect(playingInfoCache?.itemGuid) {
         isProgressBarHovered = false
@@ -413,6 +416,7 @@ fun PlayerOverlay(
         playRecordViewModel,
         playerViewModel,
         playerManager,
+        toastManager,
         mp4Parser
     ) {
         { episodeGuid: String ->
@@ -440,6 +444,7 @@ fun PlayerOverlay(
                         playRecordViewModel = playRecordViewModel,
                         playerViewModel = playerViewModel,
                         playerManager = playerManager,
+                        toastManager = toastManager,
                         mediaGuid = null,
                         currentAudioGuid = null,
                         currentSubtitleGuid = null,
@@ -474,10 +479,10 @@ fun PlayerOverlay(
 
     // HLS Subtitle Logic
     val hlsSubtitleUtil =
-        remember(playingInfoCache?.playLink, playingInfoCache?.currentSubtitleStream) {
+        remember(playingInfoCache?.playLink, playingInfoCache?.currentSubtitleStream, useExternalPlayer) {
             val link = playingInfoCache?.playLink
             val subtitle = playingInfoCache?.currentSubtitleStream
-            if (!link.isNullOrBlank() && link.contains(".m3u8") && subtitle != null && subtitle.isExternal == 0) {
+            if (!useExternalPlayer && !link.isNullOrBlank() && link.contains(".m3u8") && subtitle != null && subtitle.isExternal == 0) {
                 HlsSubtitleUtil(fnOfficialClient, link, subtitle)
             } else {
                 null
@@ -486,9 +491,9 @@ fun PlayerOverlay(
 
     // External Subtitle Logic
     val externalSubtitleUtil =
-        remember(playingInfoCache?.currentSubtitleStream) {
+        remember(playingInfoCache?.currentSubtitleStream, useExternalPlayer) {
             val subtitle = playingInfoCache?.currentSubtitleStream
-            if (subtitle != null && subtitle.isExternal == 1 && subtitle.format in listOf(
+            if (!useExternalPlayer && subtitle != null && subtitle.isExternal == 1 && subtitle.format in listOf(
                     "srt",
                     "ass",
                     "vtt"
@@ -500,15 +505,18 @@ fun PlayerOverlay(
             }
         }
 
-    LaunchedEffect(hlsSubtitleUtil, externalSubtitleUtil) {
-        hlsSubtitleUtil?.initialize(mediaPlayer.getCurrentPositionMillis())
-        externalSubtitleUtil?.initialize()
+    LaunchedEffect(hlsSubtitleUtil, externalSubtitleUtil, useExternalPlayer) {
+        if (!useExternalPlayer) {
+            hlsSubtitleUtil?.initialize(mediaPlayer.getCurrentPositionMillis())
+            externalSubtitleUtil?.initialize()
+        }
     }
 
     var subtitleCues by remember { mutableStateOf<List<SubtitleCue>>(emptyList()) }
     val currentRenderTime by rememberSmoothVideoTime(mediaPlayer)
 
-    LaunchedEffect(hlsSubtitleUtil, externalSubtitleUtil, mediaPlayer, subtitleSettings) {
+    LaunchedEffect(hlsSubtitleUtil, externalSubtitleUtil, mediaPlayer, subtitleSettings, useExternalPlayer) {
+        if (useExternalPlayer) return@LaunchedEffect
         if (hlsSubtitleUtil != null) {
             // Loop 1: Fetch loop (runs on IO, less frequent)
             launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -615,7 +623,6 @@ fun PlayerOverlay(
     val iso6391State by tagViewModel.iso6391State.collectAsState()
     val iso6392State by tagViewModel.iso6392State.collectAsState()
     val iso3166State by tagViewModel.iso3166State.collectAsState()
-    val toastManager = rememberToastManager()
     var isoTagData by remember {
         mutableStateOf(
             IsoTagData(
@@ -1654,6 +1661,7 @@ fun rememberPlayMediaFunction(
     val playerViewModel: PlayerViewModel = koinViewModel()
     val mp4Parser: Mp4Parser = koinInject()
     val playerManager = LocalPlayerManager.current
+    val toastManager = LocalToastManager.current
     return remember(
         streamViewModel,
         playPlayViewModel,
@@ -1661,6 +1669,7 @@ fun rememberPlayMediaFunction(
         guid,
         player,
         playerManager,
+        toastManager,
         mediaGuid,
         currentAudioGuid,
         currentSubtitleGuid,
@@ -1680,6 +1689,7 @@ fun rememberPlayMediaFunction(
                         playRecordViewModel = playRecordViewModel,
                         playerViewModel = playerViewModel,
                         playerManager = playerManager,
+                        toastManager = toastManager,
                         mediaGuid = mediaGuid,
                         currentAudioGuid = currentAudioGuid,
                         currentSubtitleGuid = currentSubtitleGuid,
@@ -1703,6 +1713,7 @@ private suspend fun playMedia(
     playRecordViewModel: PlayRecordViewModel,
     playerViewModel: PlayerViewModel,
     playerManager: PlayerManager,
+    toastManager: ToastManager,
     mediaGuid: String?,
     currentAudioGuid: String?,
     currentSubtitleGuid: String?,
@@ -1740,11 +1751,17 @@ private suspend fun playMedia(
         )
         playerViewModel.updatePlayingInfo(cache)
 
-        // 显示播放器
-        showPlayerUI(playInfoResponse, videoStream, playerManager, guid)
+        val useExternalPlayer = AppSettingsStore.useExternalPlayer && currentPlatform() is Platform.Desktop
+
+        // Only show the built-in player UI when using the built-in player.
+        if (!useExternalPlayer) {
+            showPlayerUI(playInfoResponse, videoStream, playerManager, guid)
+        } else {
+            playerManager.hidePlayer()
+        }
 
         // VLC 播放器对 HDR 颜色空间有兼容问题，强制使用 SDR
-        val forcedSdr = if (videoStream.colorRangeType != "SDR") 1 else 0
+        val forcedSdr = if (!useExternalPlayer) if (videoStream.colorRangeType != "SDR") 1 else 0 else 0
 
         // 构造播放请求
         val playRequest =
@@ -1772,14 +1789,19 @@ private suspend fun playMedia(
 
         logger.i("startPosition: $startPosition, effectiveStartPosition: ${playLinkResult.effectiveStartPosition}")
         // 设置字幕
-        val extraFiles = subtitleStream?.let {
-            val mediaExtraFiles = getMediaExtraFiles(it, playLinkResult.playLink)
-            mediaExtraFiles
-        } ?: MediaExtraFiles()
+        val extraFiles = if (!useExternalPlayer) {
+            subtitleStream?.let {
+                val mediaExtraFiles = getMediaExtraFiles(it, playLinkResult.playLink)
+                mediaExtraFiles
+            } ?: MediaExtraFiles()
+        } else {
+            MediaExtraFiles()
+        }
+
         // 启动播放器
         var actualPlayLink = playLinkResult.playLink
         var isM3u8 = false
-        if (playLinkResult.playLink.contains(".m3u8")) {
+        if (!useExternalPlayer && playLinkResult.playLink.contains(".m3u8")) {
             isM3u8 = true
             try {
                 // If it's HLS, check if it contains subtitles
@@ -1800,13 +1822,42 @@ private suspend fun playMedia(
             }
         }
 
-        startPlayback(
-            player,
-            actualPlayLink,
-            playLinkResult.effectiveStartPosition,
-            extraFiles,
-            isM3u8
-        )
+        if (useExternalPlayer) {
+            val baseUrl = if (actualPlayLink.startsWith("http")) "" else {
+                if (AccountDataCache.cookieState.isNotBlank()) {
+                    AccountDataCache.getProxyBaseUrl()
+                } else {
+                    AccountDataCache.getFnOfficialBaseUrl()
+                }
+            }
+            val fullUrl = "$baseUrl$actualPlayLink"
+            try {
+                launchExternalPlayer(
+                    fullUrl,
+                    playInfoResponse.item.title ?: "",
+                    playLinkResult.effectiveStartPosition
+                )
+                playerManager.hidePlayer()
+            } catch (e: Exception) {
+                logger.w("Failed to launch external player: ${e.message}")
+                toastManager.showToast(
+                    "外置播放器启动失败：${e.message ?: "unknown"}",
+                    ToastType.Failed
+                )
+                playerManager.hidePlayer()
+                return
+            }
+        }
+
+        if (!useExternalPlayer) {
+            startPlayback(
+                player,
+                actualPlayLink,
+                playLinkResult.effectiveStartPosition,
+                extraFiles,
+                isM3u8
+            )
+        }
         // 调用playRecord接口
         callPlayRecord(
 //            itemGuid = guid,
@@ -1820,6 +1871,8 @@ private suspend fun playMedia(
                 logger.e("起播时调用playRecord失败：缓存为空")
             },
         )
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
     } catch (e: Exception) {
         logger.e("播放失败: ${e.message}", e)
     }

@@ -130,6 +130,9 @@ class HlsSubtitleUtil(
                 
                 // 5. Immediately update for the current position
                 update(startPositionMs)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Ignore cancellation when the player UI leaves composition.
+                return@withContext
             } catch (e: Exception) {
                 logger.e(e) { "Failed to initialize HlsSubtitleUtil" }
             }

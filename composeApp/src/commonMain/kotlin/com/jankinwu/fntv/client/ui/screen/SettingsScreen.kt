@@ -458,6 +458,25 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                     }
                 )
 
+                Header("播放")
+                var useExternalPlayer by remember(guid) { mutableStateOf(AppSettingsStore.useExternalPlayer) }
+                CardExpanderItem(
+                    heading = { Text("使用外置播放器") },
+                    caption = { Text("开启后，播放视频时将调用 Flutter 实现的播放器") },
+                    icon = { Icon(Icons.Regular.Navigation, null, modifier = Modifier.size(18.dp)) },
+                    trailing = {
+                        Switcher(
+                            checked = useExternalPlayer,
+                            text = if (useExternalPlayer) "开启" else "关闭",
+                            textBefore = true,
+                            onCheckStateChange = {
+                                useExternalPlayer = it
+                                AppSettingsStore.useExternalPlayer = it
+                            }
+                        )
+                    }
+                )
+
                 CardExpanderItem(
                     heading = { Text("当前版本") },
                     caption = { Text(BuildConfig.VERSION_NAME) },

@@ -88,6 +88,10 @@ object AppSettingsStore {
         get() = settings.getBoolean(scopedKey("auto_play"), true)
         set(value) = settings.set(scopedKey("auto_play"), value)
 
+    var useExternalPlayer: Boolean
+        get() = settings.getBoolean(scopedKey("use_external_player"), false)
+        set(value) = settings.set(scopedKey("use_external_player"), value)
+
     var navigationDisplayMode: String
         get() = settings.getString(scopedKey("navigation_display_mode"), "Left")
         set(value) = settings.set(scopedKey("navigation_display_mode"), value)

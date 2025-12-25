@@ -30,3 +30,8 @@ internal actual fun currentPlatformImpl(): Platform {
         }
     } ?: Platform.Android(Arch.ARMV8A)
 }
+
+actual fun launchExternalPlayer(url: String, title: String, startPos: Long) {
+    // External player is not supported on Android.
+    throw UnsupportedOperationException("External player is not supported on Android.")
+}

@@ -78,6 +78,7 @@ private val _currentPlatform = runCatching { currentPlatformImpl() } // throw on
 
 fun currentPlatform(): Platform = _currentPlatform.getOrThrow()
 
+expect fun launchExternalPlayer(url: String, title: String, startPos: Long = 0L)
 
 enum class ArchFamily {
     X86,

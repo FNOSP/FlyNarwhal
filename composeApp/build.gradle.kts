@@ -26,6 +26,7 @@ val platformStr = when {
 }
 
 val proxyResourcesDir = layout.buildDirectory.dir("compose/proxy-resources")
+val allAppResourcesDir = layout.buildDirectory.dir("compose/all-app-resources")
 
 val prepareProxyResources by tasks.registering(Copy::class) {
     val sourceDir = project.rootDir.resolve("fntv-proxy")
@@ -38,6 +39,111 @@ val prepareProxyResources by tasks.registering(Copy::class) {
              throw GradleException("Proxy executable directory not found at ${sourceDir.absolutePath}")
         }
     }
+}
+
+fun resolveFlutterExecutable(project: Project): File? {
+    val explicit = System.getenv("FLUTTER_EXECUTABLE")?.trim().orEmpty()
+    if (explicit.isNotBlank()) return File(explicit)
+
+    val flutterHome = System.getenv("FLUTTER_HOME")?.trim()
+        ?: System.getenv("FLUTTER_ROOT")?.trim()
+        ?: System.getenv("FLUTTER_SDK")?.trim()
+
+    if (!flutterHome.isNullOrBlank()) {
+        val flutterBin = File(flutterHome, "bin")
+        val flutterBat = File(flutterBin, "flutter.bat")
+        val flutterExe = File(flutterBin, "flutter")
+        return when {
+            flutterBat.exists() -> flutterBat
+            flutterExe.exists() -> flutterExe
+            else -> null
+        }
+    }
+
+    val localFlutterBat = project.rootDir.resolve("flutter/bin/flutter.bat")
+    return if (localFlutterBat.exists()) localFlutterBat else null
+}
+
+val buildFlutterPlayer by tasks.registering(Exec::class) {
+    val flutterProjectDir = project.rootDir.resolve("flutter_player")
+    workingDir = flutterProjectDir
+
+    val targetOs = when {
+        osName.contains("win") -> "windows"
+        osName.contains("mac") -> "macos"
+        else -> "linux"
+    }
+
+    val flutterExecutable = resolveFlutterExecutable(project)
+    if (osName.contains("win")) {
+        val flutterPath = flutterExecutable?.absolutePath ?: "flutter"
+        commandLine("cmd", "/c", flutterPath, "build", targetOs, "--release")
+    } else {
+        val flutterPath = flutterExecutable?.absolutePath ?: "flutter"
+        commandLine(flutterPath, "build", targetOs, "--release")
+    }
+
+    isIgnoreExitValue = true
+
+    doLast {
+        if (executionResult.get().exitValue != 0) {
+            logger.warn("WARNING: Flutter player build failed. The external player functionality will not be available.")
+            logger.warn("To fix this, please ensure you have enabled Developer Mode in Windows Settings or run as Administrator.")
+            logger.warn("If Flutter is not found, set FLUTTER_HOME (or FLUTTER_EXECUTABLE) and restart Gradle/IDE.")
+        } else if (!flutterProjectDir.exists()) {
+            throw GradleException("Flutter player directory not found at ${flutterProjectDir.absolutePath}")
+        }
+    }
+}
+
+val prepareAllAppResources by tasks.registering(Copy::class) {
+    dependsOn(prepareProxyResources, prepareUpdaterResources, buildFlutterPlayer)
+
+    // 1. Copy platform-specific resources from appResources/
+    val currentPlatformDir = when {
+        osName.contains("win") -> if (osArch.contains("aarch64") || osArch.contains("arm64")) "windows-arm64" else "windows-x64"
+        osName.contains("mac") -> if (osArch.contains("aarch64") || osArch.contains("arm")) "macos-arm64" else "macos-x64"
+        else -> if (osArch.contains("aarch64") || osArch.contains("arm")) "linux-arm64" else "linux-x64"
+    }
+
+    val archSpecificResources = project.file("appResources/$currentPlatformDir")
+    if (archSpecificResources.exists()) {
+        from(archSpecificResources)
+    }
+
+    // 2. Copy proxy resources
+    from(proxyResourcesDir)
+
+    // 3. Copy Flutter player output
+    val flutterProjectDir = project.rootDir.resolve("flutter_player")
+    val flutterSourceDir = when {
+        osName.contains("win") -> {
+            listOf(
+                flutterProjectDir.resolve("build/windows/x64/runner/Release"),
+                flutterProjectDir.resolve("build/windows/runner/Release")
+            ).firstOrNull { it.exists() } ?: flutterProjectDir.resolve("build/windows/x64/runner/Release")
+        }
+        osName.contains("mac") -> flutterProjectDir.resolve("build/macos/Build/Products/Release")
+        else -> flutterProjectDir.resolve("build/linux/x64/release/bundle")
+    }
+
+    from(flutterSourceDir) {
+        if (flutterSourceDir.exists()) {
+            if (osName.contains("win")) {
+                include("flutter_player.exe")
+                include("*.dll")
+                include("data/**")
+            } else if (osName.contains("mac")) {
+                include("flutter_player.app/**")
+            } else {
+                include("flutter_player")
+                include("lib/**")
+                include("data/**")
+            }
+        }
+    }
+
+    into(allAppResourcesDir)
 }
 
 val buildUpdater by tasks.registering(Exec::class) {
@@ -65,9 +171,8 @@ val prepareUpdaterResources by tasks.registering(Copy::class) {
 }
 
 val mergeResources by tasks.registering(Copy::class) {
-    dependsOn(prepareProxyResources, prepareUpdaterResources)
-    from(proxyResourcesDir)
-    from(file("appResources"))
+    dependsOn(prepareAllAppResources)
+    from(allAppResourcesDir)
     into(layout.buildDirectory.dir("mergedResources"))
 }
 
@@ -85,8 +190,10 @@ afterEvaluate {
         "package"
     ).mapNotNull { tasks.findByName(it) }.forEach { task ->
         task.dependsOn(mergeResources)
+        task.dependsOn(prepareAllAppResources)
+        task.dependsOn(prepareUpdaterResources)
     }
-    
+
     tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
         dependsOn(mergeResources)
     }
@@ -102,7 +209,7 @@ val generateBuildConfig by tasks.registering {
     val outputDir = buildConfigDir
     val version = appVersion
     val suffix = appVersionSuffix
-    
+
     // Read secrets from environment variables or project properties
     val reportApiSecret = System.getenv("REPORT_API_SECRET") ?: project.findProperty("REPORT_API_SECRET")?.toString() ?: ""
     val reportUrl = System.getenv("REPORT_URL") ?: project.findProperty("REPORT_URL")?.toString() ?: ""
@@ -305,7 +412,8 @@ android {
 }
 
 tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
-    dependsOn(prepareProxyResources)
+    dependsOn(prepareAllAppResources)
+    dependsOn(prepareUpdaterResources)
     val version = appVersion
 
     doLast {
