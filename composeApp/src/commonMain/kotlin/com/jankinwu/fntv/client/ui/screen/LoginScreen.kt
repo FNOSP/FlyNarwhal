@@ -121,6 +121,10 @@ fun LoginScreen(navigator: ComponentNavigator) {
     var host by remember { mutableStateOf("") }
     var port by remember { mutableIntStateOf(0) }
     var isHttps by remember { mutableStateOf(false) }
+    var isFnConnect by remember { mutableStateOf(false) }
+    var showFnConnectWebView by remember { mutableStateOf(false) }
+    var fnConnectUrl by remember { mutableStateOf("") }
+    var fnId by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(false) }
     val loginViewModel: LoginViewModel = koinViewModel()
@@ -206,11 +210,17 @@ fun LoginScreen(navigator: ComponentNavigator) {
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
+    if (showFnConnectWebView) {
+        FnConnectWebViewScreen(
+            initialUrl = fnConnectUrl,
+            onBack = { showFnConnectWebView = false }
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
         Image(
             painterResource(Res.drawable.login_background),
             contentDescription = "登录背景图",
@@ -245,200 +255,224 @@ fun LoginScreen(navigator: ComponentNavigator) {
                 )
                 Text("FN_Media", color = HintColor, fontSize = 16.sp)
 
-//                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    var isHistoryHovered by remember { mutableStateOf(false) }
+                if (isFnConnect) {
                     OutlinedTextField(
-                        value = host,
-                        onValueChange = { host = it },
-                        modifier = Modifier
-                            .weight(2.0f),
-                        label = { Text("ip 或域名") },
+                        value = fnId,
+                        onValueChange = { fnId = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("请输入 FN ID") },
                         singleLine = true,
-                        placeholder = { Text("请输入ip或域名") },
+                        placeholder = { Text("请输入 FN ID") },
                         colors = getTextFieldColors(),
-                        textStyle = LocalTextStyle.current.copy(fontSize = 18.sp),
-                        trailingIcon = {
-                            val image = History
-                            val description = "历史登录记录"
-                            IconButton(onClick = { showHistorySidebar = !showHistorySidebar }) {
-                                Icon(
-                                    imageVector = image,
-                                    description,
-                                    tint = if (isHistoryHovered) Color.White else HintColor,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 18.sp)
+                    )
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                                var isHistoryHovered by remember { mutableStateOf(false) }
+                                OutlinedTextField(
+                                    value = host,
+                                    onValueChange = { host = it },
                                     modifier = Modifier
-                                        .size(20.dp)
-                                        .onPointerEvent(PointerEventType.Enter) {
-                                            isHistoryHovered = true
+                                        .weight(2.0f),
+                                    label = { Text("ip 或域名") },
+                                    singleLine = true,
+                                    placeholder = { Text("请输入ip或域名") },
+                                    colors = getTextFieldColors(),
+                                    textStyle = LocalTextStyle.current.copy(fontSize = 18.sp),
+                                    trailingIcon = {
+                                        val image = History
+                                        val description = "历史登录记录"
+                                        IconButton(onClick = { showHistorySidebar = !showHistorySidebar }) {
+                                            Icon(
+                                                imageVector = image,
+                                                description,
+                                                tint = if (isHistoryHovered) Color.White else HintColor,
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .onPointerEvent(PointerEventType.Enter) {
+                                                        isHistoryHovered = true
+                                                    }
+                                                    .onPointerEvent(PointerEventType.Exit) {
+                                                        isHistoryHovered = false
+                                                    }
+                                                    .pointerHoverIcon(PointerIcon.Hand)
+                                            )
                                         }
-                                        .onPointerEvent(PointerEventType.Exit) {
-                                            isHistoryHovered = false
-                                        }
-                                        .pointerHoverIcon(PointerIcon.Hand)
+                                    },
+
+                                    )
+                                Text(
+                                    ":",
+                                    color = HintColor,
+                                    fontSize = 30.sp,
+                                    modifier = Modifier
+                                        .padding(horizontal = 4.dp, vertical = 12.dp)
+                                )
+                                NumberInput(
+                                    onValueChange = { port = it },
+                                    value = port,
+                                    modifier = Modifier.weight(1.0f),
+                                    placeholder = "请输入端口",
+                                    minValue = 0,
+                                    label = "",
+                                    textColor = Colors.TextSecondaryColor,
+                                    defaultValue = 5666
                                 )
                             }
-                        },
 
-                        )
-                    Text(
-                        ":",
-                        color = HintColor,
-                        fontSize = 30.sp,
-                        modifier = Modifier
-                            .padding(horizontal = 4.dp, vertical = 12.dp)
-                    )
-                    NumberInput(
-                        onValueChange = { port = it },
-                        value = port,
-                        modifier = Modifier.weight(1.0f),
-                        placeholder = "请输入端口",
-                        minValue = 0,
-                        label = "",
-                        textColor = Colors.TextSecondaryColor,
-                        defaultValue = 5666
-                    )
-                }
-
-                // 2. 用户名输入框
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("用户名或邮箱") },
-                    singleLine = true,
-                    colors = getTextFieldColors(),
-                    textStyle = LocalTextStyle.current.copy(fontSize = 18.sp)
-                )
-                var isPasswordVisibilityHovered by remember { mutableStateOf(false) }
-                var isPasswordFocused by remember { mutableStateOf(false) }
-                LaunchedEffect(windowHandle, isPasswordFocused) {
-                    if (windowHandle != null) {
-                        setWindowImeDisabled(windowHandle, isPasswordFocused)
-                    }
-                }
-                // 3. 密码输入框
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onFocusChanged { isPasswordFocused = it.isFocused },
-                    label = { Text("密码") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = if (passwordVisible) KeyboardType.Ascii else KeyboardType.Password,
-                        autoCorrect = false,
-                        imeAction = ImeAction.Done
-                    ),
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val image =
-                            if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                        val description = if (passwordVisible) "隐藏密码" else "显示密码"
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                imageVector = image,
-                                description,
-                                tint = if (isPasswordVisibilityHovered) Color.White else HintColor,
+                            OutlinedTextField(
+                                value = username,
+                                onValueChange = { username = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("用户名或邮箱") },
+                                singleLine = true,
+                                colors = getTextFieldColors(),
+                                textStyle = LocalTextStyle.current.copy(fontSize = 18.sp)
+                            )
+                            var isPasswordVisibilityHovered by remember { mutableStateOf(false) }
+                            var isPasswordFocused by remember { mutableStateOf(false) }
+                            LaunchedEffect(windowHandle, isPasswordFocused) {
+                                if (windowHandle != null) {
+                                    setWindowImeDisabled(windowHandle, isPasswordFocused)
+                                }
+                            }
+                            OutlinedTextField(
+                                value = password,
+                                onValueChange = { password = it },
                                 modifier = Modifier
-                                    .size(20.dp)
-                                    .onPointerEvent(PointerEventType.Enter) {
-                                        isPasswordVisibilityHovered = true
+                                    .fillMaxWidth()
+                                    .onFocusChanged { isPasswordFocused = it.isFocused },
+                                label = { Text("密码") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = if (passwordVisible) KeyboardType.Ascii else KeyboardType.Password,
+                                    autoCorrect = false,
+                                    imeAction = ImeAction.Done
+                                ),
+                                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    val image =
+                                        if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                                    val description = if (passwordVisible) "隐藏密码" else "显示密码"
+                                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                        Icon(
+                                            imageVector = image,
+                                            description,
+                                            tint = if (isPasswordVisibilityHovered) Color.White else HintColor,
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .onPointerEvent(PointerEventType.Enter) {
+                                                    isPasswordVisibilityHovered = true
+                                                }
+                                                .onPointerEvent(PointerEventType.Exit) {
+                                                    isPasswordVisibilityHovered = false
+                                                }
+                                                .pointerHoverIcon(PointerIcon.Hand)
+                                        )
                                     }
-                                    .onPointerEvent(PointerEventType.Exit) {
-                                        isPasswordVisibilityHovered = false
-                                    }
-                                    .pointerHoverIcon(PointerIcon.Hand)
+                                },
+                                colors = getTextFieldColors(),
+                                textStyle = LocalTextStyle.current.copy(fontSize = 18.sp)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    CheckBox(
+                                        rememberMe,
+                                        "记住密码",
+                                        onCheckStateChange = { rememberMe = it },
+                                        colors = if (rememberMe) {
+                                            customSelectedCheckBoxColors()
+                                        } else {
+                                            CheckBoxDefaults.defaultCheckBoxColors()
+                                        }
+                                    )
+                                }
+                                ForgotPasswordDialog()
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("使用 FN Connect 登录", color = Colors.TextSecondaryColor, fontSize = 16.sp)
+                            Switcher(
+                                isFnConnect,
+                                { isFnConnect = it },
+                                styles = if (isFnConnect) {
+                                    selectedSwitcherStyle()
+                                } else {
+                                    SwitcherDefaults.defaultSwitcherStyle()
+                                },
                             )
                         }
-                    },
-                    colors = getTextFieldColors(),
-                    textStyle = LocalTextStyle.current.copy(fontSize = 18.sp)
-                )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("HTTPS 安全访问", color = Colors.TextSecondaryColor, fontSize = 16.sp)
+                            Switcher(
+                                isHttps,
+                                { isHttps = it },
+                                styles = if (isHttps) {
+                                    selectedSwitcherStyle()
+                                } else {
+                                    SwitcherDefaults.defaultSwitcherStyle()
+                                },
+                            )
+                        }
 
-                // 4. 记住账号 和 忘记密码
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-
-                        CheckBox(
-                            rememberMe,
-                            "记住密码",
-                            onCheckStateChange = { rememberMe = it },
-                            colors = if (rememberMe) {
-                                customSelectedCheckBoxColors()
-                            } else {
-                                CheckBoxDefaults.defaultCheckBoxColors()
-                            }
-                        )
+                        Button(
+                            onClick = {
+                                if (isFnConnect) {
+                                    val url = normalizeFnConnectUrl(fnId)
+                                    if (url.isNotBlank()) {
+                                        logger.i("fn connect url: $url")
+                                        showHistorySidebar = false
+//                                        onSwitchToFnConnect(url, fnId)
+                                        showFnConnectWebView = true
+                                        fnConnectUrl = url
+                                    } else {
+                                        toastManager.showToast("请输入 FN ID", ToastType.Info)
+                                    }
+                                } else {
+                                    handleLogin(
+                                        host = host,
+                                        port = port,
+                                        username = username,
+                                        password = password,
+                                        isHttps = isHttps,
+                                        toastManager = toastManager,
+                                        loginViewModel = loginViewModel,
+                                        rememberMe = rememberMe
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .pointerHoverIcon(PointerIcon.Hand),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                        ) {
+                            Text(if (isFnConnect) "下一步" else "登录", fontSize = 16.sp)
+                        }
                     }
-                    ForgotPasswordDialog()
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("HTTPS 安全访问", color = Colors.TextSecondaryColor, fontSize = 16.sp)
-                    Switcher(
-                        isHttps,
-                        { isHttps = it },
-                        styles = if (isHttps) {
-                            selectedSwitcherStyle()
-                        } else {
-                            SwitcherDefaults.defaultSwitcherStyle()
-                        },
-                    )
-                }
-
-                // 5. 登录按钮
-                Button(
-                    onClick = {
-                        handleLogin(
-                            host = host,
-                            port = port,
-                            username = username,
-                            password = password,
-                            isHttps = isHttps,
-                            toastManager = toastManager,
-                            loginViewModel = loginViewModel,
-                            rememberMe = rememberMe
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .pointerHoverIcon(PointerIcon.Hand),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                ) {
-                    Text("登录", fontSize = 16.sp)
-                }
-
-                // 6. NAS 登录按钮
-//                Button(
-//                    onClick = { /* TODO: NAS 登录逻辑 */ },
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .height(48.dp)
-//                        .pointerHoverIcon(PointerIcon.Hand),
-//                    shape = RoundedCornerShape(8.dp),
-//                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3C3C4D))
-//                ) {
-//                    Text("使用 NAS 登录", fontSize = 16.sp)
-//                }
-            }
-        }
         ToastHost(
             toastManager = toastManager,
             modifier = Modifier.fillMaxSize()
@@ -482,6 +516,7 @@ fun LoginScreen(navigator: ComponentNavigator) {
                 }
             )
         }
+    }
     }
 }
 

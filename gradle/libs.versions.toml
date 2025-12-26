@@ -17,7 +17,7 @@ kotlin = "2.1.0"
 kotlinx-coroutines = "1.10.2"
 kotlinx-collections-immutable = "0.4.0"
 kotlinx-datetime = "0.7.1"
-#composeWebView = "2.0.2"
+composeWebView = "2.0.2"
 runtimeDesktop = "1.10.0"
 ktor = "3.3.3"
 vlcj = "4.12.1"
@@ -25,6 +25,7 @@ fluent-ui = "v0.1.0"
 windowStyler = "0.3.3-SNAPSHOT"
 oshi = "6.9.1"
 versioncompare = "1.5.0"
+kcef = "2024.04.20.4"
 krypto = "4.0.10"
 jackson = "2.20.1"
 koin = "4.1.1"
@@ -55,7 +56,8 @@ androidx-lifecycle-runtimeCompose = { module = "org.jetbrains.androidx.lifecycle
 kotlinx-coroutinesSwing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
 kotlinx-collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinx-collections-immutable" }
 kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinx-datetime" }
-#compose-webview = {module = "io.github.kevinnzou:compose-webview-multiplatform", version.ref = "composeWebView"}
+compose-webview = {module = "io.github.kevinnzou:compose-webview-multiplatform", version.ref = "composeWebView"}
+kcef = { module = "dev.datlag:kcef", version.ref = "kcef" }
 androidx-runtime-desktop = { group = "androidx.compose.runtime", name = "runtime-desktop", version.ref = "runtimeDesktop" }
 ktor-http = { group = "io.ktor", name = "ktor-http", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }

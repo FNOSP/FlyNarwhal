@@ -7,6 +7,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -31,6 +33,7 @@ import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalWindowHandle
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
+import com.jankinwu.fntv.client.ui.screen.FnConnectWebViewScreen
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay
@@ -44,27 +47,53 @@ import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.viewModelModule
 import com.jankinwu.fntv.client.window.WindowFrame
+import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitialized
+import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitError
+import com.jankinwu.fntv.client.ui.providable.LocalWebViewRestartRequired
+import dev.datlag.kcef.KCEF
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.icon
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.KoinApplication
 import org.koin.compose.viewmodel.koinViewModel
 import org.openani.mediamp.compose.rememberMediampPlayer
 import java.awt.Dimension
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 @OptIn(FlowPreview::class)
-fun main() = application {
+fun main() {
     val logDir = initializeLoggingDirectory()
     Logger.setLogWriters(ConsoleLogWriter(), FileLogWriter(logDir))
     Logger.withTag("main").i { "Application started. Logs directory: ${logDir.absolutePath}" }
 
+    WebViewBootstrap.start(
+        installDir = kcefInstallDir(),
+        cacheDir = kcefCacheDir()
+    )
+
+    application {
     DisposableEffect(Unit) {
         ProxyManager.start()
         onDispose {
             ProxyManager.stop()
+        }
+    }
+
+    val webViewInitialized by WebViewBootstrap.initialized.collectAsState()
+    val webViewRestartRequired by WebViewBootstrap.restartRequired.collectAsState()
+    val webViewInitError by WebViewBootstrap.initError.collectAsState()
+
+    DisposableEffect(Unit) {
+        onDispose {
+            KCEF.disposeBlocking()
         }
     }
 
@@ -126,7 +155,10 @@ fun main() = application {
                 LocalMediaPlayer provides player,
                 LocalFrameWindowScope provides this@Window,
                 LocalWindowState provides state,
-                LocalWindowHandle provides window.windowHandle
+                LocalWindowHandle provides window.windowHandle,
+                LocalWebViewInitialized provides (webViewInitialized && !webViewRestartRequired && webViewInitError == null),
+                LocalWebViewRestartRequired provides webViewRestartRequired,
+                LocalWebViewInitError provides webViewInitError
             ) {
                 WindowFrame(
                     onCloseRequest = {
@@ -203,6 +235,75 @@ fun main() = application {
             }
         }
     }
+}
+}
+
+private object WebViewBootstrap {
+    private val started = AtomicBoolean(false)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    val initialized = MutableStateFlow(false)
+    val restartRequired = MutableStateFlow(false)
+    val initError = MutableStateFlow<Throwable?>(null)
+
+    fun start(installDir: File, cacheDir: File) {
+        if (!started.compareAndSet(false, true)) return
+
+        scope.launch {
+            try {
+                if (!installDir.exists()) installDir.mkdirs()
+                if (!cacheDir.exists()) cacheDir.mkdirs()
+
+                KCEF.init(
+                    builder = {
+                        installDir(installDir)
+                        settings {
+                            cachePath = cacheDir.absolutePath
+                        }
+                        progress {
+                            onInitialized {
+                                initialized.value = true
+                            }
+                        }
+                    },
+                    onError = { throwable ->
+                        initError.value = throwable
+                    },
+                    onRestartRequired = {
+                        restartRequired.value = true
+                    }
+                )
+            } catch (t: Throwable) {
+                initError.value = t
+            }
+        }
+    }
+}
+
+private fun kcefInstallDir(): File {
+    val platform = currentPlatformDesktop()
+    val baseDir = when (platform) {
+        is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fn-media")
+        is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fn-media")
+        is Platform.Windows -> {
+            val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
+            File(localAppData ?: System.getProperty("user.home"), "FnMedia")
+        }
+    }
+    return File(baseDir, "kcef-bundle")
+}
+
+private fun kcefCacheDir(): File {
+    val platform = currentPlatformDesktop()
+    val baseDir = when (platform) {
+        is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fn-media")
+        is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fn-media")
+        is Platform.Windows -> {
+            val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
+            File(localAppData ?: System.getProperty("user.home"), "FnMedia")
+        }
+    }
+    return File(baseDir, "kcef-cache")
 }
 
 /**

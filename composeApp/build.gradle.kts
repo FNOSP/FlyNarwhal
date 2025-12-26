@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.JavaExec
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -93,6 +94,16 @@ afterEvaluate {
     
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         dependsOn(generateBuildConfig)
+    }
+
+    tasks.withType<JavaExec>().configureEach {
+        jvmArgs("--add-opens", "java.desktop/sun.awt=ALL-UNNAMED")
+        jvmArgs("--add-opens", "java.desktop/java.awt.peer=ALL-UNNAMED")
+
+        if (System.getProperty("os.name").contains("Mac")) {
+            jvmArgs("--add-opens", "java.desktop/sun.lwawt=ALL-UNNAMED")
+            jvmArgs("--add-opens", "java.desktop/sun.lwawt.macosx=ALL-UNNAMED")
+        }
     }
 }
 
@@ -198,6 +209,7 @@ kotlin {
             implementation(libs.kotlinx.io.core)
             implementation(libs.compottie)
             implementation(libs.multiplatform.markdown.renderer)
+            implementation(libs.compose.webview)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -206,6 +218,7 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.androidx.runtime.desktop)
+            implementation(libs.kcef)
 //            implementation(libs.vlcj)
             implementation(libs.oshi.core)
             implementation(libs.versioncompare)

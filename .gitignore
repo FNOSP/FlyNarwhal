@@ -21,7 +21,7 @@ captures
 /installer/**.exe
 **/logs/
 /.trae/
-/flutter_player/.dart_tool/
-/flutter_player/windows/flutter/ephemeral/
-/flutter_player/.flutter-plugins-dependencies
+/flutter-player/.dart_tool/
+/flutter-player/windows/flutter/ephemeral/
+/flutter-player/.flutter-plugins-dependencies
 /mapping.txt
