@@ -47,29 +47,32 @@ data class LoginHistory(
         if (this === other) return true
         if (other !is LoginHistory) return false
         
-        if (isFnConnect) {
-            return isFnConnect == other.isFnConnect &&
-                   fnId == other.fnId &&
-                   username == other.username
+        if (isFnConnect != other.isFnConnect) return false
+        
+        return if (isFnConnect) {
+            fnId == other.fnId && username == other.username
+        } else {
+            host == other.host && 
+            port == other.port && 
+            username == other.username
         }
-
-        return host == other.host && 
-               port == other.port && 
-               username == other.username
     }
     
     override fun hashCode(): Int {
-        var result = host.hashCode()
-        result = 31 * result + port
+        var result = isFnConnect.hashCode()
+        if (isFnConnect) {
+            result = 31 * result + fnId.hashCode()
+        } else {
+            result = 31 * result + host.hashCode()
+            result = 31 * result + port
+        }
         result = 31 * result + username.hashCode()
-        result = 31 * result + isFnConnect.hashCode()
-        result = 31 * result + fnId.hashCode()
         return result
     }
     
     fun getEndpoint(): String {
         if (isFnConnect) {
-            return if (fnId.isNotBlank()) "FN Connect: $fnId" else "FN Connect"
+            return fnId.ifBlank { "FN Connect" }
         }
         return if (port != 0) {
             "$host:$port"

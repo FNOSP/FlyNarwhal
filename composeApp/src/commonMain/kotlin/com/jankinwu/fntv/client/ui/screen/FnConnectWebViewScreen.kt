@@ -50,6 +50,7 @@ import com.jankinwu.fntv.client.data.model.LoginHistory
 import com.jankinwu.fntv.client.data.model.request.AuthRequest
 import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.ToastType
@@ -132,6 +133,8 @@ fun FnConnectWebViewScreen(
 
     LaunchedEffect(Unit) {
         var isAuthRequested = false
+        var isSysConfigInFlight = false
+        var isSysConfigLoaded = false
         messageChannel.consumeEach { params ->
             logger.i("Intercepted: $params")
             try {
@@ -141,37 +144,47 @@ fun FnConnectWebViewScreen(
 
                 if (type == "XHR" && url.contains("/sac/rpcproxy/v1/new-user-guide/status")) {
                     val cookie = json["cookie"]?.jsonPrimitive?.contentOrNull
+                    logger.i("fnos cookie: $cookie")
                     if (!cookie.isNullOrBlank()) {
                         AccountDataCache.mergeCookieString(cookie)
-                        launch {
-                            try {
-                                val config = fnOfficialApi.getSysConfig()
-                                logger.i("Got sys config: $config")
-                                val oauth = config.nasOauth
-                                if (oauth.url.isNotBlank() && oauth.url != "://") {
-                                    baseUrl = oauth.url
-                                }
-                                val appId = oauth.appId
-                                val redirectUri = "$baseUrl/v/oauth/result"
-                                val targetUrl = "$baseUrl/signin?client_id=$appId&redirect_uri=$redirectUri"
-
-                                logger.i("Navigating to OAuth: $targetUrl")
-                                val domain = baseUrl.substringAfter("://").substringBefore(":").substringBefore("/")
-                                cookie.split(";").forEach {
-                                    val parts = it.trim().split("=", limit = 2)
-                                    if (parts.size == 2) {
-                                        val cookieObj = Cookie(
-                                            name = parts[0],
-                                            value = parts[1],
-                                            domain = domain
-                                        )
-                                        webViewState.cookieManager.setCookie(baseUrl, cookieObj)
+                        if (baseUrl.contains("5ddd.com")) {
+                            // 使用 FN Connect 外网访问必加此 Cookie 不然访问不了
+                            AccountDataCache.insertCookie("mode" to "relay")
+                        }
+                        if (!isSysConfigLoaded && !isSysConfigInFlight) {
+                            isSysConfigInFlight = true
+                            launch {
+                                try {
+                                    val config = fnOfficialApi.getSysConfig()
+                                    logger.i("Got sys config: $config")
+                                    val oauth = config.nasOauth
+                                    if (oauth.url.isNotBlank() && oauth.url != "://") {
+                                        baseUrl = oauth.url
                                     }
+                                    val appId = oauth.appId
+                                    val redirectUri = "$baseUrl/v/oauth/result"
+                                    val targetUrl = "$baseUrl/signin?client_id=$appId&redirect_uri=$redirectUri"
+
+                                    logger.i("Navigating to OAuth: $targetUrl")
+                                    val domain = baseUrl.substringAfter("://").substringBefore(":").substringBefore("/")
+                                    cookie.split(";").forEach {
+                                        val parts = it.trim().split("=", limit = 2)
+                                        if (parts.size == 2) {
+                                            val cookieObj = Cookie(
+                                                name = parts[0],
+                                                value = parts[1],
+                                                domain = domain
+                                            )
+                                            webViewState.cookieManager.setCookie(baseUrl, cookieObj)
+                                        }
+                                    }
+                                    isSysConfigLoaded = true
+                                    navigator.loadUrl(targetUrl)
+                                } catch (e: Exception) {
+                                    isSysConfigInFlight = false
+                                    logger.e("Failed to get sys config", e)
+                                    toastManager.showToast("获取系统配置失败: ${e.message}", ToastType.Failed)
                                 }
-                                navigator.loadUrl(targetUrl)
-                            } catch (e: Exception) {
-                                logger.e("Failed to get sys config", e)
-                                toastManager.showToast("获取系统配置失败: ${e.message}", ToastType.Failed)
                             }
                         }
                     }
@@ -196,16 +209,22 @@ fun FnConnectWebViewScreen(
                                                 LoginStateManager.updateLoginStatus(true)
                                                 toastManager.showToast("登录成功", ToastType.Success)
                                                 
+                                                val normalizedUsername = capturedUsername.trim()
+                                                    .ifBlank { autoLoginUsername?.trim().orEmpty() }
+                                                    .ifBlank { "Unknown" }
+                                                val shouldRemember = capturedRememberMe && capturedPassword.isNotBlank()
+                                                PreferencesManager.getInstance().addLoginUsernameHistory(normalizedUsername)
+                                                logger.i("Remember me: $capturedRememberMe")
                                                 val history = LoginHistory(
                                                     host = "",
                                                     port = 0,
-                                                    username = capturedUsername.ifBlank { autoLoginUsername ?: "Unknown" },
-                                                    password = if (capturedRememberMe) capturedPassword else null,
+                                                    username = normalizedUsername,
+                                                    password = if (shouldRemember) capturedPassword else null,
                                                     isHttps = baseUrl.startsWith("https"),
-                                                    rememberMe = capturedRememberMe,
+                                                    rememberMe = shouldRemember,
                                                     isFnConnect = true,
                                                     fnConnectUrl = baseUrl,
-                                                    fnId = fnId
+                                                    fnId = fnId.trim()
                                                 )
                                                 onLoginSuccess(history)
                                             } else {
@@ -238,6 +257,7 @@ fun FnConnectWebViewScreen(
                 logger.i("Loaded url: $url")
                 if (url.contains("/login")) {
                     baseUrl = url.substringBefore("/login")
+                    AccountDataCache.updateFnOfficialBaseUrlFromUrl(baseUrl)
                     logger.i("Base url: $baseUrl")
                 }
             }
@@ -247,6 +267,11 @@ fun FnConnectWebViewScreen(
     // 注入 JS 拦截器以监听 XHR 和 Fetch 请求并打印请求头
     LaunchedEffect(webViewState.loadingState) {
         if (webViewState.loadingState is LoadingState.Finished) {
+            val usernameHistoryJs = PreferencesManager.getInstance()
+                .loadLoginUsernameHistory()
+                .joinToString(prefix = "[", postfix = "]") { username ->
+                    "\"" + username.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+                }
             val jsScript = """
                 (function() {
                     console.log("Injecting Network Interceptor...");
@@ -254,6 +279,7 @@ fun FnConnectWebViewScreen(
                     var AUTO_LOGIN_USER = "${autoLoginUsername ?: ""}";
                     var AUTO_LOGIN_PASS = "${autoLoginPassword ?: ""}";
                     var ALLOW_AUTO_LOGIN = ${allowAutoLogin};
+                    var USERNAME_HISTORY = $usernameHistoryJs;
                     
                     function logToNative(type, url, method, headers, body) {
                         if (window.kmpJsBridge) {
@@ -276,96 +302,280 @@ fun FnConnectWebViewScreen(
 
                     function injectUI() {
                         if (window.location.href.indexOf('/login') !== -1) {
-                             var stayCheckbox = document.getElementById('stay');
-                             // 尝试查找包含“保持登录”文本的元素作为备选
-                             if (!stayCheckbox) {
-                                 var allDivs = document.querySelectorAll('div');
-                                 for (var i = 0; i < allDivs.length; i++) {
-                                     if (allDivs[i].innerText === '保持登录') {
-                                         var potentialCheckbox = allDivs[i].closest('.semi-checkbox');
-                                         if (potentialCheckbox) {
-                                             stayCheckbox = potentialCheckbox;
-                                             // 给它加个ID方便后续查找
-                                             stayCheckbox.id = 'stay';
+                             function ensureRememberPasswordCheckbox() {
+                                 var staySpan = document.getElementById('stay');
+                                 if (!staySpan) {
+                                     var allDivs = document.querySelectorAll('div');
+                                     for (var i = 0; i < allDivs.length; i++) {
+                                         if (allDivs[i].innerText === '保持登录') {
+                                             staySpan = allDivs[i].closest('.semi-checkbox');
                                              break;
                                          }
                                      }
                                  }
+                                 var stayField = staySpan ? staySpan.closest('.semi-form-field') : null;
+                                 var leftContainer = stayField ? stayField.parentElement : null;
+                                 if (!leftContainer) {
+                                     var allDivs = document.querySelectorAll('div');
+                                     for (var i = 0; i < allDivs.length; i++) {
+                                         if (allDivs[i].innerText === '忘记密码？') {
+                                             leftContainer = allDivs[i].parentElement;
+                                             break;
+                                         }
+                                     }
+                                 }
+
+                                 if (stayField) {
+                                     stayField.remove();
+                                 }
+
+                                 if (!leftContainer || document.getElementById('remember-password-wrapper')) return;
+
+                                 var wrapper = document.createElement('div');
+                                 wrapper.id = 'remember-password-wrapper';
+                                 wrapper.style.display = 'inline-flex';
+                                 wrapper.style.alignItems = 'center';
+                                 wrapper.style.cursor = 'pointer';
+                                 wrapper.style.gap = '6px';
+                                 wrapper.style.userSelect = 'none';
+
+                                 var input = document.createElement('input');
+                                 input.type = 'checkbox';
+                                 input.id = 'remember-password';
+                                 input.style.display = 'none';
+
+                                 var box = document.createElement('span');
+                                 box.style.width = '18px';
+                                 box.style.height = '18px';
+                                 box.style.border = '1px solid rgba(255,255,255,0.6)';
+                                 box.style.borderRadius = '4px';
+                                 box.style.display = 'inline-flex';
+                                 box.style.alignItems = 'center';
+                                 box.style.justifyContent = 'center';
+                                 box.style.boxSizing = 'border-box';
+
+                                 var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                                 svg.setAttribute('viewBox', '0 0 24 24');
+                                 svg.setAttribute('width', '14');
+                                 svg.setAttribute('height', '14');
+                                 svg.style.display = 'none';
+                                 var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                                 path.setAttribute('d', 'M20 6L9 17l-5-5');
+                                 path.setAttribute('fill', 'none');
+                                 path.setAttribute('stroke', '#ffffff');
+                                 path.setAttribute('stroke-width', '3');
+                                 path.setAttribute('stroke-linecap', 'round');
+                                 path.setAttribute('stroke-linejoin', 'round');
+                                 svg.appendChild(path);
+                                 box.appendChild(svg);
+
+                                 var label = document.createElement('div');
+                                 label.innerText = '记住密码';
+                                 label.style.fontSize = '16px';
+                                 label.style.lineHeight = '22px';
+                                 label.style.color = '#ffffff';
+
+                                 function renderRemember() {
+                                     if (input.checked) {
+                                         box.style.background = 'rgba(58,123,255,1)';
+                                         svg.style.display = 'block';
+                                     } else {
+                                         box.style.background = 'transparent';
+                                         svg.style.display = 'none';
+                                     }
+                                 }
+
+                                 wrapper.addEventListener('click', function(e) {
+                                     e.preventDefault();
+                                     input.checked = !input.checked;
+                                     renderRemember();
+                                 });
+
+                                 wrapper.appendChild(input);
+                                 wrapper.appendChild(box);
+                                 wrapper.appendChild(label);
+                                 leftContainer.insertBefore(wrapper, leftContainer.firstChild);
+
+                                 window.__setRememberPasswordChecked = function(checked) {
+                                     input.checked = !!checked;
+                                     renderRemember();
+                                 };
+
+                                 renderRemember();
                              }
 
-                             if (stayCheckbox && !document.getElementById('remember-password-container')) {
-                                 var stayField = stayCheckbox.closest('.semi-form-field');
-                                 if (stayField) {
-                                     var rememberField = stayField.cloneNode(true);
-                                     rememberField.id = 'remember-password-container';
-                                     var input = rememberField.querySelector('input');
-                                     if (input) {
-                                         input.id = 'remember-password';
-                                         input.checked = false; 
+                             function ensureUsernameHistoryDropdown() {
+                                 var input = document.getElementById('username');
+                                 if (!input || input.getAttribute('data-username-history') === '1') return;
+                                 input.setAttribute('data-username-history', '1');
+
+                                 var dropdown = document.createElement('div');
+                                 dropdown.id = 'username-history-dropdown';
+                                 dropdown.style.position = 'fixed';
+                                 dropdown.style.zIndex = '999999';
+                                 dropdown.style.display = 'none';
+                                 dropdown.style.maxHeight = '200px';
+                                 dropdown.style.overflowY = 'auto';
+                                 dropdown.style.boxSizing = 'border-box';
+                                 dropdown.style.background = 'rgba(242,243,245,0.98)';
+                                 dropdown.style.border = '1px solid rgba(0,0,0,0.10)';
+                                 dropdown.style.borderRadius = '8px';
+                                 dropdown.style.boxShadow = '0 10px 30px rgba(0,0,0,0.18)';
+                                 dropdown.style.padding = '6px';
+
+                                 function position() {
+                                     var r = input.getBoundingClientRect();
+                                     dropdown.style.left = r.left + 'px';
+                                     dropdown.style.top = (r.bottom + 6) + 'px';
+                                     dropdown.style.width = r.width + 'px';
+                                 }
+
+                                 function render(filterText) {
+                                     dropdown.innerHTML = '';
+                                     var list = USERNAME_HISTORY || [];
+                                     var q = (filterText || '').trim().toLowerCase();
+                                     if (q) {
+                                         list = list.filter(function(u) {
+                                             return (u || '').toLowerCase().indexOf(q) !== -1;
+                                         });
                                      }
-                                     
-                                     var label = rememberField.querySelector('.text-\\[16px\\]');
-                                     if (label) label.innerText = '记住密码';
-                                     
-                                     var checkboxSpan = rememberField.querySelector('.semi-checkbox');
-                                     if (checkboxSpan) {
-                                         checkboxSpan.className = 'semi-checkbox semi-checkbox-unChecked semi-checkbox-cardType_enable h-[22px] [&_.semi-checkbox-inner]:h-full !gap-x-1';
-                                         
-                                         checkboxSpan.onclick = function(e) {
-                                             e.preventDefault();
-                                             var inp = document.getElementById('remember-password');
-                                             if (inp) {
-                                                 inp.checked = !inp.checked;
-                                                 if (inp.checked) {
-                                                     this.className = this.className.replace('semi-checkbox-unChecked', 'semi-checkbox-checked');
-                                                 } else {
-                                                     this.className = this.className.replace('semi-checkbox-checked', 'semi-checkbox-unChecked');
-                                                 }
-                                             }
-                                         };
+                                     if (!list.length) {
+                                         var empty = document.createElement('div');
+                                         empty.innerText = '无历史用户名';
+                                         empty.style.padding = '10px 10px';
+                                         empty.style.color = 'rgba(0,0,0,0.45)';
+                                         empty.style.fontSize = '14px';
+                                         dropdown.appendChild(empty);
+                                         return;
                                      }
-                                     
-                                     stayField.parentNode.insertBefore(rememberField, stayField.nextSibling);
-                                     rememberField.style.marginTop = '10px';
+                                     for (var i = 0; i < list.length; i++) {
+                                         (function(name) {
+                                             var item = document.createElement('div');
+                                             item.innerText = name;
+                                             item.style.padding = '10px 10px';
+                                             item.style.borderRadius = '6px';
+                                             item.style.color = '#1A1D26';
+                                             item.style.fontSize = '14px';
+                                             item.style.cursor = 'pointer';
+                                             item.addEventListener('mouseenter', function() {
+                                                 item.style.background = 'rgba(0,0,0,0.06)';
+                                             });
+                                             item.addEventListener('mouseleave', function() {
+                                                 item.style.background = 'transparent';
+                                             });
+                                             item.addEventListener('mousedown', function(e) {
+                                                 e.preventDefault();
+                                                 triggerInput(input, name);
+                                                 dropdown.style.display = 'none';
+                                             });
+                                             dropdown.appendChild(item);
+                                         })(list[i]);
+                                     }
+                                 }
+
+                                 function show() {
+                                     position();
+                                     render(input.value);
+                                     dropdown.style.display = 'block';
+                                 }
+
+                                 function hide() {
+                                     dropdown.style.display = 'none';
+                                 }
+
+                                 input.addEventListener('focus', show);
+                                 input.addEventListener('click', show);
+                                 input.addEventListener('input', function() {
+                                     if (dropdown.style.display !== 'none') render(input.value);
+                                 });
+                                 input.addEventListener('blur', function() {
+                                     setTimeout(hide, 150);
+                                 });
+
+                                 document.addEventListener('mousedown', function(e) {
+                                     if (e.target !== input && !dropdown.contains(e.target)) hide();
+                                 });
+
+                                 window.addEventListener('resize', function() {
+                                     if (dropdown.style.display !== 'none') position();
+                                 });
+                                 window.addEventListener('scroll', function() {
+                                     if (dropdown.style.display !== 'none') position();
+                                 }, true);
+
+                                 document.body.appendChild(dropdown);
+                                 setTimeout(function() {
+                                     if (document.activeElement === input) show();
+                                 }, 0);
+                             }
+
+                             ensureRememberPasswordCheckbox();
+                             ensureUsernameHistoryDropdown();
+                             
+                             function captureAndSend() {
+                                 var u = document.getElementById('username') ? document.getElementById('username').value : "";
+                                 var p = document.getElementById('password') ? document.getElementById('password').value : "";
+                                 var r = document.getElementById('remember-password') ? document.getElementById('remember-password').checked : false;
+                                 
+                                 if (window.kmpJsBridge) {
+                                     window.kmpJsBridge.callNative("CaptureLoginInfo", JSON.stringify({
+                                         username: u,
+                                         password: p,
+                                         rememberMe: r
+                                     }));
                                  }
                              }
-                             
+
                              var loginBtn = document.querySelector('button[type="submit"]');
                              if (loginBtn && !loginBtn.getAttribute('data-intercepted')) {
                                  loginBtn.setAttribute('data-intercepted', 'true');
-                                 loginBtn.addEventListener('click', function() {
-                                     var u = document.getElementById('username') ? document.getElementById('username').value : "";
-                                     var p = document.getElementById('password') ? document.getElementById('password').value : "";
-                                     var r = document.getElementById('remember-password') ? document.getElementById('remember-password').checked : false;
-                                     
-                                     if (window.kmpJsBridge) {
-                                         window.kmpJsBridge.callNative("CaptureLoginInfo", JSON.stringify({
-                                             username: u,
-                                             password: p,
-                                             rememberMe: r
-                                         }));
-                                     }
-                                 });
+                                 loginBtn.addEventListener('click', captureAndSend);
+                                 
+                                 var form = loginBtn.closest('form');
+                                 if (form) {
+                                     form.addEventListener('submit', captureAndSend);
+                                 }
+                             }
+                             
+                             // 同时也监听输入变化，防止某些情况下点击或提交没捕获到最新的
+                             var uInp = document.getElementById('username');
+                             var pInp = document.getElementById('password');
+                             var rInp = document.getElementById('remember-password');
+                             if (uInp && !uInp.getAttribute('data-monitored')) {
+                                 uInp.setAttribute('data-monitored', 'true');
+                                 uInp.addEventListener('change', captureAndSend);
+                             }
+                             if (pInp && !pInp.getAttribute('data-monitored')) {
+                                 pInp.setAttribute('data-monitored', 'true');
+                                 pInp.addEventListener('change', captureAndSend);
+                             }
+                             if (rInp && !rInp.getAttribute('data-monitored')) {
+                                 rInp.setAttribute('data-monitored', 'true');
+                                 rInp.addEventListener('change', captureAndSend);
                              }
                         }
                     }
 
+                    injectUI();
                     // 每500ms尝试注入一次，确保动态渲染也能捕获
                     setInterval(injectUI, 500);
 
                     if (window.location.href.indexOf('/login') !== -1) {
-                         if (ALLOW_AUTO_LOGIN && AUTO_LOGIN_USER) {
+                         if (AUTO_LOGIN_USER) {
                              setTimeout(function() {
                                   var uInput = document.getElementById('username');
                                   var pInput = document.getElementById('password');
-                                  if (uInput && pInput) {
+                                  if (uInput) {
                                       triggerInput(uInput, AUTO_LOGIN_USER);
-                                      if (AUTO_LOGIN_PASS) {
+                                      
+                                      if (ALLOW_AUTO_LOGIN && AUTO_LOGIN_PASS && pInput) {
                                           triggerInput(pInput, AUTO_LOGIN_PASS);
                                           
-                                          var rememberSpan = document.querySelector('#remember-password-container .semi-checkbox');
-                                          if (rememberSpan && rememberSpan.className.indexOf('semi-checkbox-unChecked') !== -1) {
-                                              rememberSpan.click();
+                                          if (window.__setRememberPasswordChecked) {
+                                              window.__setRememberPasswordChecked(true);
+                                          } else {
+                                              var rememberInput = document.getElementById('remember-password');
+                                              if (rememberInput) rememberInput.checked = true;
                                           }
                                           
                                           setTimeout(function() {

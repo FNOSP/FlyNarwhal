@@ -120,4 +120,29 @@ class PreferencesManager private constructor() {
             emptyList()
         }
     }
+
+    fun loadLoginUsernameHistory(): List<String> {
+        val usernamesJson = settings.getString("loginUsernameHistory", "[]")
+        return try {
+            mapper.readValue<List<String>>(usernamesJson)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveLoginUsernameHistory(usernames: List<String>) {
+        val usernamesJson = mapper.writeValueAsString(usernames)
+        settings.putString("loginUsernameHistory", usernamesJson)
+    }
+
+    fun addLoginUsernameHistory(username: String) {
+        val normalized = username.trim()
+        if (normalized.isBlank()) return
+
+        val existing = loadLoginUsernameHistory()
+        val updated = (listOf(normalized) + existing)
+            .distinctBy { it.trim().lowercase() }
+            .take(20)
+        saveLoginUsernameHistory(updated)
+    }
 }
