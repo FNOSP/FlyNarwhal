@@ -126,7 +126,7 @@ class DesktopUpdateManager : UpdateManager {
                 shouldContinue = false
             } else {
                 try {
-                    logger.i("Fetch releases response status: ${response.status}, body: ${response.body<String>()}")
+//                    logger.i("Fetch releases response status: ${response.status}, body: ${response.body<String>()}")
                     val pageReleases = response.body<List<GitHubRelease>>()
                     if (pageReleases.isEmpty()) {
                         shouldContinue = false
