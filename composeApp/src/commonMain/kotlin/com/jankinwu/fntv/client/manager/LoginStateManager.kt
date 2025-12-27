@@ -72,40 +72,58 @@ object LoginStateManager {
         isHttps: Boolean,
         toastManager: ToastManager,
         loginViewModel: LoginViewModel,
-        rememberPassword: Boolean
+        rememberPassword: Boolean,
+        onProbeRequired: ((String) -> Unit)? = null,
+        isProbeFinished: Boolean = false
     ) {
 //    val loginState by loginViewModel.uiState.collectAsState()
         if (host.isBlank() || username.isBlank() || password.isBlank()) {
             toastManager.showToast("请填写完整的登录信息", ToastType.Failed)
             return
         }
-        if (isHttps) {
-            AccountDataCache.isHttps = true
-        } else {
-            AccountDataCache.isHttps = false
-        }
+
+        if (!isProbeFinished) {
+            if (isHttps) {
+                AccountDataCache.isHttps = true
+            } else {
+                AccountDataCache.isHttps = false
+            }
 //        val isValidDomainOrIP = DomainIpValidator.isValidDomainOrIP(host)
 //        if (!isValidDomainOrIP) {
 //            toastManager.showToast("请填写正确的ip地址或域名", ToastType.Failed)
 //            return
 //        }
-        AccountDataCache.displayHost = host
-        if (port != 0) {
-            AccountDataCache.port = port
-        } else {
-            AccountDataCache.port = 0
-        }
+            AccountDataCache.displayHost = host
+            AccountDataCache.displayPort = port
+            if (port != 0) {
+                AccountDataCache.port = port
+            } else {
+                AccountDataCache.port = 0
+            }
 
-        // 如果使用 FN ID 或 FN 域名
-        val normalizedHost = if (host.contains('.')) host else "$host.5ddd.com"
-        if (normalizedHost.contains("5ddd.com")) {
-            AccountDataCache.isHttps = true
-            AccountDataCache.insertCookie("mode" to "relay")
-            AccountDataCache.port = 0
+            // 如果使用 FN ID 或 FN 域名
+            val normalizedHost = if (host.contains('.')) host else "$host.5ddd.com"
+            if (normalizedHost.contains("5ddd.com")) {
+                if (onProbeRequired != null) {
+                    onProbeRequired("https://$normalizedHost")
+                    return
+                }
+                AccountDataCache.isHttps = true
+                AccountDataCache.insertCookie("mode" to "relay")
+                AccountDataCache.port = 0
+            } else {
+                AccountDataCache.removeCookie("mode")
+            }
+            AccountDataCache.host = normalizedHost
         } else {
-            AccountDataCache.removeCookie("mode")
+            if (AccountDataCache.host.contains("ddd.com")) {
+                AccountDataCache.isHttps = true
+                AccountDataCache.insertCookie("mode" to "relay")
+                AccountDataCache.port = 0
+            } else {
+                AccountDataCache.removeCookie("mode")
+            }
         }
-        AccountDataCache.host = normalizedHost
 
 
         AccountDataCache.userName = username

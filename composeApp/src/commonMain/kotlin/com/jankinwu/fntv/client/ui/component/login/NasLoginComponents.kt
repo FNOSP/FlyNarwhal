@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -66,6 +67,7 @@ fun NasLoginAddressBar(
             value = addressBarValue,
             onValueChange = onAddressBarValueChange,
             modifier = Modifier
+                .padding(end = 12.dp)
                 .height(30.dp)
                 .weight(1f),
             singleLine = true,
@@ -128,6 +130,14 @@ fun FnConnectWebViewContainer(
             .background(Color.White)
     ) {
         when {
+            webViewInitError != null -> {
+                Text(
+                    text = "WebView 初始化失败：${webViewInitError.message ?: "未知错误"}",
+                    color = Color.Black,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+
             webViewInitialized -> {
                 WebView(
                     state = webViewState,
@@ -140,14 +150,6 @@ fun FnConnectWebViewContainer(
             webViewRestartRequired -> {
                 Text(
                     text = "WebView 初始化完成，但需要重启应用后生效。",
-                    color = Color.Black,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-
-            webViewInitError != null -> {
-                Text(
-                    text = "WebView 初始化失败：${webViewInitError.message ?: "未知错误"}",
                     color = Color.Black,
                     modifier = Modifier.align(Alignment.Center)
                 )

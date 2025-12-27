@@ -36,7 +36,7 @@ import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitialized
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewRestartRequired
 import com.jankinwu.fntv.client.ui.providable.LocalWindowHandle
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
-import com.jankinwu.fntv.client.ui.screen.FnConnectWebViewScreen
+import com.jankinwu.fntv.client.ui.screen.NasLoginWebViewScreen
 import com.jankinwu.fntv.client.ui.screen.FnConnectWindowRequest
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
@@ -159,7 +159,7 @@ fun main() {
                 LocalFrameWindowScope provides this@Window,
                 LocalWindowState provides state,
                 LocalWindowHandle provides window.windowHandle,
-                LocalWebViewInitialized provides (webViewInitialized && !webViewRestartRequired && webViewInitError == null),
+                LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
                 LocalWebViewRestartRequired provides webViewRestartRequired,
                 LocalWebViewInitError provides webViewInitError
             ) {
@@ -268,7 +268,7 @@ fun main() {
                     LocalFrameWindowScope provides this@Window,
                     LocalWindowState provides fnConnectWindowState,
                     LocalWindowHandle provides window.windowHandle,
-                    LocalWebViewInitialized provides (webViewInitialized && !webViewRestartRequired && webViewInitError == null),
+                    LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
                     LocalWebViewRestartRequired provides webViewRestartRequired,
                     LocalWebViewInitError provides webViewInitError
                 ) {
@@ -276,7 +276,7 @@ fun main() {
                         displayMicaLayer = true,
                         state = fnConnectWindowState
                     ) {
-                        FnConnectWebViewScreen(
+                        NasLoginWebViewScreen(
                             initialUrl = request.initialUrl,
                             fnId = request.fnId,
                             onBack = { fnConnectWindowRequest = null },
@@ -290,6 +290,10 @@ fun main() {
                             autoLoginUsername = request.autoLoginUsername,
                             autoLoginPassword = request.autoLoginPassword,
                             allowAutoLogin = request.allowAutoLogin,
+                            onBaseUrlDetected = {
+                                request.onBaseUrlDetected?.invoke(it)
+                                fnConnectWindowRequest = null
+                            }
                         )
                     }
                 }

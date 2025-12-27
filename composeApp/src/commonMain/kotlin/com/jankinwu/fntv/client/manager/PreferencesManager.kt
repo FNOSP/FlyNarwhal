@@ -65,6 +65,7 @@ class PreferencesManager private constructor() {
         AccountDataCache.isNasLogin = settings.getBoolean("isNasLogin", false)
         AccountDataCache.fnId = settings.getString("fnId", "")
         AccountDataCache.displayHost = settings.getString("displayHost", "")
+        AccountDataCache.displayPort = settings.getInt("displayPort", 0)
     }
 
     fun saveAllLoginInfo() {
@@ -81,6 +82,7 @@ class PreferencesManager private constructor() {
         settings.putBoolean("isNasLogin", AccountDataCache.isNasLogin)
         settings.putString("fnId", AccountDataCache.fnId)
         settings.putString("displayHost", AccountDataCache.displayHost)
+        settings.putInt("displayPort", AccountDataCache.displayPort)
     }
 
     fun saveToken(token: String) {

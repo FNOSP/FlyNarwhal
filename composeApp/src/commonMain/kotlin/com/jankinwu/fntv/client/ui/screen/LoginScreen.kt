@@ -122,7 +122,8 @@ data class FnConnectWindowRequest(
     val fnId: String,
     val autoLoginUsername: String? = null,
     val autoLoginPassword: String? = null,
-    val allowAutoLogin: Boolean = false
+    val allowAutoLogin: Boolean = false,
+    val onBaseUrlDetected: ((String) -> Unit)? = null
 )
 
 @OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalComposeUiApi::class)
@@ -152,6 +153,7 @@ fun LoginScreen(
     var isAutoLogin by remember { mutableStateOf(false) }
     var fnAutoUsername by remember { mutableStateOf("") }
     var fnAutoPassword by remember { mutableStateOf("") }
+    var isProbeMode by remember { mutableStateOf(false) }
     // 登录历史记录列表
     var loginHistoryList by remember { mutableStateOf<List<LoginHistory>>(emptyList()) }
 
@@ -160,7 +162,7 @@ fun LoginScreen(
     // 初始化时加载保存的账号信息
     remember {
         host = AccountDataCache.displayHost
-        port = AccountDataCache.port
+        port = AccountDataCache.displayPort
         username = AccountDataCache.userName
         password = AccountDataCache.password
         isHttps = AccountDataCache.isHttps
@@ -242,10 +244,13 @@ fun LoginScreen(
     }
 
     if (showFnConnectWebView) {
-        FnConnectWebViewScreen(
+        NasLoginWebViewScreen(
             initialUrl = fnConnectUrl,
             fnId = fnId,
-            onBack = { showFnConnectWebView = false },
+            onBack = {
+                showFnConnectWebView = false
+                isProbeMode = false
+            },
             onLoginSuccess = { history ->
                 // 更新历史记录列表
                 loginHistoryList = upsertLoginHistory(loginHistoryList, history)
@@ -253,10 +258,12 @@ fun LoginScreen(
                 val preferencesManager = PreferencesManager.getInstance()
                 preferencesManager.saveLoginHistory(loginHistoryList)
                 showFnConnectWebView = false
+                isProbeMode = false
             },
             autoLoginUsername = fnAutoUsername,
             autoLoginPassword = fnAutoPassword,
             allowAutoLogin = isAutoLogin,
+            onBaseUrlDetected = null
         )
     } else {
         Box(
@@ -551,7 +558,38 @@ fun LoginScreen(
                                     isHttps = isHttps,
                                     toastManager = toastManager,
                                     loginViewModel = loginViewModel,
-                                    rememberPassword = rememberPassword
+                                    rememberPassword = rememberPassword,
+                                    onProbeRequired = { url ->
+                                        val openWindow = onOpenFnConnectWindow
+                                        if (openWindow != null) {
+                                            openWindow(
+                                                FnConnectWindowRequest(
+                                                    initialUrl = url,
+                                                    fnId = "",
+                                                    autoLoginUsername = null,
+                                                    autoLoginPassword = null,
+                                                    allowAutoLogin = false,
+                                                    onBaseUrlDetected = {
+                                                        handleLogin(
+                                                            host = host,
+                                                            port = port,
+                                                            username = username,
+                                                            password = password,
+                                                            isHttps = isHttps,
+                                                            toastManager = toastManager,
+                                                            loginViewModel = loginViewModel,
+                                                            rememberPassword = rememberPassword,
+                                                            isProbeFinished = true
+                                                        )
+                                                    }
+                                                )
+                                            )
+                                        } else {
+                                            showFnConnectWebView = true
+                                            fnConnectUrl = url
+                                            isProbeMode = true
+                                        }
+                                    }
                                 )
                             }
                         },

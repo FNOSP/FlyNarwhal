@@ -16,7 +16,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,7 +57,7 @@ private val logger = Logger.withTag("FnConnectWebViewScreen")
 
 @OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun FnConnectWebViewScreen(
+fun NasLoginWebViewScreen(
     modifier: Modifier = Modifier,
     initialUrl: String,
     fnId: String,
@@ -67,6 +66,7 @@ fun FnConnectWebViewScreen(
     autoLoginUsername: String? = null,
     autoLoginPassword: String? = null,
     allowAutoLogin: Boolean = false,
+    onBaseUrlDetected: ((String) -> Unit)? = null
 ) {
     val toastManager = rememberToastManager()
     val hazeState = rememberHazeState()
@@ -133,6 +133,10 @@ fun FnConnectWebViewScreen(
                     baseUrl = url.substringBefore("/login")
                     AccountDataCache.updateFnOfficialBaseUrlFromUrl(baseUrl)
                     logger.i("Base url: $baseUrl")
+                    if (onBaseUrlDetected != null) {
+                        onBaseUrlDetected(baseUrl)
+                        return@LaunchedEffect
+                    }
                 }
             }
         }
@@ -194,7 +198,7 @@ fun FnConnectWebViewScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 12.dp, end = 12.dp)
+                        .padding(top = 12.dp)
                 ) {
                     NasLoginAddressBar(
                         addressBarValue = addressBarValue,

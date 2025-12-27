@@ -22,6 +22,8 @@ object AccountDataCache {
 
     var displayHost: String = ""
 
+    var displayPort: Int = 0
+
     var port: Int = 0
 
     var isLoggedIn: Boolean = false
