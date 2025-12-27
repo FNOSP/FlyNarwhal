@@ -290,10 +290,12 @@ fun main() {
                             autoLoginUsername = request.autoLoginUsername,
                             autoLoginPassword = request.autoLoginPassword,
                             allowAutoLogin = request.allowAutoLogin,
-                            onBaseUrlDetected = {
-                                request.onBaseUrlDetected?.invoke(it)
-                                fnConnectWindowRequest = null
-                            }
+                            onBaseUrlDetected = if (request.onBaseUrlDetected != null) {
+                                {
+                                    request.onBaseUrlDetected.invoke(it)
+                                    fnConnectWindowRequest = null
+                                }
+                            } else null
                         )
                     }
                 }
