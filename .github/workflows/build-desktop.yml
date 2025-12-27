@@ -226,8 +226,8 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.修复 Mac 下使用 NAS 登录 WebView 界面无法正常显示的问题  
-          2.使用 FN ID 登录时现在会自动探测是否是内网环境  
+          NOTES="1.优化登录历史记录逻辑  
+          2. 优化登录界面 UI  
           　  
           感谢以下飞牛共建团成员反馈问题并协助排查：  
           @[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[一西啊](https://club.fnnas.com/home.php?mod=space&uid=785)  
