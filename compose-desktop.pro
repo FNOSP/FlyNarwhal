@@ -98,6 +98,12 @@
 -dontwarn kotlin.concurrent.atomics.**
 
 # Generic dontwarn for unresolved references in libraries
+-dontwarn javafx.**
+-dontwarn com.jogamp.**
+-dontwarn jogamp.**
+-dontwarn org.eclipse.swt.**
+-dontwarn org.apache.thrift.**
+-dontwarn com.jetbrains.cef.**
 -dontwarn com.google.common.truth.**
 -dontwarn org.objectweb.asm.**
 -dontwarn okhttp3.internal.platform.**
@@ -112,6 +118,20 @@
 -dontwarn okhttp3.internal.graal.**
 -dontwarn org.graalvm.nativeimage.**
 -dontwarn com.oracle.svm.core.**
+-dontwarn org.tukaani.xz.**
+-dontwarn org.brotli.dec.**
+-dontwarn com.github.luben.zstd.**
+-dontwarn org.apache.commons.compress.harmony.pack200.**
+-dontwarn kotlinx.atomicfu.**
+-dontwarn com.mikepenz.markdown.**
+-dontwarn io.github.alexzhirkevich.compottie.**
+-dontwarn io.ktor.client.plugins.**
+-dontwarn androidx.compose.**
+-dontwarn coil3.**
+-dontwarn io.ktor.**
+-dontwarn kotlin.**
+-dontwarn kotlinx.atomicfu.**
+-ignorewarnings
 
 # Mediamp
 -keep class org.openani.mediamp.** { *; }

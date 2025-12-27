@@ -226,11 +226,12 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.新增使用 NAS 和 FN Connect 登录的支持  
+          NOTES="1.新增使用 NAS 登录和 FN Connect 中继访问的支持  
           2.修复电视节目切换下一集后快捷键失效的问题  
+          3.优化登录界面 UI 及代码逻辑
           　  
           感谢以下飞牛共建团成员反馈问题并协助排查：  
-          @[zhengbf](https://club.fnnas.com/home.php?mod=space&uid=187) @[空城](https://club.fnnas.com/home.php?mod=space&uid=2332)  
+          @[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482)
           　  
           > **当前应用中没有展示出来或者点击没有反应的就是还没做的功能，后面陆续都会实现，请仅对已实现的功能提出合理意见，感谢理解**  
           　  "
@@ -239,8 +240,6 @@ jobs:
           WARNING=""
           if [[ "${{ github.ref }}" =~ [Aa]lpha ]]; then
             WARNING="
-          　  
-          **当前应用中没有展示出来或者点击没有反应的就是还没做的功能，后面陆续都会实现，请仅对已实现的功能提出合理意见，感谢理解**  
           　  
           > **此版本为开发中的版本，请酌情下载安装。**
           "

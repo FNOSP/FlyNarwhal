@@ -7,7 +7,7 @@ val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
 val appVersion = "1.3.0"
-val appVersionSuffix = ""
+val appVersionSuffix = "Beta"
 
 val platformStr = when {
     osName.contains("win") -> {
