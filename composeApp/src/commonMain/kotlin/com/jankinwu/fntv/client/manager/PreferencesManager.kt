@@ -54,7 +54,7 @@ class PreferencesManager private constructor() {
         AccountDataCache.authorization = settings.getString("token", "")
         AccountDataCache.isHttps = settings.getBoolean("isHttps", false)
         AccountDataCache.host = settings.getString("host", "")
-        AccountDataCache.port = settings.getInt("port", 0)
+        AccountDataCache.port = settings.getInt("port", 5666)
         AccountDataCache.isLoggedIn = settings.getBoolean("isLoggedIn", false)
         val cookie = settings.getString("cookie", "")
         if (cookie.isNotBlank()) {
@@ -65,7 +65,7 @@ class PreferencesManager private constructor() {
         AccountDataCache.isNasLogin = settings.getBoolean("isNasLogin", false)
         AccountDataCache.fnId = settings.getString("fnId", "")
         AccountDataCache.displayHost = settings.getString("displayHost", "")
-        AccountDataCache.displayPort = settings.getInt("displayPort", 0)
+        AccountDataCache.displayPort = settings.getInt("displayPort", 5666)
     }
 
     fun saveAllLoginInfo() {

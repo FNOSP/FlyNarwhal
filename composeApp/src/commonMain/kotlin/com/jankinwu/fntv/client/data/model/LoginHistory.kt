@@ -41,43 +41,57 @@ data class LoginHistory(
 
     @get:JsonProperty("lastLoginTimestamp")
     @param:JsonProperty("lastLoginTimestamp")
-    val lastLoginTimestamp: Long = System.currentTimeMillis()
+    val lastLoginTimestamp: Long = System.currentTimeMillis(),
+
+    @get:JsonProperty("displayHost")
+    @param:JsonProperty("displayHost")
+    val displayHost: String = "",
+
+    @get:JsonProperty("displayPort")
+    @param:JsonProperty("displayPort")
+    val displayPort: Int = 0
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is LoginHistory) return false
-        
+
         if (isNasLogin != other.isNasLogin) return false
-        
+
         return if (isNasLogin) {
-            fnId == other.fnId && username == other.username
+            fnId == other.fnId && username == other.username && isHttps == other.isHttps
         } else {
-            host == other.host && 
-            port == other.port && 
-            username == other.username
+            displayHost == other.displayHost &&
+                    displayPort == other.displayPort &&
+//            host == other.host &&
+//            port == other.port &&
+                    username == other.username &&
+                    isHttps == other.isHttps
         }
     }
-    
+
     override fun hashCode(): Int {
         var result = isNasLogin.hashCode()
         if (isNasLogin) {
             result = 31 * result + fnId.hashCode()
         } else {
-            result = 31 * result + host.hashCode()
-            result = 31 * result + port
+//            result = 31 * result + host.hashCode()
+//            result = 31 * result + port
+            result = 31 * result + displayHost.hashCode()
+            result = 31 * result + displayPort
         }
         result = 31 * result + username.hashCode()
+        result = 31 * result + isHttps.hashCode()
         return result
     }
-    
+
     fun getEndpoint(): String {
         if (isNasLogin) {
             return fnId.ifBlank { "FN Connect" }
         }
-        return if (port != 0) {
-            "$host:$port"
+        return if (displayPort != 0) {
+            "$displayHost:$displayPort"
         } else {
-            host
+            displayHost
         }
     }
 }

@@ -83,11 +83,7 @@ object LoginStateManager {
         }
 
         if (!isProbeFinished) {
-            if (isHttps) {
-                AccountDataCache.isHttps = true
-            } else {
-                AccountDataCache.isHttps = false
-            }
+            AccountDataCache.isHttps = isHttps
 //        val isValidDomainOrIP = DomainIpValidator.isValidDomainOrIP(host)
 //        if (!isValidDomainOrIP) {
 //            toastManager.showToast("请填写正确的ip地址或域名", ToastType.Failed)

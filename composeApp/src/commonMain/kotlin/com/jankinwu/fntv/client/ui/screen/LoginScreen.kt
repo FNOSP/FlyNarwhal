@@ -204,16 +204,18 @@ fun LoginScreen(
 
                 // 保存登录历史记录
                 val loginHistory = LoginHistory(
-                    host = host,
-                    port = port,
+                    host = AccountDataCache.host,
+                    port = AccountDataCache.port,
                     username = username,
                     password = if (rememberPassword) password else null,
-                    isHttps = isHttps,
-                    rememberPassword = rememberPassword
+                    isHttps = AccountDataCache.isHttps,
+                    rememberPassword = AccountDataCache.rememberPassword,
+                    displayHost = AccountDataCache.displayHost,
+                    displayPort = AccountDataCache.displayPort
                 )
 
                 // 更新历史记录列表
-                loginHistoryList = upsertLoginHistory(loginHistoryList, loginHistory)
+                loginHistoryList = updateLoginHistory(loginHistoryList, loginHistory)
                 // 保存到偏好设置
                 preferencesManager.saveLoginHistory(loginHistoryList)
             }
@@ -253,7 +255,7 @@ fun LoginScreen(
             },
             onLoginSuccess = { history ->
                 // 更新历史记录列表
-                loginHistoryList = upsertLoginHistory(loginHistoryList, history)
+                loginHistoryList = updateLoginHistory(loginHistoryList, history)
                 // 保存到偏好设置
                 val preferencesManager = PreferencesManager.getInstance()
                 preferencesManager.saveLoginHistory(loginHistoryList)
@@ -352,9 +354,21 @@ fun LoginScreen(
                                 modifier = Modifier
                                     .weight(2.0f)
                                     .focusRequester(hostFocusRequester),
-                                label = { Text("请输入IP、域名或 FN ID", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                label = {
+                                    Text(
+                                        "请输入IP、域名或 FN ID",
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
                                 singleLine = true,
-                                placeholder = { Text("IP、域名或 FN ID", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                placeholder = {
+                                    Text(
+                                        "IP、域名或 FN ID",
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
                                 colors = getTextFieldColors(),
                                 textStyle = LocalTextStyle.current.copy(fontSize = 18.sp),
                                 trailingIcon = {
@@ -425,7 +439,7 @@ fun LoginScreen(
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = if (passwordVisible) KeyboardType.Ascii else KeyboardType.Password,
-                                autoCorrectEnabled  = false,
+                                autoCorrectEnabled = false,
                                 imeAction = ImeAction.Done
                             ),
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -629,13 +643,18 @@ fun LoginScreen(
                             fnId = history.fnId
                             fnConnectUrl = normalizeFnConnectUrl(history.fnId, history.isHttps)
                             fnAutoUsername = history.username
-                            val canUseSavedPassword = history.rememberPassword && !history.password.isNullOrEmpty()
-                            fnAutoPassword = if (canUseSavedPassword) history.password.orEmpty() else ""
+                            val canUseSavedPassword =
+                                history.rememberPassword && !history.password.isNullOrEmpty()
+                            fnAutoPassword =
+                                if (canUseSavedPassword) history.password.orEmpty() else ""
                             isAutoLogin = canUseSavedPassword
 
                             if (!history.rememberPassword && history.password != null) {
                                 val preferencesManager = PreferencesManager.getInstance()
-                                loginHistoryList = upsertLoginHistory(loginHistoryList, history.copy(password = null))
+                                loginHistoryList = updateLoginHistory(
+                                    loginHistoryList,
+                                    history.copy(password = null)
+                                )
                                 preferencesManager.saveLoginHistory(loginHistoryList)
                             }
                             val openWindow = onOpenFnConnectWindow
@@ -658,19 +677,53 @@ fun LoginScreen(
                             port = history.port
                             username = history.username
                             isHttps = history.isHttps
-                            password = if (history.rememberPassword) history.password.orEmpty() else ""
+                            password =
+                                if (history.rememberPassword) history.password.orEmpty() else ""
                             rememberPassword = history.rememberPassword
+                            val displayHost = history.displayHost
+                            val displayPort = history.displayPort
                             // 如果有密码，则直接登录
                             if (history.rememberPassword && !history.password.isNullOrEmpty()) {
                                 handleLogin(
-                                    host = history.host,
-                                    port = history.port,
+                                    host = history.displayHost,
+                                    port = history.displayPort,
                                     username = history.username,
                                     password = history.password,
                                     isHttps = history.isHttps,
                                     toastManager = toastManager,
                                     loginViewModel = loginViewModel,
-                                    rememberPassword = true
+                                    rememberPassword = true,
+                                    onProbeRequired = { url ->
+                                        val openWindow = onOpenFnConnectWindow
+                                        if (openWindow != null) {
+                                            openWindow(
+                                                FnConnectWindowRequest(
+                                                    initialUrl = url,
+                                                    fnId = "",
+                                                    autoLoginUsername = null,
+                                                    autoLoginPassword = null,
+                                                    allowAutoLogin = false,
+                                                    onBaseUrlDetected = {
+                                                        handleLogin(
+                                                            host = host,
+                                                            port = port,
+                                                            username = username,
+                                                            password = password,
+                                                            isHttps = isHttps,
+                                                            toastManager = toastManager,
+                                                            loginViewModel = loginViewModel,
+                                                            rememberPassword = rememberPassword,
+                                                            isProbeFinished = true
+                                                        )
+                                                    }
+                                                )
+                                            )
+                                        } else {
+                                            showFnConnectWebView = true
+                                            fnConnectUrl = url
+                                            isProbeMode = true
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -693,15 +746,17 @@ fun LoginScreen(
 //    unfocusedTextColor = Colors.TextSecondaryColor
 //)
 
-internal fun upsertLoginHistory(current: List<LoginHistory>, incoming: LoginHistory): List<LoginHistory> {
+internal fun updateLoginHistory(current: List<LoginHistory>, incoming: LoginHistory): List<LoginHistory> {
     fun normalize(value: String): String = value.trim().lowercase()
 
     fun isSameIdentity(a: LoginHistory, b: LoginHistory): Boolean {
         if (a.isNasLogin != b.isNasLogin) return false
         return if (a.isNasLogin) {
             normalize(a.fnId) == normalize(b.fnId) && normalize(a.username) == normalize(b.username)
+                    && a.isHttps == b.isHttps
         } else {
-            normalize(a.host) == normalize(b.host) && a.port == b.port && normalize(a.username) == normalize(b.username)
+            normalize(a.displayHost) == normalize(b.displayHost) && a.displayPort == b.displayPort
+                    && normalize(a.username) == normalize(b.username) && a.isHttps == b.isHttps
         }
     }
 

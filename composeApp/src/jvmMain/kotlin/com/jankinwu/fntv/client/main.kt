@@ -41,7 +41,7 @@ import com.jankinwu.fntv.client.ui.screen.FnConnectWindowRequest
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay
-import com.jankinwu.fntv.client.ui.screen.upsertLoginHistory
+import com.jankinwu.fntv.client.ui.screen.updateLoginHistory
 import com.jankinwu.fntv.client.utils.ConsoleLogWriter
 import com.jankinwu.fntv.client.utils.DesktopContext
 import com.jankinwu.fntv.client.utils.ExecutableDirectoryDetector
@@ -283,7 +283,7 @@ fun main() {
                             onLoginSuccess = { history ->
                                 val preferencesManager = PreferencesManager.getInstance()
                                 val current = preferencesManager.loadLoginHistory()
-                                val updated = upsertLoginHistory(current, history)
+                                val updated = updateLoginHistory(current, history)
                                 preferencesManager.saveLoginHistory(updated)
                                 fnConnectWindowRequest = null
                             },
