@@ -35,6 +35,8 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
 import com.jankinwu.fntv.client.icons.PlayCircle
 import com.jankinwu.fntv.client.manager.PlayerResourceManager
@@ -109,6 +111,7 @@ fun PipPlayerWindow(
                 mediampPlayer = mediaPlayer,
                 modifier = Modifier
                     .fillMaxSize()
+                    .pointerHoverIcon(PointerIcon.Hand)
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onTap = {
@@ -178,6 +181,7 @@ fun PipPlayerWindow(
                 IconButton(
                     onClick = onClose,
                     modifier = Modifier
+                        .pointerHoverIcon(PointerIcon.Hand)
                         .align(Alignment.TopEnd)
                         .offset(x = 6.dp, y = (-6).dp)
                 ) {
@@ -218,6 +222,7 @@ fun PipPlayerWindow(
                             .align(Alignment.BottomEnd)
                             .padding(8.dp)
                             .size(26.dp)
+                            .pointerHoverIcon(PointerIcon.Hand)
                             .clickable { onExitPip() }
                     ) {
                         Image(

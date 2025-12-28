@@ -994,11 +994,28 @@ fun PlayerOverlay(
     }
 
     // Dynamic Resize based on Video
-    LaunchedEffect(playingInfoCache?.currentVideoStream, windowAspectRatio) {
+    LaunchedEffect(
+        playingInfoCache?.itemGuid,
+        playingInfoCache?.currentVideoStream,
+        windowAspectRatio
+    ) {
+        // 延迟一点时间确保窗口状态已稳定（特别是在窗口刚创建时）
+        delay(100)
         val videoStream = playingInfoCache?.currentVideoStream
-        if (videoStream != null && !AppSettingsStore.playerIsFullscreen && windowState.placement != WindowPlacement.Fullscreen) {
-            val baseWidth = AppSettingsStore.playerWindowWidth
-            val baseHeight = AppSettingsStore.playerWindowHeight
+        logger.i("Dynamic Resize Check: videoStream=$videoStream, placement=${windowState.placement}")
+        if (videoStream != null && windowState.placement != WindowPlacement.Fullscreen) {
+            if (windowState.placement == WindowPlacement.Maximized) {
+                windowState.placement = WindowPlacement.Floating
+            }
+
+            // 强制使用当前窗口实际大小作为基准，确保调整基于当前状态
+            val currentWidth = windowState.size.width.value
+            val currentHeight = windowState.size.height.value
+
+            // 确保有有效值
+            val baseWidth = if (!currentWidth.isNaN() && currentWidth > 0f) currentWidth else 1280f
+            val baseHeight =
+                if (!currentHeight.isNaN() && currentHeight > 0f) currentHeight else 720f
 
             val optimalSize = calculateOptimalPlayerWindowSize(
                 videoStream,
@@ -1006,6 +1023,7 @@ fun PlayerOverlay(
                 baseHeight,
                 windowAspectRatio
             )
+            logger.i("Dynamic Resize: optimalSize=$optimalSize")
             if (optimalSize != null) {
                 isProgrammaticResize = true
                 windowState.size = optimalSize
@@ -1531,13 +1549,14 @@ fun PlayerControlRow(
         ) {
             // 倍速
             val playbackSpeedFeature = remember(mediaPlayer) { mediaPlayer.features[PlaybackSpeed] }
-            
+
             // 直接访问 State 的 value 属性以触发重组
             val speedStateValue = playbackSpeedFeature?.value
             val currentSpeedValue = (speedStateValue as? Number)?.toFloat() ?: 1f
 
             val currentSpeedItem = remember(currentSpeedValue) {
-                speeds.find { kotlin.math.abs(it.value - currentSpeedValue) < 0.01f } ?: speeds.find { it.value == 1.0f } ?: speeds[4]
+                speeds.find { kotlin.math.abs(it.value - currentSpeedValue) < 0.01f }
+                    ?: speeds.find { it.value == 1.0f } ?: speeds[4]
             }
 
             SpeedControlFlyout(
@@ -1649,7 +1668,10 @@ fun PlayerControlRow(
                 Box(
                     modifier = Modifier
                         .size(26.dp)
-                        .clickable {
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
                             playerManager.isPipMode = true
                         }
                         .onPointerEvent(PointerEventType.Enter) { isPipHovered = true }
@@ -2201,13 +2223,16 @@ private fun calculateOptimalPlayerWindowSize(
         if (aspectRatioSetting == "AUTO") AppSettingsStore.playerWindowWidthCompensation else 0f
 
     // Logic to expand window rather than shrink content
+    // 为了防止基于当前窗口大小计算导致无限膨胀，我们采用"保持宽度"的策略，除非必须变宽
     if (targetAspectRatio > currentAspectRatio) {
         // Wider target: Keep Height, Expand Width
+        // 只有当目标比当前更宽时，才增加宽度 (例如 4:3 -> 16:9)
         targetH = baseHeight
         targetW = targetH * targetAspectRatio
         targetW += compensation
     } else {
         // Narrower/Taller target: Keep Width, Expand Height
+        // 如果目标比当前窄 (例如 16:9 -> 4:3)，保持宽度，增加高度
         targetW = baseWidth
         targetH = targetW / targetAspectRatio
         // No width compensation needed when keeping baseWidth
