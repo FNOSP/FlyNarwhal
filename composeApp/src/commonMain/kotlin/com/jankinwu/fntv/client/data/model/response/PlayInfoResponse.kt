@@ -69,7 +69,7 @@ data class Item(
     val backdrops: String?,
 
     @param:JsonProperty("posters")
-    val posters: String,
+    val posters: String?,
 
     @param:JsonProperty("poster_width")
     val posterWidth: Int,
