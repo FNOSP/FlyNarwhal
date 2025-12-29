@@ -14,6 +14,7 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.prepareGet
+import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.contentLength
 import io.ktor.http.HttpStatusCode
@@ -102,7 +103,12 @@ class DesktopUpdateManager : UpdateManager {
                 }
             } catch (e: Exception) {
                 logger.e("Update check failed", e)
-                _status.value = UpdateStatus.Error("网络请求异常")
+                val errorMessage = when {
+                    e.message?.contains("403") == true -> "访问被拒绝 (可能达到速率限制)"
+                    e.message?.contains("404") == true -> "未找到更新信息"
+                    else -> "网络请求异常: ${e.message ?: "未知错误"}"
+                }
+                _status.value = UpdateStatus.Error(errorMessage)
             }
         }
     }
@@ -122,11 +128,14 @@ class DesktopUpdateManager : UpdateManager {
             logger.i("Checking updates from: $targetUrl")
             val response = client.get(targetUrl)
             
-            if (response.status == HttpStatusCode.NotFound) {
+            if (response.status != HttpStatusCode.OK) {
+                logger.e("Failed to fetch releases, status: ${response.status}")
                 shouldContinue = false
+                if (page == 1) {
+                    throw Exception("Failed to fetch releases: ${response.status}")
+                }
             } else {
                 try {
-//                    logger.i("Fetch releases response status: ${response.status}, body: ${response.body<String>()}")
                     val pageReleases = response.body<List<GitHubRelease>>()
                     if (pageReleases.isEmpty()) {
                         shouldContinue = false
@@ -138,8 +147,14 @@ class DesktopUpdateManager : UpdateManager {
                         page++
                     }
                 } catch (e: Exception) {
-                    logger.e("Failed to parse response body", e)
-                    // 在出现解析错误时停止继续获取分页数据
+                    // Try to log the response body for debugging
+                    try {
+                        val bodyText = response.bodyAsText()
+                        logger.e("Failed to parse response body. Body: $bodyText", e)
+                    } catch (e2: Exception) {
+                        logger.e("Failed to parse response body and could not read body text", e)
+                    }
+                    // Stop fetching on parse error
                     shouldContinue = false
                     throw e
                 }
@@ -427,6 +442,9 @@ class DesktopUpdateManager : UpdateManager {
 
     private suspend fun downloadFile(url: String, file: File, info: UpdateInfo) {
         client.prepareGet(url).execute { httpResponse ->
+            if (httpResponse.status != HttpStatusCode.OK) {
+                throw Exception("Unexpected status code: ${httpResponse.status}")
+            }
             val channel = httpResponse.bodyAsChannel()
             val totalSize = httpResponse.contentLength() ?: info.size
             
