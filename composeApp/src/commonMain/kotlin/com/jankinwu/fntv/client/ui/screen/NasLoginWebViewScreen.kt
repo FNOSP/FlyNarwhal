@@ -5,12 +5,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,7 +30,7 @@ import com.jankinwu.fntv.client.processor.NetworkMessageProcessor
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.login.NasLoginAddressBar
-import com.jankinwu.fntv.client.ui.component.login.FnConnectWebViewContainer
+import com.jankinwu.fntv.client.ui.component.login.NasLoginWebViewContainer
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitError
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitialized
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewRestartRequired
@@ -66,7 +65,9 @@ fun NasLoginWebViewScreen(
     autoLoginUsername: String? = null,
     autoLoginPassword: String? = null,
     allowAutoLogin: Boolean = false,
-    onBaseUrlDetected: ((String) -> Unit)? = null
+    onBaseUrlDetected: ((String) -> Unit)? = null,
+    windowInset: WindowInsets = WindowInsets(0),
+    contentInset: WindowInsets = WindowInsets(0)
 ) {
     val toastManager = rememberToastManager()
     val hazeState = rememberHazeState()
@@ -176,9 +177,7 @@ fun NasLoginWebViewScreen(
                 .background(Color(0xFF14171A).copy(alpha = 0.6f)),
             contentAlignment = Alignment.Center
         ) {
-            Surface(
-                color = Color.Transparent,
-                shape = RoundedCornerShape(0.dp),
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .hazeEffect(
@@ -186,19 +185,10 @@ fun NasLoginWebViewScreen(
                         style = FluentMaterials.acrylicDefault(true)
                     )
             ) {
-                // Window Draggable Area
-//                draggableArea {
-//                    Box(
-//                        modifier = Modifier
-//                            .fillMaxWidth()
-//                            .height(48.dp)
-//                            .align(Alignment.TopCenter)
-//                    )
-//                }
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 12.dp)
+                        .windowInsetsPadding(windowInset)
                 ) {
                     NasLoginAddressBar(
                         addressBarValue = addressBarValue,
@@ -208,7 +198,7 @@ fun NasLoginWebViewScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    FnConnectWebViewContainer(
+                    NasLoginWebViewContainer(
                         modifier = Modifier.weight(1f),
                         webViewInitialized = webViewInitialized,
                         webViewRestartRequired = webViewRestartRequired,

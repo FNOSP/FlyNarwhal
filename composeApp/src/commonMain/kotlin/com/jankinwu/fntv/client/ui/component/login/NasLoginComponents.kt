@@ -69,6 +69,7 @@ fun NasLoginAddressBar(
             modifier = Modifier
                 .padding(end = 12.dp)
                 .height(30.dp)
+                .background(Color(0xFF262726), RoundedCornerShape(50))
                 .weight(1f),
             singleLine = true,
             textStyle = LocalTextStyle.current.copy(
@@ -96,14 +97,14 @@ fun NasLoginAddressBar(
                         )
                     },
                     colors = getTextFieldColors(),
-                            container = {
-                                OutlinedTextFieldDefaults.Container(
-                                    enabled = true,
-                                    isError = false,
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    colors = getTextFieldColors(),
-                                    shape = RoundedCornerShape(8.dp),
-                                    focusedBorderThickness = 1.dp,
+                    container = {
+                        OutlinedTextFieldDefaults.Container(
+                            enabled = true,
+                            isError = false,
+                            interactionSource = remember { MutableInteractionSource() },
+                            colors = getTextFieldColors(),
+                            shape = RoundedCornerShape(50),
+                            focusedBorderThickness = 1.dp,
                         )
                     },
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
@@ -114,7 +115,7 @@ fun NasLoginAddressBar(
 }
 
 @Composable
-fun FnConnectWebViewContainer(
+fun NasLoginWebViewContainer(
     webViewInitialized: Boolean,
     webViewRestartRequired: Boolean,
     webViewInitError: Throwable?,

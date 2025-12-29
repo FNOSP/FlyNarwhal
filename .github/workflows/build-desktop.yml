@@ -226,12 +226,12 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.播放器增加画中画播放功能  
-          2.修复 Windows 端播放视频时会息屏的问题  
-          3.修复个别电视节目因视频信息刮削不全导致无法播放的问题
+          NOTES="1.优化画中画窗口 UI  
+          2.修复切换账号后首页内容空白的问题  
+          3.修复个别电视节目因请求的视频信息不全导致无法播放的问题
           　  
           感谢以下飞牛共建团成员反馈问题并协助排查：  
-          @[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[空城](https://club.fnnas.com/home.php?mod=space&uid=2332)  
+          @[空城](https://club.fnnas.com/home.php?mod=space&uid=2332)  
           　  
           > **当前应用中没有展示出来或者点击没有反应的就是还没做的功能，后面陆续都会实现，请仅对已实现的功能提出合理意见，感谢理解**  
           　  "

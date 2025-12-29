@@ -130,7 +130,7 @@ fun main() {
             }
         }
 
-        // 加载登录信息到缓�?
+        // 加载登录信息到缓存
         PreferencesManager.getInstance().loadAllLoginInfo()
 
         KoinApplication(application = {
@@ -163,7 +163,7 @@ fun main() {
                 size = DpSize(AppSettingsStore.playerWindowWidth.dp, AppSettingsStore.playerWindowHeight.dp)
             )
 
-            // 监听窗口位置变化并自动保�?(主窗�?
+            // 监听窗口位置变化并自动保存 (主窗口)
             LaunchedEffect(mainState, playerManager.playerState.isVisible) {
                 snapshotFlow { mainState.position to mainState.size }
                     .debounce(500)
@@ -194,7 +194,7 @@ fun main() {
                 DesktopContext(playerState, dataDir, cacheDir, logDir, ExtraWindowProperties())
             }
 
-            // 主窗�?
+            // 主窗口
             Window(
                 onCloseRequest = ::exitApplication,
                 state = mainState,
@@ -229,7 +229,7 @@ fun main() {
                         backButtonClick = { navigator.navigateUp() },
                         backButtonVisible = false
                     ) { windowInset, contentInset ->
-                        // 使用LoginStateManagement来管理登录状�?
+                        // 使用LoginStateManagement来管理登录状态
                         LaunchedEffect(isLoggedIn) {
                             if (isLoggedIn) {
                                 userInfoViewModel.refresh()
@@ -242,7 +242,7 @@ fun main() {
                             }
                         }
 
-                        // 只有在未登录状态下才显示登录界�?
+                        // 只有在未登录状态下才显示登录界面
                         if (!isLoggedIn) {
                             LoginScreen(
                                 navigator = navigator,
@@ -263,7 +263,7 @@ fun main() {
                 }
             }
 
-            // 播放器窗�?
+            // 播放器窗口
             if (playerManager.playerState.isVisible && !playerManager.isPipMode) {
                 Window(
                     onCloseRequest = {
@@ -353,7 +353,7 @@ fun main() {
 
             // 小窗模式
             if (playerManager.isPipMode) {
-                // 如果处于全屏模式，退出全�?
+                // 如果处于全屏模式，退出全屏
                 if (PlayingSettingsStore.playerIsFullscreen) {
                     LaunchedEffect(Unit) {
                         playerState.placement = WindowPlacement.Floating
@@ -414,10 +414,13 @@ fun main() {
                         LocalWebViewRestartRequired provides webViewRestartRequired,
                         LocalWebViewInitError provides webViewInitError
                     ) {
-                        AppTheme(
-                            displayMicaLayer = true,
-                            state = fnConnectWindowState
-                        ) {
+                        WindowFrame(
+                            onCloseRequest = { fnConnectWindowRequest = null },
+                            icon = icon,
+                            title = "使用 NAS 登录",
+                            state = fnConnectWindowState,
+                            backButtonVisible = false
+                        ) { windowInset, contentInset ->
                             NasLoginWebViewScreen(
                                 initialUrl = request.initialUrl,
                                 fnId = request.fnId,
@@ -437,7 +440,9 @@ fun main() {
                                         request.onBaseUrlDetected.invoke(it)
                                         fnConnectWindowRequest = null
                                     }
-                                } else null
+                                } else null,
+                                windowInset = windowInset,
+                                contentInset = contentInset
                             )
                         }
                     }
@@ -517,8 +522,8 @@ private fun kcefCacheDir(): File {
 }
 
 /**
- * 初始化日志目�?
- * 根据应用程序运行模式（开发模式或打包模式）确定日志目录位�?
+ * 初始化日志目录
+ * 根据应用程序运行模式（开发模式或打包模式）确定日志目录位置
  */
 private fun initializeLoggingDirectory(): File {
     val userDirStr = System.getProperty("user.dir")

@@ -5,12 +5,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.icons.Icons
@@ -25,8 +32,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -39,19 +48,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
+import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.network.fnOfficialClient
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
+import com.jankinwu.fntv.client.icons.Back10S
+import com.jankinwu.fntv.client.icons.Forward10S
 import com.jankinwu.fntv.client.icons.PlayCircle
 import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import com.jankinwu.fntv.client.ui.component.player.SubtitleOverlay
 import com.jankinwu.fntv.client.ui.component.player.VolumeControl
+import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.utils.ExternalSubtitleUtil
 import com.jankinwu.fntv.client.utils.HlsSubtitleUtil
 import com.jankinwu.fntv.client.utils.SubtitleCue
+import com.jankinwu.fntv.client.utils.callPlayRecord
 import com.jankinwu.fntv.client.utils.calculateOptimalPlayerWindowSize
 import com.jankinwu.fntv.client.utils.rememberSmoothVideoTime
+import com.jankinwu.fntv.client.viewmodel.PlayRecordViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayerViewModel
+import com.jankinwu.fntv.client.window.findSkiaLayer
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.icon
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
@@ -63,6 +79,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
+import com.jankinwu.fntv.client.ui.component.player.VideoPlayerProgressBar
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.MediampPlayerSurface
 import org.openani.mediamp.features.AudioLevelController
@@ -78,9 +96,86 @@ fun PipPlayerWindow(
     val mediaPlayer = LocalMediaPlayer.current
     val playbackState by mediaPlayer.playbackState.collectAsState()
     val playerViewModel: PlayerViewModel = koinViewModel()
+    val playRecordViewModel: PlayRecordViewModel = koinViewModel()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
     val subtitleSettings by playerViewModel.subtitleSettings.collectAsState()
     val savedData = remember { PlayingSettingsStore.getPipWindowData() }
+
+    val logger = remember { Logger.withTag("PipPlayerWindow") }
+    val rewindInteractionSource = remember { MutableInteractionSource() }
+    val forwardInteractionSource = remember { MutableInteractionSource() }
+
+    // 上一次播放状态
+    var lastPlayState by remember { mutableStateOf<PlaybackState?>(null) }
+
+    var isLoading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(playbackState) {
+        if (playbackState == PlaybackState.PLAYING || playbackState == PlaybackState.PAUSED) {
+            isLoading = false
+        }
+    }
+
+    LaunchedEffect(isLoading) {
+        if (isLoading) {
+            delay(2000)
+            if (isLoading) {
+                isLoading = false
+            }
+        }
+    }
+
+    // 当播放状态变为暂停或播放时，调用playRecord接口
+    LaunchedEffect(playbackState) {
+        if (playbackState == PlaybackState.PAUSED && lastPlayState == PlaybackState.PLAYING) {
+            // 调用playRecord接口
+            callPlayRecord(
+                ts = (mediaPlayer.currentPositionMillis.value / 1000).toInt(),
+                playingInfoCache = playingInfoCache,
+                playRecordViewModel = playRecordViewModel,
+                onSuccess = {
+                    logger.i("PIP暂停时调用playRecord成功")
+                },
+                onError = {
+                    logger.i("PIP暂停时调用playRecord失败：缓存为空")
+                },
+            )
+        } else if (playbackState == PlaybackState.PLAYING && lastPlayState == PlaybackState.PAUSED) {
+            // 从暂停切换到播放时也调用playRecord接口
+            callPlayRecord(
+                ts = (mediaPlayer.currentPositionMillis.value / 1000).toInt(),
+                playingInfoCache = playingInfoCache,
+                playRecordViewModel = playRecordViewModel,
+                onSuccess = {
+                    logger.i("PIP恢复播放时调用playRecord成功")
+                },
+                onError = {
+                    logger.i("PIP恢复播放时调用playRecord失败：缓存为空")
+                },
+            )
+        }
+        lastPlayState = playbackState
+    }
+
+    // 每隔15秒调用一次playRecord接口
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(15000) // 每15秒
+
+            // 调用playRecord接口
+            callPlayRecord(
+                ts = (mediaPlayer.currentPositionMillis.value / 1000).toInt(),
+                playingInfoCache = playingInfoCache,
+                playRecordViewModel = playRecordViewModel,
+                onSuccess = {
+                    logger.i("PIP每隔15s调用playRecord成功")
+                },
+                onError = {
+                    logger.i("PIP每隔15s调用playRecord失败：缓存为空")
+                }
+            )
+        }
+    }
 
     val audioLevelController = remember(mediaPlayer) { mediaPlayer.features[AudioLevelController] }
     val volume by audioLevelController?.volume?.collectAsState() ?: remember {
@@ -188,7 +283,8 @@ fun PipPlayerWindow(
                 videoStream,
                 baseWidth,
                 baseHeight,
-                "AUTO"
+                "AUTO",
+                isPipMode = true
             )
 
             if (optimalSize != null) {
@@ -219,7 +315,7 @@ fun PipPlayerWindow(
         undecorated = true,
         alwaysOnTop = true,
         resizable = true,
-        transparent = false,
+        transparent = true,
         title = "PiP Player",
         icon = painterResource(Res.drawable.icon)
     ) {
@@ -227,8 +323,10 @@ fun PipPlayerWindow(
         val density = LocalDensity.current
         var dragOffset by remember { mutableStateOf<Point?>(null) }
 
-        LaunchedEffect(Unit) {
-            window.background = java.awt.Color(0, 0, 0)
+        LaunchedEffect(window) {
+            window.findSkiaLayer()?.transparency = true
+            window.background = java.awt.Color(0, 0, 0, 0)
+            window.contentPane.background = java.awt.Color(0, 0, 0, 0)
         }
 
         val dragModifier = Modifier.pointerInput(Unit) {
@@ -268,6 +366,7 @@ fun PipPlayerWindow(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .clip(RoundedCornerShape(12.dp))
                 .background(Color.Black)
                 .onPointerEvent(PointerEventType.Enter) { isHovered = true }
                 .onPointerEvent(PointerEventType.Exit) { isHovered = false }
@@ -318,6 +417,15 @@ fun PipPlayerWindow(
                 }
             }
 
+            if (playbackState == PlaybackState.READY || playbackState == PlaybackState.PAUSED_BUFFERING || isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ImgLoadingProgressRing(modifier = Modifier.size(32.dp))
+                }
+            }
+
             // Play Button when paused
             if (playbackState == PlaybackState.PAUSED) {
                 Box(
@@ -336,6 +444,91 @@ fun PipPlayerWindow(
                         modifier = Modifier.size(48.dp)
                     )
                 }
+            }
+
+            // Progress Bar
+            if (isHovered) {
+                // Skip Backward Button
+                val isRewindHovered by rewindInteractionSource.collectIsHoveredAsState()
+                val isRewindPressed by rewindInteractionSource.collectIsPressedAsState()
+                Box(
+                    modifier = Modifier
+                        .align(BiasAlignment(horizontalBias = -0.5f, verticalBias = 0f))
+                        .size(40.dp)
+                        .background(
+                            color = Color.Black.copy(
+                                alpha = when {
+                                    isRewindPressed -> 0.8f
+                                    isRewindHovered -> 0.6f
+                                    else -> 0.4f
+                                }
+                            ),
+                            shape = CircleShape
+                        )
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(
+                            interactionSource = rewindInteractionSource,
+                            indication = null,
+                            onClick = { mediaPlayer.skip(-10_000) }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Back10S,
+                        contentDescription = "Rewind 10s",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                // Skip Forward Button
+                val isForwardHovered by forwardInteractionSource.collectIsHoveredAsState()
+                val isForwardPressed by forwardInteractionSource.collectIsPressedAsState()
+                Box(
+                    modifier = Modifier
+                        .align(BiasAlignment(horizontalBias = 0.5f, verticalBias = 0f))
+                        .size(40.dp)
+                        .background(
+                            color = Color.Black.copy(
+                                alpha = when {
+                                    isForwardPressed -> 0.8f
+                                    isForwardHovered -> 0.6f
+                                    else -> 0.4f
+                                }
+                            ),
+                            shape = CircleShape
+                        )
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(
+                            interactionSource = forwardInteractionSource,
+                            indication = null,
+                            onClick = { mediaPlayer.skip(10_000) }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Forward10S,
+                        contentDescription = "Forward 10s",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                val totalDuration = LocalPlayerManager.current.playerState.duration
+                VideoPlayerProgressBar(
+                    player = mediaPlayer,
+                    totalDuration = totalDuration,
+                    onSeek = { ratio ->
+                        isLoading = true
+                        mediaPlayer.seekTo((ratio * totalDuration).toLong())
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .offset(y = (-40).dp)
+                        .padding(horizontal = 12.dp)
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .fillMaxWidth()
+                )
             }
 
             // Top Right: Close Button
@@ -408,7 +601,10 @@ fun PipPlayerWindow(
                             .pointerHoverIcon(PointerIcon.Hand)
                             .onPointerEvent(PointerEventType.Enter) { isExitBtnHovered = true }
                             .onPointerEvent(PointerEventType.Exit) { isExitBtnHovered = false }
-                            .clickable { onExitPip() }
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { onExitPip() }
                     ) {
                         Image(
                             painter = rememberLottiePainter(composition, progress = { progress }),
