@@ -1,4 +1,6 @@
-# 	Fntv Client Multiplatform
+<h1 align="center">Fly Narwhal</h1>
+
+<img src="http://oss.jankinwu.com/img/fnarwhal_login.png" alt="fnarwhal_login" width="600" />
 
 [![GitHub stars](https://img.shields.io/github/stars/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/network)
@@ -7,7 +9,7 @@
 [![Kotlin Version](https://img.shields.io/badge/Kotlin-2.2.21-%237F52FF.svg)](https://kotlinlang.org/)
 [![Compose Multiplatform Version](https://img.shields.io/badge/ComposeMultiplatform-1.9.3-%237f52ff.svg)](https://www.jetbrains.com/compose-multiplatform/)
 
-基于 Compose Multiplatform 框架开发的跨平台飞牛影视客户端
+基于 Compose Multiplatform 框架开发的适用于飞牛影视的跨平台客户端
 
 ## 声明
 
@@ -17,11 +19,11 @@
 
 > 最终效果以未来发布版本为准
 
-![image-20251221171527491](http://oss.jankinwu.com/img/image-20251221171527491.png)
+![image-20251230020234381](http://oss.jankinwu.com/img/image-20251230020234381.png)
 
-![image-20251221171344697](http://oss.jankinwu.com/img/image-20251221171344697.png)
+![image-20251230020717917](http://oss.jankinwu.com/img/image-20251230020717917.png)
 
-![image-20251221180048751](http://oss.jankinwu.com/img/image-20251221180048751.png)
+![image-20251230021217242](http://oss.jankinwu.com/img/image-20251230021217242.png)
 
 ## 使用说明
 ### 使用安装包安装

@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.4.1"
+val appVersion = "1.4.2"
 val appVersionSuffix = ""
 
 val platformStr = when {
@@ -262,10 +262,10 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Deb, TargetFormat.Exe, TargetFormat.Rpm, TargetFormat.Pkg)
             // 使用英文作为包名，避免Windows下打包乱码和路径问题
             // Use English package name to avoid garbled text on Windows
-            packageName = "FnMedia"
+            packageName = "FlyNarwhal"
             packageVersion = appVersion
             // Description acts as the process name in Task Manager. Using Chinese here causes garbled text due to jpackage limitations.
-            description = "FnMedia"
+            description = "FlyNarwhal"
             vendor = "JankinWu"
             appResourcesRootDir.set(layout.buildDirectory.dir("mergedResources"))
             modules("jdk.unsupported")
@@ -273,21 +273,21 @@ compose.desktop {
                 iconFile.set(project.file("icons/favicon.ico"))
                 shortcut = true
                 menu = true
-                menuGroup = "FnMedia"
+                menuGroup = "FlyNarwhal"
                 console = false
                 dirChooser = true
                 upgradeUuid = "9A262498-6C63-4816-A346-056028719600"
             }
             macOS {
                 iconFile.set(project.file("icons/favicon.icns"))
-                dockName = "飞牛影视"
+                dockName = "飞鲸影视"
                 setDockNameSameAsPackageName = false
                 // 设置最低支持的 macOS 版本，确保在 macOS 14 上构建的包也能在旧系统运行
                 minimumSystemVersion = "11.0"
             }
             linux {
                 iconFile.set(project.file("icons/favicon.png"))
-                packageName = "fn-media"
+                packageName = "fly-narwhal"
                 shortcut = true
             }
         }
@@ -352,7 +352,7 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageT
         destDir.listFiles()?.forEach { file ->
             val ext = file.extension
             if (ext in listOf("dmg", "deb", "rpm")) {
-                val newName = "FnMedia_Setup_${osName}_${arch}_${version}.${ext}"
+                val newName = "FlyNarwhal_Setup_${osName}_${arch}_${version}.${ext}"
                 val newFile = file.parentFile.resolve(newName)
                 if (file.name != newName) {
                     file.renameTo(newFile)

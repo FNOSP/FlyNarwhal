@@ -31,6 +31,7 @@ import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.login.NasLoginAddressBar
 import com.jankinwu.fntv.client.ui.component.login.NasLoginWebViewContainer
+import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitError
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitialized
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewRestartRequired
@@ -72,6 +73,7 @@ fun NasLoginWebViewScreen(
     val toastManager = rememberToastManager()
     val hazeState = rememberHazeState()
     val fnOfficialApi = remember { FnOfficialApiImpl() }
+    val refreshState = LocalRefreshState.current
 
     val webViewInitialized = LocalWebViewInitialized.current
     val webViewRestartRequired = LocalWebViewRestartRequired.current
@@ -122,6 +124,13 @@ fun NasLoginWebViewScreen(
                 capturedPassword = capturedPassword,
                 capturedRememberPassword = capturedRememberPassword
             )
+        }
+    }
+
+    LaunchedEffect(refreshState.refreshKey) {
+        if (refreshState.refreshKey.isNotEmpty()) {
+            refreshState.onRefresh()
+            navigator.reload()
         }
     }
 

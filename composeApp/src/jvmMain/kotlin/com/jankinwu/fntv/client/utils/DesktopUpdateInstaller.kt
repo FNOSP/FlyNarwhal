@@ -69,7 +69,7 @@ interface DesktopUpdateInstaller : UpdateInstaller {
 
                 val userHome = System.getProperty("user.home")
                 val appDataDir = if (osName.contains("mac")) {
-                    File(userHome, "Library/Application Support/FnMedia")
+                    File(userHome, "Library/Application Support/FlyNarwhal")
                 } else {
                     File(userHome, ".local/share/fn-media")
                 }

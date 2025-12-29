@@ -502,7 +502,7 @@ private fun kcefInstallDir(): File {
         is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fn-media")
         is Platform.Windows -> {
             val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
-            File(localAppData ?: System.getProperty("user.home"), "FnMedia")
+            File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
         }
     }
     return File(baseDir, "kcef-bundle")
@@ -515,7 +515,7 @@ private fun kcefCacheDir(): File {
         is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fn-media")
         is Platform.Windows -> {
             val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
-            File(localAppData ?: System.getProperty("user.home"), "FnMedia")
+            File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
         }
     }
     return File(baseDir, "kcef-cache")
@@ -547,11 +547,11 @@ private fun initializeLoggingDirectory(): File {
         when (platform) {
             is Platform.Linux -> {
                 val userHome = System.getProperty("user.home")
-                File(userHome, ".local/share/fn-media/logs")
+                File(userHome, ".local/share/fly-narwhal/logs")
             }
             is Platform.MacOS -> {
                 val userHome = System.getProperty("user.home")
-                File(userHome, "Library/Logs/fn-media")
+                File(userHome, "Library/Logs/fly-narwhal")
             }
             is Platform.Windows -> {
                 val appDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
@@ -584,7 +584,7 @@ private fun createWindowConfiguration(): Triple<WindowState, String, Painter> {
 //        size = DpSize.Unspecified
         size = DpSize(AppSettingsStore.windowWidth.dp, AppSettingsStore.windowHeight.dp)
     )
-    val title = "飞牛影视"
+    val title = "飞鲸影视"
     val icon = painterResource(Res.drawable.icon)
     return Triple(state, title, icon)
 }

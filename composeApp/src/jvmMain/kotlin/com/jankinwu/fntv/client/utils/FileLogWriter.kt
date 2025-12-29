@@ -28,21 +28,21 @@ class FileLogWriter(private val logDir: File) : LogWriter() {
         cleanOldLogs()
 
         currentLogDate = LocalDateTime.now().format(dateFormatter)
-        logFile = File(logDir, "FnMedia-$currentLogDate.log")
+        logFile = File(logDir, "FlyNarwhal-$currentLogDate.log")
         writer = PrintWriter(OutputStreamWriter(FileOutputStream(logFile, true), StandardCharsets.UTF_8), true)
     }
 
     private fun cleanOldLogs() {
         try {
             val files = logDir.listFiles { _, name ->
-                name.startsWith("FnMedia-") && name.endsWith(".log")
+                name.startsWith("FlyNarwhal-") && name.endsWith(".log")
             } ?: return
 
             val today = LocalDate.now()
             val retentionDays = 3L
 
             files.forEach { file ->
-                val datePart = file.name.removePrefix("FnMedia-").removeSuffix(".log")
+                val datePart = file.name.removePrefix("FlyNarwhal-").removeSuffix(".log")
                 try {
                     val fileDate = LocalDate.parse(datePart, dateFormatter)
                     val daysBetween = ChronoUnit.DAYS.between(fileDate, today)

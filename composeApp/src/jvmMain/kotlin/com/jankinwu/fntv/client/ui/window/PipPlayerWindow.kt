@@ -353,11 +353,9 @@ fun PipPlayerWindow(
                     val offset = dragOffset ?: return@detectDragGestures
                     val mouse = MouseInfo.getPointerInfo()?.location ?: return@detectDragGestures
                     window.setLocation(mouse.x - offset.x, mouse.y - offset.y)
-                    if (windowState.position !is WindowPosition.Absolute) {
-                        val location = window.location
-                        windowState.position = with(density) {
-                            WindowPosition(location.x.toDp(), location.y.toDp())
-                        }
+                    val location = window.location
+                    windowState.position = with(density) {
+                        WindowPosition(location.x.toDp(), location.y.toDp())
                     }
                 }
             )
