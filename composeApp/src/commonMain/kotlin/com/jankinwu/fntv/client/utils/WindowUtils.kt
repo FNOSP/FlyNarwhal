@@ -9,7 +9,8 @@ fun calculateOptimalPlayerWindowSize(
     videoStream: VideoStream,
     baseWidth: Float,
     baseHeight: Float,
-    aspectRatioSetting: String = "AUTO"
+    aspectRatioSetting: String = "AUTO",
+    isPipMode: Boolean = false
 ): DpSize? {
     val videoW = videoStream.width.toFloat()
     val videoH = videoStream.height.toFloat()
@@ -30,8 +31,13 @@ fun calculateOptimalPlayerWindowSize(
     val currentAspectRatio = if (baseHeight > 0) baseWidth / baseHeight else targetAspectRatio
 
     // Compensation only applies in AUTO mode
-    val compensation =
+    var compensation =
         if (aspectRatioSetting == "AUTO") PlayingSettingsStore.playerWindowWidthCompensation else 0f
+
+    // In PiP mode, the compensation is halved
+    if (isPipMode) {
+        compensation /= 2f
+    }
 
     // Logic to expand window rather than shrink content
     // 为了防止基于当前窗口大小计算导致无限膨胀，我们采用"保持宽度"的策略，除非必须变宽

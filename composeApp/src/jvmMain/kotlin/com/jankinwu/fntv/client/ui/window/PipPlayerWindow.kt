@@ -5,12 +5,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.icons.Icons
@@ -27,6 +29,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -52,6 +55,7 @@ import com.jankinwu.fntv.client.utils.SubtitleCue
 import com.jankinwu.fntv.client.utils.calculateOptimalPlayerWindowSize
 import com.jankinwu.fntv.client.utils.rememberSmoothVideoTime
 import com.jankinwu.fntv.client.viewmodel.PlayerViewModel
+import com.jankinwu.fntv.client.window.findSkiaLayer
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.icon
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
@@ -188,7 +192,8 @@ fun PipPlayerWindow(
                 videoStream,
                 baseWidth,
                 baseHeight,
-                "AUTO"
+                "AUTO",
+                isPipMode = true
             )
 
             if (optimalSize != null) {
@@ -219,7 +224,7 @@ fun PipPlayerWindow(
         undecorated = true,
         alwaysOnTop = true,
         resizable = true,
-        transparent = false,
+        transparent = true,
         title = "PiP Player",
         icon = painterResource(Res.drawable.icon)
     ) {
@@ -227,8 +232,10 @@ fun PipPlayerWindow(
         val density = LocalDensity.current
         var dragOffset by remember { mutableStateOf<Point?>(null) }
 
-        LaunchedEffect(Unit) {
-            window.background = java.awt.Color(0, 0, 0)
+        LaunchedEffect(window) {
+            window.findSkiaLayer()?.transparency = true
+            window.background = java.awt.Color(0, 0, 0, 0)
+            window.contentPane.background = java.awt.Color(0, 0, 0, 0)
         }
 
         val dragModifier = Modifier.pointerInput(Unit) {
@@ -268,6 +275,7 @@ fun PipPlayerWindow(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .clip(RoundedCornerShape(12.dp))
                 .background(Color.Black)
                 .onPointerEvent(PointerEventType.Enter) { isHovered = true }
                 .onPointerEvent(PointerEventType.Exit) { isHovered = false }
@@ -408,7 +416,10 @@ fun PipPlayerWindow(
                             .pointerHoverIcon(PointerIcon.Hand)
                             .onPointerEvent(PointerEventType.Enter) { isExitBtnHovered = true }
                             .onPointerEvent(PointerEventType.Exit) { isExitBtnHovered = false }
-                            .clickable { onExitPip() }
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { onExitPip() }
                     ) {
                         Image(
                             painter = rememberLottiePainter(composition, progress = { progress }),
