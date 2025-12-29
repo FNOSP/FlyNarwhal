@@ -58,6 +58,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -100,9 +101,9 @@ import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.FluentMaterials
 import dev.chrisbanes.haze.rememberHazeState
+import fntv_client_multiplatform.composeapp.generated.resources.fnarwhal_login
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.login_background
-import fntv_client_multiplatform.composeapp.generated.resources.login_fn_logo
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.CheckBox
 import io.github.composefluent.component.CheckBoxDefaults
@@ -110,6 +111,8 @@ import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.Switcher
 import io.github.composefluent.component.SwitcherDefaults
 import io.github.composefluent.component.rememberScrollbarAdapter
+import org.jetbrains.compose.resources.ExperimentalResourceApi
+import org.jetbrains.compose.resources.imageResource
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -130,7 +133,7 @@ data class FnConnectWindowRequest(
 )
 
 @OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalComposeUiApi::class,
-    ExperimentalFoundationApi::class
+    ExperimentalFoundationApi::class, ExperimentalResourceApi::class
 )
 @Suppress("RememberReturnType")
 @Composable
@@ -279,12 +282,13 @@ fun LoginScreen(
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painterResource(Res.drawable.login_background),
+                imageResource(Res.drawable.login_background),
                 contentDescription = "登录背景图",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .hazeSource(state = hazeState)
+                    .hazeSource(state = hazeState),
+                filterQuality = FilterQuality.Medium
             )
             Surface(
                 color = Color.Transparent,
@@ -305,10 +309,18 @@ fun LoginScreen(
                 ) {
                     // 1. Logo
                     Image(
-                        painterResource(Res.drawable.login_fn_logo),
-                        contentDescription = "飞牛logo",
+                        painterResource(Res.drawable.fnarwhal_login),
+                        contentDescription = "飞鲸logo",
                         modifier = Modifier
                             .width(174.dp)
+//                            .graphicsLayer {
+//                                // 开启平滑渲染
+//                                clip = true
+//                                shape = RoundedCornerShape(0.1.dp) // 极小的圆角可以触发更高级别的抗锯齿
+//                            }
+                        ,
+                        contentScale = ContentScale.FillWidth,
+//                        filterQuality = FilterQuality.Medium
                     )
                     Text("FN_Media", color = HintColor, fontSize = 16.sp)
                     var isHistoryHovered by remember { mutableStateOf(false) }

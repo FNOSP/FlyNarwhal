@@ -61,10 +61,10 @@ func getWindowsSystemDefaultUILanguage() uint16 {
 // Messages
 var messages = map[string][2]string{
 	"error_occurred":  {"An error occurred with %s", "发生了一个错误由于 %s"},
-	"updater_started": {"FnMedia app updater started", "飞牛影视更新器已启动"},
+	"updater_started": {"FlyNarwhal app updater started", "飞鲸影视更新器已启动"},
 	"usage":           {"Usage: %s <installer_path> <install_dir>", "用法: %s <安装包路径> <安装目录>"},
-	"wait_app_exit":   {"Wait for FnMedia app to exit", "等待飞牛影视退出"},
-	"app_closed":      {"FnMedia app is closed", "飞牛影视已关闭"},
+	"wait_app_exit":   {"Wait for FlyNarwhal app to exit", "等待飞鲸影视退出"},
+	"app_closed":      {"FlyNarwhal app is closed", "飞鲸影视已关闭"},
 	"end":             {"Exiting...", "退出中..."},
 }
 
