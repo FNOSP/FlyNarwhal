@@ -79,7 +79,6 @@ import com.jankinwu.fntv.client.data.model.PlayingInfoCache
 import com.jankinwu.fntv.client.data.model.SubtitleSettings
 import com.jankinwu.fntv.client.data.model.request.MediaPRequest
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
-import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
 import com.jankinwu.fntv.client.data.model.request.StreamRequest
 import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.model.response.EpisodeListResponse
@@ -1699,8 +1698,8 @@ private suspend fun playMedia(
         val startPosition: Long = playInfoResponse.ts.toLong() * 1000
         val videoStream = streamInfo.videoStream
         val audioStream =
-            streamInfo.audioStreams.first { audioStream -> audioStream.guid == playInfoResponse.audioGuid }
-        val audioGuid = currentAudioGuid ?: audioStream.guid
+            streamInfo.audioStreams?.firstOrNull { audioStream -> audioStream.guid == playInfoResponse.audioGuid }
+        val audioGuid = currentAudioGuid ?: (audioStream?.guid ?: "")
 //        val subtitleStream = streamInfo.subtitleStreams?.first{ it.guid == playInfoResponse.subtitleGuid}
         val subtitleStream = streamInfo.subtitleStreams?.find {
             it.guid == playInfoResponse.subtitleGuid
@@ -1993,7 +1992,7 @@ private fun createPlayingInfoCache(
     streamInfo: StreamResponse,
     fileStream: FileInfo,
     videoStream: VideoStream,
-    audioStream: AudioStream,
+    audioStream: AudioStream?,
     subtitleStream: SubtitleStream?,
     playInfoResponse: PlayInfoResponse
 ): PlayingInfoCache {
@@ -2056,8 +2055,8 @@ private suspend fun resolvePlayLink(
     playPlayViewModel: PlayPlayViewModel,
     playInfoResponse: PlayInfoResponse
 ): PlayLinkResult {
-    val currentQuality = cache.currentQuality ?: streamInfo.qualities.firstOrNull()
-    val originalQuality = streamInfo.qualities.firstOrNull()
+    val currentQuality = cache.currentQuality ?: streamInfo.qualities?.firstOrNull()
+    val originalQuality = streamInfo.qualities?.firstOrNull()
     val isOriginalQuality = currentQuality != null && originalQuality != null &&
             currentQuality.resolution == originalQuality.resolution &&
             currentQuality.bitrate == originalQuality.bitrate
@@ -2240,7 +2239,7 @@ private fun handleQualitySelection(
 //    logger.i("1 change quality to: ${quality.resolution}")
     if (playingInfoCache != null) {
         val currentQuality = playingInfoCache.currentQuality
-        val originalQuality = playingInfoCache.streamInfo.qualities.firstOrNull()
+        val originalQuality = playingInfoCache.streamInfo.qualities?.firstOrNull()
         val videoStream = playingInfoCache.currentVideoStream
         val currentResolution = quality.resolution
         val currentBitrate = quality.bitrate

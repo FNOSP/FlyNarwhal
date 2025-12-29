@@ -8,7 +8,6 @@
 -dontnote com.jetbrains.JBR*
 -printmapping mapping.txt
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,SourceFile,LineNumberTable,MethodParameters
--renamesourcefileattribute SourceFile
 
 # Project ViewModels & Logic
 -keep class com.jankinwu.fntv.client.viewmodel.** { *; }
