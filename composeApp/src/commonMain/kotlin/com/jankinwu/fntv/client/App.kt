@@ -203,7 +203,12 @@ fun Navigation(
     val homePageIndex = components.indexOfFirst { it.name == "首页" }
     if (homePageIndex < 0) {
         components.add(homePageItem)
-        navigator.addStartItem(homePageItem)
+    }
+
+    // 确保 navigator 中有首页（即使 components 中已存在，navigator 可能是新建的）
+    if (navigator.currentBackstack.isEmpty()) {
+        val startItem = components.firstOrNull { it.guid == "homePage" } ?: homePageItem
+        navigator.addStartItem(startItem)
     }
     var selectedItemWithContent by remember {
         mutableStateOf(navigator.latestBackEntry)
