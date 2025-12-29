@@ -1,6 +1,10 @@
 <h1 align="center">Fly Narwhal</h1>
 
-<img src="http://oss.jankinwu.com/img/fnarwhal_login.png" alt="fnarwhal_login" width="600" />
+<p align="center">
+  <img src="http://oss.jankinwu.com/img/fnarwhal_login.png" alt="fnarwhal_login" width="600" />
+</p>
+
+<div align="center">
 
 [![GitHub stars](https://img.shields.io/github/stars/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/network)
@@ -10,6 +14,10 @@
 [![Compose Multiplatform Version](https://img.shields.io/badge/ComposeMultiplatform-1.9.3-%237f52ff.svg)](https://www.jetbrains.com/compose-multiplatform/)
 
 基于 Compose Multiplatform 框架开发的适用于飞牛影视的跨平台客户端
+
+</div>
+
+---
 
 ## 声明
 

@@ -226,8 +226,9 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.飞牛影视客户端更名为“飞鲸”影视客户端  
-          2.修复 MacOS 端若干兼容性问题  
+          NOTES="1.更新标题栏图标  
+          　  
+          因为此次修改更新了可执行程序名称，自动安装后出现报错提示“Failed to launch application **”属于正常现象，安装成功后把旧的快捷方式从桌面或开始菜单删除即可。
           　  
           感谢以下飞牛共建团成员反馈问题并协助排查：  
           @[一西啊](https://club.fnnas.com/home.php?mod=space&uid=785)  
