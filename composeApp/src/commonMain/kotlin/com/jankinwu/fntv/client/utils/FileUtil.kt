@@ -1,36 +1,47 @@
 package com.jankinwu.fntv.client.utils
 
-import androidx.compose.ui.window.FrameWindowScope
-import java.awt.FileDialog
-import java.io.File
+import io.github.vinceglb.filekit.FileKit
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.dialogs.FileKitType
+import io.github.vinceglb.filekit.dialogs.openFilePicker
+import io.github.vinceglb.filekit.dialogs.openFileSaver
 
-fun chooseFile(
-    scope: FrameWindowScope,
-    fileExtensions: Array<String>,
-    description: String
-): File? {
-    return scope.selectFile(fileExtensions, description)
-}
-
-fun FrameWindowScope.selectFile(
-    fileExtensions: Array<String> = arrayOf("*"),
-    description: String = "选择文件"
-): File? {
-    val fileDialog = FileDialog(this.window, description, FileDialog.LOAD).apply {
-        if (fileExtensions.isNotEmpty() && fileExtensions[0] != "*") {
-            setFilenameFilter { _, name ->
-                fileExtensions.any { ext -> name.endsWith(ext, ignoreCase = true) }
-            }
+/**
+ * Modern KMP File picker utility using FileKit
+ */
+object FileUtil {
+    /**
+     * Opens a file picker and returns the selected file.
+     * This is a suspend function and can be called from any coroutine.
+     */
+    suspend fun pickFile(
+        fileExtensions: List<String> = emptyList(),
+        title: String? = null
+    ): PlatformFile? {
+        val type = if (fileExtensions.isEmpty()) {
+            FileKitType.File()
+        } else {
+            FileKitType.File(extensions = fileExtensions)
         }
-        isVisible = true
+
+        return FileKit.openFilePicker(
+            type = type,
+            title = title
+        )
     }
 
-    val directory = fileDialog.directory
-    val filename = fileDialog.file
-
-    return if (directory != null && filename != null) {
-        File(directory, filename)
-    } else {
-        null
+    /**
+     * Opens a file saver and returns the selected file location.
+     */
+    suspend fun saveFile(
+        suggestedName: String = "file",
+        extension: String = "",
+        title: String? = null
+    ): PlatformFile? {
+        return FileKit.openFileSaver(
+            suggestedName = suggestedName,
+            extension = extension,
+            // title parameter is not supported in openFileSaver in this version
+        )
     }
 }

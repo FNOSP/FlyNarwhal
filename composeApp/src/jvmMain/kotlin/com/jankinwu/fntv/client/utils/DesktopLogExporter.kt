@@ -1,12 +1,11 @@
 package com.jankinwu.fntv.client.utils
 
+import io.github.vinceglb.filekit.path
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.Desktop
-import java.awt.FileDialog
-import java.awt.Frame
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -33,34 +32,33 @@ class DesktopLogExporter(private val logsDir: File) : LogExporter {
             return
         }
 
-        val fileDialog = FileDialog(null as Frame?, "选择保存位置", FileDialog.SAVE).apply {
-            file = "FlyNarwhal-Error-$date.log"
-            setFilenameFilter { _, name -> name.endsWith(".log") }
-            isVisible = true
-        }
+        CoroutineScope(Dispatchers.Main).launch {
+            // Use modern FileKit-based FileUtil
+            val platformFile = withContext(Dispatchers.IO) {
+                FileUtil.saveFile(
+                    suggestedName = "FlyNarwhal-Error-$date",
+                    extension = "log"
+                    // title = "选择保存位置" // Title not supported in FileKit 0.12.0 saver
+                )
+            }
 
-        val directory = fileDialog.directory
-        val filename = fileDialog.file
+            if (platformFile == null) return@launch
 
-        if (directory == null || filename == null) {
-            return
-        }
+            val targetFile = File(platformFile.path)
+            
+            onStart()
 
-        val targetFile = File(directory, filename)
-        val finalTargetFile = if (targetFile.name.endsWith(".log")) targetFile else File(targetFile.parentFile, "${targetFile.name}.log")
-
-        onStart()
-
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                processAndExport(logFile, finalTargetFile)
-                withContext(Dispatchers.Main) {
-                    onComplete()
-                    revealFile(finalTargetFile)
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    onError("导出失败: ${e.message}")
+            withContext(Dispatchers.IO) {
+                try {
+                    processAndExport(logFile, targetFile)
+                    withContext(Dispatchers.Main) {
+                        onComplete()
+                        revealFile(targetFile)
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        onError("导出失败: ${e.message}")
+                    }
                 }
             }
         }

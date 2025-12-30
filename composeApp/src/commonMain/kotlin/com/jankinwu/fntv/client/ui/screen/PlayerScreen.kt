@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -132,13 +133,13 @@ import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
 import com.jankinwu.fntv.client.ui.providable.defaultVariableFamily
+import com.jankinwu.fntv.client.utils.FileUtil
 import com.jankinwu.fntv.client.utils.HiddenPointerIcon
 import com.jankinwu.fntv.client.utils.HlsSubtitleUtil
 import com.jankinwu.fntv.client.utils.Mp4Parser
 import com.jankinwu.fntv.client.utils.SubtitleCue
-import com.jankinwu.fntv.client.utils.callPlayRecord
 import com.jankinwu.fntv.client.utils.calculateOptimalPlayerWindowSize
-import com.jankinwu.fntv.client.utils.chooseFile
+import com.jankinwu.fntv.client.utils.callPlayRecord
 import com.jankinwu.fntv.client.utils.rememberSmoothVideoTime
 import com.jankinwu.fntv.client.viewmodel.EpisodeListViewModel
 import com.jankinwu.fntv.client.viewmodel.MediaPViewModel
@@ -162,13 +163,18 @@ import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FontIconDefaults
 import io.github.composefluent.component.FontIconSize
 import io.github.composefluent.component.NavigationDefaults
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.name
+import io.github.vinceglb.filekit.readBytes
 import korlibs.crypto.MD5
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -310,7 +316,7 @@ fun PlayerOverlay(
         isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered || isEpisodeControlHovered || isNextEpisodeHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
     val frameWindowScope = LocalFrameWindowScope.current
-//    val scope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val tagViewModel: TagViewModel = koinViewModel()
     val playPlayViewModel: PlayPlayViewModel = koinViewModel()
@@ -1286,18 +1292,31 @@ fun PlayerOverlay(
                     onOpenAddLocalSubtitle = {
                         val mediaGuid = playingInfoCache?.currentFileStream?.guid
                         if (mediaGuid != null) {
-                            val file = chooseFile(
-                                frameWindowScope,
-                                arrayOf("ass", "srt", "vtt", "sub", "ssa"),
-                                "选择字幕文件"
-                            )
-                            file?.let { selectedFile ->
-                                val byteArray = selectedFile.readBytes()
-                                subtitleUploadViewModel.uploadSubtitle(
-                                    mediaGuid,
-                                    byteArray,
-                                    selectedFile.name
-                                )
+                            scope.launch {
+                                try {
+                                    logger.i("Start picking subtitle file")
+                                    val file: PlatformFile? = withContext(Dispatchers.IO) {
+                                        FileUtil.pickFile(
+                                            listOf("ass", "srt", "vtt", "sub", "ssa"),
+                                            "选择字幕文件"
+                                        )
+                                    }
+                                    logger.i("Selected subtitle file: ${file?.name}")
+                                    if (file != null) {
+                                        val byteArray = withContext(Dispatchers.IO) {
+                                            file.readBytes()
+                                        }
+                                        subtitleUploadViewModel.uploadSubtitle(
+                                            mediaGuid,
+                                            byteArray,
+                                            file.name
+                                        )
+                                    } else {
+                                        logger.i("No file selected")
+                                    }
+                                } catch (e: Exception) {
+                                    logger.e("Error picking subtitle file", e)
+                                }
                             }
                         }
                     },

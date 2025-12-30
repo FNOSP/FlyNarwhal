@@ -208,6 +208,10 @@ kotlin {
             implementation(libs.kermit)
             implementation(libs.kotlinx.io.core)
             implementation(libs.compottie)
+            implementation(libs.filekit.core)
+            implementation(libs.filekit.dialogs)
+            implementation(libs.filekit.dialogs.compose)
+            implementation(libs.filekit.coil)
             implementation(libs.multiplatform.markdown.renderer)
             implementation(libs.compose.webview)
         }

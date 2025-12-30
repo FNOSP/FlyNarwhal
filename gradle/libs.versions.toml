@@ -36,6 +36,7 @@ haze = "1.7.1"
 kermit = "2.0.8"
 kotlinx-io = "0.8.2"
 compottie = "2.0.2"
+filekit = "0.12.0"
 jfa = "1.2.0"
 jna = "5.18.1"
 jSystemThemeDetector = "3.9"
@@ -90,6 +91,10 @@ haze-materials = { group = "dev.chrisbanes.haze", name = "haze-materials", versi
 kermit = { group = "co.touchlab", name = "kermit", version.ref = "kermit" }
 kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
 compottie = { module = "io.github.alexzhirkevich:compottie", version.ref = "compottie" }
+filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekit" }
+filekit-dialogs = { module = "io.github.vinceglb:filekit-dialogs", version.ref = "filekit" }
+filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
+filekit-coil = { module = "io.github.vinceglb:filekit-coil", version.ref = "filekit" }
 jfa = { group = "de.jangassen", name = "jfa", version.ref = "jfa" }
 #jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 #jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
