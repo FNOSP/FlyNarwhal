@@ -332,8 +332,8 @@ class DesktopUpdateManager : UpdateManager {
             // Linux/macOS: Use a user-writable directory
             val userHome = System.getProperty("user.home")
             val appDataDir = when {
-                osName.contains("mac") -> File(userHome, "Library/Caches/FlyNarwhal/updates")
-                else -> File(userHome, ".cache/FlyNarwhal/updates") // Linux/Unix
+                osName.contains("mac") -> File(userHome, "Library/Caches/fly-narwhal/updates")
+                else -> File(userHome, ".cache/fly-narwhal/updates") // Linux/Unix
             }
             if (!appDataDir.exists()) {
                 appDataDir.mkdirs()

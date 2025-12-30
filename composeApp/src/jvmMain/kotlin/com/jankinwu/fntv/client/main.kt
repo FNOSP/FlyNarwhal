@@ -72,15 +72,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.KoinApplication
 import org.koin.compose.viewmodel.koinViewModel
 import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.rememberMediampPlayer
+import java.awt.EventQueue
 import java.awt.Dimension
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.CoroutineContext
 
 private object WindowsDisplaySleepBlocker {
     private const val ES_SYSTEM_REQUIRED = 0x00000001
@@ -113,18 +116,20 @@ fun main() {
     Logger.setLogWriters(ConsoleLogWriter(), FileLogWriter(logDir))
     Logger.withTag("main").i { "Application started. Logs directory: ${logDir.absolutePath}" }
 
-    WebViewBootstrap.start(
-        installDir = kcefInstallDir(),
-        cacheDir = kcefCacheDir(),
-        logDir = logDir
-    )
-
     application {
         DisposableEffect(Unit) {
             ProxyManager.start()
             onDispose {
                 ProxyManager.stop()
             }
+        }
+
+        LaunchedEffect(Unit) {
+            WebViewBootstrap.start(
+                installDir = kcefInstallDir(),
+                cacheDir = kcefCacheDir(),
+                logDir = logDir
+            )
         }
 
         val webViewInitialized by WebViewBootstrap.initialized.collectAsState()
@@ -467,7 +472,16 @@ fun main() {
 
 private object WebViewBootstrap {
     private val started = AtomicBoolean(false)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val awtDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            if (EventQueue.isDispatchThread()) {
+                block.run()
+            } else {
+                EventQueue.invokeLater(block)
+            }
+        }
+    }
 
     val initialized = MutableStateFlow(false)
     val restartRequired = MutableStateFlow(false)
@@ -488,27 +502,35 @@ private object WebViewBootstrap {
                 if (!installDir.exists()) installDir.mkdirs()
                 if (!cacheDir.exists()) cacheDir.mkdirs()
 
-                KCEF.init(
-                    builder = {
-                        installDir(installDir)
-                        settings {
-                            cachePath = cacheDir.absolutePath
-                            logFile = kcefLog.absolutePath
-                            // logSeverity = KCEFBuilder.Settings.LogSeverity.INFO
-                        }
-                        progress {
-                            onInitialized {
-                                initialized.value = true
+                val initFailure = runCatching {
+                    withContext(awtDispatcher) {
+                        KCEF.init(
+                        builder = {
+                            installDir(installDir)
+                            settings {
+                                cachePath = cacheDir.absolutePath
+                                logFile = kcefLog.absolutePath
+                                // logSeverity = KCEFBuilder.Settings.LogSeverity.INFO
                             }
+                            progress {
+                                onInitialized {
+                                    initialized.value = true
+                                }
+                            }
+                        },
+                        onError = { throwable ->
+                            initError.value = throwable
+                        },
+                        onRestartRequired = {
+                            restartRequired.value = true
                         }
-                    },
-                    onError = { throwable ->
-                        initError.value = throwable
-                    },
-                    onRestartRequired = {
-                        restartRequired.value = true
+                    )
                     }
-                )
+                }.exceptionOrNull()
+
+                if (initFailure != null) {
+                    initError.value = initFailure
+                }
             } catch (t: Throwable) {
                 initError.value = t
             }
@@ -567,27 +589,29 @@ private object WebViewBootstrap {
 private fun kcefInstallDir(): File {
     val platform = currentPlatformDesktop()
     val baseDir = when (platform) {
-        is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fn-media")
-        is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fn-media")
+        is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fly-narwhal")
+        is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fly-narwhal")
         is Platform.Windows -> {
             val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
             File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
         }
     }
-    return File(baseDir, "kcef-bundle")
+    val version = BuildConfig.VERSION_NAME.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    return File(baseDir, "kcef-bundle-$version")
 }
 
 private fun kcefCacheDir(): File {
     val platform = currentPlatformDesktop()
     val baseDir = when (platform) {
-        is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fn-media")
-        is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fn-media")
+        is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fly-narwhal")
+        is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fly-narwhal")
         is Platform.Windows -> {
             val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
             File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
         }
     }
-    return File(baseDir, "kcef-cache")
+    val version = BuildConfig.VERSION_NAME.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    return File(baseDir, "kcef-cache-$version")
 }
 
 /**

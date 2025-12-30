@@ -69,9 +69,9 @@ interface DesktopUpdateInstaller : UpdateInstaller {
 
                 val userHome = System.getProperty("user.home")
                 val appDataDir = if (osName.contains("mac")) {
-                    File(userHome, "Library/Application Support/FlyNarwhal")
+                    File(userHome, "Library/Application Support/fly-narwhal")
                 } else {
-                    File(userHome, ".local/share/fn-media")
+                    File(userHome, ".local/share/fly-narwhal")
                 }
 
                 val proxyDir = File(appDataDir, "proxy")

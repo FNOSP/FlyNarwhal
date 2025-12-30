@@ -84,8 +84,8 @@ object ProxyManager {
                     File(exeDir, "app/resources/fntv-proxy")
                 } else {
                     val appDataDir = when {
-                        osName.contains("mac") -> File(userHome, "Library/Application Support/FlyNarwhal")
-                        else -> File(userHome, ".local/share/fn-media") // Linux/Unix
+                        osName.contains("mac") -> File(userHome, "Library/Application Support/fly-narwhal")
+                        else -> File(userHome, ".local/share/fly-narwhal") // Linux/Unix
                     }
                     File(appDataDir, "proxy")
                 }
