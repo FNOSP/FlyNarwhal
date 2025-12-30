@@ -1244,7 +1244,8 @@ fun PlayerOverlay(
                         }
                     },
                     isNextEpisodeHovered = isNextEpisodeHovered,
-                    onNextEpisodeHoverChanged = { isNextEpisodeHovered = it }
+                    onNextEpisodeHoverChanged = { isNextEpisodeHovered = it },
+                    playRecordViewModel = playRecordViewModel
                 )
             }
 
@@ -1383,7 +1384,8 @@ fun PlayerControlRow(
     nextEpisode: EpisodeListResponse? = null,
     onPlayNextEpisode: (() -> Unit)? = null,
     isNextEpisodeHovered: Boolean = false,
-    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null
+    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null,
+    playRecordViewModel: PlayRecordViewModel
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Row(
@@ -1430,6 +1432,17 @@ fun PlayerControlRow(
                         indication = null,
                         onClick = {
                             mediaPlayer.skip(-10_000)
+                            callPlayRecord(
+                                ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                playingInfoCache = playingInfoCache,
+                                playRecordViewModel = playRecordViewModel,
+                                onSuccess = {
+                                    logger.i("快退时调用playRecord成功")
+                                },
+                                onError = {
+                                    logger.i("快退时调用playRecord失败：缓存为空")
+                                },
+                            )
                         })
             )
             Icon(
@@ -1443,6 +1456,17 @@ fun PlayerControlRow(
                         indication = null,
                         onClick = {
                             mediaPlayer.skip(10_000)
+                            callPlayRecord(
+                                ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                playingInfoCache = playingInfoCache,
+                                playRecordViewModel = playRecordViewModel,
+                                onSuccess = {
+                                    logger.i("快进时调用playRecord成功")
+                                },
+                                onError = {
+                                    logger.i("快进时调用playRecord失败：缓存为空")
+                                },
+                            )
                         })
             )
             // 下一集按钮
@@ -2610,7 +2634,8 @@ fun PlayerBottomBar(
     nextEpisode: EpisodeListResponse? = null,
     onNextEpisode: (() -> Unit)? = null,
     isNextEpisodeHovered: Boolean = false,
-    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null
+    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null,
+    playRecordViewModel: PlayRecordViewModel
 ) {
     Column(
         modifier = Modifier
@@ -2670,7 +2695,8 @@ fun PlayerBottomBar(
                 nextEpisode = nextEpisode,
                 onPlayNextEpisode = onNextEpisode,
                 isNextEpisodeHovered = isNextEpisodeHovered,
-                onNextEpisodeHoverChanged = onNextEpisodeHoverChanged
+                onNextEpisodeHoverChanged = onNextEpisodeHoverChanged,
+                playRecordViewModel = playRecordViewModel
             )
         }
     }

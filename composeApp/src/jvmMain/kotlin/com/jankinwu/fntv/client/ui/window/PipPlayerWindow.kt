@@ -8,7 +8,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,15 +54,17 @@ import com.jankinwu.fntv.client.icons.Back10S
 import com.jankinwu.fntv.client.icons.Forward10S
 import com.jankinwu.fntv.client.icons.PlayCircle
 import com.jankinwu.fntv.client.manager.PlayerResourceManager
-import com.jankinwu.fntv.client.ui.component.player.SubtitleOverlay
-import com.jankinwu.fntv.client.ui.component.player.VolumeControl
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
+import com.jankinwu.fntv.client.ui.component.player.SubtitleOverlay
+import com.jankinwu.fntv.client.ui.component.player.VideoPlayerProgressBar
+import com.jankinwu.fntv.client.ui.component.player.VolumeControl
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.utils.ExternalSubtitleUtil
 import com.jankinwu.fntv.client.utils.HlsSubtitleUtil
 import com.jankinwu.fntv.client.utils.SubtitleCue
-import com.jankinwu.fntv.client.utils.callPlayRecord
 import com.jankinwu.fntv.client.utils.calculateOptimalPlayerWindowSize
+import com.jankinwu.fntv.client.utils.callPlayRecord
 import com.jankinwu.fntv.client.utils.rememberSmoothVideoTime
 import com.jankinwu.fntv.client.viewmodel.PlayRecordViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayerViewModel
@@ -79,8 +80,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
-import com.jankinwu.fntv.client.ui.component.player.VideoPlayerProgressBar
-import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.MediampPlayerSurface
 import org.openani.mediamp.features.AudioLevelController
@@ -467,7 +466,20 @@ fun PipPlayerWindow(
                         .clickable(
                             interactionSource = rewindInteractionSource,
                             indication = null,
-                            onClick = { mediaPlayer.skip(-10_000) }
+                            onClick = {
+                                mediaPlayer.skip(-10_000)
+                                callPlayRecord(
+                                    ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                    playingInfoCache = playingInfoCache,
+                                    playRecordViewModel = playRecordViewModel,
+                                    onSuccess = {
+                                        logger.i("PIP快退时调用playRecord成功")
+                                    },
+                                    onError = {
+                                        logger.i("PIP快退时调用playRecord失败：缓存为空")
+                                    },
+                                )
+                            }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -500,7 +512,20 @@ fun PipPlayerWindow(
                         .clickable(
                             interactionSource = forwardInteractionSource,
                             indication = null,
-                            onClick = { mediaPlayer.skip(10_000) }
+                            onClick = {
+                                mediaPlayer.skip(10_000)
+                                callPlayRecord(
+                                    ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                    playingInfoCache = playingInfoCache,
+                                    playRecordViewModel = playRecordViewModel,
+                                    onSuccess = {
+                                        logger.i("PIP快进时调用playRecord成功")
+                                    },
+                                    onError = {
+                                        logger.i("PIP快进时调用playRecord失败：缓存为空")
+                                    },
+                                )
+                            }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -518,7 +543,19 @@ fun PipPlayerWindow(
                     totalDuration = totalDuration,
                     onSeek = { ratio ->
                         isLoading = true
-                        mediaPlayer.seekTo((ratio * totalDuration).toLong())
+                        val seekPosition = (ratio * totalDuration).toLong()
+                        mediaPlayer.seekTo(seekPosition)
+                        callPlayRecord(
+                            ts = (seekPosition / 1000).toInt(),
+                            playingInfoCache = playingInfoCache,
+                            playRecordViewModel = playRecordViewModel,
+                            onSuccess = {
+                                logger.i("PIP Seek时调用playRecord成功")
+                            },
+                            onError = {
+                                logger.i("PIP Seek时调用playRecord失败：缓存为空")
+                            },
+                        )
                     },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
