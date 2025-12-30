@@ -226,9 +226,7 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.设置界面增加“导出报错日志”功能  
-          2.优化日志打印和日志文件写入功能  
-          3.优化本地文件操作框的 UI，使其更加现代化  
+          NOTES="1.修复 MacOS 端应用启动时崩溃的问题  
           　  
           因为此版本更新了可执行程序名称，自动安装后出现报错提示“Failed to launch application **”属于正常现象，安装成功后把旧的快捷方式从桌面或开始菜单删除即可。  
           　  
