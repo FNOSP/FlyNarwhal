@@ -108,7 +108,7 @@ fun main() {
 
     // Cleanup old KCEF directories
     val baseDir = kcefBaseDir()
-    cleanupOldKcefDirs(baseDir, BuildConfig.VERSION_NAME)
+    cleanupOldKcefDirs(baseDir)
 
     application {
         LaunchedEffect(Unit) {
@@ -511,34 +511,26 @@ private fun kcefBaseDir(): File {
 }
 
 private fun kcefInstallDir(): File {
-    val version = BuildConfig.VERSION_NAME.replace(Regex("[^A-Za-z0-9._-]"), "_")
-    return File(kcefBaseDir(), "kcef-bundle-$version")
+    return File(kcefBaseDir(), "kcef-bundle")
 }
 
 private fun kcefCacheDir(): File {
-    val version = BuildConfig.VERSION_NAME.replace(Regex("[^A-Za-z0-9._-]"), "_")
-    return File(kcefBaseDir(), "kcef-cache-$version")
+    return File(kcefBaseDir(), "kcef-cache")
 }
 
 /**
  * Cleanup old KCEF bundle and cache directories to save disk space.
- * Only keeps the directories for the current version.
+ * Only keeps the non-versioned directories.
  */
-private fun cleanupOldKcefDirs(baseDir: File, currentVersion: String) {
-    val versionTag = currentVersion.replace(Regex("[^A-Za-z0-9._-]"), "_")
-    val currentBundle = "kcef-bundle-$versionTag"
-    val currentCache = "kcef-cache-$versionTag"
-
+private fun cleanupOldKcefDirs(baseDir: File) {
     baseDir.listFiles { file ->
         file.isDirectory && (file.name.startsWith("kcef-bundle-") || file.name.startsWith("kcef-cache-"))
     }?.forEach { file ->
-        if (file.name != currentBundle && file.name != currentCache) {
-            try {
-                file.deleteRecursively()
-                Logger.withTag("main").i { "Deleted old KCEF directory: ${file.name}" }
-            } catch (e: Exception) {
-                Logger.withTag("main").e(e) { "Failed to delete old KCEF directory: ${file.name}" }
-            }
+        try {
+            file.deleteRecursively()
+            Logger.withTag("main").i { "Deleted old KCEF directory: ${file.name}" }
+        } catch (e: Exception) {
+            Logger.withTag("main").e(e) { "Failed to delete old KCEF directory: ${file.name}" }
         }
     }
 }

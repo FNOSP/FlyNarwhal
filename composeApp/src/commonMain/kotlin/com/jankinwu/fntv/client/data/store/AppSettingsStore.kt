@@ -74,4 +74,8 @@ object AppSettingsStore {
     var navigationDisplayMode: String
         get() = settings.getString(scopedKey("navigation_display_mode"), "Left")
         set(value) = settings.set(scopedKey("navigation_display_mode"), value)
+
+    var kcefInitialized: Boolean
+        get() = settings.getBoolean(scopedKey("kcef_initialized"), false)
+        set(value) = settings.set(scopedKey("kcef_initialized"), value)
 }

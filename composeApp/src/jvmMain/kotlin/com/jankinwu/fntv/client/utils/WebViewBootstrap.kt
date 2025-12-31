@@ -1,6 +1,8 @@
 package com.jankinwu.fntv.client.utils
 
 import co.touchlab.kermit.Logger
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
+
 import co.touchlab.kermit.Severity
 import dev.datlag.kcef.KCEF
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +31,7 @@ import java.security.SecureRandom
 import java.security.cert.X509Certificate
 
 object WebViewBootstrap {
+    private val logger = Logger.withTag("WebViewBootstrap")
     private val started = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val awtDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
@@ -55,6 +58,20 @@ object WebViewBootstrap {
         lastLogDir = logDir
 
         if (!started.compareAndSet(false, true)) return
+
+        // Check if KCEF was successfully initialized before AND the installation directory exists
+        var isKcefInitialized = AppSettingsStore.kcefInitialized
+        if (isKcefInitialized && !installDir.exists()) {
+            AppSettingsStore.kcefInitialized = false
+            isKcefInitialized = false
+        }
+
+        if (!isKcefInitialized) {
+            // If not initialized successfully before or directory missing, clean up to force a fresh download
+            if (installDir.exists()) {
+                installDir.deleteRecursively()
+            }
+        }
 
         // Create a custom HttpClient with Trust-All SSL configuration for KCEF download
         val kcefClient = HttpClient(OkHttp) {
@@ -112,6 +129,7 @@ object WebViewBootstrap {
                             progress {
                                 onInitialized {
                                     initialized.value = true
+                                    AppSettingsStore.kcefInitialized = true
                                 }
                             }
                             download {
@@ -178,7 +196,7 @@ object WebViewBootstrap {
                                 line.contains(":VERBOSE:", ignoreCase = true) -> Severity.Verbose
                                 else -> Severity.Info
                             }
-                            Logger.log(severity, "KCEF", null, line)
+                            logger.log(severity, "KCEF", null, line)
                         }
                         line = reader.readLine()
                     }
@@ -188,7 +206,7 @@ object WebViewBootstrap {
             }
             reader.close()
         } catch (e: Exception) {
-            Logger.withTag("KCEF").e(e) { "Error tailing log file" }
+            logger.e(e) { "Error tailing log file" }
         }
     }
 }
