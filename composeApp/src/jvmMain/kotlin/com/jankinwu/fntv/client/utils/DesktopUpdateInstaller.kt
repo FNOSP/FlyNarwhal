@@ -87,6 +87,45 @@ interface DesktopUpdateInstaller : UpdateInstaller {
                 logger.w(e) { "Failed to delete old proxy executable" }
             }
         }
+
+        fun deleteKcefDirectories() {
+            try {
+                val baseDir = when (currentPlatformDesktop()) {
+                    is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fly-narwhal")
+                    is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fly-narwhal")
+                    is Platform.Windows -> {
+                        val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
+                        val defaultBase = File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
+                        if (defaultBase.absolutePath.any { it.code > 127 }) {
+                            val programData = System.getenv("PROGRAMDATA")?.takeIf { it.isNotBlank() } ?: "C:\\ProgramData"
+                            File(programData, "FlyNarwhal")
+                        } else {
+                            defaultBase
+                        }
+                    }
+                }
+
+                baseDir.listFiles()?.forEach { file ->
+                    if (!file.isDirectory) return@forEach
+                    val name = file.name
+                    val isKcefDir = name == "kcef-bundle" ||
+                        name == "kcef-cache" ||
+                        name.startsWith("kcef-bundle-") ||
+                        name.startsWith("kcef-cache-")
+
+                    if (!isKcefDir) return@forEach
+
+                    runCatching {
+                        file.deleteRecursively()
+                        logger.i { "Deleted old KCEF directory: ${file.absolutePath}" }
+                    }.onFailure { e ->
+                        logger.w(e) { "Failed to delete old KCEF directory: ${file.absolutePath}" }
+                    }
+                }
+            } catch (e: Exception) {
+                logger.w(e) { "Failed to delete old KCEF directories" }
+            }
+        }
     }
 }
 
@@ -97,6 +136,7 @@ object MacOSUpdateInstaller : DesktopUpdateInstaller {
         logger.i { "Preparing to install update for macOS using external script." }
 
         DesktopUpdateInstaller.deleteProxyExecutable()
+        DesktopUpdateInstaller.deleteKcefDirectories()
 
         val contentsDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
         logger.i { "contentsDir: $contentsDir" }
@@ -341,6 +381,7 @@ object LinuxUpdateInstaller : DesktopUpdateInstaller {
 
     override fun install(file: SystemPath, context: ContextMP?): InstallationResult {
         DesktopUpdateInstaller.deleteProxyExecutable()
+        DesktopUpdateInstaller.deleteKcefDirectories()
 
         val updateFile = file.toFile()
         if (!updateFile.exists()) {
@@ -424,6 +465,7 @@ object WindowsUpdateInstaller : DesktopUpdateInstaller {
 
     override fun install(file: SystemPath, context: ContextMP?): InstallationResult {
         logger.i { "Installing update for Windows" }
+        DesktopUpdateInstaller.deleteKcefDirectories()
         val appDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
         logger.i { "Current app dir: ${appDir.absolutePath}" }
 

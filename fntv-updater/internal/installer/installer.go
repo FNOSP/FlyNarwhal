@@ -79,16 +79,6 @@ func CleanInstallDir(dir string, installerPath string) error {
 			continue
 		}
 
-		// Check if it's the kcef-bundle directory (embedded browser)
-		if strings.EqualFold(entry.Name(), "kcef-bundle") {
-			continue
-		}
-
-		// Check if it's the kcef-cache directory (embedded browser cache)
-		if strings.EqualFold(entry.Name(), "kcef-cache") {
-			continue
-		}
-
 		// Delete
 		logger.Info("Installer", "Deleting: %s", path)
 		if err := os.RemoveAll(path); err != nil {

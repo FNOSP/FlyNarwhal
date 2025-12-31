@@ -536,32 +536,48 @@ private fun kcefBaseDir(): File {
 
         is Platform.Windows -> {
             val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
-            File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
+            val defaultBase = File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
+            if (defaultBase.absolutePath.any { it.code > 127 }) {
+                val programData = System.getenv("PROGRAMDATA")?.takeIf { it.isNotBlank() } ?: "C:\\ProgramData"
+                File(programData, "FlyNarwhal")
+            } else {
+                defaultBase
+            }
         }
     }
 }
 
 private fun kcefInstallDir(): File {
-    return File(kcefBaseDir(), "kcef-bundle")
+    return File(kcefBaseDir(), "kcef-bundle-${BuildConfig.VERSION_NAME}")
 }
 
 private fun kcefCacheDir(): File {
-    return File(kcefBaseDir(), "kcef-cache")
+    return File(kcefBaseDir(), "kcef-cache-${BuildConfig.VERSION_NAME}")
 }
 
-/**
- * Cleanup old KCEF bundle and cache directories to save disk space.
- * Only keeps the non-versioned directories.
- */
 private fun cleanupOldKcefDirs(baseDir: File) {
-    baseDir.listFiles { file ->
-        file.isDirectory && (file.name.startsWith("kcef-bundle-") || file.name.startsWith("kcef-cache-"))
-    }?.forEach { file ->
+    val currentVersion = BuildConfig.VERSION_NAME
+    val keep = setOf(
+        "kcef-bundle-$currentVersion",
+        "kcef-cache-$currentVersion",
+    )
+
+    baseDir.listFiles()?.forEach { file ->
+        if (!file.isDirectory) return@forEach
+        val name = file.name
+        val isKcefDir = name == "kcef-bundle" ||
+            name == "kcef-cache" ||
+            name.startsWith("kcef-bundle-") ||
+            name.startsWith("kcef-cache-")
+
+        if (!isKcefDir) return@forEach
+        if (name in keep) return@forEach
+
         try {
             file.deleteRecursively()
-            Logger.withTag("main").i { "Deleted old KCEF directory: ${file.name}" }
+            Logger.withTag("main").i { "Deleted old KCEF directory: $name" }
         } catch (e: Exception) {
-            Logger.withTag("main").e(e) { "Failed to delete old KCEF directory: ${file.name}" }
+            Logger.withTag("main").e(e) { "Failed to delete old KCEF directory: $name" }
         }
     }
 }

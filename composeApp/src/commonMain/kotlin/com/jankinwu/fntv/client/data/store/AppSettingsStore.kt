@@ -78,4 +78,8 @@ object AppSettingsStore {
     var kcefInitialized: Boolean
         get() = settings.getBoolean(scopedKey("kcef_initialized"), false)
         set(value) = settings.set(scopedKey("kcef_initialized"), value)
+
+    var kcefInitializedVersion: String
+        get() = settings.getString(scopedKey("kcef_initialized_version"), "")
+        set(value) = settings.set(scopedKey("kcef_initialized_version"), value)
 }

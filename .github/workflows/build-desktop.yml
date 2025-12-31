@@ -102,11 +102,11 @@ jobs:
       - name: Install Linux Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot
+          sudo apt-get install -y fakeroot xvfb
 
       - name: Build Linux Deb
         # 执行 Compose Desktop 的打包任务
-        run: ./gradlew :composeApp:packageReleaseDeb
+        run: xvfb-run -a ./gradlew :composeApp:packageReleaseDeb
         env:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
@@ -142,11 +142,11 @@ jobs:
       - name: Install Linux Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot
+          sudo apt-get install -y fakeroot xvfb
 
       - name: Build Linux Deb
         # 执行 Compose Desktop 的打包任务
-        run: ./gradlew :composeApp:packageReleaseDeb
+        run: xvfb-run -a ./gradlew :composeApp:packageReleaseDeb
         env:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}

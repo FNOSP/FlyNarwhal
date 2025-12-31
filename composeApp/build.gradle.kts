@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.4.8"
+val appVersion = "1.4.10"
 val appVersionSuffix = ""
 
 val platformStr = when {
@@ -27,6 +27,53 @@ val platformStr = when {
 }
 
 val proxyResourcesDir = layout.buildDirectory.dir("compose/proxy-resources")
+
+val kcefPreparedDir = layout.buildDirectory.dir("kcef/prepared")
+
+val downloadKcefBundle by tasks.registering(JavaExec::class) {
+    val compileKotlinJvmTask = tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compileKotlinJvm")
+    dependsOn(compileKotlinJvmTask)
+
+    mainClass.set("com.jankinwu.fntv.client.utils.KcefBundleDownloader")
+
+    val installDir = kcefPreparedDir.map { it.dir("kcef-bundle") }
+    val cacheDir = kcefPreparedDir.map { it.dir("kcef-cache") }
+    val logDir = kcefPreparedDir.map { it.dir("kcef-logs") }
+
+    val installDirFile = installDir.get().asFile
+
+    val classesDir = compileKotlinJvmTask.flatMap { it.destinationDirectory }
+    classpath = files(classesDir, configurations.getByName("jvmRuntimeClasspath"))
+
+    onlyIf {
+        !installDirFile.exists() || installDirFile.listFiles()?.isEmpty() != false
+    }
+
+    doFirst {
+        installDirFile.deleteRecursively()
+        cacheDir.get().asFile.deleteRecursively()
+        logDir.get().asFile.deleteRecursively()
+    }
+
+    systemProperty("java.awt.headless", "false")
+
+    args(
+        installDir.get().asFile.absolutePath,
+        cacheDir.get().asFile.absolutePath,
+        logDir.get().asFile.absolutePath,
+        "1800"
+    )
+
+    outputs.dir(installDir)
+}
+
+val prepareKcefResources by tasks.registering(Copy::class) {
+    dependsOn(downloadKcefBundle)
+
+    val sourceDir = kcefPreparedDir.map { it.dir("kcef-bundle") }
+    from(sourceDir)
+    into(proxyResourcesDir.map { it.dir("kcef-bundle") })
+}
 
 val prepareProxyResources by tasks.registering(Copy::class) {
     val sourceDir = project.rootDir.resolve("fntv-proxy")
@@ -66,7 +113,7 @@ val prepareUpdaterResources by tasks.registering(Copy::class) {
 }
 
 val mergeResources by tasks.registering(Copy::class) {
-    dependsOn(prepareProxyResources, prepareUpdaterResources)
+    dependsOn(prepareProxyResources, prepareUpdaterResources, prepareKcefResources)
     from(proxyResourcesDir)
     from(file("appResources"))
     into(layout.buildDirectory.dir("mergedResources"))
@@ -384,7 +431,7 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageT
 }
 
 tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractRunDistributableTask>().configureEach {
-    dependsOn(prepareProxyResources)
+    dependsOn(mergeResources)
 }
 
 /*
