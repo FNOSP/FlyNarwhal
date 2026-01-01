@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.4.7"
+val appVersion = "1.4.10"
 val appVersionSuffix = ""
 
 val platformStr = when {
@@ -27,6 +27,74 @@ val platformStr = when {
 }
 
 val proxyResourcesDir = layout.buildDirectory.dir("compose/proxy-resources")
+
+val kcefPreparedDir = layout.buildDirectory.dir("kcef/prepared")
+
+val kcefDownloaderClasspath by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
+dependencies {
+    add(
+        kcefDownloaderClasspath.name,
+        if (System.getProperty("os.name").lowercase().contains("win")) {
+            "dev.datlag:kcef:2024.04.20.4"
+        } else {
+            libs.kcef.get().toString()
+        }
+    )
+    add(kcefDownloaderClasspath.name, libs.ktor.client.core.get().toString())
+    add(kcefDownloaderClasspath.name, libs.ktor.client.okhttp.get().toString())
+    add(kcefDownloaderClasspath.name, libs.ktor.client.content.negotiation.get().toString())
+    add(kcefDownloaderClasspath.name, libs.ktor.serialization.kotlinx.json.get().toString())
+    add(kcefDownloaderClasspath.name, libs.ktor.http.get().toString())
+}
+
+val downloadKcefBundle by tasks.registering(JavaExec::class) {
+    val compileKotlinJvmTask = tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compileKotlinJvm")
+    dependsOn(compileKotlinJvmTask)
+
+    mainClass.set("com.jankinwu.fntv.client.utils.KcefBundleDownloader")
+
+    val installDir = kcefPreparedDir.map { it.dir("kcef-bundle") }
+    val cacheDir = kcefPreparedDir.map { it.dir("kcef-cache") }
+    val logDir = kcefPreparedDir.map { it.dir("kcef-logs") }
+
+    val installDirFile = installDir.get().asFile
+
+    val classesDir = compileKotlinJvmTask.flatMap { it.destinationDirectory }
+    classpath = files(classesDir, kcefDownloaderClasspath)
+
+    onlyIf {
+        !installDirFile.exists() || installDirFile.listFiles()?.isEmpty() != false
+    }
+
+    doFirst {
+        installDirFile.deleteRecursively()
+        cacheDir.get().asFile.deleteRecursively()
+        logDir.get().asFile.deleteRecursively()
+    }
+
+    systemProperty("java.awt.headless", "false")
+
+    args(
+        installDir.get().asFile.absolutePath,
+        cacheDir.get().asFile.absolutePath,
+        logDir.get().asFile.absolutePath,
+        "1800"
+    )
+
+    outputs.dir(installDir)
+}
+
+val prepareKcefResources by tasks.registering(Copy::class) {
+    dependsOn(downloadKcefBundle)
+
+    val sourceDir = kcefPreparedDir.map { it.dir("kcef-bundle") }
+    from(sourceDir)
+    into(proxyResourcesDir.map { it.dir("kcef-bundle") })
+}
 
 val prepareProxyResources by tasks.registering(Copy::class) {
     val sourceDir = project.rootDir.resolve("fntv-proxy")
@@ -66,10 +134,23 @@ val prepareUpdaterResources by tasks.registering(Copy::class) {
 }
 
 val mergeResources by tasks.registering(Copy::class) {
-    dependsOn(prepareProxyResources, prepareUpdaterResources)
+    dependsOn(prepareProxyResources, prepareUpdaterResources, prepareKcefResources)
     from(proxyResourcesDir)
     from(file("appResources"))
     into(layout.buildDirectory.dir("mergedResources"))
+}
+
+val stopFntvProxyBeforePackaging by tasks.registering(Exec::class) {
+    enabled = osName.contains("win")
+    isIgnoreExitValue = true
+    commandLine(
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "\$ErrorActionPreference='SilentlyContinue'; Get-Process fntv-proxy | Stop-Process -Force; exit 0"
+    )
 }
 
 // Tasks will be configured after project evaluation to ensure task existence
@@ -81,6 +162,11 @@ afterEvaluate {
         "processResources",
         "prepareAppResources",
         "createDistributable",
+        "createReleaseDistributable",
+        "createDebugDistributable",
+        "runDistributable",
+        "runReleaseDistributable",
+        "runDebugDistributable",
         "packageRelease",
         "packageDebug",
         "package"
@@ -90,7 +176,10 @@ afterEvaluate {
     
     tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
         dependsOn(mergeResources)
+        dependsOn(stopFntvProxyBeforePackaging)
     }
+
+    tasks.findByName("createDistributable")?.dependsOn(stopFntvProxyBeforePackaging)
     
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         dependsOn(generateBuildConfig)
@@ -223,10 +312,11 @@ kotlin {
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.androidx.runtime.desktop)
             if (System.getProperty("os.name").lowercase().contains("win")) {
-                implementation("dev.datlag:kcef:2024.04.20.4")
+                implementation("dev.datlag:kcef:2024.04.20.3")
             } else {
                 implementation(libs.kcef)
             }
+//            implementation(libs.kcef)
 //            implementation(libs.vlcj)
             implementation(libs.oshi.core)
             implementation(libs.versioncompare)
@@ -368,7 +458,7 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageT
 }
 
 tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractRunDistributableTask>().configureEach {
-    dependsOn(prepareProxyResources)
+    dependsOn(mergeResources)
 }
 
 /*

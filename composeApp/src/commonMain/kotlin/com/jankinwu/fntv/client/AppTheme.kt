@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.BrushPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.window.WindowState
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.Store
@@ -74,9 +76,20 @@ fun AppTheme(
             }
         }
     }
-    LaunchedEffect(state.size.width, state.size.height) {
-        store.updateWindowWidth(state.size.width)
-        store.updateWindowHeight(state.size.height)
+    val windowInfo = LocalWindowInfo.current
+    val density = LocalDensity.current
+    val containerSize = windowInfo.containerSize
+    val containerWidth = with(density) { containerSize.width.toDp() }
+    val containerHeight = with(density) { containerSize.height.toDp() }
+    val effectiveWidth = if (containerSize.width > 0) containerWidth else state.size.width
+    val effectiveHeight = if (containerSize.height > 0) containerHeight else state.size.height
+    LaunchedEffect(effectiveWidth, effectiveHeight) {
+        if (effectiveWidth.value > 0f) {
+            store.updateWindowWidth(effectiveWidth)
+        }
+        if (effectiveHeight.value > 0f) {
+            store.updateWindowHeight(effectiveHeight)
+        }
     }
     CompositionLocalProvider(
         LocalStore provides store,

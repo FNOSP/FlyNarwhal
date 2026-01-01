@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.components
+import com.jankinwu.fntv.client.currentPlatform
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.LoginHistory
 import com.jankinwu.fntv.client.data.store.AccountDataCache
@@ -83,6 +84,8 @@ import com.jankinwu.fntv.client.icons.History
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.LoginStateManager.handleLogin
 import com.jankinwu.fntv.client.manager.PreferencesManager
+import com.jankinwu.fntv.client.isDesktop
+import com.jankinwu.fntv.client.isWindows
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.NumberInput
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
@@ -159,6 +162,10 @@ fun LoginScreen(
     val toastManager = rememberToastManager()
     val isWebViewInitialized = LocalWebViewInitialized.current
     val webViewInitError = LocalWebViewInitError.current
+    val shouldBlockWebViewDependency = remember {
+        val platform = runCatching { currentPlatform() }.getOrNull()
+        platform?.let { it.isDesktop() && !it.isWindows() } ?: true
+    }
     val hazeState = rememberHazeState()
     var showHistorySidebar by remember { mutableStateOf(false) }
     val windowHandle = LocalWindowHandle.current
@@ -233,15 +240,18 @@ fun LoginScreen(
             }
 
             is UiState.Error -> {
-                // 登录失败，可以显示错误信息
+                // 登录失败，显示错误信息
+                if (state.message.contains("not verified")) {
+                    toastManager.showToast("证书校验失败，暂时不支持自签证书，请使用 HTTP 端口访问", ToastType.Failed)
+                }
                 toastManager.showToast("登录失败，${state.message}", ToastType.Failed)
                 logger.e("登录失败: ${state.message}")
 
                 // 检查是否是证书错误
-                if (state.message.contains("PKIX path building failed") || state.message.contains("unable to find valid certification path")) {
-                    // Todo 这里应该显示一个对话框询问用户是否信任证书
-                    logger.w("检测到SSL证书错误，需要用户确认是否信任证书")
-                }
+//                if (state.message.contains("PKIX path building failed") || state.message.contains("unable to find valid certification path")) {
+//                    // Todo 这里应该显示一个对话框询问用户是否信任证书
+//                    logger.w("检测到SSL证书错误，需要用户确认是否信任证书")
+//                }
             }
 
             else -> {
@@ -554,16 +564,25 @@ fun LoginScreen(
                         Switcher(
                             isNasLogin,
                             {
-                                if (it) {
-                                    if (isWebViewInitialized) {
-                                        isNasLogin = true
-                                    } else {
-                                        val msg = if (webViewInitError != null) "组件加载失败，无法使用 NAS 登录" else "组件正在初始化，请稍后..."
-                                        toastManager.showToast(msg, ToastType.Failed)
-                                    }
-                                } else {
-                                    isNasLogin = false
-                                }
+                                isNasLogin = !isNasLogin
+//                                if (it) {
+//                                    if (!shouldBlockWebViewDependency || isWebViewInitialized) {
+//                                        isNasLogin = true
+//                                        if (!isWebViewInitialized) {
+//                                            val msg =
+//                                                if (webViewInitError != null) "组件加载失败，NAS 登录页面可能无法打开，可在弹窗中重试初始化"
+//                                                else "组件正在初始化，NAS 登录页面会在初始化完成后显示"
+//                                            toastManager.showToast(msg, ToastType.Info)
+//                                        }
+//                                    } else {
+//                                        val msg =
+//                                            if (webViewInitError != null) "组件加载失败，无法使用 NAS 登录"
+//                                            else "组件正在初始化，请稍后..."
+//                                        toastManager.showToast(msg, ToastType.Failed)
+//                                    }
+//                                } else {
+//                                    isNasLogin = false
+//                                }
                             },
                             styles = if (isNasLogin) {
                                 selectedSwitcherStyle()
@@ -592,6 +611,20 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             if (isNasLogin) {
+                                if (!isWebViewInitialized) {
+                                    if (shouldBlockWebViewDependency) {
+                                        val msg =
+                                            if (webViewInitError != null) "组件加载失败，无法使用 NAS 登录"
+                                            else "组件正在初始化，请稍后..."
+                                        toastManager.showToast(msg, ToastType.Failed)
+                                        return@Button
+                                    } else {
+                                        val msg =
+                                            if (webViewInitError != null) "组件加载失败，NAS 登录页面可能无法打开，可在弹窗中重试初始化"
+                                            else "组件正在初始化，NAS 登录页面会在初始化完成后显示"
+                                        toastManager.showToast(msg, ToastType.Info)
+                                    }
+                                }
                                 val url = normalizeFnConnectUrl(fnId, isHttps)
                                 if (url.isNotBlank()) {
                                     logger.i("fn connect url: $url")
@@ -633,39 +666,47 @@ fun LoginScreen(
                                     loginViewModel = loginViewModel,
                                     rememberPassword = rememberPassword,
                                     onProbeRequired = { url ->
-                                        if (!isWebViewInitialized) {
-                                            val msg = if (webViewInitError != null) "组件加载失败，无法验证服务器" else "组件正在初始化，请稍后..."
+                                        if (!isWebViewInitialized && shouldBlockWebViewDependency) {
+                                            val msg =
+                                                if (webViewInitError != null) "组件加载失败，无法验证服务器"
+                                                else "组件正在初始化，请稍后..."
                                             toastManager.showToast(msg, ToastType.Failed)
-                                        } else {
-                                            val openWindow = onOpenFnConnectWindow
-                                            if (openWindow != null) {
-                                                openWindow(
-                                                    FnConnectWindowRequest(
-                                                        initialUrl = url,
-                                                        fnId = "",
-                                                        autoLoginUsername = null,
-                                                        autoLoginPassword = null,
-                                                        allowAutoLogin = false,
-                                                        onBaseUrlDetected = {
-                                                            handleLogin(
-                                                                host = host,
-                                                                port = port,
-                                                                username = username,
-                                                                password = password,
-                                                                isHttps = isHttps,
-                                                                toastManager = toastManager,
-                                                                loginViewModel = loginViewModel,
-                                                                rememberPassword = rememberPassword,
-                                                                isProbeFinished = true
-                                                            )
-                                                        }
-                                                    )
+                                            return@handleLogin
+                                        }
+                                        if (!isWebViewInitialized && !shouldBlockWebViewDependency) {
+                                            val msg =
+                                                if (webViewInitError != null) "组件加载失败，验证页面可能无法打开，可在弹窗中重试初始化"
+                                                else "组件正在初始化，验证页面会在初始化完成后显示"
+                                            toastManager.showToast(msg, ToastType.Info)
+                                        }
+                                        val openWindow = onOpenFnConnectWindow
+                                        if (openWindow != null) {
+                                            openWindow(
+                                                FnConnectWindowRequest(
+                                                    initialUrl = url,
+                                                    fnId = "",
+                                                    autoLoginUsername = null,
+                                                    autoLoginPassword = null,
+                                                    allowAutoLogin = false,
+                                                    onBaseUrlDetected = {
+                                                        handleLogin(
+                                                            host = host,
+                                                            port = port,
+                                                            username = username,
+                                                            password = password,
+                                                            isHttps = isHttps,
+                                                            toastManager = toastManager,
+                                                            loginViewModel = loginViewModel,
+                                                            rememberPassword = rememberPassword,
+                                                            isProbeFinished = true
+                                                        )
+                                                    }
                                                 )
-                                            } else {
-                                                showFnConnectWebView = true
-                                                fnConnectUrl = url
-                                                isProbeMode = true
-                                            }
+                                            )
+                                        } else {
+                                            showFnConnectWebView = true
+                                            fnConnectUrl = url
+                                            isProbeMode = true
                                         }
                                     }
                                 )
@@ -704,9 +745,18 @@ fun LoginScreen(
                     onSelect = onSelect@{ history ->
                         if (history.isNasLogin) {
                             if (!isWebViewInitialized) {
-                                val msg = if (webViewInitError != null) "组件加载失败，无法使用 NAS 登录" else "组件正在初始化，请稍后..."
-                                toastManager.showToast(msg, ToastType.Failed)
-                                return@onSelect
+                                if (shouldBlockWebViewDependency) {
+                                    val msg =
+                                        if (webViewInitError != null) "组件加载失败，无法使用 NAS 登录"
+                                        else "组件正在初始化，请稍后..."
+                                    toastManager.showToast(msg, ToastType.Failed)
+                                    return@onSelect
+                                } else {
+                                    val msg =
+                                        if (webViewInitError != null) "组件加载失败，NAS 登录页面可能无法打开，可在弹窗中重试初始化"
+                                        else "组件正在初始化，NAS 登录页面会在初始化完成后显示"
+                                    toastManager.showToast(msg, ToastType.Info)
+                                }
                             }
                             isNasLogin = true
                             fnId = history.fnId
@@ -761,39 +811,47 @@ fun LoginScreen(
                                     loginViewModel = loginViewModel,
                                     rememberPassword = true,
                                     onProbeRequired = { url ->
-                                        if (!isWebViewInitialized) {
-                                            val msg = if (webViewInitError != null) "组件加载失败，无法验证服务器" else "组件正在初始化，请稍后..."
+                                        if (!isWebViewInitialized && shouldBlockWebViewDependency) {
+                                            val msg =
+                                                if (webViewInitError != null) "组件加载失败，无法验证服务器"
+                                                else "组件正在初始化，请稍后..."
                                             toastManager.showToast(msg, ToastType.Failed)
-                                        } else {
-                                            val openWindow = onOpenFnConnectWindow
-                                            if (openWindow != null) {
-                                                openWindow(
-                                                    FnConnectWindowRequest(
-                                                        initialUrl = url,
-                                                        fnId = "",
-                                                        autoLoginUsername = null,
-                                                        autoLoginPassword = null,
-                                                        allowAutoLogin = false,
-                                                        onBaseUrlDetected = {
-                                                            handleLogin(
-                                                                host = host,
-                                                                port = port,
-                                                                username = username,
-                                                                password = password,
-                                                                isHttps = isHttps,
-                                                                toastManager = toastManager,
-                                                                loginViewModel = loginViewModel,
-                                                                rememberPassword = rememberPassword,
-                                                                isProbeFinished = true
-                                                            )
-                                                        }
-                                                    )
+                                            return@handleLogin
+                                        }
+                                        if (!isWebViewInitialized && !shouldBlockWebViewDependency) {
+                                            val msg =
+                                                if (webViewInitError != null) "组件加载失败，验证页面可能无法打开，可在弹窗中重试初始化"
+                                                else "组件正在初始化，验证页面会在初始化完成后显示"
+                                            toastManager.showToast(msg, ToastType.Info)
+                                        }
+                                        val openWindow = onOpenFnConnectWindow
+                                        if (openWindow != null) {
+                                            openWindow(
+                                                FnConnectWindowRequest(
+                                                    initialUrl = url,
+                                                    fnId = "",
+                                                    autoLoginUsername = null,
+                                                    autoLoginPassword = null,
+                                                    allowAutoLogin = false,
+                                                    onBaseUrlDetected = {
+                                                        handleLogin(
+                                                            host = host,
+                                                            port = port,
+                                                            username = username,
+                                                            password = password,
+                                                            isHttps = isHttps,
+                                                            toastManager = toastManager,
+                                                            loginViewModel = loginViewModel,
+                                                            rememberPassword = rememberPassword,
+                                                            isProbeFinished = true
+                                                        )
+                                                    }
                                                 )
-                                            } else {
-                                                showFnConnectWebView = true
-                                                fnConnectUrl = url
-                                                isProbeMode = true
-                                            }
+                                            )
+                                        } else {
+                                            showFnConnectWebView = true
+                                            fnConnectUrl = url
+                                            isProbeMode = true
                                         }
                                     }
                                 )

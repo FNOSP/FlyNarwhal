@@ -102,11 +102,11 @@ jobs:
       - name: Install Linux Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot
+          sudo apt-get install -y fakeroot xvfb
 
       - name: Build Linux Deb
         # 执行 Compose Desktop 的打包任务
-        run: ./gradlew :composeApp:packageReleaseDeb
+        run: xvfb-run -a ./gradlew :composeApp:packageReleaseDeb
         env:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
@@ -142,11 +142,11 @@ jobs:
       - name: Install Linux Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot
+          sudo apt-get install -y fakeroot xvfb
 
       - name: Build Linux Deb
         # 执行 Compose Desktop 的打包任务
-        run: ./gradlew :composeApp:packageReleaseDeb
+        run: xvfb-run -a ./gradlew :composeApp:packageReleaseDeb
         env:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
@@ -261,41 +261,6 @@ jobs:
           path: installer/*_aarch64_*.exe
           if-no-files-found: error
 
-#  build-windows-arm64:
-#    name: Build Windows (ARM64)
-#    runs-on: windows-latest # 注意：目前 GitHub Hosted Runner 主要是 x64，这里生成的包可能仍然包含 x64 JVM，除非手动配置交叉编译
-#
-#    steps:
-#      - name: Checkout code
-#        uses: actions/checkout@v4
-#
-#      - name: Set up JDK 17
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: '17'
-#          distribution: 'temurin'
-#
-#      - name: Setup Gradle
-#        uses: gradle/actions/setup-gradle@v3
-#
-#      - name: Create Release Distributable
-#        run: ./gradlew :composeApp:createReleaseDistributable
-#
-#      - name: Setup Inno Setup
-#        run: |
-#          choco install innosetup
-#
-#      - name: Build Installer with Inno Setup
-#        # 显式传入 aarch64 架构参数，这将影响生成的安装包文件名
-#        run: iscc /DMyAppArch=aarch64 installer/setup.iss
-#
-#      - name: Upload Windows Artifact
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: Windows-App-Exe-arm64
-#          path: installer/*_aarch64_*.exe
-#          if-no-files-found: error
-
   release:
     name: Create Release
     needs: [build-macos-arm64, build-macos-x64, build-linux-deb-x64, build-linux-deb-arm64, build-windows-x64, build-windows-arm64]
@@ -317,9 +282,10 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.优化 Webview 组件的初始化逻辑  
+          NOTES="1.优化 Webview 报错提示  
+          2.修复项目启动时窗口尺寸没有还原为上次打开时的尺寸的问题  
           　  
-          因为此版本更新了可执行程序名称，自动安装后出现报错提示“Failed to launch application **”属于正常现象，安装成功后把旧的快捷方式从桌面或开始菜单删除即可。  
+          此项目已更名为飞鲸影视，可执行程序名称也相应做了更改，从更名前的旧版本升级到新版过程中出现报错提示“Failed to launch application **”属于正常现象，安装成功后把旧的快捷方式从桌面或开始菜单删除即可。  
           　  
           感谢以下飞牛共建团成员反馈问题并协助排查：  
           @[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482)  

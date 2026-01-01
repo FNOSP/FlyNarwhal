@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.multiplatform.webview.jsbridge.WebViewJsBridge
 import com.multiplatform.webview.web.WebView
@@ -140,12 +141,40 @@ fun NasLoginWebViewContainer(
             }
 
             webViewInitialized -> {
-                WebView(
-                    state = webViewState,
-                    modifier = Modifier.fillMaxSize(),
-                    navigator = navigator,
-                    webViewJsBridge = jsBridge
-                )
+                // Check for SSL/Certificate errors
+                val sslError = webViewState.errorsForCurrentRequest.find {
+                    it.description.contains("ssl", ignoreCase = true) ||
+                            it.description.contains("ERR_CERT_COMMON_NAME_INVALID", ignoreCase = true) ||
+                            it.code == -202 ||
+                            it.code == -200
+                }
+
+                if (sslError != null) {
+                    Logger.withTag("NasLoginComponents").e("webview ssl error: ${sslError.description}")
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "证书校验失败，暂时不支持自签证书，请使用 HTTP 端口访问",
+                            color = Color.Black,
+                            fontSize = 16.sp
+                        )
+                    }
+                } else {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        WebView(
+                            state = webViewState,
+                            modifier = Modifier.fillMaxSize(),
+                            navigator = navigator,
+                            webViewJsBridge = jsBridge
+                        )
+                        Logger.withTag("NasLoginComponents")
+                            .e("webview request error: ${webViewState.errorsForCurrentRequest}")
+                    }
+                }
             }
 
             webViewRestartRequired -> {

@@ -1,8 +1,12 @@
 package com.jankinwu.fntv.client.utils
 
 import co.touchlab.kermit.Logger
+import com.jankinwu.fntv.client.BuildConfig
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
+
 import co.touchlab.kermit.Severity
 import dev.datlag.kcef.KCEF
+import dev.datlag.kcef.KCEFBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -11,11 +15,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.awt.EventQueue
 import java.io.File
 import java.io.RandomAccessFile
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.jar.JarFile
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -29,6 +43,7 @@ import java.security.SecureRandom
 import java.security.cert.X509Certificate
 
 object WebViewBootstrap {
+    private val logger = Logger.withTag("WebViewBootstrap")
     private val started = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val awtDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
@@ -56,13 +71,67 @@ object WebViewBootstrap {
 
         if (!started.compareAndSet(false, true)) return
 
+        runCatching {
+            installDir.parentFile?.mkdirs()
+            if (!installDir.exists()) installDir.mkdirs()
+            if (!cacheDir.exists()) cacheDir.mkdirs()
+        }.onFailure { t ->
+            logger.w(t) { "Failed to create KCEF directories: installDir=${installDir.absolutePath}, cacheDir=${cacheDir.absolutePath}" }
+        }
+
+        logger.i {
+            val resourcesDir = System.getProperty("compose.application.resources.dir") ?: "(null)"
+            "KCEF bootstrap starting. version=${BuildConfig.VERSION_NAME}, installDir=${installDir.absolutePath}, cacheDir=${cacheDir.absolutePath}, resourcesDir=$resourcesDir"
+        }
+
+        val currentVersion = BuildConfig.VERSION_NAME
+
+        var isKcefInitialized = AppSettingsStore.kcefInitialized &&
+            AppSettingsStore.kcefInitializedVersion == currentVersion
+
+        if (AppSettingsStore.kcefInitialized && AppSettingsStore.kcefInitializedVersion != currentVersion) {
+            AppSettingsStore.kcefInitialized = false
+            isKcefInitialized = false
+        }
+
+        if (isKcefInitialized && !installDir.exists()) {
+            AppSettingsStore.kcefInitialized = false
+            isKcefInitialized = false
+        }
+
+        if (isKcefInitialized) {
+            val installEmpty = installDir.listFiles()?.isEmpty() != false
+            val cacheEmpty = cacheDir.listFiles()?.isEmpty() != false
+            if (installDir.exists() && installEmpty) {
+                logger.w { "KCEF installDir is empty but marked initialized, forcing reinitialize: ${installDir.absolutePath}" }
+                AppSettingsStore.kcefInitialized = false
+                isKcefInitialized = false
+                installDir.deleteRecursively()
+            }
+            if (cacheDir.exists() && cacheEmpty) {
+                cacheDir.deleteRecursively()
+            }
+        }
+
+        if (!isKcefInitialized) {
+            val installEmpty = installDir.listFiles()?.isEmpty() != false
+            val cacheEmpty = cacheDir.listFiles()?.isEmpty() != false
+
+            if (installDir.exists() && installEmpty) {
+                installDir.deleteRecursively()
+            }
+            if (cacheDir.exists() && cacheEmpty) {
+                cacheDir.deleteRecursively()
+            }
+        }
+
         // Create a custom HttpClient with Trust-All SSL configuration for KCEF download
         val kcefClient = HttpClient(OkHttp) {
             engine {
                 config {
                     val trustAllCerts = arrayOf<TrustManager>(@Suppress("CustomX509TrustManager")
                     object : X509TrustManager {
-                        override fun getAcceptedIssuers(): Array<X509Certificate>? = null
+                        override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
                         @Suppress("TrustAllX509TrustManager")
                         override fun checkClientTrusted(certs: Array<X509Certificate>, authType: String) {}
                         @Suppress("TrustAllX509TrustManager")
@@ -82,24 +151,59 @@ object WebViewBootstrap {
             }
         }
 
-        // Clean up legacy kcef.log in logDir if it exists
-        File(cacheDir, "kcef.log").delete()
-
-        // Use cacheDir for the raw KCEF log to avoid polluting the logs directory
-        val kcefLog = File(cacheDir, "kcef.log")
-        kcefLog.deleteOnExit()
-
-        withContext(Dispatchers.IO) {
-            try {
-                if (!installDir.exists()) installDir.mkdirs()
-                if (!cacheDir.exists()) cacheDir.mkdirs()
-            } catch (e: Exception) {
-                initError.value = e
-                return@withContext
-            }
-        }
-
         try {
+            File(cacheDir, "kcef.log").delete()
+            val kcefLog = File(cacheDir, "kcef.log").apply { deleteOnExit() }
+
+            scope.launch {
+                tailKcefLog(kcefLog)
+            }
+
+            val preflightError = withContext(Dispatchers.IO) {
+                runCatching {
+                    installDir.parentFile?.mkdirs()
+                    if (!cacheDir.exists()) cacheDir.mkdirs()
+
+                    if (!isKcefInstallComplete(installDir)) {
+                        runCatching { extractBundledKcef(installDir) }
+                    }
+
+                    if (!isKcefInstallComplete(installDir)) {
+                        installDir.deleteRecursively()
+                        val builder = KCEFBuilder()
+                            .installDir(installDir)
+                            .settings {
+                                cachePath = cacheDir.absolutePath
+                                logFile = kcefLog.absolutePath
+                            }
+                            .download {
+                                github()
+                                client(kcefClient)
+                            }
+
+                        withTimeout(30L * 60L * 1000L) {
+                            installKcef(builder)
+                        }
+                    }
+
+                    if (!isKcefInstallComplete(installDir)) {
+                        error("KCEF install directory is incomplete: ${installDir.absolutePath}")
+                    }
+                }.exceptionOrNull()
+            }
+
+            if (preflightError != null) {
+                initError.value = preflightError
+                return
+            }
+
+            val os = System.getProperty("os.name").lowercase()
+            if (os.contains("win")) {
+                val files = installDir.listFiles()?.map { it.name } ?: emptyList()
+//                logger.i("KCEF install directory files: $files")
+//                addLibraryDir(installDir.absolutePath)
+            }
+
             val initFailure = runCatching {
                 withContext(awtDispatcher) {
                     KCEF.init(
@@ -108,10 +212,14 @@ object WebViewBootstrap {
                             settings {
                                 cachePath = cacheDir.absolutePath
                                 logFile = kcefLog.absolutePath
+                                resourcesDirPath = installDir.absolutePath
+                                localesDirPath = File(installDir, "locales").absolutePath
                             }
                             progress {
                                 onInitialized {
                                     initialized.value = true
+                                    AppSettingsStore.kcefInitialized = true
+                                    AppSettingsStore.kcefInitializedVersion = currentVersion
                                 }
                             }
                             download {
@@ -131,13 +239,12 @@ object WebViewBootstrap {
 
             if (initFailure != null) {
                 initError.value = initFailure
+                return
             }
         } catch (t: Throwable) {
             initError.value = t
-        }
-
-        scope.launch {
-            tailKcefLog(kcefLog)
+        } finally {
+            runCatching { kcefClient.close() }
         }
     }
 
@@ -146,6 +253,151 @@ object WebViewBootstrap {
         initError.value = null
         started.set(false)
         start(lastInstallDir!!, lastCacheDir!!, lastLogDir!!)
+    }
+
+    private fun extractBundledKcef(targetInstallDir: File) {
+        if (!targetInstallDir.exists()) targetInstallDir.mkdirs()
+
+        if (extractBundledKcefFromResourcesDir(targetInstallDir)) return
+        if (extractBundledKcefFromClasspathDirs(targetInstallDir)) return
+        if (extractBundledKcefFromClasspathJar(targetInstallDir)) return
+
+        logger.w { "Bundled KCEF directory not found in resources dir or classpath, skipping extraction" }
+    }
+
+    private fun extractBundledKcefFromResourcesDir(targetInstallDir: File): Boolean {
+        val resourcesDirPath = System.getProperty("compose.application.resources.dir") ?: return false
+        val resourcesDir = File(resourcesDirPath)
+        val bundledDir = File(resourcesDir, "kcef-bundle")
+        if (!bundledDir.exists() || !bundledDir.isDirectory) return false
+
+        return copyBundledDir(
+            bundledDir = bundledDir,
+            targetInstallDir = targetInstallDir,
+            sourceLabel = "resources dir"
+        )
+    }
+
+    private fun extractBundledKcefFromClasspathDirs(targetInstallDir: File): Boolean {
+        val classPath = System.getProperty("java.class.path")?.takeIf { it.isNotBlank() } ?: return false
+        val entries = classPath.split(File.pathSeparatorChar).map { it.trim() }.filter { it.isNotBlank() }
+
+        for (entry in entries) {
+            val dir = File(entry)
+            if (!dir.isDirectory) continue
+
+            val bundledDir = File(dir, "kcef-bundle")
+            if (!bundledDir.isDirectory) continue
+
+            return copyBundledDir(
+                bundledDir = bundledDir,
+                targetInstallDir = targetInstallDir,
+                sourceLabel = "classpath dir"
+            )
+        }
+        return false
+    }
+
+    private fun copyBundledDir(bundledDir: File, targetInstallDir: File, sourceLabel: String): Boolean {
+        logger.i { "Extracting bundled KCEF from $sourceLabel: ${bundledDir.absolutePath} -> ${targetInstallDir.absolutePath}" }
+
+        val supportsPosix = FileSystems.getDefault().supportedFileAttributeViews().contains("posix")
+        var fileCount = 0
+
+        bundledDir.walkTopDown().forEach { src ->
+            val relPath = src.relativeTo(bundledDir).path
+            val dest = File(targetInstallDir, relPath)
+            if (src.isDirectory) {
+                dest.mkdirs()
+            } else {
+                dest.parentFile?.mkdirs()
+                val srcPath = src.toPath()
+                val destPath = dest.toPath()
+                Files.copy(
+                    srcPath,
+                    destPath,
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.COPY_ATTRIBUTES
+                )
+                if (supportsPosix) {
+                    runCatching { Files.setPosixFilePermissions(destPath, Files.getPosixFilePermissions(srcPath)) }
+                }
+                fileCount++
+            }
+        }
+
+        logger.i { "Extracted $fileCount files to ${targetInstallDir.absolutePath}" }
+        return fileCount > 0
+    }
+
+    private fun extractBundledKcefFromClasspathJar(targetInstallDir: File): Boolean {
+        val jarPath = runCatching {
+            val uri = WebViewBootstrap::class.java.protectionDomain.codeSource.location.toURI()
+            File(uri)
+        }.getOrNull()?.takeIf { it.isFile && it.extension.equals("jar", ignoreCase = true) }
+            ?: return false
+
+        logger.i { "Extracting bundled KCEF from classpath jar: ${jarPath.absolutePath} -> ${targetInstallDir.absolutePath}" }
+
+        var fileCount = 0
+        JarFile(jarPath).use { jar ->
+            val entries = jar.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                val name = entry.name
+                if (!name.startsWith("kcef-bundle/")) continue
+                if (entry.isDirectory) continue
+
+                val relPath = name.removePrefix("kcef-bundle/")
+                if (relPath.isBlank()) continue
+
+                val dest = File(targetInstallDir, relPath)
+                dest.parentFile?.mkdirs()
+
+                jar.getInputStream(entry).use { input ->
+                    Files.copy(input, dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }
+                fileCount++
+            }
+        }
+
+        logger.i { "Extracted $fileCount files to ${targetInstallDir.absolutePath}" }
+        return fileCount > 0
+    }
+
+    private fun isKcefInstallComplete(installDir: File): Boolean {
+        val localesDir = File(installDir, "locales")
+        val hasLocales = localesDir.isDirectory && localesDir.listFiles()?.any { it.isFile && it.name.endsWith(".pak") } == true
+        val hasIcu = File(installDir, "icudtl.dat").isFile
+        
+        // Check for critical binaries on Windows
+        val os = System.getProperty("os.name").lowercase()
+        if (os.contains("win")) {
+            val hasLibCef = File(installDir, "libcef.dll").isFile
+            val hasJcef = File(installDir, "jcef.dll").isFile
+            val hasHelper = File(installDir, "jcef_helper.exe").isFile
+            return hasLocales && hasIcu && hasLibCef && hasJcef && hasHelper
+        }
+        
+        return hasLocales && hasIcu
+    }
+
+    private suspend fun installKcef(builder: KCEFBuilder): KCEFBuilder {
+        val method = KCEFBuilder::class.java.getDeclaredMethod("install\$kcef", Continuation::class.java)
+        method.isAccessible = true
+
+        @Suppress("UNCHECKED_CAST")
+        return suspendCoroutine { cont ->
+            runCatching { method.invoke(builder, cont) }
+                .onSuccess { result ->
+                    if (result != COROUTINE_SUSPENDED) {
+                        cont.resume(result as KCEFBuilder)
+                    }
+                }
+                .onFailure { e ->
+                    cont.resumeWithException(e)
+                }
+        }
     }
 
     private suspend fun tailKcefLog(file: File) {
@@ -178,7 +430,7 @@ object WebViewBootstrap {
                                 line.contains(":VERBOSE:", ignoreCase = true) -> Severity.Verbose
                                 else -> Severity.Info
                             }
-                            Logger.log(severity, "KCEF", null, line)
+                            logger.log(severity, "KCEF", null, line)
                         }
                         line = reader.readLine()
                     }
@@ -188,7 +440,7 @@ object WebViewBootstrap {
             }
             reader.close()
         } catch (e: Exception) {
-            Logger.withTag("KCEF").e(e) { "Error tailing log file" }
+            logger.e(e) { "Error tailing log file" }
         }
     }
 }

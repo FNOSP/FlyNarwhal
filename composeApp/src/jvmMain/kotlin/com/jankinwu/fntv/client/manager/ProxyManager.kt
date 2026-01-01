@@ -4,10 +4,12 @@ import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.utils.ExecutableDirectoryDetector
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 object ProxyManager {
     private val logger = Logger.withTag("ProxyManager")
     private var proxyProcess: Process? = null
+    private var shutdownHookAdded = false
 
     fun start() {
         if (proxyProcess != null && proxyProcess!!.isAlive) {
@@ -169,9 +171,10 @@ object ProxyManager {
             }
             
             // Add shutdown hook as a safety net
-            Runtime.getRuntime().addShutdownHook(Thread {
-                stop()
-            })
+            if (!shutdownHookAdded) {
+                shutdownHookAdded = true
+                Runtime.getRuntime().addShutdownHook(Thread { stop() })
+            }
 
         } catch (e: Exception) {
             logger.e("Failed to start proxy: ${e.message}", e)
@@ -179,17 +182,23 @@ object ProxyManager {
     }
 
     fun stop() {
-        if (proxyProcess != null) {
-            try {
-                if (proxyProcess!!.isAlive) {
-                    proxyProcess!!.destroy()
-                    logger.i("Proxy stopped")
+        val process = proxyProcess ?: return
+        try {
+            if (process.isAlive) {
+                process.destroy()
+                if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                    process.destroyForcibly()
+                    process.waitFor(2, TimeUnit.SECONDS)
                 }
-            } catch (e: Exception) {
-                logger.e("Failed to stop the proxy, case: ", e)
-            } finally {
-                proxyProcess = null
+                logger.i("Proxy stopped")
             }
+        } catch (e: Exception) {
+            logger.e("Failed to stop the proxy, case: ", e)
+        } finally {
+            runCatching { process.inputStream.close() }
+            runCatching { process.errorStream.close() }
+            runCatching { process.outputStream.close() }
+            proxyProcess = null
         }
     }
 
@@ -216,9 +225,9 @@ object ProxyManager {
         try {
             val osName = System.getProperty("os.name").lowercase(Locale.getDefault())
             if (osName.contains("win")) {
-                Runtime.getRuntime().exec("taskkill /F /IM fntv-proxy.exe").waitFor()
+                ProcessBuilder("taskkill", "/F", "/T", "/IM", "fntv-proxy.exe").start().waitFor()
             } else {
-                Runtime.getRuntime().exec(arrayOf("pkill", "-f", "fntv-proxy")).waitFor()
+                ProcessBuilder("pkill", "-f", "fntv-proxy").start().waitFor()
             }
         } catch (e: Exception) {
             // Ignore errors (e.g. process not found)

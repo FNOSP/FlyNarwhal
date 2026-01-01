@@ -153,6 +153,37 @@ internal class ComposeWindowProcedure(
         updateBorderAndShadow()
     }
 
+    private fun updateWindowInsets(user32: User32Extend, hWnd: HWND) {
+        val newDpi = user32.GetDpiForWindow(hWnd)
+        val newFrameX = user32.GetSystemMetricsForDpi(WinUser.SM_CXFRAME, newDpi)
+        val newFrameY = user32.GetSystemMetricsForDpi(WinUser.SM_CYFRAME, newDpi)
+        val newPadding = user32.GetSystemMetricsForDpi(WinUser.SM_CXPADDEDBORDER, newDpi)
+        val newIsMaximized = user32.isWindowInMaximized(hWnd)
+
+        val shouldUpdate =
+            newDpi.toInt() != dpi.toInt() ||
+                newFrameX != frameX ||
+                newFrameY != frameY ||
+                newPadding != padding ||
+                newIsMaximized != isMaximized
+        if (!shouldUpdate) return
+
+        dpi = newDpi
+        frameX = newFrameX
+        frameY = newFrameY
+        padding = newPadding
+        isMaximized = newIsMaximized
+
+        onWindowInsetUpdate(
+            WindowInsets(
+                left = if (isMaximized) frameX + padding else 0,
+                right = if (isMaximized) frameX + padding else 0,
+                top = if (isMaximized) frameY + padding else 0,
+                bottom = if (isMaximized) frameY + padding else 0
+            )
+        )
+    }
+
     override fun callback(hWnd: HWND, uMsg: Int, wParam: WPARAM, lParam: LPARAM): LRESULT {
         return when (uMsg) {
             // Returns 0 to make the window not draw the non-client area (title bar and border)
@@ -219,6 +250,7 @@ internal class ComposeWindowProcedure(
                 height = (lParam.toInt() shr 16) and 0xFFFF
                 User32Extend.instance?.let { user32 ->
                     user32.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam)
+                    updateWindowInsets(user32, hWnd)
                     // Ensure redraw on size change
                     user32.RedrawWindow(
                         hWnd,
@@ -233,6 +265,7 @@ internal class ComposeWindowProcedure(
             WM_WINDOWPOSCHANGED -> {
                 User32Extend.instance?.let { user32 ->
                     user32.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam)
+                    updateWindowInsets(user32, hWnd)
                     // 强制重绘，解决全屏切换时的渲染异常（白色色块）
                     user32.RedrawWindow(
                         hWnd,
