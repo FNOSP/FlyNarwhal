@@ -196,12 +196,12 @@ object WebViewBootstrap {
                 initError.value = preflightError
                 return
             }
-            logger.i("2.KCEF install directory is complete: ${installDir.absolutePath}")
 
             val os = System.getProperty("os.name").lowercase()
             if (os.contains("win")) {
                 val files = installDir.listFiles()?.map { it.name } ?: emptyList()
-                logger.i("KCEF install directory files: $files")
+//                logger.i("KCEF install directory files: $files")
+//                addLibraryDir(installDir.absolutePath)
             }
 
             val initFailure = runCatching {
@@ -253,21 +253,6 @@ object WebViewBootstrap {
         initError.value = null
         started.set(false)
         start(lastInstallDir!!, lastCacheDir!!, lastLogDir!!)
-    }
-
-    private fun addLibraryDir(libraryPath: String) {
-        try {
-            val field = ClassLoader::class.java.getDeclaredField("usr_paths")
-            field.isAccessible = true
-            val paths = field.get(null) as Array<String>
-            if (paths.contains(libraryPath)) return
-            val newPaths = paths.copyOf(paths.size + 1)
-            newPaths[paths.size] = libraryPath
-            field.set(null, newPaths)
-            logger.i { "Added to java.library.path: $libraryPath" }
-        } catch (t: Throwable) {
-            logger.w(t) { "Failed to add library path: $libraryPath" }
-        }
     }
 
     private fun extractBundledKcef(targetInstallDir: File) {
