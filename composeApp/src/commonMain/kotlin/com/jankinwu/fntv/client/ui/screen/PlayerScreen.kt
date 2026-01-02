@@ -1310,7 +1310,17 @@ fun PlayerOverlay(
                         isSeeking = true
                         val seekPosition = (newProgress * totalDuration).toLong()
                         mediaPlayer.seekTo(seekPosition)
-                        logger.i("Seek to: ${newProgress * 100}%，seekPosition: ${FnDataConvertor.formatDurationToDateTime(seekPosition)}, totalDuration: ${FnDataConvertor.formatDurationToDateTime(totalDuration)}")
+                        logger.i(
+                            "Seek to: ${newProgress * 100}%，seekPosition: ${
+                                FnDataConvertor.formatDurationToDateTime(
+                                    seekPosition
+                                )
+                            }, totalDuration: ${
+                                FnDataConvertor.formatDurationToDateTime(
+                                    totalDuration
+                                )
+                            }"
+                        )
 
                         // Force update subtitle on seek
                         if (hlsSubtitleUtil != null) {
@@ -1578,12 +1588,17 @@ private fun EndScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.95f))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { },
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { },
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "${playingInfoCache?.item?.episodeNumber?.toString()?.padStart(2, '0')}. ${playingInfoCache?.item?.title ?: ""}",
+                text = "${
+                    playingInfoCache?.item?.episodeNumber?.toString()?.padStart(2, '0')
+                }. ${playingInfoCache?.item?.title ?: ""}",
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
@@ -1600,7 +1615,11 @@ private fun EndScreen(
             Row {
                 androidx.compose.material3.Button(
                     onClick = onReplay,
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(
+                            alpha = 0.1f
+                        )
+                    )
                 ) {
                     Icon(Icons.Default.Refresh, null, tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -1609,7 +1628,11 @@ private fun EndScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 androidx.compose.material3.Button(
                     onClick = onBack,
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(
+                            alpha = 0.1f
+                        )
+                    )
                 ) {
                     Icon(Icons.Default.Home, null, tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -1878,7 +1901,12 @@ fun PlayerControlRow(
                     onAudioSelected?.invoke(audio)
                 },
                 onWindowAspectRatioChanged = onWindowAspectRatioChanged,
-                onSkipConfigChanged = { opening, ending -> onSkipConfigChanged?.invoke(opening, ending) },
+                onSkipConfigChanged = { opening, ending ->
+                    onSkipConfigChanged?.invoke(
+                        opening,
+                        ending
+                    )
+                },
                 modifier = Modifier.padding(start = 12.dp),
                 onHoverStateChanged = { onSettingsMenuHoverChanged?.invoke(it) }
             )
@@ -2004,6 +2032,74 @@ fun rememberPlayMediaFunction(
     ) {
         {
             kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    playerManager.setLoading(true)
+                    playMedia(
+                        guid = guid,
+                        player = player,
+                        playInfoViewModel = playInfoViewModel,
+                        userInfoViewModel = userInfoViewModel,
+                        streamViewModel = streamViewModel,
+                        playPlayViewModel = playPlayViewModel,
+                        playRecordViewModel = playRecordViewModel,
+                        playerViewModel = playerViewModel,
+                        playerManager = playerManager,
+                        toastManager = toastManager,
+                        mediaGuid = mediaGuid,
+                        currentAudioGuid = currentAudioGuid,
+                        currentSubtitleGuid = currentSubtitleGuid,
+                        mp4Parser = mp4Parser
+                    )
+                } finally {
+                    playerManager.setLoading(false)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun rememberPlayMediaByGuidFunction(
+    player: MediampPlayer,
+    mediaGuid: String? = null,
+    currentAudioGuid: String? = null,
+    currentSubtitleGuid: String? = null
+): (String) -> Unit {
+    val streamViewModel: StreamViewModel = koinViewModel()
+    val playPlayViewModel: PlayPlayViewModel = koinViewModel()
+    val playInfoViewModel: PlayInfoViewModel = koinViewModel()
+    val userInfoViewModel: UserInfoViewModel = koinViewModel()
+    val playRecordViewModel: PlayRecordViewModel = koinViewModel()
+    val playerViewModel: PlayerViewModel = koinViewModel()
+    val mediaPViewModel: MediaPViewModel = koinViewModel()
+    val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
+    val mp4Parser: Mp4Parser = koinInject()
+    val playerManager = LocalPlayerManager.current
+    val toastManager = playerManager.toastManager
+    return remember(
+        streamViewModel,
+        playPlayViewModel,
+        playerViewModel,
+        mediaPViewModel,
+        playingInfoCache,
+        player,
+        playerManager,
+        mediaGuid,
+        currentAudioGuid,
+        currentSubtitleGuid,
+        mp4Parser
+    ) {
+        { guid: String ->
+            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+                if (playingInfoCache?.isUseDirectLink == false) {
+                    mediaPViewModel.quit(
+                        MediaPRequest(
+                            playLink = playingInfoCache?.playLink ?: ""
+                        ),
+                        updateState = false
+                    )
+                }
+
                 try {
                     playerManager.setLoading(true)
                     playMedia(

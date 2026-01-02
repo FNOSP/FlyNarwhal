@@ -1,12 +1,15 @@
 package com.jankinwu.fntv.client.utils
 
 import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
 import com.jankinwu.fntv.client.BuildConfig
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
-
-import co.touchlab.kermit.Severity
 import dev.datlag.kcef.KCEF
-import dev.datlag.kcef.KCEFBuilder
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.http.ContentType
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,27 +18,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
 import java.awt.EventQueue
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import java.util.jar.JarFile
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.coroutines.CoroutineContext
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.json.Json
-import io.ktor.http.ContentType
+import java.util.jar.JarFile
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
+import kotlin.coroutines.CoroutineContext
 
 object WebViewBootstrap {
     private val logger = Logger.withTag("WebViewBootstrap")

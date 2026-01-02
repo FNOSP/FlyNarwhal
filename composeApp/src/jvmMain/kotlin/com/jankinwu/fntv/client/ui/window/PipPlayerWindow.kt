@@ -10,22 +10,28 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,10 +50,13 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import co.touchlab.kermit.Logger
+import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
+import com.jankinwu.fntv.client.data.model.response.EpisodeListResponse
 import com.jankinwu.fntv.client.data.network.fnOfficialClient
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
 import com.jankinwu.fntv.client.icons.Back10S
@@ -60,14 +69,17 @@ import com.jankinwu.fntv.client.ui.component.player.VideoPlayerProgressBar
 import com.jankinwu.fntv.client.ui.component.player.VolumeControl
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
+import com.jankinwu.fntv.client.ui.screen.rememberPlayMediaByGuidFunction
 import com.jankinwu.fntv.client.utils.ExternalSubtitleUtil
 import com.jankinwu.fntv.client.utils.HlsSubtitleUtil
 import com.jankinwu.fntv.client.utils.SubtitleCue
 import com.jankinwu.fntv.client.utils.calculateOptimalPlayerWindowSize
 import com.jankinwu.fntv.client.utils.callPlayRecord
 import com.jankinwu.fntv.client.utils.rememberSmoothVideoTime
+import com.jankinwu.fntv.client.viewmodel.EpisodeListViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayRecordViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayerViewModel
+import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.window.findSkiaLayer
 import flynarwhal.composeapp.generated.resources.Res
 import flynarwhal.composeapp.generated.resources.icon
@@ -94,11 +106,14 @@ fun PipPlayerWindow(
 ) {
     val mediaPlayer = LocalMediaPlayer.current
     val playbackState by mediaPlayer.playbackState.collectAsState()
+    val playerManager = LocalPlayerManager.current
     val playerViewModel: PlayerViewModel = koinViewModel()
     val playRecordViewModel: PlayRecordViewModel = koinViewModel()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
     val subtitleSettings by playerViewModel.subtitleSettings.collectAsState()
     val savedData = remember { PlayingSettingsStore.getPipWindowData() }
+    val episodeListViewModel: EpisodeListViewModel = koinViewModel()
+    val episodeListState by episodeListViewModel.uiState.collectAsState()
 
     val logger = remember { Logger.withTag("PipPlayerWindow") }
     val rewindInteractionSource = remember { MutableInteractionSource() }
@@ -173,6 +188,103 @@ fun PipPlayerWindow(
                     logger.i("PIP每隔15s调用playRecord失败：缓存为空")
                 }
             )
+        }
+    }
+
+    var episodeList by remember { mutableStateOf(emptyList<EpisodeListResponse>()) }
+
+    LaunchedEffect(playingInfoCache?.parentGuid, playingInfoCache?.isEpisode) {
+        val parentGuid = playingInfoCache?.parentGuid
+        if (playingInfoCache?.isEpisode == true && !parentGuid.isNullOrBlank()) {
+            episodeListViewModel.loadData(parentGuid)
+        }
+    }
+
+    LaunchedEffect(episodeListState) {
+        when (episodeListState) {
+            is UiState.Success -> {
+                episodeList = (episodeListState as UiState.Success<List<EpisodeListResponse>>).data
+            }
+
+            is UiState.Error -> {
+                logger.e("PIP episodeListState error: ${(episodeListState as UiState.Error).message}")
+            }
+
+            else -> {}
+        }
+    }
+
+    val currentEpisodeIndex = remember(episodeList, playingInfoCache?.itemGuid) {
+        episodeList.indexOfFirst { it.guid == playingInfoCache?.itemGuid }
+    }
+
+    val nextEpisode = remember(episodeList, currentEpisodeIndex) {
+        if (currentEpisodeIndex != -1 && currentEpisodeIndex < episodeList.size - 1) {
+            episodeList[currentEpisodeIndex + 1]
+        } else {
+            null
+        }
+    }
+
+    val playMediaByGuid = rememberPlayMediaByGuidFunction(player = mediaPlayer)
+    val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
+
+    var showSkipOutroPrompt by remember { mutableStateOf(false) }
+    var skipOutroCancelled by remember { mutableStateOf(false) }
+    var skipOutroCountdown by remember { mutableIntStateOf(5) }
+    var pipShowEndScreen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(playingInfoCache?.itemGuid) {
+        showSkipOutroPrompt = false
+        skipOutroCancelled = false
+        skipOutroCountdown = 5
+        pipShowEndScreen = false
+    }
+
+    val totalDuration = remember(playerManager.playerState.itemGuid) {
+        playerManager.playerState.duration
+    }
+
+    val playConfig = playingInfoCache?.playConfig
+    val skipEnding = playConfig?.skipEnding ?: 0
+
+    LaunchedEffect(currentPosition, playConfig, skipOutroCancelled, totalDuration) {
+        if (playingInfoCache?.isEpisode == true && skipEnding > 0 && totalDuration > 0) {
+            val skipPoint = totalDuration - skipEnding * 1000L
+            if (currentPosition >= skipPoint) {
+                if (!showSkipOutroPrompt && !pipShowEndScreen && !skipOutroCancelled) {
+                    showSkipOutroPrompt = true
+                    skipOutroCountdown = 5
+                }
+            } else {
+                if (showSkipOutroPrompt) {
+                    showSkipOutroPrompt = false
+                }
+                if (pipShowEndScreen) {
+                    pipShowEndScreen = false
+                }
+                if (skipOutroCancelled) {
+                    skipOutroCancelled = false
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(showSkipOutroPrompt) {
+        if (showSkipOutroPrompt) {
+            while (skipOutroCountdown > 0) {
+                delay(1000)
+                skipOutroCountdown--
+            }
+            if (showSkipOutroPrompt && !skipOutroCancelled) {
+                showSkipOutroPrompt = false
+                if (nextEpisode != null) {
+                    playMediaByGuid(nextEpisode.guid)
+                } else {
+                    pipShowEndScreen = true
+                    mediaPlayer.pause()
+                }
+            }
         }
     }
 
@@ -545,6 +657,17 @@ fun PipPlayerWindow(
                         isLoading = true
                         val seekPosition = (ratio * totalDuration).toLong()
                         mediaPlayer.seekTo(seekPosition)
+                        logger.i(
+                            "Seek to: ${ratio * 100}%，seekPosition: ${
+                                FnDataConvertor.formatDurationToDateTime(
+                                    seekPosition
+                                )
+                            }, totalDuration: ${
+                                FnDataConvertor.formatDurationToDateTime(
+                                    totalDuration
+                                )
+                            }"
+                        )
                         callPlayRecord(
                             ts = (seekPosition / 1000).toInt(),
                             playingInfoCache = playingInfoCache,
@@ -562,7 +685,22 @@ fun PipPlayerWindow(
                         .offset(y = (-40).dp)
                         .padding(horizontal = 12.dp)
                         .pointerHoverIcon(PointerIcon.Hand)
-                        .fillMaxWidth()
+                        .fillMaxWidth(),
+                    skipOpening = playingInfoCache?.playConfig?.skipOpening ?: 0,
+                    skipEnding = playingInfoCache?.playConfig?.skipEnding ?: 0
+                )
+            }
+
+            if (showSkipOutroPrompt) {
+                SkipOutroPrompt(
+                    countdown = skipOutroCountdown,
+                    onCancel = {
+                        skipOutroCancelled = true
+                        showSkipOutroPrompt = false
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = 56.dp, start = 12.dp)
                 )
             }
 
@@ -649,6 +787,38 @@ fun PipPlayerWindow(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SkipOutroPrompt(
+    countdown: Int,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF2B2B2B).copy(alpha = 0.9f),
+            contentColor = Color.White
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${countdown}s 后将自动跳过片尾并播放下集",
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "取消跳过",
+                    color = Color(0xFF3B82F6),
+                    fontSize = 12.sp,
+                    modifier = Modifier.clickable { onCancel() }
+                )
             }
         }
     }
