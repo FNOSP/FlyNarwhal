@@ -6,7 +6,7 @@ object Constants {
 
     const val FN_IMG_URL_PARAM: String = "?w=400"
 
-    const val PROJECT_URL: String = "https://github.com/FNOSP/fntv-client-multiplatform"
+    const val PROJECT_URL: String = "https://github.com/FNOSP/FlyNarwhal"
 }
 
 object Colors {

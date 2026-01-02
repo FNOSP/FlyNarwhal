@@ -124,7 +124,7 @@ class DesktopUpdateManager : UpdateManager {
         val currentVersion = BuildConfig.VERSION_NAME
 
         while (shouldContinue && page <= 10) { // Safety limit of 10 pages
-            val targetUrl = "https://api.github.com/repos/FNOSP/fntv-client-multiplatform/releases?per_page=5&page=$page"
+            val targetUrl = "https://api.github.com/repos/FNOSP/FlyNarwhal/releases?per_page=5&page=$page"
             logger.i("Checking updates from: $targetUrl")
             val response = client.get(targetUrl)
             

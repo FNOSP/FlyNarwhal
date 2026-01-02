@@ -36,7 +36,7 @@
 ## 使用说明
 ### 使用安装包安装
 
-下载 [releases](https://github.com/FNOSP/fntv-client-multiplatform/releases) 中的安装包并安装
+下载 [releases](https://github.com/FNOSP/FlyNarwhal/releases) 中的安装包并安装
 
 ### 从项目构建
 
@@ -174,12 +174,12 @@
 
 ## 🌟 Star History
 
-<a href="https://github.com/FNOSP/fntv-client-multiplatform/stargazers" target="_blank" style="display: block" align="center">
+<a href="https://github.com/FNOSP/FlyNarwhal/stargazers" target="_blank" style="display: block" align="center">
 
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=FNOSP/fntv-client-multiplatform&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=FNOSP/fntv-client-multiplatform&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=FNOSP/fntv-client-multiplatform&type=Date" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=FNOSP/FlyNarwhal&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=FNOSP/FlyNarwhal&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=FNOSP/FlyNarwhal&type=Date" />
   </picture>
 </a>
 
