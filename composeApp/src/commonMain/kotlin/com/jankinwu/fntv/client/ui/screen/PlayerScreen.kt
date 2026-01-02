@@ -200,10 +200,10 @@ data class PlayerState(
     val isVisible: Boolean = false,
     val isUiVisible: Boolean = true,
     val isLoading: Boolean = false,
-    val itemGuid: String = "",
+    var itemGuid: String = "",
     val mediaTitle: String = "",
     val subhead: String = "",
-    val duration: Long = 0L,
+    var duration: Long = 0L,
     val isEpisode: Boolean = false
 )
 
@@ -387,7 +387,7 @@ fun PlayerOverlay(
         toastManager
     ) {
         { episodeGuid: String ->
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
                 // 1. Quit current media if needed
                 if (playingInfoCache?.isUseDirectLink == false) {
                     mediaPViewModel.quit(
@@ -449,7 +449,9 @@ fun PlayerOverlay(
         showEndScreen = false
     }
 
-    val totalDuration = playerManager.playerState.duration
+    val totalDuration = remember(playerManager.playerState.itemGuid) {
+        playerManager.playerState.duration
+    }
     val playConfig = playingInfoCache?.playConfig
     val skipEnding = playConfig?.skipEnding ?: 0
 
@@ -1308,7 +1310,7 @@ fun PlayerOverlay(
                         isSeeking = true
                         val seekPosition = (newProgress * totalDuration).toLong()
                         mediaPlayer.seekTo(seekPosition)
-                        logger.i("Seek to: ${newProgress * 100}%")
+                        logger.i("Seek to: ${newProgress * 100}%，seekPosition: ${FnDataConvertor.formatDurationToDateTime(seekPosition)}, totalDuration: ${FnDataConvertor.formatDurationToDateTime(totalDuration)}")
 
                         // Force update subtitle on seek
                         if (hlsSubtitleUtil != null) {
@@ -2001,7 +2003,7 @@ fun rememberPlayMediaFunction(
         mp4Parser
     ) {
         {
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
                 try {
                     playerManager.setLoading(true)
                     playMedia(
@@ -2082,6 +2084,9 @@ private suspend fun playMedia(
         )
         playerViewModel.updatePlayingInfo(cache)
 
+        // 切换分集时需要更新总时长
+        playerManager.playerState.duration = playInfoResponse.item.duration.toLong()
+        playerManager.playerState.itemGuid = playInfoResponse.item.guid
         // 显示播放器
         showPlayerUI(playInfoResponse, videoStream, playerManager, guid)
 
@@ -2093,7 +2098,7 @@ private suspend fun playMedia(
             createPlayRequest(videoStream, fileStream, audioGuid, subtitleGuid, forcedSdr)
 
         // 获取播放链接
-        val playLinkResult = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val playLinkResult = withContext(Dispatchers.IO) {
             resolvePlayLink(
                 playRequest,
                 cache,
