@@ -34,13 +34,13 @@ data class PlayDetailResponse(
     val type: String,
     @get:JsonProperty("poster")
     @param:JsonProperty("poster")
-    val poster: String,
+    val poster: String?,
     @get:JsonProperty("poster_width")
     @param:JsonProperty("poster_width")
-    val posterWidth: Int,
+    val posterWidth: Int?,
     @get:JsonProperty("poster_height")
     @param:JsonProperty("poster_height")
-    val posterHeight: Int,
+    val posterHeight: Int?,
     @get:JsonProperty("runtime")
     @param:JsonProperty("runtime")
     val runtime: Int?,
