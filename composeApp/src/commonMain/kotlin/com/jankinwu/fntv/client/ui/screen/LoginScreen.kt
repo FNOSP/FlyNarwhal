@@ -245,7 +245,7 @@ fun LoginScreen(
                     toastManager.showToast("证书校验失败，暂时不支持自签证书，请使用 HTTP 端口访问", ToastType.Failed)
                 }
                 toastManager.showToast("登录失败，${state.message}", ToastType.Failed)
-                logger.e("登录失败: ${state.message}")
+                logger.e("登录失败: ${state.message}", state.exception)
 
                 // 检查是否是证书错误
 //                if (state.message.contains("PKIX path building failed") || state.message.contains("unable to find valid certification path")) {

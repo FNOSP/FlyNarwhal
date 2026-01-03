@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -690,8 +691,8 @@ fun SkipConfigSettingsScreen(
     onConfigChanged: (Int, Int) -> Unit
 ) {
     val playConfig = playingInfoCache?.playConfig
-    var skipOpening by remember { mutableStateOf(playConfig?.skipOpening ?: 0) }
-    var skipEnding by remember { mutableStateOf(playConfig?.skipEnding ?: 0) }
+    var skipOpening by remember { mutableIntStateOf(playConfig?.skipOpening ?: 0) }
+    var skipEnding by remember { mutableIntStateOf(playConfig?.skipEnding ?: 0) }
 
     // Max value for sliders.
     val maxDuration = 600f
