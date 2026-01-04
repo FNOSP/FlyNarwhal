@@ -56,20 +56,36 @@ object AppSettingsStore {
         set(value) = settings.set("is_window_maximized", value)
 
     var playerWindowWidth: Float
-        get() = settings.getFloat("player_window_width", 1280f)
-        set(value) = settings.set("player_window_width", value)
+        get() = settings.getFloatOrNull(scopedKey("player_window_width"))
+            ?: settings.getFloat("player_window_width", 1280f)
+        set(value) {
+            settings.set(scopedKey("player_window_width"), value)
+            settings.set("player_window_width", value)
+        }
 
     var playerWindowHeight: Float
-        get() = settings.getFloat("player_window_height", 720f)
-        set(value) = settings.set("player_window_height", value)
+        get() = settings.getFloatOrNull(scopedKey("player_window_height"))
+            ?: settings.getFloat("player_window_height", 720f)
+        set(value) {
+            settings.set(scopedKey("player_window_height"), value)
+            settings.set("player_window_height", value)
+        }
 
     var playerWindowX: Float
-        get() = settings.getFloat("player_window_x", Float.NaN)
-        set(value) = settings.set("player_window_x", value)
+        get() = settings.getFloatOrNull(scopedKey("player_window_x"))
+            ?: settings.getFloat("player_window_x", Float.NaN)
+        set(value) {
+            settings.set(scopedKey("player_window_x"), value)
+            settings.set("player_window_x", value)
+        }
 
     var playerWindowY: Float
-        get() = settings.getFloat("player_window_y", Float.NaN)
-        set(value) = settings.set("player_window_y", value)
+        get() = settings.getFloatOrNull(scopedKey("player_window_y"))
+            ?: settings.getFloat("player_window_y", Float.NaN)
+        set(value) {
+            settings.set(scopedKey("player_window_y"), value)
+            settings.set("player_window_y", value)
+        }
 
     var skippedVersions: Set<String>
         get() = settings.getString(scopedKey("skipped_versions"), "").split(",").filter { it.isNotEmpty() }.toSet()

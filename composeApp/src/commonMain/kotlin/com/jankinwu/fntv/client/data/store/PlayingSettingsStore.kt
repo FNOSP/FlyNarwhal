@@ -72,6 +72,7 @@ object PlayingSettingsStore {
     data class PlayerScreenSize(val width: Float, val height: Float)
 
     fun saveLastPlayerScreenSize(width: Float, height: Float) {
+        if (width.isNaN() || height.isNaN() || width <= 0f || height <= 0f) return
         settings[scopedKey("last_player_screen_width")] = width
         settings[scopedKey("last_player_screen_height")] = height
     }

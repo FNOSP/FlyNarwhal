@@ -1032,25 +1032,28 @@ fun PlayerOverlay(
     var isProgrammaticResize by remember { mutableStateOf(true) }
 
     DisposableEffect(Unit) {
-        val originalWidth = windowState.size.width
-        val originalHeight = windowState.size.height
-        val originalPlacement = windowState.placement
-        val originalPosition = windowState.position
-
-        // Save main window size on entry
-        if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
-            AppSettingsStore.windowWidth = originalWidth.value
-            AppSettingsStore.windowHeight = originalHeight.value
-        }
-
         // Apply Player Fullscreen preference
         if (PlayingSettingsStore.playerIsFullscreen) {
             windowState.placement = WindowPlacement.Fullscreen
         } else {
+            if (windowState.placement == WindowPlacement.Maximized) {
+                isProgrammaticResize = true
+                windowState.placement = WindowPlacement.Floating
+            }
+
+            val lastPlayerScreenSize = PlayingSettingsStore.getLastPlayerScreenSize()
+            val savedWidth = lastPlayerScreenSize?.width ?: AppSettingsStore.playerWindowWidth
+            val savedHeight = lastPlayerScreenSize?.height ?: AppSettingsStore.playerWindowHeight
+            if (!savedWidth.isNaN() && !savedHeight.isNaN() && savedWidth > 0f && savedHeight > 0f) {
+                isProgrammaticResize = true
+                windowState.size = DpSize(savedWidth.dp, savedHeight.dp)
+            }
+
             // Restore Player Window Position
             val savedX = AppSettingsStore.playerWindowX
             val savedY = AppSettingsStore.playerWindowY
             if (!savedX.isNaN() && !savedY.isNaN()) {
+                isProgrammaticResize = true
                 windowState.position = WindowPosition(savedX.dp, savedY.dp)
             }
         }
@@ -1061,7 +1064,12 @@ fun PlayerOverlay(
                 PlayingSettingsStore.playerIsFullscreen = true
             } else {
                 PlayingSettingsStore.playerIsFullscreen = false
-                // Note: playerWindowWidth/Height are updated via LaunchedEffect below
+                if (windowState.placement != WindowPlacement.Maximized) {
+                    val size = windowState.size
+                    AppSettingsStore.playerWindowWidth = size.width.value
+                    AppSettingsStore.playerWindowHeight = size.height.value
+                    PlayingSettingsStore.saveLastPlayerScreenSize(size.width.value, size.height.value)
+                }
 
                 // Save position on exit
                 if (windowState.placement != WindowPlacement.Maximized) {
@@ -1073,12 +1081,6 @@ fun PlayerOverlay(
                 }
             }
 
-            // Restore Main Window State
-            windowState.placement = originalPlacement
-            if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
-                windowState.size = DpSize(originalWidth, originalHeight)
-                windowState.position = originalPosition
-            }
         }
     }
 
@@ -1131,6 +1133,7 @@ fun PlayerOverlay(
                     if (windowState.placement != WindowPlacement.Fullscreen && windowState.placement != WindowPlacement.Maximized) {
                         AppSettingsStore.playerWindowWidth = size.width.value
                         AppSettingsStore.playerWindowHeight = size.height.value
+                        PlayingSettingsStore.saveLastPlayerScreenSize(size.width.value, size.height.value)
 
                         if (position is WindowPosition.Absolute) {
                             AppSettingsStore.playerWindowX = position.x.value
@@ -1182,9 +1185,6 @@ fun PlayerOverlay(
                     true
                 )
         ) {
-            LaunchedEffect(maxWidth, maxHeight) {
-                PlayingSettingsStore.saveLastPlayerScreenSize(maxWidth.value, maxHeight.value)
-            }
             // 视频层 - 从标题栏下方开始显示
             key(surfaceRecreateKey) {
                 MediampPlayerSurface(
