@@ -629,7 +629,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
 
                 CardExpanderItem(
                     heading = {
-                        Text("Fntv Client Multiplatform")
+                        Text("FlyNarwhal")
                     },
                     icon = {
                         val colorMatrix = floatArrayOf(
