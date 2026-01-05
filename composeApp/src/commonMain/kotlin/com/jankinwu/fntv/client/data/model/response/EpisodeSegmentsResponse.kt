@@ -2,6 +2,7 @@ package com.jankinwu.fntv.client.data.model.response
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import kotlinx.serialization.Serializable
+import java.math.BigDecimal
 
 /**
  * Response model containing episode segments (intro/outro timestamps).
@@ -24,11 +25,11 @@ data class EpisodeSegmentsResponse(
 data class EpisodeSegment(
     @get:JsonProperty("start")
     @param:JsonProperty("start")
-    val start: Double,
+    val start: BigDecimal,
 
     @get:JsonProperty("end")
     @param:JsonProperty("end")
-    val end: Double,
+    val end: BigDecimal,
 
     @get:JsonProperty("valid")
     @param:JsonProperty("valid")

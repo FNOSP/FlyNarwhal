@@ -5,6 +5,7 @@ import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.response.AnalysisStatus
 import com.jankinwu.fntv.client.data.model.response.SmartAnalysisResult
 import com.jankinwu.fntv.client.data.network.impl.FlyNarwhalApiImpl
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +46,8 @@ class SmartAnalysisStatusViewModel : BaseViewModel() {
                         continue
                     }
                     break
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     logger.e(e) { "Polling analysis status failed" }
                     _uiState.value = UiState.Error(e.message ?: "未知错误")
