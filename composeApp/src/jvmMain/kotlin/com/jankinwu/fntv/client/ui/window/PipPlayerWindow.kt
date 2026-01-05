@@ -58,6 +58,7 @@ import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.response.EpisodeListResponse
 import com.jankinwu.fntv.client.data.network.fnOfficialClient
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
 import com.jankinwu.fntv.client.icons.Back10S
 import com.jankinwu.fntv.client.icons.Forward10S
@@ -97,6 +98,8 @@ import org.openani.mediamp.compose.MediampPlayerSurface
 import org.openani.mediamp.features.AudioLevelController
 import java.awt.MouseInfo
 import java.awt.Point
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 @OptIn(ExperimentalComposeUiApi::class, kotlinx.coroutines.FlowPreview::class)
 @Composable
@@ -233,12 +236,14 @@ fun PipPlayerWindow(
     var skipOutroCancelled by remember { mutableStateOf(false) }
     var skipOutroCountdown by remember { mutableIntStateOf(5) }
     var pipShowEndScreen by remember { mutableStateOf(false) }
+    var lastOutroMonitorPosition by remember { mutableStateOf(0L) }
 
     LaunchedEffect(playingInfoCache?.itemGuid) {
         showSkipOutroPrompt = false
         skipOutroCancelled = false
         skipOutroCountdown = 5
         pipShowEndScreen = false
+        lastOutroMonitorPosition = 0L
     }
 
     val totalDuration = remember(playerManager.playerState.itemGuid) {
@@ -248,29 +253,98 @@ fun PipPlayerWindow(
     val playConfig = playingInfoCache?.playConfig
     val skipEnding = playConfig?.skipEnding ?: 0
 
-    LaunchedEffect(currentPosition, playConfig, skipOutroCancelled, totalDuration) {
-        if (playingInfoCache?.isEpisode == true && skipEnding > 0 && totalDuration > 0) {
-            val skipPoint = totalDuration - skipEnding * 1000L
-            if (currentPosition >= skipPoint) {
+    val smartSegments by playerViewModel.smartSegments.collectAsState()
+    val smartSkipEnabled by playerViewModel.smartSkipEnabled.collectAsState()
+    val isSmartAnalysisGloballyEnabled = AppSettingsStore.smartAnalysisEnabled
+    val useSmartSkip = isSmartAnalysisGloballyEnabled && smartSkipEnabled && smartSegments != null
+
+    val smartIntroSegmentMillis: Pair<Long, Long>? = if (useSmartSkip) {
+        val intro = smartSegments?.intro
+        if (intro != null && intro.valid && intro.end > intro.start && intro.end > BigDecimal.ZERO) {
+            val startMs = intro.start.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            val endMs = intro.end.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            if (endMs > startMs) startMs to endMs else null
+        } else {
+            null
+        }
+    } else {
+        null
+    }
+
+    val resolvedIntroSegmentMillis: Pair<Long, Long>? = smartIntroSegmentMillis
+        ?: ((playConfig?.skipOpening ?: 0).coerceAtLeast(0) * 1000L)
+            .takeIf { it > 0 }
+            ?.let { 0L to it }
+
+    val smartCreditsSegmentMillis: Pair<Long, Long>? = if (useSmartSkip) {
+        val credits = smartSegments?.credits
+        if (credits != null && credits.valid && credits.end > credits.start && credits.end > BigDecimal.ZERO) {
+            var startMs = credits.start.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            var endMs = credits.end.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            if (totalDuration > 0) {
+                startMs = startMs.coerceIn(0L, totalDuration)
+                endMs = endMs.coerceIn(0L, totalDuration)
+            }
+            if (endMs > startMs) startMs to endMs else null
+        } else {
+            null
+        }
+    } else {
+        null
+    }
+
+    val resolvedCreditsSegmentMillis: Pair<Long, Long>? = smartCreditsSegmentMillis ?: run {
+        val skipEndingSec = (playConfig?.skipEnding ?: 0).coerceAtLeast(0)
+        if (skipEndingSec > 0 && totalDuration > 0) {
+            val startMs = (totalDuration - skipEndingSec * 1000L).coerceAtLeast(0L)
+            startMs to totalDuration
+        } else {
+            null
+        }
+    }
+
+    var introAutoSkipped by remember(playingInfoCache?.itemGuid) { mutableStateOf(false) }
+    LaunchedEffect(currentPosition, resolvedIntroSegmentMillis, playbackState, isLoading) {
+        val introSegment = resolvedIntroSegmentMillis ?: return@LaunchedEffect
+        if (playingInfoCache?.isEpisode != true) return@LaunchedEffect
+        if (introAutoSkipped) return@LaunchedEffect
+        if (playbackState != PlaybackState.PLAYING || isLoading) return@LaunchedEffect
+
+        val startMs = introSegment.first
+        val endMs = introSegment.second
+        if (currentPosition in startMs until endMs) {
+            introAutoSkipped = true
+            mediaPlayer.seekTo(endMs)
+        }
+    }
+
+    LaunchedEffect(currentPosition, resolvedCreditsSegmentMillis, skipOutroCancelled, totalDuration, playbackState, isLoading, nextEpisode) {
+        val creditsSegment = resolvedCreditsSegmentMillis ?: return@LaunchedEffect
+        if (playingInfoCache?.isEpisode != true) return@LaunchedEffect
+
+        val startMs = creditsSegment.first
+        val endMs = creditsSegment.second
+
+        if (currentPosition < startMs) {
+            if (showSkipOutroPrompt) showSkipOutroPrompt = false
+            if (pipShowEndScreen) pipShowEndScreen = false
+            if (skipOutroCancelled) skipOutroCancelled = false
+        } else if (currentPosition >= endMs) {
+            if (showSkipOutroPrompt) showSkipOutroPrompt = false
+        } else {
+            val crossedIntoOutro = lastOutroMonitorPosition < startMs && currentPosition >= startMs
+            if (crossedIntoOutro && playbackState == PlaybackState.PLAYING && !isLoading) {
                 if (!showSkipOutroPrompt && !pipShowEndScreen && !skipOutroCancelled) {
                     showSkipOutroPrompt = true
                     skipOutroCountdown = 5
                 }
-            } else {
-                if (showSkipOutroPrompt) {
-                    showSkipOutroPrompt = false
-                }
-                if (pipShowEndScreen) {
-                    pipShowEndScreen = false
-                }
-                if (skipOutroCancelled) {
-                    skipOutroCancelled = false
-                }
             }
         }
+
+        lastOutroMonitorPosition = currentPosition
     }
 
-    LaunchedEffect(showSkipOutroPrompt) {
+    LaunchedEffect(showSkipOutroPrompt, resolvedCreditsSegmentMillis, totalDuration, nextEpisode) {
         if (showSkipOutroPrompt) {
             while (skipOutroCountdown > 0) {
                 delay(1000)
@@ -278,7 +352,11 @@ fun PipPlayerWindow(
             }
             if (showSkipOutroPrompt && !skipOutroCancelled) {
                 showSkipOutroPrompt = false
-                if (nextEpisode != null) {
+                val creditsEndMs = resolvedCreditsSegmentMillis?.second ?: 0L
+                val canSeekPastCredits = creditsEndMs > 0L && (totalDuration <= 0L || creditsEndMs < totalDuration - 1000L)
+                if (canSeekPastCredits) {
+                    mediaPlayer.seekTo(creditsEndMs)
+                } else if (nextEpisode != null) {
                     playMediaByGuid(nextEpisode.guid)
                 } else {
                     pipShowEndScreen = true
@@ -650,18 +728,6 @@ fun PipPlayerWindow(
                 }
 
                 val totalDuration = LocalPlayerManager.current.playerState.duration
-                val introSegmentMillis = (playingInfoCache?.playConfig?.skipOpening ?: 0)
-                    .takeIf { it > 0 }
-                    ?.let { 0L to it * 1000L }
-                val creditsSegmentMillis = run {
-                    val skipEnding = (playingInfoCache?.playConfig?.skipEnding ?: 0).coerceAtLeast(0)
-                    if (skipEnding > 0 && totalDuration > 0) {
-                        val startMs = (totalDuration - skipEnding * 1000L).coerceAtLeast(0L)
-                        startMs to totalDuration
-                    } else {
-                        null
-                    }
-                }
                 VideoPlayerProgressBar(
                     player = mediaPlayer,
                     totalDuration = totalDuration,
@@ -698,8 +764,8 @@ fun PipPlayerWindow(
                         .padding(horizontal = 12.dp)
                         .pointerHoverIcon(PointerIcon.Hand)
                         .fillMaxWidth(),
-                    introSegmentMillis = introSegmentMillis,
-                    creditsSegmentMillis = creditsSegmentMillis
+                    introSegmentMillis = resolvedIntroSegmentMillis,
+                    creditsSegmentMillis = resolvedCreditsSegmentMillis
                 )
             }
 

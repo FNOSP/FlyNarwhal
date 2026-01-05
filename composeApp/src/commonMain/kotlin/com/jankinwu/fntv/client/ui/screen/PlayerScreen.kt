@@ -471,8 +471,8 @@ fun PlayerOverlay(
     val smartIntroSegmentMillis: Pair<Long, Long>? = if (useSmartSkip) {
         val intro = smartSegments?.intro
         if (intro != null && intro.valid && intro.end > intro.start && intro.end > BigDecimal.ZERO) {
-            val startMs = intro.start.multiply(BigDecimal(1000)).setScale(0, RoundingMode.DOWN).longValueExact()
-            val endMs = intro.end.multiply(BigDecimal(1000)).setScale(0, RoundingMode.DOWN).longValueExact()
+            val startMs = intro.start.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            val endMs = intro.end.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
             if (endMs > startMs) startMs to endMs else null
         } else {
             null
@@ -489,8 +489,8 @@ fun PlayerOverlay(
     val smartCreditsSegmentMillis: Pair<Long, Long>? = if (useSmartSkip) {
         val credits = smartSegments?.credits
         if (credits != null && credits.valid && credits.end > credits.start && credits.end > BigDecimal.ZERO) {
-            var startMs = credits.start.multiply(BigDecimal(1000)).setScale(0, RoundingMode.DOWN).longValueExact()
-            var endMs = credits.end.multiply(BigDecimal(1000)).setScale(0, RoundingMode.DOWN).longValueExact()
+            var startMs = credits.start.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            var endMs = credits.end.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
             if (totalDuration > 0) {
                 startMs = startMs.coerceIn(0L, totalDuration)
                 endMs = endMs.coerceIn(0L, totalDuration)

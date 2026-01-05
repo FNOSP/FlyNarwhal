@@ -182,7 +182,7 @@ fun VideoPlayerProgressBarImpl(
                         cap = StrokeCap.Round
                     )
 
-                    val introColor = Color(0xFFF59E0B).copy(alpha = 0.5f)
+                    val introColor = Color(0xFF22C55E).copy(alpha = 0.45f)
                     val creditsColor = Color(0xFF22C55E).copy(alpha = 0.45f)
 
                     fun drawSegment(range: Pair<Float, Float>, color: Color) {
