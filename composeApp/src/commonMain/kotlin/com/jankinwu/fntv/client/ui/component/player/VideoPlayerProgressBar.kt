@@ -48,8 +48,8 @@ fun VideoPlayerProgressBar(
     totalDuration: Long,
     onSeek: (Float) -> Unit,
     modifier: Modifier = Modifier,
-    skipOpening: Int = 0,
-    skipEnding: Int = 0
+    introSegmentMillis: Pair<Long, Long>? = null,
+    creditsSegmentMillis: Pair<Long, Long>? = null
 ) {
     // 获取当前播放位置
     val currentPosition by player.currentPositionMillis.collectAsState()
@@ -66,20 +66,22 @@ fun VideoPlayerProgressBar(
         }
     }
     
-    val skipOpeningRatio = remember(skipOpening, totalDuration) {
-        if (totalDuration > 0 && skipOpening > 0) {
-            (skipOpening * 1000f) / totalDuration
-        } else {
-            0f
-        }
+    val introRangeRatio = remember(introSegmentMillis, totalDuration) {
+        if (totalDuration <= 0L) return@remember null
+        val segment = introSegmentMillis ?: return@remember null
+        val start = segment.first.coerceAtLeast(0L)
+        val end = segment.second.coerceAtMost(totalDuration)
+        if (end <= start) return@remember null
+        (start.toFloat() / totalDuration) to (end.toFloat() / totalDuration)
     }
 
-    val skipEndingRatio = remember(skipEnding, totalDuration) {
-        if (totalDuration > 0 && skipEnding > 0) {
-            ((totalDuration - skipEnding * 1000f) / totalDuration).coerceIn(0f, 1f)
-        } else {
-            0f
-        }
+    val creditsRangeRatio = remember(creditsSegmentMillis, totalDuration) {
+        if (totalDuration <= 0L) return@remember null
+        val segment = creditsSegmentMillis ?: return@remember null
+        val start = segment.first.coerceAtLeast(0L).coerceAtMost(totalDuration)
+        val end = segment.second.coerceAtLeast(0L).coerceAtMost(totalDuration)
+        if (end <= start) return@remember null
+        (start.toFloat() / totalDuration) to (end.toFloat() / totalDuration)
     }
 
     // 其余部分保持不变，只是将 progress 参数替换为 displayPositionRatio
@@ -89,8 +91,8 @@ fun VideoPlayerProgressBar(
         totalDuration = totalDuration,
         onSeek = onSeek,
         modifier = modifier,
-        skipOpeningRatio = skipOpeningRatio,
-        skipEndingRatio = skipEndingRatio
+        introRangeRatio = introRangeRatio,
+        creditsRangeRatio = creditsRangeRatio
     )
 }
 
@@ -111,8 +113,8 @@ fun VideoPlayerProgressBarImpl(
     totalDuration: Long,
     onSeek: (Float) -> Unit,
     modifier: Modifier = Modifier,
-    skipOpeningRatio: Float = 0f,
-    skipEndingRatio: Float = 0f
+    introRangeRatio: Pair<Float, Float>? = null,
+    creditsRangeRatio: Pair<Float, Float>? = null
 ) {
     var isHovered by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
@@ -180,6 +182,25 @@ fun VideoPlayerProgressBarImpl(
                         cap = StrokeCap.Round
                     )
 
+                    val introColor = Color(0xFF22C55E).copy(alpha = 0.45f)
+                    val creditsColor = Color(0xFF22C55E).copy(alpha = 0.45f)
+
+                    fun drawSegment(range: Pair<Float, Float>, color: Color) {
+                        val startX = (range.first.coerceIn(0f, 1f) * size.width)
+                        val endX = (range.second.coerceIn(0f, 1f) * size.width)
+                        if (endX <= startX) return
+                        drawLine(
+                            color = color,
+                            start = Offset(startX, trackYCenter),
+                            end = Offset(endX, trackYCenter),
+                            strokeWidth = trackStrokeWidth,
+                            cap = StrokeCap.Butt
+                        )
+                    }
+
+                    introRangeRatio?.let { drawSegment(it, introColor) }
+                    creditsRangeRatio?.let { drawSegment(it, creditsColor) }
+
                     // 2. 浅灰色缓冲进度
                     val bufferedEndX = buffered.coerceIn(0f, 1f) * size.width
                     if (bufferedEndX > 0) {
@@ -204,11 +225,23 @@ fun VideoPlayerProgressBarImpl(
                         )
                     }
 
-                    // Draw markers for skip intro/outro
-                    val markerXList = listOfNotNull(
-                        if (skipOpeningRatio > 0f && skipOpeningRatio < 1f) skipOpeningRatio * size.width else null,
-                        if (skipEndingRatio > 0f && skipEndingRatio < 1f) skipEndingRatio * size.width else null
-                    )
+                    val markerXList = mutableListOf<Float>()
+                    introRangeRatio?.let { range ->
+                        val startX = range.first.coerceIn(0f, 1f) * size.width
+                        val endX = range.second.coerceIn(0f, 1f) * size.width
+                        if (endX > startX) {
+                            markerXList.add(startX)
+                            markerXList.add(endX)
+                        }
+                    }
+                    creditsRangeRatio?.let { range ->
+                        val startX = range.first.coerceIn(0f, 1f) * size.width
+                        val endX = range.second.coerceIn(0f, 1f) * size.width
+                        if (endX > startX) {
+                            markerXList.add(startX)
+                            markerXList.add(endX)
+                        }
+                    }
 
                     markerXList.forEach { x ->
                         if (showDetails) {

@@ -82,4 +82,8 @@ object PlayingSettingsStore {
         val height = settings.getFloatOrNull(scopedKey("last_player_screen_height")) ?: return null
         return PlayerScreenSize(width, height)
     }
+
+    var smartSkipEnabled: Boolean
+        get() = settings.getBoolean(scopedKey("smart_skip_enabled"), true)
+        set(value) = settings.set(scopedKey("smart_skip_enabled"), value)
 }

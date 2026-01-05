@@ -79,4 +79,6 @@ val viewModelModule = module {
     viewModelOf (::MediaPViewModel)
     viewModelOf (::NasAuthViewModel)
     singleOf (::PlayerViewModel)
+    viewModelOf (::SmartAnalysisViewModel)
+    viewModelOf (::SmartAnalysisStatusViewModel)
 }

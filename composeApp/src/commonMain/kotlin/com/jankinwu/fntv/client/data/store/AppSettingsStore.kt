@@ -99,6 +99,14 @@ object AppSettingsStore {
         get() = settings.getBoolean(scopedKey("kcef_initialized"), false)
         set(value) = settings.set(scopedKey("kcef_initialized"), value)
 
+    var smartAnalysisEnabled: Boolean
+        get() = settings.getBoolean(scopedKey("smart_analysis_enabled"), false)
+        set(value) = settings.set(scopedKey("smart_analysis_enabled"), value)
+
+    var smartAnalysisBaseUrl: String
+        get() = settings.getString(scopedKey("smart_analysis_base_url"), "")
+        set(value) = settings.set(scopedKey("smart_analysis_base_url"), value)
+
     var kcefInitializedVersion: String
         get() = settings.getString(scopedKey("kcef_initialized_version"), "")
         set(value) = settings.set(scopedKey("kcef_initialized_version"), value)

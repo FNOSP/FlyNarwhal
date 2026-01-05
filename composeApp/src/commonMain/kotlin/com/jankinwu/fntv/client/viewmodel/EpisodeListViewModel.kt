@@ -24,6 +24,17 @@ class EpisodeListViewModel : BaseViewModel() {
         }
     }
 
+    suspend fun loadDataAndWait(guid: String): List<EpisodeListResponse> {
+        executeWithLoading(_uiState, operationId = guid) {
+            fnOfficialApi.episodeList(guid)
+        }
+        return when (val state = _uiState.value) {
+            is UiState.Success -> state.data
+            is UiState.Error -> throw (state.exception ?: Exception(state.message))
+            else -> throw Exception("Unexpected episode list state")
+        }
+    }
+
     fun refresh(guid: String) {
         loadData(guid)
     }

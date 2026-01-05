@@ -79,6 +79,8 @@ import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.jankinwu.fntv.client.Platform
 import com.jankinwu.fntv.client.currentPlatform
+import java.math.BigDecimal
+import java.math.RoundingMode
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
@@ -197,15 +199,16 @@ import kotlin.math.roundToInt
 private val logger = Logger.withTag("PlayerScreen")
 
 data class PlayerState(
+    val isEpisode: Boolean = false,
     val isVisible: Boolean = false,
     val isUiVisible: Boolean = true,
     val isLoading: Boolean = false,
     var itemGuid: String = "",
     val mediaTitle: String = "",
     val subhead: String = "",
-    var duration: Long = 0L,
-    val isEpisode: Boolean = false
+    var duration: Long = 0L
 )
+
 
 class PlayerManager {
     val toastManager: ToastManager = ToastManager()
@@ -438,6 +441,15 @@ fun PlayerOverlay(
 
     var isSeeking by remember { mutableStateOf(false) }
 
+    // Skip Intro Undo State
+    var showSkipIntroUndoPrompt by remember { mutableStateOf(false) }
+    var skipIntroUndoCountdown by remember { mutableIntStateOf(5) }
+    var lastAutoSkippedIntroSegmentMillis by remember(playingInfoCache?.itemGuid) { mutableStateOf<Pair<Long, Long>?>(null) }
+    var pendingIntroSkipSegmentMillis by remember(playingInfoCache?.itemGuid) { mutableStateOf<Pair<Long, Long>?>(null) }
+    var introSkipSuppressedUntilMs by remember(playingInfoCache?.itemGuid) { mutableStateOf<Long?>(null) }
+    var lastIntroMonitorPosition by remember { mutableLongStateOf(0L) }
+    var introMonitorInitialized by remember(playingInfoCache?.itemGuid) { mutableStateOf(false) }
+
     // Skip Outro State
     var showSkipOutroPrompt by remember { mutableStateOf(false) }
     var skipOutroCancelled by remember { mutableStateOf(false) }
@@ -446,6 +458,14 @@ fun PlayerOverlay(
     var lastOutroMonitorPosition by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(playingInfoCache?.itemGuid) {
+        showSkipIntroUndoPrompt = false
+        skipIntroUndoCountdown = 5
+        lastAutoSkippedIntroSegmentMillis = null
+        pendingIntroSkipSegmentMillis = null
+        introSkipSuppressedUntilMs = null
+        lastIntroMonitorPosition = 0L
+        introMonitorInitialized = false
+
         showSkipOutroPrompt = false
         skipOutroCancelled = false
         skipOutroCountdown = 5
@@ -457,50 +477,165 @@ fun PlayerOverlay(
         playerManager.playerState.duration
     }
     val playConfig = playingInfoCache?.playConfig
-    val skipEnding = playConfig?.skipEnding ?: 0
 
-    // Intro Skip
-//    LaunchedEffect(playingInfoCache?.itemGuid, playConfig) {
-//        val skipOpening = playConfig?.skipOpening ?: 0
-//        if (skipOpening > 0) {
-//            delay(500)
-//            val currentPos = mediaPlayer.currentPositionMillis.value
-//            if (currentPos < skipOpening * 1000) {
-//                mediaPlayer.seekTo(skipOpening * 1000L)
-//                toastManager.showToast("已为您自动跳过片头", ToastType.Info)
-//            }
-//        }
-//    }
+    // Smart Analysis Skip Logic
+    val smartSegments by playerViewModel.smartSegments.collectAsState()
+    val smartSkipEnabled by playerViewModel.smartSkipEnabled.collectAsState()
+    val isSmartAnalysisGloballyEnabled = AppSettingsStore.smartAnalysisEnabled
+
+    val useSmartSkip = isSmartAnalysisGloballyEnabled && smartSkipEnabled && smartSegments != null
+
+    val smartIntroSegmentMillis: Pair<Long, Long>? = if (useSmartSkip) {
+        val intro = smartSegments?.intro
+        if (intro != null && intro.valid && intro.end > intro.start && intro.end > BigDecimal.ZERO) {
+            val startMs = intro.start.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            val endMs = intro.end.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            if (endMs > startMs) startMs to endMs else null
+        } else {
+            null
+        }
+    } else {
+        null
+    }
+
+    val resolvedIntroSegmentMillis: Pair<Long, Long>? = smartIntroSegmentMillis
+        ?: ((playConfig?.skipOpening ?: 0).coerceAtLeast(0) * 1000L)
+            .takeIf { it > 0 }
+            ?.let { 0L to it }
+
+    val smartCreditsSegmentMillis: Pair<Long, Long>? = if (useSmartSkip) {
+        val credits = smartSegments?.credits
+        if (credits != null && credits.valid && credits.end > credits.start && credits.end > BigDecimal.ZERO) {
+            var startMs = credits.start.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            var endMs = credits.end.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+            if (totalDuration > 0) {
+                startMs = startMs.coerceIn(0L, totalDuration)
+                endMs = endMs.coerceIn(0L, totalDuration)
+            }
+            if (endMs > startMs) startMs to endMs else null
+        } else {
+            null
+        }
+    } else {
+        null
+    }
+
+    val resolvedCreditsSegmentMillis: Pair<Long, Long>? = smartCreditsSegmentMillis ?: run {
+        val skipEndingSec = (playConfig?.skipEnding ?: 0).coerceAtLeast(0)
+        if (skipEndingSec > 0 && totalDuration > 0) {
+            val startMs = (totalDuration - skipEndingSec * 1000L).coerceAtLeast(0L)
+            startMs to totalDuration
+        } else {
+            null
+        }
+    }
+
+    // Intro Skip Monitor (trigger only on natural crossing into intro start)
+    LaunchedEffect(currentPosition, resolvedIntroSegmentMillis, playState, isSeeking) {
+        val introSegment = resolvedIntroSegmentMillis
+        if (introSegment == null) {
+            lastIntroMonitorPosition = currentPosition
+            introMonitorInitialized = false
+            return@LaunchedEffect
+        }
+
+        val startMs = introSegment.first
+        val endMs = introSegment.second
+
+        val suppressedUntil = introSkipSuppressedUntilMs
+        if (suppressedUntil != null && currentPosition >= suppressedUntil) {
+            introSkipSuppressedUntilMs = null
+        }
+
+        if (!introMonitorInitialized) {
+            introMonitorInitialized = true
+            lastIntroMonitorPosition = currentPosition
+            if (introSkipSuppressedUntilMs == null &&
+                playState == PlaybackState.PLAYING &&
+                !isSeeking &&
+                currentPosition in startMs until endMs
+            ) {
+                pendingIntroSkipSegmentMillis = introSegment
+                mediaPlayer.seekTo(endMs)
+            }
+            return@LaunchedEffect
+        }
+
+        val delta = currentPosition - lastIntroMonitorPosition
+        val jumped = delta < 0L
+
+        val crossedIntoIntroStart = if (startMs == 0L) {
+            lastIntroMonitorPosition == 0L && currentPosition > 0L
+        } else {
+            lastIntroMonitorPosition < startMs && currentPosition >= startMs
+        }
+
+        if (!jumped &&
+            introSkipSuppressedUntilMs == null &&
+            crossedIntoIntroStart &&
+            playState == PlaybackState.PLAYING &&
+            !isSeeking &&
+            currentPosition < endMs
+        ) {
+            pendingIntroSkipSegmentMillis = introSegment
+            mediaPlayer.seekTo(endMs)
+        }
+
+        lastIntroMonitorPosition = currentPosition
+    }
+
+    LaunchedEffect(currentPosition, pendingIntroSkipSegmentMillis, playState) {
+        val pending = pendingIntroSkipSegmentMillis ?: return@LaunchedEffect
+        if (playState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val endMs = pending.second
+        val thresholdMs = (endMs - 200L).coerceAtLeast(0L)
+        if (currentPosition >= thresholdMs) {
+            pendingIntroSkipSegmentMillis = null
+            lastAutoSkippedIntroSegmentMillis = pending
+            showSkipIntroUndoPrompt = true
+            skipIntroUndoCountdown = 5
+        }
+    }
+
+    LaunchedEffect(showSkipIntroUndoPrompt, lastAutoSkippedIntroSegmentMillis) {
+        if (showSkipIntroUndoPrompt) {
+            while (skipIntroUndoCountdown > 0) {
+                delay(1000)
+                skipIntroUndoCountdown--
+            }
+            showSkipIntroUndoPrompt = false
+        }
+    }
 
     // Outro Skip Monitor
-    LaunchedEffect(currentPosition, playConfig, skipOutroCancelled, totalDuration, playState, isSeeking, nextEpisode) {
-        if (skipEnding > 0 && totalDuration > 0) {
-            val skipPoint = totalDuration - skipEnding * 1000L
-            val crossedIntoOutro = skipPoint in (lastOutroMonitorPosition + 1)..currentPosition
+    LaunchedEffect(currentPosition, resolvedCreditsSegmentMillis, skipOutroCancelled, totalDuration, playState, isSeeking, nextEpisode) {
+        val creditsSegment = resolvedCreditsSegmentMillis ?: return@LaunchedEffect
 
-            if (currentPosition < skipPoint) {
-                if (showSkipOutroPrompt) {
-                    showSkipOutroPrompt = false
-                }
-                if (showEndScreen) {
-                    showEndScreen = false
-                }
-                if (skipOutroCancelled) {
-                    skipOutroCancelled = false
-                }
-            } else if (crossedIntoOutro && playState == PlaybackState.PLAYING && !isSeeking) {
+        val startMs = creditsSegment.first
+        val endMs = creditsSegment.second
+
+        if (currentPosition < startMs) {
+            if (showSkipOutroPrompt) showSkipOutroPrompt = false
+            if (showEndScreen) showEndScreen = false
+            if (skipOutroCancelled) skipOutroCancelled = false
+        } else if (currentPosition >= endMs) {
+            if (showSkipOutroPrompt) showSkipOutroPrompt = false
+        } else {
+            val crossedIntoOutro = lastOutroMonitorPosition < startMs && currentPosition >= startMs
+            if (crossedIntoOutro && playState == PlaybackState.PLAYING && !isSeeking) {
                 if (!showSkipOutroPrompt && !showEndScreen && !skipOutroCancelled) {
                     showSkipOutroPrompt = true
                     skipOutroCountdown = 5
                 }
             }
-
-            lastOutroMonitorPosition = currentPosition
         }
+
+        lastOutroMonitorPosition = currentPosition
     }
 
     // Countdown
-    LaunchedEffect(showSkipOutroPrompt) {
+    LaunchedEffect(showSkipOutroPrompt, resolvedCreditsSegmentMillis, totalDuration, nextEpisode) {
         if (showSkipOutroPrompt) {
             while (skipOutroCountdown > 0) {
                 delay(1000)
@@ -508,7 +643,11 @@ fun PlayerOverlay(
             }
             if (showSkipOutroPrompt && !skipOutroCancelled) {
                 showSkipOutroPrompt = false
-                if (nextEpisode != null) {
+                val creditsEndMs = resolvedCreditsSegmentMillis?.second ?: 0L
+                val canSeekPastCredits = creditsEndMs > 0L && (totalDuration <= 0L || creditsEndMs < totalDuration - 1000L)
+                if (canSeekPastCredits) {
+                    mediaPlayer.seekTo(creditsEndMs)
+                } else if (nextEpisode != null) {
                     playEpisode(nextEpisode.guid)
                 } else {
                     if (totalDuration > 0) {
@@ -1249,6 +1388,24 @@ fun PlayerOverlay(
                 }
             }
 
+            if (showSkipIntroUndoPrompt) {
+                SkipIntroPrompt(
+                    countdown = skipIntroUndoCountdown,
+                    onCancel = {
+                        val segment = lastAutoSkippedIntroSegmentMillis
+                        if (segment != null) {
+                            introSkipSuppressedUntilMs = segment.second
+                            pendingIntroSkipSegmentMillis = null
+                            mediaPlayer.seekTo(segment.first)
+                        }
+                        showSkipIntroUndoPrompt = false
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = 120.dp, start = 32.dp)
+                )
+            }
+
             if (showSkipOutroPrompt) {
                 SkipOutroPrompt(
                     countdown = skipOutroCountdown,
@@ -1269,12 +1426,16 @@ fun PlayerOverlay(
                     onBack = onBack,
                     onReplay = {
                         showEndScreen = false
-                        val skipOpening = playingInfoCache?.playConfig?.skipOpening ?: 0
-                        if (skipOpening > 0) {
-                            mediaPlayer.seekTo(skipOpening * 1000L)
-                            toastManager.showToast("已为您自动跳过片头", ToastType.Info)
-                        } else {
+                        if (useSmartSkip) {
                             mediaPlayer.seekTo(0)
+                        } else {
+                            val skipOpening = playingInfoCache?.playConfig?.skipOpening ?: 0
+                            if (skipOpening > 0) {
+                                mediaPlayer.seekTo(skipOpening * 1000L)
+                                toastManager.showToast("已为您自动跳过片头", ToastType.Info)
+                            } else {
+                                mediaPlayer.seekTo(0)
+                            }
                         }
                         mediaPlayer.resume()
                     }
@@ -1321,6 +1482,8 @@ fun PlayerOverlay(
                     videoProgress = videoProgress,
                     totalDuration = totalDuration,
                     playingInfoCache = playingInfoCache,
+                    introSegmentMillis = resolvedIntroSegmentMillis,
+                    creditsSegmentMillis = resolvedCreditsSegmentMillis,
                     isoTagData = isoTagData,
                     lastVolume = lastVolume,
                     onProgressBarHoverChanged = { isProgressBarHovered = it },
@@ -1493,7 +1656,10 @@ fun PlayerOverlay(
                     isNextEpisodeHovered = isNextEpisodeHovered,
                     onNextEpisodeHoverChanged = { isNextEpisodeHovered = it },
                     playRecordViewModel = playRecordViewModel,
-                    onSkipConfigChanged = { o, e -> playerViewModel.updateSkipConfig(o, e) }
+                    onSkipConfigChanged = { o, e -> playerViewModel.updateSkipConfig(o, e) },
+                    smartSkipEnabled = smartSkipEnabled,
+                    onSmartSkipEnabledChanged = playerViewModel::onSmartSkipEnabledChanged,
+                    isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
                 )
             }
 
@@ -1581,6 +1747,42 @@ private fun SkipOutroPrompt(
             ) {
                 Text(
                     text = "${countdown}s 后将自动跳过片尾并播放下集",
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "取消跳过",
+                    color = Color(0xFF3B82F6),
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable {
+                        onCancel()
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SkipIntroPrompt(
+    countdown: Int,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+    ) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF2B2B2B).copy(alpha = 0.9f),
+            contentColor = Color.White
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "已跳过片头，${countdown}s 后自动关闭",
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.width(12.dp))
@@ -1736,7 +1938,10 @@ fun PlayerControlRow(
     isNextEpisodeHovered: Boolean = false,
     onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null,
     playRecordViewModel: PlayRecordViewModel,
-    onSkipConfigChanged: ((Int, Int) -> Unit)? = null
+    onSkipConfigChanged: ((Int, Int) -> Unit)? = null,
+    smartSkipEnabled: Boolean = true,
+    onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
+    isSmartAnalysisGloballyEnabled: Boolean = false
 ) {
     val currentPositionMillis by mediaPlayer.currentPositionMillis.collectAsState()
     val interactionSource = remember { MutableInteractionSource() }
@@ -1928,7 +2133,10 @@ fun PlayerControlRow(
                     )
                 },
                 modifier = Modifier.padding(start = 12.dp),
-                onHoverStateChanged = { onSettingsMenuHoverChanged?.invoke(it) }
+                onHoverStateChanged = { onSettingsMenuHoverChanged?.invoke(it) },
+                smartSkipEnabled = smartSkipEnabled,
+                onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
+                isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
             )
             val audioLevelController =
                 remember(mediaPlayer) { mediaPlayer.features[AudioLevelController] }
@@ -3054,6 +3262,8 @@ fun PlayerBottomBar(
     videoProgress: Float,
     totalDuration: Long,
     playingInfoCache: PlayingInfoCache?,
+    introSegmentMillis: Pair<Long, Long>? = null,
+    creditsSegmentMillis: Pair<Long, Long>? = null,
     isoTagData: IsoTagData,
     lastVolume: Float,
     onProgressBarHoverChanged: (Boolean) -> Unit,
@@ -3086,7 +3296,10 @@ fun PlayerBottomBar(
     isNextEpisodeHovered: Boolean = false,
     onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null,
     playRecordViewModel: PlayRecordViewModel,
-    onSkipConfigChanged: ((Int, Int) -> Unit)? = null
+    onSkipConfigChanged: ((Int, Int) -> Unit)? = null,
+    smartSkipEnabled: Boolean = true,
+    onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
+    isSmartAnalysisGloballyEnabled: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -3111,8 +3324,8 @@ fun PlayerBottomBar(
                 totalDuration = playerManager.playerState.duration,
                 onSeek = onSeek,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                skipOpening = playingInfoCache?.playConfig?.skipOpening ?: 0,
-                skipEnding = playingInfoCache?.playConfig?.skipEnding ?: 0
+                introSegmentMillis = introSegmentMillis,
+                creditsSegmentMillis = creditsSegmentMillis
             )
             // 播放器控制行
             PlayerControlRow(
@@ -3150,7 +3363,10 @@ fun PlayerBottomBar(
                 isNextEpisodeHovered = isNextEpisodeHovered,
                 onNextEpisodeHoverChanged = onNextEpisodeHoverChanged,
                 playRecordViewModel = playRecordViewModel,
-                onSkipConfigChanged = onSkipConfigChanged
+                onSkipConfigChanged = onSkipConfigChanged,
+                smartSkipEnabled = smartSkipEnabled,
+                onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
+                isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
             )
         }
     }

@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,21 +57,26 @@ import coil3.request.crossfade
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.HeartFilled
 import com.jankinwu.fntv.client.ui.component.common.dialog.VersionManagementDialog
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.screen.MovieDetailScreen
-import com.jankinwu.fntv.client.ui.screen.TvSeasonDetailScreen
 import com.jankinwu.fntv.client.ui.screen.TvDetailScreen
+import com.jankinwu.fntv.client.ui.screen.TvSeasonDetailScreen
 import com.jankinwu.fntv.client.ui.screen.rememberPlayMediaFunction
+import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
+import com.jankinwu.fntv.client.viewmodel.UiState
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import io.github.composefluent.icons.regular.MoreHorizontal
 import io.github.composefluent.icons.regular.PlayCircle
+import org.koin.compose.viewmodel.koinViewModel
 
 /**
  * 电影海报组件
@@ -101,9 +108,29 @@ fun MoviePoster(
     posterHeight: Int = 0,
     status: String? = "",
     navigator: ComponentNavigator,
-    type: String?
+    type: String?,
+    seasonNumber: Int? = null,
+    mediaTitle: String? = null,
 ) {
     val store = LocalStore.current
+    val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel()
+    val smartAnalysisEnabled = AppSettingsStore.smartAnalysisEnabled
+    val analyzeState by smartAnalysisViewModel.analyzeState.collectAsState()
+    val toastManager = LocalToastManager.current
+
+    LaunchedEffect(analyzeState) {
+        when(val state = analyzeState) {
+            is UiState.Success -> {
+                toastManager.showToast(state.data, ToastType.Success)
+                smartAnalysisViewModel.clearState()
+            }
+            is UiState.Error -> {
+                toastManager.showToast(state.message, ToastType.Failed)
+                smartAnalysisViewModel.clearState()
+            }
+            else -> {}
+        }
+    }
 
     val scaleFactor = store.scaleFactor
     var isPosterHovered by remember { mutableStateOf(false) }
@@ -405,7 +432,27 @@ fun MoviePoster(
                     .padding((8 * scaleFactor).dp)
                     .align(Alignment.BottomEnd)
             ) {
-                MediaMoreFlyout(onManageVersionsClick = { isManageVersionsDialogVisible = true }){ onClick ->
+                MediaMoreFlyout(
+                    onManageVersionsClick = { isManageVersionsDialogVisible = true },
+                    onSmartAnalysisClick = if (smartAnalysisEnabled && (type == FnTvMediaType.SEASON.value || type == FnTvMediaType.TV.value)) {
+                        {
+                            when (type) {
+                                FnTvMediaType.SEASON.value -> {
+                                    val number = seasonNumber ?: 0
+                                    val tvTitle = mediaTitle?.takeIf { it.isNotBlank() } ?: title
+                                    smartAnalysisViewModel.analyzeSeason(guid, tvTitle, number)
+                                }
+
+                                FnTvMediaType.TV.value -> {
+                                    val tvTitle = mediaTitle?.takeIf { it.isNotBlank() } ?: title
+                                    smartAnalysisViewModel.analyzeTv(guid, tvTitle)
+                                }
+
+                                else -> Unit
+                            }
+                        }
+                    } else null
+                ){ onClick ->
                     BottomIconButton(
                         icon = Icons.Regular.MoreHorizontal,
                         contentDescription = "more",
