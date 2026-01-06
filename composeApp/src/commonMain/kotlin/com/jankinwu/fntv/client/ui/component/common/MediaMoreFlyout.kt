@@ -14,6 +14,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.VersionManagement
 import com.jankinwu.fntv.client.icons.VideoSmartAnalysis
 import com.jankinwu.fntv.client.ui.providable.LocalStore
@@ -26,7 +27,8 @@ import io.github.composefluent.component.MenuFlyoutItem
 fun MediaMoreFlyout(
     onManageVersionsClick: (() -> Unit)? = null,
     onSmartAnalysisClick: (() -> Unit)? = null,
-    content: @Composable (onClick: () -> Unit) -> Unit,
+    type: String? = null,
+    content: @Composable (onClick: () -> Unit) -> Unit
 ) {
     val store = LocalStore.current
     val scaleFactor = store.scaleFactor
@@ -57,29 +59,31 @@ fun MediaMoreFlyout(
                     modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
                 )
             }
-            MenuFlyoutItem(
-                text = {
-                    Text(
-                        "管理版本",
-                        fontSize = (12 * scaleFactor).sp,
-                        fontWeight = FontWeight.Bold,
-                        color = FluentTheme.colors.text.text.tertiary
-                    )
-                },
-                onClick = {
-                    isFlyoutVisible = false
-                    onManageVersionsClick?.invoke()
-                },
-                icon = {
-                    Icon(
-                        VersionManagement,
-                        contentDescription = "管理版本",
-                        tint = FluentTheme.colors.text.text.tertiary,
-                        modifier = Modifier.requiredSize((20 * scaleFactor).dp)
-                    )
-                },
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-            )
+            if (type == FnTvMediaType.MOVIE.value || type == FnTvMediaType.EPISODE.value) {
+                MenuFlyoutItem(
+                    text = {
+                        Text(
+                            "管理版本",
+                            fontSize = (12 * scaleFactor).sp,
+                            fontWeight = FontWeight.Bold,
+                            color = FluentTheme.colors.text.text.tertiary
+                        )
+                    },
+                    onClick = {
+                        isFlyoutVisible = false
+                        onManageVersionsClick?.invoke()
+                    },
+                    icon = {
+                        Icon(
+                            VersionManagement,
+                            contentDescription = "管理版本",
+                            tint = FluentTheme.colors.text.text.tertiary,
+                            modifier = Modifier.requiredSize((20 * scaleFactor).dp)
+                        )
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                )
+            }
 //            MenuFlyoutItem(
 //                text = {
 //                    Text(

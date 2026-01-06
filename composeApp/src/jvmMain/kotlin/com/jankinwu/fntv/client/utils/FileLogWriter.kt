@@ -93,6 +93,7 @@ class FileLogWriter(private val logDir: File) : LogWriter() {
         masked = masked.replace(Regex("(?i)(cookie\\s*[=:]\\s*)[^;\\s,)]+"), "$1******")
         // Mask subdomain for .5ddd.com URLs (special rule)
         masked = masked.replace(Regex("(https?://)[^./]+\\.5ddd\\.com"), "$1***.5ddd.com")
+        masked = masked.replace(Regex("(https?://)[^./]+\\.fnos\\.net"), "$1***.fnos.net")
         // Mask domain or IP in other URLs
         masked = masked.replace(Regex("(https?://)(?![^/\\s]+\\.5ddd\\.com)[^/\\s]+"), "$1***")
         // Mask user folder in file paths (Windows, macOS, Linux)

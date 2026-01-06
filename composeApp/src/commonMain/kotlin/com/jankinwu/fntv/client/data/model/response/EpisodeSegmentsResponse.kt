@@ -41,8 +41,10 @@ data class EpisodeSegment(
  */
 @Serializable
 enum class AnalysisStatus(val description: String) {
+    @JsonProperty("PREPARING")
+    PREPARING("准备中"),
     @JsonProperty("PENDING")
-    PENDING("未开始"),
+    PENDING("等待中"),
     @JsonProperty("IN_PROGRESS")
     IN_PROGRESS("正在分析中"),
     @JsonProperty("PARTIAL_SUCCESS")

@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Refresh
@@ -79,8 +78,6 @@ import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.jankinwu.fntv.client.Platform
 import com.jankinwu.fntv.client.currentPlatform
-import java.math.BigDecimal
-import java.math.RoundingMode
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
@@ -123,6 +120,8 @@ import com.jankinwu.fntv.client.ui.component.player.FullScreenControl
 import com.jankinwu.fntv.client.ui.component.player.NextEpisodePreviewFlyout
 import com.jankinwu.fntv.client.ui.component.player.PlayerSettingsMenu
 import com.jankinwu.fntv.client.ui.component.player.QualityControlFlyout
+import com.jankinwu.fntv.client.ui.component.player.SkipIntroPrompt
+import com.jankinwu.fntv.client.ui.component.player.SkipOutroPrompt
 import com.jankinwu.fntv.client.ui.component.player.SpeedControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SubtitleControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SubtitleOverlay
@@ -153,6 +152,7 @@ import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayPlayViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayRecordViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayerViewModel
+import com.jankinwu.fntv.client.viewmodel.SmartAnalysisStatusViewModel
 import com.jankinwu.fntv.client.viewmodel.StreamViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleMarkViewModel
@@ -194,6 +194,8 @@ import org.openani.mediamp.features.VideoAspectRatio
 import org.openani.mediamp.source.MediaExtraFiles
 import org.openani.mediamp.source.UriMediaData
 import org.openani.mediamp.togglePause
+import java.math.BigDecimal
+import java.math.RoundingMode
 import kotlin.math.roundToInt
 
 private val logger = Logger.withTag("PlayerScreen")
@@ -330,6 +332,7 @@ fun PlayerOverlay(
     val tagViewModel: TagViewModel = koinViewModel()
     val playPlayViewModel: PlayPlayViewModel = koinViewModel()
     val episodeListViewModel: EpisodeListViewModel = koinViewModel()
+    val smartAnalysisStatusViewModel: SmartAnalysisStatusViewModel = koinViewModel()
     val episodeListState by episodeListViewModel.uiState.collectAsState()
     var episodeList by remember { mutableStateOf(emptyList<EpisodeListResponse>()) }
     var isAutoPlay by remember { mutableStateOf(PlayingSettingsStore.autoPlay) }
@@ -359,6 +362,11 @@ fun PlayerOverlay(
         if (isEpisode && !parentGuid.isNullOrBlank()) {
             episodeListViewModel.loadData(parentGuid)
         }
+    }
+
+    LaunchedEffect(isEpisode, playingInfoCache?.currentVideoStream?.mediaGuid) {
+        val episodeGuid = if (isEpisode) playingInfoCache?.currentVideoStream?.mediaGuid else null
+        smartAnalysisStatusViewModel.updateEpisodeGuid(episodeGuid?.takeIf { it.isNotBlank() })
     }
 
     LaunchedEffect(episodeListState) {
@@ -479,8 +487,8 @@ fun PlayerOverlay(
     val playConfig = playingInfoCache?.playConfig
 
     // Smart Analysis Skip Logic
-    val smartSegments by playerViewModel.smartSegments.collectAsState()
-    val smartSkipEnabled by playerViewModel.smartSkipEnabled.collectAsState()
+    val smartSegments by smartAnalysisStatusViewModel.smartSegments.collectAsState()
+    val smartSkipEnabled by smartAnalysisStatusViewModel.smartSkipEnabled.collectAsState()
     val isSmartAnalysisGloballyEnabled = AppSettingsStore.smartAnalysisEnabled
 
     val useSmartSkip = isSmartAnalysisGloballyEnabled && smartSkipEnabled && smartSegments != null
@@ -1402,7 +1410,7 @@ fun PlayerOverlay(
                     },
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(bottom = 120.dp, start = 32.dp)
+                        .padding(bottom = 120.dp, start = 12.dp)
                 )
             }
 
@@ -1415,7 +1423,7 @@ fun PlayerOverlay(
                     },
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(bottom = 120.dp, start = 32.dp)
+                        .padding(bottom = 120.dp, start = 12.dp)
                 )
             }
 
@@ -1658,7 +1666,7 @@ fun PlayerOverlay(
                     playRecordViewModel = playRecordViewModel,
                     onSkipConfigChanged = { o, e -> playerViewModel.updateSkipConfig(o, e) },
                     smartSkipEnabled = smartSkipEnabled,
-                    onSmartSkipEnabledChanged = playerViewModel::onSmartSkipEnabledChanged,
+                    onSmartSkipEnabledChanged = smartAnalysisStatusViewModel::onSmartSkipEnabledChanged,
                     isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
                 )
             }
@@ -1727,77 +1735,7 @@ fun buildEpisodeTitle(mediaTitle: String, subhead: String): AnnotatedString {
     return annotatedString
 }
 
-@Composable
-private fun SkipOutroPrompt(
-    countdown: Int,
-    onCancel: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-    ) {
-        androidx.compose.material3.Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = Color(0xFF2B2B2B).copy(alpha = 0.9f),
-            contentColor = Color.White
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${countdown}s 后将自动跳过片尾并播放下集",
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "取消跳过",
-                    color = Color(0xFF3B82F6),
-                    fontSize = 14.sp,
-                    modifier = Modifier.clickable {
-                        onCancel()
-                    }
-                )
-            }
-        }
-    }
-}
 
-@Composable
-private fun SkipIntroPrompt(
-    countdown: Int,
-    onCancel: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-    ) {
-        androidx.compose.material3.Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = Color(0xFF2B2B2B).copy(alpha = 0.9f),
-            contentColor = Color.White
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "已跳过片头，${countdown}s 后自动关闭",
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "取消跳过",
-                    color = Color(0xFF3B82F6),
-                    fontSize = 14.sp,
-                    modifier = Modifier.clickable {
-                        onCancel()
-                    }
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun EndScreen(

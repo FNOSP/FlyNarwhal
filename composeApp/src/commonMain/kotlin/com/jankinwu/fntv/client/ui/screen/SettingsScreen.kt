@@ -34,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -122,6 +123,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
 
     var smartAnalysisEnabled by remember { mutableStateOf(AppSettingsStore.smartAnalysisEnabled) }
     var smartAnalysisBaseUrl by remember { mutableStateOf(AppSettingsStore.smartAnalysisBaseUrl) }
+    var wasSmartAnalysisBaseUrlFocused by remember { mutableStateOf(false) }
 
     if (isExporting) {
         FluentDialog(
@@ -602,6 +604,9 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                             onCheckStateChange = {
                                 smartAnalysisEnabled = it
                                 AppSettingsStore.smartAnalysisEnabled = it
+                                if (it) {
+                                    LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
+                                }
                             }
                         )
                     }
@@ -623,7 +628,15 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                                     smartAnalysisBaseUrl = it
                                     AppSettingsStore.smartAnalysisBaseUrl = it
                                 },
-                                modifier = Modifier.width(200.dp),
+                                modifier = Modifier
+                                    .width(200.dp)
+                                    .onFocusChanged { focusState ->
+                                        val isFocused = focusState.isFocused
+                                        if (wasSmartAnalysisBaseUrlFocused && !isFocused) {
+                                            LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
+                                        }
+                                        wasSmartAnalysisBaseUrlFocused = isFocused
+                                    },
                                 singleLine = true,
                                 placeholder = {
                                     Text(

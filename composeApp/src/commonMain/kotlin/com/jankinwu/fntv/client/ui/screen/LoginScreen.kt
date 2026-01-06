@@ -215,6 +215,7 @@ fun LoginScreen(
                 val preferencesManager = PreferencesManager.getInstance()
                 preferencesManager.saveToken(state.data.token)
                 LoginStateManager.updateLoginStatus(true)
+                LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
                 loginViewModel.clearError()
                 val targetComponent = components
                     .firstOrNull { it.name == "首页" }

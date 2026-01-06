@@ -239,8 +239,8 @@ internal fun normalizeFnConnectUrl(value: String, isHttps: Boolean): String {
 
     val host = trimmed.substringBefore("/")
     val path = trimmed.removePrefix(host)
-    val normalizedHost = if (host.contains('.')) host else "$host.5ddd.com"
-    val protocolPrefix = if (normalizedHost.contains("5ddd.com")) {
+    val normalizedHost = if (host.contains('.')) host else "5ddd.com/$host"
+    val protocolPrefix = if (normalizedHost.contains("5ddd.com") || normalizedHost.contains("fnos.net")) {
         "https://"
     } else {
         if (isHttps) "https://" else "http://"

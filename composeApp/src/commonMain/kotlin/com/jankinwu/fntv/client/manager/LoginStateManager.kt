@@ -1,20 +1,42 @@
 package com.jankinwu.fntv.client.manager
 
+import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.components
+import com.jankinwu.fntv.client.data.model.request.SetFnBaseUrlRequest
+import com.jankinwu.fntv.client.data.network.impl.FlyNarwhalApiImpl
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.viewmodel.LoginViewModel
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
+import io.ktor.http.URLProtocol
+import io.ktor.http.Url
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /**
  * 登录状态管理单例类
  * 负责管理全局登录状态，并在状态改变时通知UI更新
  */
 object LoginStateManager {
+    private val logger = Logger.withTag("LoginStateManager")
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val flyNarwhalApi = FlyNarwhalApiImpl()
+
+    private var syncFnBaseUrlJob: Job? = null
+    private var lastSyncAttemptKey: String? = null
+    private var lastSyncAttemptAtMs: Long = 0
+    private var lastSyncSuccessKey: String? = null
+
     private val _isLoggedIn = MutableStateFlow(AccountDataCache.isLoggedIn)
     val isLoggedIn = _isLoggedIn.asStateFlow()
 
@@ -64,6 +86,51 @@ object LoginStateManager {
         return _isLoggedIn.value
     }
 
+    @OptIn(ExperimentalTime::class)
+    fun syncSmartAnalysisFnBaseUrlIfNeeded() {
+        if (!getLoginStatus()) return
+        if (!AppSettingsStore.smartAnalysisEnabled) return
+
+        val smartAnalysisServerBaseUrl = AppSettingsStore.smartAnalysisBaseUrl.trim()
+        if (smartAnalysisServerBaseUrl.isBlank()) return
+        if (!isValidHttpUrl(smartAnalysisServerBaseUrl)) return
+
+        val fnBaseUrl = AccountDataCache.getFnOfficialBaseUrl().trim()
+        if (fnBaseUrl.isBlank()) return
+
+        val requestKey = buildString {
+            append(smartAnalysisServerBaseUrl)
+            append("|")
+            append(fnBaseUrl)
+            append("|")
+            append(AccountDataCache.authorization)
+            append("|")
+            append(AccountDataCache.cookieState)
+        }
+
+        if (requestKey == lastSyncSuccessKey) return
+
+        val nowMs = Clock.System.now().toEpochMilliseconds()
+        if (requestKey == lastSyncAttemptKey && nowMs - lastSyncAttemptAtMs < 3_000) return
+        lastSyncAttemptKey = requestKey
+        lastSyncAttemptAtMs = nowMs
+
+        syncFnBaseUrlJob?.cancel()
+        syncFnBaseUrlJob = scope.launch {
+            runCatching {
+                val result = flyNarwhalApi.setFnBaseUrl(SetFnBaseUrlRequest(baseUrl = fnBaseUrl))
+                if (result.isSuccess()) {
+                    lastSyncSuccessKey = requestKey
+                    logger.i { "setFnBaseUrl success" }
+                } else {
+                    logger.w { "setFnBaseUrl failed: code=${result.code}, msg=${result.msg}" }
+                }
+            }.onFailure { e ->
+                logger.e(e) { "setFnBaseUrl error: ${e.message}" }
+            }
+        }
+    }
+
     fun handleLogin(
         host: String,
         port: Int,
@@ -98,8 +165,8 @@ object LoginStateManager {
             }
 
             // 如果使用 FN ID 或 FN 域名
-            val normalizedHost = if (host.contains('.')) host else "$host.5ddd.com"
-            if (normalizedHost.contains("5ddd.com")) {
+            val normalizedHost = if (host.contains('.')) host else "5ddd.com/$host"
+            if (normalizedHost.contains("5ddd.com")  || normalizedHost.contains("fnos.net")) {
                 if (onProbeRequired != null) {
                     onProbeRequired("https://$normalizedHost")
                     return
@@ -112,7 +179,7 @@ object LoginStateManager {
             }
             AccountDataCache.host = normalizedHost
         } else {
-            if (AccountDataCache.host.contains("ddd.com")) {
+            if (AccountDataCache.host.contains("5ddd.com") || AccountDataCache.host.contains("fnos.net")) {
                 AccountDataCache.isHttps = true
                 AccountDataCache.insertCookie("mode" to "relay")
                 AccountDataCache.port = 0
@@ -136,5 +203,14 @@ object LoginStateManager {
         preferencesManager.saveAllLoginInfo()
         // 执行登录逻辑
         loginViewModel.login(username, password)
+    }
+
+    private fun isValidHttpUrl(raw: String): Boolean {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return false
+        return runCatching {
+            val url = Url(trimmed)
+            (url.protocol == URLProtocol.HTTP || url.protocol == URLProtocol.HTTPS) && url.host.isNotBlank()
+        }.getOrDefault(false)
     }
 }

@@ -80,6 +80,7 @@ import com.jankinwu.fntv.client.utils.rememberSmoothVideoTime
 import com.jankinwu.fntv.client.viewmodel.EpisodeListViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayRecordViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayerViewModel
+import com.jankinwu.fntv.client.viewmodel.SmartAnalysisStatusViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.window.findSkiaLayer
 import flynarwhal.composeapp.generated.resources.Res
@@ -112,6 +113,7 @@ fun PipPlayerWindow(
     val playerManager = LocalPlayerManager.current
     val playerViewModel: PlayerViewModel = koinViewModel()
     val playRecordViewModel: PlayRecordViewModel = koinViewModel()
+    val smartAnalysisStatusViewModel: SmartAnalysisStatusViewModel = koinViewModel()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
     val subtitleSettings by playerViewModel.subtitleSettings.collectAsState()
     val savedData = remember { PlayingSettingsStore.getPipWindowData() }
@@ -269,8 +271,13 @@ fun PipPlayerWindow(
     val playConfig = playingInfoCache?.playConfig
     val skipEnding = playConfig?.skipEnding ?: 0
 
-    val smartSegments by playerViewModel.smartSegments.collectAsState()
-    val smartSkipEnabled by playerViewModel.smartSkipEnabled.collectAsState()
+    LaunchedEffect(playingInfoCache?.currentVideoStream?.mediaGuid, playingInfoCache?.isEpisode) {
+        val episodeGuid = if (playingInfoCache?.isEpisode == true) playingInfoCache?.currentVideoStream?.mediaGuid else null
+        smartAnalysisStatusViewModel.updateEpisodeGuid(episodeGuid?.takeIf { it.isNotBlank() })
+    }
+
+    val smartSegments by smartAnalysisStatusViewModel.smartSegments.collectAsState()
+    val smartSkipEnabled by smartAnalysisStatusViewModel.smartSkipEnabled.collectAsState()
     val isSmartAnalysisGloballyEnabled = AppSettingsStore.smartAnalysisEnabled
     val useSmartSkip = isSmartAnalysisGloballyEnabled && smartSkipEnabled && smartSegments != null
 

@@ -4,12 +4,17 @@ import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.request.AnalyzeRequest
 import com.jankinwu.fntv.client.data.model.request.QueuedEpisode
+import com.jankinwu.fntv.client.data.model.request.UpdateSeasonStatusRequest
+import com.jankinwu.fntv.client.data.model.response.AnalysisStatus
 import com.jankinwu.fntv.client.data.network.impl.FlyNarwhalApiImpl
 import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import org.koin.java.KoinJavaComponent.inject
 
@@ -22,6 +27,9 @@ class SmartAnalysisViewModel : BaseViewModel() {
 
     private val _analyzeState = MutableStateFlow<UiState<String>>(UiState.Initial)
     val analyzeState: StateFlow<UiState<String>> = _analyzeState.asStateFlow()
+
+    private val _seasonStatusPollingTrigger = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val seasonStatusPollingTrigger: SharedFlow<String> = _seasonStatusPollingTrigger.asSharedFlow()
 
     private val logger = Logger.withTag("SmartAnalysisViewModel")
 
@@ -81,7 +89,20 @@ class SmartAnalysisViewModel : BaseViewModel() {
         seasonGuid: String,
         tvTitle: String,
         seasonNumber: Int,
+        shouldUpdatePreparingStatus: Boolean = true,
     ) {
+        if (shouldUpdatePreparingStatus) {
+            val updateStatusResult = flyNarwhalApi.updateSeasonStatus(
+                UpdateSeasonStatusRequest(
+                    seasonGuids = listOf(seasonGuid),
+                    status = AnalysisStatus.PREPARING.name
+                )
+            )
+            if (!updateStatusResult.isSuccess()) {
+                throw Exception(updateStatusResult.msg)
+            }
+            _seasonStatusPollingTrigger.tryEmit(seasonGuid)
+        }
         val request = buildAnalyzeRequest(
             seasonGuid = seasonGuid,
             tvTitle = tvTitle,
@@ -98,8 +119,8 @@ class SmartAnalysisViewModel : BaseViewModel() {
         viewModelScope.launch {
             _analyzeState.value = UiState.Loading
             try {
+                _analyzeState.value = UiState.Success("已加入到分析队列")
                 startSeasonAnalysis(seasonGuid, mediaTitle, seasonNumber)
-                _analyzeState.value = UiState.Success("已开始分析")
             } catch (e: Exception) {
                 logger.e(e) { "Analysis failed" }
                 _analyzeState.value = UiState.Error(e.message ?: "Unknown error")
@@ -118,6 +139,17 @@ class SmartAnalysisViewModel : BaseViewModel() {
                     throw Exception("No seasons found to analyze")
                 }
 
+                val updateStatusResult = flyNarwhalApi.updateSeasonStatus(
+                    UpdateSeasonStatusRequest(
+                        seasonGuids = seasons.map { it.guid },
+                        status = AnalysisStatus.PREPARING.name
+                    )
+                )
+                if (!updateStatusResult.isSuccess()) {
+                    throw Exception(updateStatusResult.msg)
+                }
+                seasons.forEach { _seasonStatusPollingTrigger.tryEmit(it.guid) }
+
                 val normalizedTitle = tvTitle.ifBlank {
                     seasons.firstOrNull()?.parentTitle ?: seasons.firstOrNull()?.tvTitle ?: ""
                 }
@@ -129,7 +161,8 @@ class SmartAnalysisViewModel : BaseViewModel() {
                         startSeasonAnalysis(
                             seasonGuid = season.guid,
                             tvTitle = normalizedTitle,
-                            seasonNumber = season.seasonNumber
+                            seasonNumber = season.seasonNumber,
+                            shouldUpdatePreparingStatus = false
                         )
                     } catch (e: Exception) {
                         logger.e(e) { "Failed to start analysis for season ${season.guid}" }
@@ -141,7 +174,7 @@ class SmartAnalysisViewModel : BaseViewModel() {
                     val failedText = failedSeasonNumbers.sorted().joinToString(", ") { "S$it" }
                     _analyzeState.value = UiState.Error("部分季请求片头片尾分析失败：$failedText")
                 } else {
-                    _analyzeState.value = UiState.Success("已启动 ${seasons.size} 季智能检测")
+                    _analyzeState.value = UiState.Success("已将 ${seasons.size} 季剧集加入分析队列")
                 }
             } catch (e: Exception) {
                 logger.e(e) { "TV analysis failed" }

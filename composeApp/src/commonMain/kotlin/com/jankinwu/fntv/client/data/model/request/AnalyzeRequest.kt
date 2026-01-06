@@ -36,3 +36,13 @@ data class QueuedEpisode(
     @param:JsonProperty("season_number")
     val seasonNumber: Int
 )
+
+/**
+ * Request model for updating analysis status for multiple seasons.
+ */
+data class UpdateSeasonStatusRequest(
+    @param:JsonProperty("seasonGuids")
+    val seasonGuids: List<String>,
+    @param:JsonProperty("status")
+    val status: String
+)

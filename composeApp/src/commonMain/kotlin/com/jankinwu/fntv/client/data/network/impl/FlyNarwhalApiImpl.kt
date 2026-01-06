@@ -6,14 +6,18 @@ import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.jankinwu.fntv.client.data.model.request.AnalyzeRequest
+import com.jankinwu.fntv.client.data.model.request.SetFnBaseUrlRequest
+import com.jankinwu.fntv.client.data.model.request.UpdateSeasonStatusRequest
 import com.jankinwu.fntv.client.data.model.response.AnalysisStatus
 import com.jankinwu.fntv.client.data.model.response.EpisodeSegmentsResponse
 import com.jankinwu.fntv.client.data.model.response.SmartAnalysisResult
 import com.jankinwu.fntv.client.data.network.FlyNarwhalApi
+import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.serialization.jackson.jackson
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
@@ -40,6 +44,15 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             connectTimeoutMillis = 10000
             socketTimeoutMillis = 30000
         }
+        // 添加公共请求头
+        defaultRequest {
+            header(HttpHeaders.Authorization, AccountDataCache.authorization)
+            header(HttpHeaders.Accept, "application/json")
+            if (AccountDataCache.cookieState.isNotBlank()) {
+                header(HttpHeaders.Cookie, AccountDataCache.cookieState)
+            }
+            header(HttpHeaders.UserAgent, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36")
+        }
     }
 
     companion object {
@@ -54,12 +67,20 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         return post("/api/analysis/analyze", request)
     }
 
+    override suspend fun updateSeasonStatus(request: UpdateSeasonStatusRequest): SmartAnalysisResult<String> {
+        return post("/api/analysis/season/status", request)
+    }
+
     override suspend fun getStatus(type: String, guid: String): SmartAnalysisResult<AnalysisStatus> {
         return get("/api/analysis/status", mapOf("type" to type, "guid" to guid))
     }
 
     override suspend fun getSegments(episodeGuid: String): SmartAnalysisResult<EpisodeSegmentsResponse> {
         return get("/api/analysis/segments", mapOf("episodeGuid" to episodeGuid))
+    }
+
+    override suspend fun setFnBaseUrl(request: SetFnBaseUrlRequest): SmartAnalysisResult<String> {
+        return post("/api/config/fn-base-url", request)
     }
 
     private suspend inline fun <reified T> get(

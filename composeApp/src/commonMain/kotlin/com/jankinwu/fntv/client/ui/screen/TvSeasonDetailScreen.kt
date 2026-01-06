@@ -66,9 +66,8 @@ import com.jankinwu.fntv.client.ui.component.common.ImgLoadingError
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.component.common.MediaMoreFlyout
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
-import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.common.ToastType
-import com.jankinwu.fntv.client.ui.component.common.dialog.VersionManagementDialog
+import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.detail.DetailPlayButton
 import com.jankinwu.fntv.client.ui.component.detail.DetailTags
 import com.jankinwu.fntv.client.ui.component.detail.EpisodesScrollRow
@@ -88,8 +87,8 @@ import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemViewModel
 import com.jankinwu.fntv.client.viewmodel.PersonListViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
-import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
 import com.jankinwu.fntv.client.viewmodel.SmartAnalysisStatusViewModel
+import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
@@ -304,7 +303,7 @@ fun TvSeasonDetailScreen(
     }
     CompositionLocalProvider(
         LocalIsoTagData provides isoTagData,
-        LocalToastManager provides toastManager
+        LocalToastManager provides toastManager,
     ) {
         TvEpisodeBody(
             itemData = itemData,
@@ -356,6 +355,15 @@ fun TvEpisodeBody(
 
     val painter = rememberAsyncImagePainter(model = imageRequest)
     val painterState by painter.state.collectAsState()
+
+    LaunchedEffect(smartAnalysisEnabled, itemData?.type, guid) {
+        if (!smartAnalysisEnabled || itemData?.type != FnTvMediaType.SEASON.value) return@LaunchedEffect
+        smartAnalysisViewModel.seasonStatusPollingTrigger.collect { seasonGuid ->
+            if (seasonGuid == guid) {
+                smartAnalysisStatusViewModel.startPolling(type = "SEASON", guid = guid, force = true)
+            }
+        }
+    }
 
     LaunchedEffect(analyzeState) {
         when (val state = analyzeState) {
@@ -576,15 +584,15 @@ fun TvEpisodeBody(
                                             }
                                         )
                                         MediaMoreFlyout(
-                                            onManageVersionsClick = { isManageVersionsDialogVisible = true },
+//                                            onManageVersionsClick = { isManageVersionsDialogVisible = true },
                                             onSmartAnalysisClick = if (smartAnalysisEnabled) {
                                                 {
                                                     val tvTitle = itemData.tvTitle
                                                     val seasonNumber = playInfo?.item?.seasonNumber ?: 0
                                                     smartAnalysisViewModel.analyzeSeason(guid, tvTitle, seasonNumber)
-                                                    smartAnalysisStatusViewModel.startPolling(type = "SEASON", guid = guid)
                                                 }
-                                            } else null
+                                            } else null,
+                                            type = itemData.type
                                         ) { onClick ->
                                             CircleIconButton(
                                                 icon = Icons.Regular.MoreHorizontal,
@@ -662,14 +670,14 @@ fun TvEpisodeBody(
             )
         }
 
-        VersionManagementDialog(
-            visible = isManageVersionsDialogVisible,
-            guid = guid,
-            itemTitle = itemData?.title ?: "",
-            onDismiss = { isManageVersionsDialogVisible = false },
-            onDelete = { _, _ -> },
-            onUnmatchConfirmed = { _, _ -> },
-            onMatchToOther = { _, _ -> }
-        )
+//        VersionManagementDialog(
+//            visible = isManageVersionsDialogVisible,
+//            guid = guid,
+//            itemTitle = itemData?.title ?: "",
+//            onDismiss = { isManageVersionsDialogVisible = false },
+//            onDelete = { _, _ -> },
+//            onUnmatchConfirmed = { _, _ -> },
+//            onMatchToOther = { _, _ -> }
+//        )
     }
 }

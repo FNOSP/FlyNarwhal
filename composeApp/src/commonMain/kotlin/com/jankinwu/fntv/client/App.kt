@@ -38,6 +38,7 @@ import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.request.CachePolicy
 import coil3.request.crossfade
+import com.jankinwu.fntv.client.data.network.impl.ReportingService
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.enums.Category
@@ -56,6 +57,7 @@ import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.screen.HomePageScreen
 import com.jankinwu.fntv.client.ui.screen.MediaDbScreen
 import com.jankinwu.fntv.client.ui.screen.SettingsScreen
+import com.jankinwu.fntv.client.utils.LocalContext
 import com.jankinwu.fntv.client.viewmodel.MediaDbListViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UpdateViewModel
@@ -82,8 +84,6 @@ import okhttp3.Response
 import okio.FileSystem
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
-import com.jankinwu.fntv.client.data.network.impl.ReportingService
-import com.jankinwu.fntv.client.utils.LocalContext
 
 val components = mutableStateListOf<ComponentItem>()
 

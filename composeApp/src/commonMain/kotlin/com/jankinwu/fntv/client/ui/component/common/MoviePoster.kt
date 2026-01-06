@@ -451,7 +451,8 @@ fun MoviePoster(
                                 else -> Unit
                             }
                         }
-                    } else null
+                    } else null,
+                    type = type
                 ){ onClick ->
                     BottomIconButton(
                         icon = Icons.Regular.MoreHorizontal,

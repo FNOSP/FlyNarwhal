@@ -64,7 +64,7 @@ class NetworkMessageProcessor(
         logger.i("fnos cookie: $cookie")
         if (!cookie.isNullOrBlank()) {
             AccountDataCache.mergeCookieString(cookie)
-            if (baseUrl.contains("5ddd.com")) {
+            if (baseUrl.contains("5ddd.com") || baseUrl.contains("fnos.net")) {
                 // 使用 FN Connect 外网访问必加此 Cookie 不然访问不了
                 AccountDataCache.insertCookie("mode" to "relay")
             }
