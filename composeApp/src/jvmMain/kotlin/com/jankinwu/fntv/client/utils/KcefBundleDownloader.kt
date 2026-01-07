@@ -24,6 +24,11 @@ import javax.net.ssl.X509TrustManager
 object KcefBundleDownloader {
     @JvmStatic
     fun main(args: Array<String>) {
+        val osName = System.getProperty("os.name").orEmpty().lowercase()
+        if (!osName.contains("win")) {
+            println("Skipping KCEF download on os.name=$osName")
+            return
+        }
         val installDir = args.getOrNull(0)?.let(::File) ?: error("Missing installDir")
         val cacheDir = args.getOrNull(1)?.let(::File) ?: error("Missing cacheDir")
         val logDir = args.getOrNull(2)?.let(::File) ?: error("Missing logDir")

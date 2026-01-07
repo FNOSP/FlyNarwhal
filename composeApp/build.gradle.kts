@@ -86,6 +86,8 @@ val downloadKcefBundle by tasks.registering(JavaExec::class) {
     )
 
     outputs.dir(installDir)
+
+    enabled = osName.contains("win")
 }
 
 val prepareKcefResources by tasks.registering(Copy::class) {
@@ -94,6 +96,8 @@ val prepareKcefResources by tasks.registering(Copy::class) {
     val sourceDir = kcefPreparedDir.map { it.dir("kcef-bundle") }
     from(sourceDir)
     into(proxyResourcesDir.map { it.dir("kcef-bundle") })
+
+    enabled = osName.contains("win")
 }
 
 val prepareProxyResources by tasks.registering(Copy::class) {
