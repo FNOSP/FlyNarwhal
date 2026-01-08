@@ -21,7 +21,7 @@ import org.koin.java.KoinJavaComponent.inject
 class SmartAnalysisViewModel : BaseViewModel() {
 
     private val fnOfficialApi: FnOfficialApiImpl by inject(FnOfficialApiImpl::class.java)
-    private val flyNarwhalApi = FlyNarwhalApiImpl()
+    private val flyNarwhalApi: FlyNarwhalApiImpl by inject(FlyNarwhalApiImpl::class.java)
     private val seasonListViewModel: SeasonListViewModel by inject(SeasonListViewModel::class.java)
     private val episodeListViewModel: EpisodeListViewModel by inject(EpisodeListViewModel::class.java)
 

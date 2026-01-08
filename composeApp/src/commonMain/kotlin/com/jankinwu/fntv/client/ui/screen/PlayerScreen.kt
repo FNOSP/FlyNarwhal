@@ -160,6 +160,8 @@ import com.jankinwu.fntv.client.viewmodel.SubtitleUploadViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
+import com.jankinwu.fntv.client.viewmodel.DanmakuViewModel
+import com.jankinwu.fntv.client.ui.component.player.DanmakuOverlay
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
@@ -333,6 +335,7 @@ fun PlayerOverlay(
     val playPlayViewModel: PlayPlayViewModel = koinViewModel()
     val episodeListViewModel: EpisodeListViewModel = koinViewModel()
     val smartAnalysisStatusViewModel: SmartAnalysisStatusViewModel = koinViewModel()
+    val danmakuViewModel: DanmakuViewModel = koinViewModel()
     val episodeListState by episodeListViewModel.uiState.collectAsState()
     var episodeList by remember { mutableStateOf(emptyList<EpisodeListResponse>()) }
     var isAutoPlay by remember { mutableStateOf(PlayingSettingsStore.autoPlay) }
@@ -423,6 +426,7 @@ fun PlayerOverlay(
                         playerViewModel = playerViewModel,
                         playerManager = playerManager,
                         toastManager = toastManager,
+                        danmakuViewModel = danmakuViewModel,
                         mediaGuid = null,
                         currentAudioGuid = null,
                         currentSubtitleGuid = null,
@@ -1381,6 +1385,14 @@ fun PlayerOverlay(
                         })
             }
 
+            val danmakuList by danmakuViewModel.danmakuList.collectAsState()
+            val isDanmakuVisible by danmakuViewModel.isVisible.collectAsState()
+            DanmakuOverlay(
+                danmakuList = danmakuList,
+                currentTime = currentRenderTime,
+                isVisible = isDanmakuVisible
+            )
+
             if (subtitleCues.isNotEmpty()) {
                 BoxWithConstraints(
                     modifier = Modifier.fillMaxSize()
@@ -1667,7 +1679,9 @@ fun PlayerOverlay(
                     onSkipConfigChanged = { o, e -> playerViewModel.updateSkipConfig(o, e) },
                     smartSkipEnabled = smartSkipEnabled,
                     onSmartSkipEnabledChanged = smartAnalysisStatusViewModel::onSmartSkipEnabledChanged,
-                    isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
+                    isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled,
+                    isDanmakuVisible = isDanmakuVisible,
+                    onToggleDanmaku = danmakuViewModel::toggleVisibility
                 )
             }
 
@@ -1879,7 +1893,9 @@ fun PlayerControlRow(
     onSkipConfigChanged: ((Int, Int) -> Unit)? = null,
     smartSkipEnabled: Boolean = true,
     onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
-    isSmartAnalysisGloballyEnabled: Boolean = false
+    isSmartAnalysisGloballyEnabled: Boolean = false,
+    isDanmakuVisible: Boolean = true,
+    onToggleDanmaku: () -> Unit = {}
 ) {
     val currentPositionMillis by mediaPlayer.currentPositionMillis.collectAsState()
     val interactionSource = remember { MutableInteractionSource() }
@@ -2042,6 +2058,25 @@ fun PlayerControlRow(
                     modifier = Modifier
                 )
             }
+            // Danmaku Toggle
+            Box(
+                modifier = Modifier
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        onToggleDanmaku()
+                    }
+                    .padding(horizontal = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "弹",
+                    color = if (isDanmakuVisible) Color.White else Color.White.copy(alpha = 0.5f),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             SubtitleControlFlyout(
                 playingInfoCache = playingInfoCache,
                 isoTagData = isoTagData,
@@ -2180,6 +2215,7 @@ fun rememberPlayMediaFunction(
     val userInfoViewModel: UserInfoViewModel = koinViewModel()
     val playRecordViewModel: PlayRecordViewModel = koinViewModel()
     val playerViewModel: PlayerViewModel = koinViewModel()
+    val danmakuViewModel: DanmakuViewModel = koinViewModel()
     val mp4Parser: Mp4Parser = koinInject()
     val playerManager = LocalPlayerManager.current
     val toastManager = LocalToastManager.current
@@ -2211,6 +2247,7 @@ fun rememberPlayMediaFunction(
                         playerViewModel = playerViewModel,
                         playerManager = playerManager,
                         toastManager = toastManager,
+                        danmakuViewModel = danmakuViewModel,
                         mediaGuid = mediaGuid,
                         currentAudioGuid = currentAudioGuid,
                         currentSubtitleGuid = currentSubtitleGuid,
@@ -2237,6 +2274,7 @@ fun rememberPlayMediaByGuidFunction(
     val userInfoViewModel: UserInfoViewModel = koinViewModel()
     val playRecordViewModel: PlayRecordViewModel = koinViewModel()
     val playerViewModel: PlayerViewModel = koinViewModel()
+    val danmakuViewModel: DanmakuViewModel = koinViewModel()
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
     val mp4Parser: Mp4Parser = koinInject()
@@ -2279,6 +2317,7 @@ fun rememberPlayMediaByGuidFunction(
                         playerViewModel = playerViewModel,
                         playerManager = playerManager,
                         toastManager = toastManager,
+                        danmakuViewModel = danmakuViewModel,
                         mediaGuid = mediaGuid,
                         currentAudioGuid = currentAudioGuid,
                         currentSubtitleGuid = currentSubtitleGuid,
@@ -2303,12 +2342,14 @@ private suspend fun playMedia(
     playerViewModel: PlayerViewModel,
     playerManager: PlayerManager,
     toastManager: ToastManager,
+    danmakuViewModel: DanmakuViewModel,
     mediaGuid: String?,
     currentAudioGuid: String?,
     currentSubtitleGuid: String?,
     mp4Parser: Mp4Parser
 ) {
     try {
+        danmakuViewModel.clear()
         // 1. Fetch Basic Info (IO)
         val (playInfoResponse, userInfo, streamInfo) = withContext(Dispatchers.IO) {
             val p = playInfoViewModel.loadDataAndWait(guid, mediaGuid)
@@ -2316,6 +2357,18 @@ private suspend fun playMedia(
             val s = fetchStreamInfo(p, u, streamViewModel)
             Triple(p, u, s)
         }
+
+        // Load Danmaku
+        danmakuViewModel.loadDanmaku(
+            doubanId = playInfoResponse.item.doubanId ?: playInfoResponse.item.imdbId ?: "",
+            episodeNumber = playInfoResponse.item.episodeNumber,
+            episodeTitle = playInfoResponse.item.title ?: "",
+            title = if (playInfoResponse.type != FnTvMediaType.MOVIE.value) playInfoResponse.item.tvTitle else (playInfoResponse.item.title ?: ""),
+            seasonNumber = playInfoResponse.item.seasonNumber,
+            season = playInfoResponse.type != FnTvMediaType.MOVIE.value,
+            guid = playInfoResponse.item.guid,
+            parentGuid = playInfoResponse.item.parentGuid
+        )
 
         var startPosition: Long = playInfoResponse.ts.toLong() * 1000
         var isSkippedIntro = false
@@ -3237,7 +3290,9 @@ fun PlayerBottomBar(
     onSkipConfigChanged: ((Int, Int) -> Unit)? = null,
     smartSkipEnabled: Boolean = true,
     onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
-    isSmartAnalysisGloballyEnabled: Boolean = false
+    isSmartAnalysisGloballyEnabled: Boolean = false,
+    isDanmakuVisible: Boolean = true,
+    onToggleDanmaku: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -3304,7 +3359,9 @@ fun PlayerBottomBar(
                 onSkipConfigChanged = onSkipConfigChanged,
                 smartSkipEnabled = smartSkipEnabled,
                 onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
-                isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
+                isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled,
+                isDanmakuVisible = isDanmakuVisible,
+                onToggleDanmaku = onToggleDanmaku
             )
         }
     }

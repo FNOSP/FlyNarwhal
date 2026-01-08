@@ -42,6 +42,7 @@ import com.jankinwu.fntv.client.data.model.response.SysConfigResponse
 import com.jankinwu.fntv.client.data.model.response.TagListResponse
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 
+
 interface FnOfficialApi {
 
     suspend fun getSysConfig(): SysConfigResponse
@@ -87,6 +88,8 @@ interface FnOfficialApi {
     suspend fun login(request: LoginRequest): LoginResponse
 
     suspend fun logout(): Boolean
+
+
 
     suspend fun episodeList(guid: String): List<EpisodeListResponse>
 

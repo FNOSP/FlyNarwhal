@@ -16,11 +16,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.koin.java.KoinJavaComponent.inject
 
 class SmartAnalysisStatusViewModel : BaseViewModel() {
 
     private val logger = Logger.withTag("SmartAnalysisStatusViewModel")
-    private val flyNarwhalApi = FlyNarwhalApiImpl()
+    private val flyNarwhalApi: FlyNarwhalApiImpl by inject(FlyNarwhalApiImpl::class.java)
 
     private val _uiState = MutableStateFlow<UiState<SmartAnalysisResult<AnalysisStatus>>>(UiState.Initial)
     val uiState: StateFlow<UiState<SmartAnalysisResult<AnalysisStatus>>> = _uiState.asStateFlow()

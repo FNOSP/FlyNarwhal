@@ -81,4 +81,5 @@ val viewModelModule = module {
     singleOf (::PlayerViewModel)
     viewModelOf (::SmartAnalysisViewModel)
     viewModelOf (::SmartAnalysisStatusViewModel)
+    viewModelOf (::DanmakuViewModel)
 }

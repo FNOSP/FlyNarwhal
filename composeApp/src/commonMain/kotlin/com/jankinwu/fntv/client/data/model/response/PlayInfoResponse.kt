@@ -59,6 +59,9 @@ data class Item(
     @param:JsonProperty("guid")
     val guid: String,
 
+    @param:JsonProperty("douban_id")
+    val doubanId: String?,
+
     @param:JsonProperty("imdb_id")
     val imdbId: String?,
 

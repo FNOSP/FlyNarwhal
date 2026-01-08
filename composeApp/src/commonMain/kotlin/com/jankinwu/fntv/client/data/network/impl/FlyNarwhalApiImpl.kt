@@ -9,13 +9,16 @@ import com.jankinwu.fntv.client.data.model.request.AnalyzeRequest
 import com.jankinwu.fntv.client.data.model.request.SetFnBaseUrlRequest
 import com.jankinwu.fntv.client.data.model.request.UpdateSeasonStatusRequest
 import com.jankinwu.fntv.client.data.model.response.AnalysisStatus
+import com.jankinwu.fntv.client.data.model.response.Danmaku
 import com.jankinwu.fntv.client.data.model.response.EpisodeSegmentsResponse
 import com.jankinwu.fntv.client.data.model.response.SmartAnalysisResult
 import com.jankinwu.fntv.client.data.network.FlyNarwhalApi
+import com.jankinwu.fntv.client.data.network.fnOfficialClient
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.serialization.jackson.jackson
@@ -83,14 +86,48 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         return post("/api/config/fn-base-url", request)
     }
 
+    override suspend fun getDanmaku(
+        doubanId: String,
+        episodeNumber: Int,
+        episodeTitle: String,
+        title: String,
+        seasonNumber: Int,
+        season: Boolean,
+        guid: String,
+        parentGuid: String
+    ): Map<String, List<Danmaku>> {
+        val parameters = mapOf(
+            "douban_id" to doubanId,
+            "episode_number" to episodeNumber,
+            "episode_title" to episodeTitle,
+            "title" to title,
+            "season_number" to seasonNumber,
+            "season" to season,
+            "guid" to guid,
+            "parent_guid" to parentGuid
+        )
+        return try {
+            get("/danmu/get", parameters) {
+                timeout {
+                    requestTimeoutMillis = 240_000
+                    connectTimeoutMillis = 15_000
+                    socketTimeoutMillis = 240_000
+                }
+            }
+        } catch (e: Exception) {
+            logger.e(e) { "Failed to get danmaku" }
+            emptyMap()
+        }
+    }
+
     private suspend inline fun <reified T> get(
         url: String,
         parameters: Map<String, Any?>? = null,
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
-    ): SmartAnalysisResult<T> {
+    ): T {
         val baseUrl = AppSettingsStore.smartAnalysisBaseUrl
         if (baseUrl.isBlank()) {
-            throw IllegalArgumentException("智能分析服务URL未配置")
+            throw IllegalArgumentException("飞鲸影视服务端 URL 未配置")
         }
         val fullUrl = if (baseUrl.endsWith("/")) "$baseUrl${url.removePrefix("/")}" else "$baseUrl$url"
         logger.i { "GET request: $fullUrl, params: $parameters" }
@@ -106,7 +143,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             }
             val responseString = response.bodyAsText()
             logger.i { "GET request, url: $url, Response: $responseString" }
-            return mapper.readValue<SmartAnalysisResult<T>>(responseString)
+            return mapper.readValue<T>(responseString)
         } catch (e: Exception) {
             logger.e(e) { "GET request failed" }
             throw e
@@ -117,10 +154,10 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         url: String,
         body: Any? = emptyMap<String, Any>(),
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
-    ): SmartAnalysisResult<T> {
+    ): T {
         val baseUrl = AppSettingsStore.smartAnalysisBaseUrl
         if (baseUrl.isBlank()) {
-            throw IllegalArgumentException("智能分析服务URL未配置")
+            throw IllegalArgumentException("飞鲸影视服务端 URL 未配置")
         }
         val fullUrl = if (baseUrl.endsWith("/")) "$baseUrl${url.removePrefix("/")}" else "$baseUrl$url"
         logger.i { "POST request: $fullUrl, body: $body" }
@@ -135,7 +172,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             }
             val responseString = response.bodyAsText()
             logger.i { "Response: $responseString" }
-            return mapper.readValue<SmartAnalysisResult<T>>(responseString)
+            return mapper.readValue<T>(responseString)
         } catch (e: Exception) {
             logger.e(e) { "POST request failed" }
             throw e

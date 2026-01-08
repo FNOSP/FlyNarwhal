@@ -52,6 +52,7 @@ import com.jankinwu.fntv.client.data.model.response.TagListResponse
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.data.network.FnOfficialApi
 import com.jankinwu.fntv.client.data.network.fnOfficialClient
+import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genAuthx
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
@@ -67,19 +68,12 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.headers
-import korlibs.crypto.MD5
-import kotlin.random.Random
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 
-class FnOfficialApiImpl() : FnOfficialApi {
+class FnOfficialApiImpl : FnOfficialApi {
     private val logger = Logger.withTag("FnOfficialApiImpl")
 
     companion object {
-        private const val API_KEY = "NDzZTVxnRKP8Z0jXg1VAMonaG8akvh"
-        private const val API_SECRET = "16CCEB3D-AB42-077D-36A1-F355324E4237"
-
         val mapper = jacksonObjectMapper().apply {
             // 禁止格式化输出
             disable(SerializationFeature.INDENT_OUTPUT)
@@ -281,7 +275,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             if (AccountDataCache.getFnOfficialBaseUrl().isBlank()) {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
-            val authx = genAuthx(url, parameters)
+            val authx = FnApiHelper.genAuthx(url, parameters)
             logger.i { "GET request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters, cookie: ${AccountDataCache.cookieState}" }
             val response = fnOfficialClient.get("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header("Authx", authx)
@@ -323,7 +317,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
 
-            val authx = genAuthx(url, data = body)
+            val authx = FnApiHelper.genAuthx(url, data = body)
             logger.i { "POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body, cookie: ${AccountDataCache.cookieState}" }
             val response = fnOfficialClient.post("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
@@ -371,7 +365,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
 
-            val authx = genAuthx(url)
+            val authx = FnApiHelper.genAuthx(url)
             logger.i { "POST multipart file request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx" }
             val response = fnOfficialClient.submitFormWithBinaryData(
                 url = "${AccountDataCache.getFnOfficialBaseUrl()}$url",
@@ -494,54 +488,6 @@ class FnOfficialApiImpl() : FnOfficialApi {
         } catch (e: Exception) {
             throw Exception("请求失败: ${e.message}", e)
         }
-    }
-
-    @OptIn(ExperimentalTime::class)
-    private fun genAuthx(
-        url: String,
-        parameters: Map<String, Any?>? = null,
-        data: Any? = null
-    ): String {
-        val nonce = generateRandomDigits()
-        val timestamp = Clock.System.now().toEpochMilliseconds().toString()
-        val dataJsonMd5 = when {
-            data != null -> {
-                val dataJson = mapper.writeValueAsString(data)
-                getMd5(dataJson)
-            }
-
-            parameters != null -> {
-                // 对参数按键排序并编码
-                val sortedParams = parameters.filterValues { it != null }
-                    .toSortedMap()
-                    .map { "${it.key}=${it.value}" }
-                    .joinToString("&")
-                getMd5(sortedParams)
-            }
-
-            else -> getMd5("")
-        }
-
-        val signArray = arrayOf(
-            API_KEY,
-            url,
-            nonce,
-            timestamp,
-            dataJsonMd5,
-            API_SECRET
-        )
-
-        val signStr = signArray.joinToString("_")
-        val sign = getMd5(signStr)
-        return "nonce=$nonce&timestamp=$timestamp&sign=${sign}"
-    }
-
-    private fun generateRandomDigits(start: Int = 100000, end: Int = 1000000): String {
-        return Random.nextInt(start, end).toString()
-    }
-
-    private fun getMd5(input: String): String {
-        return MD5.digest(input.toByteArray(Charsets.UTF_8)).hex
     }
 }
 
