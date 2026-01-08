@@ -86,4 +86,24 @@ object PlayingSettingsStore {
     var smartSkipEnabled: Boolean
         get() = settings.getBoolean(scopedKey("smart_skip_enabled"), true)
         set(value) = settings.set(scopedKey("smart_skip_enabled"), value)
+
+    var danmakuArea: Float
+        get() = settings.getFloat(scopedKey("danmaku_area"), 1.0f)
+        set(value) = settings.set(scopedKey("danmaku_area"), value)
+
+    var danmakuOpacity: Float
+        get() = settings.getFloat(scopedKey("danmaku_opacity"), 1.0f)
+        set(value) = settings.set(scopedKey("danmaku_opacity"), value)
+
+    var danmakuFontSize: Float
+        get() = settings.getFloat(scopedKey("danmaku_font_size"), 1.0f)
+        set(value) = settings.set(scopedKey("danmaku_font_size"), value)
+
+    var danmakuSpeed: Float
+        get() = settings.getFloat(scopedKey("danmaku_speed"), 1.0f)
+        set(value) = settings.set(scopedKey("danmaku_speed"), value)
+
+    var danmakuSyncPlaybackSpeed: Boolean
+        get() = settings.getBoolean(scopedKey("danmaku_sync_playback_speed"), false)
+        set(value) = settings.set(scopedKey("danmaku_sync_playback_speed"), value)
 }

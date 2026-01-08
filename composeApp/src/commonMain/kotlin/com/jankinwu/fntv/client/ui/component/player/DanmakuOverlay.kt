@@ -4,7 +4,14 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -13,21 +20,30 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.data.model.response.Danmaku
+import kotlinx.coroutines.isActive
 import kotlin.math.max
-import kotlin.math.roundToLong
+
+private const val BASE_DURATION_AT_1X_MILLIS = 16_000L
+private const val FIXED_DURATION_MILLIS = 5_000L
+private const val MIN_PLAYBACK_SPEED_FOR_OVERLAP = 0.5f
 
 @Composable
 fun DanmakuOverlay(
     danmakuList: List<Danmaku>,
     currentTime: Long, // in millis
-    isVisible: Boolean
+    isVisible: Boolean,
+    area: Float = 1.0f,
+    opacity: Float = 1.0f,
+    fontSize: Float = 1.0f,
+    speed: Float = 1.0f,
+    syncPlaybackSpeed: Boolean = false,
+    resetNonce: Int = 0
 ) {
     if (!isVisible) return
 
@@ -36,73 +52,401 @@ fun DanmakuOverlay(
         val widthPx = with(density) { maxWidth.toPx() }
         val heightPx = with(density) { maxHeight.toPx() }
 
-        val durationMillis = 10_000L
-        val trackHeightPx = with(density) { 30.dp.toPx() }
+        val effectiveFontSize = fontSize.coerceIn(0.5f, 1.7f)
+        val trackHeightPx = with(density) { (30.dp * effectiveFontSize).toPx() }
         val paddingTopPx = with(density) { 10.dp.toPx() }
+        val paddingBottomPx = with(density) { 10.dp.toPx() }
         val gapPx = with(density) { 16.dp.toPx() }
-        val trackCount = max(1, ((heightPx - paddingTopPx) / trackHeightPx).toInt())
 
-        val baseTextStyle = remember {
-            TextStyle(
-                fontSize = 20.sp,
-                shadow = Shadow(
-                    color = Color.Black,
-                    offset = Offset(2f, 2f),
-                    blurRadius = 4f
-                )
+        val scrollRegionHeightPx = heightPx * area.coerceIn(0.1f, 1.0f)
+        val scrollTrackCount = max(1, ((scrollRegionHeightPx - paddingTopPx) / trackHeightPx).toInt())
+
+        val fixedRegionHeightPx = heightPx / 2f
+        val topTrackCount = max(1, ((fixedRegionHeightPx - paddingTopPx) / trackHeightPx).toInt())
+        val bottomTrackCount = max(1, ((fixedRegionHeightPx - paddingBottomPx) / trackHeightPx).toInt())
+
+        val shadow = remember {
+            Shadow(
+                color = Color.Black,
+                offset = Offset(2f, 2f),
+                blurRadius = 4f
             )
         }
-        val measureTextStyle = remember(baseTextStyle) { baseTextStyle.copy(color = Color.White) }
+        fun textStyleFor(scale: Float, color: Color): TextStyle {
+            return TextStyle(
+                fontSize = (20 * scale).sp,
+                shadow = shadow,
+                color = color
+            )
+        }
+        val measureTextStyle = remember(effectiveFontSize, shadow) { textStyleFor(effectiveFontSize, Color.White) }
         val textMeasurer = rememberTextMeasurer()
 
         val extraTravelPx = max(48f, widthPx * 0.15f)
         val startX = widthPx + extraTravelPx
+        val startXReverse = -widthPx - extraTravelPx
         val travelX = (2f * widthPx) + (2f * extraTravelPx)
-        val speedPxPerMs = if (durationMillis > 0) travelX / durationMillis.toFloat() else 0f
 
-        val allocator = remember(danmakuList, trackCount, maxWidth, maxHeight, density.density) {
-            DanmakuTrackAllocator(
-                items = danmakuList.map { danmaku ->
-                    val startTimeMillis = (danmaku.time * 1000.0).toLong()
-                    DanmakuAllocItem(
+        val danmakuListSignature = run {
+            val first = danmakuList.firstOrNull()
+            val last = danmakuList.lastOrNull()
+            "${danmakuList.size}|${first?.time}|${first?.text}|${last?.time}|${last?.text}"
+        }
+
+        val preparedItems = remember(danmakuListSignature) {
+            val sorted = danmakuList
+                .asSequence()
+                .map { danmaku ->
+                    PreparedDanmaku(
                         danmaku = danmaku,
-                        startTimeMillis = startTimeMillis,
+                        startTimeMillis = (danmaku.time * 1000.0).toLong(),
                         color = parseColor(danmaku.color)
                     )
-                }.sortedBy { it.startTimeMillis },
-                trackCount = trackCount,
-                speedPxPerMs = speedPxPerMs,
-                gapPx = gapPx,
-                warmupWindowMillis = durationMillis + 2_000L
-            )
+                }
+                .sortedWith(compareBy<PreparedDanmaku> { it.startTimeMillis }.thenBy { it.danmaku.text })
+                .toList()
+
+            val dupCounter = HashMap<String, Int>(sorted.size)
+            sorted.map { item ->
+                val baseKey = "${item.startTimeMillis}|${item.danmaku.text}|${item.danmaku.color}|${item.danmaku.mode}|${item.danmaku.border}"
+                val idx = (dupCounter[baseKey] ?: 0).also { dupCounter[baseKey] = it + 1 }
+                item.copy(key = "$baseKey|$idx")
+            }
         }
 
-        allocator.ensureAllocatedUpTo(
-            currentTimeMillis = currentTime,
-            textMeasurer = textMeasurer,
-            textStyle = measureTextStyle
-        )
-
-        val visibleIndices = remember(allocator.startTimesMillis, currentTime) {
-            computeVisibleRange(
-                startTimesMillis = allocator.startTimesMillis,
-                currentTimeMillis = currentTime,
-                durationMillis = durationMillis
-            )
+        val preparedStartTimesMillis = remember(preparedItems) {
+            LongArray(preparedItems.size) { idx -> preparedItems[idx].startTimeMillis }
         }
 
-        for (i in visibleIndices.first until visibleIndices.last) {
-            val preparedDanmaku = allocator.items[i]
-            val elapsed = currentTime - preparedDanmaku.startTimeMillis
-            if (elapsed < 0L || elapsed >= durationMillis) continue
-            val progress = (elapsed.toFloat() / durationMillis.toFloat()).coerceIn(0f, 1f)
-            val x = startX - (travelX * progress)
-            val trackIndex = preparedDanmaku.trackIndex.coerceIn(0, trackCount - 1)
-            val y = paddingTopPx + (trackHeightPx * trackIndex.toFloat())
+        val activeItems = remember { mutableStateListOf<ActiveDanmaku>() }
+        var nextSpawnIndex by remember { mutableStateOf(0) }
+        var lastMediaTimeMillis by remember { mutableStateOf<Long?>(null) }
+        var lastFrameTimeNanos by remember { mutableStateOf<Long?>(null) }
+        var realPlayheadNanos by remember { mutableStateOf(0L) }
+        var scrollTrackAvailableAtNanos by remember { mutableStateOf(LongArray(scrollTrackCount) { Long.MIN_VALUE }) }
+        var reverseTrackAvailableAtNanos by remember { mutableStateOf(LongArray(scrollTrackCount) { Long.MIN_VALUE }) }
+        var topTrackAvailableAtNanos by remember { mutableStateOf(LongArray(topTrackCount) { Long.MIN_VALUE }) }
+        var bottomTrackAvailableAtNanos by remember { mutableStateOf(LongArray(bottomTrackCount) { Long.MIN_VALUE }) }
+
+        var debugMessage by remember { mutableStateOf<String?>(null) }
+        var debugMessageAtFrameNanos by remember { mutableStateOf(0L) }
+        var latestFrameNanos by remember { mutableStateOf(0L) }
+        var lastAppliedResetNonce by remember { mutableStateOf(resetNonce) }
+
+        val currentTimeState = rememberUpdatedState(currentTime)
+        val speedState = rememberUpdatedState(speed)
+        val gapPxState = rememberUpdatedState(gapPx)
+        val travelXState = rememberUpdatedState(travelX)
+        val opacityState = rememberUpdatedState(opacity.coerceIn(0f, 1f))
+        val trackHeightPxState = rememberUpdatedState(trackHeightPx)
+        val fontSizeState = rememberUpdatedState(effectiveFontSize)
+        val measureTextStyleState = rememberUpdatedState(measureTextStyle)
+        val syncPlaybackSpeedState = rememberUpdatedState(syncPlaybackSpeed)
+        val resetNonceState = rememberUpdatedState(resetNonce)
+        val scrollTrackCountState = rememberUpdatedState(scrollTrackCount)
+        val topTrackCountState = rememberUpdatedState(topTrackCount)
+        val bottomTrackCountState = rememberUpdatedState(bottomTrackCount)
+
+//        LaunchedEffect(danmakuListSignature) {
+//            nextSpawnIndex = nextSpawnIndex.coerceIn(0, preparedItems.size)
+//            debugMessage = "LIST_UPDATED size=${preparedItems.size} next=$nextSpawnIndex"
+//            debugMessageAtFrameNanos = latestFrameNanos
+//        }
+
+        LaunchedEffect(scrollTrackCount, topTrackCount, bottomTrackCount) {
+            val nowNanos = realPlayheadNanos
+            val rebuiltScroll = LongArray(scrollTrackCount) { Long.MIN_VALUE }
+            val rebuiltReverse = LongArray(scrollTrackCount) { Long.MIN_VALUE }
+            val rebuiltTop = LongArray(topTrackCount) { Long.MIN_VALUE }
+            val rebuiltBottom = LongArray(bottomTrackCount) { Long.MIN_VALUE }
+
+            for (item in activeItems) {
+                val availableAt = max(item.availableAtRealNanos, nowNanos)
+                when (item.kind) {
+                    DanmakuKind.Scroll -> {
+                        val t = item.trackIndex
+                        if (t in 0 until scrollTrackCount) {
+                            rebuiltScroll[t] = max(rebuiltScroll[t], availableAt)
+                        }
+                    }
+                    DanmakuKind.Reverse -> {
+                        val t = item.trackIndex
+                        if (t in 0 until scrollTrackCount) {
+                            rebuiltReverse[t] = max(rebuiltReverse[t], availableAt)
+                        }
+                    }
+                    DanmakuKind.Top -> {
+                        val t = item.trackIndex
+                        if (t in 0 until topTrackCount) {
+                            rebuiltTop[t] = max(rebuiltTop[t], availableAt)
+                        }
+                    }
+                    DanmakuKind.Bottom -> {
+                        val t = item.trackIndex
+                        if (t in 0 until bottomTrackCount) {
+                            rebuiltBottom[t] = max(rebuiltBottom[t], availableAt)
+                        }
+                    }
+                }
+            }
+
+            scrollTrackAvailableAtNanos = rebuiltScroll
+            reverseTrackAvailableAtNanos = rebuiltReverse
+            topTrackAvailableAtNanos = rebuiltTop
+            bottomTrackAvailableAtNanos = rebuiltBottom
+        }
+
+        LaunchedEffect(Unit) {
+            while (isActive) {
+                var frameTimeNanos = 0L
+                withFrameNanos { now -> frameTimeNanos = now }
+                latestFrameNanos = frameTimeNanos
+
+                val mediaTimeMillis = currentTimeState.value
+                val resetValue = resetNonceState.value
+                if (resetValue != lastAppliedResetNonce) {
+//                    debugMessage = "RESET_SIGNAL value=$resetValue active=${activeItems.size}"
+//                    debugMessageAtFrameNanos = frameTimeNanos
+                    activeItems.clear()
+                    nextSpawnIndex = preparedStartTimesMillis.lowerBound(mediaTimeMillis)
+                    scrollTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
+                    reverseTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
+                    topTrackAvailableAtNanos = LongArray(topTrackCountState.value) { Long.MIN_VALUE }
+                    bottomTrackAvailableAtNanos = LongArray(bottomTrackCountState.value) { Long.MIN_VALUE }
+                    realPlayheadNanos = 0L
+                    lastMediaTimeMillis = null
+                    lastFrameTimeNanos = null
+                    lastAppliedResetNonce = resetValue
+                    continue
+                }
+
+                val lastMediaTime = lastMediaTimeMillis
+                val lastFrameTime = lastFrameTimeNanos
+                if (lastMediaTime == null) {
+                    lastMediaTimeMillis = mediaTimeMillis
+                    continue
+                }
+                if (lastFrameTime == null) {
+                    lastFrameTimeNanos = frameTimeNanos
+                    lastMediaTimeMillis = mediaTimeMillis
+                    continue
+                }
+
+                val deltaMediaMillis = mediaTimeMillis - lastMediaTime
+                val deltaRealNanos = frameTimeNanos - lastFrameTime
+                lastFrameTimeNanos = frameTimeNanos
+                lastMediaTimeMillis = mediaTimeMillis
+
+                if (deltaRealNanos <= 0L) {
+                    continue
+                }
+
+                val deltaRealMillis = deltaRealNanos / 1_000_000L
+                val absDeltaMediaMillis = kotlin.math.abs(deltaMediaMillis)
+                val deltaRealMillisF = deltaRealNanos.toFloat() / 1_000_000f
+                val playbackSpeedEstimateRaw = if (deltaRealMillisF > 0f) {
+                    deltaMediaMillis.toFloat() / deltaRealMillisF
+                } else {
+                    1f
+                }
+
+                if (deltaMediaMillis < 0L || absDeltaMediaMillis > 3_000L) {
+                    activeItems.clear()
+                    nextSpawnIndex = preparedStartTimesMillis.lowerBound(mediaTimeMillis)
+                    scrollTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
+                    reverseTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
+                    topTrackAvailableAtNanos = LongArray(topTrackCountState.value) { Long.MIN_VALUE }
+                    bottomTrackAvailableAtNanos = LongArray(bottomTrackCountState.value) { Long.MIN_VALUE }
+                    realPlayheadNanos = 0L
+                    lastMediaTimeMillis = mediaTimeMillis
+                    lastFrameTimeNanos = frameTimeNanos
+                    continue
+                }
+
+                val nowRealNanos = realPlayheadNanos + deltaRealNanos
+                realPlayheadNanos = nowRealNanos
+                val playbackSpeedEstimate = playbackSpeedEstimateRaw.coerceIn(0.1f, 16.0f)
+
+                val speedValue = speedState.value.coerceIn(0.1f, 10f)
+                val durationMillis = (BASE_DURATION_AT_1X_MILLIS / speedValue).toLong().coerceAtLeast(1L)
+                val speedPxPerMs = travelXState.value / durationMillis.toFloat()
+
+                var localNextIndex = nextSpawnIndex
+                var localScrollTrackAvailableAtNanos = scrollTrackAvailableAtNanos
+                var localReverseTrackAvailableAtNanos = reverseTrackAvailableAtNanos
+                var localTopTrackAvailableAtNanos = topTrackAvailableAtNanos
+                var localBottomTrackAvailableAtNanos = bottomTrackAvailableAtNanos
+
+                while (localNextIndex < preparedItems.size && preparedItems[localNextIndex].startTimeMillis <= mediaTimeMillis) {
+                    val prepared = preparedItems[localNextIndex]
+                    val layout = textMeasurer.measure(
+                        text = androidx.compose.ui.text.AnnotatedString(prepared.danmaku.text),
+                        style = measureTextStyleState.value,
+                        maxLines = 1
+                    )
+                    val textWidthPx = layout.size.width.toFloat()
+
+                    val kind = resolveDanmakuKind(prepared.danmaku.mode)
+                    val trackAvailable = when (kind) {
+                        DanmakuKind.Scroll -> localScrollTrackAvailableAtNanos
+                        DanmakuKind.Reverse -> localReverseTrackAvailableAtNanos
+                        DanmakuKind.Top -> localTopTrackAvailableAtNanos
+                        DanmakuKind.Bottom -> localBottomTrackAvailableAtNanos
+                    }
+                    val trackCount = trackAvailable.size
+
+                    if (trackCount <= 0) break
+
+                    var chosenTrack = 0
+                    var chosenStartRealNanos = max(nowRealNanos, trackAvailable[0])
+                    for (t in 1 until trackCount) {
+                        val startNanos = max(nowRealNanos, trackAvailable[t])
+                        if (startNanos < chosenStartRealNanos) {
+                            chosenStartRealNanos = startNanos
+                            chosenTrack = t
+                        }
+                    }
+
+                    val itemSyncPlaybackSpeed = syncPlaybackSpeedState.value
+
+                    val requiredDeltaPlayheadNanos = when (kind) {
+                        DanmakuKind.Top, DanmakuKind.Bottom -> FIXED_DURATION_MILLIS * 1_000_000L
+                        DanmakuKind.Scroll, DanmakuKind.Reverse -> computeRequiredDeltaNanos(
+                            textWidthPx = textWidthPx,
+                            gapPx = gapPxState.value,
+                            speedPxPerMs = speedPxPerMs
+                        )
+                    }
+                    val requiredDeltaRealNanos = if (itemSyncPlaybackSpeed) {
+                        (requiredDeltaPlayheadNanos.toDouble() / MIN_PLAYBACK_SPEED_FOR_OVERLAP).toLong()
+                    } else {
+                        requiredDeltaPlayheadNanos
+                    }
+
+                    val availableAtRealNanos = chosenStartRealNanos + requiredDeltaRealNanos
+                    when (kind) {
+                        DanmakuKind.Scroll -> {
+                            localScrollTrackAvailableAtNanos =
+                                localScrollTrackAvailableAtNanos.copyOf().also { it[chosenTrack] = availableAtRealNanos }
+                        }
+                        DanmakuKind.Reverse -> {
+                            localReverseTrackAvailableAtNanos =
+                                localReverseTrackAvailableAtNanos.copyOf().also { it[chosenTrack] = availableAtRealNanos }
+                        }
+                        DanmakuKind.Top -> {
+                            localTopTrackAvailableAtNanos =
+                                localTopTrackAvailableAtNanos.copyOf().also { it[chosenTrack] = availableAtRealNanos }
+                        }
+                        DanmakuKind.Bottom -> {
+                            localBottomTrackAvailableAtNanos =
+                                localBottomTrackAvailableAtNanos.copyOf().also { it[chosenTrack] = availableAtRealNanos }
+                        }
+                    }
+
+                    val itemOpacity = opacityState.value
+                    val itemFontSizeScale = fontSizeState.value
+                    val itemTrackHeightPx = trackHeightPxState.value
+                    val initialX = when (kind) {
+                        DanmakuKind.Scroll -> startX
+                        DanmakuKind.Reverse -> startXReverse
+                        DanmakuKind.Top, DanmakuKind.Bottom -> (widthPx - textWidthPx) / 2f
+                    }
+                    val fixedRemainingMillis = when (kind) {
+                        DanmakuKind.Top, DanmakuKind.Bottom -> FIXED_DURATION_MILLIS.toFloat()
+                        DanmakuKind.Scroll, DanmakuKind.Reverse -> -1f
+                    }
+
+                    activeItems.add(
+                        ActiveDanmaku(
+                            key = prepared.key,
+                            danmaku = prepared.danmaku,
+                            color = prepared.color,
+                            kind = kind,
+                            trackIndex = chosenTrack,
+                            startRealNanos = chosenStartRealNanos,
+                            xPx = initialX,
+                            baseSpeedPxPerMs = speedPxPerMs,
+                            textWidthPx = textWidthPx,
+                            availableAtRealNanos = availableAtRealNanos,
+                            opacity = itemOpacity,
+                            fontSizeScale = itemFontSizeScale,
+                            trackHeightPx = itemTrackHeightPx,
+                            syncPlaybackSpeed = itemSyncPlaybackSpeed,
+                            remainingMillis = fixedRemainingMillis
+                        )
+                    )
+                    localNextIndex++
+                }
+
+                if (localNextIndex != nextSpawnIndex) nextSpawnIndex = localNextIndex
+                if (localScrollTrackAvailableAtNanos !== scrollTrackAvailableAtNanos) {
+                    scrollTrackAvailableAtNanos = localScrollTrackAvailableAtNanos
+                }
+                if (localReverseTrackAvailableAtNanos !== reverseTrackAvailableAtNanos) {
+                    reverseTrackAvailableAtNanos = localReverseTrackAvailableAtNanos
+                }
+                if (localTopTrackAvailableAtNanos !== topTrackAvailableAtNanos) {
+                    topTrackAvailableAtNanos = localTopTrackAvailableAtNanos
+                }
+                if (localBottomTrackAvailableAtNanos !== bottomTrackAvailableAtNanos) {
+                    bottomTrackAvailableAtNanos = localBottomTrackAvailableAtNanos
+                }
+
+                var idx = 0
+                while (idx < activeItems.size) {
+                    val item = activeItems[idx]
+                    if (nowRealNanos < item.startRealNanos) {
+                        idx++
+                        continue
+                    }
+
+                    val speedFactor = if (item.syncPlaybackSpeed) playbackSpeedEstimate else 1f
+                    when (item.kind) {
+                        DanmakuKind.Scroll -> {
+                            val nextX = item.xPx - (item.baseSpeedPxPerMs * speedFactor * deltaRealMillisF)
+                            if (nextX + item.textWidthPx < -extraTravelPx) {
+                                activeItems.removeAt(idx)
+                            } else {
+                                activeItems[idx] = item.copy(xPx = nextX)
+                                idx++
+                            }
+                        }
+                        DanmakuKind.Reverse -> {
+                            val nextX = item.xPx + (item.baseSpeedPxPerMs * speedFactor * deltaRealMillisF)
+                            if (nextX > widthPx + extraTravelPx) {
+                                activeItems.removeAt(idx)
+                            } else {
+                                activeItems[idx] = item.copy(xPx = nextX)
+                                idx++
+                            }
+                        }
+                        DanmakuKind.Top, DanmakuKind.Bottom -> {
+                            val nextRemaining = item.remainingMillis - (deltaRealMillisF * speedFactor)
+                            if (nextRemaining <= 0f) {
+                                activeItems.removeAt(idx)
+                            } else {
+                                activeItems[idx] = item.copy(remainingMillis = nextRemaining)
+                                idx++
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for (item in activeItems) {
+            if (realPlayheadNanos < item.startRealNanos) continue
+            val x = item.xPx
+            val y = when (item.kind) {
+                DanmakuKind.Scroll -> paddingTopPx + (item.trackHeightPx * item.trackIndex.toFloat())
+                DanmakuKind.Reverse -> paddingTopPx + (item.trackHeightPx * item.trackIndex.toFloat())
+                DanmakuKind.Top -> paddingTopPx + (item.trackHeightPx * item.trackIndex.toFloat())
+                DanmakuKind.Bottom -> heightPx - paddingBottomPx - (item.trackHeightPx * (item.trackIndex + 1).toFloat())
+            }
 
             Text(
-                text = preparedDanmaku.danmaku.text,
-                style = baseTextStyle.copy(color = preparedDanmaku.color),
+                text = item.danmaku.text,
+                style = textStyleFor(item.fontSizeScale, item.color),
                 maxLines = 1,
                 overflow = TextOverflow.Visible,
                 modifier = Modifier
@@ -115,112 +459,26 @@ fun DanmakuOverlay(
                     .graphicsLayer {
                         translationX = x
                         translationY = y
+                        alpha = item.opacity
                     }
             )
         }
-    }
-}
 
-private class DanmakuTrackAllocator(
-    val items: List<DanmakuAllocItem>,
-    trackCount: Int,
-    private val speedPxPerMs: Float,
-    private val gapPx: Float,
-    private val warmupWindowMillis: Long
-) {
-    val startTimesMillis: LongArray = LongArray(items.size) { idx -> items[idx].startTimeMillis }
-    private val trackAvailableAtMillis: LongArray = LongArray(trackCount) { Long.MIN_VALUE }
-    private var allocatedUntilIndex: Int = 0
-    private var lastAllocatedTimeMillis: Long = Long.MIN_VALUE
-
-    fun ensureAllocatedUpTo(
-        currentTimeMillis: Long,
-        textMeasurer: androidx.compose.ui.text.TextMeasurer,
-        textStyle: TextStyle
-    ) {
-        if (lastAllocatedTimeMillis != Long.MIN_VALUE && currentTimeMillis + 500 < lastAllocatedTimeMillis) {
-            reset()
-        }
-        if (allocatedUntilIndex == 0 && currentTimeMillis > warmupWindowMillis) {
-            val startIndex = startTimesMillis.lowerBound(currentTimeMillis - warmupWindowMillis)
-            allocatedUntilIndex = startIndex
-        }
-        lastAllocatedTimeMillis = currentTimeMillis
-
-        while (allocatedUntilIndex < items.size) {
-            val item = items[allocatedUntilIndex]
-            if (item.startTimeMillis > currentTimeMillis) break
-
-            val textWidthPx = item.textWidthPx ?: run {
-                val layout = textMeasurer.measure(
-                    text = AnnotatedString(item.danmaku.text),
-                    style = textStyle,
-                    maxLines = 1
-                )
-                layout.size.width.toFloat().also { item.textWidthPx = it }
-            }
-
-            val chosenTrack = chooseTrack(item.startTimeMillis)
-            item.trackIndex = chosenTrack
-            trackAvailableAtMillis[chosenTrack] = computeAvailableAtMillis(item.startTimeMillis, textWidthPx)
-            allocatedUntilIndex++
+        val msg = debugMessage
+        if (msg != null && latestFrameNanos - debugMessageAtFrameNanos < 6_000_000_000L) {
+            Text(
+                text = msg,
+                style = TextStyle(fontSize = 12.sp, color = Color.Yellow, shadow = shadow),
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.graphicsLayer {
+                    translationX = with(density) { 8.dp.toPx() }
+                    translationY = with(density) { 8.dp.toPx() }
+                    alpha = 0.85f
+                }
+            )
         }
     }
-
-    private fun chooseTrack(startTimeMillis: Long): Int {
-        var bestTrack = 0
-        var bestAvailableAt = trackAvailableAtMillis[0]
-        if (startTimeMillis >= bestAvailableAt) return 0
-
-        for (t in 1 until trackAvailableAtMillis.size) {
-            val availableAt = trackAvailableAtMillis[t]
-            if (startTimeMillis >= availableAt) return t
-            if (availableAt < bestAvailableAt) {
-                bestAvailableAt = availableAt
-                bestTrack = t
-            }
-        }
-        return bestTrack
-    }
-
-    private fun computeAvailableAtMillis(startTimeMillis: Long, textWidthPx: Float): Long {
-        if (speedPxPerMs <= 0f) return startTimeMillis
-        val requiredDeltaMs = ((textWidthPx + gapPx) / speedPxPerMs).roundToLong().coerceAtLeast(0L)
-        return startTimeMillis + requiredDeltaMs
-    }
-
-    private fun reset() {
-        allocatedUntilIndex = 0
-        for (i in trackAvailableAtMillis.indices) {
-            trackAvailableAtMillis[i] = Long.MIN_VALUE
-        }
-    }
-}
-
-private data class DanmakuAllocItem(
-    val danmaku: Danmaku,
-    val startTimeMillis: Long,
-    val color: Color,
-    var trackIndex: Int = 0,
-    var textWidthPx: Float? = null
-)
-
-private data class IntRangeHalfOpen(
-    val first: Int,
-    val last: Int
-)
-
-private fun computeVisibleRange(
-    startTimesMillis: LongArray,
-    currentTimeMillis: Long,
-    durationMillis: Long
-): IntRangeHalfOpen {
-    if (startTimesMillis.isEmpty()) return IntRangeHalfOpen(0, 0)
-
-    val windowStart = currentTimeMillis - durationMillis
-    val start = startTimesMillis.lowerBound(windowStart)
-    val endExclusive = startTimesMillis.upperBound(currentTimeMillis)
-    return IntRangeHalfOpen(first = start, last = max(start, endExclusive))
 }
 
 private fun LongArray.lowerBound(value: Long): Int {
@@ -233,14 +491,51 @@ private fun LongArray.lowerBound(value: Long): Int {
     return low
 }
 
-private fun LongArray.upperBound(value: Long): Int {
-    var low = 0
-    var high = size
-    while (low < high) {
-        val mid = (low + high) ushr 1
-        if (this[mid] <= value) low = mid + 1 else high = mid
+private fun computeRequiredDeltaNanos(textWidthPx: Float, gapPx: Float, speedPxPerMs: Float): Long {
+    if (speedPxPerMs <= 0f) return 0L
+    val requiredDeltaMs = (textWidthPx + gapPx) / speedPxPerMs
+    return (requiredDeltaMs * 1_000_000f).toLong().coerceAtLeast(0L)
+}
+
+private data class PreparedDanmaku(
+    val key: String = "",
+    val danmaku: Danmaku,
+    val startTimeMillis: Long,
+    val color: Color
+)
+
+private data class ActiveDanmaku(
+    val key: String,
+    val danmaku: Danmaku,
+    val color: Color,
+    val kind: DanmakuKind,
+    val trackIndex: Int,
+    val startRealNanos: Long,
+    val xPx: Float,
+    val baseSpeedPxPerMs: Float,
+    val textWidthPx: Float,
+    val availableAtRealNanos: Long,
+    val opacity: Float,
+    val fontSizeScale: Float,
+    val trackHeightPx: Float,
+    val syncPlaybackSpeed: Boolean,
+    val remainingMillis: Float
+)
+
+private enum class DanmakuKind {
+    Scroll,
+    Top,
+    Bottom,
+    Reverse
+}
+
+private fun resolveDanmakuKind(mode: Int): DanmakuKind {
+    return when (mode) {
+        4 -> DanmakuKind.Bottom
+        5 -> DanmakuKind.Top
+        6 -> DanmakuKind.Reverse
+        else -> DanmakuKind.Scroll
     }
-    return low
 }
 
 fun parseColor(colorString: String): Color {

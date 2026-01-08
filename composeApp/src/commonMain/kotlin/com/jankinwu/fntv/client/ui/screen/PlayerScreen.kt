@@ -104,6 +104,9 @@ import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.ArrowLeft
 import com.jankinwu.fntv.client.icons.Back10S
+import com.jankinwu.fntv.client.icons.DanmuClose
+import com.jankinwu.fntv.client.icons.DanmuOpen
+import com.jankinwu.fntv.client.icons.DanmuSetting
 import com.jankinwu.fntv.client.icons.Forward10S
 import com.jankinwu.fntv.client.icons.Pause
 import com.jankinwu.fntv.client.icons.Play
@@ -162,6 +165,7 @@ import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.DanmakuViewModel
 import com.jankinwu.fntv.client.ui.component.player.DanmakuOverlay
+import com.jankinwu.fntv.client.ui.component.player.DanmakuSettingsMenu
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
@@ -219,6 +223,7 @@ class PlayerManager {
     var playerState: PlayerState by mutableStateOf(PlayerState())
     var keyFocusRequestSerial: Int by mutableIntStateOf(0)
     var isPipMode: Boolean by mutableStateOf(false)
+    var danmakuResetNonce: Int by mutableIntStateOf(0)
 
     fun requestKeyFocus() {
         keyFocusRequestSerial++
@@ -322,11 +327,12 @@ fun PlayerOverlay(
     var isNextEpisodeHovered by remember { mutableStateOf(false) }
     var isSettingsMenuHovered by remember { mutableStateOf(false) }
     var isSubtitleControlHovered by remember { mutableStateOf(false) }
+    var isDanmakuSettingsHovered by remember { mutableStateOf(false) }
     var lastVolume by remember { mutableFloatStateOf(0f) }
 
 
     val isPlayControlHovered =
-        isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered || isEpisodeControlHovered || isNextEpisodeHovered
+        isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered || isEpisodeControlHovered || isNextEpisodeHovered || isDanmakuSettingsHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
     val frameWindowScope = LocalFrameWindowScope.current
     val scope = rememberCoroutineScope()
@@ -336,6 +342,10 @@ fun PlayerOverlay(
     val episodeListViewModel: EpisodeListViewModel = koinViewModel()
     val smartAnalysisStatusViewModel: SmartAnalysisStatusViewModel = koinViewModel()
     val danmakuViewModel: DanmakuViewModel = koinViewModel()
+    val seekToWithDanmakuReset: (Long) -> Unit = { positionMillis ->
+        playerManager.danmakuResetNonce++
+        mediaPlayer.seekTo(positionMillis)
+    }
     val episodeListState by episodeListViewModel.uiState.collectAsState()
     var episodeList by remember { mutableStateOf(emptyList<EpisodeListResponse>()) }
     var isAutoPlay by remember { mutableStateOf(PlayingSettingsStore.autoPlay) }
@@ -349,6 +359,7 @@ fun PlayerOverlay(
     val playState by mediaPlayer.playbackState.collectAsState()
 
     LaunchedEffect(playingInfoCache?.itemGuid) {
+        playerManager.danmakuResetNonce++
         isProgressBarHovered = false
         isSpeedControlHovered = false
         isVolumeControlHovered = false
@@ -568,7 +579,7 @@ fun PlayerOverlay(
                 currentPosition in startMs until endMs
             ) {
                 pendingIntroSkipSegmentMillis = introSegment
-                mediaPlayer.seekTo(endMs)
+                seekToWithDanmakuReset(endMs)
             }
             return@LaunchedEffect
         }
@@ -590,7 +601,7 @@ fun PlayerOverlay(
             currentPosition < endMs
         ) {
             pendingIntroSkipSegmentMillis = introSegment
-            mediaPlayer.seekTo(endMs)
+            seekToWithDanmakuReset(endMs)
         }
 
         lastIntroMonitorPosition = currentPosition
@@ -658,12 +669,12 @@ fun PlayerOverlay(
                 val creditsEndMs = resolvedCreditsSegmentMillis?.second ?: 0L
                 val canSeekPastCredits = creditsEndMs > 0L && (totalDuration <= 0L || creditsEndMs < totalDuration - 1000L)
                 if (canSeekPastCredits) {
-                    mediaPlayer.seekTo(creditsEndMs)
+                    seekToWithDanmakuReset(creditsEndMs)
                 } else if (nextEpisode != null) {
                     playEpisode(nextEpisode.guid)
                 } else {
                     if (totalDuration > 0) {
-                        mediaPlayer.seekTo(totalDuration)
+                        seekToWithDanmakuReset(totalDuration)
                     }
                     showEndScreen = true
                     mediaPlayer.pause()
@@ -979,7 +990,8 @@ fun PlayerOverlay(
                         newPlayLink,
                         mediaPlayer.getCurrentPositionMillis(),
                         extraFiles,
-                        true // isM3u8
+                        true, // isM3u8
+                        seekToWithDanmakuReset
                     )
                 }
             }
@@ -1013,7 +1025,8 @@ fun PlayerOverlay(
                         link,
                         start,
                         extraFiles,
-                        false
+                        false,
+                        seekToWithDanmakuReset
                     ) // isM3u8 = false for direct link (usually)
                 }
                 mediaPViewModel.clearError()
@@ -1071,7 +1084,7 @@ fun PlayerOverlay(
     LaunchedEffect(playState) {
         if (playState == PlaybackState.FINISHED && nextEpisode == null) {
             if (totalDuration > 0) {
-                mediaPlayer.seekTo(totalDuration)
+                seekToWithDanmakuReset(totalDuration)
             }
             showEndScreen = true
         }
@@ -1346,7 +1359,8 @@ fun PlayerOverlay(
                         windowState,
                         toastManager,
                         lastVolume,
-                        { lastVolume = it }
+                        { lastVolume = it },
+                        seekToWithDanmakuReset
                     )
                 }
                 .focusRequester(playerFocusRequester)
@@ -1387,10 +1401,22 @@ fun PlayerOverlay(
 
             val danmakuList by danmakuViewModel.danmakuList.collectAsState()
             val isDanmakuVisible by danmakuViewModel.isVisible.collectAsState()
+            val danmakuArea by danmakuViewModel.area.collectAsState()
+            val danmakuOpacity by danmakuViewModel.opacity.collectAsState()
+            val danmakuFontSize by danmakuViewModel.fontSize.collectAsState()
+            val danmakuSpeed by danmakuViewModel.speed.collectAsState()
+            val danmakuSyncPlaybackSpeed by danmakuViewModel.syncPlaybackSpeed.collectAsState()
+
             DanmakuOverlay(
                 danmakuList = danmakuList,
                 currentTime = currentRenderTime,
-                isVisible = isDanmakuVisible
+                isVisible = isDanmakuVisible,
+                area = danmakuArea,
+                opacity = danmakuOpacity,
+                fontSize = danmakuFontSize,
+                speed = danmakuSpeed,
+                syncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                resetNonce = playerManager.danmakuResetNonce
             )
 
             if (subtitleCues.isNotEmpty()) {
@@ -1416,7 +1442,7 @@ fun PlayerOverlay(
                         if (segment != null) {
                             introSkipSuppressedUntilMs = segment.second
                             pendingIntroSkipSegmentMillis = null
-                            mediaPlayer.seekTo(segment.first)
+                            seekToWithDanmakuReset(segment.first)
                         }
                         showSkipIntroUndoPrompt = false
                     },
@@ -1447,14 +1473,14 @@ fun PlayerOverlay(
                     onReplay = {
                         showEndScreen = false
                         if (useSmartSkip) {
-                            mediaPlayer.seekTo(0)
+                            seekToWithDanmakuReset(0)
                         } else {
                             val skipOpening = playingInfoCache?.playConfig?.skipOpening ?: 0
                             if (skipOpening > 0) {
-                                mediaPlayer.seekTo(skipOpening * 1000L)
+                                seekToWithDanmakuReset(skipOpening * 1000L)
                                 toastManager.showToast("已为您自动跳过片头", ToastType.Info)
                             } else {
-                                mediaPlayer.seekTo(0)
+                                seekToWithDanmakuReset(0)
                             }
                         }
                         mediaPlayer.resume()
@@ -1512,7 +1538,7 @@ fun PlayerOverlay(
                         playerManager.setLoading(true)
                         isSeeking = true
                         val seekPosition = (newProgress * totalDuration).toLong()
-                        mediaPlayer.seekTo(seekPosition)
+                        seekToWithDanmakuReset(seekPosition)
                         logger.i(
                             "Seek to: ${newProgress * 100}%，seekPosition: ${
                                 FnDataConvertor.formatDurationToDateTime(
@@ -1681,7 +1707,18 @@ fun PlayerOverlay(
                     onSmartSkipEnabledChanged = smartAnalysisStatusViewModel::onSmartSkipEnabledChanged,
                     isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled,
                     isDanmakuVisible = isDanmakuVisible,
-                    onToggleDanmaku = danmakuViewModel::toggleVisibility
+                    onToggleDanmaku = danmakuViewModel::toggleVisibility,
+                    danmakuArea = danmakuArea,
+                    danmakuOpacity = danmakuOpacity,
+                    danmakuFontSize = danmakuFontSize,
+                    danmakuSpeed = danmakuSpeed,
+                    danmakuSyncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                    onDanmakuAreaChange = { danmakuViewModel.updateArea(it) },
+                    onDanmakuOpacityChange = { danmakuViewModel.updateOpacity(it) },
+                    onDanmakuFontSizeChange = { danmakuViewModel.updateFontSize(it) },
+                    onDanmakuSpeedChange = { danmakuViewModel.updateSpeed(it) },
+                    onDanmakuSyncPlaybackSpeedChanged = { danmakuViewModel.updateSyncPlaybackSpeed(it) },
+                    onDanmakuSettingsHoverChanged = { isDanmakuSettingsHovered = it }
                 )
             }
 
@@ -1895,8 +1932,20 @@ fun PlayerControlRow(
     onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
     isSmartAnalysisGloballyEnabled: Boolean = false,
     isDanmakuVisible: Boolean = true,
-    onToggleDanmaku: () -> Unit = {}
+    onToggleDanmaku: () -> Unit = {},
+    danmakuArea: Float = 1.0f,
+    danmakuOpacity: Float = 1.0f,
+    danmakuFontSize: Float = 1.0f,
+    danmakuSpeed: Float = 1.0f,
+    danmakuSyncPlaybackSpeed: Boolean = false,
+    onDanmakuAreaChange: (Float) -> Unit = {},
+    onDanmakuOpacityChange: (Float) -> Unit = {},
+    onDanmakuFontSizeChange: (Float) -> Unit = {},
+    onDanmakuSpeedChange: (Float) -> Unit = {},
+    onDanmakuSyncPlaybackSpeedChanged: (Boolean) -> Unit = {},
+    onDanmakuSettingsHoverChanged: ((Boolean) -> Unit)? = null
 ) {
+    val playerManager = LocalPlayerManager.current
     val currentPositionMillis by mediaPlayer.currentPositionMillis.collectAsState()
     val interactionSource = remember { MutableInteractionSource() }
     Row(
@@ -1943,6 +1992,7 @@ fun PlayerControlRow(
                         indication = null,
                         onClick = {
                             mediaPlayer.skip(-10_000)
+                            playerManager.danmakuResetNonce++
                             callPlayRecord(
                                 ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
                                 playingInfoCache = playingInfoCache,
@@ -1967,6 +2017,7 @@ fun PlayerControlRow(
                         indication = null,
                         onClick = {
                             mediaPlayer.skip(10_000)
+                            playerManager.danmakuResetNonce++
                             callPlayRecord(
                                 ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
                                 playingInfoCache = playingInfoCache,
@@ -2058,7 +2109,7 @@ fun PlayerControlRow(
                     modifier = Modifier
                 )
             }
-            // Danmaku Toggle
+
             Box(
                 modifier = Modifier
                     .clickable(
@@ -2067,16 +2118,30 @@ fun PlayerControlRow(
                     ) {
                         onToggleDanmaku()
                     }
-                    .padding(horizontal = 4.dp),
+                    .padding(start = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "弹",
-                    color = if (isDanmakuVisible) Color.White else Color.White.copy(alpha = 0.5f),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                Icon(
+                    imageVector = if (isDanmakuVisible) DanmuOpen else DanmuClose,
+                    contentDescription = "弹幕设置",
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp)
                 )
             }
+            DanmakuSettingsMenu(
+                area = danmakuArea,
+                opacity = danmakuOpacity,
+                fontSize = danmakuFontSize,
+                speed = danmakuSpeed,
+                syncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                onAreaChange = onDanmakuAreaChange,
+                onOpacityChange = onDanmakuOpacityChange,
+                onFontSizeChange = onDanmakuFontSizeChange,
+                onSpeedChange = onDanmakuSpeedChange,
+                onSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
+                modifier = Modifier.padding(start = 8.dp),
+                onHoverStateChanged = onDanmakuSettingsHoverChanged
+            )
             SubtitleControlFlyout(
                 playingInfoCache = playingInfoCache,
                 isoTagData = isoTagData,
@@ -2266,7 +2331,8 @@ fun rememberPlayMediaByGuidFunction(
     player: MediampPlayer,
     mediaGuid: String? = null,
     currentAudioGuid: String? = null,
-    currentSubtitleGuid: String? = null
+    currentSubtitleGuid: String? = null,
+    onSeekTo: ((Long) -> Unit)? = null
 ): (String) -> Unit {
     val streamViewModel: StreamViewModel = koinViewModel()
     val playPlayViewModel: PlayPlayViewModel = koinViewModel()
@@ -2291,7 +2357,8 @@ fun rememberPlayMediaByGuidFunction(
         mediaGuid,
         currentAudioGuid,
         currentSubtitleGuid,
-        mp4Parser
+        mp4Parser,
+        onSeekTo
     ) {
         { guid: String ->
             kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
@@ -2321,7 +2388,8 @@ fun rememberPlayMediaByGuidFunction(
                         mediaGuid = mediaGuid,
                         currentAudioGuid = currentAudioGuid,
                         currentSubtitleGuid = currentSubtitleGuid,
-                        mp4Parser = mp4Parser
+                        mp4Parser = mp4Parser,
+                        onSeekTo = onSeekTo
                     )
                 } finally {
                     playerManager.setLoading(false)
@@ -2346,7 +2414,8 @@ private suspend fun playMedia(
     mediaGuid: String?,
     currentAudioGuid: String?,
     currentSubtitleGuid: String?,
-    mp4Parser: Mp4Parser
+    mp4Parser: Mp4Parser,
+    onSeekTo: ((Long) -> Unit)? = null
 ) {
     try {
         danmakuViewModel.clear()
@@ -2467,7 +2536,11 @@ private suspend fun playMedia(
             actualPlayLink,
             playLinkResult.effectiveStartPosition,
             extraFiles,
-            isM3u8
+            isM3u8,
+            onSeekTo ?: { positionMillis ->
+                playerManager.danmakuResetNonce++
+                player.seekTo(positionMillis)
+            }
         )
         if (isSkippedIntro) {
             playerManager.toastManager.showToast("已为您自动跳过片头", ToastType.Info)
@@ -2584,7 +2657,8 @@ private suspend fun startPlayback(
     playLink: String,
     startPosition: Long,
     extraFiles: MediaExtraFiles,
-    isM3u8: Boolean = false
+    isM3u8: Boolean = false,
+    onSeekTo: (Long) -> Unit
 ) {
 //    val isDirectLink = playLink.contains("/v/api/v1/media/range/")
     var baseUrl = if (AccountDataCache.cookieState.isNotBlank()) {
@@ -2624,7 +2698,7 @@ private suspend fun startPlayback(
     player.features[AudioLevelController]?.setVolume(savedVolume)
 
     logger.i("startPlayback startPosition: $startPosition")
-    player.seekTo(startPosition)
+    onSeekTo(startPosition)
 }
 
 private data class PlayLinkResult(
@@ -2800,7 +2874,8 @@ private fun handlePlayerKeyEvent(
     windowState: WindowState,
     toastManager: ToastManager,
     lastVolume: Float,
-    onLastVolumeChange: (Float) -> Unit
+    onLastVolumeChange: (Float) -> Unit,
+    onSeekTo: (Long) -> Unit
 ): Boolean {
     if (event.type == KeyEventType.KeyDown) {
         var handled = true
@@ -2829,7 +2904,7 @@ private fun handlePlayerKeyEvent(
             Key.DirectionLeft, Key.MediaStepBackward -> {
                 val seekPosition =
                     (mediaPlayer.currentPositionMillis.value - 10000).coerceAtLeast(0)
-                mediaPlayer.seekTo(seekPosition)
+                onSeekTo(seekPosition)
                 val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
                 toastManager.showToast("快退至：$dateTime", ToastType.Info, category = "seek")
                 callPlayRecord(
@@ -2844,7 +2919,7 @@ private fun handlePlayerKeyEvent(
             Key.DirectionRight, Key.MediaStepForward -> {
                 val seekPosition =
                     (mediaPlayer.currentPositionMillis.value + 10000).coerceAtMost(playerManager.playerState.duration)
-                mediaPlayer.seekTo(seekPosition)
+                onSeekTo(seekPosition)
                 val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
                 toastManager.showToast("快进至：$dateTime", ToastType.Info, category = "seek")
                 callPlayRecord(
@@ -3292,7 +3367,18 @@ fun PlayerBottomBar(
     onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
     isSmartAnalysisGloballyEnabled: Boolean = false,
     isDanmakuVisible: Boolean = true,
-    onToggleDanmaku: () -> Unit = {}
+    onToggleDanmaku: () -> Unit = {},
+    danmakuArea: Float = 1.0f,
+    danmakuOpacity: Float = 1.0f,
+    danmakuFontSize: Float = 1.0f,
+    danmakuSpeed: Float = 1.0f,
+    danmakuSyncPlaybackSpeed: Boolean = false,
+    onDanmakuAreaChange: (Float) -> Unit = {},
+    onDanmakuOpacityChange: (Float) -> Unit = {},
+    onDanmakuFontSizeChange: (Float) -> Unit = {},
+    onDanmakuSpeedChange: (Float) -> Unit = {},
+    onDanmakuSyncPlaybackSpeedChanged: (Boolean) -> Unit = {},
+    onDanmakuSettingsHoverChanged: (Boolean) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -3361,7 +3447,18 @@ fun PlayerBottomBar(
                 onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
                 isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled,
                 isDanmakuVisible = isDanmakuVisible,
-                onToggleDanmaku = onToggleDanmaku
+                onToggleDanmaku = onToggleDanmaku,
+                danmakuArea = danmakuArea,
+                danmakuOpacity = danmakuOpacity,
+                danmakuFontSize = danmakuFontSize,
+                danmakuSpeed = danmakuSpeed,
+                danmakuSyncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                onDanmakuAreaChange = onDanmakuAreaChange,
+                onDanmakuOpacityChange = onDanmakuOpacityChange,
+                onDanmakuFontSizeChange = onDanmakuFontSizeChange,
+                onDanmakuSpeedChange = onDanmakuSpeedChange,
+                onDanmakuSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
+                onDanmakuSettingsHoverChanged = onDanmakuSettingsHoverChanged
             )
         }
     }

@@ -3,6 +3,7 @@ package com.jankinwu.fntv.client.viewmodel
 import androidx.lifecycle.viewModelScope
 import com.jankinwu.fntv.client.data.model.response.Danmaku
 import com.jankinwu.fntv.client.data.network.FlyNarwhalApi
+import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,8 +20,49 @@ class DanmakuViewModel : BaseViewModel() {
     private val _isVisible = MutableStateFlow(true)
     val isVisible: StateFlow<Boolean> = _isVisible.asStateFlow()
 
+    private val _area = MutableStateFlow(PlayingSettingsStore.danmakuArea)
+    val area: StateFlow<Float> = _area.asStateFlow()
+
+    private val _opacity = MutableStateFlow(PlayingSettingsStore.danmakuOpacity)
+    val opacity: StateFlow<Float> = _opacity.asStateFlow()
+
+    private val _fontSize = MutableStateFlow(PlayingSettingsStore.danmakuFontSize)
+    val fontSize: StateFlow<Float> = _fontSize.asStateFlow()
+
+    private val _speed = MutableStateFlow(PlayingSettingsStore.danmakuSpeed)
+    val speed: StateFlow<Float> = _speed.asStateFlow()
+
+    private val _syncPlaybackSpeed = MutableStateFlow(PlayingSettingsStore.danmakuSyncPlaybackSpeed)
+    val syncPlaybackSpeed: StateFlow<Boolean> = _syncPlaybackSpeed.asStateFlow()
+
     fun toggleVisibility() {
         _isVisible.value = !_isVisible.value
+    }
+
+    fun updateArea(value: Float) {
+        _area.value = value
+        PlayingSettingsStore.danmakuArea = value
+    }
+
+    fun updateOpacity(value: Float) {
+        _opacity.value = value
+        PlayingSettingsStore.danmakuOpacity = value
+    }
+
+    fun updateFontSize(value: Float) {
+        val clamped = value.coerceIn(0.5f, 1.7f)
+        _fontSize.value = clamped
+        PlayingSettingsStore.danmakuFontSize = clamped
+    }
+
+    fun updateSpeed(value: Float) {
+        _speed.value = value
+        PlayingSettingsStore.danmakuSpeed = value
+    }
+
+    fun updateSyncPlaybackSpeed(value: Boolean) {
+        _syncPlaybackSpeed.value = value
+        PlayingSettingsStore.danmakuSyncPlaybackSpeed = value
     }
 
     fun loadDanmaku(
