@@ -1412,10 +1412,14 @@ fun PlayerOverlay(
             val danmakuFontSize by danmakuViewModel.fontSize.collectAsState()
             val danmakuSpeed by danmakuViewModel.speed.collectAsState()
             val danmakuSyncPlaybackSpeed by danmakuViewModel.syncPlaybackSpeed.collectAsState()
+            val playbackSpeedFeature = remember(mediaPlayer) { mediaPlayer.features[PlaybackSpeed] }
+            val playbackSpeedValue = ((playbackSpeedFeature?.value) as? Number)?.toFloat() ?: 1f
 
             DanmakuOverlay(
                 danmakuList = danmakuList,
                 currentTime = currentRenderTime,
+                isPlaying = playState == PlaybackState.PLAYING,
+                playbackSpeed = playbackSpeedValue,
                 isVisible = isDanmakuVisible,
                 area = danmakuArea,
                 opacity = danmakuOpacity,

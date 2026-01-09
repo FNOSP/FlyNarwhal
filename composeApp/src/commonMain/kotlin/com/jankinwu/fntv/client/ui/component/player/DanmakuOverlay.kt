@@ -37,6 +37,8 @@ private const val MIN_PLAYBACK_SPEED_FOR_OVERLAP = 0.5f
 fun DanmakuOverlay(
     danmakuList: List<Danmaku>,
     currentTime: Long, // in millis
+    isPlaying: Boolean,
+    playbackSpeed: Float,
     isVisible: Boolean,
     area: Float = 1.0f,
     opacity: Float = 1.0f,
@@ -145,6 +147,8 @@ fun DanmakuOverlay(
         val fontSizeState = rememberUpdatedState(effectiveFontSize)
         val measureTextStyleState = rememberUpdatedState(measureTextStyle)
         val syncPlaybackSpeedState = rememberUpdatedState(syncPlaybackSpeed)
+        val isPlayingState = rememberUpdatedState(isPlaying)
+        val playbackSpeedState = rememberUpdatedState(playbackSpeed)
         val resetNonceState = rememberUpdatedState(resetNonce)
         val scrollTrackCountState = rememberUpdatedState(scrollTrackCount)
         val topTrackCountState = rememberUpdatedState(topTrackCount)
@@ -255,14 +259,8 @@ fun DanmakuOverlay(
                     continue
                 }
 
-                val deltaRealMillis = deltaRealNanos / 1_000_000L
                 val absDeltaMediaMillis = kotlin.math.abs(deltaMediaMillis)
                 val deltaRealMillisF = deltaRealNanos.toFloat() / 1_000_000f
-                val playbackSpeedEstimateRaw = if (deltaRealMillisF > 0f) {
-                    deltaMediaMillis.toFloat() / deltaRealMillisF
-                } else {
-                    1f
-                }
 
                 if (deltaMediaMillis < 0L || absDeltaMediaMillis > 3_000L) {
                     activeItems.clear()
@@ -277,9 +275,15 @@ fun DanmakuOverlay(
                     continue
                 }
 
-                val nowRealNanos = realPlayheadNanos + deltaRealNanos
-                realPlayheadNanos = nowRealNanos
-                val playbackSpeedEstimate = playbackSpeedEstimateRaw.coerceIn(0.1f, 16.0f)
+                val playingNow = isPlayingState.value
+                val nowRealNanos = if (playingNow) {
+                    val next = realPlayheadNanos + deltaRealNanos
+                    realPlayheadNanos = next
+                    next
+                } else {
+                    realPlayheadNanos
+                }
+                val currentPlaybackSpeed = playbackSpeedState.value.coerceIn(0.1f, 16.0f)
 
                 val speedValue = speedState.value.coerceIn(0.1f, 10f)
                 val durationMillis = (BASE_DURATION_AT_1X_MILLIS / speedValue).toLong().coerceAtLeast(1L)
@@ -332,7 +336,8 @@ fun DanmakuOverlay(
                         )
                     }
                     val requiredDeltaRealNanos = if (itemSyncPlaybackSpeed) {
-                        (requiredDeltaPlayheadNanos.toDouble() / MIN_PLAYBACK_SPEED_FOR_OVERLAP).toLong()
+                        val denom = max(currentPlaybackSpeed, MIN_PLAYBACK_SPEED_FOR_OVERLAP)
+                        (requiredDeltaPlayheadNanos.toDouble() / denom.toDouble()).toLong()
                     } else {
                         requiredDeltaPlayheadNanos
                     }
@@ -406,6 +411,10 @@ fun DanmakuOverlay(
                     bottomTrackAvailableAtNanos = localBottomTrackAvailableAtNanos
                 }
 
+                if (!playingNow) {
+                    continue
+                }
+
                 var idx = 0
                 while (idx < activeItems.size) {
                     val item = activeItems[idx]
@@ -414,7 +423,7 @@ fun DanmakuOverlay(
                         continue
                     }
 
-                    val speedFactor = if (item.syncPlaybackSpeed) playbackSpeedEstimate else 1f
+                    val speedFactor = if (item.syncPlaybackSpeed) currentPlaybackSpeed else 1f
                     when (item.kind) {
                         DanmakuKind.Scroll -> {
                             val nextX = item.xPx - (item.baseSpeedPxPerMs * speedFactor * deltaRealMillisF)
