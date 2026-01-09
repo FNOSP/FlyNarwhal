@@ -13,6 +13,7 @@ import com.jankinwu.fntv.client.data.model.response.Danmaku
 import com.jankinwu.fntv.client.data.model.response.EpisodeSegmentsResponse
 import com.jankinwu.fntv.client.data.model.response.SmartAnalysisResult
 import com.jankinwu.fntv.client.data.network.FlyNarwhalApi
+import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genAuthx
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import io.ktor.client.HttpClient
@@ -122,9 +123,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             client.prepareGet(fullUrl) {
                 header(HttpHeaders.Accept, "text/event-stream")
                 parameters.forEach { (key, value) ->
-                    if (value != null) {
-                        parameter(key, value)
-                    }
+                    parameter(key, value)
                 }
                 timeout {
                     requestTimeoutMillis = 240_000
@@ -200,9 +199,11 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         }
         val fullUrl = if (baseUrl.endsWith("/")) "$baseUrl${url.removePrefix("/")}" else "$baseUrl$url"
         logger.i { "GET request: $fullUrl, params: $parameters" }
+        val authx = genAuthx(url, parameters)
 
         try {
             val response = client.get(fullUrl) {
+                header("Authx", authx)
                 parameters?.forEach { (key, value) ->
                     if (value != null) {
                         parameter(key, value)
@@ -228,12 +229,14 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         if (baseUrl.isBlank()) {
             throw IllegalArgumentException("飞鲸影视服务端 URL 未配置")
         }
+        val authx = genAuthx(url, data = body)
         val fullUrl = if (baseUrl.endsWith("/")) "$baseUrl${url.removePrefix("/")}" else "$baseUrl$url"
         logger.i { "POST request: $fullUrl, body: $body" }
 
         try {
             val response = client.post(fullUrl) {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
+                header("Authx", authx)
                 if (body != null) {
                     setBody(body)
                 }

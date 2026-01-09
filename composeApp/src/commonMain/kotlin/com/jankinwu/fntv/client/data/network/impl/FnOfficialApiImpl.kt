@@ -275,7 +275,7 @@ class FnOfficialApiImpl : FnOfficialApi {
             if (AccountDataCache.getFnOfficialBaseUrl().isBlank()) {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
-            val authx = FnApiHelper.genAuthx(url, parameters)
+            val authx = genAuthx(url, parameters)
             logger.i { "GET request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters, cookie: ${AccountDataCache.cookieState}" }
             val response = fnOfficialClient.get("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header("Authx", authx)
@@ -317,7 +317,7 @@ class FnOfficialApiImpl : FnOfficialApi {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
 
-            val authx = FnApiHelper.genAuthx(url, data = body)
+            val authx = genAuthx(url, data = body)
             logger.i { "POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body, cookie: ${AccountDataCache.cookieState}" }
             val response = fnOfficialClient.post("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
@@ -365,7 +365,7 @@ class FnOfficialApiImpl : FnOfficialApi {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
 
-            val authx = FnApiHelper.genAuthx(url)
+            val authx = genAuthx(url)
             logger.i { "POST multipart file request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx" }
             val response = fnOfficialClient.submitFormWithBinaryData(
                 url = "${AccountDataCache.getFnOfficialBaseUrl()}$url",

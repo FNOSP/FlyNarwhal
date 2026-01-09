@@ -210,6 +210,7 @@ val generateBuildConfig by tasks.registering {
     // Read secrets from environment variables or project properties
     val reportApiSecret = System.getenv("REPORT_API_SECRET") ?: project.findProperty("REPORT_API_SECRET")?.toString() ?: ""
     val reportUrl = System.getenv("REPORT_URL") ?: project.findProperty("REPORT_URL")?.toString() ?: ""
+    var flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
 
     inputs.property("version", version)
     inputs.property("suffix", suffix)
@@ -228,6 +229,7 @@ val generateBuildConfig by tasks.registering {
                 const val VERSION_NAME = "$fullVersion"
                 const val REPORT_API_SECRET = "$reportApiSecret"
                 const val REPORT_URL = "$reportUrl"
+                const val FLY_NARWHAL_API_SECRET = "$flyNarwhalApiSecret"
             }
         """.trimIndent())
     }

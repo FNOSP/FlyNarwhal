@@ -3,6 +3,7 @@ package com.jankinwu.fntv.client.data.network.impl
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.jankinwu.fntv.client.BuildConfig
 import korlibs.crypto.MD5
 import kotlin.random.Random
 import kotlin.time.Clock
@@ -26,7 +27,8 @@ object FnApiHelper {
     fun genAuthx(
         url: String,
         parameters: Map<String, Any?>? = null,
-        data: Any? = null
+        data: Any? = null,
+        apiSecret: String = BuildConfig.FLY_NARWHAL_API_SECRET
     ): String {
         val nonce = generateRandomDigits()
         val timestamp = Clock.System.now().toEpochMilliseconds().toString()
@@ -54,7 +56,7 @@ object FnApiHelper {
             nonce,
             timestamp,
             dataJsonMd5,
-            API_SECRET
+            apiSecret.ifBlank { API_SECRET }
         )
 
         val signStr = signArray.joinToString("_")
