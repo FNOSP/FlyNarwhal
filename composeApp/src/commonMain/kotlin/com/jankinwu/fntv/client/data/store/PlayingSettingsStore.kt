@@ -99,6 +99,10 @@ object PlayingSettingsStore {
         get() = settings.getFloat(scopedKey("danmaku_font_size"), 1.0f)
         set(value) = settings.set(scopedKey("danmaku_font_size"), value)
 
+    var danmakuDebug: Boolean
+        get() = settings.getBoolean(scopedKey("danmaku_debug"), false)
+        set(value) = settings.set(scopedKey("danmaku_debug"), value)
+
     var danmakuSpeed: Float
         get() = settings.getFloat(scopedKey("danmaku_speed"), 1.0f)
         set(value) = settings.set(scopedKey("danmaku_speed"), value)

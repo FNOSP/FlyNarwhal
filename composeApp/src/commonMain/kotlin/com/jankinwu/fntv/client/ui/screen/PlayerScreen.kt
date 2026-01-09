@@ -1412,12 +1412,13 @@ fun PlayerOverlay(
             val danmakuFontSize by danmakuViewModel.fontSize.collectAsState()
             val danmakuSpeed by danmakuViewModel.speed.collectAsState()
             val danmakuSyncPlaybackSpeed by danmakuViewModel.syncPlaybackSpeed.collectAsState()
+            val danmakuDebugEnabled by danmakuViewModel.debugEnabled.collectAsState()
             val playbackSpeedFeature = remember(mediaPlayer) { mediaPlayer.features[PlaybackSpeed] }
             val playbackSpeedValue = ((playbackSpeedFeature?.value) as? Number)?.toFloat() ?: 1f
 
             DanmakuOverlay(
                 danmakuList = danmakuList,
-                currentTime = currentRenderTime,
+                currentTime = currentPosition,
                 isPlaying = playState == PlaybackState.PLAYING,
                 playbackSpeed = playbackSpeedValue,
                 isVisible = isDanmakuVisible,
@@ -1426,6 +1427,7 @@ fun PlayerOverlay(
                 fontSize = danmakuFontSize,
                 speed = danmakuSpeed,
                 syncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                debugEnabled = danmakuDebugEnabled,
                 resetNonce = playerManager.danmakuResetNonce
             )
 
@@ -1723,11 +1725,13 @@ fun PlayerOverlay(
                     danmakuFontSize = danmakuFontSize,
                     danmakuSpeed = danmakuSpeed,
                     danmakuSyncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                    danmakuDebugEnabled = danmakuDebugEnabled,
                     onDanmakuAreaChange = { danmakuViewModel.updateArea(it) },
                     onDanmakuOpacityChange = { danmakuViewModel.updateOpacity(it) },
                     onDanmakuFontSizeChange = { danmakuViewModel.updateFontSize(it) },
                     onDanmakuSpeedChange = { danmakuViewModel.updateSpeed(it) },
                     onDanmakuSyncPlaybackSpeedChanged = { danmakuViewModel.updateSyncPlaybackSpeed(it) },
+                    onDanmakuDebugEnabledChange = { danmakuViewModel.updateDebugEnabled(it) },
                     onDanmakuSettingsHoverChanged = { isDanmakuSettingsHovered = it }
                 )
             }
@@ -1948,11 +1952,13 @@ fun PlayerControlRow(
     danmakuFontSize: Float = 1.0f,
     danmakuSpeed: Float = 1.0f,
     danmakuSyncPlaybackSpeed: Boolean = false,
+    danmakuDebugEnabled: Boolean = false,
     onDanmakuAreaChange: (Float) -> Unit = {},
     onDanmakuOpacityChange: (Float) -> Unit = {},
     onDanmakuFontSizeChange: (Float) -> Unit = {},
     onDanmakuSpeedChange: (Float) -> Unit = {},
     onDanmakuSyncPlaybackSpeedChanged: (Boolean) -> Unit = {},
+    onDanmakuDebugEnabledChange: (Boolean) -> Unit = {},
     onDanmakuSettingsHoverChanged: ((Boolean) -> Unit)? = null
 ) {
     val playerManager = LocalPlayerManager.current
@@ -2144,11 +2150,13 @@ fun PlayerControlRow(
                 fontSize = danmakuFontSize,
                 speed = danmakuSpeed,
                 syncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                debugEnabled = danmakuDebugEnabled,
                 onAreaChange = onDanmakuAreaChange,
                 onOpacityChange = onDanmakuOpacityChange,
                 onFontSizeChange = onDanmakuFontSizeChange,
                 onSpeedChange = onDanmakuSpeedChange,
                 onSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
+                onDebugEnabledChanged = onDanmakuDebugEnabledChange,
                 modifier = Modifier.padding(start = 8.dp),
                 onHoverStateChanged = onDanmakuSettingsHoverChanged
             )
@@ -3383,11 +3391,13 @@ fun PlayerBottomBar(
     danmakuFontSize: Float = 1.0f,
     danmakuSpeed: Float = 1.0f,
     danmakuSyncPlaybackSpeed: Boolean = false,
+    danmakuDebugEnabled: Boolean = false,
     onDanmakuAreaChange: (Float) -> Unit = {},
     onDanmakuOpacityChange: (Float) -> Unit = {},
     onDanmakuFontSizeChange: (Float) -> Unit = {},
     onDanmakuSpeedChange: (Float) -> Unit = {},
     onDanmakuSyncPlaybackSpeedChanged: (Boolean) -> Unit = {},
+    onDanmakuDebugEnabledChange: (Boolean) -> Unit = {},
     onDanmakuSettingsHoverChanged: (Boolean) -> Unit = {}
 ) {
     Column(
@@ -3463,11 +3473,13 @@ fun PlayerBottomBar(
                 danmakuFontSize = danmakuFontSize,
                 danmakuSpeed = danmakuSpeed,
                 danmakuSyncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                danmakuDebugEnabled = danmakuDebugEnabled,
                 onDanmakuAreaChange = onDanmakuAreaChange,
                 onDanmakuOpacityChange = onDanmakuOpacityChange,
                 onDanmakuFontSizeChange = onDanmakuFontSizeChange,
                 onDanmakuSpeedChange = onDanmakuSpeedChange,
                 onDanmakuSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
+                onDanmakuDebugEnabledChange = onDanmakuDebugEnabledChange,
                 onDanmakuSettingsHoverChanged = onDanmakuSettingsHoverChanged
             )
         }

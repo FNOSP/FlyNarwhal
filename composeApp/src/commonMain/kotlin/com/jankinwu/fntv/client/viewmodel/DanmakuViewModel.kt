@@ -35,6 +35,9 @@ class DanmakuViewModel : BaseViewModel() {
     private val _syncPlaybackSpeed = MutableStateFlow(PlayingSettingsStore.danmakuSyncPlaybackSpeed)
     val syncPlaybackSpeed: StateFlow<Boolean> = _syncPlaybackSpeed.asStateFlow()
 
+    private val _debugEnabled = MutableStateFlow(PlayingSettingsStore.danmakuDebug)
+    val debugEnabled: StateFlow<Boolean> = _debugEnabled.asStateFlow()
+
     fun toggleVisibility() {
         _isVisible.value = !_isVisible.value
     }
@@ -63,6 +66,11 @@ class DanmakuViewModel : BaseViewModel() {
     fun updateSyncPlaybackSpeed(value: Boolean) {
         _syncPlaybackSpeed.value = value
         PlayingSettingsStore.danmakuSyncPlaybackSpeed = value
+    }
+
+    fun updateDebugEnabled(value: Boolean) {
+        _debugEnabled.value = value
+        PlayingSettingsStore.danmakuDebug = value
     }
 
     fun loadDanmaku(

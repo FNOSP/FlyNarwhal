@@ -14,9 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
@@ -32,6 +30,8 @@ import kotlin.math.max
 private const val BASE_DURATION_AT_1X_MILLIS = 16_000L
 private const val FIXED_DURATION_MILLIS = 5_000L
 private const val MIN_PLAYBACK_SPEED_FOR_OVERLAP = 0.5f
+private const val NEGATIVE_MEDIA_JITTER_TOLERANCE_MILLIS = 200L
+private const val DEBUG_MAX_LINES = 10
 
 @Composable
 fun DanmakuOverlay(
@@ -45,7 +45,8 @@ fun DanmakuOverlay(
     fontSize: Float = 1.0f,
     speed: Float = 1.0f,
     syncPlaybackSpeed: Boolean = false,
-    resetNonce: Int = 0
+    resetNonce: Int = 0,
+    debugEnabled: Boolean = false
 ) {
     if (!isVisible) return
 
@@ -67,21 +68,13 @@ fun DanmakuOverlay(
         val topTrackCount = max(1, ((fixedRegionHeightPx - paddingTopPx) / trackHeightPx).toInt())
         val bottomTrackCount = max(1, ((fixedRegionHeightPx - paddingBottomPx) / trackHeightPx).toInt())
 
-        val shadow = remember {
-            Shadow(
-                color = Color.Black,
-                offset = Offset(2f, 2f),
-                blurRadius = 4f
-            )
-        }
         fun textStyleFor(scale: Float, color: Color): TextStyle {
             return TextStyle(
                 fontSize = (20 * scale).sp,
-                shadow = shadow,
                 color = color
             )
         }
-        val measureTextStyle = remember(effectiveFontSize, shadow) { textStyleFor(effectiveFontSize, Color.White) }
+        val measureTextStyle = remember(effectiveFontSize) { textStyleFor(effectiveFontSize, Color.White) }
         val textMeasurer = rememberTextMeasurer()
 
         val extraTravelPx = max(48f, widthPx * 0.15f)
@@ -123,7 +116,17 @@ fun DanmakuOverlay(
         val preparedItemsState = rememberUpdatedState(preparedItems)
         val preparedStartTimesMillisState = rememberUpdatedState(preparedStartTimesMillis)
 
+        val debugEnabledState = rememberUpdatedState(debugEnabled)
         val activeItems = remember { mutableStateListOf<ActiveDanmaku>() }
+        val debugLines = remember { mutableStateListOf<String>() }
+        fun pushDebug(line: String) {
+            if (!debugEnabledState.value) return
+            debugLines.add(line)
+            while (debugLines.size > DEBUG_MAX_LINES) {
+                debugLines.removeAt(0)
+            }
+        }
+
         var nextSpawnIndex by remember { mutableStateOf(0) }
         var lastMediaTimeMillis by remember { mutableStateOf<Long?>(null) }
         var lastFrameTimeNanos by remember { mutableStateOf<Long?>(null) }
@@ -137,6 +140,7 @@ fun DanmakuOverlay(
         var debugMessageAtFrameNanos by remember { mutableStateOf(0L) }
         var latestFrameNanos by remember { mutableStateOf(0L) }
         var lastAppliedResetNonce by remember { mutableStateOf(resetNonce) }
+        var lastPlayingNow by remember { mutableStateOf<Boolean?>(null) }
 
         val currentTimeState = rememberUpdatedState(currentTime)
         val speedState = rememberUpdatedState(speed)
@@ -165,8 +169,11 @@ fun DanmakuOverlay(
             realPlayheadNanos = 0L
             lastMediaTimeMillis = null
             lastFrameTimeNanos = null
-            debugMessage = "LIST_UPDATED size=${preparedItems.size} next=$nextSpawnIndex"
-            debugMessageAtFrameNanos = latestFrameNanos
+            if(debugEnabledState.value) {
+                debugMessage = "LIST_UPDATED size=${preparedItems.size} next=$nextSpawnIndex"
+                debugMessageAtFrameNanos = latestFrameNanos
+                pushDebug("LIST_UPDATED media=$mediaTimeMillis size=${preparedItems.size}")
+            }
         }
 
         LaunchedEffect(scrollTrackCount, topTrackCount, bottomTrackCount) {
@@ -223,8 +230,10 @@ fun DanmakuOverlay(
                 val mediaTimeMillis = currentTimeState.value
                 val resetValue = resetNonceState.value
                 if (resetValue != lastAppliedResetNonce) {
-                    debugMessage = "RESET_SIGNAL value=$resetValue active=${activeItems.size}"
-                    debugMessageAtFrameNanos = frameTimeNanos
+                    if (debugEnabledState.value) {
+                        debugMessage = "RESET_SIGNAL value=$resetValue active=${activeItems.size}"
+                        debugMessageAtFrameNanos = frameTimeNanos
+                    }
                     activeItems.clear()
                     nextSpawnIndex = preparedStartTimesSnapshot.lowerBound(mediaTimeMillis)
                     scrollTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
@@ -235,6 +244,9 @@ fun DanmakuOverlay(
                     lastMediaTimeMillis = null
                     lastFrameTimeNanos = null
                     lastAppliedResetNonce = resetValue
+                    if (debugEnabledState.value) {
+                        pushDebug("CLEAR resetNonce=$resetValue media=$mediaTimeMillis")
+                    }
                     continue
                 }
 
@@ -259,10 +271,21 @@ fun DanmakuOverlay(
                     continue
                 }
 
+                val playingNow = isPlayingState.value
+                if ((lastPlayingNow == null || lastPlayingNow != playingNow) && debugEnabledState.value) {
+                    lastPlayingNow = playingNow
+                    pushDebug("PLAY_STATE playing=$playingNow media=$mediaTimeMillis")
+                }
+
                 val absDeltaMediaMillis = kotlin.math.abs(deltaMediaMillis)
                 val deltaRealMillisF = deltaRealNanos.toFloat() / 1_000_000f
 
-                if (deltaMediaMillis < 0L || absDeltaMediaMillis > 3_000L) {
+                val shouldClearForJump = if (playingNow) {
+                    deltaMediaMillis < -NEGATIVE_MEDIA_JITTER_TOLERANCE_MILLIS || absDeltaMediaMillis > 3_000L
+                } else {
+                    absDeltaMediaMillis > 3_000L
+                }
+                if (shouldClearForJump) {
                     activeItems.clear()
                     nextSpawnIndex = preparedStartTimesSnapshot.lowerBound(mediaTimeMillis)
                     scrollTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
@@ -272,10 +295,12 @@ fun DanmakuOverlay(
                     realPlayheadNanos = 0L
                     lastMediaTimeMillis = mediaTimeMillis
                     lastFrameTimeNanos = frameTimeNanos
+                    if (debugEnabledState.value) {
+                        pushDebug("CLEAR jump dMedia=$deltaMediaMillis abs=$absDeltaMediaMillis playing=$playingNow media=$mediaTimeMillis")
+                    }
                     continue
                 }
 
-                val playingNow = isPlayingState.value
                 val nowRealNanos = if (playingNow) {
                     val next = realPlayheadNanos + deltaRealNanos
                     realPlayheadNanos = next
@@ -491,7 +516,7 @@ fun DanmakuOverlay(
         if (msg != null && latestFrameNanos - debugMessageAtFrameNanos < 6_000_000_000L) {
             Text(
                 text = msg,
-                style = TextStyle(fontSize = 12.sp, color = Color.Yellow, shadow = shadow),
+                style = TextStyle(fontSize = 12.sp, color = Color.Yellow),
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.graphicsLayer {
@@ -500,6 +525,32 @@ fun DanmakuOverlay(
                     alpha = 0.85f
                 }
             )
+        }
+
+        if (debugEnabled) {
+            val text = buildString {
+                append("DanmakuDebug active=").append(activeItems.size)
+                append(" next=").append(nextSpawnIndex)
+                append(" media=").append(currentTimeState.value)
+                append(" playing=").append(isPlayingState.value)
+                append('\n')
+                for (line in debugLines) {
+                    append(line).append('\n')
+                }
+            }.trimEnd()
+            if (text.isNotBlank()) {
+                Text(
+                    text = text,
+                    style = TextStyle(fontSize = 12.sp, color = Color.White),
+                    maxLines = 20,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.graphicsLayer {
+                        translationX = with(density) { 8.dp.toPx() }
+                        translationY = with(density) { 44.dp.toPx() }
+                        alpha = 0.95f
+                    }
+                )
+            }
         }
     }
 }

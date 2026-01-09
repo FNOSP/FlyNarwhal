@@ -75,11 +75,13 @@ fun DanmakuSettingsMenu(
     fontSize: Float,
     speed: Float,
     syncPlaybackSpeed: Boolean,
+    debugEnabled: Boolean,
     onAreaChange: (Float) -> Unit,
     onOpacityChange: (Float) -> Unit,
     onFontSizeChange: (Float) -> Unit,
     onSpeedChange: (Float) -> Unit,
     onSyncPlaybackSpeedChanged: (Boolean) -> Unit,
+    onDebugEnabledChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     onHoverStateChanged: ((Boolean) -> Unit)? = null
 ) {
@@ -165,6 +167,7 @@ fun DanmakuSettingsMenu(
                         fontSize = fontSize,
                         speed = speed,
                         syncPlaybackSpeed = syncPlaybackSpeed,
+                        debugEnabled = debugEnabled,
                         currentScreen = currentScreen,
                         onNavigate = { currentScreen = it },
                         onAreaChange = onAreaChange,
@@ -172,6 +175,7 @@ fun DanmakuSettingsMenu(
                         onFontSizeChange = onFontSizeChange,
                         onSpeedChange = onSpeedChange,
                         onSyncPlaybackSpeedChanged = onSyncPlaybackSpeedChanged,
+                        onDebugEnabledChanged = onDebugEnabledChanged,
                         onAnimationFinished = {
                             if (!isExpanded) {
                                 showPopup = false
@@ -193,6 +197,7 @@ private fun DanmakuSettingsFlyout(
     fontSize: Float,
     speed: Float,
     syncPlaybackSpeed: Boolean,
+    debugEnabled: Boolean,
     currentScreen: String,
     onNavigate: (String) -> Unit,
     onAreaChange: (Float) -> Unit,
@@ -200,6 +205,7 @@ private fun DanmakuSettingsFlyout(
     onFontSizeChange: (Float) -> Unit,
     onSpeedChange: (Float) -> Unit,
     onSyncPlaybackSpeedChanged: (Boolean) -> Unit,
+    onDebugEnabledChanged: (Boolean) -> Unit,
     onAnimationFinished: () -> Unit
 ) {
     val alpha = remember { Animatable(0f) }
@@ -270,28 +276,54 @@ private fun DanmakuSettingsFlyout(
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (currentScreen == "Advanced") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "弹幕速度同步播放倍速",
-                                color = Color.White,
-                                fontSize = 14.sp
-                            )
-                            Switch(
-                                checked = syncPlaybackSpeed,
-                                onCheckedChange = onSyncPlaybackSpeedChanged,
-                                modifier = Modifier.scale(0.7f).height(30.dp),
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = Colors.AccentColorDefault,
-                                    uncheckedThumbColor = Color.White,
-                                    uncheckedTrackColor = Color.Gray.copy(alpha = 0.5f),
-                                    uncheckedBorderColor = Color.Transparent
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "弹幕速度同步播放倍速",
+                                    color = Color.White,
+                                    fontSize = 14.sp
                                 )
-                            )
+                                Switch(
+                                    checked = syncPlaybackSpeed,
+                                    onCheckedChange = onSyncPlaybackSpeedChanged,
+                                    modifier = Modifier.scale(0.7f).height(30.dp),
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Colors.AccentColorDefault,
+                                        uncheckedThumbColor = Color.White,
+                                        uncheckedTrackColor = Color.Gray.copy(alpha = 0.5f),
+                                        uncheckedBorderColor = Color.Transparent
+                                    )
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "弹幕调试日志",
+                                    color = Color.White,
+                                    fontSize = 14.sp
+                                )
+                                Switch(
+                                    checked = debugEnabled,
+                                    onCheckedChange = onDebugEnabledChanged,
+                                    modifier = Modifier.scale(0.7f).height(30.dp),
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Colors.AccentColorDefault,
+                                        uncheckedThumbColor = Color.White,
+                                        uncheckedTrackColor = Color.Gray.copy(alpha = 0.5f),
+                                        uncheckedBorderColor = Color.Transparent
+                                    )
+                                )
+                            }
                         }
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
