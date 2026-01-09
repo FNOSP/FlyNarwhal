@@ -265,12 +265,12 @@ fun LoginScreen(
                 // 检查是否是证书错误
 //                if (state.message.contains("PKIX path building failed") || state.message.contains("unable to find valid certification path")) {
 //                    // Todo 这里应该显示一个对话框询问用户是否信任证书
-//                    logger.w("检测到SSL证书错误，需要用户确认是否信任证书")
+//                    logger.w("检测到 SSL 证书错误，需要用户确认是否信任证书")
 //                }
             }
 
             else -> {
-                // 其他状态，如Initial或Loading，可以不做处理
+                // 其他状态，如 Initial 或 Loading，可以不做处理
             }
         }
     }
@@ -402,7 +402,7 @@ fun LoginScreen(
                                     .focusRequester(hostFocusRequester),
                                 label = {
                                     Text(
-                                        "请输入IP、域名或 FN ID",
+                                        "请输入 IP、域名或 FN ID",
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
