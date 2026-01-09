@@ -538,56 +538,6 @@ fun PlayerOverlay(
         }
     }
 
-    LaunchedEffect(
-        currentPosition,
-        playState,
-        playerManager.initialResumePositionMs,
-        playerManager.initialSeekTargetMs,
-        playerManager.initialSeekCommandSent,
-        playerManager.initialSeekCommandWallTimeMs,
-        playerManager.initialSeekStableSinceWallTimeMs,
-        playerManager.initialSeekLastObservedPositionMs,
-        playerManager.initialSeekCompleted
-    ) {
-        if (playerManager.initialSeekCompleted) return@LaunchedEffect
-        if (!playerManager.initialSeekCommandSent) return@LaunchedEffect
-        if (playState != PlaybackState.PLAYING) return@LaunchedEffect
-
-        val resumeTarget = playerManager.initialResumePositionMs ?: return@LaunchedEffect
-        val now = System.currentTimeMillis()
-        val lastObservedPosition = playerManager.initialSeekLastObservedPositionMs
-        val largeBackwardJump = lastObservedPosition > 0L && (lastObservedPosition - currentPosition) > 1500L
-        if (largeBackwardJump) {
-            playerManager.initialSeekStableSinceWallTimeMs = 0L
-        }
-
-        val nearTarget = kotlin.math.abs(currentPosition - resumeTarget) <= 800L
-        val beyondTarget = currentPosition >= (resumeTarget - 500L).coerceAtLeast(0L)
-        if (nearTarget || beyondTarget) {
-            if (playerManager.initialSeekStableSinceWallTimeMs == 0L) {
-                playerManager.initialSeekStableSinceWallTimeMs = now
-            }
-        } else {
-            playerManager.initialSeekStableSinceWallTimeMs = 0L
-        }
-
-        val stableSince = playerManager.initialSeekStableSinceWallTimeMs
-        val commandAt = playerManager.initialSeekCommandWallTimeMs
-        val stableEnough = stableSince > 0L && (now - stableSince) >= 200L
-        val commandOldEnough = commandAt > 0L && (now - commandAt) >= 300L
-        if (stableEnough && commandOldEnough) {
-            playerManager.initialSeekCompleted = true
-            playerManager.initialSeekTargetMs = null
-            playerManager.initialResumePositionMs = null
-            playerManager.initialSeekCommandSent = false
-            playerManager.initialSeekCommandWallTimeMs = 0L
-            playerManager.initialSeekStableSinceWallTimeMs = 0L
-            playerManager.initialSeekLastObservedPositionMs = 0L
-        }
-
-        playerManager.initialSeekLastObservedPositionMs = currentPosition
-    }
-
     val totalDuration = remember(playerManager.playerState.itemGuid) {
         playerManager.playerState.duration
     }
@@ -642,6 +592,75 @@ fun PlayerOverlay(
             startMs to totalDuration
         } else {
             null
+        }
+    }
+
+    LaunchedEffect(
+        currentPosition,
+        playState,
+        resolvedIntroSegmentMillis,
+        playerManager.initialResumePositionMs,
+        playerManager.initialSeekTargetMs,
+        playerManager.initialSeekCommandSent,
+        playerManager.initialSeekCommandWallTimeMs,
+        playerManager.initialSeekStableSinceWallTimeMs,
+        playerManager.initialSeekLastObservedPositionMs,
+        playerManager.initialSeekCompleted
+    ) {
+        if (playerManager.initialSeekCompleted) return@LaunchedEffect
+        if (!playerManager.initialSeekCommandSent) return@LaunchedEffect
+        if (playState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val resumeTarget = playerManager.initialResumePositionMs ?: return@LaunchedEffect
+        val introStartMs = resolvedIntroSegmentMillis?.first
+        val shouldUseStableCompletion = introStartMs == 0L && resumeTarget > 0L
+
+        if (!shouldUseStableCompletion) {
+            if (currentPosition >= (resumeTarget - 500L).coerceAtLeast(0L)) {
+                playerManager.initialSeekCompleted = true
+                playerManager.initialSeekTargetMs = null
+                playerManager.initialResumePositionMs = null
+                playerManager.initialSeekCommandSent = false
+                playerManager.initialSeekCommandWallTimeMs = 0L
+                playerManager.initialSeekStableSinceWallTimeMs = 0L
+                playerManager.initialSeekLastObservedPositionMs = 0L
+            } else {
+                playerManager.initialSeekLastObservedPositionMs = currentPosition
+            }
+            return@LaunchedEffect
+        }
+
+        val now = System.currentTimeMillis()
+        val lastObservedPosition = playerManager.initialSeekLastObservedPositionMs
+        val largeBackwardJump = lastObservedPosition > 0L && (lastObservedPosition - currentPosition) > 1500L
+        if (largeBackwardJump) {
+            playerManager.initialSeekStableSinceWallTimeMs = 0L
+        }
+
+        val nearTarget = kotlin.math.abs(currentPosition - resumeTarget) <= 800L
+        val beyondTarget = currentPosition >= (resumeTarget - 500L).coerceAtLeast(0L)
+        if (nearTarget || beyondTarget) {
+            if (playerManager.initialSeekStableSinceWallTimeMs == 0L) {
+                playerManager.initialSeekStableSinceWallTimeMs = now
+            }
+        } else {
+            playerManager.initialSeekStableSinceWallTimeMs = 0L
+        }
+
+        val stableSince = playerManager.initialSeekStableSinceWallTimeMs
+        val commandAt = playerManager.initialSeekCommandWallTimeMs
+        val stableEnough = stableSince > 0L && (now - stableSince) >= 100L
+        val commandOldEnough = commandAt > 0L && (now - commandAt) >= 100L
+        if (stableEnough && commandOldEnough) {
+            playerManager.initialSeekCompleted = true
+            playerManager.initialSeekTargetMs = null
+            playerManager.initialResumePositionMs = null
+            playerManager.initialSeekCommandSent = false
+            playerManager.initialSeekCommandWallTimeMs = 0L
+            playerManager.initialSeekStableSinceWallTimeMs = 0L
+            playerManager.initialSeekLastObservedPositionMs = 0L
+        } else {
+            playerManager.initialSeekLastObservedPositionMs = currentPosition
         }
     }
 
