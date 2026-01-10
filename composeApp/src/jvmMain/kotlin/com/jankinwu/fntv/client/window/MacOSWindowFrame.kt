@@ -4,10 +4,12 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -77,11 +79,18 @@ fun FrameWindowScope.MacOSWindowFrame(
     Box {
         val contentInset = WindowInsets(left = 80.dp)
         content(windowInset, contentInset)
-        Row(modifier = Modifier.windowInsetsPadding(contentInset)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.height(captionBarHeight)
-            ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .windowInsetsPadding(contentInset)
+                .fillMaxWidth()
+                .height(captionBarHeight)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {}
+                )
+        ) {
 //                AnimatedContent(
 //                    targetState = backButtonVisible,
 //                    transitionSpec = {
@@ -162,8 +171,6 @@ fun FrameWindowScope.MacOSWindowFrame(
                     HasNewVersionTag()
                     Spacer(modifier = Modifier.weight(1f))
                 }
-            }
-
         }
 
         window.rootPane.apply {

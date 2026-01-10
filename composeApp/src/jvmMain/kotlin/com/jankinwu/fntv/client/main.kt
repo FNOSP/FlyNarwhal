@@ -338,9 +338,15 @@ fun main() {
                                 if (!isLoggedIn) {
                                     LoginScreen(
                                         navigator = navigator,
-                                        onOpenFnConnectWindow = { request ->
-                                            fnConnectWindowRequest = request
-                                        }
+                                        onOpenFnConnectWindow = if (platform.isWindows() && shouldInitKcef) {
+                                            { request ->
+                                                fnConnectWindowRequest = request
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                        windowInset = windowInset,
+                                        contentInset = contentInset
                                     )
                                 } else {
                                     App(
@@ -479,7 +485,8 @@ fun main() {
 
                     val request = fnConnectWindowRequest
                     if (request != null) {
-                        if (!shouldInitKcef) {
+                        val shouldEnableFnConnectWebView = platform.isWindows() || platform.isMacOS()
+                        if (!shouldEnableFnConnectWebView) {
                             LaunchedEffect(request) {
                                 logger.i { "FnConnect WebView is disabled for platform: ${platform::class.simpleName}" }
                                 fnConnectWindowRequest = null
@@ -523,7 +530,7 @@ fun main() {
                                 LocalWebViewInitError provides webViewInitError
                             ) {
                                 var errorDialogDismissed by remember { mutableStateOf(false) }
-                                if (webViewInitError != null && !errorDialogDismissed) {
+                                if (shouldInitKcef && webViewInitError != null && !errorDialogDismissed) {
                                     KcefInitErrorDialog(
                                         error = webViewInitError,
                                         onDismiss = { errorDialogDismissed = true }

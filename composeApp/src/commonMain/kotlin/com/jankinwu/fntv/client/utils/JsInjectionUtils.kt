@@ -15,17 +15,20 @@ fun getJsInjectionScript(
             var ALLOW_AUTO_LOGIN = ${allowAutoLogin};
             var USERNAME_HISTORY = $usernameHistoryJs;
             
-            function logToNative(type, url, method, headers, body) {
-                if (window.kmpJsBridge) {
-                    window.kmpJsBridge.callNative("LogNetwork", JSON.stringify({
-                        type: type,
-                        url: url,
-                        method: method,
-                        headers: headers,
-                        cookie: document.cookie,
-                        body: body
-                    }));
-                }
+            function callNative(method, params) {
+                try {
+                    if (window.kmpJsBridge && typeof window.kmpJsBridge.callNative === 'function') {
+                        window.kmpJsBridge.callNative(method, params);
+                    }
+                } catch (e) {}
+            }
+
+            function logToNative(payload) {
+                try {
+                    payload = payload || {};
+                    payload.cookie = document.cookie;
+                    callNative("LogNetwork", JSON.stringify(payload));
+                } catch (e) {}
             }
             
             function triggerInput(input, value) {
@@ -250,14 +253,12 @@ fun getJsInjectionScript(
                          var u = document.getElementById('username') ? document.getElementById('username').value : "";
                          var p = document.getElementById('password') ? document.getElementById('password').value : "";
                          var r = document.getElementById('remember-password') ? document.getElementById('remember-password').checked : false;
-                         
-                         if (window.kmpJsBridge) {
-                             window.kmpJsBridge.callNative("CaptureLoginInfo", JSON.stringify({
-                                 username: u,
-                                 password: p,
-                                 rememberPassword: r
-                             }));
-                         }
+
+                         callNative("CaptureLoginInfo", JSON.stringify({
+                             username: u,
+                             password: p,
+                             rememberPassword: r
+                         }));
                      }
 
                      var loginBtn = document.querySelector('button[type="submit"]');
@@ -358,7 +359,17 @@ fun getJsInjectionScript(
                 self.onreadystatechange = function() {
                     if (self.readyState === 4) {
                         if (self._url && self._url.indexOf("/oauthapi/authorize") !== -1) {
-                            logToNative("Response", self._url, self._method, {}, self.responseText);
+                            try {
+                                var json = JSON.parse(self.responseText || "{}");
+                                var code = json && json.data ? json.data.code : null;
+                                if (code) {
+                                    logToNative({ type: "Response", url: self._url, code: String(code) });
+                                } else {
+                                    logToNative({ type: "Response", url: self._url, body: self.responseText || "" });
+                                }
+                            } catch (e) {
+                                logToNative({ type: "Response", url: self._url, body: self.responseText || "" });
+                            }
                         }
                     }
                     if (originalOnReadyStateChange) {
@@ -366,7 +377,9 @@ fun getJsInjectionScript(
                     }
                 }
                 
-                logToNative("XHR", this._url, this._method, this._headers, null);
+                if (this._url && this._url.indexOf("/sac/rpcproxy/v1/new-user-guide/status") !== -1) {
+                    logToNative({ type: "XHR", url: this._url, headers: (this._headers || {}) });
+                }
                 return originalSend.apply(this, arguments);
             };
 
@@ -395,17 +408,55 @@ fun getJsInjectionScript(
                     }
                 }
                 
-                logToNative("Fetch", url, method, headers, null);
+                if (url && url.indexOf("/sac/rpcproxy/v1/new-user-guide/status") !== -1) {
+                    logToNative({ type: "XHR", url: url, headers: headers });
+                }
+                
                 return originalFetch.apply(this, arguments).then(function(response) {
                     if (url && url.indexOf("/oauthapi/authorize") !== -1) {
                         var clone = response.clone();
                         clone.text().then(function(text) {
-                             logToNative("Response", url, method, {}, text);
+                             try {
+                                 var json = JSON.parse(text || "{}");
+                                 var code = json && json.data ? json.data.code : null;
+                                 if (code) {
+                                     logToNative({ type: "Response", url: url, code: String(code) });
+                                 } else {
+                                     logToNative({ type: "Response", url: url, body: text || "" });
+                                 }
+                             } catch (e) {
+                                 logToNative({ type: "Response", url: url, body: text || "" });
+                             }
                         });
                     }
                     return response;
                 });
             };
+
+            function fetchSysConfigOnce() {
+                try {
+                    if (window.__flynarwhal_sys_config_requested) return;
+                    if (window.location.href.indexOf('/login') !== -1) return;
+                    window.__flynarwhal_sys_config_requested = true;
+                    fetch('/v/api/v1/sys/config', { credentials: 'include' })
+                        .then(function(r) { return r.text(); })
+                        .then(function(text) {
+                            logToNative({
+                                type: "SysConfig",
+                                url: "/v/api/v1/sys/config",
+                                body: text || "",
+                                pageUrl: String(window.location.href || "")
+                            });
+                        })
+                        .catch(function() {
+                            window.__flynarwhal_sys_config_requested = false;
+                        });
+                } catch (e) {
+                    window.__flynarwhal_sys_config_requested = false;
+                }
+            }
+
+            setTimeout(fetchSysConfigOnce, 800);
             console.log("Network Interceptor Injected Successfully.");
         })();
     """.trimIndent()

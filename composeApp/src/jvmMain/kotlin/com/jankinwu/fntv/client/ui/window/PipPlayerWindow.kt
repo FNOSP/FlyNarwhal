@@ -278,7 +278,7 @@ fun PipPlayerWindow(
 
     val smartSegments by smartAnalysisStatusViewModel.smartSegments.collectAsState()
     val smartSkipEnabled by smartAnalysisStatusViewModel.smartSkipEnabled.collectAsState()
-    val isSmartAnalysisGloballyEnabled = AppSettingsStore.smartAnalysisEnabled
+    val isSmartAnalysisGloballyEnabled = AppSettingsStore.flyNarwhalServerEnabled
     val useSmartSkip = isSmartAnalysisGloballyEnabled && smartSkipEnabled && smartSegments != null
 
     val smartIntroSegmentMillis: Pair<Long, Long>? = if (useSmartSkip) {

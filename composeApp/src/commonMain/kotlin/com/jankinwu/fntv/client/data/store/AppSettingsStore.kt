@@ -59,7 +59,7 @@ object AppSettingsStore {
         get() = settings.getFloatOrNull(scopedKey("player_window_width"))
             ?: settings.getFloat("player_window_width", 1280f)
         set(value) {
-            settings.set(scopedKey("player_window_width"), value)
+            settings[scopedKey("player_window_width")] = value
             settings.set("player_window_width", value)
         }
 
@@ -67,7 +67,7 @@ object AppSettingsStore {
         get() = settings.getFloatOrNull(scopedKey("player_window_height"))
             ?: settings.getFloat("player_window_height", 720f)
         set(value) {
-            settings.set(scopedKey("player_window_height"), value)
+            settings[scopedKey("player_window_height")] = value
             settings.set("player_window_height", value)
         }
 
@@ -75,7 +75,7 @@ object AppSettingsStore {
         get() = settings.getFloatOrNull(scopedKey("player_window_x"))
             ?: settings.getFloat("player_window_x", Float.NaN)
         set(value) {
-            settings.set(scopedKey("player_window_x"), value)
+            settings[scopedKey("player_window_x")] = value
             settings.set("player_window_x", value)
         }
 
@@ -83,7 +83,7 @@ object AppSettingsStore {
         get() = settings.getFloatOrNull(scopedKey("player_window_y"))
             ?: settings.getFloat("player_window_y", Float.NaN)
         set(value) {
-            settings.set(scopedKey("player_window_y"), value)
+            settings[scopedKey("player_window_y")] = value
             settings.set("player_window_y", value)
         }
 
@@ -99,11 +99,11 @@ object AppSettingsStore {
         get() = settings.getBoolean(scopedKey("kcef_initialized"), false)
         set(value) = settings.set(scopedKey("kcef_initialized"), value)
 
-    var smartAnalysisEnabled: Boolean
+    var flyNarwhalServerEnabled: Boolean
         get() = settings.getBoolean(scopedKey("smart_analysis_enabled"), false)
         set(value) = settings.set(scopedKey("smart_analysis_enabled"), value)
 
-    var smartAnalysisBaseUrl: String
+    var flyNarwhalServerBaseUrl: String
         get() = settings.getString(scopedKey("smart_analysis_base_url"), "")
         set(value) = settings.set(scopedKey("smart_analysis_base_url"), value)
 

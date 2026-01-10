@@ -280,7 +280,7 @@ fun TvDetailBody(
     val store = LocalStore.current
     val windowHeight = store.windowHeightState
     val toastManager = LocalToastManager.current
-    val smartAnalysisEnabled = AppSettingsStore.smartAnalysisEnabled
+    val smartAnalysisEnabled = AppSettingsStore.flyNarwhalServerEnabled
     val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel()
     val analyzeState by smartAnalysisViewModel.analyzeState.collectAsState()
     val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
@@ -636,7 +636,7 @@ private fun TvMiddleControls(
     var isFavorite by remember(itemData.isFavorite == 1) { mutableStateOf(itemData.isFavorite == 1) }
     val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
     var isWatched by remember(itemData.isWatched == 1) { mutableStateOf(itemData.isWatched == 1) }
-    val smartAnalysisEnabled = AppSettingsStore.smartAnalysisEnabled
+    val smartAnalysisEnabled = AppSettingsStore.flyNarwhalServerEnabled
     val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel()
     var isManageVersionsDialogVisible by remember { mutableStateOf(false) }
 

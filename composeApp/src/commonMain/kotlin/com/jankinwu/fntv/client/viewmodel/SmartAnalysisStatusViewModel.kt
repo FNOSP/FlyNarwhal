@@ -97,7 +97,7 @@ class SmartAnalysisStatusViewModel : BaseViewModel() {
         cancelEpisodeAnalysisCheck()
         val episodeGuid = _currentEpisodeGuid.value
         if (episodeGuid.isNullOrBlank()) return
-        if (!AppSettingsStore.smartAnalysisEnabled) return
+        if (!AppSettingsStore.flyNarwhalServerEnabled) return
         if (!_smartSkipEnabled.value) return
         startEpisodeAnalysisCheck(episodeGuid)
     }

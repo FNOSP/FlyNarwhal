@@ -328,7 +328,7 @@ fun TvEpisodeBody(
     val store = LocalStore.current
     val windowHeight = store.windowHeightState
     val toastManager = LocalToastManager.current
-    val smartAnalysisEnabled = AppSettingsStore.smartAnalysisEnabled
+    val smartAnalysisEnabled = AppSettingsStore.flyNarwhalServerEnabled
     val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel()
     val analyzeState by smartAnalysisViewModel.analyzeState.collectAsState()
     val smartAnalysisStatusViewModel: SmartAnalysisStatusViewModel = koinViewModel()

@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.7.0"
+val appVersion = "1.7.1"
 val appVersionSuffix = ""
 
 val platformStr = when {
@@ -309,6 +309,7 @@ kotlin {
             implementation(libs.filekit.coil)
             implementation(libs.multiplatform.markdown.renderer)
             implementation(libs.compose.webview)
+            implementation(libs.com.saralapps.composemultiplatformwebview4)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -359,6 +360,16 @@ compose.desktop {
             configurationFiles.from(project.rootDir.resolve("compose-desktop.pro"))
         }
         nativeDistributions {
+            if (osName.contains("mac")) {
+                outputBaseDir.set(
+                    layout.dir(
+                        providers.provider {
+                            File(System.getProperty("java.io.tmpdir")).resolve("FlyNarwhal-compose-binaries")
+                        }
+                    )
+                )
+            }
+
             targetFormats(TargetFormat.Dmg, TargetFormat.Deb, TargetFormat.Exe, TargetFormat.Rpm, TargetFormat.Pkg)
             // 使用英文作为包名，避免Windows下打包乱码和路径问题
             // Use English package name to avoid garbled text on Windows

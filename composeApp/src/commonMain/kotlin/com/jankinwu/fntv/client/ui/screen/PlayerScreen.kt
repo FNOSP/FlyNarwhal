@@ -172,9 +172,6 @@ import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.DialogSize
-import io.github.composefluent.component.FontIconDefaults
-import io.github.composefluent.component.FontIconSize
-import io.github.composefluent.component.NavigationDefaults
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
@@ -547,7 +544,7 @@ fun PlayerOverlay(
     // Smart Analysis Skip Logic
     val smartSegments by smartAnalysisStatusViewModel.smartSegments.collectAsState()
     val smartSkipEnabled by smartAnalysisStatusViewModel.smartSkipEnabled.collectAsState()
-    val isSmartAnalysisGloballyEnabled = AppSettingsStore.smartAnalysisEnabled
+    val isSmartAnalysisGloballyEnabled = AppSettingsStore.flyNarwhalServerEnabled
 
     val useSmartSkip = isSmartAnalysisGloballyEnabled && smartSkipEnabled && smartSegments != null
 
@@ -2272,40 +2269,42 @@ fun PlayerControlRow(
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        onToggleDanmaku()
-                    }
-                    .padding(start = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (isDanmakuVisible) DanmuOpen else DanmuClose,
-                    contentDescription = "弹幕设置",
-                    tint = Color.White,
-                    modifier = Modifier.size(26.dp)
+            if (isSmartAnalysisGloballyEnabled) {
+                Box(
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            onToggleDanmaku()
+                        }
+                        .padding(start = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isDanmakuVisible) DanmuOpen else DanmuClose,
+                        contentDescription = "弹幕设置",
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                DanmakuSettingsMenu(
+                    area = danmakuArea,
+                    opacity = danmakuOpacity,
+                    fontSize = danmakuFontSize,
+                    speed = danmakuSpeed,
+                    syncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                    debugEnabled = danmakuDebugEnabled,
+                    onAreaChange = onDanmakuAreaChange,
+                    onOpacityChange = onDanmakuOpacityChange,
+                    onFontSizeChange = onDanmakuFontSizeChange,
+                    onSpeedChange = onDanmakuSpeedChange,
+                    onSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
+                    onDebugEnabledChanged = onDanmakuDebugEnabledChange,
+                    modifier = Modifier.padding(start = 8.dp),
+                    onHoverStateChanged = onDanmakuSettingsHoverChanged
                 )
             }
-            DanmakuSettingsMenu(
-                area = danmakuArea,
-                opacity = danmakuOpacity,
-                fontSize = danmakuFontSize,
-                speed = danmakuSpeed,
-                syncPlaybackSpeed = danmakuSyncPlaybackSpeed,
-                debugEnabled = danmakuDebugEnabled,
-                onAreaChange = onDanmakuAreaChange,
-                onOpacityChange = onDanmakuOpacityChange,
-                onFontSizeChange = onDanmakuFontSizeChange,
-                onSpeedChange = onDanmakuSpeedChange,
-                onSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
-                onDebugEnabledChanged = onDanmakuDebugEnabledChange,
-                modifier = Modifier.padding(start = 8.dp),
-                onHoverStateChanged = onDanmakuSettingsHoverChanged
-            )
             SubtitleControlFlyout(
                 playingInfoCache = playingInfoCache,
                 isoTagData = isoTagData,
@@ -3313,26 +3312,26 @@ fun PlayerTopBar(
                     .padding(top = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 80.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val interaction = remember { MutableInteractionSource() }
-                    NavigationDefaults.BackButton(
-                        onClick = {
-                            mediaPlayer.stopPlayback()
-                            playerViewModel.updatePlayingInfo(null)
-                            playerViewModel.updateSubtitleSettings(SubtitleSettings())
-                            onBack()
-                        },
-                        interaction = interaction,
-                        icon = {
-                            FontIconDefaults.BackIcon(interaction, size = FontIconSize(16f))
-                        }
-                    )
-                }
+//                Box(
+//                    modifier = Modifier
+//                        .align(Alignment.CenterStart)
+//                        .padding(start = 80.dp),
+//                    contentAlignment = Alignment.Center
+//                ) {
+//                    val interaction = remember { MutableInteractionSource() }
+//                    NavigationDefaults.BackButton(
+//                        onClick = {
+//                            mediaPlayer.stopPlayback()
+//                            playerViewModel.updatePlayingInfo(null)
+//                            playerViewModel.updateSubtitleSettings(SubtitleSettings())
+//                            onBack()
+//                        },
+//                        interaction = interaction,
+//                        icon = {
+//                            FontIconDefaults.BackIcon(interaction, size = FontIconSize(16f))
+//                        }
+//                    )
+//                }
                 Box(
                     modifier = Modifier.align(Alignment.Center),
                     contentAlignment = Alignment.Center

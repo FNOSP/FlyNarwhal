@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -146,7 +147,9 @@ data class FnConnectWindowRequest(
 @Composable
 fun LoginScreen(
     navigator: ComponentNavigator,
-    onOpenFnConnectWindow: ((FnConnectWindowRequest) -> Unit)? = null
+    onOpenFnConnectWindow: ((FnConnectWindowRequest) -> Unit)? = null,
+    windowInset: WindowInsets = WindowInsets(0),
+    contentInset: WindowInsets = WindowInsets(0)
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -167,13 +170,14 @@ fun LoginScreen(
     val isLinuxPlatform = remember {
         runCatching { currentPlatform() }.getOrNull()?.isLinux() == true
     }
-    val isMacOSPlatform = remember {
+    val isMacPlatform = remember {
         runCatching { currentPlatform() }.getOrNull()?.isMacOS() == true
     }
-    val isNasLoginDisabledPlatform = isLinuxPlatform || isMacOSPlatform
+    val isNasLoginDisabledPlatform = isLinuxPlatform
+    val canUseFnConnectWebView = isWebViewInitialized || isMacPlatform
     val shouldBlockWebViewDependency = remember {
         val platform = runCatching { currentPlatform() }.getOrNull()
-        platform?.let { it.isDesktop() && !it.isWindows() } ?: true
+        platform?.let { it.isDesktop() && !it.isWindows() && !it.isMacOS() } ?: true
     }
     val hazeState = rememberHazeState()
     var showHistorySidebar by remember { mutableStateOf(false) }
@@ -302,7 +306,27 @@ fun LoginScreen(
             autoLoginUsername = fnAutoUsername,
             autoLoginPassword = fnAutoPassword,
             allowAutoLogin = isAutoLogin,
-            onBaseUrlDetected = null
+            windowInset = windowInset,
+            contentInset = contentInset,
+            onBaseUrlDetected = if (isProbeMode) {
+                { _ ->
+                    showFnConnectWebView = false
+                    isProbeMode = false
+                    handleLogin(
+                        host = host,
+                        port = port,
+                        username = username,
+                        password = password,
+                        isHttps = isHttps,
+                        toastManager = toastManager,
+                        loginViewModel = loginViewModel,
+                        rememberPassword = rememberPassword,
+                        isProbeFinished = true
+                    )
+                }
+            } else {
+                null
+            }
         )
     } else {
         Box(
@@ -566,7 +590,7 @@ fun LoginScreen(
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
-                    if (!isNasLoginDisabledPlatform) {
+                    if (!isNasLoginDisabledPlatform && !isMacPlatform) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -614,7 +638,7 @@ fun LoginScreen(
                                     toastManager.showToast("当前平台暂不支持 NAS 登录", ToastType.Failed)
                                     return@Button
                                 }
-                                if (!isWebViewInitialized) {
+                                if (!canUseFnConnectWebView) {
                                     if (shouldBlockWebViewDependency) {
                                         val msg =
                                             if (webViewInitError != null) "组件加载失败，无法使用 NAS 登录"
@@ -673,14 +697,15 @@ fun LoginScreen(
                                             toastManager.showToast("当前平台暂时不支持 FN ID 登录", ToastType.Failed)
                                             return@handleLogin
                                         }
-                                        if (!isWebViewInitialized && shouldBlockWebViewDependency) {
+                                        if (!canUseFnConnectWebView && shouldBlockWebViewDependency) {
                                             val msg =
                                                 if (webViewInitError != null) "组件加载失败，无法验证服务器"
                                                 else "组件正在初始化，请稍后..."
+
                                             toastManager.showToast(msg, ToastType.Failed)
                                             return@handleLogin
                                         }
-                                        if (!isWebViewInitialized && !shouldBlockWebViewDependency) {
+                                        if (!canUseFnConnectWebView && !shouldBlockWebViewDependency) {
                                             val msg =
                                                 if (webViewInitError != null) "组件加载失败，验证页面可能无法打开，可在弹窗中重试初始化"
                                                 else "组件正在初始化，验证页面会在初始化完成后显示"
@@ -755,7 +780,7 @@ fun LoginScreen(
                                 toastManager.showToast("当前平台暂不支持 NAS 登录", ToastType.Failed)
                                 return@onSelect
                             }
-                            if (!isWebViewInitialized) {
+                            if (!canUseFnConnectWebView) {
                                 if (shouldBlockWebViewDependency) {
                                     val msg =
                                         if (webViewInitError != null) "组件加载失败，无法使用 NAS 登录"
@@ -826,14 +851,14 @@ fun LoginScreen(
                                             toastManager.showToast("当前平台暂不支持 NAS 登录", ToastType.Failed)
                                             return@handleLogin
                                         }
-                                        if (!isWebViewInitialized && shouldBlockWebViewDependency) {
+                                        if (!canUseFnConnectWebView && shouldBlockWebViewDependency) {
                                             val msg =
                                                 if (webViewInitError != null) "组件加载失败，无法验证服务器"
                                                 else "组件正在初始化，请稍后..."
                                             toastManager.showToast(msg, ToastType.Failed)
                                             return@handleLogin
                                         }
-                                        if (!isWebViewInitialized && !shouldBlockWebViewDependency) {
+                                        if (!canUseFnConnectWebView && !shouldBlockWebViewDependency) {
                                             val msg =
                                                 if (webViewInitError != null) "组件加载失败，验证页面可能无法打开，可在弹窗中重试初始化"
                                                 else "组件正在初始化，验证页面会在初始化完成后显示"

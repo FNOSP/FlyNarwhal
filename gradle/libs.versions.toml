@@ -12,6 +12,7 @@ androidx-lifecycle = "2.9.6"
 androidx-collection = "1.5.0"
 composeHotReload = "1.0.0"
 composeMultiplatform = "1.9.3"
+saralappsWebview = "0.1.5"
 junit = "4.13.2"
 kotlin = "2.1.0"
 kotlinx-coroutines = "1.10.2"
@@ -43,6 +44,7 @@ jSystemThemeDetector = "3.9"
 multiplatformMarkdownRenderer = "0.38.1"
 
 [libraries]
+com-saralapps-composemultiplatformwebview4 = { module = "com.saralapps:composemultiplatformwebview", version.ref = "saralappsWebview" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }

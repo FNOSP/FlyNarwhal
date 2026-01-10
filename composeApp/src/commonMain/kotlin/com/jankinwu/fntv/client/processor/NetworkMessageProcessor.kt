@@ -9,8 +9,6 @@ import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.viewmodel.NasAuthViewModel
 import com.multiplatform.webview.cookie.Cookie
-import com.multiplatform.webview.web.WebViewNavigator
-import com.multiplatform.webview.web.WebViewState
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -20,16 +18,33 @@ import kotlinx.serialization.json.jsonPrimitive
 class NetworkMessageProcessor(
     private val nasAuthViewModel: NasAuthViewModel,
     private val toastManager: ToastManager,
-    private val webViewState: WebViewState,
-    private val navigator: WebViewNavigator,
+    private val setCookie: (String, Cookie) -> Unit,
+    private val loadUrl: (String) -> Unit,
     private val onLoginSuccess: (LoginHistory) -> Unit,
     private val fnId: String,
-    private val autoLoginUsername: String?
+    private val autoLoginUsername: String?,
+    private val preferWebViewSysConfig: Boolean = false
 ) {
     private val logger = Logger.withTag("NetworkMessageProcessor")
     private var isAuthRequested = false
     private var isSysConfigInFlight = false
     private var isSysConfigLoaded = false
+    
+    private fun extractCookieValue(json: JsonObject): String? {
+        val directCookie = json["cookie"]?.jsonPrimitive?.contentOrNull
+        if (!directCookie.isNullOrBlank()) return directCookie
+        
+        val headers = json["headers"]?.jsonObject ?: return null
+        headers.entries.firstOrNull { (key, _) -> key.equals("cookie", ignoreCase = true) }
+            ?.value
+            ?.jsonPrimitive
+            ?.contentOrNull
+            ?.let { cookieValue ->
+                if (cookieValue.isNotBlank()) return cookieValue
+            }
+        
+        return null
+    }
 
     suspend fun process(
         params: String,
@@ -47,6 +62,8 @@ class NetworkMessageProcessor(
 
             if (type == "XHR" && url.contains("/sac/rpcproxy/v1/new-user-guide/status")) {
                 handleXhrMessage(json, baseUrl, onBaseUrlChange)
+            } else if (type == "SysConfig") {
+                handleSysConfigMessage(json, baseUrl, onBaseUrlChange)
             } else if (type == "Response" && url.contains("/oauthapi/authorize")) {
                 handleResponseMessage(json, baseUrl, capturedUsername, capturedPassword, capturedRememberPassword)
             }
@@ -60,7 +77,7 @@ class NetworkMessageProcessor(
         baseUrl: String,
         onBaseUrlChange: (String) -> Unit
     ) {
-        val cookie = json["cookie"]?.jsonPrimitive?.contentOrNull
+        val cookie = extractCookieValue(json)
         logger.i("fnos cookie: $cookie")
         if (!cookie.isNullOrBlank()) {
             AccountDataCache.mergeCookieString(cookie)
@@ -68,10 +85,17 @@ class NetworkMessageProcessor(
                 // 使用 FN Connect 外网访问必加此 Cookie 不然访问不了
                 AccountDataCache.insertCookie("mode" to "relay")
             }
+            if (preferWebViewSysConfig) {
+                if (!isSysConfigLoaded && !isSysConfigInFlight) {
+                    isSysConfigInFlight = true
+                }
+                return
+            }
             if (!isSysConfigLoaded && !isSysConfigInFlight) {
                 isSysConfigInFlight = true
                 try {
                     val config = nasAuthViewModel.getSysConfigAndReturn()
+                    if (isSysConfigLoaded) return
                     logger.i("Got sys config: $config")
                     val oauth = config.nasOauth
                     var currentBaseUrl = baseUrl
@@ -93,11 +117,11 @@ class NetworkMessageProcessor(
                                 value = parts[1],
                                 domain = domain
                             )
-                            webViewState.cookieManager.setCookie(currentBaseUrl, cookieObj)
+                            setCookie(currentBaseUrl, cookieObj)
                         }
                     }
                     isSysConfigLoaded = true
-                    navigator.loadUrl(targetUrl)
+                    loadUrl(targetUrl)
                 } catch (e: Exception) {
                     isSysConfigInFlight = false
                     logger.e("Failed to get sys config", e)
@@ -105,6 +129,74 @@ class NetworkMessageProcessor(
                 }
             }
         }
+    }
+
+    private fun normalizeBaseUrlFromPageUrl(pageUrl: String): String? {
+        val trimmed = pageUrl.trim()
+        if (trimmed.isBlank()) return null
+        val protocolSplit = trimmed.split("://")
+        if (protocolSplit.size < 2) return null
+        val protocol = protocolSplit[0]
+        val authority = protocolSplit[1].substringBefore("/").substringBefore("#").substringBefore("?")
+        if (authority.isBlank()) return null
+        return "$protocol://$authority"
+    }
+
+    private suspend fun handleSysConfigMessage(
+        json: JsonObject,
+        baseUrl: String,
+        onBaseUrlChange: (String) -> Unit
+    ) {
+        if (isSysConfigLoaded) return
+        val body = json["body"]?.jsonPrimitive?.contentOrNull ?: return
+
+        val bodyJson = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return
+        val data = bodyJson["data"]?.jsonObject ?: return
+        val oauth = data["nas_oauth"]?.jsonObject ?: return
+        val appId = oauth["app_id"]?.jsonPrimitive?.contentOrNull ?: return
+        val oauthUrl = oauth["url"]?.jsonPrimitive?.contentOrNull.orEmpty()
+
+        val cookie = extractCookieValue(json)
+        if (!cookie.isNullOrBlank()) {
+            AccountDataCache.mergeCookieString(cookie)
+            if (baseUrl.contains("5ddd.com") || baseUrl.contains("fnos.net")) {
+                AccountDataCache.insertCookie("mode" to "relay")
+            }
+        }
+
+        var currentBaseUrl = baseUrl
+        if (currentBaseUrl.isBlank()) {
+            val pageUrl = json["pageUrl"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            normalizeBaseUrlFromPageUrl(pageUrl)?.let { currentBaseUrl = it }
+        }
+        if (oauthUrl.isNotBlank() && oauthUrl != "://") {
+            currentBaseUrl = oauthUrl
+            onBaseUrlChange(currentBaseUrl)
+        }
+
+        if (currentBaseUrl.isBlank()) return
+
+        val redirectUri = "$currentBaseUrl/v/oauth/result"
+        val targetUrl = "$currentBaseUrl/signin?client_id=$appId&redirect_uri=$redirectUri"
+        val domain = currentBaseUrl.substringAfter("://").substringBefore(":").substringBefore("/")
+
+        if (!cookie.isNullOrBlank()) {
+            cookie.split(";").forEach {
+                val parts = it.trim().split("=", limit = 2)
+                if (parts.size == 2) {
+                    val cookieObj = Cookie(
+                        name = parts[0],
+                        value = parts[1],
+                        domain = domain
+                    )
+                    setCookie(currentBaseUrl, cookieObj)
+                }
+            }
+        }
+
+        isSysConfigLoaded = true
+        isSysConfigInFlight = false
+        loadUrl(targetUrl)
     }
 
     private suspend fun handleResponseMessage(
@@ -115,16 +207,22 @@ class NetworkMessageProcessor(
         capturedRememberPassword: Boolean
     ) {
         if (!isAuthRequested) {
-            val body = json["body"]?.jsonPrimitive?.contentOrNull
-            if (!body.isNullOrBlank()) {
-                try {
+            val directCode = json["code"]?.jsonPrimitive?.contentOrNull
+            val code = if (!directCode.isNullOrBlank()) {
+                directCode
+            } else {
+                val body = json["body"]?.jsonPrimitive?.contentOrNull
+                if (body.isNullOrBlank()) return
+                runCatching {
                     val bodyJson = Json.parseToJsonElement(body).jsonObject
-                    val data = bodyJson["data"]?.jsonObject
-                    val code = data?.get("code")?.jsonPrimitive?.contentOrNull
-                    if (code != null) {
-                        isAuthRequested = true
-                        try {
-                            val response = nasAuthViewModel.authAndReturn(code)
+                    bodyJson["data"]?.jsonObject?.get("code")?.jsonPrimitive?.contentOrNull
+                }.getOrNull()
+            }
+
+            if (!code.isNullOrBlank()) {
+                isAuthRequested = true
+                try {
+                    val response = nasAuthViewModel.authAndReturn(code)
                             val token = response.token
                             if (token.isNotBlank()) {
                                 AccountDataCache.authorization = token
@@ -156,14 +254,10 @@ class NetworkMessageProcessor(
                                 isAuthRequested = false
                                 toastManager.showToast("登录失败: Token 为空", ToastType.Failed)
                             }
-                        } catch (e: Exception) {
-                            isAuthRequested = false
-                            logger.e("OAuth result failed", e)
-                            toastManager.showToast("登录失败: ${e.message}", ToastType.Failed)
-                        }
-                    }
                 } catch (e: Exception) {
-                    logger.e("Failed to parse OAuth response", e)
+                    isAuthRequested = false
+                    logger.e("OAuth result failed", e)
+                    toastManager.showToast("登录失败: ${e.message}", ToastType.Failed)
                 }
             }
         }
