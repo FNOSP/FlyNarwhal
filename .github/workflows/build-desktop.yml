@@ -282,9 +282,8 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.集成弹幕功能（需安装飞鲸影视服务端 0.5.0 或以上版本）  
-          2.解决 macOS 端应用无法启动的问题（mac 端暂时屏蔽 FN ID 登录和 NAS 登录功能）（已在 Apple Silicon 设备上验证）  
-          3.修复跳过片头/片尾存在的问题  
+          NOTES="1.macOS 端增加 FN ID 登录支持  
+          2.优化播放器界面 UI  
           　  
           此项目已更名为飞鲸影视，可执行程序名称也相应做了更改，从更名前的旧版本升级到新版过程中出现报错提示“Failed to launch application **”属于正常现象，安装成功后把旧的快捷方式从桌面或开始菜单删除即可。  
           　  
