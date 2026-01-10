@@ -114,7 +114,7 @@ fun MoviePoster(
 ) {
     val store = LocalStore.current
     val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel()
-    val smartAnalysisEnabled = AppSettingsStore.smartAnalysisEnabled
+    val smartAnalysisEnabled = AppSettingsStore.flyNarwhalServerEnabled
     val analyzeState by smartAnalysisViewModel.analyzeState.collectAsState()
     val toastManager = LocalToastManager.current
 

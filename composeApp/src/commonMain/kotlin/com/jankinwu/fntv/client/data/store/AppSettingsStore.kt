@@ -99,11 +99,11 @@ object AppSettingsStore {
         get() = settings.getBoolean(scopedKey("kcef_initialized"), false)
         set(value) = settings.set(scopedKey("kcef_initialized"), value)
 
-    var smartAnalysisEnabled: Boolean
+    var flyNarwhalServerEnabled: Boolean
         get() = settings.getBoolean(scopedKey("smart_analysis_enabled"), false)
         set(value) = settings.set(scopedKey("smart_analysis_enabled"), value)
 
-    var smartAnalysisBaseUrl: String
+    var flyNarwhalServerBaseUrl: String
         get() = settings.getString(scopedKey("smart_analysis_base_url"), "")
         set(value) = settings.set(scopedKey("smart_analysis_base_url"), value)
 

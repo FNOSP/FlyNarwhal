@@ -89,17 +89,17 @@ object LoginStateManager {
     @OptIn(ExperimentalTime::class)
     fun syncSmartAnalysisFnBaseUrlIfNeeded() {
         if (!getLoginStatus()) return
-        if (!AppSettingsStore.smartAnalysisEnabled) return
+        if (!AppSettingsStore.flyNarwhalServerEnabled) return
 
-        val smartAnalysisServerBaseUrl = AppSettingsStore.smartAnalysisBaseUrl.trim()
-        if (smartAnalysisServerBaseUrl.isBlank()) return
-        if (!isValidHttpUrl(smartAnalysisServerBaseUrl)) return
+        val flyNarwhalServerBaseUrl = AppSettingsStore.flyNarwhalServerBaseUrl.trim()
+        if (flyNarwhalServerBaseUrl.isBlank()) return
+        if (!isValidHttpUrl(flyNarwhalServerBaseUrl)) return
 
         val fnBaseUrl = AccountDataCache.getFnOfficialBaseUrl().trim()
         if (fnBaseUrl.isBlank()) return
 
         val requestKey = buildString {
-            append(smartAnalysisServerBaseUrl)
+            append(flyNarwhalServerBaseUrl)
             append("|")
             append(fnBaseUrl)
             append("|")

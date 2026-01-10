@@ -547,7 +547,7 @@ fun PlayerOverlay(
     // Smart Analysis Skip Logic
     val smartSegments by smartAnalysisStatusViewModel.smartSegments.collectAsState()
     val smartSkipEnabled by smartAnalysisStatusViewModel.smartSkipEnabled.collectAsState()
-    val isSmartAnalysisGloballyEnabled = AppSettingsStore.smartAnalysisEnabled
+    val isSmartAnalysisGloballyEnabled = AppSettingsStore.flyNarwhalServerEnabled
 
     val useSmartSkip = isSmartAnalysisGloballyEnabled && smartSkipEnabled && smartSegments != null
 
@@ -2272,40 +2272,42 @@ fun PlayerControlRow(
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        onToggleDanmaku()
-                    }
-                    .padding(start = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (isDanmakuVisible) DanmuOpen else DanmuClose,
-                    contentDescription = "弹幕设置",
-                    tint = Color.White,
-                    modifier = Modifier.size(26.dp)
+            if (isSmartAnalysisGloballyEnabled) {
+                Box(
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            onToggleDanmaku()
+                        }
+                        .padding(start = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isDanmakuVisible) DanmuOpen else DanmuClose,
+                        contentDescription = "弹幕设置",
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                DanmakuSettingsMenu(
+                    area = danmakuArea,
+                    opacity = danmakuOpacity,
+                    fontSize = danmakuFontSize,
+                    speed = danmakuSpeed,
+                    syncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                    debugEnabled = danmakuDebugEnabled,
+                    onAreaChange = onDanmakuAreaChange,
+                    onOpacityChange = onDanmakuOpacityChange,
+                    onFontSizeChange = onDanmakuFontSizeChange,
+                    onSpeedChange = onDanmakuSpeedChange,
+                    onSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
+                    onDebugEnabledChanged = onDanmakuDebugEnabledChange,
+                    modifier = Modifier.padding(start = 8.dp),
+                    onHoverStateChanged = onDanmakuSettingsHoverChanged
                 )
             }
-            DanmakuSettingsMenu(
-                area = danmakuArea,
-                opacity = danmakuOpacity,
-                fontSize = danmakuFontSize,
-                speed = danmakuSpeed,
-                syncPlaybackSpeed = danmakuSyncPlaybackSpeed,
-                debugEnabled = danmakuDebugEnabled,
-                onAreaChange = onDanmakuAreaChange,
-                onOpacityChange = onDanmakuOpacityChange,
-                onFontSizeChange = onDanmakuFontSizeChange,
-                onSpeedChange = onDanmakuSpeedChange,
-                onSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
-                onDebugEnabledChanged = onDanmakuDebugEnabledChange,
-                modifier = Modifier.padding(start = 8.dp),
-                onHoverStateChanged = onDanmakuSettingsHoverChanged
-            )
             SubtitleControlFlyout(
                 playingInfoCache = playingInfoCache,
                 isoTagData = isoTagData,

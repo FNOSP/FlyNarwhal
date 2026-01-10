@@ -121,8 +121,8 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     var isExporting by remember { mutableStateOf(false) }
     var exportError by remember { mutableStateOf<String?>(null) }
 
-    var smartAnalysisEnabled by remember { mutableStateOf(AppSettingsStore.smartAnalysisEnabled) }
-    var smartAnalysisBaseUrl by remember { mutableStateOf(AppSettingsStore.smartAnalysisBaseUrl) }
+    var flyNarwhalServerEnabled by remember { mutableStateOf(AppSettingsStore.flyNarwhalServerEnabled) }
+    var flyNarwhalServerBaseUrl by remember { mutableStateOf(AppSettingsStore.flyNarwhalServerBaseUrl) }
     var wasSmartAnalysisBaseUrlFocused by remember { mutableStateOf(false) }
 
     if (isExporting) {
@@ -598,12 +598,12 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                     icon = { Icon(VideoSmartAnalysis, null, modifier = Modifier.size(18.dp)) },
                     trailing = {
                         Switcher(
-                            checked = smartAnalysisEnabled,
-                            text = if (smartAnalysisEnabled) "开启" else "关闭",
+                            checked = flyNarwhalServerEnabled,
+                            text = if (flyNarwhalServerEnabled) "开启" else "关闭",
                             textBefore = true,
                             onCheckStateChange = {
-                                smartAnalysisEnabled = it
-                                AppSettingsStore.smartAnalysisEnabled = it
+                                flyNarwhalServerEnabled = it
+                                AppSettingsStore.flyNarwhalServerEnabled = it
                                 if (it) {
                                     LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
                                 }
@@ -613,7 +613,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                 )
 
                 AnimatedVisibility(
-                    visible = smartAnalysisEnabled,
+                    visible = flyNarwhalServerEnabled,
                     enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
                     exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top)
                 ) {
@@ -623,10 +623,10 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         icon = { Icon(Icons.Regular.Globe, null, modifier = Modifier.size(18.dp)) },
                         trailing = {
                             TextField(
-                                value = smartAnalysisBaseUrl,
+                                value = flyNarwhalServerBaseUrl,
                                 onValueChange = {
-                                    smartAnalysisBaseUrl = it
-                                    AppSettingsStore.smartAnalysisBaseUrl = it
+                                    flyNarwhalServerBaseUrl = it
+                                    AppSettingsStore.flyNarwhalServerBaseUrl = it
                                 },
                                 modifier = Modifier
                                     .width(200.dp)

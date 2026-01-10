@@ -100,7 +100,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         guid: String,
         parentGuid: String
     ): Map<String, List<Danmaku>> {
-        val baseUrl = AppSettingsStore.smartAnalysisBaseUrl
+        val baseUrl = AppSettingsStore.flyNarwhalServerBaseUrl
         if (baseUrl.isBlank()) {
             throw IllegalArgumentException("飞鲸影视服务端 URL 未配置")
         }
@@ -193,7 +193,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         parameters: Map<String, Any?>? = null,
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
     ): T {
-        val baseUrl = AppSettingsStore.smartAnalysisBaseUrl
+        val baseUrl = AppSettingsStore.flyNarwhalServerBaseUrl
         if (baseUrl.isBlank()) {
             throw IllegalArgumentException("飞鲸影视服务端 URL 未配置")
         }
@@ -225,7 +225,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         body: Any? = emptyMap<String, Any>(),
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
     ): T {
-        val baseUrl = AppSettingsStore.smartAnalysisBaseUrl
+        val baseUrl = AppSettingsStore.flyNarwhalServerBaseUrl
         if (baseUrl.isBlank()) {
             throw IllegalArgumentException("飞鲸影视服务端 URL 未配置")
         }
