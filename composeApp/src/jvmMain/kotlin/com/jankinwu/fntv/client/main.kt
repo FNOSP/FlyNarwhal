@@ -7,7 +7,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.Painter
@@ -19,188 +21,612 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.network.apiModule
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
+import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
+import com.jankinwu.fntv.client.jna.windows.User32Extend
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.manager.ProxyManager
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
+import com.jankinwu.fntv.client.ui.dialog.KcefInitErrorDialog
 import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
+import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitError
+import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitialized
+import com.jankinwu.fntv.client.ui.providable.LocalWebViewRestartRequired
 import com.jankinwu.fntv.client.ui.providable.LocalWindowHandle
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
+import com.jankinwu.fntv.client.ui.screen.FnConnectWindowRequest
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
+import com.jankinwu.fntv.client.ui.screen.NasLoginWebViewScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay
+import com.jankinwu.fntv.client.ui.screen.updateLoginHistory
+import com.jankinwu.fntv.client.ui.window.PipPlayerWindow
+import com.jankinwu.fntv.client.utils.ComposeViewModelStoreOwner
 import com.jankinwu.fntv.client.utils.ConsoleLogWriter
 import com.jankinwu.fntv.client.utils.DesktopContext
+import com.jankinwu.fntv.client.utils.DesktopLogExporter
 import com.jankinwu.fntv.client.utils.ExecutableDirectoryDetector
 import com.jankinwu.fntv.client.utils.ExtraWindowProperties
 import com.jankinwu.fntv.client.utils.FileLogWriter
 import com.jankinwu.fntv.client.utils.LocalContext
+import com.jankinwu.fntv.client.utils.LocalLogExporter
+import com.jankinwu.fntv.client.utils.WebViewBootstrap
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.viewModelModule
 import com.jankinwu.fntv.client.window.WindowFrame
-import fntv_client_multiplatform.composeapp.generated.resources.Res
-import fntv_client_multiplatform.composeapp.generated.resources.icon
+import com.jankinwu.fntv.client.window.findSkiaLayer
+import com.sun.jna.Pointer
+import com.sun.jna.platform.win32.Kernel32
+import com.sun.jna.platform.win32.WinDef.HWND
+import com.sun.jna.platform.win32.WinUser
+import dev.datlag.kcef.KCEF
+import flynarwhal.composeapp.generated.resources.Res
+import flynarwhal.composeapp.generated.resources.icon
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.KoinApplication
 import org.koin.compose.viewmodel.koinViewModel
+import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.rememberMediampPlayer
 import java.awt.Dimension
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.io.File
 
-@OptIn(FlowPreview::class)
-fun main() = application {
-    val logDir = initializeLoggingDirectory()
-    Logger.setLogWriters(ConsoleLogWriter(), FileLogWriter(logDir))
-    Logger.withTag("main").i { "Application started. Logs directory: ${logDir.absolutePath}" }
+private object WindowsDisplaySleepBlocker {
+    private const val ES_SYSTEM_REQUIRED = 0x00000001
+    private const val ES_DISPLAY_REQUIRED = 0x00000002
+    private const val ES_CONTINUOUS = 0x80000000.toInt()
 
-    DisposableEffect(Unit) {
-        ProxyManager.start()
-        onDispose {
-            ProxyManager.stop()
+    private val logger = Logger.withTag("WindowsDisplaySleepBlocker")
+
+    fun setEnabled(enabled: Boolean) {
+        if (!currentPlatform().isWindows()) return
+        try {
+            val flags = if (enabled) {
+                ES_CONTINUOUS or ES_SYSTEM_REQUIRED or ES_DISPLAY_REQUIRED
+            } else {
+                ES_CONTINUOUS
+            }
+            val previous = Kernel32.INSTANCE.SetThreadExecutionState(flags)
+            if (previous == 0) {
+                logger.w { "SetThreadExecutionState returned 0 (failed), enabled=$enabled" }
+            }
+        } catch (t: Throwable) {
+            logger.w(t) { "Failed to set execution state, enabled=$enabled" }
         }
     }
+}
 
-    val (state, title, icon) = createWindowConfiguration()
+@OptIn(FlowPreview::class)
+fun main() {
+    val logDir = initializeLoggingDirectory()
+    Logger.setLogWriters(ConsoleLogWriter(), FileLogWriter(logDir))
+    val logger = Logger.withTag("main")
+    logger.i { "Application started. Logs directory: ${logDir.absolutePath}" }
 
-    // 加载登录信息到缓存
-    PreferencesManager.getInstance().loadAllLoginInfo()
+    val platform = currentPlatformDesktop()
+    val shouldInitKcef = platform.isWindows()
 
-    KoinApplication(application = {
-        modules(viewModelModule, apiModule)
-    }) {
-        Window(
-            onCloseRequest = ::exitApplication,
-            state = state,
-            title = title,
-            icon = icon
-        ) {
-            val isLoggedIn by LoginStateManager.isLoggedIn.collectAsState()
-            val navigator = rememberComponentNavigator(isLoggedIn)
-            val playerManager = remember { PlayerManager() }
-            val player = rememberMediampPlayer()
-            val userInfoViewModel: UserInfoViewModel = koinViewModel()
-            val userInfoState by userInfoViewModel.uiState.collectAsState()
+    val baseDir = if (shouldInitKcef) kcefBaseDir() else null
+    val installDir = baseDir?.let { File(it, "kcef-bundle-${BuildConfig.VERSION_NAME}") }
+    val cacheDir = baseDir?.let { File(it, "kcef-cache-${BuildConfig.VERSION_NAME}") }
+
+    if (shouldInitKcef && baseDir != null && installDir != null && cacheDir != null) {
+        cleanupOldKcefDirs(baseDir)
+        logger.i { "KCEF base directory: ${baseDir.absolutePath}" }
+        logger.i { "KCEF install directory: ${installDir.absolutePath}" }
+        logger.i { "KCEF cache directory: ${cacheDir.absolutePath}" }
+    } else {
+        logger.i { "KCEF bootstrap disabled for platform: ${platform::class.simpleName}" }
+    }
+
+    application {
+        if (shouldInitKcef && installDir != null && cacheDir != null) {
             LaunchedEffect(Unit) {
-                val baseWidth = 1280
-                val baseHeight = 720
-                window.minimumSize = Dimension(baseWidth, baseHeight)
-//                window.size = Dimension(baseWidth, baseHeight)
+                WebViewBootstrap.start(
+                    installDir = installDir,
+                    cacheDir = cacheDir,
+                    logDir = logDir
+                )
+            }
+        }
+
+        DisposableEffect(Unit) {
+            ProxyManager.start()
+            onDispose {
+                ProxyManager.stop()
+            }
+        }
+
+        val webViewInitialized by WebViewBootstrap.initialized.collectAsState()
+        val webViewRestartRequired by WebViewBootstrap.restartRequired.collectAsState()
+        val webViewInitError by WebViewBootstrap.initError.collectAsState()
+
+        if (shouldInitKcef) {
+            DisposableEffect(Unit) {
+                onDispose {
+                    KCEF.disposeBlocking()
+                }
+            }
+        }
+
+        // 加载登录信息到缓存
+        PreferencesManager.getInstance().loadAllLoginInfo()
+
+        KoinApplication(application = {
+            modules(viewModelModule, apiModule)
+        }) {
+            val viewModelStoreOwner = remember { ComposeViewModelStoreOwner() }
+            DisposableEffect(viewModelStoreOwner) {
+                onDispose { viewModelStoreOwner.dispose() }
             }
 
-            // 监听窗口位置变化并自动保存
-            LaunchedEffect(state, playerManager.playerState.isVisible) {
-                snapshotFlow { state.position to state.size }
-                    .debounce(500)
-                    .collect { (position, size) ->
-                        // 只有当播放器不可见时才保存主窗口位置
-                        if (!playerManager.playerState.isVisible) {
-                            if (state.placement != WindowPlacement.Fullscreen && state.placement != WindowPlacement.Maximized) {
+            CompositionLocalProvider(LocalViewModelStoreOwner provides viewModelStoreOwner) {
+                val isLoggedIn by LoginStateManager.isLoggedIn.collectAsState()
+                val navigator = rememberComponentNavigator(isLoggedIn)
+                val playerManager = remember { PlayerManager() }
+                val player = rememberMediampPlayer()
+                val userInfoViewModel: UserInfoViewModel = koinViewModel()
+                val userInfoState by userInfoViewModel.uiState.collectAsState()
+
+                var fnConnectWindowRequest by remember {
+                    mutableStateOf<FnConnectWindowRequest?>(
+                        null
+                    )
+                }
+                val (mainState, title, icon) = createWindowConfiguration()
+                val savedPlayerX = AppSettingsStore.playerWindowX
+                val savedPlayerY = AppSettingsStore.playerWindowY
+                val playerPosition = if (!savedPlayerX.isNaN() && !savedPlayerY.isNaN()) {
+                    WindowPosition(savedPlayerX.dp, savedPlayerY.dp)
+                } else {
+                    WindowPosition.Aligned(Alignment.Center)
+                }
+                val playerState = rememberWindowState(
+                    position = playerPosition,
+                    size = DpSize(
+                        AppSettingsStore.playerWindowWidth.dp,
+                        AppSettingsStore.playerWindowHeight.dp
+                    )
+                )
+
+                // 监听窗口位置变化并自动保存 (主窗口)
+                LaunchedEffect(mainState, playerManager.playerState.isVisible) {
+                    snapshotFlow { mainState.position to mainState.size }
+                        .debounce(500)
+                        .collect { (position, size) ->
+                            if (mainState.placement != WindowPlacement.Fullscreen && mainState.placement != WindowPlacement.Maximized) {
                                 AppSettingsStore.windowWidth = size.width.value
                                 AppSettingsStore.windowHeight = size.height.value
+                                AppSettingsStore.isWindowMaximized = false
                                 if (position is WindowPosition.Absolute) {
                                     AppSettingsStore.windowX = position.x.value
                                     AppSettingsStore.windowY = position.y.value
                                 }
+                            }else if (mainState.placement == WindowPlacement.Maximized) {
+                                AppSettingsStore.isWindowMaximized = true
+                            }
+                        }
+                }
+
+                val desktopContext = remember(mainState) {
+                    val dataDir =
+                        logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
+                    val cacheDir =
+                        logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
+                    DesktopContext(mainState, dataDir, cacheDir, logDir, ExtraWindowProperties())
+                }
+
+                val logExporter = remember { DesktopLogExporter(logDir) }
+
+                val playerDesktopContext = remember(playerState) {
+                    val dataDir =
+                        logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
+                    val cacheDir =
+                        logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
+                    DesktopContext(playerState, dataDir, cacheDir, logDir, ExtraWindowProperties())
+                }
+
+                // 主窗口
+                Window(
+                    onCloseRequest = ::exitApplication,
+                    state = mainState,
+                    title = title,
+                    icon = icon,
+                    visible = !playerManager.playerState.isVisible
+                ) {
+                        val shouldStartMaximized = remember { AppSettingsStore.isWindowMaximized }
+                        DisposableEffect(shouldStartMaximized) {
+                            if (!shouldStartMaximized) return@DisposableEffect onDispose {}
+
+                            var applied = false
+                            val listener = object : ComponentAdapter() {
+                                override fun componentShown(e: ComponentEvent) {
+                                    if (applied) return
+                                    applied = true
+
+                                    if (currentPlatform().isWindows()) {
+                                        val hWnd = HWND(Pointer(window.windowHandle))
+                                        User32Extend.instance?.ShowWindow(hWnd, WinUser.SW_MAXIMIZE)
+                                        User32Extend.instance?.RedrawWindow(
+                                            hWnd,
+                                            null,
+                                            null,
+                                            WinUser.RDW_INVALIDATE or
+                                                WinUser.RDW_UPDATENOW or
+                                                WinUser.RDW_FRAME or
+                                                WinUser.RDW_ALLCHILDREN or
+                                                WinUser.RDW_ERASE
+                                        )
+                                    }
+
+                                    mainState.placement = WindowPlacement.Maximized
+                                    window.findSkiaLayer()?.apply {
+                                        invalidate()
+                                        revalidate()
+                                        repaint()
+                                    }
+                                    window.invalidate()
+                                    window.validate()
+                                    window.repaint()
+                                }
+                            }
+
+                            window.addComponentListener(listener)
+                            onDispose { window.removeComponentListener(listener) }
+                        }
+                        LaunchedEffect(Unit) {
+                            val baseWidth = 1280
+                            val baseHeight = 720
+                            window.minimumSize = Dimension(baseWidth, baseHeight)
+                        }
+
+                        CompositionLocalProvider(
+                            LocalViewModelStoreOwner provides viewModelStoreOwner,
+                            LocalContext provides desktopContext,
+                            LocalLogExporter provides logExporter,
+                            LocalPlayerManager provides playerManager,
+                            LocalMediaPlayer provides player,
+                            LocalFrameWindowScope provides this@Window,
+                            LocalWindowState provides mainState,
+                            LocalWindowHandle provides window.windowHandle,
+                            LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
+                            LocalWebViewRestartRequired provides webViewRestartRequired,
+                            LocalWebViewInitError provides webViewInitError
+                        ) {
+                            var errorDialogDismissed by remember { mutableStateOf(false) }
+                            if (webViewInitError != null && !errorDialogDismissed) {
+                                KcefInitErrorDialog(
+                                    error = webViewInitError,
+                                    onDismiss = { errorDialogDismissed = true }
+                                )
+                                logger.e("KCEF init error", webViewInitError)
+                            }
+
+                            WindowFrame(
+                                onCloseRequest = ::exitApplication,
+                                icon = icon,
+                                title = title,
+                                state = mainState,
+                                backButtonEnabled = navigator.canNavigateUp,
+                                backButtonClick = { navigator.navigateUp() },
+                                backButtonVisible = false
+                            ) { windowInset, contentInset ->
+                                // 使用LoginStateManagement来管理登录状态
+                                LaunchedEffect(isLoggedIn) {
+                                    if (isLoggedIn) {
+                                        userInfoViewModel.refresh()
+                                    }
+                                }
+
+                                LaunchedEffect(userInfoState, isLoggedIn) {
+                                    if (isLoggedIn && userInfoState is UiState.Error) {
+                                        LoginStateManager.updateLoginStatus(false)
+                                    }
+                                }
+
+                                // 只有在未登录状态下才显示登录界面
+                                if (!isLoggedIn) {
+                                    LoginScreen(
+                                        navigator = navigator,
+                                        onOpenFnConnectWindow = if (platform.isWindows() && shouldInitKcef) {
+                                            { request ->
+                                                fnConnectWindowRequest = request
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                        windowInset = windowInset,
+                                        contentInset = contentInset
+                                    )
+                                } else {
+                                    App(
+                                        windowInset = windowInset,
+                                        contentInset = contentInset,
+                                        navigator = navigator,
+                                        title = title,
+                                        icon = icon
+                                    )
+                                }
                             }
                         }
                     }
-            }
 
-            val desktopContext = remember(state) {
-                val dataDir = logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
-                val cacheDir = logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
-                DesktopContext(state, dataDir, cacheDir, logDir, ExtraWindowProperties())
-            }
-
-            CompositionLocalProvider(
-                LocalContext provides desktopContext,
-                LocalPlayerManager provides playerManager,
-                LocalMediaPlayer provides player,
-                LocalFrameWindowScope provides this@Window,
-                LocalWindowState provides state,
-                LocalWindowHandle provides window.windowHandle
-            ) {
-                WindowFrame(
-                    onCloseRequest = {
-                        if (playerManager.playerState.isVisible) {
-                            if (!AppSettingsStore.playerIsFullscreen) {
-                                AppSettingsStore.playerWindowWidth = state.size.width.value
-                                AppSettingsStore.playerWindowHeight = state.size.height.value
-                                // 保存播放器位置
-                                val position = state.position
-                                if (position is WindowPosition.Absolute) {
-                                    AppSettingsStore.playerWindowX = position.x.value
-                                    AppSettingsStore.playerWindowY = position.y.value
+                // 播放器窗口
+                if (playerManager.playerState.isVisible && !playerManager.isPipMode) {
+                    Window(
+                            onCloseRequest = {
+                                if (PlayingSettingsStore.playerIsFullscreen) {
+                                    playerState.placement = WindowPlacement.Floating
+                                    PlayingSettingsStore.playerIsFullscreen = false
                                 }
+                                playerManager.hidePlayer()
+                                player.stopPlayback()
+                            },
+                            state = playerState,
+                            title = playerManager.playerState.mediaTitle,
+                            icon = icon,
+                            undecorated = false
+                        ) {
+                            val playState by player.playbackState.collectAsState()
+                            val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
+
+                            DisposableEffect(shouldBlockDisplaySleep) {
+                                WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                onDispose {
+                                    WindowsDisplaySleepBlocker.setEnabled(false)
+                                }
+                            }
+
+                            LaunchedEffect(Unit) {
+                                val baseWidth = 600
+                                val baseHeight = 400
+                                window.minimumSize = Dimension(baseWidth, baseHeight)
+                            }
+
+                            CompositionLocalProvider(
+                                LocalViewModelStoreOwner provides viewModelStoreOwner,
+                                LocalContext provides playerDesktopContext,
+                                LocalLogExporter provides logExporter,
+                                LocalPlayerManager provides playerManager,
+                                LocalMediaPlayer provides player,
+                                LocalFrameWindowScope provides this@Window,
+                                LocalWindowState provides playerState,
+                                LocalWindowHandle provides window.windowHandle,
+                                LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
+                                LocalWebViewRestartRequired provides webViewRestartRequired,
+                                LocalWebViewInitError provides webViewInitError
+                            ) {
+                                WindowFrame(
+                                    onCloseRequest = {
+                                        if (PlayingSettingsStore.playerIsFullscreen) {
+                                            playerState.placement = WindowPlacement.Floating
+                                            PlayingSettingsStore.playerIsFullscreen = false
+                                        }
+                                        playerManager.hidePlayer()
+                                        player.stopPlayback()
+                                    },
+                                    icon = icon,
+                                    title = playerManager.playerState.mediaTitle,
+                                    state = playerState,
+                                    backButtonVisible = false,
+                                    backButtonEnabled = false,
+                                    backButtonClick = {
+                                        if (PlayingSettingsStore.playerIsFullscreen) {
+                                            playerState.placement = WindowPlacement.Floating
+                                            PlayingSettingsStore.playerIsFullscreen = false
+                                        }
+                                        playerManager.hidePlayer()
+                                        player.stopPlayback()
+                                    }
+                                ) { _, _ ->
+                                    PlayerOverlay(
+                                        mediaTitle = playerManager.playerState.mediaTitle,
+                                        subhead = playerManager.playerState.subhead,
+                                        isEpisode = playerManager.playerState.isEpisode,
+                                        onBack = {
+                                            if (PlayingSettingsStore.playerIsFullscreen) {
+                                                playerState.placement = WindowPlacement.Floating
+                                                PlayingSettingsStore.playerIsFullscreen = false
+                                            }
+                                            playerManager.hidePlayer()
+                                            // 停止播放
+                                            player.stopPlayback()
+                                        },
+                                        mediaPlayer = player,
+                                        draggableArea = { content -> WindowDraggableArea(content = content) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 小窗模式
+                    if (playerManager.isPipMode) {
+                        // 如果处于全屏模式，退出全屏
+                        if (PlayingSettingsStore.playerIsFullscreen) {
+                            LaunchedEffect(Unit) {
+                                playerState.placement = WindowPlacement.Floating
+                                PlayingSettingsStore.playerIsFullscreen = false
+                            }
+                        }
+
+                        CompositionLocalProvider(
+                            LocalViewModelStoreOwner provides viewModelStoreOwner,
+                            LocalContext provides desktopContext, // PIP use main context?
+                            LocalPlayerManager provides playerManager,
+                            LocalMediaPlayer provides player,
+                            LocalWindowState provides mainState, // PIP might not need this, but providing just in case
+                            LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
+                            LocalWebViewRestartRequired provides webViewRestartRequired,
+                            LocalWebViewInitError provides webViewInitError
+                        ) {
+                            PipPlayerWindow(
+                                onClose = {
+                                    player.stopPlayback()
+                                    playerManager.hidePlayer()
+                                    playerManager.isPipMode = false
+                                },
+                                onExitPip = {
+                                    playerManager.isPipMode = false
+                                }
+                            )
+                        }
+                    }
+
+                    val request = fnConnectWindowRequest
+                    if (request != null) {
+                        val shouldEnableFnConnectWebView = platform.isWindows() || platform.isMacOS()
+                        if (!shouldEnableFnConnectWebView) {
+                            LaunchedEffect(request) {
+                                logger.i { "FnConnect WebView is disabled for platform: ${platform::class.simpleName}" }
+                                fnConnectWindowRequest = null
                             }
                         } else {
-                            if (state.placement != WindowPlacement.Fullscreen && state.placement != WindowPlacement.Maximized) {
-                                AppSettingsStore.windowWidth = state.size.width.value
-                                AppSettingsStore.windowHeight = state.size.height.value
-                                // 保存主窗口位置
-                                val position = state.position
-                                if (position is WindowPosition.Absolute) {
-                                    AppSettingsStore.windowX = position.x.value
-                                    AppSettingsStore.windowY = position.y.value
+                        val fnConnectWindowState = rememberWindowState(
+                            size = DpSize(980.dp, 720.dp),
+                            position = WindowPosition.Aligned(Alignment.Center)
+                        )
+
+                        Window(
+                            onCloseRequest = { fnConnectWindowRequest = null },
+                            state = fnConnectWindowState,
+                            title = "使用 NAS 登录",
+                            icon = icon
+                        ) {
+                            val fnConnectContext = remember(fnConnectWindowState) {
+                                val dataDir = logDir.parentFile.resolve("data")
+                                    .apply { if (!exists()) mkdirs() }
+                                val cacheDir = logDir.parentFile.resolve("cache")
+                                    .apply { if (!exists()) mkdirs() }
+                                DesktopContext(
+                                    fnConnectWindowState,
+                                    dataDir,
+                                    cacheDir,
+                                    logDir,
+                                    ExtraWindowProperties()
+                                )
+                            }
+
+                            CompositionLocalProvider(
+                                LocalViewModelStoreOwner provides viewModelStoreOwner,
+                                LocalContext provides fnConnectContext,
+                                LocalLogExporter provides logExporter,
+                                LocalPlayerManager provides remember { PlayerManager() },
+                                LocalFrameWindowScope provides this@Window,
+                                LocalWindowState provides fnConnectWindowState,
+                                LocalWindowHandle provides window.windowHandle,
+                                LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
+                                LocalWebViewRestartRequired provides webViewRestartRequired,
+                                LocalWebViewInitError provides webViewInitError
+                            ) {
+                                var errorDialogDismissed by remember { mutableStateOf(false) }
+                                if (shouldInitKcef && webViewInitError != null && !errorDialogDismissed) {
+                                    KcefInitErrorDialog(
+                                        error = webViewInitError,
+                                        onDismiss = { errorDialogDismissed = true }
+                                    )
+                                    logger.e("KCEF init error", webViewInitError)
+                                }
+
+                                WindowFrame(
+                                    onCloseRequest = { fnConnectWindowRequest = null },
+                                    icon = icon,
+                                    title = "使用 NAS 登录",
+                                    state = fnConnectWindowState,
+                                    backButtonVisible = false
+                                ) { windowInset, contentInset ->
+                                    NasLoginWebViewScreen(
+                                        initialUrl = request.initialUrl,
+                                        fnId = request.fnId,
+                                        onBack = { fnConnectWindowRequest = null },
+                                        onLoginSuccess = { history ->
+                                            val preferencesManager =
+                                                PreferencesManager.getInstance()
+                                            val current = preferencesManager.loadLoginHistory()
+                                            val updated = updateLoginHistory(current, history)
+                                            preferencesManager.saveLoginHistory(updated)
+                                            fnConnectWindowRequest = null
+                                        },
+                                        autoLoginUsername = request.autoLoginUsername,
+                                        autoLoginPassword = request.autoLoginPassword,
+                                        allowAutoLogin = request.allowAutoLogin,
+                                        onBaseUrlDetected = if (request.onBaseUrlDetected != null) {
+                                            {
+                                                request.onBaseUrlDetected.invoke(it)
+                                                fnConnectWindowRequest = null
+                                            }
+                                        } else null,
+                                        windowInset = windowInset,
+                                        contentInset = contentInset
+                                    )
                                 }
                             }
                         }
-                        player.close() // 关闭播放器
-                        exitApplication() // 退出应用
-                    },
-                    icon = icon,
-                    title = title,
-                    state = state,
-                    backButtonEnabled = navigator.canNavigateUp,
-                    backButtonClick = { navigator.navigateUp() },
-                    backButtonVisible = false
-                ) { windowInset, contentInset ->
-                    // 使用LoginStateManagement来管理登录状态
-                    LaunchedEffect(isLoggedIn) {
-                        if (isLoggedIn) {
-                            userInfoViewModel.refresh()
                         }
-                    }
-
-                    LaunchedEffect(userInfoState, isLoggedIn) {
-                        if (isLoggedIn && userInfoState is UiState.Error) {
-                            LoginStateManager.updateLoginStatus(false)
-                        }
-                    }
-
-                    // 只有在未登录状态下才显示登录界面
-                    if (!isLoggedIn) {
-                        LoginScreen(navigator)
-                    } else {
-                        App(
-                            windowInset = windowInset,
-                            contentInset = contentInset,
-                            navigator = navigator,
-                            title = title,
-                            icon = icon
-                        )
-                    }
-                    // 显示播放器覆盖层
-                    if (playerManager.playerState.isVisible) {
-                        PlayerOverlay(
-                            mediaTitle = playerManager.playerState.mediaTitle,
-                            subhead = playerManager.playerState.subhead,
-                            isEpisode = playerManager.playerState.isEpisode,
-                            onBack = { playerManager.hidePlayer() },
-                            mediaPlayer = player,
-                            draggableArea = { content -> WindowDraggableArea(content = content) }
-                        )
                     }
                 }
             }
+    }
+}
+
+
+private fun kcefBaseDir(): File {
+    val platform = currentPlatformDesktop()
+    return when (platform) {
+        is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fly-narwhal")
+        is Platform.MacOS -> File(
+            System.getProperty("user.home"),
+            "Library/Application Support/fly-narwhal"
+        )
+
+        is Platform.Windows -> {
+            val exeDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
+            File(exeDir, "app/resources")
+        }
+    }
+}
+
+private fun kcefInstallDir(): File {
+    return File(kcefBaseDir(), "kcef-bundle-${BuildConfig.VERSION_NAME}")
+}
+
+private fun kcefCacheDir(): File {
+    return File(kcefBaseDir(), "kcef-cache-${BuildConfig.VERSION_NAME}")
+}
+
+private fun cleanupOldKcefDirs(baseDir: File) {
+    val currentVersion = BuildConfig.VERSION_NAME
+    val keep = setOf(
+        "kcef-bundle-$currentVersion",
+        "kcef-cache-$currentVersion",
+    )
+
+    baseDir.listFiles()?.forEach { file ->
+        if (!file.isDirectory) return@forEach
+        val name = file.name
+        val isKcefDir = name == "kcef-bundle" ||
+            name == "kcef-cache" ||
+            name.startsWith("kcef-bundle-") ||
+            name.startsWith("kcef-cache-")
+
+        if (!isKcefDir) return@forEach
+        if (name in keep) return@forEach
+
+        try {
+            file.deleteRecursively()
+            Logger.withTag("main").i { "Deleted old KCEF directory: $name" }
+        } catch (e: Exception) {
+            Logger.withTag("main").e(e) { "Failed to delete old KCEF directory: $name" }
         }
     }
 }
@@ -212,7 +638,7 @@ fun main() = application {
 private fun initializeLoggingDirectory(): File {
     val userDirStr = System.getProperty("user.dir")
     val userDirFile = File(userDirStr)
-    
+
     // Check if we are running in development mode (via Gradle/IDE)
     // We assume dev mode if build.gradle.kts exists in user.dir or user.dir/composeApp
     val isDev = System.getProperty("compose.application.resources.dir") == null ||
@@ -231,12 +657,14 @@ private fun initializeLoggingDirectory(): File {
         when (platform) {
             is Platform.Linux -> {
                 val userHome = System.getProperty("user.home")
-                File(userHome, ".local/share/fn-media/logs")
+                File(userHome, ".local/share/fly-narwhal/logs")
             }
+
             is Platform.MacOS -> {
                 val userHome = System.getProperty("user.home")
-                File(userHome, "Library/Logs/fn-media")
+                File(userHome, "Library/Logs/fly-narwhal")
             }
+
             is Platform.Windows -> {
                 val appDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
                 File(appDir, "logs")
@@ -247,7 +675,7 @@ private fun initializeLoggingDirectory(): File {
     if (!logDir.exists()) {
         logDir.mkdirs()
     }
-    
+
     return logDir
 }
 
@@ -265,10 +693,10 @@ private fun createWindowConfiguration(): Triple<WindowState, String, Painter> {
     }
     val state = rememberWindowState(
         position = position,
-//        size = DpSize.Unspecified
+        placement = WindowPlacement.Floating,
         size = DpSize(AppSettingsStore.windowWidth.dp, AppSettingsStore.windowHeight.dp)
     )
-    val title = "飞牛影视"
+    val title = "飞鲸影视"
     val icon = painterResource(Res.drawable.icon)
     return Triple(state, title, icon)
 }

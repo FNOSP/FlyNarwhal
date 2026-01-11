@@ -15,7 +15,7 @@ data class PlayInfoResponse(
     val parentGuid: String,
 
     @param:JsonProperty("play_config")
-    val playConfig: Any?,
+    val playConfig: PlayConfig?,
 
     @param:JsonProperty("ts")
     val ts: Int,
@@ -43,9 +43,24 @@ data class PlayInfoResponse(
 )
 
 @Immutable
+data class PlayConfig(
+    @param:JsonProperty("guid")
+    val guid: String?,
+
+    @param:JsonProperty("skip_opening")
+    val skipOpening: Int?,
+
+    @param:JsonProperty("skip_ending")
+    val skipEnding: Int?
+)
+
+@Immutable
 data class Item(
     @param:JsonProperty("guid")
     val guid: String,
+
+    @param:JsonProperty("douban_id")
+    val doubanId: String?,
 
     @param:JsonProperty("imdb_id")
     val imdbId: String?,
@@ -69,7 +84,7 @@ data class Item(
     val backdrops: String?,
 
     @param:JsonProperty("posters")
-    val posters: String,
+    val posters: String?,
 
     @param:JsonProperty("poster_width")
     val posterWidth: Int,

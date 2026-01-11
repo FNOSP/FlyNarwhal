@@ -6,11 +6,13 @@ object Constants {
 
     const val FN_IMG_URL_PARAM: String = "?w=400"
 
-    const val PROJECT_URL: String = "https://github.com/FNOSP/fntv-client-multiplatform"
+    const val PROJECT_URL: String = "https://github.com/FNOSP/FlyNarwhal"
 }
 
 object Colors {
-    val TextSecondaryColor = Color.White.copy(alpha = 0.7843f)
+    val TextSecondaryColor = Color(0xC8FFFFFF)
+
+    val TextTertiaryColor = Color(0x8BFFFFFF)
 
     val AccentColorDefault = Color(0xFF2173DF)
 

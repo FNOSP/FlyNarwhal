@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.jankinwu.fntv.client.data.model.request.AuthRequest
 import com.jankinwu.fntv.client.data.model.request.FavoriteRequest
 import com.jankinwu.fntv.client.data.model.request.ItemListQueryRequest
 import com.jankinwu.fntv.client.data.model.request.LoginRequest
@@ -14,12 +15,14 @@ import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
 import com.jankinwu.fntv.client.data.model.request.ScrapRescrapRequest
 import com.jankinwu.fntv.client.data.model.request.ScrapSearchRequest
+import com.jankinwu.fntv.client.data.model.request.SetConfigByItemRequest
 import com.jankinwu.fntv.client.data.model.request.StreamRequest
 import com.jankinwu.fntv.client.data.model.request.SubtitleDownloadRequest
 import com.jankinwu.fntv.client.data.model.request.SubtitleMarkRequest
 import com.jankinwu.fntv.client.data.model.request.SubtitleSearchRequest
 import com.jankinwu.fntv.client.data.model.request.WatchedRequest
 import com.jankinwu.fntv.client.data.model.response.AuthDirResponse
+import com.jankinwu.fntv.client.data.model.response.AuthResponse
 import com.jankinwu.fntv.client.data.model.response.EpisodeListResponse
 import com.jankinwu.fntv.client.data.model.response.FnBaseResponse
 import com.jankinwu.fntv.client.data.model.response.GenresResponse
@@ -44,10 +47,12 @@ import com.jankinwu.fntv.client.data.model.response.SubtitleDownloadResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleMarkResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleSearchResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleUploadResponse
+import com.jankinwu.fntv.client.data.model.response.SysConfigResponse
 import com.jankinwu.fntv.client.data.model.response.TagListResponse
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.data.network.FnOfficialApi
 import com.jankinwu.fntv.client.data.network.fnOfficialClient
+import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genAuthx
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
@@ -63,19 +68,12 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.headers
-import korlibs.crypto.MD5
-import kotlin.random.Random
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 
 
-class FnOfficialApiImpl() : FnOfficialApi {
+class FnOfficialApiImpl : FnOfficialApi {
     private val logger = Logger.withTag("FnOfficialApiImpl")
 
     companion object {
-        private const val API_KEY = "NDzZTVxnRKP8Z0jXg1VAMonaG8akvh"
-        private const val API_SECRET = "16CCEB3D-AB42-077D-36A1-F355324E4237"
-
         val mapper = jacksonObjectMapper().apply {
             // 禁止格式化输出
             disable(SerializationFeature.INDENT_OUTPUT)
@@ -85,6 +83,18 @@ class FnOfficialApiImpl() : FnOfficialApi {
             disable(SerializationFeature.WRITE_NULL_MAP_VALUES)
 //            setSerializationInclusion(JsonInclude.Include.NON_NULL)
         }
+    }
+
+    override suspend fun getSysConfig(): SysConfigResponse {
+        return get("/v/api/v1/sys/config")
+    }
+
+    override suspend fun oauthResult(code: String, state: String?): Boolean {
+        return post("/v/oauth/result?code=$code&state=${state ?: "undefined"}")
+    }
+
+    override suspend fun auth(request: AuthRequest): AuthResponse {
+        return post("/v/api/v1/auth", request)
     }
 
     override suspend fun getMediaDbList(): List<MediaDbListResponse> {
@@ -252,6 +262,10 @@ class FnOfficialApiImpl() : FnOfficialApi {
         return get("/v/api/v1/season/list/$guid")
     }
 
+    override suspend fun setConfigByItem(request: SetConfigByItemRequest): Boolean {
+        return post("/v/api/v1/play/setConfigByItem", request)
+    }
+
     private suspend inline fun <reified T> get(
         url: String,
         parameters: Map<String, Any?>? = null,
@@ -262,7 +276,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
             val authx = genAuthx(url, parameters)
-            logger.i { "GET request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters" }
+            logger.i { "GET request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters, cookie: ${AccountDataCache.cookieState}" }
             val response = fnOfficialClient.get("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header("Authx", authx)
                 parameters?.forEach { (key, value) ->
@@ -304,7 +318,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val authx = genAuthx(url, data = body)
-            logger.i { "POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body" }
+            logger.i { "POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body, cookie: ${AccountDataCache.cookieState}" }
             val response = fnOfficialClient.post("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
                 header("Authx", authx)
@@ -474,54 +488,6 @@ class FnOfficialApiImpl() : FnOfficialApi {
         } catch (e: Exception) {
             throw Exception("请求失败: ${e.message}", e)
         }
-    }
-
-    @OptIn(ExperimentalTime::class)
-    private fun genAuthx(
-        url: String,
-        parameters: Map<String, Any?>? = null,
-        data: Any? = null
-    ): String {
-        val nonce = generateRandomDigits()
-        val timestamp = Clock.System.now().toEpochMilliseconds().toString()
-        val dataJsonMd5 = when {
-            data != null -> {
-                val dataJson = mapper.writeValueAsString(data)
-                getMd5(dataJson)
-            }
-
-            parameters != null -> {
-                // 对参数按键排序并编码
-                val sortedParams = parameters.filterValues { it != null }
-                    .toSortedMap()
-                    .map { "${it.key}=${it.value}" }
-                    .joinToString("&")
-                getMd5(sortedParams)
-            }
-
-            else -> getMd5("")
-        }
-
-        val signArray = arrayOf(
-            API_KEY,
-            url,
-            nonce,
-            timestamp,
-            dataJsonMd5,
-            API_SECRET
-        )
-
-        val signStr = signArray.joinToString("_")
-        val sign = getMd5(signStr)
-        return "nonce=$nonce&timestamp=$timestamp&sign=${sign}"
-    }
-
-    private fun generateRandomDigits(start: Int = 100000, end: Int = 1000000): String {
-        return Random.nextInt(start, end).toString()
-    }
-
-    private fun getMd5(input: String): String {
-        return MD5.digest(input.toByteArray(Charsets.UTF_8)).hex
     }
 }
 

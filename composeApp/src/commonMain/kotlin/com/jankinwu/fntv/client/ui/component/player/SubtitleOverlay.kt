@@ -41,7 +41,8 @@ fun SubtitleOverlay(
     maxWidth: Dp,
     maxHeight: Dp,
     currentPosition: Long,
-    settings: SubtitleSettings = SubtitleSettings()
+    settings: SubtitleSettings = SubtitleSettings(),
+    fontScaleRatio: Float = 1.0f
 ) {
     val screenWidth = maxWidth.value
     val screenHeight = maxHeight.value
@@ -303,16 +304,16 @@ fun SubtitleOverlay(
                                 text = cue.text,
                                 style = TextStyle(
                                     color = Color.White,
-                                    fontSize = 40.sp * settings.fontScale,
+                                    fontSize = 40.sp * settings.fontScale * fontScaleRatio,
                                     fontWeight = FontWeight.Bold,
                                     shadow = Shadow(
                                         color = Color.Black,
-                                        offset = Offset(2f, 2f),
-                                        blurRadius = 4f
+                                        offset = Offset(2f * fontScaleRatio, 2f * fontScaleRatio),
+                                        blurRadius = 4f * fontScaleRatio
                                     )
                                 ),
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp * fontScaleRatio, vertical = 4.dp * fontScaleRatio)
                             )
                         }
                     }

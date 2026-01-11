@@ -42,12 +42,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
 import com.jankinwu.fntv.client.ui.component.common.DirectoryContentFetcher.fetchDirectoryContents
-import com.jankinwu.fntv.client.utils.DisabledPointerIcon
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
-import fntv_client_multiplatform.composeapp.generated.resources.Res
-import fntv_client_multiplatform.composeapp.generated.resources.empty_folder
-import fntv_client_multiplatform.composeapp.generated.resources.folder
-import fntv_client_multiplatform.composeapp.generated.resources.text
+import com.jankinwu.fntv.client.utils.DisabledPointerIcon
+import flynarwhal.composeapp.generated.resources.Res
+import flynarwhal.composeapp.generated.resources.empty_folder
+import flynarwhal.composeapp.generated.resources.folder
+import flynarwhal.composeapp.generated.resources.text
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.CheckBox
 import io.github.composefluent.component.CheckBoxDefaults

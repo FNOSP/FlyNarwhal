@@ -91,7 +91,7 @@ fun EpisodesScrollRow(
     initialIndex: Int = 0,
 ) {
     val scrollState = rememberLazyListState()
-    
+
     // 监听初始索引变化并滚动到指定位置
     androidx.compose.runtime.LaunchedEffect(initialIndex) {
         if (initialIndex >= 0 && initialIndex < episodes.size) {
@@ -397,9 +397,12 @@ fun EpisodeScrollItem(
                         .alpha(if (isPosterHovered) 1f else 0f)
                         .padding(horizontal = 8.dp)
                 ) {
-                    MediaMoreFlyout(onManageVersionsClick = {
-                        isManageVersionsDialogVisible = true
-                    }) { onClick ->
+                    MediaMoreFlyout(
+                        onManageVersionsClick = {
+                            isManageVersionsDialogVisible = true
+                        },
+                        type = FnTvMediaType.EPISODE.value,
+                    ) { onClick ->
                         BottomIconButton(
                             icon = Icons.Regular.MoreHorizontal,
                             contentDescription = "more",

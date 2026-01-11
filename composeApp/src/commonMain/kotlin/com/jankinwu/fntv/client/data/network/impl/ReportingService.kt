@@ -17,6 +17,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.jackson.jackson
 import korlibs.crypto.MD5
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
@@ -104,6 +105,8 @@ class ReportingService(private val context: Context) {
                     logger.e { "Failed to report launch: ${response.status}" }
                 }
 
+            } catch (_: CancellationException) {
+                logger.i { "Reporting launch cancelled" }
             } catch (e: Exception) {
                 logger.e(e) { "Error reporting launch" }
             }

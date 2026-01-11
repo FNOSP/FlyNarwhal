@@ -2,6 +2,7 @@ package com.jankinwu.fntv.client.data.network
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
+import com.jankinwu.fntv.client.data.network.impl.FlyNarwhalApiImpl
 import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
 import com.jankinwu.fntv.client.data.network.impl.ProxyApiImpl
 import com.jankinwu.fntv.client.data.store.AccountDataCache
@@ -74,12 +75,14 @@ actual val fnOfficialClient = HttpClient(OkHttp) {
         if (AccountDataCache.cookieState.isNotBlank()) {
             header(HttpHeaders.Cookie, AccountDataCache.cookieState)
         }
+        header(HttpHeaders.UserAgent, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36")
     }
 }
 
 actual val apiModule = module {
     single { FnOfficialApiImpl() }
     single { ProxyApiImpl() }
+    single<FlyNarwhalApi> { FlyNarwhalApiImpl() }
     single { Mp4Parser(fnOfficialClient) }
     single<UpdateManager> { DesktopUpdateManager() }
 }

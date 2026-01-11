@@ -26,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.icons.ArrowUp
@@ -50,9 +50,12 @@ import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.SubtitleSearchDialog
 import com.jankinwu.fntv.client.ui.flyoutTitleItemColors
 import com.jankinwu.fntv.client.ui.providable.LocalFileInfo
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
+import com.jankinwu.fntv.client.utils.FileUtil
 import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleMarkViewModel
+import com.jankinwu.fntv.client.viewmodel.SubtitleUploadViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ContentDialogButton
@@ -66,7 +69,13 @@ import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.name
+import io.github.vinceglb.filekit.readBytes
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -87,16 +96,25 @@ fun StreamSelector(
     var deletedItemTitle by remember { mutableStateOf("") }
     var deletedItemGuid by remember { mutableStateOf("") }
     val subtitleDeleteViewModel: SubtitleDeleteViewModel = koinViewModel()
+    val subtitleUploadViewModel: SubtitleUploadViewModel = koinViewModel()
     val subtitleDeleteState by subtitleDeleteViewModel.uiState.collectAsState()
+    val subtitleUploadState by subtitleUploadViewModel.uiState.collectAsState()
     val subtitleMarkViewModel: SubtitleMarkViewModel = koinViewModel()
     val streamListViewModel: StreamListViewModel = koinViewModel()
     val density = LocalDensity.current
     val fileInfo = LocalFileInfo.current
-    LaunchedEffect(subtitleDeleteState) {
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(subtitleDeleteState, subtitleUploadState) {
         // 当字幕上传成功后，刷新stream列表
-        if (subtitleDeleteState is UiState.Success) {
-            streamListViewModel.loadData(guid)
-            subtitleDeleteViewModel.clearError()
+        if (isSubtitle) {
+            if (subtitleDeleteState is UiState.Success) {
+                streamListViewModel.loadData(guid)
+                subtitleDeleteViewModel.clearError()
+            }
+            if (subtitleUploadState is UiState.Success) {
+                streamListViewModel.loadData(guid)
+                subtitleUploadViewModel.clearError()
+            }
         }
     }
 
@@ -140,12 +158,35 @@ fun StreamSelector(
                                 AddSubtitleFlyout(
                                     mediaGuid,
                                     modifier = Modifier.hoverable(interactionSource),
-                                    guid,
                                     onAddNasSubtitleSelected = {
                                         showAddNasSubtitleDialog = true
                                     },
                                     onSearchSubtitleSelected = {
                                         showSearchSubtitleDialog = true
+                                    },
+                                    onAddLocalSubtitleSelected = {
+                                        scope.launch {
+                                            try {
+                                                val file: PlatformFile? = withContext(Dispatchers.IO) {
+                                                    FileUtil.pickFile(
+                                                        listOf("ass", "srt", "vtt", "sub", "ssa"),
+                                                        "选择字幕文件"
+                                                    )
+                                                }
+                                                if (file != null) {
+                                                    val byteArray = withContext(Dispatchers.IO) {
+                                                        file.readBytes()
+                                                    }
+                                                    subtitleUploadViewModel.uploadSubtitle(
+                                                        mediaGuid,
+                                                        byteArray,
+                                                        file.name
+                                                    )
+                                                }
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
                                     }
                                 )
                             }

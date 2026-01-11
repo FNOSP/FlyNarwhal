@@ -101,6 +101,7 @@ fun DetailPlayButton(
 fun DetailTags(
     itemData: ItemResponse,
     formatedTotalDuration: String? = "",
+    smartAnalysisStatusText: String? = null,
 ) {
     val isoTagData = LocalIsoTagData.current
     FlowRow(
@@ -145,7 +146,7 @@ fun DetailTags(
         val genresViewModel: GenresViewModel = koinViewModel<GenresViewModel>()
         val genresUiState = genresViewModel.uiState.collectAsState().value
         LaunchedEffect(genresUiState) {
-            if (genresUiState !is UiState.Success) {
+            if (genresUiState is UiState.Initial) {
                 genresViewModel.loadGenres()
             }
         }
@@ -189,6 +190,14 @@ fun DetailTags(
             color = FluentTheme.colors.text.text.secondary,
             fontSize = 14.sp
         )
+        if (!smartAnalysisStatusText.isNullOrBlank()) {
+            Separator()
+            Text(
+                "智能片头/片尾检测状态：$smartAnalysisStatusText",
+                color = FluentTheme.colors.text.text.secondary,
+                fontSize = 14.sp
+            )
+        }
 
     }
 }

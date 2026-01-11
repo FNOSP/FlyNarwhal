@@ -36,49 +36,56 @@ object AppSettingsStore {
         set(value) = settings.set(scopedKey("last_update_check_time"), value)
 
     var windowWidth: Float
-        get() = settings.getFloat(scopedKey("window_width"), 1280f)
-        set(value) = settings.set(scopedKey("window_width"), value)
+        get() = settings.getFloat("window_width", 1280f)
+        set(value) = settings.set("window_width", value)
 
     var windowHeight: Float
-        get() = settings.getFloat(scopedKey("window_height"), 720f)
-        set(value) = settings.set(scopedKey("window_height"), value)
+        get() = settings.getFloat("window_height", 720f)
+        set(value) = settings.set("window_height", value)
 
     var windowX: Float
-        get() = settings.getFloat(scopedKey("window_x"), Float.NaN)
-        set(value) = settings.set(scopedKey("window_x"), value)
+        get() = settings.getFloat("window_x", Float.NaN)
+        set(value) = settings.set("window_x", value)
 
     var windowY: Float
-        get() = settings.getFloat(scopedKey("window_y"), Float.NaN)
-        set(value) = settings.set(scopedKey("window_y"), value)
+        get() = settings.getFloat("window_y", Float.NaN)
+        set(value) = settings.set("window_y", value)
+
+    var isWindowMaximized:  Boolean
+        get() = settings.getBoolean("is_window_maximized", false)
+        set(value) = settings.set("is_window_maximized", value)
 
     var playerWindowWidth: Float
-        get() = settings.getFloat(scopedKey("player_window_width"), 1280f)
-        set(value) = settings.set(scopedKey("player_window_width"), value)
+        get() = settings.getFloatOrNull(scopedKey("player_window_width"))
+            ?: settings.getFloat("player_window_width", 1280f)
+        set(value) {
+            settings[scopedKey("player_window_width")] = value
+            settings.set("player_window_width", value)
+        }
 
     var playerWindowHeight: Float
-        get() = settings.getFloat(scopedKey("player_window_height"), 720f)
-        set(value) = settings.set(scopedKey("player_window_height"), value)
+        get() = settings.getFloatOrNull(scopedKey("player_window_height"))
+            ?: settings.getFloat("player_window_height", 720f)
+        set(value) {
+            settings[scopedKey("player_window_height")] = value
+            settings.set("player_window_height", value)
+        }
 
     var playerWindowX: Float
-        get() = settings.getFloat(scopedKey("player_window_x"), Float.NaN)
-        set(value) = settings.set(scopedKey("player_window_x"), value)
+        get() = settings.getFloatOrNull(scopedKey("player_window_x"))
+            ?: settings.getFloat("player_window_x", Float.NaN)
+        set(value) {
+            settings[scopedKey("player_window_x")] = value
+            settings.set("player_window_x", value)
+        }
 
     var playerWindowY: Float
-        get() = settings.getFloat(scopedKey("player_window_y"), Float.NaN)
-        set(value) = settings.set(scopedKey("player_window_y"), value)
-
-    var playerIsFullscreen: Boolean
-        get() = settings.getBoolean(scopedKey("player_is_fullscreen"), false)
-        set(value) = settings.set(scopedKey("player_is_fullscreen"), value)
-
-    var playerWindowAspectRatio: String
-        get() = settings.getString(scopedKey("player_window_aspect_ratio"), "AUTO")
-        set(value) = settings.set(scopedKey("player_window_aspect_ratio"), value)
-
-    // 在允许自动伸缩窗口尺寸模式下手动补偿的窗口宽度
-    var playerWindowWidthCompensation: Float
-        get() = settings.getFloat(scopedKey("player_window_width_compensation"), -40f)
-        set(value) = settings.set(scopedKey("player_window_width_compensation"), value)
+        get() = settings.getFloatOrNull(scopedKey("player_window_y"))
+            ?: settings.getFloat("player_window_y", Float.NaN)
+        set(value) {
+            settings[scopedKey("player_window_y")] = value
+            settings.set("player_window_y", value)
+        }
 
     var skippedVersions: Set<String>
         get() = settings.getString(scopedKey("skipped_versions"), "").split(",").filter { it.isNotEmpty() }.toSet()
@@ -95,4 +102,20 @@ object AppSettingsStore {
     var navigationDisplayMode: String
         get() = settings.getString(scopedKey("navigation_display_mode"), "Left")
         set(value) = settings.set(scopedKey("navigation_display_mode"), value)
+
+    var kcefInitialized: Boolean
+        get() = settings.getBoolean(scopedKey("kcef_initialized"), false)
+        set(value) = settings.set(scopedKey("kcef_initialized"), value)
+
+    var flyNarwhalServerEnabled: Boolean
+        get() = settings.getBoolean(scopedKey("smart_analysis_enabled"), false)
+        set(value) = settings.set(scopedKey("smart_analysis_enabled"), value)
+
+    var flyNarwhalServerBaseUrl: String
+        get() = settings.getString(scopedKey("smart_analysis_base_url"), "")
+        set(value) = settings.set(scopedKey("smart_analysis_base_url"), value)
+
+    var kcefInitializedVersion: String
+        get() = settings.getString(scopedKey("kcef_initialized_version"), "")
+        set(value) = settings.set(scopedKey("kcef_initialized_version"), value)
 }

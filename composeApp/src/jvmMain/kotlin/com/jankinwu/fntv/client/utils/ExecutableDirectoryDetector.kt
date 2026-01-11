@@ -100,6 +100,26 @@ object WindowsExecutableDirectoryDetector : ExecutableDirectoryDetector {
         val buffer = CharArray(1024)
         val length = MyKernel32.INSTANCE.GetModuleFileNameW(null, buffer, buffer.size)
         val fullPath = String(buffer, 0, length)
-        return File(fullPath).parentFile
+        val exeFile = File(fullPath)
+        val exeName = exeFile.name.lowercase()
+
+        // When running from IDE/Gradle on Windows, the current process is usually java.exe/javaw.exe.
+        // Using that directory would incorrectly resolve to the JDK folder, so we fall back to a project/runtime directory.
+//        if (exeName == "java.exe" || exeName == "javaw.exe") {
+//            val composeDir: String? = System.getProperty("compose.application.resources.dir")
+//            if (composeDir != null) {
+//                val file = File(composeDir).parentFile?.parentFile?.absoluteFile
+//                if (file != null && file.exists()) {
+//                    return file
+//                }
+//            }
+//
+//            val userDir = System.getProperty("user.dir")
+//            if (!userDir.isNullOrBlank()) {
+//                return File(userDir).absoluteFile
+//            }
+//        }
+
+        return exeFile.parentFile
     }
 }

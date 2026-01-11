@@ -119,6 +119,16 @@ fun HomePageScreen(navigator: ComponentNavigator) {
 //        }
     }
 
+//    LaunchedEffect(userInfoUiState) {
+//        when (userInfoUiState) {
+//            is UiState.Success -> {
+//                LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
+//            }
+//
+//            else -> {}
+//        }
+//    }
+
     // 当从播放器返回首页时刷新最近播放列表
     LaunchedEffect(playerManager.playerState) {
         if (!playerManager.playerState.isVisible) {
@@ -127,14 +137,23 @@ fun HomePageScreen(navigator: ComponentNavigator) {
     }
 
     LaunchedEffect(playListUiState) {
-        if (playListUiState is UiState.Success) {
-            val playListData = (playListUiState as UiState.Success).data
-            recentlyWatchedItems = playListData.map { item ->
-                convertPlayDetailToScrollRowItemData(item)
+        when (playListUiState) {
+            is UiState.Success -> {
+                val playListData = (playListUiState as UiState.Success).data
+                recentlyWatchedItems = playListData.map { item ->
+                    convertPlayDetailToScrollRowItemData(item)
+                }
+    //            recentlyWatchedListState.scrollToItem(0)
+                // 重置移除列表
+                itemsToBeRemoved = emptySet()
             }
-//            recentlyWatchedListState.scrollToItem(0)
-            // 重置移除列表
-            itemsToBeRemoved = emptySet()
+
+            is UiState.Error -> {
+                val error = (playListUiState as UiState.Error)
+                logger.e(error.message)
+            }
+
+            else -> {}
         }
     }
 

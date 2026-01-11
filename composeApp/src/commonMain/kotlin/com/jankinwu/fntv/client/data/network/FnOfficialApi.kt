@@ -1,5 +1,6 @@
 package com.jankinwu.fntv.client.data.network
 
+import com.jankinwu.fntv.client.data.model.request.AuthRequest
 import com.jankinwu.fntv.client.data.model.request.ItemListQueryRequest
 import com.jankinwu.fntv.client.data.model.request.LoginRequest
 import com.jankinwu.fntv.client.data.model.request.MediaPRequest
@@ -7,11 +8,13 @@ import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
 import com.jankinwu.fntv.client.data.model.request.ScrapRescrapRequest
 import com.jankinwu.fntv.client.data.model.request.ScrapSearchRequest
+import com.jankinwu.fntv.client.data.model.request.SetConfigByItemRequest
 import com.jankinwu.fntv.client.data.model.request.StreamRequest
 import com.jankinwu.fntv.client.data.model.request.SubtitleDownloadRequest
 import com.jankinwu.fntv.client.data.model.request.SubtitleMarkRequest
 import com.jankinwu.fntv.client.data.model.request.SubtitleSearchRequest
 import com.jankinwu.fntv.client.data.model.response.AuthDirResponse
+import com.jankinwu.fntv.client.data.model.response.AuthResponse
 import com.jankinwu.fntv.client.data.model.response.EpisodeListResponse
 import com.jankinwu.fntv.client.data.model.response.GenresResponse
 import com.jankinwu.fntv.client.data.model.response.ItemListQueryResponse
@@ -35,10 +38,18 @@ import com.jankinwu.fntv.client.data.model.response.SubtitleDownloadResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleMarkResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleSearchResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleUploadResponse
+import com.jankinwu.fntv.client.data.model.response.SysConfigResponse
 import com.jankinwu.fntv.client.data.model.response.TagListResponse
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 
+
 interface FnOfficialApi {
+
+    suspend fun getSysConfig(): SysConfigResponse
+
+    suspend fun oauthResult(code: String, state: String?): Boolean
+
+    suspend fun auth(request: AuthRequest): AuthResponse
 
     suspend fun getMediaDbList(): List<MediaDbListResponse>
 
@@ -78,6 +89,8 @@ interface FnOfficialApi {
 
     suspend fun logout(): Boolean
 
+
+
     suspend fun episodeList(guid: String): List<EpisodeListResponse>
 
     suspend fun personList(guid: String): PersonListResponse
@@ -90,6 +103,8 @@ interface FnOfficialApi {
 
     suspend fun getFilesByServerPath(path: String): List<ServerPathResponse>
 
+    suspend fun setConfigByItem(request: SetConfigByItemRequest): Boolean
+    
     suspend fun subtitleMark(request: SubtitleMarkRequest): List<SubtitleMarkResponse>
 
     suspend fun subtitleSearch(request: SubtitleSearchRequest): SubtitleSearchResponse

@@ -423,7 +423,7 @@ fun RecentlyWatchedItem(
                             .alpha(if (isPosterHovered) 1f else 0f)
                             .padding(horizontal = (8 * scaleFactor).dp)
                     ) {
-                        MediaMoreFlyout(onManageVersionsClick = { isManageVersionsDialogVisible = true }){ onClick ->
+                        MediaMoreFlyout(onManageVersionsClick = { isManageVersionsDialogVisible = true }, type = null){ onClick ->
                             BottomIconButton(
                                 icon = Icons.Regular.MoreHorizontal,
                                 contentDescription = "more",

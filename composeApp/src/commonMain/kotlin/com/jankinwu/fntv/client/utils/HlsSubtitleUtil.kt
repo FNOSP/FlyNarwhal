@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 
 
@@ -130,9 +131,8 @@ class HlsSubtitleUtil(
                 
                 // 5. Immediately update for the current position
                 update(startPositionMs)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                // Ignore cancellation when the player UI leaves composition.
-                return@withContext
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.e(e) { "Failed to initialize HlsSubtitleUtil" }
             }

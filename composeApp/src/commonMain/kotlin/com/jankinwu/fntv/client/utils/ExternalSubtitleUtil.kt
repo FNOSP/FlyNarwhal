@@ -16,6 +16,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.cancellation.CancellationException
 
 data class AssStyle(
     val name: String,
@@ -85,6 +86,8 @@ class ExternalSubtitleUtil(
                 cues.sortBy { it.startTime }
                 isInitialized = true
                 logger.i { "Initialized ExternalSubtitleUtil with ${cues.size} cues (${subtitleStream.format})" }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.e(e) { "Failed to initialize ExternalSubtitleUtil" }
             }

@@ -14,4 +14,8 @@ data class LoginRequest(
     @get:JsonProperty("app_name")
     @param:JsonProperty("app_name")
     val appName: String = "trimemedia-web",
-)
+) {
+    override fun toString(): String {
+        return "LoginRequest(username=$username, password=******, appName=$appName)"
+    }
+}

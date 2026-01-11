@@ -4,7 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import co.touchlab.kermit.Logger
-import fntv_client_multiplatform.composeapp.generated.resources.Res
+import flynarwhal.composeapp.generated.resources.Res
 import io.github.alexzhirkevich.compottie.LottieCompositionSpec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +26,10 @@ object PlayerResourceManager {
         private set
     var settingsSpec by mutableStateOf<LottieCompositionSpec?>(null)
         private set
+    var toPipSpec by mutableStateOf<LottieCompositionSpec?>(null)
+        private set
+    var quitPipSpec by mutableStateOf<LottieCompositionSpec?>(null)
+        private set
 
     fun preload() {
         if (fullScreenSpec != null) return // Already loaded or loading
@@ -39,6 +43,8 @@ object PlayerResourceManager {
                 volumeLowSpec = loadLottie("files/volume_low_lottie.json")
                 volumeOffSpec = loadLottie("files/volume_off_lottie.json")
                 settingsSpec = loadLottie("files/settings_lottie.json")
+                toPipSpec = loadLottie("files/to_pip.json")
+                quitPipSpec = loadLottie("files/quit_pip.json")
                 Logger.i("Player resources preloaded successfully")
             } catch (e: Exception) {
                 Logger.e("Failed to preload player resources", e)

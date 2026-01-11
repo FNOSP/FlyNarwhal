@@ -2,7 +2,7 @@ package consts
 
 // Constants
 const (
-	AppName = "FnMedia.exe"
+	AppName = "FlyNarwhal.exe"
 	AppId   = "9A262498-6C63-4816-A346-056028719600"
 
 	// MessageBox constants

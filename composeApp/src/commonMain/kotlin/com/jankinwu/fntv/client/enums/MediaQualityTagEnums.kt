@@ -1,10 +1,10 @@
 package com.jankinwu.fntv.client.enums
 
-import fntv_client_multiplatform.composeapp.generated.resources.Res
-import fntv_client_multiplatform.composeapp.generated.resources.dolby_atmos_logo
-import fntv_client_multiplatform.composeapp.generated.resources.dolby_surround_logo
-import fntv_client_multiplatform.composeapp.generated.resources.dolby_vision_logo
-import fntv_client_multiplatform.composeapp.generated.resources.dts_logo
+import flynarwhal.composeapp.generated.resources.Res
+import flynarwhal.composeapp.generated.resources.dolby_atmos_logo
+import flynarwhal.composeapp.generated.resources.dolby_surround_logo
+import flynarwhal.composeapp.generated.resources.dolby_vision_logo
+import flynarwhal.composeapp.generated.resources.dts_logo
 import org.jetbrains.compose.resources.DrawableResource
 
 enum class MediaQualityTagEnums(val tagName: String, val drawable: DrawableResource) {

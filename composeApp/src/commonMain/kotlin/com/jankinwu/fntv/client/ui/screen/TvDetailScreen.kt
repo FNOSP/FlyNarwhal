@@ -49,15 +49,18 @@ import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.model.response.SeasonListResponse
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.icons.HeartFilled
 import com.jankinwu.fntv.client.ui.component.common.BackButton
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingError
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
+import com.jankinwu.fntv.client.ui.component.common.MediaMoreFlyout
 import com.jankinwu.fntv.client.ui.component.common.MoviePoster
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.common.ToastType
+import com.jankinwu.fntv.client.ui.component.common.dialog.VersionManagementDialog
 import com.jankinwu.fntv.client.ui.component.detail.DetailPlayButton
 import com.jankinwu.fntv.client.ui.component.detail.DetailTags
 import com.jankinwu.fntv.client.ui.component.detail.ImdbLink
@@ -76,6 +79,7 @@ import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.SeasonListViewModel
+import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
@@ -164,34 +168,85 @@ fun TvDetailScreen(
         }
     }
     LaunchedEffect(itemUiState) {
-        if (itemUiState is UiState.Success) {
-            itemData = (itemUiState as UiState.Success<ItemResponse>).data
+        when (itemUiState) {
+            is UiState.Success -> {
+                itemData = (itemUiState as UiState.Success<ItemResponse>).data
+            }
+
+            is UiState.Error -> {
+                logger.e("itemUiState error: ${(itemUiState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
     LaunchedEffect(playInfoUiState) {
-        if (playInfoUiState is UiState.Success) {
-            playInfoResponse = (playInfoUiState as UiState.Success<PlayInfoResponse>).data
+        when (playInfoUiState) {
+            is UiState.Success -> {
+                playInfoResponse = (playInfoUiState as UiState.Success<PlayInfoResponse>).data
+            }
+
+            is UiState.Error -> {
+                logger.e("playInfoUiState error: ${(playInfoUiState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
     LaunchedEffect(seasonListState) {
         logger.i("seasonListState: $seasonListState")
-        if (seasonListState is UiState.Success) {
-            seasonList = (seasonListState as UiState.Success<List<SeasonListResponse>>).data
+        when (seasonListState) {
+            is UiState.Success -> {
+                seasonList = (seasonListState as UiState.Success<List<SeasonListResponse>>).data
+            }
+
+            is UiState.Error -> {
+                logger.e("seasonListState error: ${(seasonListState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
     LaunchedEffect(iso6391State, iso6392State, iso3166State) {
-        val newIso6391Map = if (iso6391State is UiState.Success) {
-            (iso6391State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else emptyMap()
+        val newIso6391Map = when (iso6391State) {
+            is UiState.Success -> {
+                (iso6391State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
 
-        val newIso6392Map = if (iso6392State is UiState.Success) {
-            (iso6392State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else emptyMap()
+            is UiState.Error -> {
+                logger.e("iso6391State error: ${(iso6391State as UiState.Error).message}")
+                emptyMap()
+            }
 
-        val newIso3166Map = if (iso3166State is UiState.Success) {
-            (iso3166State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else emptyMap()
+            else -> emptyMap()
+        }
+
+        val newIso6392Map = when (iso6392State) {
+            is UiState.Success -> {
+                (iso6392State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
+
+            is UiState.Error -> {
+                logger.e("iso6392State error: ${(iso6392State as UiState.Error).message}")
+                emptyMap()
+            }
+
+            else -> emptyMap()
+        }
+
+        val newIso3166Map = when (iso3166State) {
+            is UiState.Success -> {
+                (iso3166State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
+
+            is UiState.Error -> {
+                logger.e("iso3166State error: ${(iso3166State as UiState.Error).message}")
+                emptyMap()
+            }
+
+            else -> emptyMap()
+        }
 
         isoTagData = IsoTagData(
             iso6391Map = newIso6391Map,
@@ -225,6 +280,9 @@ fun TvDetailBody(
     val store = LocalStore.current
     val windowHeight = store.windowHeightState
     val toastManager = LocalToastManager.current
+    val smartAnalysisEnabled = AppSettingsStore.flyNarwhalServerEnabled
+    val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel()
+    val analyzeState by smartAnalysisViewModel.analyzeState.collectAsState()
     val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
     val watchedUiState by watchedViewModel.uiState.collectAsState()
     val favoriteViewModel: FavoriteViewModel = koinViewModel<FavoriteViewModel>()
@@ -233,6 +291,22 @@ fun TvDetailBody(
     val seasonListViewModel: SeasonListViewModel = koinViewModel()
     val itemViewModel: ItemViewModel = koinViewModel()
     var showDescriptionDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(analyzeState) {
+        when (val state = analyzeState) {
+            is UiState.Success -> {
+                toastManager.showToast(state.data, ToastType.Success)
+                smartAnalysisViewModel.clearState()
+            }
+
+            is UiState.Error -> {
+                toastManager.showToast(state.message, ToastType.Failed)
+                smartAnalysisViewModel.clearState()
+            }
+
+            else -> Unit
+        }
+    }
 
     // 监听已观看操作结果并显示提示
     LaunchedEffect(watchedUiState) {
@@ -252,6 +326,7 @@ fun TvDetailBody(
 
             is UiState.Error -> {
                 // 显示错误提示
+                logger.e("watchedUiState error: ${state.message}")
                 toastManager.showToast("操作失败，${state.message}", ToastType.Failed)
                 state.operationId?.let {
                     pendingCallbacks[state.operationId]?.invoke(false)
@@ -283,6 +358,7 @@ fun TvDetailBody(
 
             is UiState.Error -> {
                 // 显示错误提示
+                logger.e("favoriteUiState error: ${state.message}")
                 toastManager.showToast("操作失败，${state.message}", ToastType.Failed)
             }
 
@@ -475,7 +551,9 @@ fun TvDetailBody(
                                                     guid,
                                                     currentWatchedState
                                                 )
-                                            }
+                                            },
+                                            seasonNumber = season.seasonNumber,
+                                            mediaTitle = itemData?.title
                                         )
                                     }
                                 }
@@ -558,6 +636,9 @@ private fun TvMiddleControls(
     var isFavorite by remember(itemData.isFavorite == 1) { mutableStateOf(itemData.isFavorite == 1) }
     val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
     var isWatched by remember(itemData.isWatched == 1) { mutableStateOf(itemData.isWatched == 1) }
+    val smartAnalysisEnabled = AppSettingsStore.flyNarwhalServerEnabled
+    val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel()
+    var isManageVersionsDialogVisible by remember { mutableStateOf(false) }
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -599,12 +680,19 @@ private fun TvMiddleControls(
                 })
 
             // 更多按钮
-            CircleIconButton(
-                icon = Icons.Regular.MoreHorizontal,
-                description = "更多",
-                onClick = {},
-                iconColor = FluentTheme.colors.text.text.primary
-            )
+            MediaMoreFlyout(
+                onManageVersionsClick = { isManageVersionsDialogVisible = true },
+                onSmartAnalysisClick = if (smartAnalysisEnabled) {
+                    { smartAnalysisViewModel.analyzeTv(guid, itemData.title) }
+                } else null
+            ) { onClick ->
+                CircleIconButton(
+                    icon = Icons.Regular.MoreHorizontal,
+                    description = "更多",
+                    onClick = onClick,
+                    iconColor = FluentTheme.colors.text.text.primary
+                )
+            }
         }
         Column(
             horizontalAlignment = Alignment.End,
@@ -616,4 +704,14 @@ private fun TvMiddleControls(
             )
         }
     }
+
+    VersionManagementDialog(
+        visible = isManageVersionsDialogVisible,
+        guid = guid,
+        itemTitle = itemData.title,
+        onDismiss = { isManageVersionsDialogVisible = false },
+        onDelete = { _, _ -> },
+        onUnmatchConfirmed = { _, _ -> },
+        onMatchToOther = { _, _ -> }
+    )
 }

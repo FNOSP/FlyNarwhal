@@ -46,8 +46,8 @@ import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
-import fntv_client_multiplatform.composeapp.generated.resources.Res
-import fntv_client_multiplatform.composeapp.generated.resources.person_placeholder
+import flynarwhal.composeapp.generated.resources.Res
+import flynarwhal.composeapp.generated.resources.person_placeholder
 import io.github.composefluent.FluentTheme
 
 @OptIn(ExperimentalComposeUiApi::class)

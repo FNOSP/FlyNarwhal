@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -37,11 +35,6 @@ import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.Computer
 import com.jankinwu.fntv.client.icons.Nas
 import com.jankinwu.fntv.client.icons.Search
-import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
-import com.jankinwu.fntv.client.utils.chooseFile
-import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
-import com.jankinwu.fntv.client.viewmodel.SubtitleUploadViewModel
-import com.jankinwu.fntv.client.viewmodel.UiState
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon
@@ -49,39 +42,16 @@ import io.github.composefluent.component.MenuFlyoutContainer
 import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.component.Text
 import org.jetbrains.compose.ui.tooling.preview.Preview
-import org.koin.compose.viewmodel.koinViewModel
-import java.io.File
 
 @Preview
 @Composable
 fun AddSubtitleFlyout(
     mediaGuid: String,
     modifier: Modifier = Modifier,
-    guid: String,
     onAddNasSubtitleSelected: (String) -> Unit = {},
-    onSearchSubtitleSelected: (String) -> Unit = {}
+    onSearchSubtitleSelected: (String) -> Unit = {},
+    onAddLocalSubtitleSelected: () -> Unit = {}
 ) {
-    val frameWindowScope = LocalFrameWindowScope.current
-    val subtitleUploadViewModel: SubtitleUploadViewModel = koinViewModel()
-    val subtitleUploadState by subtitleUploadViewModel.uiState.collectAsState()
-    val streamListViewModel: StreamListViewModel = koinViewModel()
-
-    fun handleFileSelection(file: File?) {
-        file?.let { selectedFile ->
-            // 将文件转换为ByteArray并上传
-            val byteArray = selectedFile.readBytes()
-            subtitleUploadViewModel.uploadSubtitle(mediaGuid, byteArray, selectedFile.name)
-        }
-    }
-    
-    LaunchedEffect(subtitleUploadState) {
-        // 当字幕上传成功后，刷新stream列表
-        if (subtitleUploadState is UiState.Success) {
-            streamListViewModel.loadData(guid)
-            subtitleUploadViewModel.clearError()
-        }
-    }
-    
     MenuFlyoutContainer(
         flyout = {
             MenuFlyoutItem(
@@ -164,8 +134,7 @@ fun AddSubtitleFlyout(
                 },
                 onClick = {
                     isFlyoutVisible = false
-                    val file = chooseFile(frameWindowScope, arrayOf("ass", "srt", "vtt", "sub", "ssa"), "选择字幕文件")
-                    handleFileSelection(file)
+                    onAddLocalSubtitleSelected()
                 },
                 icon = {
                     Icon(

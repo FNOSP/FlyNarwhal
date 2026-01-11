@@ -796,6 +796,7 @@ fun MiddleControls(
             is UiState.Error -> {
                 // 显示错误提示
                 toastManager.showToast("操作失败，${state.message}", ToastType.Failed)
+                logger.e(state.message, state.exception)
             }
 
             else -> {}
@@ -820,6 +821,7 @@ fun MiddleControls(
             is UiState.Error -> {
                 // 显示错误提示
                 toastManager.showToast("操作失败，${state.message}", ToastType.Failed)
+                logger.e(state.message, state.exception)
             }
 
             else -> {}

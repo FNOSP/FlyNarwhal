@@ -17,10 +17,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       - name: Setup Gradle
@@ -36,12 +36,17 @@ jobs:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
 
+      - name: Export MacOS DMG Path
+        run: echo "MAC_DMG_GLOB=$TMPDIR/FlyNarwhal-compose-binaries/**/*.dmg" >> $GITHUB_ENV
+
       - name: Upload DMG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MacOS-App-DMG-arm64
           # 上传生成的 DMG 文件
-          path: composeApp/build/compose/binaries/**/*.dmg
+          path: |
+            composeApp/build/compose/binaries/**/*.dmg
+            ${{ env.MAC_DMG_GLOB }}
           if-no-files-found: error
 
   build-macos-x64:
@@ -52,10 +57,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       - name: Setup Gradle
@@ -71,53 +76,98 @@ jobs:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
 
+      - name: Export MacOS DMG Path
+        run: echo "MAC_DMG_GLOB=$TMPDIR/FlyNarwhal-compose-binaries/**/*.dmg" >> $GITHUB_ENV
+
       - name: Upload DMG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MacOS-App-DMG-amd64
           # 上传生成的 DMG 文件
-          path: composeApp/build/compose/binaries/**/*.dmg
+          path: |
+            composeApp/build/compose/binaries/**/*.dmg
+            ${{ env.MAC_DMG_GLOB }}
           if-no-files-found: error
 
-  build-linux-deb-x64:
-    name: Build Linux Deb (x64)
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-        
-      - name: Install Linux Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y fakeroot
-
-      - name: Build Linux Deb
-        # 执行 Compose Desktop 的打包任务
-        run: ./gradlew :composeApp:packageReleaseDeb
-        env:
-          REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
-          REPORT_URL: ${{ secrets.REPORT_URL }}
-
-      - name: Upload Deb Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Linux-App-Deb-x64
-          # 上传生成的 Deb 文件
-          path: composeApp/build/compose/binaries/**/*.deb
-          if-no-files-found: error
+#  build-linux-deb-x64:
+#    name: Build Linux Deb (x64)
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#
+#      - name: Set up JDK 17
+#        uses: actions/setup-java@v4
+#        with:
+#          java-version: '17'
+#          distribution: 'temurin'
+#
+#      - name: Setup Gradle
+#        uses: gradle/actions/setup-gradle@v3
+#
+#      - name: Grant execute permission for gradlew
+#        run: chmod +x gradlew
+#
+#      - name: Install Linux Dependencies
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install -y fakeroot xvfb
+#
+#      - name: Build Linux Deb
+#        # 执行 Compose Desktop 的打包任务
+#        run: xvfb-run -a ./gradlew :composeApp:packageReleaseDeb
+#        env:
+#          REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
+#          REPORT_URL: ${{ secrets.REPORT_URL }}
+#
+#      - name: Upload Deb Artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: Linux-App-Deb-x64
+#          # 上传生成的 Deb 文件
+#          path: composeApp/build/compose/binaries/**/*.deb
+#          if-no-files-found: error
+#
+#  build-linux-deb-arm64:
+#    name: Build Linux Deb (ARM64)
+#    runs-on: ubuntu-24.04-arm
+#
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#
+#      - name: Set up JDK 17
+#        uses: actions/setup-java@v4
+#        with:
+#          java-version: '17'
+#          distribution: 'temurin'
+#
+#      - name: Setup Gradle
+#        uses: gradle/actions/setup-gradle@v3
+#
+#      - name: Grant execute permission for gradlew
+#        run: chmod +x gradlew
+#
+#      - name: Install Linux Dependencies
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install -y fakeroot xvfb
+#
+#      - name: Build Linux Deb
+#        # 执行 Compose Desktop 的打包任务
+#        run: xvfb-run -a ./gradlew :composeApp:packageReleaseDeb
+#        env:
+#          REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
+#          REPORT_URL: ${{ secrets.REPORT_URL }}
+#
+#      - name: Upload Deb Artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: Linux-App-Deb-arm64
+#          # 上传生成的 Deb 文件
+#          path: composeApp/build/compose/binaries/**/*.deb
+#          if-no-files-found: error
 
   build-windows-x64:
     name: Build Windows (x64)
@@ -127,10 +177,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       - name: Setup Gradle
@@ -170,44 +220,60 @@ jobs:
           path: installer/*_amd64_*.exe
           if-no-files-found: error
 
-#  build-windows-arm64:
-#    name: Build Windows (ARM64)
-#    runs-on: windows-latest # 注意：目前 GitHub Hosted Runner 主要是 x64，这里生成的包可能仍然包含 x64 JVM，除非手动配置交叉编译
-#
-#    steps:
-#      - name: Checkout code
-#        uses: actions/checkout@v4
-#
-#      - name: Set up JDK 17
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: '17'
-#          distribution: 'temurin'
-#
-#      - name: Setup Gradle
-#        uses: gradle/actions/setup-gradle@v3
-#
-#      - name: Create Release Distributable
-#        run: ./gradlew :composeApp:createReleaseDistributable
-#
-#      - name: Setup Inno Setup
-#        run: |
-#          choco install innosetup
-#
-#      - name: Build Installer with Inno Setup
-#        # 显式传入 aarch64 架构参数，这将影响生成的安装包文件名
-#        run: iscc /DMyAppArch=aarch64 installer/setup.iss
-#
-#      - name: Upload Windows Artifact
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: Windows-App-Exe-arm64
-#          path: installer/*_aarch64_*.exe
-#          if-no-files-found: error
+  build-windows-arm64:
+    name: Build Windows (ARM64)
+    runs-on: windows-11-arm
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Create Release Distributable
+        run: ./gradlew :composeApp:createReleaseDistributable --no-configuration-cache
+        env:
+          REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
+          REPORT_URL: ${{ secrets.REPORT_URL }}
+
+      - name: Setup Inno Setup
+        run: |
+          choco install innosetup
+
+      - name: Extract App Version
+        shell: powershell
+        run: |
+          $content = Get-Content composeApp/build.gradle.kts
+          $versionLine = $content | Select-String 'val appVersion = "(.*)"'
+          if ($versionLine) {
+            $version = $versionLine.Matches.Groups[1].Value
+            echo "APP_VERSION=$version" >> $env:GITHUB_ENV
+          } else {
+             Write-Error "Could not find appVersion in build.gradle.kts"
+             exit 1
+          }
+
+      - name: Build Installer with Inno Setup
+        # 显式传入 aarch64 架构参数和版本号
+        run: iscc /DMyAppArch=aarch64 /DMyAppVersion=${{ env.APP_VERSION }} installer/setup.iss
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-App-Exe-arm64
+          path: installer/*_aarch64_*.exe
+          if-no-files-found: error
 
   release:
     name: Create Release
-    needs: [build-macos-arm64, build-macos-x64, build-linux-deb-x64, build-windows-x64]
+    needs: [build-macos-arm64, build-macos-x64, build-windows-x64, build-windows-arm64]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     
@@ -226,13 +292,9 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.修复倍速播放时字幕被跳过的问题  
-          2.修复切换窗口置顶后快捷键不生效的问题  
-          3.优化更新弹窗错误信息显示  
-          4.其他若干 UI 方面的优化  
+          NOTES="1.解决JDK版本过低的问题  
           　  
-          感谢以下飞牛共建团成员反馈问题并协助排查：  
-          @[zhengbf](https://club.fnnas.com/home.php?mod=space&uid=187) @[空城](https://club.fnnas.com/home.php?mod=space&uid=2332)  
+          此项目已更名为飞鲸影视，可执行程序名称也相应做了更改，从更名前的旧版本升级到新版过程中出现报错提示“Failed to launch application **”属于正常现象，安装成功后把旧的快捷方式从桌面或开始菜单删除即可。    
           　  
           > **当前应用中没有展示出来或者点击没有反应的就是还没做的功能，后面陆续都会实现，请仅对已实现的功能提出合理意见，感谢理解**  
           　  "
@@ -241,8 +303,6 @@ jobs:
           WARNING=""
           if [[ "${{ github.ref }}" =~ [Aa]lpha ]]; then
             WARNING="
-          　  
-          **当前应用中没有展示出来或者点击没有反应的就是还没做的功能，后面陆续都会实现，请仅对已实现的功能提出合理意见，感谢理解**  
           　  
           > **此版本为开发中的版本，请酌情下载安装。**
           "

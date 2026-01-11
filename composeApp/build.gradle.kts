@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.JavaExec
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -5,7 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.2.3"
+val appVersion = "1.7.3"
 val appVersionSuffix = ""
 
 val platformStr = when {
@@ -27,6 +28,78 @@ val platformStr = when {
 
 val proxyResourcesDir = layout.buildDirectory.dir("compose/proxy-resources")
 val allAppResourcesDir = layout.buildDirectory.dir("compose/all-app-resources")
+
+val kcefPreparedDir = layout.buildDirectory.dir("kcef/prepared")
+
+val kcefDownloaderClasspath by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
+dependencies {
+    add(
+        kcefDownloaderClasspath.name,
+        if (System.getProperty("os.name").lowercase().contains("win")) {
+            "dev.datlag:kcef:2024.04.20.4"
+        } else {
+            libs.kcef.get().toString()
+        }
+    )
+    add(kcefDownloaderClasspath.name, libs.ktor.client.core.get().toString())
+    add(kcefDownloaderClasspath.name, libs.ktor.client.okhttp.get().toString())
+    add(kcefDownloaderClasspath.name, libs.ktor.client.content.negotiation.get().toString())
+    add(kcefDownloaderClasspath.name, libs.ktor.serialization.kotlinx.json.get().toString())
+    add(kcefDownloaderClasspath.name, libs.ktor.http.get().toString())
+}
+
+val downloadKcefBundle by tasks.registering(JavaExec::class) {
+    val compileKotlinJvmTask = tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compileKotlinJvm")
+    dependsOn(compileKotlinJvmTask)
+
+    mainClass.set("com.jankinwu.fntv.client.utils.KcefBundleDownloader")
+
+    val installDir = kcefPreparedDir.map { it.dir("kcef-bundle") }
+    val cacheDir = kcefPreparedDir.map { it.dir("kcef-cache") }
+    val logDir = kcefPreparedDir.map { it.dir("kcef-logs") }
+
+    val installDirFile = installDir.get().asFile
+
+    val classesDir = compileKotlinJvmTask.flatMap { it.destinationDirectory }
+    classpath = files(classesDir, kcefDownloaderClasspath)
+
+    onlyIf {
+        !installDirFile.exists() || installDirFile.listFiles()?.isEmpty() != false
+    }
+
+    doFirst {
+        installDirFile.deleteRecursively()
+        cacheDir.get().asFile.deleteRecursively()
+        logDir.get().asFile.deleteRecursively()
+    }
+
+    systemProperty("java.awt.headless", "false")
+
+    args(
+        installDir.get().asFile.absolutePath,
+        cacheDir.get().asFile.absolutePath,
+        logDir.get().asFile.absolutePath,
+        "1800"
+    )
+
+    outputs.dir(installDir)
+
+    enabled = osName.contains("win")
+}
+
+val prepareKcefResources by tasks.registering(Copy::class) {
+    dependsOn(downloadKcefBundle)
+
+    val sourceDir = kcefPreparedDir.map { it.dir("kcef-bundle") }
+    from(sourceDir)
+    into(proxyResourcesDir.map { it.dir("kcef-bundle") })
+
+    enabled = osName.contains("win")
+}
 
 val prepareProxyResources by tasks.registering(Copy::class) {
     val sourceDir = project.rootDir.resolve("fntv-proxy")
@@ -174,9 +247,25 @@ val prepareUpdaterResources by tasks.registering(Copy::class) {
 }
 
 val mergeResources by tasks.registering(Copy::class) {
+    dependsOn(prepareProxyResources, prepareUpdaterResources, prepareKcefResources)
+    from(proxyResourcesDir)
+    from(file("appResources"))
     dependsOn(prepareAllAppResources)
     from(allAppResourcesDir)
     into(layout.buildDirectory.dir("mergedResources"))
+}
+
+val stopFntvProxyBeforePackaging by tasks.registering(Exec::class) {
+    enabled = osName.contains("win")
+    isIgnoreExitValue = true
+    commandLine(
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "\$ErrorActionPreference='SilentlyContinue'; Get-Process fntv-proxy | Stop-Process -Force; exit 0"
+    )
 }
 
 // Tasks will be configured after project evaluation to ensure task existence
@@ -188,6 +277,11 @@ afterEvaluate {
         "processResources",
         "prepareAppResources",
         "createDistributable",
+        "createReleaseDistributable",
+        "createDebugDistributable",
+        "runDistributable",
+        "runReleaseDistributable",
+        "runDebugDistributable",
         "packageRelease",
         "packageDebug",
         "package"
@@ -199,10 +293,23 @@ afterEvaluate {
 
     tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
         dependsOn(mergeResources)
+        dependsOn(stopFntvProxyBeforePackaging)
     }
-    
+
+    tasks.findByName("createDistributable")?.dependsOn(stopFntvProxyBeforePackaging)
+
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         dependsOn(generateBuildConfig)
+    }
+
+    tasks.withType<JavaExec>().configureEach {
+        jvmArgs("--add-opens", "java.desktop/sun.awt=ALL-UNNAMED")
+        jvmArgs("--add-opens", "java.desktop/java.awt.peer=ALL-UNNAMED")
+
+        if (System.getProperty("os.name").contains("Mac")) {
+            jvmArgs("--add-opens", "java.desktop/sun.lwawt=ALL-UNNAMED")
+            jvmArgs("--add-opens", "java.desktop/sun.lwawt.macosx=ALL-UNNAMED")
+        }
     }
 }
 
@@ -216,6 +323,7 @@ val generateBuildConfig by tasks.registering {
     // Read secrets from environment variables or project properties
     val reportApiSecret = System.getenv("REPORT_API_SECRET") ?: project.findProperty("REPORT_API_SECRET")?.toString() ?: ""
     val reportUrl = System.getenv("REPORT_URL") ?: project.findProperty("REPORT_URL")?.toString() ?: ""
+    var flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
 
     inputs.property("version", version)
     inputs.property("suffix", suffix)
@@ -234,6 +342,7 @@ val generateBuildConfig by tasks.registering {
                 const val VERSION_NAME = "$fullVersion"
                 const val REPORT_API_SECRET = "$reportApiSecret"
                 const val REPORT_URL = "$reportUrl"
+                const val FLY_NARWHAL_API_SECRET = "$flyNarwhalApiSecret"
             }
         """.trimIndent())
     }
@@ -248,6 +357,8 @@ plugins {
 }
 
 kotlin {
+    jvmToolchain(21)
+
     @OptIn(ExperimentalKotlinGradlePluginApi::class)
     compilerOptions {
         freeCompilerArgs.add("-Xmulti-dollar-interpolation")
@@ -307,7 +418,13 @@ kotlin {
             implementation(libs.kermit)
             implementation(libs.kotlinx.io.core)
             implementation(libs.compottie)
+            implementation(libs.filekit.core)
+            implementation(libs.filekit.dialogs)
+            implementation(libs.filekit.dialogs.compose)
+            implementation(libs.filekit.coil)
             implementation(libs.multiplatform.markdown.renderer)
+            implementation(libs.compose.webview)
+            implementation(libs.com.saralapps.composemultiplatformwebview4)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -316,6 +433,12 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.androidx.runtime.desktop)
+            if (System.getProperty("os.name").lowercase().contains("win")) {
+                implementation("dev.datlag:kcef:2024.04.20.3")
+            } else {
+                implementation(libs.kcef)
+            }
+//            implementation(libs.kcef)
             implementation(libs.ktor.server.core)
             implementation(libs.ktor.server.netty)
             implementation(libs.ktor.server.content.negotiation)
@@ -339,6 +462,15 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.jankinwu.fntv.client.MainKt"
+        val macJvmArgs = listOf(
+            "--add-opens", "java.desktop/sun.awt=ALL-UNNAMED",
+            "--add-opens", "java.desktop/java.awt.peer=ALL-UNNAMED",
+            "--add-opens", "java.desktop/sun.lwawt=ALL-UNNAMED",
+            "--add-opens", "java.desktop/sun.lwawt.macosx=ALL-UNNAMED"
+        )
+        if (osName.contains("mac")) {
+            jvmArgs += macJvmArgs
+        }
 
         buildTypes.release.proguard {
             isEnabled = true
@@ -346,13 +478,23 @@ compose.desktop {
             configurationFiles.from(project.rootDir.resolve("compose-desktop.pro"))
         }
         nativeDistributions {
+            if (osName.contains("mac")) {
+                outputBaseDir.set(
+                    layout.dir(
+                        providers.provider {
+                            File(System.getProperty("java.io.tmpdir")).resolve("FlyNarwhal-compose-binaries")
+                        }
+                    )
+                )
+            }
+
             targetFormats(TargetFormat.Dmg, TargetFormat.Deb, TargetFormat.Exe, TargetFormat.Rpm, TargetFormat.Pkg)
             // 使用英文作为包名，避免Windows下打包乱码和路径问题
             // Use English package name to avoid garbled text on Windows
-            packageName = "FnMedia"
+            packageName = "FlyNarwhal"
             packageVersion = appVersion
             // Description acts as the process name in Task Manager. Using Chinese here causes garbled text due to jpackage limitations.
-            description = "FnMedia"
+            description = "FlyNarwhal"
             vendor = "JankinWu"
             appResourcesRootDir.set(layout.buildDirectory.dir("mergedResources"))
             modules("jdk.unsupported")
@@ -360,21 +502,21 @@ compose.desktop {
                 iconFile.set(project.file("icons/favicon.ico"))
                 shortcut = true
                 menu = true
-                menuGroup = "FnMedia"
+                menuGroup = "FlyNarwhal"
                 console = false
                 dirChooser = true
                 upgradeUuid = "9A262498-6C63-4816-A346-056028719600"
             }
             macOS {
                 iconFile.set(project.file("icons/favicon.icns"))
-                dockName = "飞牛影视"
+                dockName = "飞鲸影视"
                 setDockNameSameAsPackageName = false
                 // 设置最低支持的 macOS 版本，确保在 macOS 14 上构建的包也能在旧系统运行
                 minimumSystemVersion = "11.0"
             }
             linux {
                 iconFile.set(project.file("icons/favicon.png"))
-                packageName = "fn-media"
+                packageName = "fly-narwhal"
                 shortcut = true
             }
         }
@@ -440,7 +582,7 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageT
         destDir.listFiles()?.forEach { file ->
             val ext = file.extension
             if (ext in listOf("dmg", "deb", "rpm")) {
-                val newName = "FnMedia_Setup_${osName}_${arch}_${version}.${ext}"
+                val newName = "FlyNarwhal_Setup_${osName}_${arch}_${version}.${ext}"
                 val newFile = file.parentFile.resolve(newName)
                 if (file.name != newName) {
                     file.renameTo(newFile)
@@ -452,7 +594,7 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageT
 }
 
 tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractRunDistributableTask>().configureEach {
-    dependsOn(prepareProxyResources)
+    dependsOn(mergeResources)
 }
 
 /*

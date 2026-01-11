@@ -1,4 +1,10 @@
-# 	Fntv Client Multiplatform
+<h1 align="center">Fly Narwhal</h1>
+
+<p align="center">
+  <img src="http://oss.jankinwu.com/img/fnarwhal_login.png" alt="fnarwhal_login" width="600" />
+</p>
+
+<div align="center">
 
 [![GitHub stars](https://img.shields.io/github/stars/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/network)
@@ -7,7 +13,13 @@
 [![Kotlin Version](https://img.shields.io/badge/Kotlin-2.2.21-%237F52FF.svg)](https://kotlinlang.org/)
 [![Compose Multiplatform Version](https://img.shields.io/badge/ComposeMultiplatform-1.9.3-%237f52ff.svg)](https://www.jetbrains.com/compose-multiplatform/)
 
-基于 Compose Multiplatform 框架开发的跨平台飞牛影视客户端
+基于 Compose Multiplatform 框架开发的适用于飞牛影视的跨平台客户端
+
+服务端项目：https://github.com/FNOSP/fly-narwhal-server
+
+</div>
+
+---
 
 ## 声明
 
@@ -17,23 +29,23 @@
 
 > 最终效果以未来发布版本为准
 
-![image-20251221171527491](http://oss.jankinwu.com/img/image-20251221171527491.png)
+![image-20251230020234381](http://oss.jankinwu.com/img/image-20251230020234381.png)
 
-![image-20251221171344697](http://oss.jankinwu.com/img/image-20251221171344697.png)
+![image-20251230020717917](http://oss.jankinwu.com/img/image-20251230020717917.png)
 
-![image-20251221180048751](http://oss.jankinwu.com/img/image-20251221180048751.png)
+![image-20251230021217242](http://oss.jankinwu.com/img/image-20251230021217242.png)
 
 ## 使用说明
 ### 使用安装包安装
 
-下载 [releases](https://github.com/FNOSP/fntv-client-multiplatform/releases) 中的安装包并安装
+下载 [releases](https://github.com/FNOSP/FlyNarwhal/releases) 中的安装包并安装
 
 ### 从项目构建
 
 #### 准备环境
 
 - 安装 [Android Studio](https://developer.android.com/studio) 或 [IntelliJ IDEA](https://www.jetbrains.com/idea/)
-- JDK 17 或以上版本并配置环境变量
+- JDK 21 或以上版本并配置环境变量
   - 确保 `JAVA_HOME` 环境变量指向 JDK 安装目录
   - 确保 `PATH` 环境变量包含 `%JAVA_HOME%\bin`
 - 安装 [Golang](https://golang.org/dl/) 1.25.4 或以上版本并配置环境变量
@@ -44,7 +56,7 @@
 
 - 克隆项目到本地：
   ```bash
-  git clone https://github.com/FNOSP/fntv-client-multiplatform.git
+  git clone https://github.com/FNOSP/FlyNarwhal.git
   ```
 - 打开项目：
   - 使用 Android Studio 或 IntelliJ IDEA 打开项目
@@ -107,9 +119,9 @@
 
 支持使用 GPU 硬解，但是因为框架渲染机制，硬解后的视频会被转为 RGBA 色彩模式，通过 CPU 将画面渲染到窗口，此时高动态范围视频会产生色调映射错误的问题，造成画面色彩显示异常。所以对于 HDR、HLG 以及 Dolby Vision 格式的视频，目前会强制 NAS 映射为 SDR 后输出，对于硬件性能不足的 NAS 可能无法流畅播放。未来的目标是尽可能实现显卡硬解后直接渲染到窗口。
 
-#### 2. 此客户端是否支持使用 FN Connect 域名登录？
+#### 2. 此客户端是否支持使用 FN ID 或者通过 NAS 登录？
 
-目前暂时不支持，只支持使用 IP 或非飞牛中继域名登录，后面会支持使用 FN Connect 登录。
+支持使用 FN ID 或者通过 NAS 登录。
 
 #### 3. 此客户端是否支持使用飞牛 OS 中的自签证书进行 HTTPS 连接？
 
@@ -154,6 +166,7 @@
 - [Koin](https://github.com/InsertKoinIO/koin) - 适用于 Kotlin Multiplatform 的实用轻量级依赖注入框架
 - [Ktor](https://github.com/ktorio/ktor) - 使用 Kotlin 编写的 web 服务异步框架
 - [Kermit](https://github.com/touchlab/Kermit) - 适用于 Kotlin Multiplatform 的日志记录工具
+- [FileKit](https://github.com/vinceglb/FileKit) -  一个功能强大的适用于 KMP 的文件操作库
 - [jSystemThemeDetector](https://github.com/open-ani/jSystemThemeDetector) - 用于检测（桌面）操作系统是否使用深色 UI 主题的 Java 库
 - [fntv-electron](https://github.com/QiaoKes/fntv-electron) - 飞牛影视PC版 electron 封装
 - [fnos-tv](https://github.com/thshu/fnos-tv) - 基于飞牛影视接口开发的网页端
@@ -162,14 +175,16 @@
 
 @[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[MR_XIAOBO](https://github.com/xiaobonet) @[汪仔饭](https://club.fnnas.com/home.php?mod=space&uid=5021) @*观如
 
+感谢 [anmoliyang](anmoli.cn) 为此项目 UI 设计做出的贡献
+
 ## 🌟 Star History
 
-<a href="https://github.com/FNOSP/fntv-client-multiplatform/stargazers" target="_blank" style="display: block" align="center">
+<a href="https://github.com/FNOSP/FlyNarwhal/stargazers" target="_blank" style="display: block" align="center">
 
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=FNOSP/fntv-client-multiplatform&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=FNOSP/fntv-client-multiplatform&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=FNOSP/fntv-client-multiplatform&type=Date" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=FNOSP/FlyNarwhal&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=FNOSP/FlyNarwhal&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=FNOSP/FlyNarwhal&type=Date" />
   </picture>
 </a>
 

@@ -24,6 +24,17 @@ class SeasonListViewModel : BaseViewModel() {
         }
     }
 
+    suspend fun loadDataAndWait(guid: String): List<SeasonListResponse> {
+        executeWithLoading(_uiState, operationId = guid) {
+            fnOfficialApi.seasonList(guid)
+        }
+        return when (val state = _uiState.value) {
+            is UiState.Success -> state.data
+            is UiState.Error -> throw (state.exception ?: Exception(state.message))
+            else -> throw Exception("Unexpected season list state")
+        }
+    }
+
     fun refresh(guid: String) {
         loadData(guid)
     }

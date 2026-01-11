@@ -1,11 +1,11 @@
-#define MyAppName "飞牛影视"
+#define MyAppName "飞鲸影视"
 #ifndef MyAppVersion
   #define MyAppVersion "1.0.10"
 #endif
 #define MyAppOS "Windows"
 #define MyAppPublisher "JankinWu"
-#define MyAppExeName "FnMedia.exe"
-#define MyAppPackageName "FnMedia"
+#define MyAppExeName "FlyNarwhal.exe"
+#define MyAppPackageName "FlyNarwhal"
 #define MyAppId "9A262498-6C63-4816-A346-056028719600"
 
 #ifndef MyAppArch
@@ -33,7 +33,7 @@ DisableProgramGroupPage=yes
 DisableDirPage=no
 
 OutputDir=.
-OutputBaseFilename=FnMedia_Setup_{#MyAppOS}_{#MyAppArch}_{#MyAppVersion}
+OutputBaseFilename=FlyNarwhal_Setup_{#MyAppOS}_{#MyAppArch}_{#MyAppVersion}
 SetupIconFile=favicon.ico
 Compression=lzma
 SolidCompression=yes

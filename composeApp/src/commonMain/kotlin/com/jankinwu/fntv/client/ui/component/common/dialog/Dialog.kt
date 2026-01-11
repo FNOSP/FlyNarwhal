@@ -1,5 +1,7 @@
 package com.jankinwu.fntv.client.ui.component.common.dialog
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +17,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -23,10 +24,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +57,7 @@ import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FluentDialog
 import io.github.composefluent.component.Text
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ForgotPasswordDialog() {
     var displayDialog by remember { mutableStateOf(false) }
@@ -79,9 +84,20 @@ fun ForgotPasswordDialog() {
             }
         }
     }
-    TextButton(onClick = { displayDialog = true }) {
-        androidx.compose.material3.Text("忘记密码?", color = HintColor, fontSize = 14.sp)
-    }
+    var isHovered by remember { mutableStateOf(false) }
+    Text(
+        "忘记密码?",
+        color = if (isHovered) Color.White else HintColor,
+        fontSize = 14.sp,
+        modifier = Modifier
+            .onPointerEvent(PointerEventType.Enter) { isHovered = true }
+            .onPointerEvent(PointerEventType.Exit) { isHovered = false }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { displayDialog = true })
+            .pointerHoverIcon(PointerIcon.Hand)
+    )
 }
 
 @Composable

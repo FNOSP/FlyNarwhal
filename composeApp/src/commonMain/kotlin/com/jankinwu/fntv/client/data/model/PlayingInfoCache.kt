@@ -2,6 +2,8 @@ package com.jankinwu.fntv.client.data.model
 
 import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.model.response.FileInfo
+import com.jankinwu.fntv.client.data.model.response.Item
+import com.jankinwu.fntv.client.data.model.response.PlayConfig
 import com.jankinwu.fntv.client.data.model.response.QualityResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
@@ -29,4 +31,6 @@ data class PlayingInfoCache(
     var isUseDirectLink: Boolean = false,
     var isEpisode: Boolean = false,
     var previousSubtitle: SubtitleStream? = null,
+    var playConfig: PlayConfig? = null,
+    val item: Item? = null
 )

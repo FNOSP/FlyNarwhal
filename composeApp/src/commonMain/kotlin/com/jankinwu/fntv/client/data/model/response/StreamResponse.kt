@@ -10,9 +10,9 @@ data class StreamResponse(
     @param:JsonProperty("video_stream")
     val videoStream: VideoStream,
     @param:JsonProperty("audio_streams")
-    val audioStreams: List<AudioStream>,
+    val audioStreams: List<AudioStream>?,
     @param:JsonProperty("qualities")
-    val qualities: List<QualityResponse>,
+    val qualities: List<QualityResponse>?,
     @param:JsonProperty("subtitle_streams")
     val subtitleStreams: List<SubtitleStream>?,
     @param:JsonProperty("cloud_storage_info")

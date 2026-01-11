@@ -2,6 +2,7 @@
 
 package com.jankinwu.fntv.client.ui.screen
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -13,19 +14,23 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -34,15 +39,17 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -78,7 +85,6 @@ import com.jankinwu.fntv.client.data.model.PlayingInfoCache
 import com.jankinwu.fntv.client.data.model.SubtitleSettings
 import com.jankinwu.fntv.client.data.model.request.MediaPRequest
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
-import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
 import com.jankinwu.fntv.client.data.model.request.StreamRequest
 import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.model.response.EpisodeListResponse
@@ -99,9 +105,12 @@ import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.ArrowLeft
 import com.jankinwu.fntv.client.icons.Back10S
+import com.jankinwu.fntv.client.icons.DanmuClose
+import com.jankinwu.fntv.client.icons.DanmuOpen
 import com.jankinwu.fntv.client.icons.Forward10S
 import com.jankinwu.fntv.client.icons.Pause
 import com.jankinwu.fntv.client.icons.Play
+import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import com.jankinwu.fntv.client.launchExternalPlayer
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
@@ -110,12 +119,15 @@ import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.ui.component.common.dialog.AddNasSubtitleDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.SubtitleSearchDialog
-import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
+import com.jankinwu.fntv.client.ui.component.player.DanmakuOverlay
+import com.jankinwu.fntv.client.ui.component.player.DanmakuSettingsMenu
 import com.jankinwu.fntv.client.ui.component.player.EpisodeSelectionFlyout
 import com.jankinwu.fntv.client.ui.component.player.FullScreenControl
 import com.jankinwu.fntv.client.ui.component.player.NextEpisodePreviewFlyout
 import com.jankinwu.fntv.client.ui.component.player.PlayerSettingsMenu
 import com.jankinwu.fntv.client.ui.component.player.QualityControlFlyout
+import com.jankinwu.fntv.client.ui.component.player.SkipIntroPrompt
+import com.jankinwu.fntv.client.ui.component.player.SkipOutroPrompt
 import com.jankinwu.fntv.client.ui.component.player.SpeedControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SubtitleControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SubtitleOverlay
@@ -133,17 +145,22 @@ import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
 import com.jankinwu.fntv.client.ui.providable.defaultVariableFamily
+import com.jankinwu.fntv.client.utils.FileUtil
 import com.jankinwu.fntv.client.utils.HiddenPointerIcon
 import com.jankinwu.fntv.client.utils.HlsSubtitleUtil
 import com.jankinwu.fntv.client.utils.Mp4Parser
 import com.jankinwu.fntv.client.utils.SubtitleCue
-import com.jankinwu.fntv.client.utils.chooseFile
+import com.jankinwu.fntv.client.utils.calculateOptimalPlayerWindowSize
+import com.jankinwu.fntv.client.utils.callPlayRecord
+import com.jankinwu.fntv.client.utils.rememberSmoothVideoTime
+import com.jankinwu.fntv.client.viewmodel.DanmakuViewModel
 import com.jankinwu.fntv.client.viewmodel.EpisodeListViewModel
 import com.jankinwu.fntv.client.viewmodel.MediaPViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayPlayViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayRecordViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayerViewModel
+import com.jankinwu.fntv.client.viewmodel.SmartAnalysisStatusViewModel
 import com.jankinwu.fntv.client.viewmodel.StreamViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleMarkViewModel
@@ -151,19 +168,24 @@ import com.jankinwu.fntv.client.viewmodel.SubtitleUploadViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
+import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
+import io.github.alexzhirkevich.compottie.rememberLottieComposition
+import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.DialogSize
-import io.github.composefluent.component.FontIconDefaults
-import io.github.composefluent.component.FontIconSize
-import io.github.composefluent.component.NavigationDefaults
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.name
+import io.github.vinceglb.filekit.readBytes
 import korlibs.crypto.MD5
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -177,7 +199,8 @@ import org.openani.mediamp.features.VideoAspectRatio
 import org.openani.mediamp.source.MediaExtraFiles
 import org.openani.mediamp.source.UriMediaData
 import org.openani.mediamp.togglePause
-import kotlin.math.abs
+import java.math.BigDecimal
+import java.math.RoundingMode
 import kotlin.math.roundToInt
 
 @Composable
@@ -214,7 +237,7 @@ private fun InternalPlayerScreen(
         currentAudioGuid = audioStream?.guid,
         currentSubtitleGuid = subtitleStream?.guid
     )
-    
+
     LaunchedEffect(guid, mediaGuid) {
         playMedia()
     }
@@ -224,19 +247,33 @@ private fun InternalPlayerScreen(
 private val logger = Logger.withTag("PlayerScreen")
 
 data class PlayerState(
+    val isEpisode: Boolean = false,
     val isVisible: Boolean = false,
     val isUiVisible: Boolean = true,
     val isLoading: Boolean = false,
-    val itemGuid: String = "",
+    var itemGuid: String = "",
     val mediaTitle: String = "",
     val subhead: String = "",
-    val duration: Long = 0L,
-    val isEpisode: Boolean = false
+    var duration: Long = 0L
 )
 
+
 class PlayerManager {
+    val toastManager: ToastManager = ToastManager()
     var playerState: PlayerState by mutableStateOf(PlayerState())
     var keyFocusRequestSerial: Int by mutableIntStateOf(0)
+    var isPipMode: Boolean by mutableStateOf(false)
+    var danmakuResetNonce: Int by mutableIntStateOf(0)
+    // Initial resume target in player timeline (history progress). Intro-skip is blocked until reached.
+    var initialResumePositionMs: Long? by mutableStateOf(null)
+    // Auto-skipped intro segment decided during startup/resume. Used to show the undo prompt.
+    var startupAutoSkippedIntroSegmentMillis: Pair<Long, Long>? by mutableStateOf(null)
+    var initialSeekTargetMs: Long? by mutableStateOf(null)
+    var initialSeekCommandSent: Boolean by mutableStateOf(false)
+    var initialSeekCommandWallTimeMs: Long by mutableLongStateOf(0L)
+    var initialSeekStableSinceWallTimeMs: Long by mutableLongStateOf(0L)
+    var initialSeekLastObservedPositionMs: Long by mutableLongStateOf(0L)
+    var initialSeekCompleted: Boolean by mutableStateOf(true)
 
     fun requestKeyFocus() {
         keyFocusRequestSerial++
@@ -290,79 +327,6 @@ object PlayerScreen {
     }
 }
 
-private fun createPlayRecordRequest(
-    ts: Int,
-    cache: PlayingInfoCache
-): PlayRecordRequest {
-    return PlayRecordRequest(
-        itemGuid = cache.itemGuid,
-        mediaGuid = cache.currentFileStream.guid,
-        videoGuid = cache.currentVideoStream.guid,
-        audioGuid = cache.currentAudioStream?.guid ?: "",
-        subtitleGuid = cache.currentSubtitleStream?.guid,
-        resolution = cache.currentQuality?.resolution ?: cache.currentVideoStream.resolutionType,
-        bitrate = cache.currentQuality?.bitrate ?: cache.currentVideoStream.bps,
-        ts = ts,
-        duration = cache.currentVideoStream.duration,
-        playLink = cache.playLink
-    )
-}
-
-/**
- * 保存播放进度
- *
- * @param ts 当前播放时间戳(秒)
- * @param playRecordViewModel PlayRecordViewModel实例
- * @param onSuccess 成功回调
- * @param onError 错误回调
- */
-private fun callPlayRecord(
-    ts: Int,
-    playingInfoCache: PlayingInfoCache?,
-    playRecordViewModel: PlayRecordViewModel,
-    onSuccess: (() -> Unit)? = null,
-    onError: (() -> Unit)? = null
-) {
-    playingInfoCache?.let { cache ->
-        val playRecordRequest = createPlayRecordRequest(ts, cache)
-        playRecordViewModel.loadData(playRecordRequest)
-        onSuccess?.invoke()
-    } ?: run {
-        onError?.invoke()
-    }
-}
-
-@Composable
-fun rememberSmoothVideoTime(mediaPlayer: MediampPlayer): State<Long> {
-    val targetTime by mediaPlayer.currentPositionMillis.collectAsState()
-    val isPlaying by mediaPlayer.playbackState.collectAsState()
-    val smoothTime = remember { mutableLongStateOf(targetTime) }
-
-    // Sync when paused or seeking (large diff)
-    LaunchedEffect(targetTime, isPlaying) {
-        if (isPlaying != PlaybackState.PLAYING || abs(smoothTime.longValue - targetTime) > 1000) {
-            smoothTime.longValue = targetTime
-        }
-    }
-
-    // Smooth update loop
-    LaunchedEffect(isPlaying) {
-        if (isPlaying == PlaybackState.PLAYING) {
-            var lastFrameTime = withFrameNanos { it }
-            while (isActive) {
-                withFrameNanos { frameTime ->
-                    val delta = (frameTime - lastFrameTime) / 1_000_000 // ns to ms
-                    if (delta > 0) {
-                        smoothTime.longValue += delta
-                    }
-                    lastFrameTime = frameTime
-                }
-            }
-        }
-    }
-    return smoothTime
-}
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PlayerOverlay(
@@ -376,13 +340,31 @@ fun PlayerOverlay(
     // 控制UI可见性的状态
     var uiVisible by remember { mutableStateOf(true) }
     val playerManager = LocalPlayerManager.current
+    val toastManager = playerManager.toastManager
     LaunchedEffect(uiVisible) {
         playerManager.setUiVisible(uiVisible)
     }
     // Window Aspect Ratio State
-    var windowAspectRatio by remember { mutableStateOf(AppSettingsStore.playerWindowAspectRatio) }
+    var windowAspectRatio by remember { mutableStateOf(PlayingSettingsStore.playerWindowAspectRatio) }
 
-    var subtitleSettings by remember { mutableStateOf(SubtitleSettings()) }
+    val playerViewModel: PlayerViewModel = koinViewModel()
+    val subtitleSettingsFromVm by playerViewModel.subtitleSettings.collectAsState()
+
+    var subtitleSettings by remember {
+        mutableStateOf(subtitleSettingsFromVm)
+    }
+
+    LaunchedEffect(subtitleSettingsFromVm) {
+        if (subtitleSettings != subtitleSettingsFromVm) {
+            subtitleSettings = subtitleSettingsFromVm
+        }
+    }
+
+    LaunchedEffect(subtitleSettings) {
+        if (subtitleSettings != subtitleSettingsFromVm) {
+            playerViewModel.updateSubtitleSettings(subtitleSettings)
+        }
+    }
 
     var isCursorVisible by remember { mutableStateOf(true) }
     var lastMouseMoveTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -395,22 +377,28 @@ fun PlayerOverlay(
     var isNextEpisodeHovered by remember { mutableStateOf(false) }
     var isSettingsMenuHovered by remember { mutableStateOf(false) }
     var isSubtitleControlHovered by remember { mutableStateOf(false) }
+    var isDanmakuSettingsHovered by remember { mutableStateOf(false) }
     var lastVolume by remember { mutableFloatStateOf(0f) }
 
 
     val isPlayControlHovered =
-        isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered || isEpisodeControlHovered || isNextEpisodeHovered
+        isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered || isEpisodeControlHovered || isNextEpisodeHovered || isDanmakuSettingsHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
     val frameWindowScope = LocalFrameWindowScope.current
-//    val scope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val tagViewModel: TagViewModel = koinViewModel()
-    val playerViewModel: PlayerViewModel = koinViewModel()
     val playPlayViewModel: PlayPlayViewModel = koinViewModel()
     val episodeListViewModel: EpisodeListViewModel = koinViewModel()
+    val smartAnalysisStatusViewModel: SmartAnalysisStatusViewModel = koinViewModel()
+    val danmakuViewModel: DanmakuViewModel = koinViewModel()
+    val seekToWithDanmakuReset: (Long) -> Unit = { positionMillis ->
+        playerManager.danmakuResetNonce++
+        mediaPlayer.seekTo(positionMillis)
+    }
     val episodeListState by episodeListViewModel.uiState.collectAsState()
     var episodeList by remember { mutableStateOf(emptyList<EpisodeListResponse>()) }
-    var isAutoPlay by remember { mutableStateOf(AppSettingsStore.autoPlay) }
+    var isAutoPlay by remember { mutableStateOf(PlayingSettingsStore.autoPlay) }
     val playPlayState by playPlayViewModel.uiState.collectAsState()
     val mp4Parser: Mp4Parser = koinInject()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
@@ -423,6 +411,7 @@ fun PlayerOverlay(
     val useExternalPlayer = AppSettingsStore.useExternalPlayer && currentPlatform() is Platform.Desktop
 
     LaunchedEffect(playingInfoCache?.itemGuid) {
+        playerManager.danmakuResetNonce++
         isProgressBarHovered = false
         isSpeedControlHovered = false
         isVolumeControlHovered = false
@@ -441,9 +430,29 @@ fun PlayerOverlay(
         }
     }
 
+    LaunchedEffect(isEpisode, playingInfoCache?.currentVideoStream?.mediaGuid) {
+        val episodeGuid = if (isEpisode) playingInfoCache?.currentVideoStream?.mediaGuid else null
+        smartAnalysisStatusViewModel.updateEpisodeGuid(episodeGuid?.takeIf { it.isNotBlank() })
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            smartAnalysisStatusViewModel.updateEpisodeGuid(null)
+            smartAnalysisStatusViewModel.stopPolling()
+        }
+    }
+
     LaunchedEffect(episodeListState) {
-        if (episodeListState is UiState.Success) {
-            episodeList = (episodeListState as UiState.Success<List<EpisodeListResponse>>).data
+        when (episodeListState) {
+            is UiState.Success -> {
+                episodeList = (episodeListState as UiState.Success<List<EpisodeListResponse>>).data
+            }
+
+            is UiState.Error -> {
+                logger.e("episodeListState error: ${(episodeListState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
@@ -458,11 +467,11 @@ fun PlayerOverlay(
         playRecordViewModel,
         playerViewModel,
         playerManager,
-        toastManager,
-        mp4Parser
+        mp4Parser,
+        toastManager
     ) {
         { episodeGuid: String ->
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
                 // 1. Quit current media if needed
                 if (playingInfoCache?.isUseDirectLink == false) {
                     mediaPViewModel.quit(
@@ -476,6 +485,13 @@ fun PlayerOverlay(
                 // 2. Play new media
                 try {
                     playerManager.setLoading(true)
+                    playerManager.initialSeekTargetMs = null
+                    playerManager.initialSeekCommandSent = false
+                    playerManager.initialSeekCommandWallTimeMs = 0L
+                    playerManager.initialSeekStableSinceWallTimeMs = 0L
+                    playerManager.initialSeekLastObservedPositionMs = 0L
+                    playerManager.initialSeekCompleted = false
+                    playerManager.initialResumePositionMs = null
                     playMedia(
                         guid = episodeGuid,
                         player = mediaPlayer,
@@ -487,6 +503,7 @@ fun PlayerOverlay(
                         playerViewModel = playerViewModel,
                         playerManager = playerManager,
                         toastManager = toastManager,
+                        danmakuViewModel = danmakuViewModel,
                         mediaGuid = null,
                         currentAudioGuid = null,
                         currentSubtitleGuid = null,
@@ -508,6 +525,356 @@ fun PlayerOverlay(
             episodeList[currentEpisodeIndex + 1]
         } else {
             null
+        }
+    }
+
+    var isSeeking by remember { mutableStateOf(false) }
+
+    // Skip Intro Undo State
+    var showSkipIntroUndoPrompt by remember { mutableStateOf(false) }
+    var skipIntroUndoCountdown by remember { mutableIntStateOf(5) }
+    var lastAutoSkippedIntroSegmentMillis by remember(playingInfoCache?.itemGuid) {
+        mutableStateOf<Pair<Long, Long>?>(
+            null
+        )
+    }
+    var pendingIntroSkipSegmentMillis by remember(playingInfoCache?.itemGuid) {
+        mutableStateOf<Pair<Long, Long>?>(
+            null
+        )
+    }
+    var introSkipSuppressedUntilMs by remember(playingInfoCache?.itemGuid) {
+        mutableStateOf<Long?>(
+            null
+        )
+    }
+    var lastIntroMonitorPosition by remember { mutableLongStateOf(0L) }
+    var introMonitorInitialized by remember(playingInfoCache?.itemGuid) { mutableStateOf(false) }
+
+    // Skip Outro State
+    var showSkipOutroPrompt by remember { mutableStateOf(false) }
+    var skipOutroCancelled by remember { mutableStateOf(false) }
+    var skipOutroCountdown by remember { mutableIntStateOf(5) }
+    var showEndScreen by remember { mutableStateOf(false) }
+    var lastOutroMonitorPosition by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(playingInfoCache?.itemGuid) {
+        showSkipIntroUndoPrompt = false
+        skipIntroUndoCountdown = 5
+        lastAutoSkippedIntroSegmentMillis = null
+        pendingIntroSkipSegmentMillis = null
+        introSkipSuppressedUntilMs = null
+        lastIntroMonitorPosition = 0L
+        introMonitorInitialized = false
+        playerManager.startupAutoSkippedIntroSegmentMillis = null
+
+        showSkipOutroPrompt = false
+        skipOutroCancelled = false
+        skipOutroCountdown = 5
+        showEndScreen = false
+        lastOutroMonitorPosition = 0L
+    }
+
+    LaunchedEffect(
+        currentPosition,
+        playState,
+        playerManager.startupAutoSkippedIntroSegmentMillis
+    ) {
+        val segment = playerManager.startupAutoSkippedIntroSegmentMillis ?: return@LaunchedEffect
+        if (playState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val thresholdMs = (segment.second - 200L).coerceAtLeast(0L)
+        if (currentPosition >= thresholdMs) {
+            playerManager.startupAutoSkippedIntroSegmentMillis = null
+            pendingIntroSkipSegmentMillis = null
+            lastAutoSkippedIntroSegmentMillis = segment
+            showSkipIntroUndoPrompt = true
+            skipIntroUndoCountdown = 5
+        }
+    }
+
+    val totalDuration = remember(playerManager.playerState.itemGuid) {
+        playerManager.playerState.duration
+    }
+    val playConfig = playingInfoCache?.playConfig
+
+    // Smart Analysis Skip Logic
+    val smartSegments by smartAnalysisStatusViewModel.smartSegments.collectAsState()
+    val smartSkipEnabled by smartAnalysisStatusViewModel.smartSkipEnabled.collectAsState()
+    val isSmartAnalysisGloballyEnabled = AppSettingsStore.flyNarwhalServerEnabled
+
+    val useSmartSkip = isSmartAnalysisGloballyEnabled && smartSkipEnabled && smartSegments != null
+
+    val smartIntroSegmentMillis: Pair<Long, Long>? = if (useSmartSkip) {
+        val intro = smartSegments?.intro
+        if (intro != null && intro.valid && intro.end > intro.start && intro.end > BigDecimal.ZERO) {
+            val startMs = intro.start.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP)
+                .longValueExact()
+            val endMs = intro.end.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP)
+                .longValueExact()
+            if (endMs > startMs) startMs to endMs else null
+        } else {
+            null
+        }
+    } else {
+        null
+    }
+
+    val resolvedIntroSegmentMillis: Pair<Long, Long>? = smartIntroSegmentMillis
+        ?: ((playConfig?.skipOpening ?: 0).coerceAtLeast(0) * 1000L)
+            .takeIf { it > 0 }
+            ?.let { 0L to it }
+
+    val smartCreditsSegmentMillis: Pair<Long, Long>? = if (useSmartSkip) {
+        val credits = smartSegments?.credits
+        if (credits != null && credits.valid && credits.end > credits.start && credits.end > BigDecimal.ZERO) {
+            var startMs = credits.start.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP)
+                .longValueExact()
+            var endMs = credits.end.multiply(BigDecimal(1000)).setScale(0, RoundingMode.HALF_UP)
+                .longValueExact()
+            if (totalDuration > 0) {
+                startMs = startMs.coerceIn(0L, totalDuration)
+                endMs = endMs.coerceIn(0L, totalDuration)
+            }
+            if (endMs > startMs) startMs to endMs else null
+        } else {
+            null
+        }
+    } else {
+        null
+    }
+
+    val resolvedCreditsSegmentMillis: Pair<Long, Long>? = smartCreditsSegmentMillis ?: run {
+        val skipEndingSec = (playConfig?.skipEnding ?: 0).coerceAtLeast(0)
+        if (skipEndingSec > 0 && totalDuration > 0) {
+            val startMs = (totalDuration - skipEndingSec * 1000L).coerceAtLeast(0L)
+            startMs to totalDuration
+        } else {
+            null
+        }
+    }
+
+    LaunchedEffect(
+        currentPosition,
+        playState,
+        resolvedIntroSegmentMillis,
+        playerManager.initialResumePositionMs,
+        playerManager.initialSeekTargetMs,
+        playerManager.initialSeekCommandSent,
+        playerManager.initialSeekCommandWallTimeMs,
+        playerManager.initialSeekStableSinceWallTimeMs,
+        playerManager.initialSeekLastObservedPositionMs,
+        playerManager.initialSeekCompleted
+    ) {
+        if (playerManager.initialSeekCompleted) return@LaunchedEffect
+        if (!playerManager.initialSeekCommandSent) return@LaunchedEffect
+        if (playState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val resumeTarget = playerManager.initialResumePositionMs ?: return@LaunchedEffect
+        val introStartMs = resolvedIntroSegmentMillis?.first
+        val shouldUseStableCompletion = introStartMs == 0L && resumeTarget > 0L
+
+        if (!shouldUseStableCompletion) {
+            if (currentPosition >= (resumeTarget - 500L).coerceAtLeast(0L)) {
+                playerManager.initialSeekCompleted = true
+                playerManager.initialSeekTargetMs = null
+                playerManager.initialResumePositionMs = null
+                playerManager.initialSeekCommandSent = false
+                playerManager.initialSeekCommandWallTimeMs = 0L
+                playerManager.initialSeekStableSinceWallTimeMs = 0L
+                playerManager.initialSeekLastObservedPositionMs = 0L
+            } else {
+                playerManager.initialSeekLastObservedPositionMs = currentPosition
+            }
+            return@LaunchedEffect
+        }
+
+        val now = System.currentTimeMillis()
+        val lastObservedPosition = playerManager.initialSeekLastObservedPositionMs
+        val largeBackwardJump =
+            lastObservedPosition > 0L && (lastObservedPosition - currentPosition) > 1500L
+        if (largeBackwardJump) {
+            playerManager.initialSeekStableSinceWallTimeMs = 0L
+        }
+
+        val nearTarget = kotlin.math.abs(currentPosition - resumeTarget) <= 800L
+        val beyondTarget = currentPosition >= (resumeTarget - 500L).coerceAtLeast(0L)
+        if (nearTarget || beyondTarget) {
+            if (playerManager.initialSeekStableSinceWallTimeMs == 0L) {
+                playerManager.initialSeekStableSinceWallTimeMs = now
+            }
+        } else {
+            playerManager.initialSeekStableSinceWallTimeMs = 0L
+        }
+
+        val stableSince = playerManager.initialSeekStableSinceWallTimeMs
+        val commandAt = playerManager.initialSeekCommandWallTimeMs
+        val stableEnough = stableSince > 0L && (now - stableSince) >= 100L
+        val commandOldEnough = commandAt > 0L && (now - commandAt) >= 100L
+        if (stableEnough && commandOldEnough) {
+            playerManager.initialSeekCompleted = true
+            playerManager.initialSeekTargetMs = null
+            playerManager.initialResumePositionMs = null
+            playerManager.initialSeekCommandSent = false
+            playerManager.initialSeekCommandWallTimeMs = 0L
+            playerManager.initialSeekStableSinceWallTimeMs = 0L
+            playerManager.initialSeekLastObservedPositionMs = 0L
+        } else {
+            playerManager.initialSeekLastObservedPositionMs = currentPosition
+        }
+    }
+
+    // Intro Skip Monitor (trigger only on natural crossing into intro start)
+    LaunchedEffect(
+        currentPosition,
+        resolvedIntroSegmentMillis,
+        playState,
+        isSeeking,
+        playerManager.initialSeekCompleted,
+        playerManager.initialSeekCommandSent,
+        playerManager.initialResumePositionMs,
+        playingInfoCache?.itemGuid
+    ) {
+        val introSegment = resolvedIntroSegmentMillis
+        if (introSegment == null) {
+            lastIntroMonitorPosition = currentPosition
+            introMonitorInitialized = false
+            return@LaunchedEffect
+        }
+
+        if (!playerManager.initialSeekCompleted) {
+            lastIntroMonitorPosition = currentPosition
+            introMonitorInitialized = false
+            return@LaunchedEffect
+        }
+
+        val startMs = introSegment.first
+        val endMs = introSegment.second
+
+        val suppressedUntil = introSkipSuppressedUntilMs
+        if (suppressedUntil != null && currentPosition >= suppressedUntil) {
+            introSkipSuppressedUntilMs = null
+        }
+
+        if (!introMonitorInitialized) {
+            introMonitorInitialized = true
+            lastIntroMonitorPosition = currentPosition
+            if (introSkipSuppressedUntilMs == null &&
+                playState == PlaybackState.PLAYING &&
+                !isSeeking &&
+                currentPosition in startMs until endMs
+            ) {
+                pendingIntroSkipSegmentMillis = introSegment
+                seekToWithDanmakuReset(endMs)
+            }
+            return@LaunchedEffect
+        }
+
+        val delta = currentPosition - lastIntroMonitorPosition
+        val jumped = delta < 0L
+
+        val crossedIntoIntroStart = if (startMs == 0L) {
+            lastIntroMonitorPosition == 0L && currentPosition > 0L
+        } else {
+            lastIntroMonitorPosition < startMs && currentPosition >= startMs
+        }
+
+        if (!jumped &&
+            introSkipSuppressedUntilMs == null &&
+            crossedIntoIntroStart &&
+            playState == PlaybackState.PLAYING &&
+            !isSeeking &&
+            currentPosition < endMs
+        ) {
+            pendingIntroSkipSegmentMillis = introSegment
+            seekToWithDanmakuReset(endMs)
+        }
+
+        lastIntroMonitorPosition = currentPosition
+    }
+
+    LaunchedEffect(currentPosition, pendingIntroSkipSegmentMillis, playState) {
+        val pending = pendingIntroSkipSegmentMillis ?: return@LaunchedEffect
+        if (playState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val endMs = pending.second
+        val thresholdMs = (endMs - 200L).coerceAtLeast(0L)
+        if (currentPosition >= thresholdMs) {
+            pendingIntroSkipSegmentMillis = null
+            lastAutoSkippedIntroSegmentMillis = pending
+            showSkipIntroUndoPrompt = true
+            skipIntroUndoCountdown = 5
+        }
+    }
+
+    LaunchedEffect(showSkipIntroUndoPrompt, lastAutoSkippedIntroSegmentMillis) {
+        if (showSkipIntroUndoPrompt) {
+            while (skipIntroUndoCountdown > 0) {
+                delay(1000)
+                skipIntroUndoCountdown--
+            }
+            showSkipIntroUndoPrompt = false
+        }
+    }
+
+    // Outro Skip Monitor
+    LaunchedEffect(
+        currentPosition,
+        resolvedCreditsSegmentMillis,
+        skipOutroCancelled,
+        totalDuration,
+        playState,
+        isSeeking,
+        nextEpisode
+    ) {
+        val creditsSegment = resolvedCreditsSegmentMillis ?: return@LaunchedEffect
+
+        val startMs = creditsSegment.first
+        val endMs = creditsSegment.second
+
+        if (currentPosition < startMs) {
+            if (showSkipOutroPrompt) showSkipOutroPrompt = false
+            if (showEndScreen) showEndScreen = false
+            if (skipOutroCancelled) skipOutroCancelled = false
+        } else if (currentPosition >= endMs) {
+            if (showSkipOutroPrompt) showSkipOutroPrompt = false
+        } else {
+            val crossedIntoOutro = lastOutroMonitorPosition < startMs && currentPosition >= startMs
+            if (crossedIntoOutro && playState == PlaybackState.PLAYING && !isSeeking) {
+                if (!showSkipOutroPrompt && !showEndScreen && !skipOutroCancelled) {
+                    showSkipOutroPrompt = true
+                    skipOutroCountdown = 5
+                }
+            }
+        }
+
+        lastOutroMonitorPosition = currentPosition
+    }
+
+    // Countdown
+    LaunchedEffect(showSkipOutroPrompt, resolvedCreditsSegmentMillis, totalDuration, nextEpisode) {
+        if (showSkipOutroPrompt) {
+            while (skipOutroCountdown > 0) {
+                delay(1000)
+                skipOutroCountdown--
+            }
+            if (showSkipOutroPrompt && !skipOutroCancelled) {
+                showSkipOutroPrompt = false
+                val creditsEndMs = resolvedCreditsSegmentMillis?.second ?: 0L
+                val canSeekPastCredits =
+                    creditsEndMs > 0L && (totalDuration <= 0L || creditsEndMs < totalDuration - 1000L)
+                if (canSeekPastCredits) {
+                    seekToWithDanmakuReset(creditsEndMs)
+                } else if (nextEpisode != null) {
+                    playEpisode(nextEpisode.guid)
+                } else {
+                    if (totalDuration > 0) {
+                        seekToWithDanmakuReset(totalDuration)
+                    }
+                    showEndScreen = true
+                    mediaPlayer.pause()
+                }
+            }
         }
     }
 
@@ -600,64 +967,16 @@ fun PlayerOverlay(
     val resetSubtitleState by mediaPViewModel.resetSubtitleState.collectAsState()
 
     LaunchedEffect(resetSubtitleState) {
-        if (resetSubtitleState is UiState.Success) {
-//            val cache = playingInfoCache
-//            val startPos = mediaPlayer.getCurrentPositionMillis()
-//            if (cache != null) {
-//                // Re-fetch play link or use existing one?
-//                // Usually resetSubtitle just changes state on server, we might need to re-request play link or just reuse.
-//                // Assuming we can reuse existing playLink logic but re-evaluate subtitles.
-//
-//                // We need to re-evaluate how to play based on new subtitle selection
-//                val subtitleStream = cache.currentSubtitleStream
-//                val playLink = cache.playLink ?: ""
-//
-//                var extraFiles = MediaExtraFiles()
-//                var actualPlayLink = playLink
-//                var isM3u8 = false
-//                var shouldStartPlayback = true
-//
-//                if (subtitleStream != null) {
-//                    extraFiles = getMediaExtraFiles(subtitleStream, playLink)
-//                }
-//
-//                if (playLink.contains(".m3u8")) {
-//                    isM3u8 = true
-//                    // HLS logic
-//                    try {
-//                        // Check if it's an internal subtitle
-//                        if (subtitleStream != null && subtitleStream.isExternal == 0) {
-//                            // Reload HLS subtitle repository to fetch new segments
-//                            // hlsSubtitleUtil?.reload() // Removed reload() to avoid re-initialization conflict
-//                            // Don't restart playback for internal subtitles
-//                            if (cache.previousSubtitle?.isExternal == 0) {
-//                                shouldStartPlayback = false
-//                            }
-//                        }
-//                    } catch (e: Exception) {
-//                        logger.w("ResetSubtitle: Failed to parse m3u8: ${e.message}")
-//                    }
-//                } else if (cache.isUseDirectLink) {
-//                    // Direct link logic (usually for external subtitles or non-HLS)
-//                    val (link, start) = getDirectPlayLink(
-//                        cache.currentVideoStream.mediaGuid,
-//                        startPos,
-//                        mp4Parser
-//                    )
-//                    actualPlayLink = link
-//                }
-//
-////                if (shouldStartPlayback) {
-////                    startPlayback(
-////                        mediaPlayer,
-////                        actualPlayLink,
-////                        startPos,
-////                        extraFiles,
-////                        isM3u8
-////                    )
-////                }
-//            }
-            mediaPViewModel.clearError()
+        when (resetSubtitleState) {
+            is UiState.Success -> {
+                mediaPViewModel.clearError()
+            }
+
+            is UiState.Error -> {
+                logger.e("resetSubtitleState error: ${(resetSubtitleState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
     val resetQualityState by mediaPViewModel.resetQualityState.collectAsState()
@@ -665,6 +984,7 @@ fun PlayerOverlay(
     val iso6391State by tagViewModel.iso6391State.collectAsState()
     val iso6392State by tagViewModel.iso6392State.collectAsState()
     val iso3166State by tagViewModel.iso3166State.collectAsState()
+//    val toastManager = rememberToastManager()
     var isoTagData by remember {
         mutableStateOf(
             IsoTagData(
@@ -688,22 +1008,43 @@ fun PlayerOverlay(
     }
 
     LaunchedEffect(iso6391State, iso6392State, iso3166State) {
-        val newIso6391Map = if (iso6391State is UiState.Success) {
-            (iso6391State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else {
-            emptyMap()
+        val newIso6391Map = when (iso6391State) {
+            is UiState.Success -> {
+                (iso6391State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
+
+            is UiState.Error -> {
+                logger.e("iso6391State error: ${(iso6391State as UiState.Error).message}")
+                emptyMap()
+            }
+
+            else -> emptyMap()
         }
 
-        val newIso6392Map = if (iso6392State is UiState.Success) {
-            (iso6392State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else {
-            emptyMap()
+        val newIso6392Map = when (iso6392State) {
+            is UiState.Success -> {
+                (iso6392State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
+
+            is UiState.Error -> {
+                logger.e("iso6392State error: ${(iso6392State as UiState.Error).message}")
+                emptyMap()
+            }
+
+            else -> emptyMap()
         }
 
-        val newIso3166Map = if (iso3166State is UiState.Success) {
-            (iso3166State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else {
-            emptyMap()
+        val newIso3166Map = when (iso3166State) {
+            is UiState.Success -> {
+                (iso3166State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
+
+            is UiState.Error -> {
+                logger.e("iso3166State error: ${(iso3166State as UiState.Error).message}")
+                emptyMap()
+            }
+
+            else -> emptyMap()
         }
 
         isoTagData = IsoTagData(
@@ -742,11 +1083,18 @@ fun PlayerOverlay(
             { targetTrimId: String? ->
                 val cache = playerViewModel.playingInfoCache.value
                 if (cache != null) {
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
                         try {
                             val userInfoState = userInfoViewModel.uiState.value
-                            val userInfo =
-                                if (userInfoState is UiState.Success) userInfoState.data else null
+                            val userInfo = when (userInfoState) {
+                                is UiState.Success -> userInfoState.data
+                                is UiState.Error -> {
+                                    logger.e("userInfoState error in refreshSubtitleList: ${userInfoState.message}")
+                                    null
+                                }
+
+                                else -> null
+                            }
 
                             if (userInfo != null) {
                                 val sourceName =
@@ -788,85 +1136,152 @@ fun PlayerOverlay(
         }
 
     LaunchedEffect(subtitleDeleteState) {
-        if (subtitleDeleteState is UiState.Success) {
-            refreshSubtitleList(null)
-            subtitleDeleteViewModel.clearError()
+        when (subtitleDeleteState) {
+            is UiState.Success -> {
+                refreshSubtitleList(null)
+                subtitleDeleteViewModel.clearError()
+            }
+
+            is UiState.Error -> {
+                logger.e("subtitleDeleteState error: ${(subtitleDeleteState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
     LaunchedEffect(subtitleUploadState) {
-        if (subtitleUploadState is UiState.Success) {
-            refreshSubtitleList(null)
-            subtitleUploadViewModel.clearError()
+        when (subtitleUploadState) {
+            is UiState.Success -> {
+                refreshSubtitleList(null)
+                subtitleUploadViewModel.clearError()
+            }
+
+            is UiState.Error -> {
+                logger.e("subtitleUploadState error: ${(subtitleUploadState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
     LaunchedEffect(playPlayState) {
-        if (playPlayState is UiState.Success) {
-            (playPlayState as UiState.Success<PlayPlayResponse>).data.let { playResponse ->
-                val newPlayLink = playResponse.playLink
-                playerViewModel.updatePlayingInfo(
-                    playingInfoCache?.copy(
-                        playLink = newPlayLink,
-                        isUseDirectLink = false
-                    )
-                )
-                val extraFiles =
-                    playingInfoCache?.currentSubtitleStream?.let {
-                        getMediaExtraFiles(
-                            it,
-                            newPlayLink
+        when (playPlayState) {
+            is UiState.Success -> {
+                (playPlayState as UiState.Success<PlayPlayResponse>).data.let { playResponse ->
+                    val newPlayLink = playResponse.playLink
+                    playerViewModel.updatePlayingInfo(
+                        playingInfoCache?.copy(
+                            playLink = newPlayLink,
+                            isUseDirectLink = false
                         )
-                    }
-                        ?: MediaExtraFiles()
-                startPlayback(
-                    mediaPlayer,
-                    newPlayLink,
-                    mediaPlayer.getCurrentPositionMillis(),
-                    extraFiles,
-                    true // isM3u8
-                )
+                    )
+                    val extraFiles =
+                        playingInfoCache?.currentSubtitleStream?.let {
+                            getMediaExtraFiles(
+                                it,
+                                newPlayLink
+                            )
+                        }
+                            ?: MediaExtraFiles()
+                    val startPos = mediaPlayer.getCurrentPositionMillis()
+                    playerManager.initialSeekTargetMs = startPos
+                    playerManager.initialSeekCommandSent = false
+                    playerManager.initialSeekCommandWallTimeMs = 0L
+                    playerManager.initialSeekStableSinceWallTimeMs = 0L
+                    playerManager.initialSeekLastObservedPositionMs = 0L
+                    playerManager.initialSeekCompleted = false
+                    playerManager.initialResumePositionMs = startPos
+                    startPlayback(
+                        mediaPlayer,
+                        newPlayLink,
+                        startPos,
+                        extraFiles,
+                        true, // isM3u8
+                        onSeekTo = { positionMillis ->
+                            playerManager.initialSeekCommandSent = true
+                            playerManager.initialSeekCommandWallTimeMs = System.currentTimeMillis()
+                            playerManager.initialSeekStableSinceWallTimeMs = 0L
+                            seekToWithDanmakuReset(positionMillis)
+                        }
+                    )
+                }
             }
+
+            is UiState.Error -> {
+                logger.e("playPlayState error: ${(playPlayState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
     LaunchedEffect(quitMediaState) {
-        if (quitMediaState is UiState.Success) {
-            logger.i("Quality switch: Switching to Direct Link")
-            val cache = playingInfoCache
-            val startPos = mediaPlayer.getCurrentPositionMillis()
-            if (cache != null) {
-                val (link, start) = getDirectPlayLink(
-                    cache.currentVideoStream.mediaGuid,
-                    startPos,
-                    mp4Parser
-                )
-                val extraFiles =
-                    cache.currentSubtitleStream?.let { getMediaExtraFiles(it, link) }
-                        ?: MediaExtraFiles()
+        when (quitMediaState) {
+            is UiState.Success -> {
+                logger.i("Quality switch: Switching to Direct Link")
+                val cache = playingInfoCache
+                val startPos = mediaPlayer.getCurrentPositionMillis()
+                if (cache != null) {
+                    val (link, start) = getDirectPlayLink(
+                        cache.currentVideoStream.mediaGuid,
+                        startPos,
+                        mp4Parser
+                    )
+                    val extraFiles =
+                        cache.currentSubtitleStream?.let { getMediaExtraFiles(it, link) }
+                            ?: MediaExtraFiles()
 //                    mediaPlayer.stopPlayback()
-                startPlayback(
-                    mediaPlayer,
-                    link,
-                    start,
-                    extraFiles,
-                    false
-                ) // isM3u8 = false for direct link (usually)
+                    playerManager.initialSeekTargetMs = startPos
+                    playerManager.initialSeekCommandSent = false
+                    playerManager.initialSeekCommandWallTimeMs = 0L
+                    playerManager.initialSeekStableSinceWallTimeMs = 0L
+                    playerManager.initialSeekLastObservedPositionMs = 0L
+                    playerManager.initialSeekCompleted = false
+                    playerManager.initialResumePositionMs = startPos
+                    startPlayback(
+                        mediaPlayer,
+                        link,
+                        start,
+                        extraFiles,
+                        false,
+                        onSeekTo = { positionMillis ->
+                            playerManager.initialSeekCommandSent = true
+                            playerManager.initialSeekCommandWallTimeMs = System.currentTimeMillis()
+                            playerManager.initialSeekStableSinceWallTimeMs = 0L
+                            seekToWithDanmakuReset(positionMillis)
+                        }
+                    ) // isM3u8 = false for direct link (usually)
+                }
+                mediaPViewModel.clearError()
             }
-            mediaPViewModel.clearError()
+
+            is UiState.Error -> {
+                logger.e("quitMediaState error: ${(quitMediaState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
     LaunchedEffect(resetQualityState) {
-        if (resetQualityState is UiState.Success) {
-            val response =
-                (resetQualityState as UiState.Success<*>).data as? MediaResetQualityResponse
-            if (response != null && response.result == "succ") {
-                mediaPViewModel.clearError()
+        when (resetQualityState) {
+            is UiState.Success -> {
+                val response =
+                    (resetQualityState as UiState.Success<*>).data as? MediaResetQualityResponse
+                if (response != null && response.result == "succ") {
+                    mediaPViewModel.clearError()
+                }
             }
+
+            is UiState.Error -> {
+                logger.e("resetQualityState error: ${(resetQualityState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
-    val totalDuration = playerManager.playerState.duration
+    // val totalDuration = playerManager.playerState.duration
     val videoProgress = if (totalDuration > 0) {
         (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
     } else {
@@ -878,8 +1293,35 @@ fun PlayerOverlay(
     // 上一次播放状态
     var lastPlayState by remember { mutableStateOf<PlaybackState?>(null) }
 
-    // 当播放状态变为暂停时，确保UI可见并调用playRecord接口
+    LaunchedEffect(isSeeking) {
+        if (isSeeking) {
+            delay(2000)
+            if (isSeeking) {
+                playerManager.setLoading(false)
+                isSeeking = false
+            }
+        }
+    }
+
+    // 当播放状态变为暂停或播放时，调用playRecord接口
     LaunchedEffect(playState) {
+        if (playState == PlaybackState.FINISHED && nextEpisode == null) {
+            if (totalDuration > 0) {
+                seekToWithDanmakuReset(totalDuration)
+            }
+            showEndScreen = true
+        }
+        if (playState == PlaybackState.PLAYING) {
+            if (showEndScreen) {
+                showEndScreen = false
+            }
+        }
+        if (playState == PlaybackState.PLAYING || playState == PlaybackState.PAUSED) {
+            if (playerManager.playerState.isLoading) {
+                playerManager.setLoading(false)
+            }
+            isSeeking = false
+        }
         if (playState == PlaybackState.PAUSED && lastPlayState == PlaybackState.PLAYING) {
             uiVisible = true
             isCursorVisible = true
@@ -895,6 +1337,19 @@ fun PlayerOverlay(
                 },
                 onError = {
                     logger.i("暂停时调用playRecord失败：缓存为空")
+                },
+            )
+        } else if (playState == PlaybackState.PLAYING && lastPlayState == PlaybackState.PAUSED) {
+            // 从暂停切换到播放时也调用playRecord接口
+            callPlayRecord(
+                ts = (mediaPlayer.currentPositionMillis.value / 1000).toInt(),
+                playingInfoCache = playingInfoCache,
+                playRecordViewModel = playRecordViewModel,
+                onSuccess = {
+                    logger.i("恢复播放时调用playRecord成功")
+                },
+                onError = {
+                    logger.i("恢复播放时调用playRecord失败：缓存为空")
                 },
             )
         }
@@ -956,7 +1411,7 @@ fun PlayerOverlay(
     var surfaceRecreateKey by remember { mutableIntStateOf(0) }
     var lastMinimized by remember { mutableStateOf(isMinimized) }
     var lastWindowFocused by remember { mutableStateOf(isWindowFocused) }
-    val focusRequester = remember { FocusRequester() }
+    val playerFocusRequester = remember { FocusRequester() }
     val keyFocusRequestSerial = playerManager.keyFocusRequestSerial
 
     LaunchedEffect(isMinimized, isWindowFocused) {
@@ -965,9 +1420,9 @@ fun PlayerOverlay(
         if (restoredFromMinimize || regainedFocus) {
             surfaceRecreateKey++
             if (isWindowFocused) {
-                focusRequester.requestFocus()
+                playerFocusRequester.requestFocus()
                 delay(50)
-                focusRequester.requestFocus()
+                playerFocusRequester.requestFocus()
             }
         }
         lastMinimized = isMinimized
@@ -975,34 +1430,37 @@ fun PlayerOverlay(
     }
 
     LaunchedEffect(keyFocusRequestSerial) {
-        focusRequester.requestFocus()
+        playerFocusRequester.requestFocus()
         delay(50)
-        focusRequester.requestFocus()
+        playerFocusRequester.requestFocus()
     }
 
     // region Window Resize Logic
     var isProgrammaticResize by remember { mutableStateOf(true) }
 
     DisposableEffect(Unit) {
-        val originalWidth = windowState.size.width
-        val originalHeight = windowState.size.height
-        val originalPlacement = windowState.placement
-        val originalPosition = windowState.position
-
-        // Save main window size on entry
-        if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
-            AppSettingsStore.windowWidth = originalWidth.value
-            AppSettingsStore.windowHeight = originalHeight.value
-        }
-
         // Apply Player Fullscreen preference
-        if (AppSettingsStore.playerIsFullscreen) {
+        if (PlayingSettingsStore.playerIsFullscreen) {
             windowState.placement = WindowPlacement.Fullscreen
         } else {
+            if (windowState.placement == WindowPlacement.Maximized) {
+                isProgrammaticResize = true
+                windowState.placement = WindowPlacement.Floating
+            }
+
+            val lastPlayerScreenSize = PlayingSettingsStore.getLastPlayerScreenSize()
+            val savedWidth = lastPlayerScreenSize?.width ?: AppSettingsStore.playerWindowWidth
+            val savedHeight = lastPlayerScreenSize?.height ?: AppSettingsStore.playerWindowHeight
+            if (!savedWidth.isNaN() && !savedHeight.isNaN() && savedWidth > 0f && savedHeight > 0f) {
+                isProgrammaticResize = true
+                windowState.size = DpSize(savedWidth.dp, savedHeight.dp)
+            }
+
             // Restore Player Window Position
             val savedX = AppSettingsStore.playerWindowX
             val savedY = AppSettingsStore.playerWindowY
             if (!savedX.isNaN() && !savedY.isNaN()) {
+                isProgrammaticResize = true
                 windowState.position = WindowPosition(savedX.dp, savedY.dp)
             }
         }
@@ -1010,10 +1468,18 @@ fun PlayerOverlay(
         onDispose {
             // Save Player Preference on exit
             if (windowState.placement == WindowPlacement.Fullscreen) {
-                AppSettingsStore.playerIsFullscreen = true
+                PlayingSettingsStore.playerIsFullscreen = true
             } else {
-                AppSettingsStore.playerIsFullscreen = false
-                // Note: playerWindowWidth/Height are updated via LaunchedEffect below
+                PlayingSettingsStore.playerIsFullscreen = false
+                if (windowState.placement != WindowPlacement.Maximized) {
+                    val size = windowState.size
+                    AppSettingsStore.playerWindowWidth = size.width.value
+                    AppSettingsStore.playerWindowHeight = size.height.value
+                    PlayingSettingsStore.saveLastPlayerScreenSize(
+                        size.width.value,
+                        size.height.value
+                    )
+                }
 
                 // Save position on exit
                 if (windowState.placement != WindowPlacement.Maximized) {
@@ -1025,21 +1491,32 @@ fun PlayerOverlay(
                 }
             }
 
-            // Restore Main Window State
-            windowState.placement = originalPlacement
-            if (originalPlacement != WindowPlacement.Fullscreen && originalPlacement != WindowPlacement.Maximized) {
-                windowState.size = DpSize(originalWidth, originalHeight)
-                windowState.position = originalPosition
-            }
         }
     }
 
     // Dynamic Resize based on Video
-    LaunchedEffect(playingInfoCache?.currentVideoStream, windowAspectRatio) {
+    LaunchedEffect(
+        playingInfoCache?.itemGuid,
+        playingInfoCache?.currentVideoStream,
+        windowAspectRatio
+    ) {
+        // 延迟一点时间确保窗口状态已稳定（特别是在窗口刚创建时）
+        delay(100)
         val videoStream = playingInfoCache?.currentVideoStream
-        if (videoStream != null && !AppSettingsStore.playerIsFullscreen && windowState.placement != WindowPlacement.Fullscreen) {
-            val baseWidth = AppSettingsStore.playerWindowWidth
-            val baseHeight = AppSettingsStore.playerWindowHeight
+        logger.i("Dynamic Resize Check: videoStream=$videoStream, placement=${windowState.placement}")
+        if (videoStream != null && windowState.placement != WindowPlacement.Fullscreen) {
+            if (windowState.placement == WindowPlacement.Maximized) {
+                windowState.placement = WindowPlacement.Floating
+            }
+
+            // 强制使用当前窗口实际大小作为基准，确保调整基于当前状态
+            val currentWidth = windowState.size.width.value
+            val currentHeight = windowState.size.height.value
+
+            // 确保有有效值
+            val baseWidth = if (!currentWidth.isNaN() && currentWidth > 0f) currentWidth else 1280f
+            val baseHeight =
+                if (!currentHeight.isNaN() && currentHeight > 0f) currentHeight else 720f
 
             val optimalSize = calculateOptimalPlayerWindowSize(
                 videoStream,
@@ -1047,6 +1524,7 @@ fun PlayerOverlay(
                 baseHeight,
                 windowAspectRatio
             )
+            logger.i("Dynamic Resize: optimalSize=$optimalSize")
             if (optimalSize != null) {
                 isProgrammaticResize = true
                 windowState.size = optimalSize
@@ -1065,6 +1543,10 @@ fun PlayerOverlay(
                     if (windowState.placement != WindowPlacement.Fullscreen && windowState.placement != WindowPlacement.Maximized) {
                         AppSettingsStore.playerWindowWidth = size.width.value
                         AppSettingsStore.playerWindowHeight = size.height.value
+                        PlayingSettingsStore.saveLastPlayerScreenSize(
+                            size.width.value,
+                            size.height.value
+                        )
 
                         if (position is WindowPosition.Absolute) {
                             AppSettingsStore.playerWindowX = position.x.value
@@ -1077,7 +1559,7 @@ fun PlayerOverlay(
     // endregion
     LaunchedEffect(windowState.placement, isWindowFocused) {
         if (isWindowFocused) {
-            focusRequester.requestFocus()
+            playerFocusRequester.requestFocus()
         }
     }
 
@@ -1106,10 +1588,11 @@ fun PlayerOverlay(
                         windowState,
                         toastManager,
                         lastVolume,
-                        { lastVolume = it }
+                        { lastVolume = it },
+                        seekToWithDanmakuReset
                     )
                 }
-                .focusRequester(focusRequester)
+                .focusRequester(playerFocusRequester)
                 .focusable()
                 .pointerHoverIcon(
                     if (isCursorVisible) PointerIcon.Hand else HiddenPointerIcon,
@@ -1129,10 +1612,10 @@ fun PlayerOverlay(
                                 onDoubleTap = {
                                     if (windowState.placement == WindowPlacement.Fullscreen) {
                                         windowState.placement = WindowPlacement.Floating
-                                        AppSettingsStore.playerIsFullscreen = false
+                                        PlayingSettingsStore.playerIsFullscreen = false
                                     } else {
                                         windowState.placement = WindowPlacement.Fullscreen
-                                        AppSettingsStore.playerIsFullscreen = true
+                                        PlayingSettingsStore.playerIsFullscreen = true
                                     }
                                 }
                             )
@@ -1144,6 +1627,34 @@ fun PlayerOverlay(
                             isCursorVisible = true
                         })
             }
+
+            val danmakuList by danmakuViewModel.danmakuList.collectAsState()
+            val isDanmakuVisible by danmakuViewModel.isVisible.collectAsState()
+            val danmakuArea by danmakuViewModel.area.collectAsState()
+            val danmakuOpacity by danmakuViewModel.opacity.collectAsState()
+            val danmakuFontSize by danmakuViewModel.fontSize.collectAsState()
+            val danmakuSpeed by danmakuViewModel.speed.collectAsState()
+            val danmakuSyncPlaybackSpeed by danmakuViewModel.syncPlaybackSpeed.collectAsState()
+            val danmakuDebugEnabled by danmakuViewModel.debugEnabled.collectAsState()
+            val playbackSpeedFeature = remember(mediaPlayer) { mediaPlayer.features[PlaybackSpeed] }
+            val playbackSpeedValue = ((playbackSpeedFeature?.value) as? Number)?.toFloat() ?: 1f
+
+            DanmakuOverlay(
+                modifier = Modifier
+                    .fillMaxSize(),
+                danmakuList = danmakuList,
+                currentTime = currentPosition,
+                isPlaying = playState == PlaybackState.PLAYING,
+                playbackSpeed = playbackSpeedValue,
+                isVisible = isDanmakuVisible,
+                area = danmakuArea,
+                opacity = danmakuOpacity,
+                fontSize = danmakuFontSize,
+                speed = danmakuSpeed,
+                syncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                debugEnabled = danmakuDebugEnabled,
+                resetNonce = playerManager.danmakuResetNonce
+            )
 
             if (subtitleCues.isNotEmpty()) {
                 BoxWithConstraints(
@@ -1158,6 +1669,60 @@ fun PlayerOverlay(
                         settings = subtitleSettings
                     )
                 }
+            }
+
+            if (showSkipIntroUndoPrompt) {
+                SkipIntroPrompt(
+                    countdown = skipIntroUndoCountdown,
+                    onCancel = {
+                        val segment = lastAutoSkippedIntroSegmentMillis
+                        if (segment != null) {
+                            introSkipSuppressedUntilMs = segment.second
+                            pendingIntroSkipSegmentMillis = null
+                            seekToWithDanmakuReset(segment.first)
+                        }
+                        showSkipIntroUndoPrompt = false
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = 120.dp, start = 12.dp)
+                )
+            }
+
+            if (showSkipOutroPrompt) {
+                SkipOutroPrompt(
+                    countdown = skipOutroCountdown,
+                    onCancel = {
+                        skipOutroCancelled = true
+                        showSkipOutroPrompt = false
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = 120.dp, start = 12.dp)
+                )
+            }
+
+            if (showEndScreen) {
+                EndScreen(
+                    playingInfoCache = playingInfoCache,
+                    mediaPlayer = mediaPlayer,
+                    onBack = onBack,
+                    onReplay = {
+                        showEndScreen = false
+                        if (useSmartSkip) {
+                            seekToWithDanmakuReset(0)
+                        } else {
+                            val skipOpening = playingInfoCache?.playConfig?.skipOpening ?: 0
+                            if (skipOpening > 0) {
+                                seekToWithDanmakuReset(skipOpening * 1000L)
+//                                toastManager.showToast("已为您自动跳过片头", ToastType.Info)
+                            } else {
+                                seekToWithDanmakuReset(0)
+                            }
+                        }
+                        mediaPlayer.resume()
+                    }
+                )
             }
 
             if (windowState.placement != WindowPlacement.Fullscreen) {
@@ -1200,14 +1765,28 @@ fun PlayerOverlay(
                     videoProgress = videoProgress,
                     totalDuration = totalDuration,
                     playingInfoCache = playingInfoCache,
+                    introSegmentMillis = resolvedIntroSegmentMillis,
+                    creditsSegmentMillis = resolvedCreditsSegmentMillis,
                     isoTagData = isoTagData,
                     lastVolume = lastVolume,
                     onProgressBarHoverChanged = { isProgressBarHovered = it },
                     onResetMouseMoveTimer = { lastMouseMoveTime = System.currentTimeMillis() },
                     onSeek = { newProgress ->
+                        playerManager.setLoading(true)
+                        isSeeking = true
                         val seekPosition = (newProgress * totalDuration).toLong()
-                        mediaPlayer.seekTo(seekPosition)
-                        logger.i("Seek to: ${newProgress * 100}%")
+                        seekToWithDanmakuReset(seekPosition)
+                        logger.i(
+                            "Seek to: ${newProgress * 100}%，seekPosition: ${
+                                FnDataConvertor.formatDurationToDateTime(
+                                    seekPosition
+                                )
+                            }, totalDuration: ${
+                                FnDataConvertor.formatDurationToDateTime(
+                                    totalDuration
+                                )
+                            }"
+                        )
 
                         // Force update subtitle on seek
                         if (hlsSubtitleUtil != null) {
@@ -1303,18 +1882,31 @@ fun PlayerOverlay(
                     onOpenAddLocalSubtitle = {
                         val mediaGuid = playingInfoCache?.currentFileStream?.guid
                         if (mediaGuid != null) {
-                            val file = chooseFile(
-                                frameWindowScope,
-                                arrayOf("ass", "srt", "vtt", "sub", "ssa"),
-                                "选择字幕文件"
-                            )
-                            file?.let { selectedFile ->
-                                val byteArray = selectedFile.readBytes()
-                                subtitleUploadViewModel.uploadSubtitle(
-                                    mediaGuid,
-                                    byteArray,
-                                    selectedFile.name
-                                )
+                            scope.launch {
+                                try {
+                                    logger.i("Start picking subtitle file")
+                                    val file: PlatformFile? = withContext(Dispatchers.IO) {
+                                        FileUtil.pickFile(
+                                            listOf("ass", "srt", "vtt", "sub", "ssa"),
+                                            "选择字幕文件"
+                                        )
+                                    }
+                                    logger.i("Selected subtitle file: ${file?.name}")
+                                    if (file != null) {
+                                        val byteArray = withContext(Dispatchers.IO) {
+                                            file.readBytes()
+                                        }
+                                        subtitleUploadViewModel.uploadSubtitle(
+                                            mediaGuid,
+                                            byteArray,
+                                            file.name
+                                        )
+                                    } else {
+                                        logger.i("No file selected")
+                                    }
+                                } catch (e: Exception) {
+                                    logger.e("Error picking subtitle file", e)
+                                }
                             }
                         }
                     },
@@ -1327,7 +1919,7 @@ fun PlayerOverlay(
                     onLastVolumeChange = { lastVolume = it },
                     onWindowAspectRatioChanged = {
                         windowAspectRatio = it
-                        AppSettingsStore.playerWindowAspectRatio = it
+                        PlayingSettingsStore.playerWindowAspectRatio = it
                     },
                     episodeList = episodeList,
                     currentEpisodeGuid = playingInfoCache?.itemGuid ?: "",
@@ -1335,7 +1927,7 @@ fun PlayerOverlay(
                     isAutoPlay = isAutoPlay,
                     onAutoPlayChanged = {
                         isAutoPlay = it
-                        AppSettingsStore.autoPlay = it
+                        PlayingSettingsStore.autoPlay = it
                     },
                     onEpisodeControlHoverChanged = { isEpisodeControlHovered = it },
                     nextEpisode = nextEpisode,
@@ -1345,7 +1937,31 @@ fun PlayerOverlay(
                         }
                     },
                     isNextEpisodeHovered = isNextEpisodeHovered,
-                    onNextEpisodeHoverChanged = { isNextEpisodeHovered = it }
+                    onNextEpisodeHoverChanged = { isNextEpisodeHovered = it },
+                    playRecordViewModel = playRecordViewModel,
+                    onSkipConfigChanged = { o, e -> playerViewModel.updateSkipConfig(o, e) },
+                    smartSkipEnabled = smartSkipEnabled,
+                    onSmartSkipEnabledChanged = smartAnalysisStatusViewModel::onSmartSkipEnabledChanged,
+                    isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled,
+                    isDanmakuVisible = isDanmakuVisible,
+                    onToggleDanmaku = danmakuViewModel::toggleVisibility,
+                    danmakuArea = danmakuArea,
+                    danmakuOpacity = danmakuOpacity,
+                    danmakuFontSize = danmakuFontSize,
+                    danmakuSpeed = danmakuSpeed,
+                    danmakuSyncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                    danmakuDebugEnabled = danmakuDebugEnabled,
+                    onDanmakuAreaChange = { danmakuViewModel.updateArea(it) },
+                    onDanmakuOpacityChange = { danmakuViewModel.updateOpacity(it) },
+                    onDanmakuFontSizeChange = { danmakuViewModel.updateFontSize(it) },
+                    onDanmakuSpeedChange = { danmakuViewModel.updateSpeed(it) },
+                    onDanmakuSyncPlaybackSpeedChanged = {
+                        danmakuViewModel.updateSyncPlaybackSpeed(
+                            it
+                        )
+                    },
+                    onDanmakuDebugEnabledChange = { danmakuViewModel.updateDebugEnabled(it) },
+                    onDanmakuSettingsHoverChanged = { isDanmakuSettingsHovered = it }
                 )
             }
 
@@ -1411,6 +2027,73 @@ fun buildEpisodeTitle(mediaTitle: String, subhead: String): AnnotatedString {
         }
     }
     return annotatedString
+}
+
+
+@Composable
+private fun EndScreen(
+    playingInfoCache: PlayingInfoCache?,
+    mediaPlayer: MediampPlayer,
+    onBack: () -> Unit,
+    onReplay: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.95f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "${
+                    playingInfoCache?.item?.episodeNumber?.toString()?.padStart(2, '0')
+                }. ${playingInfoCache?.item?.title ?: ""}",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Text(
+                text = "${playingInfoCache?.item?.runtime} 分钟",
+                color = Color.Gray,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
+
+            Row {
+                androidx.compose.material3.Button(
+                    onClick = onReplay,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(
+                            alpha = 0.1f
+                        )
+                    )
+                ) {
+                    Icon(Icons.Default.Refresh, null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("重新播放", color = Color.White)
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                androidx.compose.material3.Button(
+                    onClick = onBack,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(
+                            alpha = 0.1f
+                        )
+                    )
+                ) {
+                    Icon(Icons.Default.Home, null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("回到首页", color = Color.White)
+                }
+            }
+        }
+    }
 }
 
 fun buildMacOsEpisodeTitle(mediaTitle: String, subhead: String): AnnotatedString {
@@ -1484,8 +2167,30 @@ fun PlayerControlRow(
     nextEpisode: EpisodeListResponse? = null,
     onPlayNextEpisode: (() -> Unit)? = null,
     isNextEpisodeHovered: Boolean = false,
-    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null
+    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null,
+    playRecordViewModel: PlayRecordViewModel,
+    onSkipConfigChanged: ((Int, Int) -> Unit)? = null,
+    smartSkipEnabled: Boolean = true,
+    onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
+    isSmartAnalysisGloballyEnabled: Boolean = false,
+    isDanmakuVisible: Boolean = true,
+    onToggleDanmaku: () -> Unit = {},
+    danmakuArea: Float = 1.0f,
+    danmakuOpacity: Float = 1.0f,
+    danmakuFontSize: Float = 1.0f,
+    danmakuSpeed: Float = 1.0f,
+    danmakuSyncPlaybackSpeed: Boolean = false,
+    danmakuDebugEnabled: Boolean = false,
+    onDanmakuAreaChange: (Float) -> Unit = {},
+    onDanmakuOpacityChange: (Float) -> Unit = {},
+    onDanmakuFontSizeChange: (Float) -> Unit = {},
+    onDanmakuSpeedChange: (Float) -> Unit = {},
+    onDanmakuSyncPlaybackSpeedChanged: (Boolean) -> Unit = {},
+    onDanmakuDebugEnabledChange: (Boolean) -> Unit = {},
+    onDanmakuSettingsHoverChanged: ((Boolean) -> Unit)? = null
 ) {
+    val playerManager = LocalPlayerManager.current
+    val currentPositionMillis by mediaPlayer.currentPositionMillis.collectAsState()
     val interactionSource = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1531,6 +2236,18 @@ fun PlayerControlRow(
                         indication = null,
                         onClick = {
                             mediaPlayer.skip(-10_000)
+                            playerManager.danmakuResetNonce++
+                            callPlayRecord(
+                                ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                playingInfoCache = playingInfoCache,
+                                playRecordViewModel = playRecordViewModel,
+                                onSuccess = {
+                                    logger.i("快退时调用playRecord成功")
+                                },
+                                onError = {
+                                    logger.i("快退时调用playRecord失败：缓存为空")
+                                },
+                            )
                         })
             )
             Icon(
@@ -1544,6 +2261,18 @@ fun PlayerControlRow(
                         indication = null,
                         onClick = {
                             mediaPlayer.skip(10_000)
+                            playerManager.danmakuResetNonce++
+                            callPlayRecord(
+                                ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                playingInfoCache = playingInfoCache,
+                                playRecordViewModel = playRecordViewModel,
+                                onSuccess = {
+                                    logger.i("快进时调用playRecord成功")
+                                },
+                                onError = {
+                                    logger.i("快进时调用playRecord失败：缓存为空")
+                                },
+                            )
                         })
             )
             // 下一集按钮
@@ -1572,13 +2301,14 @@ fun PlayerControlRow(
         ) {
             // 倍速
             val playbackSpeedFeature = remember(mediaPlayer) { mediaPlayer.features[PlaybackSpeed] }
-            
+
             // 直接访问 State 的 value 属性以触发重组
             val speedStateValue = playbackSpeedFeature?.value
             val currentSpeedValue = (speedStateValue as? Number)?.toFloat() ?: 1f
 
             val currentSpeedItem = remember(currentSpeedValue) {
-                speeds.find { kotlin.math.abs(it.value - currentSpeedValue) < 0.01f } ?: speeds.find { it.value == 1.0f } ?: speeds[4]
+                speeds.find { kotlin.math.abs(it.value - currentSpeedValue) < 0.01f }
+                    ?: speeds.find { it.value == 1.0f } ?: speeds[4]
             }
 
             SpeedControlFlyout(
@@ -1623,6 +2353,43 @@ fun PlayerControlRow(
                     modifier = Modifier
                 )
             }
+
+            if (isSmartAnalysisGloballyEnabled) {
+                Box(
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            onToggleDanmaku()
+                        }
+                        .padding(start = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isDanmakuVisible) DanmuOpen else DanmuClose,
+                        contentDescription = "弹幕设置",
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                DanmakuSettingsMenu(
+                    area = danmakuArea,
+                    opacity = danmakuOpacity,
+                    fontSize = danmakuFontSize,
+                    speed = danmakuSpeed,
+                    syncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                    debugEnabled = danmakuDebugEnabled,
+                    onAreaChange = onDanmakuAreaChange,
+                    onOpacityChange = onDanmakuOpacityChange,
+                    onFontSizeChange = onDanmakuFontSizeChange,
+                    onSpeedChange = onDanmakuSpeedChange,
+                    onSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
+                    onDebugEnabledChanged = onDanmakuDebugEnabledChange,
+                    modifier = Modifier.padding(start = 8.dp),
+                    onHoverStateChanged = onDanmakuSettingsHoverChanged
+                )
+            }
             SubtitleControlFlyout(
                 playingInfoCache = playingInfoCache,
                 isoTagData = isoTagData,
@@ -1639,12 +2406,23 @@ fun PlayerControlRow(
             PlayerSettingsMenu(
                 playingInfoCache = playingInfoCache,
                 isoTagData = isoTagData,
+                currentPositionMillis = currentPositionMillis,
+                totalDurationMillis = totalDuration,
                 onAudioSelected = { audio ->
                     onAudioSelected?.invoke(audio)
                 },
                 onWindowAspectRatioChanged = onWindowAspectRatioChanged,
+                onSkipConfigChanged = { opening, ending ->
+                    onSkipConfigChanged?.invoke(
+                        opening,
+                        ending
+                    )
+                },
                 modifier = Modifier.padding(start = 12.dp),
-                onHoverStateChanged = onSettingsMenuHoverChanged
+                onHoverStateChanged = { onSettingsMenuHoverChanged?.invoke(it) },
+                smartSkipEnabled = smartSkipEnabled,
+                onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
+                isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
             )
             val audioLevelController =
                 remember(mediaPlayer) { mediaPlayer.features[AudioLevelController] }
@@ -1661,6 +2439,55 @@ fun PlayerControlRow(
                 onHoverStateChanged = onVolumeControlHoverChanged,
                 modifier = Modifier.size(50.dp)
             )
+
+            // 小窗模式
+            val pipSpec = PlayerResourceManager.toPipSpec
+            if (pipSpec != null) {
+                val pipComposition by rememberLottieComposition { pipSpec }
+                var isPipHovered by remember { mutableStateOf(false) }
+                var isPipPlaying by remember { mutableStateOf(false) }
+                val pipProgress by animateLottieCompositionAsState(
+                    composition = pipComposition,
+                    isPlaying = isPipPlaying,
+                    iterations = 1
+                )
+                val playerManager = LocalPlayerManager.current
+
+                LaunchedEffect(isPipHovered) {
+                    if (isPipHovered) {
+                        isPipPlaying = true
+                    }
+                }
+
+                LaunchedEffect(pipProgress) {
+                    if (pipProgress == 1f) {
+                        isPipPlaying = false
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            playerManager.isPipMode = true
+                        }
+                        .onPointerEvent(PointerEventType.Enter) { isPipHovered = true }
+                        .onPointerEvent(PointerEventType.Exit) { isPipHovered = false },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = rememberLottiePainter(pipComposition, progress = { pipProgress }),
+                        contentDescription = "Picture in Picture",
+                        modifier = Modifier.fillMaxSize(),
+                        colorFilter = ColorFilter.tint(Color.White)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier)
+
             // 全屏
             val windowState = LocalWindowState.current
             val store = LocalStore.current
@@ -1669,10 +2496,10 @@ fun PlayerControlRow(
                 onClick = {
                     if (windowState.placement == WindowPlacement.Fullscreen) {
                         windowState.placement = WindowPlacement.Floating
-                        AppSettingsStore.playerIsFullscreen = false
+                        PlayingSettingsStore.playerIsFullscreen = false
                     } else {
                         windowState.placement = WindowPlacement.Fullscreen
-                        AppSettingsStore.playerIsFullscreen = true
+                        PlayingSettingsStore.playerIsFullscreen = true
                     }
                 }
             )
@@ -1701,6 +2528,7 @@ fun rememberPlayMediaFunction(
     val userInfoViewModel: UserInfoViewModel = koinViewModel()
     val playRecordViewModel: PlayRecordViewModel = koinViewModel()
     val playerViewModel: PlayerViewModel = koinViewModel()
+    val danmakuViewModel: DanmakuViewModel = koinViewModel()
     val mp4Parser: Mp4Parser = koinInject()
     val playerManager = LocalPlayerManager.current
     val toastManager = LocalToastManager.current
@@ -1718,7 +2546,83 @@ fun rememberPlayMediaFunction(
         mp4Parser
     ) {
         {
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    playerManager.setLoading(true)
+                    playerManager.initialSeekTargetMs = null
+                    playerManager.initialSeekCommandSent = false
+                    playerManager.initialSeekCompleted = false
+                    playerManager.initialResumePositionMs = null
+                    playMedia(
+                        guid = guid,
+                        player = player,
+                        playInfoViewModel = playInfoViewModel,
+                        userInfoViewModel = userInfoViewModel,
+                        streamViewModel = streamViewModel,
+                        playPlayViewModel = playPlayViewModel,
+                        playRecordViewModel = playRecordViewModel,
+                        playerViewModel = playerViewModel,
+                        playerManager = playerManager,
+                        toastManager = toastManager,
+                        danmakuViewModel = danmakuViewModel,
+                        mediaGuid = mediaGuid,
+                        currentAudioGuid = currentAudioGuid,
+                        currentSubtitleGuid = currentSubtitleGuid,
+                        mp4Parser = mp4Parser
+                    )
+                } finally {
+                    playerManager.setLoading(false)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun rememberPlayMediaByGuidFunction(
+    player: MediampPlayer,
+    mediaGuid: String? = null,
+    currentAudioGuid: String? = null,
+    currentSubtitleGuid: String? = null,
+    onSeekTo: ((Long) -> Unit)? = null
+): (String) -> Unit {
+    val streamViewModel: StreamViewModel = koinViewModel()
+    val playPlayViewModel: PlayPlayViewModel = koinViewModel()
+    val playInfoViewModel: PlayInfoViewModel = koinViewModel()
+    val userInfoViewModel: UserInfoViewModel = koinViewModel()
+    val playRecordViewModel: PlayRecordViewModel = koinViewModel()
+    val playerViewModel: PlayerViewModel = koinViewModel()
+    val danmakuViewModel: DanmakuViewModel = koinViewModel()
+    val mediaPViewModel: MediaPViewModel = koinViewModel()
+    val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
+    val mp4Parser: Mp4Parser = koinInject()
+    val playerManager = LocalPlayerManager.current
+    val toastManager = playerManager.toastManager
+    return remember(
+        streamViewModel,
+        playPlayViewModel,
+        playerViewModel,
+        mediaPViewModel,
+        playingInfoCache,
+        player,
+        playerManager,
+        mediaGuid,
+        currentAudioGuid,
+        currentSubtitleGuid,
+        mp4Parser,
+        onSeekTo
+    ) {
+        { guid: String ->
+            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+                if (playingInfoCache?.isUseDirectLink == false) {
+                    mediaPViewModel.quit(
+                        MediaPRequest(
+                            playLink = playingInfoCache?.playLink ?: ""
+                        ),
+                        updateState = false
+                    )
+                }
+
                 try {
                     playerManager.setLoading(true)
                     playMedia(
@@ -1732,10 +2636,12 @@ fun rememberPlayMediaFunction(
                         playerViewModel = playerViewModel,
                         playerManager = playerManager,
                         toastManager = toastManager,
+                        danmakuViewModel = danmakuViewModel,
                         mediaGuid = mediaGuid,
                         currentAudioGuid = currentAudioGuid,
                         currentSubtitleGuid = currentSubtitleGuid,
-                        mp4Parser = mp4Parser
+                        mp4Parser = mp4Parser,
+                        onSeekTo = onSeekTo
                     )
                 } finally {
                     playerManager.setLoading(false)
@@ -1756,25 +2662,49 @@ private suspend fun playMedia(
     playerViewModel: PlayerViewModel,
     playerManager: PlayerManager,
     toastManager: ToastManager,
+    danmakuViewModel: DanmakuViewModel,
     mediaGuid: String?,
     currentAudioGuid: String?,
     currentSubtitleGuid: String?,
-    mp4Parser: Mp4Parser
+    mp4Parser: Mp4Parser,
+    onSeekTo: ((Long) -> Unit)? = null
 ) {
     try {
+        danmakuViewModel.clear()
         // 1. Fetch Basic Info (IO)
-        val (playInfoResponse, userInfo, streamInfo) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val (playInfoResponse, userInfo, streamInfo) = withContext(Dispatchers.IO) {
             val p = playInfoViewModel.loadDataAndWait(guid, mediaGuid)
             val u = getUserInfo(userInfoViewModel)
             val s = fetchStreamInfo(p, u, streamViewModel)
             Triple(p, u, s)
         }
 
-        val startPosition: Long = playInfoResponse.ts.toLong() * 1000
+        // Load Danmaku
+        danmakuViewModel.loadDanmaku(
+            doubanId = playInfoResponse.item.doubanId ?: playInfoResponse.item.imdbId ?: "",
+            episodeNumber = playInfoResponse.item.episodeNumber,
+            episodeTitle = playInfoResponse.item.title ?: "",
+            title = if (playInfoResponse.type != FnTvMediaType.MOVIE.value) playInfoResponse.item.tvTitle else (playInfoResponse.item.title
+                ?: ""),
+            seasonNumber = playInfoResponse.item.seasonNumber,
+            season = playInfoResponse.type != FnTvMediaType.MOVIE.value,
+            guid = playInfoResponse.item.guid,
+            parentGuid = playInfoResponse.item.parentGuid
+        )
+
+        val historyStartPosition: Long = playInfoResponse.ts.toLong() * 1000
+        playerManager.startupAutoSkippedIntroSegmentMillis = null
+        playerManager.initialResumePositionMs = historyStartPosition
+        playerManager.initialSeekTargetMs = historyStartPosition
+        playerManager.initialSeekCommandSent = false
+        playerManager.initialSeekCommandWallTimeMs = 0L
+        playerManager.initialSeekStableSinceWallTimeMs = 0L
+        playerManager.initialSeekLastObservedPositionMs = 0L
+        playerManager.initialSeekCompleted = false
         val videoStream = streamInfo.videoStream
         val audioStream =
-            streamInfo.audioStreams.first { audioStream -> audioStream.guid == playInfoResponse.audioGuid }
-        val audioGuid = currentAudioGuid ?: audioStream.guid
+            streamInfo.audioStreams?.firstOrNull { audioStream -> audioStream.guid == playInfoResponse.audioGuid }
+        val audioGuid = currentAudioGuid ?: (audioStream?.guid ?: "")
 //        val subtitleStream = streamInfo.subtitleStreams?.first{ it.guid == playInfoResponse.subtitleGuid}
         val subtitleStream = streamInfo.subtitleStreams?.find {
             it.guid == playInfoResponse.subtitleGuid
@@ -1793,10 +2723,15 @@ private suspend fun playMedia(
         )
         playerViewModel.updatePlayingInfo(cache)
 
+        // 切换分集时需要更新总时长
+        playerManager.playerState.duration = playInfoResponse.item.duration.toLong()
+        playerManager.playerState.itemGuid = playInfoResponse.item.guid
+//        showPlayerUI(playInfoResponse, videoStream, playerManager, guid)
         val useExternalPlayer = AppSettingsStore.useExternalPlayer && currentPlatform() is Platform.Desktop
 
         // Only show the built-in player UI when using the built-in player.
         if (!useExternalPlayer) {
+            // 显示播放器
             showPlayerUI(playInfoResponse, videoStream, playerManager, guid)
         } else {
             playerManager.hidePlayer()
@@ -1810,12 +2745,12 @@ private suspend fun playMedia(
             createPlayRequest(videoStream, fileStream, audioGuid, subtitleGuid, forcedSdr)
 
         // 获取播放链接
-        val playLinkResult = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val playLinkResult = withContext(Dispatchers.IO) {
             resolvePlayLink(
                 playRequest,
                 cache,
                 streamInfo,
-                startPosition,
+                historyStartPosition,
                 mp4Parser,
                 playPlayViewModel,
                 playInfoResponse
@@ -1829,7 +2764,7 @@ private suspend fun playMedia(
         )
         playerViewModel.updatePlayingInfo(finalCache)
 
-        logger.i("startPosition: $startPosition, effectiveStartPosition: ${playLinkResult.effectiveStartPosition}")
+        logger.i("historyStartPosition: $historyStartPosition, effectiveStartPosition: ${playLinkResult.effectiveStartPosition}")
         // 设置字幕
         val extraFiles = if (!useExternalPlayer) {
             subtitleStream?.let {
@@ -1862,6 +2797,13 @@ private suspend fun playMedia(
             } catch (e: Exception) {
                 logger.w("Failed to parse m3u8 for video stream extraction: ${e.message}")
             }
+        }
+
+        playerManager.initialSeekCommandSent = false
+        playerManager.initialSeekCompleted = false
+        val seekTo: (Long) -> Unit = onSeekTo ?: { positionMillis ->
+            playerManager.danmakuResetNonce++
+            player.seekTo(positionMillis)
         }
 
         if (useExternalPlayer) {
@@ -1897,13 +2839,19 @@ private suspend fun playMedia(
                 actualPlayLink,
                 playLinkResult.effectiveStartPosition,
                 extraFiles,
-                isM3u8
+                isM3u8,
+                onSeekTo = { positionMillis ->
+                    playerManager.initialSeekCommandSent = true
+                    playerManager.initialSeekCommandWallTimeMs = System.currentTimeMillis()
+                    playerManager.initialSeekStableSinceWallTimeMs = 0L
+                    seekTo(positionMillis)
+                }
             )
         }
         // 调用playRecord接口
         callPlayRecord(
 //            itemGuid = guid,
-            ts = if ((startPosition / 1000).toInt() == 0) 1 else (startPosition / 1000).toInt(),
+            ts = (historyStartPosition / 1000).toInt().coerceAtLeast(1),
             playingInfoCache = finalCache,
             playRecordViewModel = playRecordViewModel,
             onSuccess = {
@@ -2014,7 +2962,8 @@ private suspend fun startPlayback(
     playLink: String,
     startPosition: Long,
     extraFiles: MediaExtraFiles,
-    isM3u8: Boolean = false
+    isM3u8: Boolean = false,
+    onSeekTo: (Long) -> Unit
 ) {
 //    val isDirectLink = playLink.contains("/v/api/v1/media/range/")
     var baseUrl = if (AccountDataCache.cookieState.isNotBlank()) {
@@ -2054,7 +3003,7 @@ private suspend fun startPlayback(
     player.features[AudioLevelController]?.setVolume(savedVolume)
 
     logger.i("startPlayback startPosition: $startPosition")
-    player.seekTo(startPosition)
+    onSeekTo(startPosition)
 }
 
 private data class PlayLinkResult(
@@ -2071,7 +3020,11 @@ private suspend fun getUserInfo(userInfoViewModel: UserInfoViewModel): UserInfoR
 
     return when (userInfoState) {
         is UiState.Success -> userInfoState.data
-        is UiState.Error -> throw Exception(userInfoState.message)
+        is UiState.Error -> {
+            logger.e("getUserInfo error: ${userInfoState.message}")
+            throw Exception(userInfoState.message)
+        }
+
         else -> throw Exception("Unknown Error")
     }
 }
@@ -2109,7 +3062,7 @@ private fun createPlayingInfoCache(
     streamInfo: StreamResponse,
     fileStream: FileInfo,
     videoStream: VideoStream,
-    audioStream: AudioStream,
+    audioStream: AudioStream?,
     subtitleStream: SubtitleStream?,
     playInfoResponse: PlayInfoResponse
 ): PlayingInfoCache {
@@ -2128,7 +3081,9 @@ private fun createPlayingInfoCache(
         currentQuality = currentQuality,
         currentAudioStreamList = streamInfo.audioStreams,
         currentSubtitleStreamList = streamInfo.subtitleStreams,
-        isEpisode = playInfoResponse.type == FnTvMediaType.EPISODE.value
+        isEpisode = playInfoResponse.type == FnTvMediaType.EPISODE.value,
+        playConfig = playInfoResponse.playConfig,
+        item = playInfoResponse.item
     )
 }
 
@@ -2172,8 +3127,8 @@ private suspend fun resolvePlayLink(
     playPlayViewModel: PlayPlayViewModel,
     playInfoResponse: PlayInfoResponse
 ): PlayLinkResult {
-    val currentQuality = cache.currentQuality ?: streamInfo.qualities.firstOrNull()
-    val originalQuality = streamInfo.qualities.firstOrNull()
+    val currentQuality = cache.currentQuality ?: streamInfo.qualities?.firstOrNull()
+    val originalQuality = streamInfo.qualities?.firstOrNull()
     val isOriginalQuality = currentQuality != null && originalQuality != null &&
             currentQuality.resolution == originalQuality.resolution &&
             currentQuality.bitrate == originalQuality.bitrate
@@ -2213,79 +3168,6 @@ private suspend fun resolvePlayLink(
     }
 }
 
-private fun calculateOptimalPlayerWindowSize(
-    videoStream: VideoStream,
-    baseWidth: Float,
-    baseHeight: Float,
-    aspectRatioSetting: String = "AUTO"
-): DpSize? {
-    val videoW = videoStream.width.toFloat()
-    val videoH = videoStream.height.toFloat()
-
-    if (videoW <= 0 || videoH <= 0) return null
-
-    // Determine target aspect ratio
-    val targetAspectRatio = when (aspectRatioSetting) {
-        "4:3" -> 4f / 3f
-        "16:9" -> 16f / 9f
-        "21:9" -> 21f / 9f
-        else -> parseAspectRatio(videoStream.displayAspectRatio) ?: (videoW / videoH)
-    }
-
-    var targetH = baseHeight
-    var targetW = baseWidth
-
-    val currentAspectRatio = if (baseHeight > 0) baseWidth / baseHeight else targetAspectRatio
-
-    // Compensation only applies in AUTO mode
-    val compensation =
-        if (aspectRatioSetting == "AUTO") AppSettingsStore.playerWindowWidthCompensation else 0f
-
-    // Logic to expand window rather than shrink content
-    if (targetAspectRatio > currentAspectRatio) {
-        // Wider target: Keep Height, Expand Width
-        targetH = baseHeight
-        targetW = targetH * targetAspectRatio
-        targetW += compensation
-    } else {
-        // Narrower/Taller target: Keep Width, Expand Height
-        targetW = baseWidth
-        targetH = targetW / targetAspectRatio
-        // No width compensation needed when keeping baseWidth
-    }
-
-    // Constraints: +/- 50% of Base (Applied to Result)
-    val minW = baseWidth * 0.5f
-    val maxW = baseWidth * 1.5f
-
-    // Clamp width if needed (though Expand logic usually stays reasonable unless base was very distorted)
-    if (targetW < minW) targetW = minW
-    if (targetW > maxW) targetW = maxW
-
-    if (targetW != (if (targetAspectRatio > currentAspectRatio) baseHeight * targetAspectRatio + compensation else baseWidth)) {
-
-        val effectiveW = targetW - compensation
-        targetH = effectiveW / targetAspectRatio
-    }
-
-    return DpSize(targetW.dp, targetH.dp)
-}
-
-private fun parseAspectRatio(dar: String?): Float? {
-    if (dar.isNullOrBlank()) return null
-    return try {
-        val parts = dar.split(":")
-        if (parts.size == 2) {
-            val w = parts[0].toFloat()
-            val h = parts[1].toFloat()
-            if (h > 0) w / h else null
-        } else {
-            null
-        }
-    } catch (e: Exception) {
-        null
-    }
-}
 
 private fun handlePlayerKeyEvent(
     event: KeyEvent,
@@ -2297,7 +3179,8 @@ private fun handlePlayerKeyEvent(
     windowState: WindowState,
     toastManager: ToastManager,
     lastVolume: Float,
-    onLastVolumeChange: (Float) -> Unit
+    onLastVolumeChange: (Float) -> Unit,
+    onSeekTo: (Long) -> Unit
 ): Boolean {
     if (event.type == KeyEventType.KeyDown) {
         var handled = true
@@ -2326,7 +3209,7 @@ private fun handlePlayerKeyEvent(
             Key.DirectionLeft, Key.MediaStepBackward -> {
                 val seekPosition =
                     (mediaPlayer.currentPositionMillis.value - 10000).coerceAtLeast(0)
-                mediaPlayer.seekTo(seekPosition)
+                onSeekTo(seekPosition)
                 val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
                 toastManager.showToast("快退至：$dateTime", ToastType.Info, category = "seek")
                 callPlayRecord(
@@ -2341,7 +3224,7 @@ private fun handlePlayerKeyEvent(
             Key.DirectionRight, Key.MediaStepForward -> {
                 val seekPosition =
                     (mediaPlayer.currentPositionMillis.value + 10000).coerceAtMost(playerManager.playerState.duration)
-                mediaPlayer.seekTo(seekPosition)
+                onSeekTo(seekPosition)
                 val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
                 toastManager.showToast("快进至：$dateTime", ToastType.Info, category = "seek")
                 callPlayRecord(
@@ -2394,17 +3277,17 @@ private fun handlePlayerKeyEvent(
             Key.F -> {
                 if (windowState.placement == WindowPlacement.Fullscreen) {
                     windowState.placement = WindowPlacement.Floating
-                    AppSettingsStore.playerIsFullscreen = false
+                    PlayingSettingsStore.playerIsFullscreen = false
                 } else {
                     windowState.placement = WindowPlacement.Fullscreen
-                    AppSettingsStore.playerIsFullscreen = true
+                    PlayingSettingsStore.playerIsFullscreen = true
                 }
             }
 
             Key.Escape -> {
                 if (windowState.placement == WindowPlacement.Fullscreen) {
                     windowState.placement = WindowPlacement.Floating
-                    AppSettingsStore.playerIsFullscreen = false
+                    PlayingSettingsStore.playerIsFullscreen = false
                 }
             }
 
@@ -2429,7 +3312,7 @@ private fun handleQualitySelection(
 //    logger.i("1 change quality to: ${quality.resolution}")
     if (playingInfoCache != null) {
         val currentQuality = playingInfoCache.currentQuality
-        val originalQuality = playingInfoCache.streamInfo.qualities.firstOrNull()
+        val originalQuality = playingInfoCache.streamInfo.qualities?.firstOrNull()
         val videoStream = playingInfoCache.currentVideoStream
         val currentResolution = quality.resolution
         val currentBitrate = quality.bitrate
@@ -2540,42 +3423,125 @@ fun PlayerTopBar(
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val playerViewModel: PlayerViewModel = koinViewModel()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
-    if (platform is Platform.MacOS) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            contentAlignment = Alignment.Center
-        ) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Black.copy(alpha = 0.6f),
+                        Color.Transparent
+                    )
+                )
+            )
+            .padding(bottom = 32.dp)
+    ) {
+        if (platform is Platform.MacOS) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 80.dp),
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val interaction = remember { MutableInteractionSource() }
-                NavigationDefaults.BackButton(
-                    onClick = {
-                        mediaPlayer.stopPlayback()
-                        playerViewModel.updatePlayingInfo(null)
-                        onBack()
-                    },
-                    interaction = interaction,
-                    icon = {
-                        FontIconDefaults.BackIcon(interaction, size = FontIconSize(16f))
+//                Box(
+//                    modifier = Modifier
+//                        .align(Alignment.CenterStart)
+//                        .padding(start = 80.dp),
+//                    contentAlignment = Alignment.Center
+//                ) {
+//                    val interaction = remember { MutableInteractionSource() }
+//                    NavigationDefaults.BackButton(
+//                        onClick = {
+//                            mediaPlayer.stopPlayback()
+//                            playerViewModel.updatePlayingInfo(null)
+//                            playerViewModel.updateSubtitleSettings(SubtitleSettings())
+//                            onBack()
+//                        },
+//                        interaction = interaction,
+//                        icon = {
+//                            FontIconDefaults.BackIcon(interaction, size = FontIconSize(16f))
+//                        }
+//                    )
+//                }
+                Box(
+                    modifier = Modifier.align(Alignment.Center),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isEpisode) {
+                        Text(
+                            text = buildMacOsEpisodeTitle(mediaTitle, subhead),
+                            style = LocalTypography.current.title,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else {
+                        Text(
+                            text = mediaTitle,
+                            style = LocalTypography.current.title,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
-                )
+                }
             }
-            Box(
-                modifier = Modifier.align(Alignment.Center),
-                contentAlignment = Alignment.Center
+        } else {
+            Row(
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .padding(start = 20.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.Start),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                var isHovered by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .background(
+                            color = if (isHovered) Color.White.copy(alpha = 0.1f) else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .onPointerEvent(PointerEventType.Enter) { isHovered = true }
+                        .onPointerEvent(PointerEventType.Exit) { isHovered = false }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {
+                                mediaPlayer.stopPlayback()
+                                playingInfoCache?.isUseDirectLink?.let {
+                                    if (!it) {
+                                        mediaPViewModel.quit(
+                                            MediaPRequest(
+                                                playLink = playingInfoCache?.playLink
+                                                    ?: ""
+                                            ),
+                                            updateState = false
+                                        )
+                                    }
+                                }
+                                // 清除缓存
+                                playerViewModel.updatePlayingInfo(null)
+                                playerViewModel.updateSubtitleSettings(SubtitleSettings())
+                                onBack()
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = ArrowLeft,
+                        contentDescription = "返回",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .size(20.dp)
+                    )
+                }
                 if (isEpisode) {
                     Text(
-                        text = buildMacOsEpisodeTitle(mediaTitle, subhead),
+                        text = buildEpisodeTitle(mediaTitle, subhead),
                         style = LocalTypography.current.title,
                         color = Color.White,
-                        fontSize = 16.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Medium
                     )
                 } else {
@@ -2583,77 +3549,10 @@ fun PlayerTopBar(
                         text = mediaTitle,
                         style = LocalTypography.current.title,
                         color = Color.White,
-                        fontSize = 16.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
-            }
-        }
-    } else {
-        Row(
-            modifier = Modifier
-                .padding(top = 12.dp)
-                .padding(start = 20.dp, top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.Start),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            var isHovered by remember { mutableStateOf(false) }
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .background(
-                        color = if (isHovered) Color.White.copy(alpha = 0.1f) else Color.Transparent,
-                        shape = CircleShape
-                    )
-                    .onPointerEvent(PointerEventType.Enter) { isHovered = true }
-                    .onPointerEvent(PointerEventType.Exit) { isHovered = false }
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {
-                            mediaPlayer.stopPlayback()
-                            playingInfoCache?.isUseDirectLink?.let {
-                                if (!it) {
-                                    mediaPViewModel.quit(
-                                        MediaPRequest(
-                                            playLink = playingInfoCache?.playLink
-                                                ?: ""
-                                        ),
-                                        updateState = false
-                                    )
-                                }
-                            }
-                            // 清除缓存
-                            playerViewModel.updatePlayingInfo(null)
-                            onBack()
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = ArrowLeft,
-                    contentDescription = "返回",
-                    tint = Color.White,
-                    modifier = Modifier
-                        .size(20.dp)
-                )
-            }
-            if (isEpisode) {
-                Text(
-                    text = buildEpisodeTitle(mediaTitle, subhead),
-                    style = LocalTypography.current.title,
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            } else {
-                Text(
-                    text = mediaTitle,
-                    style = LocalTypography.current.title,
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium
-                )
             }
         }
     }
@@ -2748,6 +3647,8 @@ fun PlayerBottomBar(
     videoProgress: Float,
     totalDuration: Long,
     playingInfoCache: PlayingInfoCache?,
+    introSegmentMillis: Pair<Long, Long>? = null,
+    creditsSegmentMillis: Pair<Long, Long>? = null,
     isoTagData: IsoTagData,
     lastVolume: Float,
     onProgressBarHoverChanged: (Boolean) -> Unit,
@@ -2778,7 +3679,27 @@ fun PlayerBottomBar(
     nextEpisode: EpisodeListResponse? = null,
     onNextEpisode: (() -> Unit)? = null,
     isNextEpisodeHovered: Boolean = false,
-    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null
+    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null,
+    playRecordViewModel: PlayRecordViewModel,
+    onSkipConfigChanged: ((Int, Int) -> Unit)? = null,
+    smartSkipEnabled: Boolean = true,
+    onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
+    isSmartAnalysisGloballyEnabled: Boolean = false,
+    isDanmakuVisible: Boolean = true,
+    onToggleDanmaku: () -> Unit = {},
+    danmakuArea: Float = 1.0f,
+    danmakuOpacity: Float = 1.0f,
+    danmakuFontSize: Float = 1.0f,
+    danmakuSpeed: Float = 1.0f,
+    danmakuSyncPlaybackSpeed: Boolean = false,
+    danmakuDebugEnabled: Boolean = false,
+    onDanmakuAreaChange: (Float) -> Unit = {},
+    onDanmakuOpacityChange: (Float) -> Unit = {},
+    onDanmakuFontSizeChange: (Float) -> Unit = {},
+    onDanmakuSpeedChange: (Float) -> Unit = {},
+    onDanmakuSyncPlaybackSpeedChanged: (Boolean) -> Unit = {},
+    onDanmakuDebugEnabledChange: (Boolean) -> Unit = {},
+    onDanmakuSettingsHoverChanged: (Boolean) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -2802,7 +3723,9 @@ fun PlayerBottomBar(
                 player = mediaPlayer,
                 totalDuration = playerManager.playerState.duration,
                 onSeek = onSeek,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                introSegmentMillis = introSegmentMillis,
+                creditsSegmentMillis = creditsSegmentMillis
             )
             // 播放器控制行
             PlayerControlRow(
@@ -2838,7 +3761,27 @@ fun PlayerBottomBar(
                 nextEpisode = nextEpisode,
                 onPlayNextEpisode = onNextEpisode,
                 isNextEpisodeHovered = isNextEpisodeHovered,
-                onNextEpisodeHoverChanged = onNextEpisodeHoverChanged
+                onNextEpisodeHoverChanged = onNextEpisodeHoverChanged,
+                playRecordViewModel = playRecordViewModel,
+                onSkipConfigChanged = onSkipConfigChanged,
+                smartSkipEnabled = smartSkipEnabled,
+                onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
+                isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled,
+                isDanmakuVisible = isDanmakuVisible,
+                onToggleDanmaku = onToggleDanmaku,
+                danmakuArea = danmakuArea,
+                danmakuOpacity = danmakuOpacity,
+                danmakuFontSize = danmakuFontSize,
+                danmakuSpeed = danmakuSpeed,
+                danmakuSyncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                danmakuDebugEnabled = danmakuDebugEnabled,
+                onDanmakuAreaChange = onDanmakuAreaChange,
+                onDanmakuOpacityChange = onDanmakuOpacityChange,
+                onDanmakuFontSizeChange = onDanmakuFontSizeChange,
+                onDanmakuSpeedChange = onDanmakuSpeedChange,
+                onDanmakuSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
+                onDanmakuDebugEnabledChange = onDanmakuDebugEnabledChange,
+                onDanmakuSettingsHoverChanged = onDanmakuSettingsHoverChanged
             )
         }
     }

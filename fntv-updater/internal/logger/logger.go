@@ -106,10 +106,10 @@ func Success(tag string, format string, args ...interface{}) {
 
 func Warn(tag string, format string, args ...interface{}) {
 	logMsg(tag, "warn", color.New(color.FgHiYellow), format, args...)
-	ui.ShowMessageBox(fmt.Sprintf(format, args...), "FnMedia Updater - Warning", consts.MB_OK|consts.MB_ICONWARNING|consts.MB_SYSTEMMODAL)
+	ui.ShowMessageBox(fmt.Sprintf(format, args...), "FlyNarwhal Updater - Warning", consts.MB_OK|consts.MB_ICONWARNING|consts.MB_SYSTEMMODAL)
 }
 
 func ErrorLog(tag string, format string, args ...interface{}) {
 	logMsg(tag, "error", color.New(color.FgHiRed), format, args...)
-	ui.ShowMessageBox(fmt.Sprintf(format, args...), "FnMedia Updater - Error", consts.MB_OK|consts.MB_ICONERROR|consts.MB_SYSTEMMODAL)
+	ui.ShowMessageBox(fmt.Sprintf(format, args...), "FlyNarwhal Updater - Error", consts.MB_OK|consts.MB_ICONERROR|consts.MB_SYSTEMMODAL)
 }

@@ -54,14 +54,18 @@ class PreferencesManager private constructor() {
         AccountDataCache.authorization = settings.getString("token", "")
         AccountDataCache.isHttps = settings.getBoolean("isHttps", false)
         AccountDataCache.host = settings.getString("host", "")
-        AccountDataCache.port = settings.getInt("port", 0)
+        AccountDataCache.port = settings.getInt("port", 5666)
         AccountDataCache.isLoggedIn = settings.getBoolean("isLoggedIn", false)
         val cookie = settings.getString("cookie", "")
         if (cookie.isNotBlank()) {
             AccountDataCache.parseCookie(cookie)
             AccountDataCache.refreshCookie()
         }
-        AccountDataCache.rememberMe = settings.getBoolean("rememberMe", false)
+        AccountDataCache.rememberPassword = settings.getBoolean("rememberPassword", false)
+        AccountDataCache.isNasLogin = settings.getBoolean("isNasLogin", false)
+        AccountDataCache.fnId = settings.getString("fnId", "")
+        AccountDataCache.displayHost = settings.getString("displayHost", "")
+        AccountDataCache.displayPort = settings.getInt("displayPort", 5666)
     }
 
     fun saveAllLoginInfo() {
@@ -74,7 +78,11 @@ class PreferencesManager private constructor() {
         settings.putBoolean("isLoggedIn", AccountDataCache.isLoggedIn)
         val cookie = AccountDataCache.cookieState
         settings.putString("cookie", cookie)
-        settings.putBoolean("rememberMe", AccountDataCache.rememberMe)
+        settings.putBoolean("rememberPassword", AccountDataCache.rememberPassword)
+        settings.putBoolean("isNasLogin", AccountDataCache.isNasLogin)
+        settings.putString("fnId", AccountDataCache.fnId)
+        settings.putString("displayHost", AccountDataCache.displayHost)
+        settings.putInt("displayPort", AccountDataCache.displayPort)
     }
 
     fun saveToken(token: String) {
@@ -84,15 +92,17 @@ class PreferencesManager private constructor() {
     }
 
     fun clearLoginInfo() {
-        settings.remove("username")
+//        settings.remove("username")
         settings.remove("password")
-        settings.remove("token")
-        settings.remove("isHttps")
-        settings.remove("host")
-        settings.remove("port")
-        settings.remove("cookie")
-        settings.remove("isLoggedIn")
-        settings.remove("rememberMe")
+//        settings.remove("token")
+//        settings.remove("isHttps")
+//        settings.remove("host")
+//        settings.remove("port")
+//        settings.remove("cookie")
+//        settings.remove("isLoggedIn")
+//        settings.remove("rememberMe")
+//        settings.remove("isNasLogin")
+//        settings.remove("displayHost")
     }
 
     fun hasSavedCredentials(): Boolean {
@@ -112,8 +122,33 @@ class PreferencesManager private constructor() {
         return try {
             mapper.readValue<List<LoginHistory>>(historyJson)
 //            json.decodeFromString<List<LoginHistory>>(historyJson)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
+    }
+
+    fun loadLoginUsernameHistory(): List<String> {
+        val usernamesJson = settings.getString("loginUsernameHistory", "[]")
+        return try {
+            mapper.readValue<List<String>>(usernamesJson)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveLoginUsernameHistory(usernames: List<String>) {
+        val usernamesJson = mapper.writeValueAsString(usernames)
+        settings.putString("loginUsernameHistory", usernamesJson)
+    }
+
+    fun addLoginUsernameHistory(username: String) {
+        val normalized = username.trim()
+        if (normalized.isBlank()) return
+
+        val existing = loadLoginUsernameHistory()
+        val updated = (listOf(normalized) + existing)
+            .distinctBy { it.trim().lowercase() }
+            .take(20)
+        saveLoginUsernameHistory(updated)
     }
 }

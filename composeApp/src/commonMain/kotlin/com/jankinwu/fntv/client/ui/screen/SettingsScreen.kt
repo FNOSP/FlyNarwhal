@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -50,37 +52,42 @@ import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.icons.Download
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.icons.PreRelease
-import com.jankinwu.fntv.client.icons.SkipLink
 import com.jankinwu.fntv.client.icons.Statement
 import com.jankinwu.fntv.client.icons.VersionInfo
+import com.jankinwu.fntv.client.icons.VideoSmartAnalysis
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.ui.component.common.BackButton
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
+import com.jankinwu.fntv.client.ui.component.common.HoverTip
 import com.jankinwu.fntv.client.ui.component.common.dialog.AboutDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
 import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.utils.LocalLogExporter
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
 import com.jankinwu.fntv.client.viewmodel.UpdateViewModel
-import fntv_client_multiplatform.composeapp.generated.resources.Res
-import fntv_client_multiplatform.composeapp.generated.resources.github_logo
+import flynarwhal.composeapp.generated.resources.Res
+import flynarwhal.composeapp.generated.resources.github_logo
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.CardExpanderItem
+import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.DropDownButton
 import io.github.composefluent.component.Expander
+import io.github.composefluent.component.FluentDialog
 import io.github.composefluent.component.Icon
 import io.github.composefluent.component.MenuFlyoutContainer
 import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.component.NavigationDisplayMode
+import io.github.composefluent.component.ProgressRing
+import io.github.composefluent.component.ProgressRingSize
 import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.Switcher
 import io.github.composefluent.component.Text
 import io.github.composefluent.component.TextField
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
-import io.github.composefluent.icons.regular.ArrowUpRight
 import io.github.composefluent.icons.regular.Color
 import io.github.composefluent.icons.regular.Globe
 import io.github.composefluent.icons.regular.Navigation
@@ -107,6 +114,58 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     val focusManager = LocalFocusManager.current
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showHardwareInfoDialog by remember { mutableStateOf(false) }
+
+    val logExporter = LocalLogExporter.current
+    val availableDates = remember { logExporter.getAvailableLogDates() }
+    var selectedDate by remember { mutableStateOf(availableDates.firstOrNull() ?: "") }
+    var isExporting by remember { mutableStateOf(false) }
+    var exportError by remember { mutableStateOf<String?>(null) }
+
+    var flyNarwhalServerEnabled by remember { mutableStateOf(AppSettingsStore.flyNarwhalServerEnabled) }
+    var flyNarwhalServerBaseUrl by remember { mutableStateOf(AppSettingsStore.flyNarwhalServerBaseUrl) }
+//    var wasSmartAnalysisBaseUrlFocused by remember { mutableStateOf(false) }
+
+    if (isExporting) {
+        FluentDialog(
+            visible = true,
+            size = DialogSize.Standard
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "正在导出中...",
+                    style = FluentTheme.typography.subtitle,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(24.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ProgressRing(size = ProgressRingSize.Medium)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text("请稍候...")
+                }
+            }
+        }
+    }
+
+    if (exportError != null) {
+        CustomContentDialog(
+            title = "导出错误",
+            visible = true,
+            content = {
+                Text(exportError ?: "未知错误")
+            },
+            onButtonClick = { _ -> exportError = null },
+            primaryButtonText = "确定"
+        )
+    }
 
     UpdateDialog(
         status = updateStatus,
@@ -201,7 +260,11 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                                 Row(
                                     modifier = Modifier
                                         .padding(start = 8.dp)
-                                        .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
+                                        .border(
+                                            1.dp,
+                                            Colors.AccentColorDefault,
+                                            RoundedCornerShape(50)
+                                        )
                                         .padding(horizontal = 6.dp, vertical = 1.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -248,7 +311,11 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         Text("主题模式")
                     },
                     icon = {
-                        Icon(Icons.Regular.Color, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Regular.Color,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
                     },
                     caption = {
                         Text("是否跟随系统主题")
@@ -275,7 +342,11 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                             Text("颜色")
                         },
                         icon = {
-                            Icon(if (store.darkMode) Icons.Regular.WeatherMoon else Icons.Regular.WeatherSunny, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(
+                                if (store.darkMode) Icons.Regular.WeatherMoon else Icons.Regular.WeatherSunny,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
                         },
                         caption = {
                             Text("请选择主题颜色")
@@ -531,6 +602,72 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                     }
                 )
 
+                Header("播放")
+                CardExpanderItem(
+                    heading = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("启用飞鲸服务端")
+                            Spacer(Modifier.width(6.dp))
+                            HoverTip(
+                                tipText = "启用后可以通过部署在飞牛 NAS 上的飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持。\n请确保已在下方正确配置「飞鲸服务端地址」，并且客户端能访问该服务。服务端项目地址：https://github.com/FNOSP/fly-narwhal-server",
+                            )
+                        }
+                    },
+                    caption = { Text("启用后可连接飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持") },
+                    icon = { Icon(VideoSmartAnalysis, null, modifier = Modifier.size(18.dp)) },
+                    trailing = {
+                        Switcher(
+                            checked = flyNarwhalServerEnabled,
+                            text = if (flyNarwhalServerEnabled) "开启" else "关闭",
+                            textBefore = true,
+                            onCheckStateChange = {
+                                flyNarwhalServerEnabled = it
+                                AppSettingsStore.flyNarwhalServerEnabled = it
+//                                if (it) {
+//                                    LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
+//                                }
+                            }
+                        )
+                    }
+                )
+
+                AnimatedVisibility(
+                    visible = flyNarwhalServerEnabled,
+                    enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                    exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top)
+                ) {
+                    CardExpanderItem(
+                        heading = { Text("飞鲸服务端地址") },
+                        caption = { Text("请填写完整服务端的 URL") },
+                        icon = { Icon(Icons.Regular.Globe, null, modifier = Modifier.size(18.dp)) },
+                        trailing = {
+                            TextField(
+                                value = flyNarwhalServerBaseUrl,
+                                onValueChange = {
+                                    flyNarwhalServerBaseUrl = it
+                                    AppSettingsStore.flyNarwhalServerBaseUrl = it
+                                },
+                                modifier = Modifier
+                                    .width(200.dp)
+                                    .onFocusChanged { focusState ->
+                                        val isFocused = focusState.isFocused
+//                                        if (wasSmartAnalysisBaseUrlFocused && !isFocused) {
+//                                            LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
+//                                        }
+//                                        wasSmartAnalysisBaseUrlFocused = isFocused
+                                    },
+                                singleLine = true,
+                                placeholder = {
+                                    Text(
+                                        "http://192.168.1.1:5365",
+                                        style = FluentTheme.typography.body.copy(FluentTheme.colors.text.text.tertiary)
+                                    )
+                                },
+                            )
+                        }
+                    )
+                }
+
                 Header("关于")
                 CardExpanderItem(
                     heading = { Text("隐私声明") },
@@ -542,8 +679,61 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                 )
 
                 CardExpanderItem(
+                    heading = { Text("导出报错日志") },
+                    caption = { Text("支持导出近三天的报错日志，方便开发者排查问题") },
+                    icon = { Icon(Download, null, modifier = Modifier.size(18.dp)) },
+                    trailing = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            MenuFlyoutContainer(
+                                flyout = {
+                                    availableDates.forEach { date ->
+                                        MenuFlyoutItem(
+                                            text = { Text(date) },
+                                            onClick = {
+                                                selectedDate = date
+                                                isFlyoutVisible = false
+                                            }
+                                        )
+                                    }
+                                }
+                            ) {
+                                DropDownButton(
+                                    onClick = {
+                                        isFlyoutVisible = true
+                                    },
+                                    content = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(selectedDate)
+//                                            Spacer(Modifier.width(4.dp))
+//                                            Icon(Icons.Regular.ChevronDown, null, modifier = Modifier.size(12.dp))
+                                        }
+                                    }
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    logExporter.exportErrorLogs(
+                                        date = selectedDate,
+                                        onStart = { isExporting = true },
+                                        onComplete = { isExporting = false },
+                                        onError = {
+                                            isExporting = false
+                                            exportError = it
+                                        }
+                                    )
+                                },
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                            ) {
+                                Text("导出")
+                            }
+                        }
+                    }
+                )
+
+                CardExpanderItem(
                     heading = {
-                        Text("Fntv Client Multiplatform")
+                        Text("FlyNarwhal")
                     },
                     icon = {
                         val colorMatrix = floatArrayOf(
