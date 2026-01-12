@@ -118,4 +118,12 @@ object AppSettingsStore {
     var kcefInitializedVersion: String
         get() = settings.getString(scopedKey("kcef_initialized_version"), "")
         set(value) = settings.set(scopedKey("kcef_initialized_version"), value)
+
+    var introEndMs: Int
+        get() = settings.getInt(scopedKey("intro_end_ms"), 0)
+        set(value) = settings.set(scopedKey("intro_end_ms"), value)
+
+    var outroStartMs: Int
+        get() = settings.getInt(scopedKey("outro_start_ms"), 0)
+        set(value) = settings.set(scopedKey("outro_start_ms"), value)
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
-import 'package:window_manager/window_manager.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
@@ -16,12 +16,15 @@ import 'models/bridge_models.dart';
 import 'providers/intro_outro_provider.dart';
 import 'ui/components/custom_ui.dart';
 import 'ui/components/settings_menu.dart';
+import 'ui/components/speed_control_flyout.dart';
 
-const int kPlayerPort = 47920;
+const int kPlayerPort = 47922;
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  
   MediaKit.ensureInitialized();
+  
   await windowManager.ensureInitialized();
 
   String? url;
@@ -81,8 +84,11 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
-  late final Player player = Player();
-  late final VideoController controller = VideoController(player);
+  late final Player _player;
+  late final VideoController _controller;
+  bool _isPlayerInitialized = false;
+  String? _initError;
+  final FocusNode _keyboardFocusNode = FocusNode();
   
   bool _showControls = true;
   Timer? _hideControlsTimer;
@@ -97,46 +103,61 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
   
   // Bridge Data
   AppSettings? _appSettings;
-  PlayerSettings? _playerSettings;
 
   // Player State
   bool _isBuffering = false;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
-  Duration _buffer = Duration.zero;
-  double _volume = 100.0;
+  double _volume = 1.0;
   double _playbackSpeed = 1.0;
-  
-  StreamSubscription? _durationSubscription;
-  StreamSubscription? _positionSubscription;
-  StreamSubscription? _bufferSubscription;
-  StreamSubscription? _bufferingSubscription;
-  StreamSubscription? _volumeSubscription;
-  StreamSubscription? _rateSubscription;
+  bool _isPlaying = false;
 
   // Small Window State
   Rect? _lastWindowBounds;
+
+  final List<StreamSubscription> _subscriptions = [];
 
   @override
   void initState() {
     super.initState();
     windowManager.addListener(this);
-    _initPlayer();
-    _initStreams();
+    
+    try {
+      _player = Player();
+      _controller = VideoController(
+        _player,
+        configuration: const VideoControllerConfiguration(
+          enableHardwareAcceleration: true,
+        ),
+      );
+      _isPlayerInitialized = true;
+      
+      _subscriptions.addAll([
+        _player.stream.position.listen((p) => setState(() => _position = p)),
+        _player.stream.duration.listen((d) => setState(() => _duration = d)),
+        _player.stream.playing.listen((playing) => setState(() => _isPlaying = playing)),
+        _player.stream.buffering.listen((buffering) => setState(() => _isBuffering = buffering)),
+        _player.stream.volume.listen((volume) => setState(() => _volume = volume / 100.0)),
+        _player.stream.rate.listen((rate) => setState(() => _playbackSpeed = rate)),
+        _player.stream.error.listen((error) {
+           debugPrint("Player Error: $error");
+           // Show error to user if needed
+        }),
+      ]);
+
+      _initPlayer();
+     } catch (e, stack) {
+       setState(() {
+         _initError = e.toString();
+       });
+       debugPrint("Error initializing player: $e");
+       debugPrint(stack.toString());
+     }
+
     _startHttpServer();
     _initWindow();
     _fetchBridgeSettings();
   }
-
-  void _initStreams() {
-    _durationSubscription = player.stream.duration.listen((d) => setState(() => _duration = d));
-    _positionSubscription = player.stream.position.listen((p) => setState(() => _position = p));
-    _bufferSubscription = player.stream.buffer.listen((b) => setState(() => _buffer = b));
-    _bufferingSubscription = player.stream.buffering.listen((b) => setState(() => _isBuffering = b));
-    _volumeSubscription = player.stream.volume.listen((v) => setState(() => _volume = v));
-    _rateSubscription = player.stream.rate.listen((r) => setState(() => _playbackSpeed = r));
-  }
-
 
   Future<void> _fetchBridgeSettings() async {
     try {
@@ -145,9 +166,8 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
       final playerSettings = await client.getPlayerSettings();
       setState(() {
         _appSettings = appSettings;
-        _playerSettings = playerSettings;
-        // Apply volume
-        player.setVolume(playerSettings.volume * 100);
+        // Apply volume (media_kit volume is 0.0 to 100.0)
+        _player.setVolume(playerSettings.volume * 100.0);
       });
     } catch (e) {
       debugPrint("Failed to fetch settings from bridge: $e");
@@ -181,7 +201,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
       final String? title = data['title'];
       final int startPosMs = data['startPos'] ?? 0;
 
-      if (mounted) {
+      if (mounted && _isPlayerInitialized) {
         if (title != null) {
           windowManager.setTitle(title);
         }
@@ -193,37 +213,23 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     });
 
     try {
-      _server = await io.serve(router, InternetAddress.loopbackIPv4, kPlayerPort);
+      _server = await io.serve(router.call, InternetAddress.loopbackIPv4, kPlayerPort);
     } catch (e) {
       debugPrint('Failed to start HTTP server: $e');
     }
   }
 
   Future<void> _playNewMedia(String url, Duration startPosition) async {
-    final Completer<void> readyToSeek = Completer<void>();
-    final StreamSubscription<Duration> subscription = player.stream.duration.listen((Duration d) {
-      if (d > Duration.zero && !readyToSeek.isCompleted) {
-        readyToSeek.complete();
-      }
-    });
-
     try {
-      await player.open(Media(url), play: false);
-
+      await _player.open(Media(url), play: false);
       if (startPosition > Duration.zero) {
-        await readyToSeek.future.timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {},
-        );
-        await player.seek(startPosition);
+        await _player.seek(startPosition);
       }
+      await _player.play();
     } catch (e) {
       debugPrint('Error during media change: $e');
-    } finally {
-      await subscription.cancel();
     }
-
-    await player.play();
+    
     _onUserInteraction();
   }
 
@@ -237,7 +243,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
   void _startHideControlsTimer() {
     _hideControlsTimer?.cancel();
     _hideControlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && !_isHovering && player.state.playing && !_isSettingsOpen) {
+      if (mounted && !_isHovering && _isPlaying && !_isSettingsOpen) {
         setState(() {
           _showControls = false;
         });
@@ -256,13 +262,13 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
   void dispose() {
     windowManager.removeListener(this);
     _hideControlsTimer?.cancel();
-    _durationSubscription?.cancel();
-    _positionSubscription?.cancel();
-    _bufferSubscription?.cancel();
-    _bufferingSubscription?.cancel();
-    _volumeSubscription?.cancel();
-    _rateSubscription?.cancel();
-    player.dispose();
+    _keyboardFocusNode.dispose();
+    for (var s in _subscriptions) {
+      s.cancel();
+    }
+    if (_isPlayerInitialized) {
+      _player.dispose();
+    }
     _server?.close();
     super.dispose();
   }
@@ -295,39 +301,144 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     });
   }
 
+  double? _getAspectRatio() {
+    if (_aspectRatio == "4:3") return 4/3;
+    if (_aspectRatio == "16:9") return 16/9;
+    if (_aspectRatio == "21:9") return 21/9;
+    return null; // Default behavior
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    if (duration.inHours > 0) {
+      return "${twoDigits(duration.inHours)}:$minutes:$seconds";
+    }
+    return "$minutes:$seconds";
+  }
+
+  void _showIntroOutroDialog() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => Center(
+        child: IntroOutroDialog(
+          duration: _duration,
+          currentPosition: _position,
+          initialIntroEndMs: _appSettings?.introEndMs ?? 0,
+          initialOutroStartMs: _appSettings?.outroStartMs ?? 0,
+          onSave: (intro, outro) async {
+            final client = context.read<BridgeApiClient>();
+            await client.updateIntroOutroSettings(intro, outro);
+            setState(() {
+              _appSettings?.introEndMs = intro;
+              _appSettings?.outroStartMs = outro;
+            });
+          },
+          onReset: () async {
+            final client = context.read<BridgeApiClient>();
+            await client.updateIntroOutroSettings(0, 0);
+            setState(() {
+              _appSettings?.introEndMs = 0;
+              _appSettings?.outroStartMs = 0;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmallWindowUI() {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: MouseRegion(
+        onHover: (_) => _onUserInteraction(),
+        child: Stack(
+          children: [
+            GestureDetector(
+              onPanStart: (_) => windowManager.startDragging(),
+              onDoubleTap: _toggleSmallWindow,
+              child: Video(
+                controller: _controller,
+                controls: (state) => const SizedBox.shrink(),
+              ),
+            ),
+            if (_showControls)
+              Positioned(
+                top: 8, right: 8,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                  onPressed: _toggleSmallWindow,
+                  style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!_isPlayerInitialized) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_initError != null) ...[
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                const Text("播放器初始化失败", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(_initError!, style: const TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
+                ),
+              ] else ...[
+                const CircularProgressIndicator(color: Colors.white),
+                const SizedBox(height: 16),
+                const Text("正在初始化播放器...", style: TextStyle(color: Colors.white)),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
     if (_isSmallWindow) {
       return _buildSmallWindowUI();
     }
 
-    return RawKeyboardListener(
-      focusNode: FocusNode()..requestFocus(),
-      onKey: (event) {
-        if (event is RawKeyDownEvent) {
+    return KeyboardListener(
+      focusNode: _keyboardFocusNode,
+      autofocus: true,
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent) {
           _onUserInteraction();
           if (event.logicalKey == LogicalKeyboardKey.space) {
-            player.playOrPause();
-            // Optional: Toast for play/pause?
+            _player.playOrPause();
           } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
              final seekTo = (_position + const Duration(seconds: 10));
-             player.seek(seekTo);
+             _player.seek(seekTo);
              ToastManager.show(context, "快进至: ${_formatDuration(seekTo)}", category: "seek", icon: Icons.fast_forward);
           } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
              final seekTo = (_position - const Duration(seconds: 10));
-             player.seek(seekTo);
+             _player.seek(seekTo);
              ToastManager.show(context, "快退至: ${_formatDuration(seekTo)}", category: "seek", icon: Icons.fast_rewind);
           } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-            final newVol = (_volume + 10).clamp(0.0, 100.0);
-            player.setVolume(newVol);
+            final newVol = (_volume * 100 + 10).clamp(0.0, 100.0);
+            _player.setVolume(newVol);
             ToastManager.show(context, "当前音量: ${newVol.toInt()}%", category: "volume", icon: Icons.volume_up);
           } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-            final newVol = (_volume - 10).clamp(0.0, 100.0);
-            player.setVolume(newVol);
+            final newVol = (_volume * 100 - 10).clamp(0.0, 100.0);
+            _player.setVolume(newVol);
              ToastManager.show(context, "当前音量: ${newVol.toInt()}%", category: "volume", icon: Icons.volume_down);
           } else if (event.logicalKey == LogicalKeyboardKey.keyM) {
              final newVol = _volume > 0 ? 0.0 : 100.0;
-             player.setVolume(newVol);
+             _player.setVolume(newVol);
              ToastManager.show(
                context, 
                newVol == 0 ? "静音" : "解除静音: 100%", 
@@ -369,24 +480,18 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                 onDoubleTap: _toggleFullScreen,
                 child: Center(
                   child: Video(
-                    controller: controller,
-                    controls: NoVideoControls,
+                    controller: _controller,
+                    aspectRatio: _getAspectRatio(),
+                    controls: (state) => const SizedBox.shrink(),
                   ),
                 ),
               ),
               
               // Loading Indicator
-              Center(
-                child: StreamBuilder<bool>(
-                  stream: player.stream.buffering,
-                  builder: (context, snapshot) {
-                    if (snapshot.data == true) {
-                      return const CircularLoadingIndicator();
-                    }
-                    return const SizedBox.shrink();
-                  },
+              if (_isBuffering)
+                const Center(
+                  child: CircularLoadingIndicator(),
                 ),
-              ),
 
               // UI Overlay
               if (_showControls) ...[
@@ -400,7 +505,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+                          colors: [Colors.black.withAlpha(204), Colors.transparent],
                         ),
                       ),
                       child: Row(
@@ -427,40 +532,11 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                   child: _buildBottomControls(),
                 ),
               ],
-
-              // Settings Menu Overlay
-              if (_isSettingsOpen)
-                Positioned(
-                  bottom: 80,
-                  right: 16,
-                  child: SettingsMenu(
-                    player: player,
-                    currentAspectRatio: _aspectRatio,
-                    currentWindowRatio: _windowRatio,
-                    onAspectRatioChanged: (val) {
-                      setState(() => _aspectRatio = val);
-                      // Apply aspect ratio logic to player/window
-                    },
-                    onWindowRatioChanged: (val) {
-                      setState(() => _windowRatio = val);
-                      // Apply window ratio logic
-                    },
-                    onIntroOutroTap: () {
-                      setState(() => _isSettingsOpen = false);
-                      _showIntroOutroDialog();
-                    },
-                    onClose: () => setState(() => _isSettingsOpen = false),
-                  ),
-                ),
             ],
           ),
         ),
       ),
     );
-  }
-
-  void _showSettingsMenu() {
-    setState(() => _isSettingsOpen = !_isSettingsOpen);
   }
 
   Widget _buildBottomControls() {
@@ -470,26 +546,21 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
         gradient: LinearGradient(
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
-          colors: [Colors.black.withOpacity(0.9), Colors.transparent],
+          colors: [Colors.black.withAlpha(230), Colors.transparent],
         ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Progress Bar
-          StreamBuilder<Duration>(
-            stream: player.stream.position,
-            builder: (context, snapshot) {
-              final position = snapshot.data ?? Duration.zero;
-              final duration = player.state.duration;
-              final buffer = player.state.buffer;
-              
-              double progress = 0.0;
-              double buffered = 0.0;
-              if (duration.inMilliseconds > 0) {
-                progress = position.inMilliseconds / duration.inMilliseconds;
-                buffered = buffer.inMilliseconds / duration.inMilliseconds;
-              }
+          Builder(
+            builder: (context) {
+              final progress = _duration.inMilliseconds > 0 
+                ? _position.inMilliseconds / _duration.inMilliseconds 
+                : 0.0;
+              final buffered = _duration.inMilliseconds > 0 
+                ? _player.state.buffer.inMilliseconds / _duration.inMilliseconds 
+                : 0.0;
 
               return GestureDetector(
                 onTapDown: (details) {
@@ -497,8 +568,8 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                   final width = box.size.width - 32; // padding
                   final tapPos = details.localPosition.dx;
                   final relative = tapPos / width;
-                  final seekMs = relative * duration.inMilliseconds;
-                  player.seek(Duration(milliseconds: seekMs.toInt()));
+                  final seekMs = relative * _duration.inMilliseconds;
+                  _player.seek(Duration(milliseconds: seekMs.toInt()));
                 },
                 child: CustomProgressBar(
                   progress: progress,
@@ -517,43 +588,32 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
               // Left Group
               Row(
                 children: [
-                  StreamBuilder<bool>(
-                    stream: player.stream.playing,
-                    builder: (context, snapshot) {
-                      final isPlaying = snapshot.data ?? false;
-                      return IconButton(
-                        icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
-                        onPressed: player.playOrPause,
-                      );
-                    },
+                  IconButton(
+                    icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
+                    onPressed: () => _player.playOrPause(),
                   ),
                   IconButton(
                     icon: const Icon(Icons.replay_10, color: Colors.white),
                     onPressed: () {
-                       player.seek(_position - const Duration(seconds: 10));
+                       final seekTo = _position - const Duration(seconds: 10);
+                       _player.seek(seekTo);
                        ToastManager.show(context, "快退 10s", category: "seek", icon: Icons.fast_rewind);
                     },
                     tooltip: "快退 10s",
                   ),
-                  IconButton(
+                  IconButton( 
                     icon: const Icon(Icons.forward_10, color: Colors.white),
                     onPressed: () {
-                       player.seek(_position + const Duration(seconds: 10));
+                       final seekTo = _position + const Duration(seconds: 10);
+                       _player.seek(seekTo);
                        ToastManager.show(context, "快进 10s", category: "seek", icon: Icons.fast_forward);
                     },
                     tooltip: "快进 10s",
                   ),
                   const SizedBox(width: 8),
-                  StreamBuilder<Duration>(
-                    stream: player.stream.position,
-                    builder: (context, snapshot) {
-                      final pos = snapshot.data ?? Duration.zero;
-                      final dur = player.state.duration;
-                      return Text(
-                        "${_formatDuration(pos)} / ${_formatDuration(dur)}", 
-                        style: const TextStyle(color: Colors.white, fontSize: 13),
-                      );
-                    },
+                  Text(
+                    "${_formatDuration(_position)} / ${_formatDuration(_duration)}", 
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
                   ),
                 ],
               ),
@@ -562,23 +622,24 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
               Row(
                 children: [
                   // Speed
-                  TextButton(
-                    onPressed: () {
-                      // TODO: Open Speed Flyout
+                  SpeedControlFlyout(
+                    currentSpeed: _playbackSpeed,
+                    onSpeedChanged: (speed) {
+                      _player.setRate(speed);
+                      ToastManager.show(context, "播放速度: ${speed}x", category: "speed");
                     },
-                    child: Text("${_playbackSpeed}x", style: const TextStyle(color: Colors.white)),
                   ),
                   
-                  // Quality
+                  // Quality (Placeholder)
                   TextButton(
-                    onPressed: _showQualityMenu,
+                    onPressed: () => ToastManager.show(context, "暂不支持切换画质"),
                     child: const Text("原画质", style: TextStyle(color: Colors.white)),
                   ),
                   
-                  // Subtitle
+                  // Subtitle (Placeholder)
                   IconButton(
                     icon: const Icon(Icons.subtitles, color: Colors.white),
-                    onPressed: _showSubtitleMenu,
+                    onPressed: () => ToastManager.show(context, "暂不支持字幕设置"),
                   ),
                   
                   // PIP
@@ -589,29 +650,41 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                   ),
                   
                   // Settings (Lottie)
-                  LottieIconButton(
-                    assetName: 'settings_lottie.json',
-                    onTap: () => setState(() => _isSettingsOpen = !_isSettingsOpen),
-                    tooltip: "设置",
-                  ),
-                  
-                  // Volume (Lottie)
-                  LottieIconButton(
-                    assetName: _volume == 0 ? 'volume_off_lottie.json' : 'volume_lottie.json',
-                    onTap: () {
-                       final newVol = _volume == 0 ? 100.0 : 0.0;
-                       player.setVolume(newVol);
-                    },
-                    tooltip: "音量",
-                  ),
-                  
-                  // Fullscreen (Lottie)
-                  LottieIconButton(
-                    assetName: _playerSettings?.playerIsFullscreen == true 
-                        ? 'quit_full_screen_lottie.json' 
-                        : 'full_screen_lottie.json',
-                    onTap: _toggleFullScreen,
-                    tooltip: "全屏",
+                  FlyoutMenu(
+                    isOpen: _isSettingsOpen,
+                    openOnHover: true,
+                    onOpen: () => setState(() => _isSettingsOpen = true),
+                    onDismiss: () => setState(() => _isSettingsOpen = false),
+                    offset: const Offset(0, -10),
+                    flyout: SettingsMenu(
+                      player: _player,
+                      currentAspectRatio: _aspectRatio,
+                      currentWindowRatio: _windowRatio,
+                      onAspectRatioChanged: (val) {
+                        setState(() => _aspectRatio = val);
+                      },
+                      onWindowRatioChanged: (val) {
+                        setState(() => _windowRatio = val);
+                      },
+                      onIntroOutroTap: () {
+                        setState(() => _isSettingsOpen = false);
+                        _showIntroOutroDialog();
+                      },
+                      onClose: () => setState(() => _isSettingsOpen = false),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      child: LottieIconButton(
+                        assetName: 'settings_lottie.json',
+                        onTap: () {
+                          if (!_isSettingsOpen) {
+                            setState(() => _isSettingsOpen = true);
+                          }
+                        },
+                        animate: _isSettingsOpen,
+                        tooltip: "设置",
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -620,196 +693,5 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
         ],
       ),
     );
-  }
-
-  Widget _buildSmallWindowUI() {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Center(
-            child: Video(
-              controller: controller,
-              controls: NoVideoControls,
-            ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: MouseRegion(
-               cursor: SystemMouseCursors.move,
-               child: GestureDetector(
-                 onPanStart: (details) {
-                   windowManager.startDragging();
-                 },
-                 child: Container(
-                  color: Colors.transparent, // Invisible grip area
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  alignment: Alignment.topRight,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                       IconButton(
-                         icon: const Icon(Icons.open_in_full, color: Colors.white, size: 20),
-                         onPressed: _toggleSmallWindow, // Restore
-                         tooltip: "恢复窗口",
-                       ),
-                       IconButton(
-                         icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                         onPressed: () => exit(0),
-                         tooltip: "关闭",
-                       ),
-                     ],
-                   ),
-                 ),
-               ),
-            ),
-          ),
-          // Resize handle (bottom right)
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.resizeUpLeftDownRight,
-              child: GestureDetector(
-                onPanStart: (_) => windowManager.startResizing(ResizeEdge.bottomRight),
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  color: Colors.transparent,
-                  child: const Icon(Icons.drag_handle, color: Colors.white54, size: 12),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showIntroOutroDialog() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent,
-      builder: (ctx) => Center(
-        child: IntroOutroDialog(
-          duration: player.state.duration,
-          currentPosition: player.state.position,
-          initialIntroEndMs: 0, // Load from provider
-          initialOutroStartMs: 0, // Load from provider
-          onSave: (intro, outro) {
-            context.read<IntroOutroProvider>().saveIntroOutro("season_id_placeholder", intro, outro);
-            Navigator.pop(ctx);
-          },
-          onReset: () {
-            // Reset logic
-            Navigator.pop(ctx);
-          },
-        ),
-      ),
-    );
-  }
-
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
-  }
-
-  void _showQualityMenu() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.9),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text("画质选择", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            const Divider(color: Colors.white24, height: 1),
-            if (player.state.tracks.video.isEmpty)
-               const Padding(padding: EdgeInsets.all(16), child: Text("无可用画质信息", style: TextStyle(color: Colors.white70))),
-            ...player.state.tracks.video.map((track) {
-              return ListTile(
-                title: Text(track.title ?? "${track.w}x${track.h}", style: const TextStyle(color: Colors.white)),
-                trailing: player.state.track.video == track ? const Icon(Icons.check, color: Colors.blue) : null,
-                onTap: () {
-                  player.setVideoTrack(track);
-                  Navigator.pop(ctx);
-                },
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSubtitleMenu() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.9),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text("字幕选择", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            const Divider(color: Colors.white24, height: 1),
-             ListTile(
-                title: const Text("无", style: TextStyle(color: Colors.white)),
-                trailing: player.state.track.subtitle == SubtitleTrack.no() ? const Icon(Icons.check, color: Colors.blue) : null,
-                onTap: () {
-                  player.setSubtitleTrack(SubtitleTrack.no());
-                  Navigator.pop(ctx);
-                },
-              ),
-            ...player.state.tracks.subtitle.map((track) {
-              return ListTile(
-                title: Text(track.title ?? track.language ?? "Unknown", style: const TextStyle(color: Colors.white)),
-                trailing: player.state.track.subtitle == track ? const Icon(Icons.check, color: Colors.blue) : null,
-                onTap: () {
-                  player.setSubtitleTrack(track);
-                  Navigator.pop(ctx);
-                },
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showToast(String message, {IconData? icon}) {
-    final overlay = Overlay.of(context);
-    final entry = OverlayEntry(
-      builder: (context) => Positioned(
-        bottom: 100,
-        left: 20,
-        child: Material(
-          color: Colors.transparent,
-          child: CustomToast(message: message, icon: icon),
-        ),
-      ),
-    );
-    overlay.insert(entry);
-    Future.delayed(const Duration(seconds: 2), () {
-      entry.remove();
-    });
   }
 }

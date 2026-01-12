@@ -407,7 +407,6 @@ fun PlayerOverlay(
     val streamViewModel: StreamViewModel = koinViewModel()
     val playRecordViewModel: PlayRecordViewModel = koinViewModel()
     val playState by mediaPlayer.playbackState.collectAsState()
-    val toastManager = rememberToastManager()
     val useExternalPlayer = AppSettingsStore.useExternalPlayer && currentPlatform() is Platform.Desktop
 
     LaunchedEffect(playingInfoCache?.itemGuid) {

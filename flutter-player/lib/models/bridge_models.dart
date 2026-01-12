@@ -4,6 +4,8 @@ class AppSettings {
   bool autoPlay;
   bool useExternalPlayer;
   String githubResourceProxyUrl;
+  int introEndMs;
+  int outroStartMs;
 
   AppSettings({
     this.isFollowingSystemTheme = false,
@@ -11,6 +13,8 @@ class AppSettings {
     this.autoPlay = true,
     this.useExternalPlayer = false,
     this.githubResourceProxyUrl = "https://ghfast.top/",
+    this.introEndMs = 0,
+    this.outroStartMs = 0,
   });
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -20,6 +24,8 @@ class AppSettings {
       autoPlay: json['autoPlay'] ?? true,
       useExternalPlayer: json['useExternalPlayer'] ?? false,
       githubResourceProxyUrl: json['githubResourceProxyUrl'] ?? "https://ghfast.top/",
+      introEndMs: json['introEndMs'] ?? 0,
+      outroStartMs: json['outroStartMs'] ?? 0,
     );
   }
 
@@ -30,6 +36,8 @@ class AppSettings {
       'autoPlay': autoPlay,
       'useExternalPlayer': useExternalPlayer,
       'githubResourceProxyUrl': githubResourceProxyUrl,
+      'introEndMs': introEndMs,
+      'outroStartMs': outroStartMs,
     };
   }
 }

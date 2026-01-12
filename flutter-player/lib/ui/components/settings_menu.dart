@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
-import 'custom_ui.dart';
 
 // --- Quality Flyout ---
 class QualityFlyout extends StatefulWidget {
@@ -14,136 +13,28 @@ class QualityFlyout extends StatefulWidget {
 }
 
 class _QualityFlyoutState extends State<QualityFlyout> {
-  bool _isCustomPage = false;
-  String? _selectedResolution;
-
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 350,
       height: 400,
       padding: const EdgeInsets.all(16),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: _isCustomPage ? _buildCustomPage() : _buildSimplePage(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("视频质量", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          const Divider(color: Colors.white24, height: 24),
+          const Expanded(
+            child: Center(
+              child: Text("当前播放引擎暂不支持切换画质", style: TextStyle(color: Colors.white70)),
+            ),
+          ),
+          ListTile(
+            title: const Text("返回", style: TextStyle(color: Colors.blue)),
+            onTap: widget.onClose,
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildSimplePage() {
-    final tracks = widget.player.state.tracks.video;
-    // Aggregate by resolution (simplified logic)
-    final resolutions = <String>{};
-    for (var t in tracks) {
-      if (t.w != null && t.h != null) {
-        resolutions.add("${t.h}p");
-      }
-    }
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text("视频质量", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            GestureDetector(
-              onTap: () => setState(() => _isCustomPage = true),
-              child: const Text("自定义 >", style: TextStyle(color: Colors.white70, fontSize: 14)),
-            ),
-          ],
-        ),
-        const Divider(color: Colors.white24, height: 24),
-        Expanded(
-          child: ListView(
-            children: [
-              _buildSimpleOption("原画质", "4k 11Mbps", true), // Mock data logic needed
-              ...resolutions.map((r) => _buildSimpleOption(r, "", false)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSimpleOption(String title, String subtitle, bool isSelected) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(title, style: TextStyle(color: isSelected ? Colors.blue : Colors.white)),
-      trailing: Text(subtitle, style: TextStyle(color: isSelected ? Colors.blue : Colors.white70, fontSize: 12)),
-      onTap: () {
-        // Logic to select best track for resolution
-        widget.onClose();
-      },
-    );
-  }
-
-  Widget _buildCustomPage() {
-    final tracks = widget.player.state.tracks.video;
-    // Group by resolution
-    final grouped = <String, List<VideoTrack>>{};
-    for (var t in tracks) {
-      final res = (t.w != null && t.h != null) ? "${t.h}p" : "Unknown";
-      grouped.putIfAbsent(res, () => []).add(t);
-    }
-    
-    final resolutions = grouped.keys.toList();
-    _selectedResolution ??= resolutions.isNotEmpty ? resolutions.first : null;
-
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text("自定义视频质量", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            GestureDetector(
-              onTap: () => setState(() => _isCustomPage = false),
-              child: const Text("返回", style: TextStyle(color: Colors.white70, fontSize: 14)),
-            ),
-          ],
-        ),
-        const Divider(color: Colors.white24, height: 24),
-        Expanded(
-          child: Row(
-            children: [
-              // Resolutions List
-              Expanded(
-                flex: 2,
-                child: ListView(
-                  children: resolutions.map((res) {
-                    final isSel = res == _selectedResolution;
-                    return ListTile(
-                      title: Text(res, style: TextStyle(color: isSel ? Colors.blue : Colors.white)),
-                      selected: isSel,
-                      onTap: () => setState(() => _selectedResolution = res),
-                      trailing: const Icon(Icons.chevron_right, color: Colors.white54, size: 16),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const VerticalDivider(color: Colors.white24, width: 1),
-              // Bitrates List
-              Expanded(
-                flex: 3,
-                child: ListView(
-                  children: (_selectedResolution != null ? grouped[_selectedResolution]! : []).map((track) {
-                    final isCurrent = widget.player.state.track.video == track;
-                    final bitrate = track.bitrate != null ? "${(track.bitrate! / 1000000).toStringAsFixed(1)}Mbps" : "Default";
-                    return ListTile(
-                      title: Text(bitrate, style: TextStyle(color: isCurrent ? Colors.blue : Colors.white)),
-                      trailing: isCurrent ? const Icon(Icons.check, color: Colors.blue, size: 16) : null,
-                      onTap: () {
-                        widget.player.setVideoTrack(track);
-                        widget.onClose();
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
@@ -198,7 +89,7 @@ class _IntroOutroDialogState extends State<IntroOutroDialog> {
     return Container(
       width: 350,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.9),
+        color: Colors.black.withAlpha(230), // 0.9 * 255 = 230
         borderRadius: BorderRadius.circular(12),
       ),
       padding: const EdgeInsets.all(16),
@@ -353,14 +244,14 @@ class SettingsMenu extends StatefulWidget {
 }
 
 class _SettingsMenuState extends State<SettingsMenu> {
-  String? _subMenu; // 'audio', 'aspect_ratio', 'window_ratio'
+  String? _subMenu; // 'aspect_ratio', 'window_ratio'
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 320,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.9),
+        color: Colors.black.withAlpha(230),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white24),
       ),
@@ -374,10 +265,7 @@ class _SettingsMenuState extends State<SettingsMenu> {
 
   Widget _buildCurrentMenu() {
     switch (_subMenu) {
-      case 'audio':
-        return _buildAudioSettings();
       case 'aspect_ratio':
-        // Reuse similar structure for aspect ratio if needed, or keep simple
         return _buildSelectionMenu(
            title: '画面比例',
            options: ['默认', '4:3', '16:9', '21:9'],
@@ -405,9 +293,6 @@ class _SettingsMenuState extends State<SettingsMenu> {
   }
 
   Widget _buildMainMenu() {
-    final currentAudio = widget.player.state.track.audio;
-    final audioTitle = "${currentAudio.language ?? '未知'} ${currentAudio.title ?? ''}";
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -419,63 +304,9 @@ class _SettingsMenuState extends State<SettingsMenu> {
         const Divider(color: Colors.white24, height: 1),
         _buildMenuItem("画面比例", widget.currentAspectRatio, () => setState(() => _subMenu = 'aspect_ratio')),
         _buildMenuItem("窗口比例", widget.currentWindowRatio, () => setState(() => _subMenu = 'window_ratio')),
-        _buildMenuItem("音频", audioTitle, () => setState(() => _subMenu = 'audio')),
         _buildMenuItem("设置片头/片尾", "", widget.onIntroOutroTap),
-      ],
-    );
-  }
-
-  Widget _buildAudioSettings() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left, color: Colors.white),
-                onPressed: () => setState(() => _subMenu = null),
-              ),
-              const Text("音频", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-        const Divider(color: Colors.white24, height: 1),
-        SizedBox(
-          height: 300,
-          child: ListView(
-            shrinkWrap: true,
-            children: widget.player.state.tracks.audio.map((track) {
-              final isSelected = widget.player.state.track.audio == track;
-              return ListTile(
-                title: Text(
-                  "${track.language ?? '未知'} - ${track.id}", 
-                  style: TextStyle(color: isSelected ? Colors.blue : Colors.white),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      track.title ?? "", 
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                    if (track.channels != null)
-                      Text(
-                        "${track.channels} channels", 
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                  ],
-                ),
-                trailing: isSelected ? const Icon(Icons.check, color: Colors.blue, size: 16) : null,
-                onTap: () {
-                  widget.player.setAudioTrack(track);
-                  widget.onClose();
-                },
-              );
-            }).toList(),
-          ),
-        ),
+        _buildMenuItem("音频", "暂不支持", () {}),
+        _buildMenuItem("字幕", "暂不支持", () {}),
       ],
     );
   }
@@ -543,8 +374,8 @@ class SubtitleFlyout extends StatefulWidget {
   final VoidCallback onSearchTap;
 
   const SubtitleFlyout({
-    super.key,
-    required this.player,
+    super.key, 
+    required this.player, 
     required this.onClose,
     required this.onSearchTap,
   });
@@ -553,199 +384,29 @@ class SubtitleFlyout extends StatefulWidget {
   State<SubtitleFlyout> createState() => _SubtitleFlyoutState();
 }
 
-class _SubtitleFlyoutState extends State<SubtitleFlyout> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  double _offset = 0.0;
-  double _position = 0.1; // 0 (bottom) to 1 (top)
-  double _size = 1.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
+class _SubtitleFlyoutState extends State<SubtitleFlyout> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 320,
-      height: 450,
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Column(
-        children: [
-          TabBar(
-            controller: _tabController,
-            tabs: const [
-              Tab(text: "字幕"),
-              Tab(text: "调整"),
-            ],
-            indicatorColor: Colors.blue,
-            labelColor: Colors.blue,
-            unselectedLabelColor: Colors.white70,
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildSubtitleList(),
-                _buildAdjustPage(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSubtitleList() {
-    final tracks = widget.player.state.tracks.subtitle;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.search, size: 16),
-                  label: const Text("搜索字幕"),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.white),
-                  onPressed: () {
-                    widget.onSearchTap();
-                    widget.onClose();
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.add, color: Colors.white),
-                onSelected: (val) {
-                  // TODO: Implement file picker logic
-                  if (val == 'local') {
-                    // Open file picker
-                  } else if (val == 'nas') {
-                    // Open NAS picker
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(value: 'local', child: Text("添加电脑字幕文件")),
-                  const PopupMenuItem(value: 'nas', child: Text("添加 NAS 字幕文件")),
-                ],
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView(
-            children: [
-               ListTile(
-                  title: const Text("无", style: TextStyle(color: Colors.white)),
-                  trailing: widget.player.state.track.subtitle == SubtitleTrack.no() ? const Icon(Icons.check, color: Colors.blue) : null,
-                  onTap: () {
-                    widget.player.setSubtitleTrack(SubtitleTrack.no());
-                    widget.onClose();
-                  },
-                ),
-              ...tracks.map((track) {
-                final isSelected = widget.player.state.track.subtitle == track;
-                return ListTile(
-                  title: Text(track.title ?? track.language ?? "Track ${track.id}", style: TextStyle(color: isSelected ? Colors.blue : Colors.white)),
-                  trailing: isSelected ? const Icon(Icons.check, color: Colors.blue, size: 16) : null,
-                  onTap: () {
-                    widget.player.setSubtitleTrack(track);
-                    widget.onClose();
-                  },
-                );
-              }),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAdjustPage() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
+      width: 350,
+      height: 400,
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSlider("偏移", _offset, -5.0, 5.0, (val) {
-             setState(() => _offset = val);
-             // TODO: Apply subtitle offset
-          }, suffix: "${_offset.toStringAsFixed(1)}s", hasReset: true, onReset: () => setState(() => _offset = 0.0)),
-          
-          const SizedBox(height: 16),
-          _buildSlider("位置", _position, 0.0, 1.0, (val) {
-             setState(() => _position = val);
-             // TODO: Apply subtitle position (unsupported in pure media_kit for now, maybe custom renderer)
-          }, minLabel: "底", maxLabel: "顶"),
-
-          const SizedBox(height: 16),
-          _buildSlider("字号", _size, 0.5, 2.0, (val) {
-             setState(() => _size = val);
-             // TODO: Apply subtitle scale
-          }, minLabel: "小", maxLabel: "大"),
+          const Text("字幕设置", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          const Divider(color: Colors.white24, height: 24),
+          const Expanded(
+            child: Center(
+              child: Text("当前播放引擎暂不支持切换字幕", style: TextStyle(color: Colors.white70)),
+            ),
+          ),
+          ListTile(
+            title: const Text("返回", style: TextStyle(color: Colors.blue)),
+            onTap: widget.onClose,
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSlider(String label, double value, double min, double max, Function(double) onChanged, {String? suffix, String? minLabel, String? maxLabel, bool hasReset = false, VoidCallback? onReset}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.white)),
-            if (hasReset)
-              GestureDetector(
-                onTap: onReset,
-                child: const Text("重置", style: TextStyle(color: Colors.blue, fontSize: 12)),
-              ),
-          ],
-        ),
-        Row(
-          children: [
-            if (minLabel != null) Text(minLabel, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-            Expanded(
-              child: SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 2,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                ),
-                child: Slider(
-                  value: value,
-                  min: min,
-                  max: max,
-                  onChanged: onChanged,
-                  activeColor: Colors.blue,
-                  inactiveColor: Colors.white24,
-                ),
-              ),
-            ),
-            if (maxLabel != null) Text(maxLabel, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-            if (suffix != null) 
-              Container(
-                width: 40, 
-                alignment: Alignment.centerRight,
-                child: Text(suffix, style: const TextStyle(color: Colors.white, fontSize: 12)),
-              ),
-          ],
-        ),
-      ],
     );
   }
 }
@@ -767,7 +428,7 @@ class _VolumeFlyoutState extends State<VolumeFlyout> {
       width: 50,
       height: 200,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.9),
+        color: Colors.black.withAlpha(230),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white24),
       ),
@@ -805,43 +466,7 @@ class _VolumeFlyoutState extends State<VolumeFlyout> {
   }
 }
 
-class SpeedFlyout extends StatelessWidget {
-  final double currentSpeed;
-  final Function(double) onSpeedChanged;
-  final VoidCallback onClose;
 
-  const SpeedFlyout({super.key, required this.currentSpeed, required this.onSpeedChanged, required this.onClose});
-
-  @override
-  Widget build(BuildContext context) {
-    final speeds = [2.0, 1.75, 1.5, 1.25, 1.0, 0.75, 0.5];
-    return Container(
-      width: 120,
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: speeds.map((speed) {
-          final isSelected = currentSpeed == speed;
-          return ListTile(
-            dense: true,
-            title: Text("${speed}x", style: TextStyle(color: isSelected ? Colors.blue : Colors.white)),
-            trailing: isSelected ? const Icon(Icons.check, color: Colors.blue, size: 16) : null,
-            onTap: () {
-              onSpeedChanged(speed);
-              onClose();
-            },
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
 
 // TODO: Implement EpisodeFlyout and NextPreviewFlyout if data is available
 // For now, these are placeholders or can be implemented when data models are ready
-

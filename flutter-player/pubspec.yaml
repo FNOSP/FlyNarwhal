@@ -12,7 +12,7 @@ dependencies:
   media_kit: ^1.1.10
   media_kit_video: ^1.2.4
   media_kit_libs_video: ^1.0.4
-  media_kit_libs_windows_video: ^1.0.8
+  universal_platform: ^1.0.0+1
   window_manager: ^0.3.7
   shelf: ^1.4.1
   shelf_router: ^1.1.4
@@ -22,6 +22,7 @@ dependencies:
   lottie: ^3.3.2
   path_provider: ^2.1.5
   shared_preferences: ^2.2.2
+  fluent_ui: ^4.8.4
 
 dev_dependencies:
   flutter_test:

@@ -47,4 +47,15 @@ class BridgeApiClient {
       body: jsonEncode(settings.toJson()),
     );
   }
+
+  Future<void> updateIntroOutroSettings(int introEndMs, int outroStartMs) async {
+    await http.post(
+      Uri.parse('$_baseUrl/settings/intro-outro'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'introEndMs': introEndMs,
+        'outroStartMs': outroStartMs,
+      }),
+    );
+  }
 }

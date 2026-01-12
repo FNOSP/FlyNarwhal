@@ -2,6 +2,9 @@ import org.gradle.api.tasks.JavaExec
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.io.ByteArrayOutputStream
+import java.net.URL
+import java.net.HttpURLConnection
 
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
@@ -126,51 +129,167 @@ fun resolveFlutterExecutable(project: Project): File? {
         val flutterBin = File(flutterHome, "bin")
         val flutterBat = File(flutterBin, "flutter.bat")
         val flutterExe = File(flutterBin, "flutter")
-        return when {
+        val result = when {
             flutterBat.exists() -> flutterBat
             flutterExe.exists() -> flutterExe
             else -> null
         }
+        if (result != null) return result
     }
 
     val localFlutterBat = project.rootDir.resolve("flutter/bin/flutter.bat")
-    return if (localFlutterBat.exists()) localFlutterBat else null
+    if (localFlutterBat.exists()) return localFlutterBat
+
+    return listOf(
+        File(System.getProperty("user.home"), "sdk/flutter/bin/flutter"),
+        File(System.getProperty("user.home"), "sdk/flutter/bin/flutter.bat"),
+        File(System.getProperty("user.home"), "fvm/default/bin/flutter"),
+        File("/opt/homebrew/bin/flutter"),
+        File("/usr/local/bin/flutter"),
+        File("C:/src/flutter/bin/flutter.bat")
+    ).find { it.exists() }
 }
 
-val buildFlutterPlayer by tasks.registering(Exec::class) {
-    val flutterProjectDir = project.rootDir.resolve("flutter-player")
-    workingDir = flutterProjectDir
+val flutterPlayerProjectDir = project.rootDir.resolve("flutter-player")
+val flutterTmpBuildRoot = File("/tmp/fntv_flutter_player_build")
 
-    val targetOs = when {
-        osName.contains("win") -> "windows"
-        osName.contains("mac") -> "macos"
-        else -> "linux"
+val cleanFlutterPlayerDirs by tasks.registering(Delete::class) {
+    delete(
+        flutterPlayerProjectDir.resolve("build"),
+        flutterPlayerProjectDir.resolve(".dart_tool"),
+    )
+    if (osName.contains("mac")) {
+        delete(flutterTmpBuildRoot)
     }
+}
+
+val cleanFlutterPlayer by tasks.registering(Exec::class) {
+    workingDir = flutterPlayerProjectDir
 
     val flutterExecutable = resolveFlutterExecutable(project)
+    val flutterPath = flutterExecutable?.absolutePath ?: "flutter"
+
+    notCompatibleWithConfigurationCache("Runs flutter clean; configuration cache is not supported for this Exec task.")
+
     if (osName.contains("win")) {
-        val flutterPath = flutterExecutable?.absolutePath ?: "flutter"
-        commandLine("cmd", "/c", flutterPath, "build", targetOs, "--release")
+        commandLine("cmd", "/c", flutterPath, "clean")
     } else {
-        val flutterPath = flutterExecutable?.absolutePath ?: "flutter"
-        commandLine(flutterPath, "build", targetOs, "--release")
+        commandLine(flutterPath, "clean")
     }
 
-    isIgnoreExitValue = true
+    dependsOn(cleanFlutterPlayerDirs)
+}
+
+val buildFlutterPlayer by tasks.registering {
+    // By default, we support incremental builds. Use 'rebuildFlutterPlayer' for a full clean build.
+    notCompatibleWithConfigurationCache("Runs flutter build; configuration cache is not supported for this Exec task.")
+
+    // Inputs for incremental build support
+    inputs.dir(flutterPlayerProjectDir.resolve("lib"))
+    inputs.dir(flutterPlayerProjectDir.resolve("assets"))
+    inputs.file(flutterPlayerProjectDir.resolve("pubspec.yaml"))
 
     doLast {
-        if (executionResult.get().exitValue != 0) {
-            logger.warn("WARNING: Flutter player build failed. The external player functionality will not be available.")
-            logger.warn("To fix this, please ensure you have enabled Developer Mode in Windows Settings or run as Administrator.")
-            logger.warn("If Flutter is not found, set FLUTTER_HOME (or FLUTTER_EXECUTABLE) and restart Gradle/IDE.")
-        } else if (!flutterProjectDir.exists()) {
-            throw GradleException("Flutter player directory not found at ${flutterProjectDir.absolutePath}")
+        val targetOs = when {
+            osName.contains("win") -> "windows"
+            osName.contains("mac") -> "macos"
+            else -> "linux"
+        }
+
+        val flutterExecutable = resolveFlutterExecutable(project)
+        println("Flutter executable: ${flutterExecutable?.absolutePath ?: "not found, using 'flutter' from PATH"}")
+
+        val flutterPath = flutterExecutable?.absolutePath ?: "flutter"
+
+        fun readFlutterBuildDir(): String? {
+            val output = ByteArrayOutputStream()
+            project.exec {
+                workingDir = flutterPlayerProjectDir
+                commandLine(flutterPath, "config", "--machine")
+                standardOutput = output
+            }
+
+            val json = output.toString(Charsets.UTF_8).trim()
+            val match = Regex("\"build-dir\"\\s*:\\s*\"([^\"]*)\"").find(json) ?: return null
+            return match.groupValues.getOrNull(1)
+        }
+
+        fun setFlutterBuildDir(relativeBuildDir: String?) {
+            val arg = if (relativeBuildDir.isNullOrBlank()) "--build-dir=" else "--build-dir=$relativeBuildDir"
+            project.exec {
+                workingDir = flutterPlayerProjectDir
+                commandLine(flutterPath, "config", arg)
+            }
+        }
+
+        val originalBuildDir = if (osName.contains("mac")) readFlutterBuildDir() else null
+        val tempBuildDir = if (osName.contains("mac")) {
+            flutterPlayerProjectDir.toPath().relativize(flutterTmpBuildRoot.toPath()).toString()
+        } else {
+            null
+        }
+
+        var buildFailure: Exception? = null
+        if (osName.contains("mac")) {
+            setFlutterBuildDir(tempBuildDir)
+        }
+
+        try {
+            project.exec {
+                workingDir = flutterPlayerProjectDir
+
+                if (osName.contains("mac")) {
+                    environment("CURL_CA_BUNDLE", "/etc/ssl/cert.pem")
+                }
+
+                if (osName.contains("win")) {
+                    commandLine("cmd", "/c", flutterPath, "build", targetOs, "--release")
+                } else {
+                    commandLine(flutterPath, "build", targetOs, "--release")
+                }
+            }
+        } catch (e: Exception) {
+            buildFailure = e
+        } finally {
+            if (osName.contains("mac")) {
+                setFlutterBuildDir(originalBuildDir)
+            }
+        }
+
+        if (buildFailure != null) throw buildFailure
+    }
+}
+
+val rebuildFlutterPlayer by tasks.registering {
+    group = "flutter"
+    description = "Cleans and rebuilds the Flutter player."
+    dependsOn(cleanFlutterPlayer)
+    dependsOn(buildFlutterPlayer)
+}
+
+val flutterHotRestart by tasks.registering {
+    group = "flutter"
+    description = "Triggers a hot-restart of the Flutter player if it was started via 'flutter run'."
+    doLast {
+        val playerPort = 47922
+        try {
+            val connection = URL("http://127.0.0.1:$playerPort/play").openConnection() as HttpURLConnection
+            connection.connectTimeout = 500
+            connection.readTimeout = 500
+            if (connection.responseCode == 200) {
+                logger.lifecycle("Flutter player is running. You can use hot-restart in your terminal where 'flutter run' is active.")
+            } else {
+                logger.warn("Flutter player is not responding on port $playerPort.")
+            }
+        } catch (e: Exception) {
+            logger.warn("Could not connect to Flutter player. Make sure it's running via 'flutter run'.")
         }
     }
 }
 
 val prepareAllAppResources by tasks.registering(Copy::class) {
     dependsOn(prepareProxyResources, prepareUpdaterResources, buildFlutterPlayer)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     // 1. Copy platform-specific resources from appResources/
     val currentPlatformDir = when {
@@ -196,25 +315,52 @@ val prepareAllAppResources by tasks.registering(Copy::class) {
                 flutterProjectDir.resolve("build/windows/runner/Release")
             ).firstOrNull { it.exists() } ?: flutterProjectDir.resolve("build/windows/x64/runner/Release")
         }
-        osName.contains("mac") -> flutterProjectDir.resolve("build/macos/Build/Products/Release")
+        osName.contains("mac") -> {
+            val tmpSource = flutterTmpBuildRoot.resolve("macos/Build/Products/Release")
+            if (tmpSource.exists()) tmpSource else flutterProjectDir.resolve("build/macos/Build/Products/Release")
+        }
         else -> flutterProjectDir.resolve("build/linux/x64/release/bundle")
     }
 
-    from(flutterSourceDir) {
-        if (flutterSourceDir.exists()) {
-            if (osName.contains("win")) {
-                include("flutter-player.exe")
-                include("flutter_player.exe")
-                include("*.dll")
-                include("data/**")
-            } else if (osName.contains("mac")) {
-                include("flutter-player.app/**")
-                include("flutter_player.app/**")
-            } else {
-                include("flutter-player")
-                include("flutter_player")
-                include("lib/**")
-                include("data/**")
+    if (osName.contains("mac")) {
+        // On macOS, use rsync to preserve symlinks in the .app bundle
+        doLast {
+            if (flutterSourceDir.exists()) {
+                val appBundle = flutterSourceDir.listFiles()?.find { it.name.endsWith(".app") }
+                if (appBundle != null) {
+                    val destDir = allAppResourcesDir.get().asFile
+                    destDir.mkdirs()
+                    
+                    // Clean up existing .app bundle to avoid symlink issues
+                    val existingApp = destDir.resolve(appBundle.name)
+                    if (existingApp.exists()) {
+                        logger.lifecycle("Cleaning up existing app bundle: ${existingApp.absolutePath}")
+                        existingApp.deleteRecursively()
+                    }
+
+                    logger.lifecycle("Syncing Flutter app bundle using rsync: ${appBundle.absolutePath} -> ${existingApp.absolutePath}")
+                    project.exec {
+                        // Use rsync -a to preserve symlinks and -L is NOT used to keep them as links
+                        // Ensure the destination is the full path including the .app folder name
+                        commandLine("rsync", "-a", "--delete", appBundle.absolutePath + "/", existingApp.absolutePath + "/")
+                    }
+                }
+            }
+        }
+    } else {
+        from(flutterSourceDir) {
+            if (flutterSourceDir.exists()) {
+                if (osName.contains("win")) {
+                    include("flutter-player.exe")
+                    include("flutter_player.exe")
+                    include("*.dll")
+                    include("data/**")
+                } else {
+                    include("flutter-player")
+                    include("flutter_player")
+                    include("lib/**")
+                    include("data/**")
+                }
             }
         }
     }
@@ -236,6 +382,7 @@ val buildUpdater by tasks.registering(Exec::class) {
 val prepareUpdaterResources by tasks.registering(Copy::class) {
     dependsOn(buildUpdater)
     enabled = osName.contains("win")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     
     val currentPlatform = platformStr
     val sourceDir = project.rootDir.resolve("fntv-updater/build").resolve(currentPlatform)
@@ -248,6 +395,7 @@ val prepareUpdaterResources by tasks.registering(Copy::class) {
 
 val mergeResources by tasks.registering(Copy::class) {
     dependsOn(prepareProxyResources, prepareUpdaterResources, prepareKcefResources)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(proxyResourcesDir)
     from(file("appResources"))
     dependsOn(prepareAllAppResources)
@@ -276,6 +424,8 @@ afterEvaluate {
         "jvmProcessResources",
         "processResources",
         "prepareAppResources",
+        "run",
+        "jvmRun",
         "createDistributable",
         "createReleaseDistributable",
         "createDebugDistributable",
@@ -300,11 +450,16 @@ afterEvaluate {
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         dependsOn(generateBuildConfig)
+        dependsOn(buildFlutterPlayer)
     }
 
     tasks.withType<JavaExec>().configureEach {
         jvmArgs("--add-opens", "java.desktop/sun.awt=ALL-UNNAMED")
         jvmArgs("--add-opens", "java.desktop/java.awt.peer=ALL-UNNAMED")
+
+        if (project.hasProperty("dev")) {
+            systemProperty("fntv.dev", "true")
+        }
 
         if (System.getProperty("os.name").contains("Mac")) {
             jvmArgs("--add-opens", "java.desktop/sun.lwawt=ALL-UNNAMED")

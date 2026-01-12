@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
@@ -7,6 +8,7 @@ class FlyoutMenu extends StatefulWidget {
   final bool isOpen;
   final VoidCallback onDismiss;
   final VoidCallback? onOpen;
+  final bool openOnHover; // Add this
   final Alignment anchorAlignment;
   final Alignment flyoutAlignment;
   final Offset offset;
@@ -18,6 +20,7 @@ class FlyoutMenu extends StatefulWidget {
     required this.isOpen,
     required this.onDismiss,
     this.onOpen,
+    this.openOnHover = false, // Default to false for backward compatibility
     this.anchorAlignment = Alignment.topCenter,
     this.flyoutAlignment = Alignment.bottomCenter,
     this.offset = Offset.zero,
@@ -28,28 +31,86 @@ class FlyoutMenu extends StatefulWidget {
 }
 
 class _FlyoutMenuState extends State<FlyoutMenu> {
-  final LayerLink _layerLink = LayerLink();
+  final GlobalKey _targetKey = GlobalKey();
+  final GlobalKey _flyoutKey = GlobalKey();
   OverlayEntry? _overlayEntry;
-  bool _isHoveringFlyout = false;
-  bool _isHoveringChild = false;
+  Timer? _dismissTimer;
+  Offset? _lastPointerPosition;
+
+  Offset? _computeAnchorPosition() {
+    final ctx = _targetKey.currentContext;
+    if (ctx == null) return null;
+    final renderObject = ctx.findRenderObject();
+    if (renderObject is! RenderBox) return null;
+    if (!renderObject.hasSize) return null;
+
+    final topLeft = renderObject.localToGlobal(Offset.zero);
+    final size = renderObject.size;
+    final targetFraction = _alignmentToFraction(widget.anchorAlignment);
+    return topLeft +
+        Offset(size.width * targetFraction.dx, size.height * targetFraction.dy) +
+        widget.offset;
+  }
+
+  Offset _alignmentToFraction(Alignment alignment) {
+    final dx = ((alignment.x + 1.0) / 2.0).clamp(0.0, 1.0);
+    final dy = ((alignment.y + 1.0) / 2.0).clamp(0.0, 1.0);
+    return Offset(dx, dy);
+  }
+
+  Rect? _globalRectForKey(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx == null) return null;
+    final renderObject = ctx.findRenderObject();
+    if (renderObject is! RenderBox) return null;
+    if (!renderObject.hasSize) return null;
+    final topLeft = renderObject.localToGlobal(Offset.zero);
+    return topLeft & renderObject.size;
+  }
+
+  bool _isPointerInHoverRegion() {
+    final pos = _lastPointerPosition;
+    if (pos == null) return false;
+    final targetRect = _globalRectForKey(_targetKey);
+    if (targetRect != null && targetRect.contains(pos)) return true;
+    final flyoutRect = _globalRectForKey(_flyoutKey);
+    if (flyoutRect != null && flyoutRect.contains(pos)) return true;
+    return false;
+  }
+
+  void _requestOpen() {
+    if (!widget.openOnHover) return;
+    if (widget.isOpen) return;
+    widget.onOpen?.call();
+  }
+
+  void _showOverlayAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!widget.isOpen) return;
+      if (_overlayEntry != null) return;
+      _showOverlay();
+    });
+  }
 
   @override
   void didUpdateWidget(FlyoutMenu oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isOpen && !oldWidget.isOpen) {
-      _showOverlay();
+      _showOverlayAfterFrame();
     } else if (!widget.isOpen && oldWidget.isOpen) {
       _hideOverlay();
     }
   }
 
   void _showOverlay() {
+    if (_overlayEntry != null) return;
     _overlayEntry = _createOverlayEntry();
-    Overlay.of(context).insert(_overlayEntry!);
-    widget.onOpen?.call();
+    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
   }
 
   void _hideOverlay() {
+    if (_overlayEntry == null) return;
     _overlayEntry?.remove();
     _overlayEntry = null;
   }
@@ -57,30 +118,50 @@ class _FlyoutMenuState extends State<FlyoutMenu> {
   OverlayEntry _createOverlayEntry() {
     return OverlayEntry(
       builder: (context) {
+        final anchor = _computeAnchorPosition();
+        if (anchor == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _overlayEntry?.markNeedsBuild();
+          });
+          return const SizedBox.shrink();
+        }
+
+        final followerFraction = _alignmentToFraction(widget.flyoutAlignment);
+        final translation = Offset(-followerFraction.dx, -followerFraction.dy);
         return Stack(
           children: [
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: widget.onDismiss,
-                behavior: HitTestBehavior.translucent,
-                child: Container(color: Colors.transparent),
+            if (!widget.openOnHover)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: widget.onDismiss,
+                  behavior: HitTestBehavior.translucent,
+                  child: Container(color: Colors.transparent),
+                ),
               ),
-            ),
-            CompositedTransformFollower(
-              link: _layerLink,
-              showWhenUnlinked: false,
-              targetAnchor: widget.anchorAlignment,
-              followerAnchor: widget.flyoutAlignment,
-              offset: widget.offset,
-              child: MouseRegion(
-                onEnter: (_) => _isHoveringFlyout = true,
-                onExit: (_) {
-                  _isHoveringFlyout = false;
-                  _checkDismiss();
-                },
-                child: Material(
-                  color: Colors.transparent,
-                  child: _FlyoutContent(child: widget.flyout),
+            Positioned(
+              left: anchor.dx,
+              top: anchor.dy,
+              child: FractionalTranslation(
+                translation: translation,
+                child: MouseRegion(
+                  onEnter: (_) {
+                    _cancelDismiss();
+                  },
+                  onHover: (event) {
+                    _lastPointerPosition = event.position;
+                    _cancelDismiss();
+                  },
+                  onExit: (_) {
+                    _scheduleDismiss();
+                  },
+                  child: Material(
+                    color: Colors.transparent,
+                    elevation: 0,
+                    child: KeyedSubtree(
+                      key: _flyoutKey,
+                      child: _FlyoutContent(child: widget.flyout),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -90,29 +171,45 @@ class _FlyoutMenuState extends State<FlyoutMenu> {
     );
   }
 
-  void _checkDismiss() {
-    Future.delayed(const Duration(milliseconds: 200), () {
-      if (mounted && !_isHoveringFlyout && !_isHoveringChild && widget.isOpen) {
-        widget.onDismiss();
-      }
+  void _cancelDismiss() {
+    _dismissTimer?.cancel();
+    _dismissTimer = null;
+  }
+
+  void _scheduleDismiss() {
+    if (!widget.openOnHover) return;
+    _dismissTimer?.cancel();
+    _dismissTimer = Timer(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      if (!widget.isOpen) return;
+      if (_isPointerInHoverRegion()) return;
+      widget.onDismiss();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return CompositedTransformTarget(
-      link: _layerLink,
-      child: MouseRegion(
-        onEnter: (_) {
-          _isHoveringChild = true;
-          if (!widget.isOpen) {
-             // Optional: Open on hover if needed, but usually click for menus
-          }
-        },
-        onExit: (_) {
-          _isHoveringChild = false;
-          _checkDismiss();
-        },
+    if (widget.isOpen && _overlayEntry == null) {
+      _showOverlayAfterFrame();
+    } else if (!widget.isOpen && _overlayEntry != null) {
+      _hideOverlay();
+    }
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        _cancelDismiss();
+        _requestOpen();
+      },
+      onHover: (event) {
+        _lastPointerPosition = event.position;
+        _cancelDismiss();
+        _requestOpen();
+      },
+      onExit: (_) {
+        _scheduleDismiss();
+      },
+      child: KeyedSubtree(
+        key: _targetKey,
         child: widget.child,
       ),
     );
@@ -120,6 +217,7 @@ class _FlyoutMenuState extends State<FlyoutMenu> {
 
   @override
   void dispose() {
+    _cancelDismiss();
     _hideOverlay();
     super.dispose();
   }
@@ -148,7 +246,7 @@ class _FlyoutContentState extends State<_FlyoutContent> with SingleTickerProvide
       duration: const Duration(milliseconds: 200),
     );
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
     _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
@@ -169,16 +267,10 @@ class _FlyoutContentState extends State<_FlyoutContent> with SingleTickerProvide
       opacity: _fadeAnimation,
       child: ScaleTransition(
         scale: _scaleAnimation,
+        alignment: Alignment.bottomCenter,
         child: SlideTransition(
           position: _slideAnimation,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
-            ),
-            child: widget.child,
-          ),
+          child: widget.child,
         ),
       ),
     );
@@ -248,10 +340,7 @@ class _LottieIconButtonState extends State<LottieIconButton> with SingleTickerPr
       icon = Tooltip(message: widget.tooltip!, child: icon);
     }
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: icon,
-    );
+    return icon;
   }
 }
 
@@ -278,7 +367,7 @@ class CustomProgressBar extends StatelessWidget {
           // Background
           Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withAlpha(51),
               borderRadius: BorderRadius.circular(height / 2),
             ),
           ),
@@ -287,7 +376,7 @@ class CustomProgressBar extends StatelessWidget {
             widthFactor: buffered.clamp(0.0, 1.0),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.4), // Slightly more opaque than background
+                color: Colors.white.withAlpha(102), // Slightly more opaque than background
                 borderRadius: BorderRadius.circular(height / 2),
               ),
             ),
@@ -396,11 +485,11 @@ class CustomToast extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF333333).withOpacity(0.95),
+        color: const Color(0xFF333333).withAlpha(242),
         borderRadius: BorderRadius.circular(6),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withAlpha(77),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -512,7 +601,6 @@ class ToastManager {
       case ToastType.warning:
         return Icons.warning_amber_rounded;
       case ToastType.info:
-      default:
         return Icons.info_outline;
     }
   }
@@ -547,7 +635,6 @@ class _ToastItem {
   final Duration duration;
   final Function(_ToastItem) onDismiss;
   final ValueNotifier<String> notifier;
-  List<int>? _timerIds; // Simplified timer handling
 
   _ToastItem({
     required this.message,
