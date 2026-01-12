@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Refresh
@@ -45,6 +46,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -137,8 +139,9 @@ import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import com.jankinwu.fntv.client.ui.providable.LocalFileInfo
 import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
 import com.jankinwu.fntv.client.ui.providable.LocalIsoTagData
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerIsFullscreen
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
-import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalSetPlayerFullscreen
 import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
@@ -303,6 +306,10 @@ fun PlayerOverlay(
     }
     // Window Aspect Ratio State
     var windowAspectRatio by remember { mutableStateOf(PlayingSettingsStore.playerWindowAspectRatio) }
+    val platform = currentPlatform()
+    val windowState = LocalWindowState.current
+    val isPlayerFullscreen = LocalPlayerIsFullscreen.current
+    val setPlayerFullscreen = LocalSetPlayerFullscreen.current
 
     val playerViewModel: PlayerViewModel = koinViewModel()
     val subtitleSettingsFromVm by playerViewModel.subtitleSettings.collectAsState()
@@ -1356,7 +1363,6 @@ fun PlayerOverlay(
             }
         }
     }
-    val windowState = LocalWindowState.current
     val windowInfo = LocalWindowInfo.current
     val isMinimized = windowState.isMinimized
     val isWindowFocused = windowInfo.isWindowFocused
@@ -1391,10 +1397,7 @@ fun PlayerOverlay(
     var isProgrammaticResize by remember { mutableStateOf(true) }
 
     DisposableEffect(Unit) {
-        // Apply Player Fullscreen preference
-        if (PlayingSettingsStore.playerIsFullscreen) {
-            windowState.placement = WindowPlacement.Fullscreen
-        } else {
+        if (!isPlayerFullscreen) {
             if (windowState.placement == WindowPlacement.Maximized) {
                 isProgrammaticResize = true
                 windowState.placement = WindowPlacement.Floating
@@ -1418,28 +1421,19 @@ fun PlayerOverlay(
         }
 
         onDispose {
-            // Save Player Preference on exit
-            if (windowState.placement == WindowPlacement.Fullscreen) {
-                PlayingSettingsStore.playerIsFullscreen = true
-            } else {
-                PlayingSettingsStore.playerIsFullscreen = false
-                if (windowState.placement != WindowPlacement.Maximized) {
-                    val size = windowState.size
-                    AppSettingsStore.playerWindowWidth = size.width.value
-                    AppSettingsStore.playerWindowHeight = size.height.value
-                    PlayingSettingsStore.saveLastPlayerScreenSize(
-                        size.width.value,
-                        size.height.value
-                    )
-                }
+            if (!isPlayerFullscreen && windowState.placement != WindowPlacement.Maximized) {
+                val size = windowState.size
+                AppSettingsStore.playerWindowWidth = size.width.value
+                AppSettingsStore.playerWindowHeight = size.height.value
+                PlayingSettingsStore.saveLastPlayerScreenSize(
+                    size.width.value,
+                    size.height.value
+                )
 
-                // Save position on exit
-                if (windowState.placement != WindowPlacement.Maximized) {
-                    val position = windowState.position
-                    if (position is WindowPosition.Absolute) {
-                        AppSettingsStore.playerWindowX = position.x.value
-                        AppSettingsStore.playerWindowY = position.y.value
-                    }
+                val position = windowState.position
+                if (position is WindowPosition.Absolute) {
+                    AppSettingsStore.playerWindowX = position.x.value
+                    AppSettingsStore.playerWindowY = position.y.value
                 }
             }
 
@@ -1514,6 +1508,9 @@ fun PlayerOverlay(
             playerFocusRequester.requestFocus()
         }
     }
+    LaunchedEffect(windowState.placement) {
+        surfaceRecreateKey++
+    }
 
     CompositionLocalProvider(
         LocalIsoTagData provides isoTagData,
@@ -1523,6 +1520,13 @@ fun PlayerOverlay(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
+                .let {
+                    if (platform is Platform.MacOS && windowState.placement != WindowPlacement.Fullscreen) {
+                        it.clip(RoundedCornerShape(12.dp))
+                    } else {
+                        it
+                    }
+                }
                 .hoverable(interactionSource)
                 .background(Color.Black)
                 .onPointerEvent(PointerEventType.Exit) {
@@ -1537,7 +1541,8 @@ fun PlayerOverlay(
                         playRecordViewModel,
                         playerManager,
                         audioLevelController,
-                        windowState,
+                        isPlayerFullscreen,
+                        setPlayerFullscreen,
                         toastManager,
                         lastVolume,
                         { lastVolume = it },
@@ -1562,13 +1567,7 @@ fun PlayerOverlay(
                                     mediaPlayer.togglePause()
                                 },
                                 onDoubleTap = {
-                                    if (windowState.placement == WindowPlacement.Fullscreen) {
-                                        windowState.placement = WindowPlacement.Floating
-                                        PlayingSettingsStore.playerIsFullscreen = false
-                                    } else {
-                                        windowState.placement = WindowPlacement.Fullscreen
-                                        PlayingSettingsStore.playerIsFullscreen = true
-                                    }
+                                    setPlayerFullscreen(!isPlayerFullscreen)
                                 }
                             )
                         }
@@ -1697,7 +1696,6 @@ fun PlayerOverlay(
                     ImgLoadingProgressRing(modifier = Modifier.size(32.dp))
                 }
             }
-            val platform = currentPlatform()
             // 播放器 UI
             if (uiVisible) {
                 PlayerTopBar(
@@ -1923,13 +1921,10 @@ fun PlayerOverlay(
                     onDanmakuOpacityChange = { danmakuViewModel.updateOpacity(it) },
                     onDanmakuFontSizeChange = { danmakuViewModel.updateFontSize(it) },
                     onDanmakuSpeedChange = { danmakuViewModel.updateSpeed(it) },
-                    onDanmakuSyncPlaybackSpeedChanged = {
-                        danmakuViewModel.updateSyncPlaybackSpeed(
-                            it
-                        )
-                    },
+                    onDanmakuSyncPlaybackSpeedChanged = { danmakuViewModel.updateSyncPlaybackSpeed(it) },
                     onDanmakuDebugEnabledChange = { danmakuViewModel.updateDebugEnabled(it) },
-                    onDanmakuSettingsHoverChanged = { isDanmakuSettingsHovered = it }
+                    onDanmakuSettingsHoverChanged = { isDanmakuSettingsHovered = it },
+                    windowState = windowState
                 )
             }
 
@@ -2155,9 +2150,12 @@ fun PlayerControlRow(
     onDanmakuSpeedChange: (Float) -> Unit = {},
     onDanmakuSyncPlaybackSpeedChanged: (Boolean) -> Unit = {},
     onDanmakuDebugEnabledChange: (Boolean) -> Unit = {},
-    onDanmakuSettingsHoverChanged: ((Boolean) -> Unit)? = null
+    onDanmakuSettingsHoverChanged: ((Boolean) -> Unit)? = null,
+    windowState: WindowState
 ) {
     val playerManager = LocalPlayerManager.current
+    val isPlayerFullscreen = LocalPlayerIsFullscreen.current
+    val setPlayerFullscreen = LocalSetPlayerFullscreen.current
     val currentPositionMillis by mediaPlayer.currentPositionMillis.collectAsState()
     val interactionSource = remember { MutableInteractionSource() }
     Row(
@@ -2457,18 +2455,10 @@ fun PlayerControlRow(
             Spacer(modifier = Modifier)
 
             // 全屏
-            val windowState = LocalWindowState.current
-            val store = LocalStore.current
             FullScreenControl(
-                isFullScreen = windowState.placement == WindowPlacement.Fullscreen,
+                isFullScreen = isPlayerFullscreen,
                 onClick = {
-                    if (windowState.placement == WindowPlacement.Fullscreen) {
-                        windowState.placement = WindowPlacement.Floating
-                        PlayingSettingsStore.playerIsFullscreen = false
-                    } else {
-                        windowState.placement = WindowPlacement.Fullscreen
-                        PlayingSettingsStore.playerIsFullscreen = true
-                    }
+                    setPlayerFullscreen(!isPlayerFullscreen)
                 }
             )
         }
@@ -3099,7 +3089,8 @@ private fun handlePlayerKeyEvent(
     playRecordViewModel: PlayRecordViewModel,
     playerManager: PlayerManager,
     audioLevelController: AudioLevelController?,
-    windowState: WindowState,
+    isPlayerFullscreen: Boolean,
+    setPlayerFullscreen: (Boolean) -> Unit,
     toastManager: ToastManager,
     lastVolume: Float,
     onLastVolumeChange: (Float) -> Unit,
@@ -3198,19 +3189,12 @@ private fun handlePlayerKeyEvent(
             }
 
             Key.F -> {
-                if (windowState.placement == WindowPlacement.Fullscreen) {
-                    windowState.placement = WindowPlacement.Floating
-                    PlayingSettingsStore.playerIsFullscreen = false
-                } else {
-                    windowState.placement = WindowPlacement.Fullscreen
-                    PlayingSettingsStore.playerIsFullscreen = true
-                }
+                setPlayerFullscreen(!isPlayerFullscreen)
             }
 
             Key.Escape -> {
-                if (windowState.placement == WindowPlacement.Fullscreen) {
-                    windowState.placement = WindowPlacement.Floating
-                    PlayingSettingsStore.playerIsFullscreen = false
+                if (isPlayerFullscreen) {
+                    setPlayerFullscreen(false)
                 }
             }
 
@@ -3346,6 +3330,24 @@ fun PlayerTopBar(
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val playerViewModel: PlayerViewModel = koinViewModel()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
+    val isPlayerFullscreen = LocalPlayerIsFullscreen.current
+    val setPlayerFullscreen = LocalSetPlayerFullscreen.current
+    val closePlayer = {
+        mediaPlayer.stopPlayback()
+        playingInfoCache?.isUseDirectLink?.let {
+            if (!it) {
+                mediaPViewModel.quit(
+                    MediaPRequest(
+                        playLink = playingInfoCache?.playLink ?: ""
+                    ),
+                    updateState = false
+                )
+            }
+        }
+        playerViewModel.updatePlayingInfo(null)
+        playerViewModel.updateSubtitleSettings(SubtitleSettings())
+        onBack()
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -3366,6 +3368,18 @@ fun PlayerTopBar(
                     .padding(top = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
+                if (!isPlayerFullscreen) {
+                    MacOSTrafficLights(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 12.dp, top = 8.dp),
+                        onClose = closePlayer,
+                        onMinimize = { windowState.isMinimized = true },
+                        onToggleFullscreen = {
+                            setPlayerFullscreen(!isPlayerFullscreen)
+                        }
+                    )
+                }
 //                Box(
 //                    modifier = Modifier
 //                        .align(Alignment.CenterStart)
@@ -3430,24 +3444,7 @@ fun PlayerTopBar(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = {
-                                mediaPlayer.stopPlayback()
-                                playingInfoCache?.isUseDirectLink?.let {
-                                    if (!it) {
-                                        mediaPViewModel.quit(
-                                            MediaPRequest(
-                                                playLink = playingInfoCache?.playLink
-                                                    ?: ""
-                                            ),
-                                            updateState = false
-                                        )
-                                    }
-                                }
-                                // 清除缓存
-                                playerViewModel.updatePlayingInfo(null)
-                                playerViewModel.updateSubtitleSettings(SubtitleSettings())
-                                onBack()
-                            }
+                            onClick = closePlayer
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -3475,6 +3472,124 @@ fun PlayerTopBar(
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Medium
                     )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun MacOSTrafficLights(
+    modifier: Modifier = Modifier,
+    onClose: () -> Unit,
+    onMinimize: () -> Unit,
+    onToggleFullscreen: () -> Unit
+) {
+    var isHovered by remember { mutableStateOf(false) }
+    Row(
+        modifier = modifier
+            .onPointerEvent(PointerEventType.Enter) { isHovered = true }
+            .onPointerEvent(PointerEventType.Exit) { isHovered = false },
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        MacOSTrafficLightButton(
+            color = Color(0xFFFF5F57),
+            symbol = MacOSTrafficLightSymbol.Close,
+            showSymbol = isHovered,
+            onClick = onClose
+        )
+        MacOSTrafficLightButton(
+            color = Color(0xFFFFBD2E),
+            symbol = MacOSTrafficLightSymbol.Minimize,
+            showSymbol = isHovered,
+            onClick = onMinimize
+        )
+        MacOSTrafficLightButton(
+            color = Color(0xFF28C840),
+            symbol = MacOSTrafficLightSymbol.Fullscreen,
+            showSymbol = isHovered,
+            onClick = onToggleFullscreen
+        )
+    }
+}
+
+private enum class MacOSTrafficLightSymbol {
+    Close,
+    Minimize,
+    Fullscreen
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun MacOSTrafficLightButton(
+    color: Color,
+    symbol: MacOSTrafficLightSymbol,
+    showSymbol: Boolean,
+    onClick: () -> Unit
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val renderedColor = if (isPressed) color.copy(alpha = 0.75f) else color
+    Box(
+        modifier = Modifier
+            .size(12.dp)
+            .clip(CircleShape)
+            .background(renderedColor)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .onPointerEvent(PointerEventType.Press) { isPressed = true }
+            .onPointerEvent(PointerEventType.Release) { isPressed = false }
+            .onPointerEvent(PointerEventType.Exit) { isPressed = false }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (showSymbol) {
+            androidx.compose.foundation.Canvas(modifier = Modifier.size(6.dp)) {
+                val strokeWidth = size.minDimension * 0.18f
+                val iconColor = Color.Black.copy(alpha = 0.65f)
+                when (symbol) {
+                    MacOSTrafficLightSymbol.Close -> {
+                        drawLine(
+                            color = iconColor,
+                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            end = androidx.compose.ui.geometry.Offset(size.width, size.height),
+                            strokeWidth = strokeWidth
+                        )
+                        drawLine(
+                            color = iconColor,
+                            start = androidx.compose.ui.geometry.Offset(size.width, 0f),
+                            end = androidx.compose.ui.geometry.Offset(0f, size.height),
+                            strokeWidth = strokeWidth
+                        )
+                    }
+
+                    MacOSTrafficLightSymbol.Minimize -> {
+                        drawLine(
+                            color = iconColor,
+                            start = androidx.compose.ui.geometry.Offset(0f, size.height / 2f),
+                            end = androidx.compose.ui.geometry.Offset(size.width, size.height / 2f),
+                            strokeWidth = strokeWidth
+                        )
+                    }
+
+                    MacOSTrafficLightSymbol.Fullscreen -> {
+                        drawLine(
+                            color = iconColor,
+                            start = androidx.compose.ui.geometry.Offset(0f, size.height / 2f),
+                            end = androidx.compose.ui.geometry.Offset(size.width, size.height / 2f),
+                            strokeWidth = strokeWidth
+                        )
+                        drawLine(
+                            color = iconColor,
+                            start = androidx.compose.ui.geometry.Offset(size.width / 2f, 0f),
+                            end = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height),
+                            strokeWidth = strokeWidth
+                        )
+                    }
                 }
             }
         }
@@ -3622,12 +3737,18 @@ fun PlayerBottomBar(
     onDanmakuSpeedChange: (Float) -> Unit = {},
     onDanmakuSyncPlaybackSpeedChanged: (Boolean) -> Unit = {},
     onDanmakuDebugEnabledChange: (Boolean) -> Unit = {},
-    onDanmakuSettingsHoverChanged: (Boolean) -> Unit = {}
+    onDanmakuSettingsHoverChanged: (Boolean) -> Unit = {},
+    windowState: WindowState
 ) {
+    val topPadding = if (currentPlatform() is Platform.MacOS && windowState.placement == WindowPlacement.Fullscreen) {
+        0.dp
+    } else {
+        48.dp
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 48.dp), // 为标题栏留出空间
+            .padding(top = topPadding),
         verticalArrangement = Arrangement.Bottom,
         horizontalAlignment = Alignment.Start
     ) {
@@ -3650,62 +3771,62 @@ fun PlayerBottomBar(
                 introSegmentMillis = introSegmentMillis,
                 creditsSegmentMillis = creditsSegmentMillis
             )
-            // 播放器控制行
-            PlayerControlRow(
-                playState,
-                mediaPlayer,
-                videoProgress,
-                totalDuration,
-                playingInfoCache = playingInfoCache,
-                onSpeedControlHoverChanged = onSpeedControlHoverChanged,
-                onVolumeControlHoverChanged = onVolumeControlHoverChanged,
-                onQualityControlHoverChanged = onQualityControlHoverChanged,
-                onQualitySelected = onQualitySelected,
-                isoTagData = isoTagData,
-                onAudioSelected = onAudioSelected,
-                subtitleSettings = subtitleSettings,
-                onSubtitleSettingsChanged = onSubtitleSettingsChanged,
-                onSubtitleSelected = onSubtitleSelected,
-                onOpenSubtitleSearch = onOpenSubtitleSearch,
-                onOpenAddNasSubtitle = onOpenAddNasSubtitle,
-                onOpenAddLocalSubtitle = onOpenAddLocalSubtitle,
-                onSubtitleControlHoverChanged = onSubtitleControlHoverChanged,
-                onSettingsMenuHoverChanged = onSettingsMenuHoverChanged,
-                onRequestDeleteSubtitle = onRequestDeleteSubtitle,
-                lastVolume = lastVolume,
-                onLastVolumeChange = onLastVolumeChange,
-                onWindowAspectRatioChanged = onWindowAspectRatioChanged,
-                episodeList = episodeList,
-                currentEpisodeGuid = currentEpisodeGuid,
-                onEpisodeSelected = onEpisodeSelected,
-                isAutoPlay = isAutoPlay,
-                onAutoPlayChanged = onAutoPlayChanged,
-                onEpisodeControlHoverChanged = onEpisodeControlHoverChanged,
-                nextEpisode = nextEpisode,
-                onPlayNextEpisode = onNextEpisode,
-                isNextEpisodeHovered = isNextEpisodeHovered,
-                onNextEpisodeHoverChanged = onNextEpisodeHoverChanged,
-                playRecordViewModel = playRecordViewModel,
-                onSkipConfigChanged = onSkipConfigChanged,
-                smartSkipEnabled = smartSkipEnabled,
-                onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
-                isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled,
-                isDanmakuVisible = isDanmakuVisible,
-                onToggleDanmaku = onToggleDanmaku,
-                danmakuArea = danmakuArea,
-                danmakuOpacity = danmakuOpacity,
-                danmakuFontSize = danmakuFontSize,
-                danmakuSpeed = danmakuSpeed,
-                danmakuSyncPlaybackSpeed = danmakuSyncPlaybackSpeed,
-                danmakuDebugEnabled = danmakuDebugEnabled,
-                onDanmakuAreaChange = onDanmakuAreaChange,
-                onDanmakuOpacityChange = onDanmakuOpacityChange,
-                onDanmakuFontSizeChange = onDanmakuFontSizeChange,
-                onDanmakuSpeedChange = onDanmakuSpeedChange,
-                onDanmakuSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
-                onDanmakuDebugEnabledChange = onDanmakuDebugEnabledChange,
-                onDanmakuSettingsHoverChanged = onDanmakuSettingsHoverChanged
-            )
+                PlayerControlRow(
+                    playState,
+                    mediaPlayer,
+                    videoProgress,
+                    totalDuration,
+                    playingInfoCache = playingInfoCache,
+                    onSpeedControlHoverChanged = onSpeedControlHoverChanged,
+                    onVolumeControlHoverChanged = onVolumeControlHoverChanged,
+                    onQualityControlHoverChanged = onQualityControlHoverChanged,
+                    onQualitySelected = onQualitySelected,
+                    isoTagData = isoTagData,
+                    onAudioSelected = onAudioSelected,
+                    subtitleSettings = subtitleSettings,
+                    onSubtitleSettingsChanged = onSubtitleSettingsChanged,
+                    onSubtitleSelected = onSubtitleSelected,
+                    onOpenSubtitleSearch = onOpenSubtitleSearch,
+                    onOpenAddNasSubtitle = onOpenAddNasSubtitle,
+                    onOpenAddLocalSubtitle = onOpenAddLocalSubtitle,
+                    onSubtitleControlHoverChanged = onSubtitleControlHoverChanged,
+                    onSettingsMenuHoverChanged = onSettingsMenuHoverChanged,
+                    onRequestDeleteSubtitle = onRequestDeleteSubtitle,
+                    lastVolume = lastVolume,
+                    onLastVolumeChange = onLastVolumeChange,
+                    onWindowAspectRatioChanged = onWindowAspectRatioChanged,
+                    episodeList = episodeList,
+                    currentEpisodeGuid = currentEpisodeGuid,
+                    onEpisodeSelected = onEpisodeSelected,
+                    isAutoPlay = isAutoPlay,
+                    onAutoPlayChanged = onAutoPlayChanged,
+                    onEpisodeControlHoverChanged = onEpisodeControlHoverChanged,
+                    nextEpisode = nextEpisode,
+                    onPlayNextEpisode = onNextEpisode,
+                    isNextEpisodeHovered = isNextEpisodeHovered,
+                    onNextEpisodeHoverChanged = onNextEpisodeHoverChanged,
+                    playRecordViewModel = playRecordViewModel,
+                    onSkipConfigChanged = onSkipConfigChanged,
+                    smartSkipEnabled = smartSkipEnabled,
+                    onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
+                    isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled,
+                    isDanmakuVisible = isDanmakuVisible,
+                    onToggleDanmaku = onToggleDanmaku,
+                    danmakuArea = danmakuArea,
+                    danmakuOpacity = danmakuOpacity,
+                    danmakuFontSize = danmakuFontSize,
+                    danmakuSpeed = danmakuSpeed,
+                    danmakuSyncPlaybackSpeed = danmakuSyncPlaybackSpeed,
+                    danmakuDebugEnabled = danmakuDebugEnabled,
+                    onDanmakuAreaChange = onDanmakuAreaChange,
+                    onDanmakuOpacityChange = onDanmakuOpacityChange,
+                    onDanmakuFontSizeChange = onDanmakuFontSizeChange,
+                    onDanmakuSpeedChange = onDanmakuSpeedChange,
+                    onDanmakuSyncPlaybackSpeedChanged = onDanmakuSyncPlaybackSpeedChanged,
+                    onDanmakuDebugEnabledChange = onDanmakuDebugEnabledChange,
+                    onDanmakuSettingsHoverChanged = onDanmakuSettingsHoverChanged,
+                    windowState = windowState
+                )
         }
     }
 }

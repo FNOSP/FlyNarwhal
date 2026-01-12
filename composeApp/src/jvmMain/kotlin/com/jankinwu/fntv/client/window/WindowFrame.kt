@@ -30,6 +30,7 @@ fun FrameWindowScope.WindowFrame(
     backButtonVisible: Boolean = true,
     backButtonEnabled: Boolean = false,
     backButtonClick: () -> Unit = {},
+    useNativeFrameOnMacOS: Boolean = false,
     captionBarHeight: Dp = 48.dp,
     content: @Composable (windowInset: WindowInsets, captionBarInset: WindowInsets) -> Unit
 ) {
@@ -88,30 +89,30 @@ fun FrameWindowScope.WindowFrame(
             }
 
             hostOs.isMacOS -> {
-                MacOSWindowFrame(
-                    content = content,
-                    backButtonVisible = backButtonVisible && !isCollapsed,
-                    backButtonEnabled = backButtonEnabled,
-                    onBackButtonClick = backButtonClick,
-                    captionBarHeight = captionBarHeight,
-                    icon = if (isCollapsed) null else icon,
-                    title = if (isCollapsed) "" else title,
-                    state = state,
-                    isAlwaysOnTop = isAlwaysOnTop,
-                    onToggleAlwaysOnTop = {
-                        isAlwaysOnTop = !isAlwaysOnTop
-                        if (playerManager.playerState.isVisible) {
-                            playerManager.requestKeyFocus()
+                if (useNativeFrameOnMacOS) {
+                    content(WindowInsets(0), WindowInsets(0))
+                } else {
+                    MacOSWindowFrame(
+                        content = content,
+                        backButtonVisible = backButtonVisible && !isCollapsed,
+                        backButtonEnabled = backButtonEnabled,
+                        onBackButtonClick = backButtonClick,
+                        captionBarHeight = captionBarHeight,
+                        icon = if (isCollapsed) null else icon,
+                        title = if (isCollapsed) "" else title,
+                        state = state,
+                        isAlwaysOnTop = isAlwaysOnTop,
+                        onToggleAlwaysOnTop = {
+                            isAlwaysOnTop = !isAlwaysOnTop
+                            if (playerManager.playerState.isVisible) {
+                                playerManager.requestKeyFocus()
+                            }
+                        },
+                        onRefreshClick = {
+                            refreshManager.requestRefresh {}
                         }
-                    },
-                    onRefreshClick = {
-                        // 执行刷新操作
-                        refreshManager.requestRefresh {
-                            // 这里可以添加全局刷新逻辑（如果需要）
-//                            println("执行全局刷新")
-                        }
-                    }
-                )
+                    )
+                }
             }
 
             else -> {

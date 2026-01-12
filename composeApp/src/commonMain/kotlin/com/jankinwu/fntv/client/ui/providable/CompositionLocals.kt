@@ -135,6 +135,10 @@ val LocalWindowState = compositionLocalOf<WindowState> { error("WindowState not 
 
 val LocalWindowHandle = compositionLocalOf<Long?> { null }
 
+val LocalPlayerIsFullscreen = compositionLocalOf { false }
+
+val LocalSetPlayerFullscreen = compositionLocalOf<(Boolean) -> Unit> { {} }
+
 val LocalStore = compositionLocalOf<Store> { error("Not provided") }
 
 val LocalWebViewInitialized = compositionLocalOf { false }

@@ -2,6 +2,7 @@ import org.gradle.api.tasks.JavaExec
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.zip.ZipFile
 
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
@@ -196,6 +197,21 @@ afterEvaluate {
         if (System.getProperty("os.name").contains("Mac")) {
             jvmArgs("--add-opens", "java.desktop/sun.lwawt=ALL-UNNAMED")
             jvmArgs("--add-opens", "java.desktop/sun.lwawt.macosx=ALL-UNNAMED")
+        }
+    }
+
+    tasks.withType<org.gradle.jvm.tasks.Jar>().configureEach {
+        if (name != "jvmJar") return@configureEach
+
+        val jarFileProvider = archiveFile
+        outputs.upToDateWhen {
+            val jarFile = jarFileProvider.get().asFile
+            if (!jarFile.exists()) return@upToDateWhen false
+            try {
+                ZipFile(jarFile).use { true }
+            } catch (_: Throwable) {
+                false
+            }
         }
     }
 }

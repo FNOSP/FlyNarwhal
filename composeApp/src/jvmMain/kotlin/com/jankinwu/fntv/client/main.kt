@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +36,8 @@ import com.jankinwu.fntv.client.ui.dialog.KcefInitErrorDialog
 import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerIsFullscreen
+import com.jankinwu.fntv.client.ui.providable.LocalSetPlayerFullscreen
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitError
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitialized
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewRestartRequired
@@ -75,11 +78,14 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.KoinApplication
 import org.koin.compose.viewmodel.koinViewModel
 import org.openani.mediamp.PlaybackState
+import org.openani.mediamp.MediampPlayer
 import org.openani.mediamp.compose.rememberMediampPlayer
 import java.awt.Dimension
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import java.io.File
+import java.lang.reflect.InvocationHandler
+import java.lang.reflect.Proxy
 
 private object WindowsDisplaySleepBlocker {
     private const val ES_SYSTEM_REQUIRED = 0x00000001
@@ -102,6 +108,75 @@ private object WindowsDisplaySleepBlocker {
             }
         } catch (t: Throwable) {
             logger.w(t) { "Failed to set execution state, enabled=$enabled" }
+        }
+    }
+}
+
+private object MacOSFullscreenInterop {
+    private val available: Boolean by lazy {
+        try {
+            Class.forName("com.apple.eawt.FullScreenUtilities")
+            Class.forName("com.apple.eawt.Application")
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    fun requestToggleFullScreen(window: java.awt.Window): Boolean {
+        if (!available) return false
+        return try {
+            val appClass = Class.forName("com.apple.eawt.Application")
+            val app = appClass.getMethod("getApplication").invoke(null)
+            val requestToggle = appClass.getMethod("requestToggleFullScreen", java.awt.Window::class.java)
+            requestToggle.invoke(app, window)
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    fun addFullScreenListener(
+        window: java.awt.Window,
+        onEntered: () -> Unit,
+        onExited: () -> Unit
+    ): AutoCloseable? {
+        if (!available) return null
+        return try {
+            val utilitiesClass = Class.forName("com.apple.eawt.FullScreenUtilities")
+            val listenerClass = Class.forName("com.apple.eawt.FullScreenListener")
+            val handler = InvocationHandler { _, method, _ ->
+                when (method.name) {
+                    "windowEnteringFullScreen", "windowEnteredFullScreen" -> onEntered()
+                    "windowExitingFullScreen", "windowExitedFullScreen" -> onExited()
+                }
+                null
+            }
+            val listener = Proxy.newProxyInstance(
+                listenerClass.classLoader,
+                arrayOf(listenerClass),
+                handler
+            )
+            val addMethod = utilitiesClass.getMethod(
+                "addFullScreenListener",
+                java.awt.Window::class.java,
+                listenerClass
+            )
+            addMethod.invoke(null, window, listener)
+
+            AutoCloseable {
+                try {
+                    val removeMethod = utilitiesClass.getMethod(
+                        "removeFullScreenListener",
+                        java.awt.Window::class.java,
+                        listenerClass
+                    )
+                    removeMethod.invoke(null, window, listener)
+                } catch (_: Throwable) {
+                }
+            }
+        } catch (_: Throwable) {
+            null
         }
     }
 }
@@ -191,8 +266,20 @@ fun main() {
                 } else {
                     WindowPosition.Aligned(Alignment.Center)
                 }
-                val playerState = rememberWindowState(
+                var playerIsFullscreen by remember {
+                    mutableStateOf(PlayingSettingsStore.playerIsFullscreen)
+                }
+                val playerFloatingState = rememberWindowState(
                     position = playerPosition,
+                    placement = WindowPlacement.Floating,
+                    size = DpSize(
+                        AppSettingsStore.playerWindowWidth.dp,
+                        AppSettingsStore.playerWindowHeight.dp
+                    )
+                )
+                val playerFullscreenState = rememberWindowState(
+                    position = WindowPosition.Aligned(Alignment.Center),
+                    placement = WindowPlacement.Fullscreen,
                     size = DpSize(
                         AppSettingsStore.playerWindowWidth.dp,
                         AppSettingsStore.playerWindowHeight.dp
@@ -228,12 +315,20 @@ fun main() {
 
                 val logExporter = remember { DesktopLogExporter(logDir) }
 
-                val playerDesktopContext = remember(playerState) {
+                val playerFloatingDesktopContext = remember(playerFloatingState) {
                     val dataDir =
                         logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
                     val cacheDir =
                         logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
-                    DesktopContext(playerState, dataDir, cacheDir, logDir, ExtraWindowProperties())
+                    DesktopContext(playerFloatingState, dataDir, cacheDir, logDir, ExtraWindowProperties())
+                }
+
+                val playerFullscreenDesktopContext = remember(playerFullscreenState) {
+                    val dataDir =
+                        logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
+                    val cacheDir =
+                        logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
+                    DesktopContext(playerFullscreenState, dataDir, cacheDir, logDir, ExtraWindowProperties())
                 }
 
                 // 主窗口
@@ -362,89 +457,135 @@ fun main() {
                     }
 
                 // 播放器窗口
-                if (playerManager.playerState.isVisible && !playerManager.isPipMode) {
-                    Window(
-                            onCloseRequest = {
-                                if (PlayingSettingsStore.playerIsFullscreen) {
-                                    playerState.placement = WindowPlacement.Floating
-                                    PlayingSettingsStore.playerIsFullscreen = false
+                if (playerManager.playerState.isVisible) {
+                    val isMacOS = currentPlatform().isMacOS()
+                    val setPlayerFullscreen: (Boolean) -> Unit = { enabled ->
+                        if (isMacOS) {
+                            if (enabled) {
+                                if (playerFullscreenState.placement != WindowPlacement.Fullscreen) {
+                                    playerFullscreenState.placement = WindowPlacement.Fullscreen
                                 }
-                                playerManager.hidePlayer()
-                                player.stopPlayback()
-                            },
-                            state = playerState,
-                            title = playerManager.playerState.mediaTitle,
-                            icon = icon,
-                            undecorated = false
-                        ) {
-                            val playState by player.playbackState.collectAsState()
-                            val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
-
-                            DisposableEffect(shouldBlockDisplaySleep) {
-                                WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
-                                onDispose {
-                                    WindowsDisplaySleepBlocker.setEnabled(false)
+                                if (playerFloatingState.placement != WindowPlacement.Floating) {
+                                    playerFloatingState.placement = WindowPlacement.Floating
+                                }
+                            } else {
+                                if (playerFullscreenState.placement == WindowPlacement.Fullscreen) {
+                                    playerFullscreenState.placement = WindowPlacement.Floating
+                                }
+                                if (playerFloatingState.placement != WindowPlacement.Floating) {
+                                    playerFloatingState.placement = WindowPlacement.Floating
                                 }
                             }
+                        } else {
+                            playerFloatingState.placement =
+                                if (enabled) WindowPlacement.Fullscreen else WindowPlacement.Floating
+                        }
+                        playerIsFullscreen = enabled
+                        PlayingSettingsStore.playerIsFullscreen = enabled
+                        playerManager.requestKeyFocus()
+                    }
 
-                            LaunchedEffect(Unit) {
-                                val baseWidth = 600
-                                val baseHeight = 400
-                                window.minimumSize = Dimension(baseWidth, baseHeight)
-                            }
+                    val closePlayer = {
+                        setPlayerFullscreen(false)
+                        playerManager.hidePlayer()
+                        player.stopPlayback()
+                    }
 
-                            CompositionLocalProvider(
-                                LocalViewModelStoreOwner provides viewModelStoreOwner,
-                                LocalContext provides playerDesktopContext,
-                                LocalLogExporter provides logExporter,
-                                LocalPlayerManager provides playerManager,
-                                LocalMediaPlayer provides player,
-                                LocalFrameWindowScope provides this@Window,
-                                LocalWindowState provides playerState,
-                                LocalWindowHandle provides window.windowHandle,
-                                LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
-                                LocalWebViewRestartRequired provides webViewRestartRequired,
-                                LocalWebViewInitError provides webViewInitError
-                            ) {
-                                WindowFrame(
-                                    onCloseRequest = {
-                                        if (PlayingSettingsStore.playerIsFullscreen) {
-                                            playerState.placement = WindowPlacement.Floating
-                                            PlayingSettingsStore.playerIsFullscreen = false
-                                        }
-                                        playerManager.hidePlayer()
-                                        player.stopPlayback()
-                                    },
-                                    icon = icon,
+                    val playState by player.playbackState.collectAsState()
+                    val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
+
+                    DisposableEffect(shouldBlockDisplaySleep) {
+                        WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                        onDispose {
+                            WindowsDisplaySleepBlocker.setEnabled(false)
+                        }
+                    }
+
+                    if (!playerManager.isPipMode) {
+                        if (isMacOS) {
+                            if (!playerIsFullscreen) {
+                                MacPlayerFloatingWindow(
+                                    onCloseRequest = closePlayer,
+                                    state = playerFloatingState,
                                     title = playerManager.playerState.mediaTitle,
-                                    state = playerState,
-                                    backButtonVisible = false,
-                                    backButtonEnabled = false,
-                                    backButtonClick = {
-                                        if (PlayingSettingsStore.playerIsFullscreen) {
-                                            playerState.placement = WindowPlacement.Floating
-                                            PlayingSettingsStore.playerIsFullscreen = false
-                                        }
-                                        playerManager.hidePlayer()
-                                        player.stopPlayback()
-                                    }
-                                ) { _, _ ->
-                                    PlayerOverlay(
-                                        mediaTitle = playerManager.playerState.mediaTitle,
-                                        subhead = playerManager.playerState.subhead,
-                                        isEpisode = playerManager.playerState.isEpisode,
-                                        onBack = {
-                                            if (PlayingSettingsStore.playerIsFullscreen) {
-                                                playerState.placement = WindowPlacement.Floating
-                                                PlayingSettingsStore.playerIsFullscreen = false
+                                    icon = icon,
+                                    viewModelStoreOwner = viewModelStoreOwner,
+                                    desktopContext = playerFloatingDesktopContext,
+                                    logExporter = logExporter,
+                                    playerManager = playerManager,
+                                    isPlayerFullscreen = playerIsFullscreen,
+                                    setPlayerFullscreen = setPlayerFullscreen,
+                                    mediaPlayer = player,
+                                    webViewInitialized = (webViewInitialized && webViewInitError == null),
+                                    webViewRestartRequired = webViewRestartRequired,
+                                    webViewInitError = webViewInitError
+                                )
+                            } else {
+                                MacPlayerFullscreenWindow(
+                                    onCloseRequest = closePlayer,
+                                    state = playerFullscreenState,
+                                    title = playerManager.playerState.mediaTitle,
+                                    icon = icon,
+                                    viewModelStoreOwner = viewModelStoreOwner,
+                                    desktopContext = playerFullscreenDesktopContext,
+                                    logExporter = logExporter,
+                                    playerManager = playerManager,
+                                    isPlayerFullscreen = playerIsFullscreen,
+                                    setPlayerFullscreen = setPlayerFullscreen,
+                                    mediaPlayer = player,
+                                    webViewInitialized = (webViewInitialized && webViewInitError == null),
+                                    webViewRestartRequired = webViewRestartRequired,
+                                    webViewInitError = webViewInitError
+                                )
+                            }
+                        } else {
+                            Window(
+                                onCloseRequest = closePlayer,
+                                state = playerFloatingState,
+                                title = playerManager.playerState.mediaTitle,
+                                icon = icon
+                            ) {
+                                LaunchedEffect(Unit) {
+                                    val baseWidth = 600
+                                    val baseHeight = 400
+                                    window.minimumSize = Dimension(baseWidth, baseHeight)
+                                }
+
+                                CompositionLocalProvider(
+                                    LocalViewModelStoreOwner provides viewModelStoreOwner,
+                                    LocalContext provides playerFloatingDesktopContext,
+                                    LocalLogExporter provides logExporter,
+                                    LocalPlayerManager provides playerManager,
+                                    LocalPlayerIsFullscreen provides (playerFloatingState.placement == WindowPlacement.Fullscreen),
+                                    LocalSetPlayerFullscreen provides setPlayerFullscreen,
+                                    LocalMediaPlayer provides player,
+                                    LocalFrameWindowScope provides this@Window,
+                                    LocalWindowState provides playerFloatingState,
+                                    LocalWindowHandle provides window.windowHandle,
+                                    LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
+                                    LocalWebViewRestartRequired provides webViewRestartRequired,
+                                    LocalWebViewInitError provides webViewInitError
+                                ) {
+                                    WindowFrame(
+                                        onCloseRequest = closePlayer,
+                                        icon = icon,
+                                        title = playerManager.playerState.mediaTitle,
+                                        state = playerFloatingState,
+                                        backButtonVisible = false,
+                                        backButtonEnabled = false,
+                                        backButtonClick = closePlayer
+                                    ) { _, _ ->
+                                        PlayerOverlay(
+                                            mediaTitle = playerManager.playerState.mediaTitle,
+                                            subhead = playerManager.playerState.subhead,
+                                            isEpisode = playerManager.playerState.isEpisode,
+                                            onBack = closePlayer,
+                                            mediaPlayer = player,
+                                            draggableArea = { content ->
+                                                WindowDraggableArea(content = content)
                                             }
-                                            playerManager.hidePlayer()
-                                            // 停止播放
-                                            player.stopPlayback()
-                                        },
-                                        mediaPlayer = player,
-                                        draggableArea = { content -> WindowDraggableArea(content = content) }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -452,20 +593,20 @@ fun main() {
 
                     // 小窗模式
                     if (playerManager.isPipMode) {
-                        // 如果处于全屏模式，退出全屏
-                        if (PlayingSettingsStore.playerIsFullscreen) {
+                        if (playerIsFullscreen) {
                             LaunchedEffect(Unit) {
-                                playerState.placement = WindowPlacement.Floating
-                                PlayingSettingsStore.playerIsFullscreen = false
+                                setPlayerFullscreen(false)
                             }
                         }
 
                         CompositionLocalProvider(
                             LocalViewModelStoreOwner provides viewModelStoreOwner,
-                            LocalContext provides desktopContext, // PIP use main context?
+                            LocalContext provides desktopContext,
                             LocalPlayerManager provides playerManager,
+                            LocalPlayerIsFullscreen provides false,
+                            LocalSetPlayerFullscreen provides setPlayerFullscreen,
                             LocalMediaPlayer provides player,
-                            LocalWindowState provides mainState, // PIP might not need this, but providing just in case
+                            LocalWindowState provides mainState,
                             LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
                             LocalWebViewRestartRequired provides webViewRestartRequired,
                             LocalWebViewInitError provides webViewInitError
@@ -576,6 +717,171 @@ fun main() {
                     }
                 }
             }
+    }
+}
+}
+
+@Composable
+private fun MacPlayerFloatingWindow(
+    onCloseRequest: () -> Unit,
+    state: WindowState,
+    title: String,
+    icon: Painter?,
+    viewModelStoreOwner: ComposeViewModelStoreOwner,
+    desktopContext: DesktopContext,
+    logExporter: DesktopLogExporter,
+    playerManager: PlayerManager,
+    isPlayerFullscreen: Boolean,
+    setPlayerFullscreen: (Boolean) -> Unit,
+    mediaPlayer: MediampPlayer,
+    webViewInitialized: Boolean,
+    webViewRestartRequired: Boolean,
+    webViewInitError: Throwable?
+) {
+    Window(
+        onCloseRequest = onCloseRequest,
+        state = state,
+        title = title,
+        icon = icon,
+        undecorated = true,
+        transparent = true
+    ) {
+        SideEffect {
+            window.minimumSize = Dimension(600, 400)
+        }
+        CompositionLocalProvider(
+            LocalViewModelStoreOwner provides viewModelStoreOwner,
+            LocalContext provides desktopContext,
+            LocalLogExporter provides logExporter,
+            LocalPlayerManager provides playerManager,
+            LocalPlayerIsFullscreen provides isPlayerFullscreen,
+            LocalSetPlayerFullscreen provides setPlayerFullscreen,
+            LocalMediaPlayer provides mediaPlayer,
+            LocalFrameWindowScope provides this@Window,
+            LocalWindowState provides state,
+            LocalWindowHandle provides window.windowHandle,
+            LocalWebViewInitialized provides webViewInitialized,
+            LocalWebViewRestartRequired provides webViewRestartRequired,
+            LocalWebViewInitError provides webViewInitError
+        ) {
+            WindowFrame(
+                onCloseRequest = onCloseRequest,
+                icon = icon,
+                title = title,
+                state = state,
+                backButtonVisible = false,
+                backButtonEnabled = false,
+                backButtonClick = onCloseRequest
+            ) { _, _ ->
+                PlayerOverlay(
+                    mediaTitle = playerManager.playerState.mediaTitle,
+                    subhead = playerManager.playerState.subhead,
+                    isEpisode = playerManager.playerState.isEpisode,
+                    onBack = onCloseRequest,
+                    mediaPlayer = mediaPlayer,
+                    draggableArea = { content -> WindowDraggableArea(content = content) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MacPlayerFullscreenWindow(
+    onCloseRequest: () -> Unit,
+    state: WindowState,
+    title: String,
+    icon: Painter?,
+    viewModelStoreOwner: ComposeViewModelStoreOwner,
+    desktopContext: DesktopContext,
+    logExporter: DesktopLogExporter,
+    playerManager: PlayerManager,
+    isPlayerFullscreen: Boolean,
+    setPlayerFullscreen: (Boolean) -> Unit,
+    mediaPlayer: MediampPlayer,
+    webViewInitialized: Boolean,
+    webViewRestartRequired: Boolean,
+    webViewInitError: Throwable?
+) {
+    Window(
+        onCloseRequest = onCloseRequest,
+        state = state,
+        title = title,
+        icon = icon,
+        visible = state.placement == WindowPlacement.Fullscreen,
+        undecorated = false,
+        transparent = false
+    ) {
+        SideEffect {
+            window.minimumSize = Dimension(600, 400)
+        }
+
+        var isNativeFullscreen by remember { mutableStateOf(false) }
+        DisposableEffect(Unit) {
+            val closeable = MacOSFullscreenInterop.addFullScreenListener(
+                window = window,
+                onEntered = { isNativeFullscreen = true },
+                onExited = {
+                    isNativeFullscreen = false
+                    if (isPlayerFullscreen) {
+                        setPlayerFullscreen(false)
+                    }
+                }
+            )
+            onDispose { closeable?.close() }
+        }
+
+        val setPlayerFullscreenFromFullscreenWindow: (Boolean) -> Unit = { enabled ->
+            if (enabled) {
+                setPlayerFullscreen(true)
+            } else {
+                val shouldToggleNativeFullscreen = isNativeFullscreen || state.placement == WindowPlacement.Fullscreen
+                val toggled = if (shouldToggleNativeFullscreen) {
+                    MacOSFullscreenInterop.requestToggleFullScreen(window)
+                } else {
+                    false
+                }
+                if (!toggled) {
+                    setPlayerFullscreen(false)
+                }
+            }
+        }
+
+        CompositionLocalProvider(
+            LocalViewModelStoreOwner provides viewModelStoreOwner,
+            LocalContext provides desktopContext,
+            LocalLogExporter provides logExporter,
+            LocalPlayerManager provides playerManager,
+            LocalPlayerIsFullscreen provides isPlayerFullscreen,
+            LocalSetPlayerFullscreen provides setPlayerFullscreenFromFullscreenWindow,
+            LocalMediaPlayer provides mediaPlayer,
+            LocalFrameWindowScope provides this@Window,
+            LocalWindowState provides state,
+            LocalWindowHandle provides window.windowHandle,
+            LocalWebViewInitialized provides webViewInitialized,
+            LocalWebViewRestartRequired provides webViewRestartRequired,
+            LocalWebViewInitError provides webViewInitError
+        ) {
+            WindowFrame(
+                onCloseRequest = onCloseRequest,
+                icon = icon,
+                title = title,
+                state = state,
+                backButtonVisible = false,
+                backButtonEnabled = false,
+                backButtonClick = onCloseRequest,
+                useNativeFrameOnMacOS = true
+            ) { _, _ ->
+                PlayerOverlay(
+                    mediaTitle = playerManager.playerState.mediaTitle,
+                    subhead = playerManager.playerState.subhead,
+                    isEpisode = playerManager.playerState.isEpisode,
+                    onBack = onCloseRequest,
+                    mediaPlayer = mediaPlayer,
+                    draggableArea = { content -> WindowDraggableArea(content = content) }
+                )
+            }
+        }
     }
 }
 

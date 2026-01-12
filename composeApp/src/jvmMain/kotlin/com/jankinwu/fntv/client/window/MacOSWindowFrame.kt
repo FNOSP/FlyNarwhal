@@ -4,7 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -39,6 +38,7 @@ import io.github.composefluent.component.Icon
 import io.github.composefluent.component.Text
 import kotlinx.coroutines.launch
 import org.jetbrains.skiko.disableTitleBar
+import javax.swing.JFrame
 
 @Composable
 fun FrameWindowScope.MacOSWindowFrame(
@@ -63,16 +63,20 @@ fun FrameWindowScope.MacOSWindowFrame(
             }
         }
     }
-    LaunchedEffect(window, captionBarHeight) {
-        window.findSkiaLayer()?.disableTitleBar(captionBarHeight.value)
+    val isUndecorated = remember(window) { (window as? JFrame)?.isUndecorated == true }
+    if (!isUndecorated) {
+        LaunchedEffect(window, captionBarHeight) {
+            window.findSkiaLayer()?.disableTitleBar(captionBarHeight.value)
+        }
     }
     val playerManager = LocalPlayerManager.current
     val playerVisible = playerManager.playerState.isVisible
     val uiVisible = playerManager.playerState.isUiVisible
     val showTrafficLights = !playerVisible || uiVisible
-
-    LaunchedEffect(showTrafficLights) {
-        com.jankinwu.fntv.client.utils.MacOSTrafficLightUtils.setTrafficLightButtonsVisible(window, showTrafficLights)
+    if (!isUndecorated) {
+        LaunchedEffect(showTrafficLights) {
+            com.jankinwu.fntv.client.utils.MacOSTrafficLightUtils.setTrafficLightButtonsVisible(window, showTrafficLights)
+        }
     }
 
     //TODO Get real macOS caption bar width.
@@ -82,101 +86,81 @@ fun FrameWindowScope.MacOSWindowFrame(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .windowInsetsPadding(contentInset)
                 .fillMaxWidth()
                 .height(captionBarHeight)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {}
-                )
         ) {
-//                AnimatedContent(
-//                    targetState = backButtonVisible,
-//                    transitionSpec = {
-//                        ContentTransform(
-//                            targetContentEnter = expandHorizontally(),
-//                            initialContentExit = shrinkHorizontally(),
-//                            sizeTransform = SizeTransform { _, _ ->
-//                                tween(
-//                                    FluentDuration.ShortDuration,
-//                                    easing = FluentEasing.FastInvokeEasing
-//                                )
-//                            }
-//                        )
-//                    }
-//                ) {
-//                    if (it) {
-//                        NavigationDefaults.BackButton(
-//                            onClick = onBackButtonClick,
-//                            disabled = !backButtonEnabled,
-//                        )
-//                    } else {
-//                        Spacer(modifier = Modifier.width(2.dp).height(36.dp))
-//                    }
-//                }
-                if (!playerVisible) {
-                    if (icon != null) {
-                        Image(
-                            painter = icon,
-                            contentDescription = null,
-                            modifier = Modifier.padding(start = 6.dp).size(16.dp)
-                        )
-                    }
-                    if (title.isNotEmpty()) {
-                        Text(
-                            text = title,
-                            style = FluentTheme.typography.caption,
-                            modifier = Modifier.padding(start = 16.dp)
-                        )
-                    }
-
-                    Icon(
-                        imageVector = if (isAlwaysOnTop) PinFill else Pin,
-                        contentDescription = "Always On Top",
+            Spacer(modifier = Modifier.size(80.dp, captionBarHeight))
+            Box(modifier = Modifier.weight(1f)) {
+                WindowDraggableArea {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .padding(start = 6.dp)
-                            .size(16.dp)
-                            .clickable { onToggleAlwaysOnTop() }
-                    )
+                            .fillMaxWidth()
+                            .height(captionBarHeight)
+                    ) {
+                        if (!playerVisible) {
+                            if (icon != null) {
+                                Image(
+                                    painter = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(start = 6.dp).size(16.dp)
+                                )
+                            }
+                            if (title.isNotEmpty()) {
+                                Text(
+                                    text = title,
+                                    style = FluentTheme.typography.caption,
+                                    modifier = Modifier.padding(start = 16.dp)
+                                )
+                            }
 
-                    // 添加刷新按钮
-                    if (onRefreshClick != null) {
-                        val rotation = remember { Animatable(0f) }
-                        val coroutineScope = rememberCoroutineScope()
-                        Icon(
-                            imageVector = RefreshCircle,
-                            contentDescription = "Refresh",
-                            modifier = Modifier
-                                .padding(start = 6.dp)
-                                .size(16.dp)
-                                .clickable {
-                                    // 启动旋转动画
-                                    coroutineScope.launch {
-                                        rotation.animateTo(
-                                            targetValue = 360f,
-                                            animationSpec = tween(durationMillis = 1000)
-                                        )
-                                        // 重置旋转角度
-                                        rotation.snapTo(0f)
-                                    }
-                                    // 执行刷新逻辑
-                                    onRefreshClick()
-                                }
-                                .graphicsLayer {
-                                    rotationZ = rotation.value
-                                }
-                        )
+                            Icon(
+                                imageVector = if (isAlwaysOnTop) PinFill else Pin,
+                                contentDescription = "Always On Top",
+                                modifier = Modifier
+                                    .padding(start = 6.dp)
+                                    .size(16.dp)
+                                    .clickable { onToggleAlwaysOnTop() }
+                            )
+
+                            if (onRefreshClick != null) {
+                                val rotation = remember { Animatable(0f) }
+                                val coroutineScope = rememberCoroutineScope()
+                                Icon(
+                                    imageVector = RefreshCircle,
+                                    contentDescription = "Refresh",
+                                    modifier = Modifier
+                                        .padding(start = 6.dp)
+                                        .size(16.dp)
+                                        .clickable {
+                                            coroutineScope.launch {
+                                                rotation.animateTo(
+                                                    targetValue = 360f,
+                                                    animationSpec = tween(durationMillis = 1000)
+                                                )
+                                                rotation.snapTo(0f)
+                                            }
+                                            onRefreshClick()
+                                        }
+                                        .graphicsLayer {
+                                            rotationZ = rotation.value
+                                        }
+                                )
+                            }
+                            HasNewVersionTag()
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
-                    HasNewVersionTag()
-                    Spacer(modifier = Modifier.weight(1f))
                 }
+            }
         }
 
-        window.rootPane.apply {
-            rootPane.putClientProperty("apple.awt.fullWindowContent", true)
-            rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
-            rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
+        if (!isUndecorated) {
+            window.rootPane.apply {
+                rootPane.putClientProperty("apple.awt.fullWindowContent", true)
+                rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
+                rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
+            }
         }
     }
 }
