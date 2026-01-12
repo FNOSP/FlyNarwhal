@@ -23,7 +23,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
@@ -46,6 +49,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -55,7 +59,10 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -159,7 +166,7 @@ fun SubtitleControlFlyout(
                 alignment = Alignment.BottomCenter,
                 properties = PopupProperties(
                     clippingEnabled = false,
-                    focusable = false
+                    focusable = isAdjustmentMode
                 ),
                 onDismissRequest = {
                     if (!isButtonHovered && !popupHovered && !isAddMenuHovered) {
@@ -337,6 +344,10 @@ fun SubtitleAdjustmentContent(
     onSettingsChanged: (SubtitleSettings) -> Unit,
     onBack: () -> Unit
 ) {
+    var inputText by remember(settings.offsetSeconds) {
+        mutableStateOf(((settings.offsetSeconds * 10).roundToInt() / 10.0).toString())
+    }
+
     Surface(
         shape = FlyoutShape,
         color = FlyoutBackgroundColor,
@@ -350,12 +361,25 @@ fun SubtitleAdjustmentContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "调整字幕",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onBack() }
+                            .padding(4.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "调整字幕",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
                 // Reset Button
                 Box(
@@ -399,14 +423,29 @@ fun SubtitleAdjustmentContent(
                     Box(
                         modifier = Modifier
                             .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                            .width(40.dp), // Fixed width for stability
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                            .width(45.dp), // Fixed width for stability
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "${((settings.offsetSeconds * 10).roundToInt() / 10.0)}",
-                            color = Color.White,
-                            fontSize = 12.sp
+                        BasicTextField(
+                            value = inputText,
+                            onValueChange = { newText ->
+                                inputText = newText
+                                // Try to parse the input
+                                newText.toFloatOrNull()?.let { newValue ->
+                                    val rounded = (newValue * 10).roundToInt() / 10f
+                                    onSettingsChanged(settings.copy(offsetSeconds = rounded))
+                                }
+                            },
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            ),
+                            cursorBrush = SolidColor(Color.White),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                     Text(
@@ -417,7 +456,7 @@ fun SubtitleAdjustmentContent(
                     )
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(end = 60.dp), // Align with slider
+                    modifier = Modifier.fillMaxWidth().padding(end = 65.dp), // Align with slider
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("-5秒", color = DefaultTextColor, fontSize = 10.sp)
