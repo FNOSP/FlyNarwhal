@@ -44,7 +44,7 @@ jSystemThemeDetector = "3.9"
 multiplatformMarkdownRenderer = "0.38.1"
 
 [libraries]
-com-saralapps-composemultiplatformwebview4 = { module = "com.saralapps:composemultiplatformwebview", version.ref = "saralappsWebview" }
+com-saralapps-composemultiplatformwebview = { module = "com.saralapps:composemultiplatformwebview", version.ref = "saralappsWebview" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }

@@ -13,7 +13,7 @@ import com.jankinwu.fntv.client.data.model.response.Danmaku
 import com.jankinwu.fntv.client.data.model.response.EpisodeSegmentsResponse
 import com.jankinwu.fntv.client.data.model.response.SmartAnalysisResult
 import com.jankinwu.fntv.client.data.network.FlyNarwhalApi
-import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genAuthx
+import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genAuthxForFlyNarwhal
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import io.ktor.client.HttpClient
@@ -177,7 +177,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
     ): T {
         val fullUrl = buildFullUrl(url)
         logger.i { "GET request: $fullUrl, params: $parameters" }
-        val authx = genAuthx(url, parameters)
+        val authx = genAuthxForFlyNarwhal(url, parameters)
 
         try {
             val response = client.get(fullUrl) {
@@ -207,7 +207,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         handleResponse: suspend (HttpResponse) -> T
     ): T {
         val fullUrl = buildFullUrl(url)
-        val authx = genAuthx(url, parameters)
+        val authx = genAuthxForFlyNarwhal(url, parameters)
         logger.i { "GET SSE request: $fullUrl, params: $parameters" }
 
         return client.prepareGet(fullUrl) {
@@ -234,7 +234,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
     ): T {
         val fullUrl = buildFullUrl(url)
-        val authx = genAuthx(url, data = body)
+        val authx = genAuthxForFlyNarwhal(url, data = body)
         logger.i { "POST request: $fullUrl, body: $body" }
 
         try {

@@ -210,12 +210,13 @@ val generateBuildConfig by tasks.registering {
     // Read secrets from environment variables or project properties
     val reportApiSecret = System.getenv("REPORT_API_SECRET") ?: project.findProperty("REPORT_API_SECRET")?.toString() ?: ""
     val reportUrl = System.getenv("REPORT_URL") ?: project.findProperty("REPORT_URL")?.toString() ?: ""
-    var flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
+    val flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
 
     inputs.property("version", version)
     inputs.property("suffix", suffix)
     inputs.property("reportApiSecret", reportApiSecret)
     inputs.property("reportUrl", reportUrl)
+    inputs.property("flyNarwhalApiSecret", flyNarwhalApiSecret)
     outputs.dir(outputDir)
 
     doLast {
@@ -311,7 +312,7 @@ kotlin {
             implementation(libs.filekit.coil)
             implementation(libs.multiplatform.markdown.renderer)
             implementation(libs.compose.webview)
-            implementation(libs.com.saralapps.composemultiplatformwebview4)
+            implementation(libs.com.saralapps.composemultiplatformwebview)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
