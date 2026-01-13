@@ -32,6 +32,7 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import io.ktor.http.isSuccess
 import io.ktor.serialization.jackson.jackson
 import io.ktor.utils.io.readUTF8Line
 
@@ -122,6 +123,17 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
     }
 
     private suspend fun readDanmakuFromSse(response: HttpResponse): Map<String, List<Danmaku>> {
+        if (!response.status.isSuccess()) {
+            val errorBody = response.bodyAsText()
+            val errorMessage = try {
+                mapper.readValue<SmartAnalysisResult<*>>(errorBody).msg
+            } catch (_: Exception) {
+                errorBody
+            }
+            logger.e { "SSE request failed with status ${response.status}: $errorMessage" }
+            throw IllegalStateException(errorMessage.ifBlank { "SSE request failed with status ${response.status}" })
+        }
+
         val channel = response.bodyAsChannel()
         var eventName: String? = null
         val dataLines = mutableListOf<String>()
