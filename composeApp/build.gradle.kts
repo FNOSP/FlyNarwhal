@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.7.5"
+val appVersion = "1.7.6"
 val appVersionSuffix = ""
 
 val platformStr = when {
