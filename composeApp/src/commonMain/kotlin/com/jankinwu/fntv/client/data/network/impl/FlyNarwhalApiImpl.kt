@@ -27,14 +27,18 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.prepareGet
+import io.ktor.client.request.prepareRequest
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.isSuccess
 import io.ktor.serialization.jackson.jackson
 import io.ktor.utils.io.readUTF8Line
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 class FlyNarwhalApiImpl : FlyNarwhalApi {
     private val logger = Logger.withTag("FlyNarwhalApiImpl")
@@ -68,6 +72,49 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             disable(SerializationFeature.INDENT_OUTPUT)
             disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             disable(SerializationFeature.WRITE_NULL_MAP_VALUES)
+        }
+    }
+
+    override suspend fun getVersion(): SmartAnalysisResult<String> {
+        return get("/api/config/version")
+    }
+
+    override suspend fun startUpdate(downloadUrl: String, hash: String?, proxyUrl: String?): Flow<String> = flow {
+        val body = mapOf(
+            "downloadUrl" to downloadUrl,
+            "hash" to hash,
+            "proxyUrl" to proxyUrl
+        )
+
+        ssePost("/api/config/update/start", body) { response ->
+            if (!response.status.isSuccess()) {
+                val errorBody = response.bodyAsText()
+                throw IllegalStateException("Start update failed: ${response.status} $errorBody")
+            }
+            
+            val channel = response.bodyAsChannel()
+            var eventName: String? = null
+            
+            while (!channel.isClosedForRead) {
+                val line = channel.readUTF8Line() ?: break
+                
+                if (line.isEmpty()) {
+                    eventName = null
+                    continue
+                }
+                
+                if (line.startsWith("event:")) {
+                    eventName = line.removePrefix("event:").trim()
+                } else if (line.startsWith("data:")) {
+                    val data = line.removePrefix("data:").trim()
+                    if (eventName == "error") {
+                        throw IllegalStateException(data)
+                    }
+                    if (eventName == "update_status" || eventName == "update_start") {
+                        emit(data)
+                    }
+                }
+            }
         }
     }
 
@@ -229,6 +276,33 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
                 if (value != null) {
                     parameter(key, value)
                 }
+            }
+            timeout {
+                requestTimeoutMillis = 240_000
+                connectTimeoutMillis = 15_000
+                socketTimeoutMillis = 240_000
+            }
+        }.execute { response ->
+            handleResponse(response)
+        }
+    }
+
+    private suspend fun <T> ssePost(
+        url: String,
+        body: Any? = null,
+        handleResponse: suspend (HttpResponse) -> T
+    ): T {
+        val fullUrl = buildFullUrl(url)
+        val authx = genAuthxForFlyNarwhal(url, data = body)
+        logger.i { "POST SSE request: $fullUrl, body: $body" }
+
+        return client.prepareRequest(fullUrl) {
+            method = HttpMethod.Post
+            header(HttpHeaders.Accept, "text/event-stream")
+            header(HttpHeaders.ContentType, "application/json; charset=utf-8")
+            header("Authx", authx)
+            if (body != null) {
+                setBody(body)
             }
             timeout {
                 requestTimeoutMillis = 240_000

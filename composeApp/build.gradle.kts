@@ -211,12 +211,14 @@ val generateBuildConfig by tasks.registering {
     val reportApiSecret = System.getenv("REPORT_API_SECRET") ?: project.findProperty("REPORT_API_SECRET")?.toString() ?: ""
     val reportUrl = System.getenv("REPORT_URL") ?: project.findProperty("REPORT_URL")?.toString() ?: ""
     val flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
+    val flyNarwhalServerVersion = "0.5.3"
 
     inputs.property("version", version)
     inputs.property("suffix", suffix)
     inputs.property("reportApiSecret", reportApiSecret)
     inputs.property("reportUrl", reportUrl)
     inputs.property("flyNarwhalApiSecret", flyNarwhalApiSecret)
+    inputs.property("flyNarwhalServerVersion", flyNarwhalServerVersion)
     outputs.dir(outputDir)
 
     doLast {
@@ -231,6 +233,7 @@ val generateBuildConfig by tasks.registering {
                 const val REPORT_API_SECRET = "$reportApiSecret"
                 const val REPORT_URL = "$reportUrl"
                 const val FLY_NARWHAL_API_SECRET = "$flyNarwhalApiSecret"
+                const val FLY_NARWHAL_SERVER_VERSION = "$flyNarwhalServerVersion"
             }
         """.trimIndent())
     }
