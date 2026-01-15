@@ -1,7 +1,7 @@
 <h1 align="center">Fly Narwhal</h1>
 
 <p align="center">
-  <img src="img/fly_narwhal_banner.svg" alt="fnarwhal_home" width="600" />
+  <img src="img/fly_narwhal_banner.svg" alt="fnarwhal_home" width="800" />
 </p>
 
 <div align="center">
