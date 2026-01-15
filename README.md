@@ -1,7 +1,7 @@
 <h1 align="center">Fly Narwhal</h1>
 
 <p align="center">
-  <img src="http://oss.jankinwu.com/img/fnarwhal_login.png" alt="fnarwhal_login" width="600" />
+  <img src="img/fly_narwhal_banner.png" alt="fnarwhal_home" width="600" />
 </p>
 
 <div align="center">
