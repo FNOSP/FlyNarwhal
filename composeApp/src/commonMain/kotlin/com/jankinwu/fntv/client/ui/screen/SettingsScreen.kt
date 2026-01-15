@@ -121,8 +121,8 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     var isExporting by remember { mutableStateOf(false) }
     var exportError by remember { mutableStateOf<String?>(null) }
 
-    var flyNarwhalServerEnabled by remember { mutableStateOf(AppSettingsStore.flyNarwhalServerEnabled) }
-    var flyNarwhalServerBaseUrl by remember { mutableStateOf(AppSettingsStore.flyNarwhalServerBaseUrl) }
+    var flyNarwhalServerEnabled by remember(guid) { mutableStateOf(AppSettingsStore.flyNarwhalServerEnabled) }
+    var flyNarwhalServerBaseUrl by remember(guid) { mutableStateOf(AppSettingsStore.flyNarwhalServerBaseUrl) }
 //    var wasSmartAnalysisBaseUrlFocused by remember { mutableStateOf(false) }
 
     if (isExporting) {
@@ -604,6 +604,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                             onCheckStateChange = {
                                 flyNarwhalServerEnabled = it
                                 AppSettingsStore.flyNarwhalServerEnabled = it
+                                updateViewModel.onFlyNarwhalServerEnabledChanged()
 //                                if (it) {
 //                                    LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
 //                                }

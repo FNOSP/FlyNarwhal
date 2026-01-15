@@ -35,6 +35,7 @@ jobs:
         env:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
+          FLY_NARWHAL_API_SECRET: ${{ secrets.FLY_NARWHAL_API_SECRET }}
 
       - name: Export MacOS DMG Path
         run: echo "MAC_DMG_GLOB=$TMPDIR/FlyNarwhal-compose-binaries/**/*.dmg" >> $GITHUB_ENV
@@ -75,6 +76,7 @@ jobs:
         env:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
+          FLY_NARWHAL_API_SECRET: ${{ secrets.FLY_NARWHAL_API_SECRET }}
 
       - name: Export MacOS DMG Path
         run: echo "MAC_DMG_GLOB=$TMPDIR/FlyNarwhal-compose-binaries/**/*.dmg" >> $GITHUB_ENV
@@ -191,6 +193,7 @@ jobs:
         env:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
+          FLY_NARWHAL_API_SECRET: ${{ secrets.FLY_NARWHAL_API_SECRET }}
 
       - name: Setup Inno Setup
         run: |
@@ -242,6 +245,7 @@ jobs:
         env:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
+          FLY_NARWHAL_API_SECRET: ${{ secrets.FLY_NARWHAL_API_SECRET }}
 
       - name: Setup Inno Setup
         run: |
@@ -292,7 +296,7 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.优化播放器 UI  
+          NOTES="1.实现服务端自动更新（需要飞鲸服务端 v0.5.4 及以上版本）  
           　  
           此项目已更名为飞鲸影视，可执行程序名称也相应做了更改，从更名前的旧版本升级到新版过程中出现报错提示“Failed to launch application **”属于正常现象，安装成功后把旧的快捷方式从桌面或开始菜单删除即可。    
           　  

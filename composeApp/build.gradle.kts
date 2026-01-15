@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.7.4"
+val appVersion = "1.7.7"
 val appVersionSuffix = ""
 
 val platformStr = when {
@@ -210,12 +210,15 @@ val generateBuildConfig by tasks.registering {
     // Read secrets from environment variables or project properties
     val reportApiSecret = System.getenv("REPORT_API_SECRET") ?: project.findProperty("REPORT_API_SECRET")?.toString() ?: ""
     val reportUrl = System.getenv("REPORT_URL") ?: project.findProperty("REPORT_URL")?.toString() ?: ""
-    var flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
+    val flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
+    val flyNarwhalServerVersion = "0.5.3"
 
     inputs.property("version", version)
     inputs.property("suffix", suffix)
     inputs.property("reportApiSecret", reportApiSecret)
     inputs.property("reportUrl", reportUrl)
+    inputs.property("flyNarwhalApiSecret", flyNarwhalApiSecret)
+    inputs.property("flyNarwhalServerVersion", flyNarwhalServerVersion)
     outputs.dir(outputDir)
 
     doLast {
@@ -230,6 +233,7 @@ val generateBuildConfig by tasks.registering {
                 const val REPORT_API_SECRET = "$reportApiSecret"
                 const val REPORT_URL = "$reportUrl"
                 const val FLY_NARWHAL_API_SECRET = "$flyNarwhalApiSecret"
+                const val FLY_NARWHAL_SERVER_VERSION = "$flyNarwhalServerVersion"
             }
         """.trimIndent())
     }
@@ -311,7 +315,7 @@ kotlin {
             implementation(libs.filekit.coil)
             implementation(libs.multiplatform.markdown.renderer)
             implementation(libs.compose.webview)
-            implementation(libs.com.saralapps.composemultiplatformwebview4)
+            implementation(libs.com.saralapps.composemultiplatformwebview)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

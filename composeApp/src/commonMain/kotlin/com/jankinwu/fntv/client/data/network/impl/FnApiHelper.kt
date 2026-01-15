@@ -24,11 +24,49 @@ object FnApiHelper {
     }
 
     @OptIn(ExperimentalTime::class)
+    fun genAuthxForOfficial(
+        url: String,
+        parameters: Map<String, Any?>? = null,
+        data: Any? = null,
+    ): String {
+        return genAuthxInternal(
+            url = url,
+            parameters = parameters,
+            data = data,
+            apiSecret = API_SECRET
+        )
+    }
+
+    @OptIn(ExperimentalTime::class)
+    fun genAuthxForFlyNarwhal(
+        url: String,
+        parameters: Map<String, Any?>? = null,
+        data: Any? = null,
+    ): String {
+        val configuredSecret = BuildConfig.FLY_NARWHAL_API_SECRET.trim()
+        return genAuthxInternal(
+            url = url,
+            parameters = parameters,
+            data = data,
+            apiSecret = configuredSecret.ifBlank { API_SECRET }
+        )
+    }
+
+    @OptIn(ExperimentalTime::class)
     fun genAuthx(
         url: String,
         parameters: Map<String, Any?>? = null,
         data: Any? = null,
-        apiSecret: String = BuildConfig.FLY_NARWHAL_API_SECRET
+    ): String {
+        return genAuthxForFlyNarwhal(url = url, parameters = parameters, data = data)
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun genAuthxInternal(
+        url: String,
+        parameters: Map<String, Any?>?,
+        data: Any?,
+        apiSecret: String,
     ): String {
         val nonce = generateRandomDigits()
         val timestamp = Clock.System.now().toEpochMilliseconds().toString()
@@ -56,7 +94,7 @@ object FnApiHelper {
             nonce,
             timestamp,
             dataJsonMd5,
-            apiSecret.ifBlank { API_SECRET }
+            apiSecret
         )
 
         val signStr = signArray.joinToString("_")

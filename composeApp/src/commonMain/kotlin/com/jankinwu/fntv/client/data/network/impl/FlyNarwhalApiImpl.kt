@@ -13,7 +13,7 @@ import com.jankinwu.fntv.client.data.model.response.Danmaku
 import com.jankinwu.fntv.client.data.model.response.EpisodeSegmentsResponse
 import com.jankinwu.fntv.client.data.model.response.SmartAnalysisResult
 import com.jankinwu.fntv.client.data.network.FlyNarwhalApi
-import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genAuthx
+import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genAuthxForFlyNarwhal
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import io.ktor.client.HttpClient
@@ -27,13 +27,18 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.prepareGet
+import io.ktor.client.request.prepareRequest
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.isSuccess
 import io.ktor.serialization.jackson.jackson
 import io.ktor.utils.io.readUTF8Line
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 class FlyNarwhalApiImpl : FlyNarwhalApi {
     private val logger = Logger.withTag("FlyNarwhalApiImpl")
@@ -67,6 +72,49 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             disable(SerializationFeature.INDENT_OUTPUT)
             disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             disable(SerializationFeature.WRITE_NULL_MAP_VALUES)
+        }
+    }
+
+    override suspend fun getVersion(): SmartAnalysisResult<String> {
+        return get("/api/config/version")
+    }
+
+    override suspend fun startUpdate(downloadUrl: String, hash: String?, proxyUrl: String?): Flow<String> = flow {
+        val body = mapOf(
+            "downloadUrl" to downloadUrl,
+            "hash" to hash,
+            "proxyUrl" to proxyUrl
+        )
+
+        ssePost("/api/config/update/start", body) { response ->
+            if (!response.status.isSuccess()) {
+                val errorBody = response.bodyAsText()
+                throw IllegalStateException("Start update failed: ${response.status} $errorBody")
+            }
+            
+            val channel = response.bodyAsChannel()
+            var eventName: String? = null
+            
+            while (!channel.isClosedForRead) {
+                val line = channel.readUTF8Line() ?: break
+                
+                if (line.isEmpty()) {
+                    eventName = null
+                    continue
+                }
+                
+                if (line.startsWith("event:")) {
+                    eventName = line.removePrefix("event:").trim()
+                } else if (line.startsWith("data:")) {
+                    val data = line.removePrefix("data:").trim()
+                    if (eventName == "error") {
+                        throw IllegalStateException(data)
+                    }
+                    if (eventName == "update_status" || eventName == "update_start") {
+                        emit(data)
+                    }
+                }
+            }
         }
     }
 
@@ -122,6 +170,17 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
     }
 
     private suspend fun readDanmakuFromSse(response: HttpResponse): Map<String, List<Danmaku>> {
+        if (!response.status.isSuccess()) {
+            val errorBody = response.bodyAsText()
+            val errorMessage = try {
+                mapper.readValue<SmartAnalysisResult<*>>(errorBody).msg
+            } catch (_: Exception) {
+                errorBody
+            }
+            logger.e { "SSE request failed with status ${response.status}: $errorMessage" }
+            throw IllegalStateException(errorMessage.ifBlank { "SSE request failed with status ${response.status}" })
+        }
+
         val channel = response.bodyAsChannel()
         var eventName: String? = null
         val dataLines = mutableListOf<String>()
@@ -177,7 +236,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
     ): T {
         val fullUrl = buildFullUrl(url)
         logger.i { "GET request: $fullUrl, params: $parameters" }
-        val authx = genAuthx(url, parameters)
+        val authx = genAuthxForFlyNarwhal(url, parameters)
 
         try {
             val response = client.get(fullUrl) {
@@ -207,7 +266,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         handleResponse: suspend (HttpResponse) -> T
     ): T {
         val fullUrl = buildFullUrl(url)
-        val authx = genAuthx(url, parameters)
+        val authx = genAuthxForFlyNarwhal(url, parameters)
         logger.i { "GET SSE request: $fullUrl, params: $parameters" }
 
         return client.prepareGet(fullUrl) {
@@ -228,13 +287,40 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         }
     }
 
+    private suspend fun <T> ssePost(
+        url: String,
+        body: Any? = null,
+        handleResponse: suspend (HttpResponse) -> T
+    ): T {
+        val fullUrl = buildFullUrl(url)
+        val authx = genAuthxForFlyNarwhal(url, data = body)
+        logger.i { "POST SSE request: $fullUrl, body: $body" }
+
+        return client.prepareRequest(fullUrl) {
+            method = HttpMethod.Post
+            header(HttpHeaders.Accept, "text/event-stream")
+            header(HttpHeaders.ContentType, "application/json; charset=utf-8")
+            header("Authx", authx)
+            if (body != null) {
+                setBody(body)
+            }
+            timeout {
+                requestTimeoutMillis = 240_000
+                connectTimeoutMillis = 15_000
+                socketTimeoutMillis = 240_000
+            }
+        }.execute { response ->
+            handleResponse(response)
+        }
+    }
+
     private suspend inline fun <reified T> post(
         url: String,
         body: Any? = emptyMap<String, Any>(),
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
     ): T {
         val fullUrl = buildFullUrl(url)
-        val authx = genAuthx(url, data = body)
+        val authx = genAuthxForFlyNarwhal(url, data = body)
         logger.i { "POST request: $fullUrl, body: $body" }
 
         try {
