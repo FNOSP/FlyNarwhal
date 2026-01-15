@@ -175,7 +175,7 @@
 
 @[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[MR_XIAOBO](https://github.com/xiaobonet) @[汪仔饭](https://club.fnnas.com/home.php?mod=space&uid=5021) @*观如
 
-感谢 [anmoliyang](anmoli.cn) 为此项目 UI 设计做出的贡献
+感谢 [anmoliyang](https://anmoli.cn)) 为此项目 UI 设计做出的贡献
 
 ## 🌟 Star History
 
