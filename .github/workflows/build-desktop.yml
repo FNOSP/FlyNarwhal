@@ -251,11 +251,17 @@ jobs:
       - name: Inspect Bundled Runtime
         shell: powershell
         run: |
-          $runtimeBin = "composeApp\\build\\compose\\binaries\\main-release\\app\\FlyNarwhal\\runtime\\bin"
+          $runtimeBinRel = "composeApp\\build\\compose\\binaries\\main-release\\app\\FlyNarwhal\\runtime\\bin"
+          $runtimeBin = Join-Path $PWD $runtimeBinRel
           if (!(Test-Path $runtimeBin)) { Write-Error "Runtime bin not found: $runtimeBin"; exit 1 }
+          $javaExe = Join-Path $runtimeBin "java.exe"
+          if (!(Test-Path $javaExe)) { Write-Error "java.exe not found: $javaExe"; exit 1 }
           Write-Host "Runtime bin: $runtimeBin"
           Write-Host "api-ms-win-core*.dll count: " (Get-ChildItem $runtimeBin -Filter "api-ms-win-core*.dll" -ErrorAction SilentlyContinue).Count
-          & "$runtimeBin\\java.exe" -XshowSettings:properties -version 2>&1 | Select-String "os.arch|os.name|java.version|java.home"
+          & $javaExe -XshowSettings:properties -version 2>&1 | Select-String "os.arch|os.name|java.version|java.home"
+          Write-Host "Runtime bin: $runtimeBin"
+          Write-Host "api-ms-win-core*.dll count: " (Get-ChildItem $runtimeBin -Filter "api-ms-win-core*.dll" -ErrorAction SilentlyContinue).Count
+          & $javaExe -XshowSettings:properties -version 2>&1 | Select-String "os.arch|os.name|java.version|java.home"
 
       - name: Setup Inno Setup
         run: |
