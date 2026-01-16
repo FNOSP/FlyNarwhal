@@ -236,6 +236,7 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          architecture: 'arm64'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -246,6 +247,15 @@ jobs:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
           FLY_NARWHAL_API_SECRET: ${{ secrets.FLY_NARWHAL_API_SECRET }}
+
+      - name: Inspect Bundled Runtime
+        shell: powershell
+        run: |
+          $runtimeBin = "composeApp\\build\\compose\\binaries\\main-release\\app\\FlyNarwhal\\runtime\\bin"
+          if (!(Test-Path $runtimeBin)) { Write-Error "Runtime bin not found: $runtimeBin"; exit 1 }
+          Write-Host "Runtime bin: $runtimeBin"
+          Write-Host "api-ms-win-core*.dll count: " (Get-ChildItem $runtimeBin -Filter "api-ms-win-core*.dll" -ErrorAction SilentlyContinue).Count
+          & "$runtimeBin\\java.exe" -XshowSettings:properties -version 2>&1 | Select-String "os.arch|os.name|java.version|java.home"
 
       - name: Setup Inno Setup
         run: |
