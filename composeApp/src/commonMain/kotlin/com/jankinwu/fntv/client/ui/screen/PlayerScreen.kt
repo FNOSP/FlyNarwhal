@@ -3388,7 +3388,7 @@ fun PlayerTopBar(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
+                    .padding(top = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
 //                Box(
