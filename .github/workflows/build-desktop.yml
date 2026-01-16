@@ -274,7 +274,11 @@ jobs:
           $javaBin = Join-Path $javaHome "bin"
           Add-Content $env:GITHUB_PATH $javaBin
           
-          java -version
+          $env:JAVA_HOME = $javaHome
+          $env:PATH = "$javaBin;$env:PATH"
+          
+          & (Join-Path $javaBin "java.exe") -version
+          & (Join-Path $javaBin "java.exe") -XshowSettings:properties -version 2>&1 | Select-String "java.home|java.vendor|os.arch|os.name"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
