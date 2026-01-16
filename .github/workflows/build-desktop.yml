@@ -277,8 +277,11 @@ jobs:
           $env:JAVA_HOME = $javaHome
           $env:PATH = "$javaBin;$env:PATH"
           
-          & (Join-Path $javaBin "java.exe") -version
-          & (Join-Path $javaBin "java.exe") -XshowSettings:properties -version 2>&1 | Select-String "java.home|java.vendor|os.arch|os.name"
+          $javaExe = Join-Path $javaBin "java.exe"
+          & $javaExe -version
+          
+          $props = cmd /c "\"$javaExe\" -XshowSettings:properties -version 2>&1"
+          $props | Select-String "java.home|java.vendor|os.arch|os.name"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
