@@ -234,12 +234,47 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'oracle'
-          architecture: 'arm64'
+      - name: Install Oracle JDK 21
+        shell: powershell
+        run: |
+          $urls = @(
+            "https://download.oracle.com/java/21/latest/jdk-21_windows-x64_bin.zip"
+          )
+          
+          $zipPath = Join-Path $env:RUNNER_TEMP "oracle-jdk21.zip"
+          $extractDir = Join-Path $env:RUNNER_TEMP "oracle-jdk21"
+          
+          if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
+          New-Item -ItemType Directory -Path $extractDir | Out-Null
+          
+          $downloaded = $false
+          foreach ($url in $urls) {
+            try {
+              Write-Host "Downloading: $url"
+              Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+              $downloaded = $true
+              break
+            } catch {
+              Write-Host "Download failed: $url"
+            }
+          }
+          
+          if (-not $downloaded) {
+            Write-Error "Could not download Oracle JDK 21 from known URLs"
+            exit 1
+          }
+          
+          Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+          $jdkDir = Get-ChildItem -Path $extractDir -Directory | Select-Object -First 1
+          if (-not $jdkDir) { Write-Error "Extracted JDK directory not found in $extractDir"; exit 1 }
+          
+          $javaHome = $jdkDir.FullName
+          Add-Content $env:GITHUB_ENV "JAVA_HOME=$javaHome"
+          Add-Content $env:GITHUB_ENV "JAVA_HOME_21_ARM64=$javaHome"
+          $javaBin = Join-Path $javaHome "bin"
+          Add-Content $env:GITHUB_PATH $javaBin
+          
+          java -version
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
