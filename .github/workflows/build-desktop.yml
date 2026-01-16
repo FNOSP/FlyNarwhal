@@ -280,7 +280,8 @@ jobs:
           $javaExe = Join-Path $javaBin "java.exe"
           & $javaExe -version
           
-          $props = cmd /c "\"$javaExe\" -XshowSettings:properties -version 2>&1"
+          $cmdLine = "`"$javaExe`" -XshowSettings:properties -version 2>&1"
+          $props = cmd /d /c $cmdLine
           $props | Select-String "java.home|java.vendor|os.arch|os.name"
 
       - name: Setup Gradle
