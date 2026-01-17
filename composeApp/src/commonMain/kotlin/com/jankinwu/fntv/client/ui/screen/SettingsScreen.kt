@@ -11,10 +11,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -26,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,12 +63,16 @@ import com.jankinwu.fntv.client.ui.component.common.BackButton
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.HoverTip
+import com.jankinwu.fntv.client.ui.component.common.ToastHost
+import com.jankinwu.fntv.client.ui.component.common.ToastType
+import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.common.dialog.AboutDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.utils.LocalLogExporter
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
+import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UpdateViewModel
 import flynarwhal.composeapp.generated.resources.Res
 import flynarwhal.composeapp.generated.resources.github_logo
@@ -103,6 +110,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     val updateViewModel: UpdateViewModel = koinViewModel()
     val updateStatus by updateViewModel.status.collectAsState()
     val latestVersion by updateViewModel.latestVersion.collectAsState()
+    val flyNarwhalServerTestState by updateViewModel.flyNarwhalServerTestState.collectAsState()
     val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
     val guid = userInfo?.guid.orEmpty()
     var proxyUrl by remember(guid) { mutableStateOf(AppSettingsStore.githubResourceProxyUrl) }
@@ -114,6 +122,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     val focusManager = LocalFocusManager.current
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showHardwareInfoDialog by remember { mutableStateOf(false) }
+    val toastManager = rememberToastManager()
 
     val logExporter = LocalLogExporter.current
     val availableDates = remember { logExporter.getAvailableLogDates() }
@@ -124,6 +133,25 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     var flyNarwhalServerEnabled by remember(guid) { mutableStateOf(AppSettingsStore.flyNarwhalServerEnabled) }
     var flyNarwhalServerBaseUrl by remember(guid) { mutableStateOf(AppSettingsStore.flyNarwhalServerBaseUrl) }
 //    var wasSmartAnalysisBaseUrlFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(flyNarwhalServerTestState) {
+        when (val state = flyNarwhalServerTestState) {
+            is UiState.Success -> {
+                toastManager.showToast(
+                    "连接成功，当前服务端版本号：${state.data}",
+                    ToastType.Success
+                )
+                updateViewModel.clearFlyNarwhalServerTestState()
+            }
+
+            is UiState.Error -> {
+                toastManager.showToast(state.message, ToastType.Failed)
+                updateViewModel.clearFlyNarwhalServerTestState()
+            }
+
+            else -> Unit
+        }
+    }
 
     if (isExporting) {
         FluentDialog(
@@ -206,164 +234,165 @@ fun SettingsScreen(navigator: ComponentNavigator) {
         )
     }
 
-    Column(
-        modifier = Modifier
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                focusManager.clearFocus()
-            }
-    ) {
-        BackButton(
-            navigator,
-            modifier = Modifier,
-            iconColor = FluentTheme.colors.text.text.primary,
-            hasShadow = false
-        )
-        Text(
-            text = "设置",
-            style = FluentTheme.typography.title,
-            modifier = Modifier.alignHorizontalSpace()
-//                .padding(top = 36.dp)
-        )
-        ScrollbarContainer(
-            adapter = rememberScrollbarAdapter(scrollState)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    focusManager.clearFocus()
+                }
         ) {
-            val store = LocalStore.current
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier
-                    .verticalScroll(scrollState)
-                    .alignHorizontalSpace()
-                    .padding(top = 8.dp)
-                    .padding(bottom = 24.dp)
+            BackButton(
+                navigator,
+                modifier = Modifier,
+                iconColor = FluentTheme.colors.text.text.primary,
+                hasShadow = false
+            )
+            Text(
+                text = "设置",
+                style = FluentTheme.typography.title,
+                modifier = Modifier.alignHorizontalSpace()
+//                .padding(top = 36.dp)
+            )
+            ScrollbarContainer(
+                adapter = rememberScrollbarAdapter(scrollState)
             ) {
-                val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
+                val store = LocalStore.current
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .alignHorizontalSpace()
+                        .padding(top = 8.dp)
+                        .padding(bottom = 24.dp)
+                ) {
+                    val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
 
-                Header("账号")
-                CardExpanderItem(
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Regular.Person,
-                            contentDescription = "用户",
-                            modifier = Modifier
-                                .size(18.dp)
-                        )
-                    },
-                    heading = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(userInfo?.username ?: "")
-                            if (userInfo?.isAdmin == 1) {
-                                Row(
-                                    modifier = Modifier
-                                        .padding(start = 8.dp)
-                                        .border(
-                                            1.dp,
-                                            Colors.AccentColorDefault,
-                                            RoundedCornerShape(50)
-                                        )
-                                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "管理员",
-                                        style = FluentTheme.typography.caption,
-                                        color = Colors.AccentColorDefault,
+                    Header("账号")
+                    CardExpanderItem(
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Regular.Person,
+                                contentDescription = "用户",
+                                modifier = Modifier
+                                    .size(18.dp)
+                            )
+                        },
+                        heading = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(userInfo?.username ?: "")
+                                if (userInfo?.isAdmin == 1) {
+                                    Row(
                                         modifier = Modifier
+                                            .padding(start = 8.dp)
+                                            .border(
+                                                1.dp,
+                                                Colors.AccentColorDefault,
+                                                RoundedCornerShape(50)
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "管理员",
+                                            style = FluentTheme.typography.caption,
+                                            color = Colors.AccentColorDefault,
+                                            modifier = Modifier
 //                                            .padding(start = 2.dp)
-                                    )
+                                        )
+                                    }
                                 }
                             }
+                        },
+                        caption = {
+                            Text("FN_Media")
                         }
-                    },
-                    caption = {
-                        Text("FN_Media")
-                    }
-                )
-                CardExpanderItem(
-                    icon = {
-                        Icon(
-                            imageVector = Logout,
-                            contentDescription = "退出登录",
-                            modifier = Modifier
-                                .size(18.dp)
-                        )
-                    },
-                    heading = {
-                        Text("退出登录")
-                    },
-                    caption = {
-                        Text("退出当前账号")
-                    },
-                    onClick = {
-                        LoginStateManager.logout(logoutViewModel)
-                    }
-                )
+                    )
+                    CardExpanderItem(
+                        icon = {
+                            Icon(
+                                imageVector = Logout,
+                                contentDescription = "退出登录",
+                                modifier = Modifier
+                                    .size(18.dp)
+                            )
+                        },
+                        heading = {
+                            Text("退出登录")
+                        },
+                        caption = {
+                            Text("退出当前账号")
+                        },
+                        onClick = {
+                            LoginStateManager.logout(logoutViewModel)
+                        }
+                    )
 
-                Header("外观")
-                val followSystemTheme = store.isFollowingSystemTheme
+                    Header("外观")
+                    val followSystemTheme = store.isFollowingSystemTheme
 
-                CardExpanderItem(
-                    heading = {
-                        Text("主题模式")
-                    },
-                    icon = {
-                        Icon(
-                            Icons.Regular.Color,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    caption = {
-                        Text("是否跟随系统主题")
-                    },
-                    trailing = {
-                        Switcher(
-                            checked = followSystemTheme,
-                            text = if (followSystemTheme) "跟随系统" else "手动设置",
-                            textBefore = true,
-                            onCheckStateChange = {
-                                store.isFollowingSystemTheme = it
-                                AppSettingsStore.isFollowingSystemTheme = it
-                            }
-                        )
-                    }
-                )
-                AnimatedVisibility(
-                    visible = !followSystemTheme,
-                    enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
-                    exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top)
-                ) {
                     CardExpanderItem(
                         heading = {
-                            Text("颜色")
+                            Text("主题模式")
                         },
                         icon = {
                             Icon(
-                                if (store.darkMode) Icons.Regular.WeatherMoon else Icons.Regular.WeatherSunny,
+                                Icons.Regular.Color,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
                         },
                         caption = {
-                            Text("请选择主题颜色")
+                            Text("是否跟随系统主题")
                         },
                         trailing = {
                             Switcher(
-                                checked = store.darkMode,
-                                text = if (store.darkMode) "深色" else "浅色",
+                                checked = followSystemTheme,
+                                text = if (followSystemTheme) "跟随系统" else "手动设置",
                                 textBefore = true,
                                 onCheckStateChange = {
-                                    store.darkMode = it
-                                    AppSettingsStore.darkMode = it
+                                    store.isFollowingSystemTheme = it
+                                    AppSettingsStore.isFollowingSystemTheme = it
                                 }
                             )
                         }
                     )
-                }
+                    AnimatedVisibility(
+                        visible = !followSystemTheme,
+                        enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                        exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top)
+                    ) {
+                        CardExpanderItem(
+                            heading = {
+                                Text("颜色")
+                            },
+                            icon = {
+                                Icon(
+                                    if (store.darkMode) Icons.Regular.WeatherMoon else Icons.Regular.WeatherSunny,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            caption = {
+                                Text("请选择主题颜色")
+                            },
+                            trailing = {
+                                Switcher(
+                                    checked = store.darkMode,
+                                    text = if (store.darkMode) "深色" else "浅色",
+                                    textBefore = true,
+                                    onCheckStateChange = {
+                                        store.darkMode = it
+                                        AppSettingsStore.darkMode = it
+                                    }
+                                )
+                            }
+                        )
+                    }
 
 //                CardExpanderItem(
 //                    heading = {
@@ -409,50 +438,50 @@ fun SettingsScreen(navigator: ComponentNavigator) {
 //                        )
 //                    }
 //                )
-                CardExpanderItem(
-                    heading = {
-                        Text("导航栏样式")
-                    },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Regular.Navigation,
-                            contentDescription = "List"
-                        )
-                    },
-                    caption = {
-                        Text("请选择导航视图布局")
-                    },
-                    trailing = {
-                        MenuFlyoutContainer(
-                            flyout = {
-                                NavigationDisplayMode.entries.forEach { item ->
-                                    MenuFlyoutItem(
-                                        selected = item == store.navigationDisplayMode,
-                                        onSelectedChanged = {
-                                            store.navigationDisplayMode = item
-                                            isFlyoutVisible = false
+                    CardExpanderItem(
+                        heading = {
+                            Text("导航栏样式")
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Regular.Navigation,
+                                contentDescription = "List"
+                            )
+                        },
+                        caption = {
+                            Text("请选择导航视图布局")
+                        },
+                        trailing = {
+                            MenuFlyoutContainer(
+                                flyout = {
+                                    NavigationDisplayMode.entries.forEach { item ->
+                                        MenuFlyoutItem(
+                                            selected = item == store.navigationDisplayMode,
+                                            onSelectedChanged = {
+                                                store.navigationDisplayMode = item
+                                                isFlyoutVisible = false
+                                            },
+                                            text = {
+                                                Text(item.name)
+                                            }
+                                        )
+                                    }
+                                },
+                                content = {
+                                    DropDownButton(
+                                        onClick = {
+                                            isFlyoutVisible = true
                                         },
-                                        text = {
-                                            Text(item.name)
+                                        content = {
+                                            Text(store.navigationDisplayMode.name)
                                         }
                                     )
                                 }
-                            },
-                            content = {
-                                DropDownButton(
-                                    onClick = {
-                                        isFlyoutVisible = true
-                                    },
-                                    content = {
-                                        Text(store.navigationDisplayMode.name)
-                                    }
-                                )
-                            }
-                        )
-                    }
-                )
+                            )
+                        }
+                    )
 
-                // Hide this test component if gallery is release version.
+                    // Hide this test component if gallery is release version.
 //                if (!BuildKonfig.CURRENT_BRANCH.equals("master", false)) {
 //                    Header("Test")
 //                    CardExpanderItem(
@@ -474,273 +503,303 @@ fun SettingsScreen(navigator: ComponentNavigator) {
 //                    )
 //                }
 
-                // Update Settings
-                Header("更新")
-                CardExpanderItem(
-                    heading = { Text("代理") },
-                    caption = { Text("下载更新包的 github 代理 URL (e.g. https://ghfast.top/)") },
-                    icon = { Icon(Icons.Regular.Globe, null, modifier = Modifier.size(18.dp)) },
-                    trailing = {
-                        TextField(
-                            value = proxyUrl,
-                            onValueChange = {
-                                proxyUrl = it
-                                AppSettingsStore.githubResourceProxyUrl = it
-                            },
-                            modifier = Modifier.width(200.dp),
-                            singleLine = true,
-                            placeholder = { Text("Proxy URL") },
-                        )
-                    }
-                )
+                    // Update Settings
+                    Header("更新")
+                    CardExpanderItem(
+                        heading = { Text("代理") },
+                        caption = { Text("下载更新包的 github 代理 URL (e.g. https://ghfast.top/)") },
+                        icon = { Icon(Icons.Regular.Globe, null, modifier = Modifier.size(18.dp)) },
+                        trailing = {
+                            TextField(
+                                value = proxyUrl,
+                                onValueChange = {
+                                    proxyUrl = it
+                                    AppSettingsStore.githubResourceProxyUrl = it
+                                },
+                                modifier = Modifier.width(200.dp),
+                                singleLine = true,
+                                placeholder = { Text("Proxy URL") },
+                            )
+                        }
+                    )
 
-                CardExpanderItem(
-                    heading = { Text("抢先体验") },
-                    caption = { Text("检测更新时是否包括预发布版本 (Alpha, Beta)") },
-                    icon = { Icon(PreRelease, null, modifier = Modifier.size(16.dp)) },
-                    trailing = {
-                        Switcher(
-                            checked = includePrerelease,
-                            text = if (includePrerelease) "开启" else "关闭",
-                            textBefore = true,
-                            onCheckStateChange = {
-                                includePrerelease = it
-                                AppSettingsStore.includePrerelease = it
-                                updateViewModel.onIncludePrereleaseChanged()
-                            }
-                        )
-                    }
-                )
+                    CardExpanderItem(
+                        heading = { Text("抢先体验") },
+                        caption = { Text("检测更新时是否包括预发布版本 (Alpha, Beta)") },
+                        icon = { Icon(PreRelease, null, modifier = Modifier.size(16.dp)) },
+                        trailing = {
+                            Switcher(
+                                checked = includePrerelease,
+                                text = if (includePrerelease) "开启" else "关闭",
+                                textBefore = true,
+                                onCheckStateChange = {
+                                    includePrerelease = it
+                                    AppSettingsStore.includePrerelease = it
+                                    updateViewModel.onIncludePrereleaseChanged()
+                                }
+                            )
+                        }
+                    )
 
-                CardExpanderItem(
-                    heading = { Text("自动下载更新") },
-                    caption = { Text("是否允许在有新版本时自动下载更新安装包") },
-                    icon = { Icon(Download, null, modifier = Modifier.size(18.dp)) },
-                    trailing = {
-                        Switcher(
-                            checked = autoDownloadUpdates,
-                            text = if (autoDownloadUpdates) "开启" else "关闭",
-                            textBefore = true,
-                            onCheckStateChange = {
-                                autoDownloadUpdates = it
-                                AppSettingsStore.autoDownloadUpdates = it
-                            }
-                        )
-                    }
-                )
+                    CardExpanderItem(
+                        heading = { Text("自动下载更新") },
+                        caption = { Text("是否允许在有新版本时自动下载更新安装包") },
+                        icon = { Icon(Download, null, modifier = Modifier.size(18.dp)) },
+                        trailing = {
+                            Switcher(
+                                checked = autoDownloadUpdates,
+                                text = if (autoDownloadUpdates) "开启" else "关闭",
+                                textBefore = true,
+                                onCheckStateChange = {
+                                    autoDownloadUpdates = it
+                                    AppSettingsStore.autoDownloadUpdates = it
+                                }
+                            )
+                        }
+                    )
 
-                CardExpanderItem(
-                    heading = { Text("当前版本") },
-                    caption = { Text(BuildConfig.VERSION_NAME) },
-                    icon = {
-                        Icon(
-                            VersionInfo,
-                            "版本升级", modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    trailing = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (latestVersion != null) {
-                                Row(
-                                    modifier = Modifier
-                                        .padding(start = 8.dp)
-                                        .background(
-                                            Colors.AccentColorDefault,
-                                            RoundedCornerShape(50)
-                                        )
+                    CardExpanderItem(
+                        heading = { Text("当前版本") },
+                        caption = { Text(BuildConfig.VERSION_NAME) },
+                        icon = {
+                            Icon(
+                                VersionInfo,
+                                "版本升级", modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        trailing = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (latestVersion != null) {
+                                    Row(
+                                        modifier = Modifier
+                                            .padding(start = 8.dp)
+                                            .background(
+                                                Colors.AccentColorDefault,
+                                                RoundedCornerShape(50)
+                                            )
 //                                        .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
-                                        .padding(horizontal = 8.dp, vertical = 1.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                                            .padding(horizontal = 8.dp, vertical = 1.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
 //                                    Icon(
 //                                        UpdateNoBorder,
 //                                        "版本升级", modifier = Modifier.size(10.dp),
 //                                        tint = Color.White
 //                                    )
-                                    latestVersion?.let {
-                                        Text(
-                                            text = it.version,
-                                            style = FluentTheme.typography.bodyStrong,
-                                            color = Color.White,
-                                            modifier = Modifier
-                                                .padding(start = 2.dp)
-                                        )
-                                    }
+                                        latestVersion?.let {
+                                            Text(
+                                                text = it.version,
+                                                style = FluentTheme.typography.bodyStrong,
+                                                color = Color.White,
+                                                modifier = Modifier
+                                                    .padding(start = 2.dp)
+                                            )
+                                        }
 
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    modifier = Modifier
+                                        .pointerHoverIcon(PointerIcon.Hand),
+                                    onClick = {
+                                        updateViewModel.checkUpdate()
+                                        showUpdateDialog = true
+                                    }) {
+                                    Text("检查更新")
                                 }
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(
-                                modifier = Modifier
-                                    .pointerHoverIcon(PointerIcon.Hand),
-                                onClick = {
-                                    updateViewModel.checkUpdate()
-                                    showUpdateDialog = true
-                                }) {
-                                Text("检查更新")
-                            }
                         }
-                    }
-                )
+                    )
 
-                Header("播放")
-                CardExpanderItem(
-                    heading = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("启用飞鲸服务端")
-                            Spacer(Modifier.width(6.dp))
-                            HoverTip(
-                                tipText = "启用后可以通过部署在飞牛 NAS 上的飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持。\n请确保已在下方正确配置「飞鲸服务端地址」，并且客户端能访问该服务。服务端项目地址：https://github.com/FNOSP/fly-narwhal-server",
-                            )
-                        }
-                    },
-                    caption = { Text("启用后可连接飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持") },
-                    icon = { Icon(VideoSmartAnalysis, null, modifier = Modifier.size(18.dp)) },
-                    trailing = {
-                        Switcher(
-                            checked = flyNarwhalServerEnabled,
-                            text = if (flyNarwhalServerEnabled) "开启" else "关闭",
-                            textBefore = true,
-                            onCheckStateChange = {
-                                flyNarwhalServerEnabled = it
-                                AppSettingsStore.flyNarwhalServerEnabled = it
-                                updateViewModel.onFlyNarwhalServerEnabledChanged()
+                    Header("播放")
+                    CardExpanderItem(
+                        heading = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("启用飞鲸服务端")
+                                Spacer(Modifier.width(6.dp))
+                                HoverTip(
+                                    tipText = "启用后可以通过部署在飞牛 NAS 上的飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持。\n请确保已在下方正确配置「飞鲸服务端地址」，并且客户端能访问该服务。服务端项目地址：https://github.com/FNOSP/fly-narwhal-server",
+                                )
+                            }
+                        },
+                        caption = { Text("启用后可连接飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持") },
+                        icon = { Icon(VideoSmartAnalysis, null, modifier = Modifier.size(18.dp)) },
+                        trailing = {
+                            Switcher(
+                                checked = flyNarwhalServerEnabled,
+                                text = if (flyNarwhalServerEnabled) "开启" else "关闭",
+                                textBefore = true,
+                                onCheckStateChange = {
+                                    flyNarwhalServerEnabled = it
+                                    AppSettingsStore.flyNarwhalServerEnabled = it
+                                    updateViewModel.onFlyNarwhalServerEnabledChanged()
 //                                if (it) {
 //                                    LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
 //                                }
-                            }
-                        )
-                    }
-                )
+                                }
+                            )
+                        }
+                    )
 
-                AnimatedVisibility(
-                    visible = flyNarwhalServerEnabled,
-                    enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
-                    exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top)
-                ) {
-                    CardExpanderItem(
-                        heading = { Text("飞鲸服务端地址") },
-                        caption = { Text("请填写完整服务端的 URL") },
-                        icon = { Icon(Icons.Regular.Globe, null, modifier = Modifier.size(18.dp)) },
-                        trailing = {
-                            TextField(
-                                value = flyNarwhalServerBaseUrl,
-                                onValueChange = {
-                                    flyNarwhalServerBaseUrl = it
-                                    AppSettingsStore.flyNarwhalServerBaseUrl = it
-                                },
-                                modifier = Modifier
-                                    .width(200.dp)
-                                    .onFocusChanged { focusState ->
-                                        val isFocused = focusState.isFocused
+                    AnimatedVisibility(
+                        visible = flyNarwhalServerEnabled,
+                        enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                        exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top)
+                    ) {
+                        CardExpanderItem(
+                            heading = { Text("飞鲸服务端地址") },
+                            caption = { Text("请填写完整服务端的 URL") },
+                            icon = {
+                                Icon(
+                                    Icons.Regular.Globe,
+                                    null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            trailing = {
+                                val isTesting = flyNarwhalServerTestState is UiState.Loading
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextField(
+                                        value = flyNarwhalServerBaseUrl,
+                                        onValueChange = {
+                                            flyNarwhalServerBaseUrl = it
+                                            AppSettingsStore.flyNarwhalServerBaseUrl = it
+                                        },
+                                        modifier = Modifier
+                                            .width(200.dp)
+                                            .onFocusChanged { focusState ->
+                                                val isFocused = focusState.isFocused
 //                                        if (wasSmartAnalysisBaseUrlFocused && !isFocused) {
 //                                            LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
 //                                        }
 //                                        wasSmartAnalysisBaseUrlFocused = isFocused
-                                    },
-                                singleLine = true,
-                                placeholder = {
-                                    Text(
-                                        "http://192.168.1.1:5365",
-                                        style = FluentTheme.typography.body.copy(FluentTheme.colors.text.text.tertiary)
+                                            },
+                                        singleLine = true,
+                                        placeholder = {
+                                            Text(
+                                                "http://192.168.1.1:5365",
+                                                style = FluentTheme.typography.body.copy(FluentTheme.colors.text.text.tertiary)
+                                            )
+                                        },
                                     )
-                                },
-                            )
-                        }
-                    )
-                }
-
-                Header("关于")
-                CardExpanderItem(
-                    heading = { Text("隐私声明") },
-                    caption = { Text("隐私声明") },
-                    icon = { Icon(Statement, null, modifier = Modifier.size(18.dp)) },
-                    onClick = {
-                        showHardwareInfoDialog = true
-                    }
-                )
-
-                CardExpanderItem(
-                    heading = { Text("导出报错日志") },
-                    caption = { Text("支持导出近三天的报错日志，方便开发者排查问题") },
-                    icon = { Icon(Download, null, modifier = Modifier.size(18.dp)) },
-                    trailing = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            MenuFlyoutContainer(
-                                flyout = {
-                                    availableDates.forEach { date ->
-                                        MenuFlyoutItem(
-                                            text = { Text(date) },
-                                            onClick = {
-                                                selectedDate = date
-                                                isFlyoutVisible = false
-                                            }
-                                        )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                                        onClick = {
+                                            if (isTesting) return@Button
+                                            updateViewModel.testFlyNarwhalServerConnection(
+                                                flyNarwhalServerBaseUrl
+                                            )
+                                        }
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+//                                        if (isTesting) {
+//                                            ProgressRing(
+//                                                size = ProgressRingSize.Small,
+//                                                color = FluentTheme.colors.text.text.tertiary
+//                                            )
+//                                            Spacer(modifier = Modifier.width(6.dp))
+//                                        }
+                                            Text(if (isTesting) "测试中" else "测试")
+                                        }
                                     }
                                 }
-                            ) {
-                                DropDownButton(
-                                    onClick = {
-                                        isFlyoutVisible = true
-                                    },
-                                    content = {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(selectedDate)
-//                                            Spacer(Modifier.width(4.dp))
-//                                            Icon(Icons.Regular.ChevronDown, null, modifier = Modifier.size(12.dp))
+                            }
+                        )
+                    }
+
+                    Header("关于")
+                    CardExpanderItem(
+                        heading = { Text("隐私声明") },
+                        caption = { Text("隐私声明") },
+                        icon = { Icon(Statement, null, modifier = Modifier.size(18.dp)) },
+                        onClick = {
+                            showHardwareInfoDialog = true
+                        }
+                    )
+
+                    CardExpanderItem(
+                        heading = { Text("导出报错日志") },
+                        caption = { Text("支持导出近三天的报错日志，方便开发者排查问题") },
+                        icon = { Icon(Download, null, modifier = Modifier.size(18.dp)) },
+                        trailing = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                MenuFlyoutContainer(
+                                    flyout = {
+                                        availableDates.forEach { date ->
+                                            MenuFlyoutItem(
+                                                text = { Text(date) },
+                                                onClick = {
+                                                    selectedDate = date
+                                                    isFlyoutVisible = false
+                                                }
+                                            )
                                         }
                                     }
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    logExporter.exportErrorLogs(
-                                        date = selectedDate,
-                                        onStart = { isExporting = true },
-                                        onComplete = { isExporting = false },
-                                        onError = {
-                                            isExporting = false
-                                            exportError = it
+                                ) {
+                                    DropDownButton(
+                                        onClick = {
+                                            isFlyoutVisible = true
+                                        },
+                                        content = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(selectedDate)
+//                                            Spacer(Modifier.width(4.dp))
+//                                            Icon(Icons.Regular.ChevronDown, null, modifier = Modifier.size(12.dp))
+                                            }
                                         }
                                     )
-                                },
-                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                            ) {
-                                Text("导出")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        logExporter.exportErrorLogs(
+                                            date = selectedDate,
+                                            onStart = { isExporting = true },
+                                            onComplete = { isExporting = false },
+                                            onError = {
+                                                isExporting = false
+                                                exportError = it
+                                            }
+                                        )
+                                    },
+                                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                ) {
+                                    Text("导出")
+                                }
                             }
                         }
-                    }
-                )
+                    )
 
-                CardExpanderItem(
-                    heading = {
-                        Text("FlyNarwhal")
-                    },
-                    icon = {
-                        val colorMatrix = floatArrayOf(
-                            -1f, 0f, 0f, 0f, 255f,
-                            0f, -1f, 0f, 0f, 255f,
-                            0f, 0f, -1f, 0f, 255f,
-                            0f, 0f, 0f, 1f, 0f
-                        )
-                        Image(
-                            painter = painterResource(Res.drawable.github_logo),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(18.dp),
-                            colorFilter = if (store.darkMode) ColorFilter.colorMatrix(
-                                ColorMatrix(
-                                    colorMatrix
-                                )
-                            ) else null
-                        )
-                    },
-                    caption = {
-                        Text(Constants.PROJECT_URL)
-                    },
-                    trailing = {
-                        AboutDialog()
+                    CardExpanderItem(
+                        heading = {
+                            Text("FlyNarwhal")
+                        },
+                        icon = {
+                            val colorMatrix = floatArrayOf(
+                                -1f, 0f, 0f, 0f, 255f,
+                                0f, -1f, 0f, 0f, 255f,
+                                0f, 0f, -1f, 0f, 255f,
+                                0f, 0f, 0f, 1f, 0f
+                            )
+                            Image(
+                                painter = painterResource(Res.drawable.github_logo),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(18.dp),
+                                colorFilter = if (store.darkMode) ColorFilter.colorMatrix(
+                                    ColorMatrix(
+                                        colorMatrix
+                                    )
+                                ) else null
+                            )
+                        },
+                        caption = {
+                            Text(Constants.PROJECT_URL)
+                        },
+                        trailing = {
+                            AboutDialog()
 //                        Button(
 //                            onClick = {
 //                                uriHandler.openUri(Constants.PROJECT_URL)
@@ -761,23 +820,28 @@ fun SettingsScreen(navigator: ComponentNavigator) {
 //                                )
 //                            }
 //                        }
-                    },
-                )
-                CardExpanderItem(
-                    heading = {
-                        Text("免责声明")
-                    },
-                    icon = {
-                        Icon(Statement, null, modifier = Modifier.size(20.dp))
-                    },
-                    caption = {
-                        Text("本项目为飞牛 OS 爱好者开发的第三方影视客户端，与飞牛影视官方无关。使用前请确保遵守相关服务条款。")
-                    }
-                )
+                        },
+                    )
+                    CardExpanderItem(
+                        heading = {
+                            Text("免责声明")
+                        },
+                        icon = {
+                            Icon(Statement, null, modifier = Modifier.size(20.dp))
+                        },
+                        caption = {
+                            Text("本项目为飞牛 OS 爱好者开发的第三方影视客户端，与飞牛影视官方无关。使用前请确保遵守相关服务条款。")
+                        }
+                    )
 
 
+                }
             }
         }
+        ToastHost(
+            toastManager = toastManager,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 

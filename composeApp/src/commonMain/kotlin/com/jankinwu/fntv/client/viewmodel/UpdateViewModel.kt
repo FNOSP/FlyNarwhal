@@ -13,9 +13,11 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
+import io.ktor.http.Url
 import io.ktor.serialization.jackson.jackson
 import com.fasterxml.jackson.databind.DeserializationFeature
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +39,9 @@ class UpdateViewModel : BaseViewModel() {
     
     private val _serverUpdateStatus = MutableStateFlow<String?>(null)
     val serverUpdateStatus = _serverUpdateStatus.asStateFlow()
+    
+    private val _flyNarwhalServerTestState = MutableStateFlow<UiState<String>>(UiState.Initial)
+    val flyNarwhalServerTestState = _flyNarwhalServerTestState.asStateFlow()
     
     private val logger = Logger.withTag("UpdateViewModel")
 
@@ -126,6 +131,52 @@ class UpdateViewModel : BaseViewModel() {
         if (AppSettingsStore.flyNarwhalServerEnabled) {
             checkServerUpdate()
         }
+    }
+
+    fun testFlyNarwhalServerConnection(baseUrl: String) {
+        viewModelScope.launch {
+            _flyNarwhalServerTestState.value = UiState.Loading
+            try {
+                val trimmed = baseUrl.trim()
+                if (trimmed.isBlank()) {
+                    throw IllegalArgumentException("服务端 URL 不能为空")
+                }
+
+                val parsed = try {
+                    Url(trimmed)
+                } catch (_: Exception) {
+                    throw IllegalArgumentException("服务端 URL 不合法，请填写完整的 URL")
+                }
+
+                val protocol = parsed.protocol.name.lowercase()
+                if (protocol != "http" && protocol != "https") {
+                    throw IllegalArgumentException("服务端 URL 协议不合法，仅支持 http/https")
+                }
+                if (parsed.host.isBlank()) {
+                    throw IllegalArgumentException("服务端 URL 不合法，缺少 host")
+                }
+
+                AppSettingsStore.flyNarwhalServerBaseUrl = trimmed
+                val result = flyNarwhalApi.getVersion()
+                if (!result.isSuccess()) {
+                    throw IllegalStateException(result.msg.ifBlank { "请求失败" })
+                }
+                val version = result.data?.trim().orEmpty()
+                if (version.isBlank()) {
+                    throw IllegalStateException("服务端版本号为空")
+                }
+
+                _flyNarwhalServerTestState.value = UiState.Success(version)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                _flyNarwhalServerTestState.value = UiState.Error(t.message ?: "未知错误", exception = t)
+            }
+        }
+    }
+
+    fun clearFlyNarwhalServerTestState() {
+        _flyNarwhalServerTestState.value = UiState.Initial
     }
     
     @OptIn(ExperimentalTime::class)
