@@ -22,6 +22,7 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          architecture: 'arm64'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -63,6 +64,7 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          architecture: 'x64'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -183,7 +185,8 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: '21'
-          distribution: 'temurin'
+          distribution: 'oracle'
+          architecture: 'x64'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -231,11 +234,55 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
+      - name: Install Oracle JDK 21
+        shell: powershell
+        run: |
+          $urls = @(
+            "https://download.oracle.com/java/21/latest/jdk-21_windows-x64_bin.zip"
+          )
+          
+          $zipPath = Join-Path $env:RUNNER_TEMP "oracle-jdk21.zip"
+          $extractDir = Join-Path $env:RUNNER_TEMP "oracle-jdk21"
+          
+          if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
+          New-Item -ItemType Directory -Path $extractDir | Out-Null
+          
+          $downloaded = $false
+          foreach ($url in $urls) {
+            try {
+              Write-Host "Downloading: $url"
+              Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+              $downloaded = $true
+              break
+            } catch {
+              Write-Host "Download failed: $url"
+            }
+          }
+          
+          if (-not $downloaded) {
+            Write-Error "Could not download Oracle JDK 21 from known URLs"
+            exit 1
+          }
+          
+          Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+          $jdkDir = Get-ChildItem -Path $extractDir -Directory | Select-Object -First 1
+          if (-not $jdkDir) { Write-Error "Extracted JDK directory not found in $extractDir"; exit 1 }
+          
+          $javaHome = $jdkDir.FullName
+          Add-Content $env:GITHUB_ENV "JAVA_HOME=$javaHome"
+          Add-Content $env:GITHUB_ENV "JAVA_HOME_21_ARM64=$javaHome"
+          $javaBin = Join-Path $javaHome "bin"
+          Add-Content $env:GITHUB_PATH $javaBin
+          
+          $env:JAVA_HOME = $javaHome
+          $env:PATH = "$javaBin;$env:PATH"
+          
+          $javaExe = Join-Path $javaBin "java.exe"
+          & $javaExe -version
+          
+          $cmdLine = "`"$javaExe`" -XshowSettings:properties -version 2>&1"
+          $props = cmd /d /c $cmdLine
+          $props | Select-String "java.home|java.vendor|os.arch|os.name"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -296,7 +343,7 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.实现服务端自动更新（需要飞鲸服务端 v0.5.4 及以上版本）  
+          NOTES="1.修复 Windows ARM64 版无法启动的问题  
           　  
           此项目已更名为飞鲸影视，可执行程序名称也相应做了更改，从更名前的旧版本升级到新版过程中出现报错提示“Failed to launch application **”属于正常现象，安装成功后把旧的快捷方式从桌面或开始菜单删除即可。    
           　  
