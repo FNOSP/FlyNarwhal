@@ -23,8 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,14 +61,12 @@ import com.jankinwu.fntv.client.icons.HeartFilled
 import com.jankinwu.fntv.client.ui.component.common.dialog.VersionManagementDialog
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalStore
-import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.screen.MovieDetailScreen
 import com.jankinwu.fntv.client.ui.screen.TvDetailScreen
 import com.jankinwu.fntv.client.ui.screen.TvSeasonDetailScreen
 import com.jankinwu.fntv.client.ui.screen.rememberPlayMediaFunction
 import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
-import com.jankinwu.fntv.client.viewmodel.UiState
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
@@ -115,22 +111,6 @@ fun MoviePoster(
     val store = LocalStore.current
     val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel()
     val smartAnalysisEnabled = AppSettingsStore.flyNarwhalServerEnabled
-    val analyzeState by smartAnalysisViewModel.analyzeState.collectAsState()
-    val toastManager = LocalToastManager.current
-
-    LaunchedEffect(analyzeState) {
-        when(val state = analyzeState) {
-            is UiState.Success -> {
-                toastManager.showToast(state.data, ToastType.Success)
-                smartAnalysisViewModel.clearState()
-            }
-            is UiState.Error -> {
-                toastManager.showToast(state.message, ToastType.Failed)
-                smartAnalysisViewModel.clearState()
-            }
-            else -> {}
-        }
-    }
 
     val scaleFactor = store.scaleFactor
     var isPosterHovered by remember { mutableStateOf(false) }

@@ -52,6 +52,7 @@ import com.jankinwu.fntv.client.viewmodel.ItemListViewModel
 import com.jankinwu.fntv.client.viewmodel.MediaDbListViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayListViewModel
 import com.jankinwu.fntv.client.viewmodel.ProxySettingViewModel
+import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
@@ -81,6 +82,8 @@ fun HomePageScreen(navigator: ComponentNavigator) {
     }
     val lazyListState = rememberLazyListState()
     val toastManager = rememberToastManager()
+    val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel<SmartAnalysisViewModel>()
+    val analyzeState by smartAnalysisViewModel.analyzeState.collectAsState()
     val playerManager = LocalPlayerManager.current
     val mediaLibRefreshKeys = remember { mutableMapOf<String, String>() }
     // 存储回调函数
@@ -178,6 +181,22 @@ fun HomePageScreen(navigator: ComponentNavigator) {
         },
         clearError = { watchedViewModel.clearError() }
     )
+
+    LaunchedEffect(analyzeState) {
+        when (val state = analyzeState) {
+            is UiState.Success -> {
+                toastManager.showToast(state.data, ToastType.Success)
+                smartAnalysisViewModel.clearState()
+            }
+
+            is UiState.Error -> {
+                toastManager.showToast(state.message, ToastType.Failed)
+                smartAnalysisViewModel.clearState()
+            }
+
+            else -> Unit
+        }
+    }
 
     CompositionLocalProvider(
         LocalUserInfo provides currentUserInfo,

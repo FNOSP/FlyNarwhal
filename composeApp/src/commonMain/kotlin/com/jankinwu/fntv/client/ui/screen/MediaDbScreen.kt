@@ -60,6 +60,7 @@ import com.jankinwu.fntv.client.ui.providable.LocalUserInfo
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemListViewModel
+import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
 import com.jankinwu.fntv.client.viewmodel.TagListViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
@@ -104,6 +105,8 @@ fun MediaDbScreen(
     var screenWidthPx by remember { mutableIntStateOf(0) } // 以像素为单位存储宽度
     val density = LocalDensity.current // 获取当前密度
     val toastManager = rememberToastManager()
+    val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel<SmartAnalysisViewModel>()
+    val analyzeState by smartAnalysisViewModel.analyzeState.collectAsState()
     val favoriteViewModel: FavoriteViewModel = koinViewModel<FavoriteViewModel>()
     val favoriteUiState by favoriteViewModel.uiState.collectAsState()
     val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
@@ -112,6 +115,23 @@ fun MediaDbScreen(
     var selectedFilters by remember { mutableStateOf<Map<String, FilterItem>>(emptyMap()) }
     var sortColumnState by remember { mutableStateOf("create_time") }
     var sortOrderState by remember { mutableStateOf("DESC") }
+
+    LaunchedEffect(analyzeState) {
+        when (val state = analyzeState) {
+            is UiState.Success -> {
+                toastManager.showToast(state.data, ToastType.Success)
+                smartAnalysisViewModel.clearState()
+            }
+
+            is UiState.Error -> {
+                toastManager.showToast(state.message, ToastType.Failed)
+                smartAnalysisViewModel.clearState()
+            }
+
+            else -> Unit
+        }
+    }
+
     fun buildTagsFromFilters(): Tags {
         val builder = Tags.Builder().type(FnTvMediaType.getByCategory(category))
         selectedFilters.forEach { (title, filterItem) ->
