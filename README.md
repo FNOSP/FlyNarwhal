@@ -143,8 +143,8 @@
 
 ### 桌面端
 
-| 功能            | 进度                                      |
-| --------------- | ----------------------------------------- |
+| 功能            | 进度                                        |
+| --------------- |-------------------------------------------|
 | 登录页          | ![Progress](https://progress-bar.xyz/80/) |
 | 首页            | ![Progress](https://progress-bar.xyz/90/) |
 | 收藏页          | ![Progress](https://progress-bar.xyz/0/)  |
@@ -157,11 +157,11 @@
 | 用户设置        | ![Progress](https://progress-bar.xyz/0/)  |
 | 任务计划        | ![Progress](https://progress-bar.xyz/0/)  |
 | 搜索            | ![Progress](https://progress-bar.xyz/0/)  |
-| 弹幕            | ![Progress](https://progress-bar.xyz/0/)  |
+| 弹幕            | ![Progress](https://progress-bar.xyz/60/) |
 | 版本更新        | ![Progress](https://progress-bar.xyz/90/) |
 | 集成 mpv 播放器 | ![Progress](https://progress-bar.xyz/0/)  |
 | 文件夹视图      | ![Progress](https://progress-bar.xyz/0/)  |
-| 网盘视频播放    |  ![Progress](https://progress-bar.xyz/0/) |
+| 网盘视频播放    | ![Progress](https://progress-bar.xyz/0/)  |
 
 ## 🙏 特别感谢
 

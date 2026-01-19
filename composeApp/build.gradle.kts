@@ -6,8 +6,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.7.8"
+val appVersion = "1.8.1"
+
 val appVersionSuffix = ""
+
+val flyNarwhalServerVersion = "0.6.0"
 
 val platformStr = when {
     osName.contains("win") -> {
@@ -103,14 +106,9 @@ val prepareKcefResources by tasks.registering(Copy::class) {
 val prepareProxyResources by tasks.registering(Copy::class) {
     val sourceDir = project.rootDir.resolve("fntv-proxy")
     
+    onlyIf { sourceDir.exists() }
     from(sourceDir)
     into(proxyResourcesDir.map { it.dir("fntv-proxy") })
-    
-    doFirst {
-        if (!sourceDir.exists()) {
-             throw GradleException("Proxy executable directory not found at ${sourceDir.absolutePath}")
-        }
-    }
 }
 
 val buildUpdater by tasks.registering(Exec::class) {
@@ -137,8 +135,121 @@ val prepareUpdaterResources by tasks.registering(Copy::class) {
     into(proxyResourcesDir.map { it.dir("fntv-updater/$currentPlatform") })
 }
 
+val externalAuthxEnabled: Boolean = (project.findProperty("externalAuthx")?.toString()?.toBoolean() ?: false) ||
+    "1".equals(System.getenv("FLY_NARWHAL_BUILD_AUTHX_VERIFIER"))
+val authxVerifierDirEnv: String? = System.getenv("FLY_NARWHAL_AUTHX_VERIFIER_DIR")
+val authxVerifierSrcDir = authxVerifierDirEnv?.let { file(it) }
+val authxVerifierWorkDir = layout.buildDirectory.dir("authx-verifier/work")
+val authxVerifierOutDir = layout.buildDirectory.dir("authx-verifier/out")
+
+val authxOsPart = when {
+    osName.contains("win") -> "windows"
+    osName.contains("mac") -> "darwin"
+    osName.contains("nix") || osName.contains("nux") -> "linux"
+    else -> "unknown"
+}
+val authxArchPart = when {
+    osArch.contains("aarch64") || osArch.contains("arm64") -> "arm64"
+    osArch.contains("x86_64") || osArch.contains("amd64") || osArch.contains("x64") -> "amd64"
+    else -> "unknown"
+}
+val authxClassifier = "${authxOsPart}-${authxArchPart}"
+val authxExt = if (authxOsPart == "windows") ".exe" else ""
+
+val prepareAuthxVerifier by tasks.registering(Copy::class) {
+    onlyIf {
+        val enabled = (project.findProperty("externalAuthx")?.toString()?.toBoolean() ?: false) ||
+            (System.getenv("FLY_NARWHAL_BUILD_AUTHX_VERIFIER") == "1")
+        if (!enabled) return@onlyIf false
+
+        val srcDir = System.getenv("FLY_NARWHAL_AUTHX_VERIFIER_DIR")?.let { project.file(it) }
+        srcDir?.exists() == true
+    }
+
+    doFirst {
+        val workDir = authxVerifierWorkDir.get().asFile
+        if (workDir.exists()) {
+            workDir.deleteRecursively()
+        }
+    }
+
+    authxVerifierSrcDir?.let { from(it) }
+    into(authxVerifierWorkDir)
+}
+
+val generateAuthxVerifierSecret by tasks.registering(Exec::class) {
+    onlyIf {
+        val enabled = (project.findProperty("externalAuthx")?.toString()?.toBoolean() ?: false) ||
+            (System.getenv("FLY_NARWHAL_BUILD_AUTHX_VERIFIER") == "1")
+        if (!enabled) return@onlyIf false
+
+        val srcDir = System.getenv("FLY_NARWHAL_AUTHX_VERIFIER_DIR")?.let { project.file(it) }
+        srcDir?.exists() == true
+    }
+    dependsOn(prepareAuthxVerifier)
+
+    val secret = System.getenv("FLY_NARWHAL_API_SECRET")?.trim().orEmpty()
+    doFirst {
+        if (secret.isBlank()) {
+            throw GradleException("FLY_NARWHAL_API_SECRET is required when building authx verifier binaries")
+        }
+    }
+
+    workingDir = authxVerifierWorkDir.get().asFile
+    environment("AUTHX_SECRET", secret)
+    commandLine("go", "run", "./cmd/gensecret")
+}
+
+val buildAuthxVerifierBinary by tasks.registering(Exec::class) {
+    onlyIf {
+        val enabled = (project.findProperty("externalAuthx")?.toString()?.toBoolean() ?: false) ||
+            (System.getenv("FLY_NARWHAL_BUILD_AUTHX_VERIFIER") == "1")
+        if (!enabled) return@onlyIf false
+
+        val srcDir = System.getenv("FLY_NARWHAL_AUTHX_VERIFIER_DIR")?.let { project.file(it) }
+        srcDir?.exists() == true
+    }
+    dependsOn(generateAuthxVerifierSecret)
+
+    val outDir = authxVerifierOutDir.map { it.dir(authxClassifier) }
+    val outFile = outDir.map { it.file("flynarwhal-authx${authxExt}") }
+
+    inputs.property("authxClassifier", authxClassifier)
+    outputs.file(outFile)
+
+    doFirst {
+        outDir.get().asFile.mkdirs()
+    }
+
+    workingDir = authxVerifierWorkDir.get().asFile
+    environment("CGO_ENABLED", "0")
+    environment("GOOS", authxOsPart)
+    environment("GOARCH", authxArchPart)
+    commandLine("go", "build", "-tags", "secretgen", "-trimpath", "-ldflags", "-s -w", "-o", outFile.get().asFile.absolutePath, "./cmd/verifier")
+
+    doLast {
+        outFile.get().asFile.setExecutable(true)
+    }
+}
+
+val prepareAuthxVerifierResources by tasks.registering(Copy::class) {
+    onlyIf {
+        val enabled = (project.findProperty("externalAuthx")?.toString()?.toBoolean() ?: false) ||
+            (System.getenv("FLY_NARWHAL_BUILD_AUTHX_VERIFIER") == "1")
+        if (!enabled) return@onlyIf false
+
+        val srcDir = System.getenv("FLY_NARWHAL_AUTHX_VERIFIER_DIR")?.let { project.file(it) }
+        srcDir?.exists() == true
+    }
+    dependsOn(buildAuthxVerifierBinary)
+
+    val outFile = authxVerifierOutDir.map { it.dir(authxClassifier).file("flynarwhal-authx${authxExt}") }
+    from(outFile)
+    into(proxyResourcesDir.map { it.dir("native/authx/$authxClassifier") })
+}
+
 val mergeResources by tasks.registering(Copy::class) {
-    dependsOn(prepareProxyResources, prepareUpdaterResources, prepareKcefResources)
+    dependsOn(prepareProxyResources, prepareUpdaterResources, prepareKcefResources, prepareAuthxVerifierResources)
     from(proxyResourcesDir)
     from(file("appResources"))
     into(layout.buildDirectory.dir("mergedResources"))
@@ -211,7 +322,7 @@ val generateBuildConfig by tasks.registering {
     val reportApiSecret = System.getenv("REPORT_API_SECRET") ?: project.findProperty("REPORT_API_SECRET")?.toString() ?: ""
     val reportUrl = System.getenv("REPORT_URL") ?: project.findProperty("REPORT_URL")?.toString() ?: ""
     val flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
-    val flyNarwhalServerVersion = "0.5.3"
+    val flyNarwhalServerVersion = flyNarwhalServerVersion
 
     inputs.property("version", version)
     inputs.property("suffix", suffix)
