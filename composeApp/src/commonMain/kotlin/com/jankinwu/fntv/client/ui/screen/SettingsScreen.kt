@@ -26,7 +26,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.TextObfuscationMode
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,20 +60,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons as MaterialIcons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Icon as M3Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.TextObfuscationMode
-import androidx.compose.foundation.text.input.TextObfuscationMode.Companion
-import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import com.jankinwu.fntv.client.BuildConfig
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
@@ -88,10 +78,10 @@ import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.HoverTip
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.ToastType
-import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.common.dialog.AboutDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
+import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.utils.LocalLogExporter
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
@@ -100,9 +90,9 @@ import com.jankinwu.fntv.client.viewmodel.UpdateViewModel
 import flynarwhal.composeapp.generated.resources.Res
 import flynarwhal.composeapp.generated.resources.github_logo
 import io.github.composefluent.FluentTheme
-import io.github.composefluent.LocalTextStyle
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.CardExpanderItem
+import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.DropDownButton
 import io.github.composefluent.component.Expander
@@ -114,13 +104,12 @@ import io.github.composefluent.component.NavigationDisplayMode
 import io.github.composefluent.component.ProgressRing
 import io.github.composefluent.component.ProgressRingSize
 import io.github.composefluent.component.ScrollbarContainer
+import io.github.composefluent.component.SecureTextField
 import io.github.composefluent.component.Switcher
 import io.github.composefluent.component.Text
 import io.github.composefluent.component.TextField
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
-import io.github.composefluent.component.ContentDialogButton
-import io.github.composefluent.component.SecureTextField
 import io.github.composefluent.icons.regular.Color
 import io.github.composefluent.icons.regular.Globe
 import io.github.composefluent.icons.regular.Key
@@ -130,6 +119,8 @@ import io.github.composefluent.icons.regular.WeatherMoon
 import io.github.composefluent.icons.regular.WeatherSunny
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
+import androidx.compose.material.icons.Icons as MaterialIcons
+import androidx.compose.material3.Icon as M3Icon
 
 @Composable
 fun SettingsScreen(navigator: ComponentNavigator) {
