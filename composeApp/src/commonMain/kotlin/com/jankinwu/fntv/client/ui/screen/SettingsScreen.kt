@@ -42,11 +42,34 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons as MaterialIcons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Icon as M3Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextObfuscationMode
+import androidx.compose.foundation.text.input.TextObfuscationMode.Companion
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import com.jankinwu.fntv.client.BuildConfig
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
@@ -77,6 +100,7 @@ import com.jankinwu.fntv.client.viewmodel.UpdateViewModel
 import flynarwhal.composeapp.generated.resources.Res
 import flynarwhal.composeapp.generated.resources.github_logo
 import io.github.composefluent.FluentTheme
+import io.github.composefluent.LocalTextStyle
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.DialogSize
@@ -96,6 +120,7 @@ import io.github.composefluent.component.TextField
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.component.ContentDialogButton
+import io.github.composefluent.component.SecureTextField
 import io.github.composefluent.icons.regular.Color
 import io.github.composefluent.icons.regular.Globe
 import io.github.composefluent.icons.regular.Key
@@ -122,10 +147,12 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     val scrollState = rememberScrollState()
     val uriHandler = LocalUriHandler.current
     val focusManager = LocalFocusManager.current
+    val clipboardManager = LocalClipboardManager.current
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showHardwareInfoDialog by remember { mutableStateOf(false) }
     var showAuthCodeDialog by remember { mutableStateOf(false) }
-    var authCodeInput by remember { mutableStateOf("") }
+    var authCodeState = rememberTextFieldState(AppSettingsStore.authCode)
+    var authCodeVisible by remember { mutableStateOf(false) }
     val toastManager = rememberToastManager()
 
     val logExporter = LocalLogExporter.current
@@ -246,19 +273,53 @@ fun SettingsScreen(navigator: ComponentNavigator) {
             secondaryButtonText = "取消",
             onButtonClick = { button ->
                 if (button == ContentDialogButton.Primary) {
-                    AppSettingsStore.authCode = authCodeInput
+                    AppSettingsStore.authCode = authCodeState.text.toString()
+                } else {
+                    authCodeState.edit {
+                        replace(0, length, AppSettingsStore.authCode)
+                    }
                 }
                 showAuthCodeDialog = false
-                authCodeInput = ""
+//                authCodeInput = ""
+                authCodeVisible = false
             },
             content = {
                 Column {
-                    Text("请输入授权码：")
-                    Spacer(Modifier.height(8.dp))
-                    TextField(
-                        value = authCodeInput,
-                        onValueChange = { authCodeInput = it },
-                        modifier = Modifier.fillMaxWidth()
+                    Spacer(Modifier.height(20.dp))
+                    SecureTextField(
+                        state = authCodeState,
+                        header = {Text("请输入授权码：")},
+                        trailing = {
+                            val image =
+                                if (authCodeVisible) MaterialIcons.Filled.Visibility else MaterialIcons.Filled.VisibilityOff
+                            val description = if (authCodeVisible) "隐藏授权码" else "显示授权码"
+                            M3Icon(
+                                imageVector = image,
+                                contentDescription = description,
+                                tint = FluentTheme.colors.text.text.tertiary,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { authCodeVisible = !authCodeVisible }
+                                    )
+                                    .pointerHoverIcon(PointerIcon.Hand)
+                            )
+                        },
+                        textObfuscationMode = if (authCodeVisible) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
+                        isClearable = false,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(36.dp)
+                            .onPreviewKeyEvent { event ->
+                                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                if (event.key != Key.C) return@onPreviewKeyEvent false
+                                if (!event.isCtrlPressed && !event.isMetaPressed) return@onPreviewKeyEvent false
+
+                                clipboardManager.setText(AnnotatedString(authCodeState.text.toString()))
+                                true
+                            }
                     )
                 }
             }
@@ -762,7 +823,9 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                                 },
                                 trailing = {
                                     Button(
-                                        onClick = { showAuthCodeDialog = true },
+                                        onClick = {
+                                            showAuthCodeDialog = true
+                                        },
                                         modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
                                     ) {
                                         Text("填写授权码")
