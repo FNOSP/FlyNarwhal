@@ -6,8 +6,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.7.8"
+val appVersion = "1.8.0"
+
 val appVersionSuffix = ""
+
+val flyNarwhalServerVersion = "0.6.0"
 
 val platformStr = when {
     osName.contains("win") -> {
@@ -319,7 +322,7 @@ val generateBuildConfig by tasks.registering {
     val reportApiSecret = System.getenv("REPORT_API_SECRET") ?: project.findProperty("REPORT_API_SECRET")?.toString() ?: ""
     val reportUrl = System.getenv("REPORT_URL") ?: project.findProperty("REPORT_URL")?.toString() ?: ""
     val flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
-    val flyNarwhalServerVersion = "0.5.3"
+    val flyNarwhalServerVersion = flyNarwhalServerVersion
 
     inputs.property("version", version)
     inputs.property("suffix", suffix)
