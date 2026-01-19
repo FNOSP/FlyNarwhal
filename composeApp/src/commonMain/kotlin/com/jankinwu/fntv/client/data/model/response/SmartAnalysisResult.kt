@@ -17,7 +17,10 @@ data class SmartAnalysisResult<T>(
     val data: T? = null,
     @get:JsonProperty("success")
     @param:JsonProperty("success")
-    val success: Boolean? = null
+    val success: Boolean? = null,
+    @get:JsonProperty("encrypted")
+    @param:JsonProperty("encrypted")
+    val encrypted: Boolean? = null
 ) {
     /**
      * Returns true if the request was successful.

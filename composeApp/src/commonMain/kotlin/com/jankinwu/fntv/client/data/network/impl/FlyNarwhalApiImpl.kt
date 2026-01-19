@@ -2,6 +2,7 @@ package com.jankinwu.fntv.client.data.network.impl
 
 import co.touchlab.kermit.Logger
 import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -14,6 +15,7 @@ import com.jankinwu.fntv.client.data.model.response.EpisodeSegmentsResponse
 import com.jankinwu.fntv.client.data.model.response.SmartAnalysisResult
 import com.jankinwu.fntv.client.data.network.FlyNarwhalApi
 import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genAuthxForFlyNarwhal
+import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genSignxForFlyNarwhal
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import io.ktor.client.HttpClient
@@ -233,14 +235,22 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         url: String,
         parameters: Map<String, Any?>? = null,
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
-    ): T {
+    ): SmartAnalysisResult<T> {
+        checkAuthCode(url)
         val fullUrl = buildFullUrl(url)
         logger.i { "GET request: $fullUrl, params: $parameters" }
         val authx = genAuthxForFlyNarwhal(url, parameters)
+        val signx = genSignxForFlyNarwhal(url = url, authx = authx, parameters = parameters)
+        val authCode = AppSettingsStore.authCode
+        val keyx = if (authCode.startsWith("FN1_")) FlyNarwhalResponseCrypto.clientKeyxBase64Url() else null
 
         try {
             val response = client.get(fullUrl) {
                 header("Authx", authx)
+                header("Signx", signx)
+                if (keyx != null) {
+                    header("Keyx", keyx)
+                }
                 parameters?.forEach { (key, value) ->
                     if (value != null) {
                         parameter(key, value)
@@ -250,7 +260,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             }
             val responseString = response.bodyAsText()
             logger.i { "GET request, url: $url, Response: $responseString" }
-            return mapper.readValue<T>(responseString)
+            return decodeSmartResult<T>(responseString)
         } catch (e: Exception) {
             logger.e(e) { "GET request failed" }
             throw e
@@ -265,13 +275,18 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         parameters: Map<String, Any?>? = null,
         handleResponse: suspend (HttpResponse) -> T
     ): T {
+        checkAuthCode(url)
         val fullUrl = buildFullUrl(url)
         val authx = genAuthxForFlyNarwhal(url, parameters)
+        val signx = genSignxForFlyNarwhal(url = url, authx = authx, parameters = parameters)
+        val keyx = FlyNarwhalResponseCrypto.clientKeyxBase64Url()
         logger.i { "GET SSE request: $fullUrl, params: $parameters" }
 
         return client.prepareGet(fullUrl) {
             header(HttpHeaders.Accept, "text/event-stream")
             header("Authx", authx)
+            header("Signx", signx)
+            header("Keyx", keyx)
             parameters?.forEach { (key, value) ->
                 if (value != null) {
                     parameter(key, value)
@@ -292,8 +307,11 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         body: Any? = null,
         handleResponse: suspend (HttpResponse) -> T
     ): T {
+        checkAuthCode(url)
         val fullUrl = buildFullUrl(url)
         val authx = genAuthxForFlyNarwhal(url, data = body)
+        val signx = genSignxForFlyNarwhal(url = url, authx = authx, data = body)
+        val keyx = FlyNarwhalResponseCrypto.clientKeyxBase64Url()
         logger.i { "POST SSE request: $fullUrl, body: $body" }
 
         return client.prepareRequest(fullUrl) {
@@ -301,6 +319,8 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             header(HttpHeaders.Accept, "text/event-stream")
             header(HttpHeaders.ContentType, "application/json; charset=utf-8")
             header("Authx", authx)
+            header("Signx", signx)
+            header("Keyx", keyx)
             if (body != null) {
                 setBody(body)
             }
@@ -318,15 +338,20 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
         url: String,
         body: Any? = emptyMap<String, Any>(),
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
-    ): T {
+    ): SmartAnalysisResult<T> {
+        checkAuthCode(url)
         val fullUrl = buildFullUrl(url)
         val authx = genAuthxForFlyNarwhal(url, data = body)
+        val signx = genSignxForFlyNarwhal(url = url, authx = authx, data = body)
+        val keyx = FlyNarwhalResponseCrypto.clientKeyxBase64Url()
         logger.i { "POST request: $fullUrl, body: $body" }
 
         try {
             val response = client.post(fullUrl) {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
                 header("Authx", authx)
+                header("Signx", signx)
+                header("Keyx", keyx)
                 if (body != null) {
                     setBody(body)
                 }
@@ -334,11 +359,38 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             }
             val responseString = response.bodyAsText()
             logger.i { "Response: $responseString" }
-            return mapper.readValue<T>(responseString)
+            return decodeSmartResult<T>(responseString)
         } catch (e: Exception) {
             logger.e(e) { "POST request failed" }
             throw e
         }
+    }
+
+    private inline fun <reified T> decodeSmartResult(responseString: String): SmartAnalysisResult<T> {
+        val raw = mapper.readValue<SmartAnalysisResult<JsonNode>>(responseString)
+        if (raw.encrypted == true) {
+            val ciphertext = raw.data?.asText().orEmpty()
+            if (ciphertext.isBlank()) {
+                return SmartAnalysisResult(
+                    code = raw.code,
+                    msg = raw.msg,
+                    data = null,
+                    success = raw.success,
+                    encrypted = raw.encrypted
+                )
+            }
+            val authCode = AppSettingsStore.authCode
+            val decryptedJson = FlyNarwhalResponseCrypto.decryptAesGcmBase64Url(ciphertext, authCode)
+            val data = mapper.readValue<T>(decryptedJson)
+            return SmartAnalysisResult(
+                code = raw.code,
+                msg = raw.msg,
+                data = data,
+                success = raw.success,
+                encrypted = raw.encrypted
+            )
+        }
+        return mapper.readValue(responseString)
     }
 
     /**
@@ -350,5 +402,12 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             throw IllegalArgumentException("飞鲸影视服务端 URL 未配置")
         }
         return if (baseUrl.endsWith("/")) "$baseUrl${url.removePrefix("/")}" else "$baseUrl$url"
+    }
+
+    private fun checkAuthCode(url: String) {
+        if (AppSettingsStore.flyNarwhalServerEnabled && AppSettingsStore.authCode.isBlank()) {
+            logger.e { "FlyNarwhal server auth code is empty, url: $url" }
+            throw IllegalStateException("请填写飞鲸服务端授权码")
+        }
     }
 }

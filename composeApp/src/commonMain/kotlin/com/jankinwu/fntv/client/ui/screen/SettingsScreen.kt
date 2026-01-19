@@ -95,8 +95,10 @@ import io.github.composefluent.component.Text
 import io.github.composefluent.component.TextField
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
+import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.icons.regular.Color
 import io.github.composefluent.icons.regular.Globe
+import io.github.composefluent.icons.regular.Key
 import io.github.composefluent.icons.regular.Navigation
 import io.github.composefluent.icons.regular.Person
 import io.github.composefluent.icons.regular.WeatherMoon
@@ -122,6 +124,8 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     val focusManager = LocalFocusManager.current
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showHardwareInfoDialog by remember { mutableStateOf(false) }
+    var showAuthCodeDialog by remember { mutableStateOf(false) }
+    var authCodeInput by remember { mutableStateOf("") }
     val toastManager = rememberToastManager()
 
     val logExporter = LocalLogExporter.current
@@ -230,6 +234,33 @@ fun SettingsScreen(navigator: ComponentNavigator) {
             },
             content = {
                 Text("为了改进软件性能，我们会收集部分硬件信息（如 CPU、GPU 型号等）作为参考依据。这些信息将仅用于优化软件，不会涉及个人隐私。")
+            }
+        )
+    }
+
+    if (showAuthCodeDialog) {
+        CustomContentDialog(
+            title = "填写授权码",
+            visible = true,
+            primaryButtonText = "确定",
+            secondaryButtonText = "取消",
+            onButtonClick = { button ->
+                if (button == ContentDialogButton.Primary) {
+                    AppSettingsStore.authCode = authCodeInput
+                }
+                showAuthCodeDialog = false
+                authCodeInput = ""
+            },
+            content = {
+                Column {
+                    Text("请输入授权码：")
+                    Spacer(Modifier.height(8.dp))
+                    TextField(
+                        value = authCodeInput,
+                        onValueChange = { authCodeInput = it },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         )
     }
@@ -647,53 +678,56 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
                         exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top)
                     ) {
-                        CardExpanderItem(
-                            heading = { Text("飞鲸服务端地址") },
-                            caption = { Text("请填写完整服务端的 URL") },
-                            icon = {
-                                Icon(
-                                    Icons.Regular.Globe,
-                                    null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            trailing = {
-                                val isTesting = flyNarwhalServerTestState is UiState.Loading
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    TextField(
-                                        value = flyNarwhalServerBaseUrl,
-                                        onValueChange = {
-                                            flyNarwhalServerBaseUrl = it
-                                            AppSettingsStore.flyNarwhalServerBaseUrl = it
-                                        },
-                                        modifier = Modifier
-                                            .width(200.dp)
-                                            .onFocusChanged { focusState ->
-                                                val isFocused = focusState.isFocused
+                        Column() {
+                            CardExpanderItem(
+                                heading = { Text("飞鲸服务端地址") },
+                                caption = { Text("请填写完整服务端的 URL") },
+                                icon = {
+                                    Icon(
+                                        Icons.Regular.Globe,
+                                        null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                trailing = {
+                                    val isTesting = flyNarwhalServerTestState is UiState.Loading
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        TextField(
+                                            value = flyNarwhalServerBaseUrl,
+                                            onValueChange = {
+                                                flyNarwhalServerBaseUrl = it
+                                                AppSettingsStore.flyNarwhalServerBaseUrl = it
+                                            },
+                                            modifier = Modifier
+                                                .width(200.dp)
+                                                .onFocusChanged { focusState ->
+                                                    val isFocused = focusState.isFocused
 //                                        if (wasSmartAnalysisBaseUrlFocused && !isFocused) {
 //                                            LoginStateManager.syncSmartAnalysisFnBaseUrlIfNeeded()
 //                                        }
 //                                        wasSmartAnalysisBaseUrlFocused = isFocused
+                                                },
+                                            singleLine = true,
+                                            placeholder = {
+                                                Text(
+                                                    "http://192.168.1.1:5365",
+                                                    style = FluentTheme.typography.body.copy(
+                                                        FluentTheme.colors.text.text.tertiary
+                                                    )
+                                                )
                                             },
-                                        singleLine = true,
-                                        placeholder = {
-                                            Text(
-                                                "http://192.168.1.1:5365",
-                                                style = FluentTheme.typography.body.copy(FluentTheme.colors.text.text.tertiary)
-                                            )
-                                        },
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Button(
-                                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                                        onClick = {
-                                            if (isTesting) return@Button
-                                            updateViewModel.testFlyNarwhalServerConnection(
-                                                flyNarwhalServerBaseUrl
-                                            )
-                                        }
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Button(
+                                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                                            onClick = {
+                                                if (isTesting) return@Button
+                                                updateViewModel.testFlyNarwhalServerConnection(
+                                                    flyNarwhalServerBaseUrl
+                                                )
+                                            }
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
 //                                        if (isTesting) {
 //                                            ProgressRing(
 //                                                size = ProgressRingSize.Small,
@@ -701,12 +735,41 @@ fun SettingsScreen(navigator: ComponentNavigator) {
 //                                            )
 //                                            Spacer(modifier = Modifier.width(6.dp))
 //                                        }
-                                            Text(if (isTesting) "测试中" else "测试")
+                                                Text(if (isTesting) "测试中" else "测试")
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        )
+                            )
+
+                            CardExpanderItem(
+                                heading = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("授权码")
+                                        Spacer(Modifier.width(6.dp))
+                                        HoverTip(
+                                            tipText = "请在浏览器中访问部署在 NAS 中的飞鲸服务端地址，点击右上角的「获取授权码」按钮，复制授权码后粘贴到填写授权码的文本框中。如果忘记授权码，请删除飞鲸服务端 jar 包所在目录下的「auth_code」文件，重新获取授权码。\n需要服务端版本 >= 0.6.0，低于 0.6.0 版的服务端不支持自动更新到 0.6.0 或以上版本，请手动更新到 0.6.0 或以上版本",
+                                        )
+                                    }
+                                },
+                                caption = { Text("填写飞鲸服务端授权码") },
+                                icon = {
+                                    Icon(
+                                        Icons.Regular.Key,
+                                        null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                trailing = {
+                                    Button(
+                                        onClick = { showAuthCodeDialog = true },
+                                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                    ) {
+                                        Text("填写授权码")
+                                    }
+                                }
+                            )
+                        }
                     }
 
                     Header("关于")

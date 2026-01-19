@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.jankinwu.fntv.client.BuildConfig
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import korlibs.crypto.MD5
+import korlibs.crypto.SHA256
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -66,18 +68,54 @@ object FnApiHelper {
         url: String,
         parameters: Map<String, Any?>?,
         data: Any?,
-        apiSecret: String,
+        apiSecret: String
     ): String {
         val nonce = generateRandomDigits()
         val timestamp = Clock.System.now().toEpochMilliseconds().toString()
-        val dataJsonMd5 = when {
+        val dataJsonMd5 = buildDataJsonMd5(parameters, data)
+
+        val signList = mutableListOf(
+            API_KEY,
+            url,
+            nonce,
+            timestamp,
+            dataJsonMd5,
+            apiSecret
+        )
+
+        val signStr = signList.joinToString("_")
+        val sign = getMd5(signStr)
+        return "nonce=$nonce&timestamp=$timestamp&sign=${sign}"
+    }
+
+    fun genSignxForFlyNarwhal(
+        url: String,
+        authx: String,
+        parameters: Map<String, Any?>? = null,
+        data: Any? = null,
+        publicKeyBase64: String = AppSettingsStore.authCode
+    ): String {
+        val authxMap = parseAuthxHeader(authx)
+        val nonce = authxMap["nonce"].orEmpty()
+        val timestamp = authxMap["timestamp"].orEmpty()
+        val sign = authxMap["sign"].orEmpty()
+        val dataJsonMd5 = buildDataJsonMd5(parameters, data)
+        val signxStr = listOf(timestamp, nonce, sign, dataJsonMd5, url, publicKeyBase64).joinToString("_")
+        return sha256Hex(signxStr)
+    }
+
+    private fun generateRandomDigits(start: Int = 100000, end: Int = 1000000): String {
+        return Random.nextInt(start, end).toString()
+    }
+
+    private fun buildDataJsonMd5(parameters: Map<String, Any?>?, data: Any?): String {
+        return when {
             data != null -> {
                 val dataJson = mapper.writeValueAsString(data)
                 getMd5(dataJson)
             }
 
             parameters != null -> {
-                // 对参数按键排序并编码
                 val sortedParams = parameters.filterValues { it != null }
                     .toSortedMap()
                     .map { "${it.key}=${it.value}" }
@@ -87,26 +125,22 @@ object FnApiHelper {
 
             else -> getMd5("")
         }
-
-        val signArray = arrayOf(
-            API_KEY,
-            url,
-            nonce,
-            timestamp,
-            dataJsonMd5,
-            apiSecret
-        )
-
-        val signStr = signArray.joinToString("_")
-        val sign = getMd5(signStr)
-        return "nonce=$nonce&timestamp=$timestamp&sign=${sign}"
     }
 
-    private fun generateRandomDigits(start: Int = 100000, end: Int = 1000000): String {
-        return Random.nextInt(start, end).toString()
+    private fun parseAuthxHeader(authx: String): Map<String, String> {
+        return authx.split("&")
+            .mapNotNull { part ->
+                val kv = part.split("=", limit = 2)
+                if (kv.size == 2) kv[0] to kv[1] else null
+            }
+            .toMap()
     }
 
     private fun getMd5(input: String): String {
         return MD5.digest(input.toByteArray(Charsets.UTF_8)).hex
+    }
+
+    private fun sha256Hex(input: String): String {
+        return SHA256.digest(input.toByteArray(Charsets.UTF_8)).hex
     }
 }
