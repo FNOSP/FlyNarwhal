@@ -1,6 +1,5 @@
 package com.jankinwu.fntv.client.utils
 
-import androidx.compose.ui.text.AnnotatedString
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
@@ -325,7 +324,7 @@ class HlsSubtitleUtil(
                             SubtitleCue(
                                 startTime = startMs,
                                 endTime = endMs,
-                                text = AnnotatedString(text),
+                                text = parseSubtitleInlineTags(text),
                                 assProps = null
                             )
                         )

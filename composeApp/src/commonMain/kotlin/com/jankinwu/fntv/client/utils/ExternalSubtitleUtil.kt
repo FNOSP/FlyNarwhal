@@ -414,7 +414,7 @@ class ExternalSubtitleUtil(
                             shadow = null // Shadow handled by annotations in AssStyledText
                         )
                     ) {
-                        append(segment)
+                        append(parseSubtitleInlineTags(segment))
                     }
                     pop()
                     pop()
@@ -532,7 +532,7 @@ class ExternalSubtitleUtil(
                         shadow = null // Shadow handled by annotations in AssStyledText
                     )
                 ) {
-                    append(cleanText.substring(currentIndex))
+                    append(parseSubtitleInlineTags(cleanText.substring(currentIndex)))
                 }
                 pop()
                 pop()
@@ -631,7 +631,7 @@ class ExternalSubtitleUtil(
                     val text = textBuilder.toString().trim()
                     
                     if (text.isNotEmpty()) {
-                        cues.add(SubtitleCue(startMs, endMs, AnnotatedString(text)))
+                        cues.add(SubtitleCue(startMs, endMs, parseSubtitleInlineTags(text)))
                     }
                 } catch (_: Exception) {
                     // Ignore malformed

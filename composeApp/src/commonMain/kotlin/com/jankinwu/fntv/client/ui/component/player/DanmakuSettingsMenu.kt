@@ -54,7 +54,6 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.icons.DanmuSetting
-import com.jankinwu.fntv.client.icons.Setting
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -243,12 +242,14 @@ private fun DanmakuSettingsFlyout(
             modifier = Modifier.width(MenuWidth).height(MenuHeight)
         ) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(vertical = 16.dp, horizontal = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.Start
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -272,9 +273,12 @@ private fun DanmakuSettingsFlyout(
                     )
                 }
 
-                HorizontalDivider(color = FlyoutBorderColor)
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
 
-                Box(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 4.dp))
+                {
                     if (currentScreen == "Advanced") {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             Row(
