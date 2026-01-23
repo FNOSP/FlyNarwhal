@@ -68,9 +68,9 @@ import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.icons.Download
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.icons.PreRelease
+import com.jankinwu.fntv.client.icons.Server
 import com.jankinwu.fntv.client.icons.Statement
 import com.jankinwu.fntv.client.icons.VersionInfo
-import com.jankinwu.fntv.client.icons.VideoSmartAnalysis
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.ui.component.common.BackButton
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
@@ -695,7 +695,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         }
                     )
 
-                    Header("播放")
+                    Header("服务器")
                     CardExpanderItem(
                         heading = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -707,7 +707,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                             }
                         },
                         caption = { Text("启用后可连接飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持") },
-                        icon = { Icon(VideoSmartAnalysis, null, modifier = Modifier.size(18.dp)) },
+                        icon = { Icon(Server, null, modifier = Modifier.size(18.dp)) },
                         trailing = {
                             Switcher(
                                 checked = flyNarwhalServerEnabled,
