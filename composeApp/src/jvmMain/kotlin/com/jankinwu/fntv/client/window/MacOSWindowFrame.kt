@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,9 +23,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.FrameWindowScope
@@ -43,6 +48,7 @@ import io.github.composefluent.component.Text
 import kotlinx.coroutines.launch
 import org.jetbrains.skiko.disableTitleBar
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun FrameWindowScope.MacOSWindowFrame(
     state: WindowState,
@@ -75,6 +81,7 @@ fun FrameWindowScope.MacOSWindowFrame(
     val uiVisible = playerManager.playerState.isUiVisible
     val showTrafficLights = !playerVisible || uiVisible
     var searchQuery by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(showTrafficLights) {
         com.jankinwu.fntv.client.utils.MacOSTrafficLightUtils.setTrafficLightButtonsVisible(window, showTrafficLights)
@@ -83,7 +90,13 @@ fun FrameWindowScope.MacOSWindowFrame(
     //TODO Get real macOS caption bar width.
     Box {
         val contentInset = WindowInsets(left = 80.dp)
-        content(windowInset, contentInset)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onPointerEvent(PointerEventType.Press) { focusManager.clearFocus() }
+        ) {
+            content(windowInset, contentInset)
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
