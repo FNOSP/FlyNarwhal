@@ -83,4 +83,5 @@ val viewModelModule = module {
     viewModelOf (::SmartAnalysisStatusViewModel)
     viewModelOf (::DanmakuViewModel)
     viewModelOf (::PersonViewModel)
+    viewModelOf (::SearchViewModel)
 }

@@ -317,6 +317,7 @@ fun main() {
                                 icon = icon,
                                 title = title,
                                 state = mainState,
+                                navigator = navigator,
                                 backButtonEnabled = navigator.canNavigateUp,
                                 backButtonClick = { navigator.navigateUp() },
                                 backButtonVisible = false
@@ -418,6 +419,7 @@ fun main() {
                                     icon = icon,
                                     title = playerManager.playerState.mediaTitle,
                                     state = playerState,
+                                    navigator = navigator,
                                     backButtonVisible = false,
                                     backButtonEnabled = false,
                                     backButtonClick = {
@@ -543,6 +545,7 @@ fun main() {
                                     icon = icon,
                                     title = "使用 NAS 登录",
                                     state = fnConnectWindowState,
+                                    navigator = navigator,
                                     backButtonVisible = false
                                 ) { windowInset, contentInset ->
                                     NasLoginWebViewScreen(

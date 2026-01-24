@@ -31,6 +31,7 @@ import com.jankinwu.fntv.client.data.model.response.ItemListQueryResponse
 import com.jankinwu.fntv.client.data.model.response.ItemResponse
 import com.jankinwu.fntv.client.data.model.response.LoginResponse
 import com.jankinwu.fntv.client.data.model.response.MediaDbListResponse
+import com.jankinwu.fntv.client.data.model.response.MediaItem
 import com.jankinwu.fntv.client.data.model.response.MediaItemResponse
 import com.jankinwu.fntv.client.data.model.response.MediaResetQualityResponse
 import com.jankinwu.fntv.client.data.model.response.MediaTranscodeResponse
@@ -209,7 +210,17 @@ class FnOfficialApiImpl : FnOfficialApi {
         file: ByteArray,
         fileName: String
     ): SubtitleUploadResponse {
-        return postMultipartFile("/v/api/v1/subtitle/upload/$guid", "file", file, fileName)
+        return postMultipartFile(
+            "/v/api/v1/subtitle/upload",
+            "file",
+            file,
+            fileName,
+            mapOf("guid" to guid)
+        )
+    }
+
+    override suspend fun search(q: String): List<MediaItem> {
+        return get("/v/api/v1/search/list", mapOf("q" to q))
     }
 
     override suspend fun deleteSubtitle(subtitleGuid: String): Boolean {
@@ -500,5 +511,4 @@ class FnOfficialApiImpl : FnOfficialApi {
         }
     }
 }
-
 

@@ -14,6 +14,7 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowState
 import com.jankinwu.fntv.client.AppTheme
 import com.jankinwu.fntv.client.RefreshManager
+import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import io.github.composefluent.component.NavigationDisplayMode
@@ -27,6 +28,7 @@ fun FrameWindowScope.WindowFrame(
     icon: Painter? = null,
     title: String = "",
     state: WindowState,
+    navigator: ComponentNavigator,
     backButtonVisible: Boolean = true,
     backButtonEnabled: Boolean = false,
     backButtonClick: () -> Unit = {},
@@ -60,6 +62,7 @@ fun FrameWindowScope.WindowFrame(
                     title = if (isCollapsed) "" else title,
                     content = content,
                     state = state,
+                    navigator = navigator,
                     backButtonVisible = backButtonVisible && !isCollapsed,
                     backButtonEnabled = backButtonEnabled,
                     backButtonClick = backButtonClick,
@@ -89,6 +92,7 @@ fun FrameWindowScope.WindowFrame(
 
             hostOs.isMacOS -> {
                 MacOSWindowFrame(
+                    navigator = navigator,
                     content = content,
                     backButtonVisible = backButtonVisible && !isCollapsed,
                     backButtonEnabled = backButtonEnabled,

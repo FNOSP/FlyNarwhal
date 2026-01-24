@@ -98,7 +98,13 @@ data class MediaItem(
     val firstAirDate: String? = null,
     // 最后播出时间
     @param:JsonProperty("last_air_date")
-    val lastAirDate: String? = null
+    val lastAirDate: String? = null,
+
+    @param:JsonProperty("number_of_item")
+    val numberOfItem: Int? = null,
+
+    @param:JsonProperty("genres")
+    val genres: List<Int>? = null
 )
 
 @Immutable

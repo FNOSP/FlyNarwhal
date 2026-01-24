@@ -22,6 +22,7 @@ import com.jankinwu.fntv.client.data.model.response.ItemListQueryResponse
 import com.jankinwu.fntv.client.data.model.response.ItemResponse
 import com.jankinwu.fntv.client.data.model.response.LoginResponse
 import com.jankinwu.fntv.client.data.model.response.MediaDbListResponse
+import com.jankinwu.fntv.client.data.model.response.MediaItem
 import com.jankinwu.fntv.client.data.model.response.MediaItemResponse
 import com.jankinwu.fntv.client.data.model.response.MediaResetQualityResponse
 import com.jankinwu.fntv.client.data.model.response.MediaTranscodeResponse
@@ -98,6 +99,8 @@ interface FnOfficialApi {
     suspend fun personList(guid: String): PersonListResponse
 
     suspend fun uploadSubtitle(guid: String, file: ByteArray, fileName: String): SubtitleUploadResponse
+
+    suspend fun search(q: String): List<MediaItem>
 
     suspend fun deleteSubtitle(subtitleGuid: String): Boolean
 

@@ -31,6 +31,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +60,8 @@ import com.jankinwu.fntv.client.icons.Pin as PinIcon
 import com.jankinwu.fntv.client.icons.PinFill as PinFillIcon
 import com.jankinwu.fntv.client.icons.RefreshCircle
 import com.jankinwu.fntv.client.jna.windows.ComposeWindowProcedure
+import com.jankinwu.fntv.client.ui.component.common.CapsuleSearchBox
+import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.mayakapps.compose.windowstyler.WindowBackdrop
@@ -102,6 +105,7 @@ fun FrameWindowScope.WindowsWindowFrame(
     icon: Painter? = null,
     title: String = "",
     state: WindowState,
+    navigator: ComponentNavigator,
     backButtonVisible: Boolean = true,
     backButtonEnabled: Boolean = false,
     backButtonClick: () -> Unit = {},
@@ -131,6 +135,7 @@ fun FrameWindowScope.WindowsWindowFrame(
     val captionBarRect = remember { mutableStateOf(Rect.Zero) }
     val layoutHitTestOwner = rememberLayoutHitTestOwner()
     val contentPaddingInset = remember { MutableWindowInsets() }
+    var searchQuery by remember { mutableStateOf("") }
     
     val isFullscreen = state.placement == WindowPlacement.Fullscreen
 
@@ -228,6 +233,13 @@ fun FrameWindowScope.WindowsWindowFrame(
                         )
                         HasNewVersionTag()
                     }
+
+                    CapsuleSearchBox(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        navigator = navigator,
+                        modifier = Modifier.align(Alignment.CenterVertically)
+                    )
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 if (showCaptionButtons) {
