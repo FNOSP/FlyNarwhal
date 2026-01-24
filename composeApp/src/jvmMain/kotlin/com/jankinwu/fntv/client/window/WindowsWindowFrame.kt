@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.MutableWindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -171,77 +172,87 @@ fun FrameWindowScope.WindowsWindowFrame(
              content(WindowInsets(0), WindowInsets(0))
         } else {
              content(WindowInsets(top = captionBarHeight), contentPaddingInset)
-             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.height(captionBarHeight)
+            val playerManager = LocalPlayerManager.current
+            val playerVisible = playerManager.playerState.isVisible
+            val uiVisible = playerManager.playerState.isUiVisible
+            val showCaptionButtons = !playerVisible || uiVisible
+
+            LaunchedEffect(showCaptionButtons) {
+                if (!showCaptionButtons) {
+                    maxButtonRect.value = Rect.Zero
+                    minButtonRect.value = Rect.Zero
+                    closeButtonRect.value = Rect.Zero
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(captionBarHeight)
                     .zIndex(10f)
                     .onGloballyPositioned { captionBarRect.value = it.boundsInWindow() }
             ) {
-                AnimatedContent(
-                    targetState = backButtonVisible,
-                    transitionSpec = {
-                        ContentTransform(
-                            targetContentEnter = expandHorizontally(),
-                            initialContentExit = shrinkHorizontally(),
-                            sizeTransform = SizeTransform { _, _ ->
-                                tween(
-                                    FluentDuration.ShortDuration,
-                                    easing = FluentEasing.FastInvokeEasing
-                                )
-                            }
-                        )
-                    }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.align(Alignment.CenterStart)
                 ) {
-                    if (it) {
-                        val interactionSource = remember { MutableInteractionSource() }
-                        NavigationDefaults.BackButton(
-                            onClick = backButtonClick,
-                            disabled = !backButtonEnabled,
-                            interaction = interactionSource,
-                            icon = { FontIconDefaults.BackIcon(interactionSource, size = FontIconSize(10f)) }
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.width(14.dp).height(36.dp))
+                    AnimatedContent(
+                        targetState = backButtonVisible,
+                        transitionSpec = {
+                            ContentTransform(
+                                targetContentEnter = expandHorizontally(),
+                                initialContentExit = shrinkHorizontally(),
+                                sizeTransform = SizeTransform { _, _ ->
+                                    tween(
+                                        FluentDuration.ShortDuration,
+                                        easing = FluentEasing.FastInvokeEasing
+                                    )
+                                }
+                            )
+                        }
+                    ) {
+                        if (it) {
+                            val interactionSource = remember { MutableInteractionSource() }
+                            NavigationDefaults.BackButton(
+                                onClick = backButtonClick,
+                                disabled = !backButtonEnabled,
+                                interaction = interactionSource,
+                                icon = { FontIconDefaults.BackIcon(interactionSource, size = FontIconSize(10f)) }
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.width(14.dp).height(36.dp))
+                        }
                     }
-                }
-                val playerManager = LocalPlayerManager.current
-                val playerVisible = playerManager.playerState.isVisible
-                val uiVisible = playerManager.playerState.isUiVisible
-                val showCaptionButtons = !playerVisible || uiVisible
 
-                LaunchedEffect(showCaptionButtons) {
-                    if (!showCaptionButtons) {
-                        maxButtonRect.value = Rect.Zero
-                        minButtonRect.value = Rect.Zero
-                        closeButtonRect.value = Rect.Zero
+                    if (!playerVisible) {
+                        if (icon != null) {
+                            Image(
+                                painter = icon,
+                                contentDescription = null,
+                                modifier = Modifier.padding(start = 6.dp).size(16.dp)
+                            )
+                        }
+                        if (title.isNotEmpty()) {
+                            Text(
+                                text = title,
+                                style = FluentTheme.typography.caption,
+                                modifier = Modifier.padding(start = 16.dp)
+                            )
+                            HasNewVersionTag()
+                        }
                     }
                 }
 
                 if (!playerVisible) {
-                    if (icon != null) {
-                        Image(
-                            painter = icon,
-                            contentDescription = null,
-                            modifier = Modifier.padding(start = 6.dp).size(16.dp)
-                        )
-                    }
-                    if (title.isNotEmpty()) {
-                        Text(
-                            text = title,
-                            style = FluentTheme.typography.caption,
-                            modifier = Modifier.padding(start = 16.dp)
-                        )
-                        HasNewVersionTag()
-                    }
-
                     CapsuleSearchBox(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         navigator = navigator,
-                        modifier = Modifier.align(Alignment.CenterVertically)
+                        modifier = Modifier.align(Alignment.Center),
+                        collapseOnBlur = true
                     )
                 }
-                Spacer(modifier = Modifier.weight(1f))
+
                 if (showCaptionButtons) {
                     window.CaptionButtonRow(
                         windowHandle = procedure.windowHandle,
@@ -264,7 +275,7 @@ fun FrameWindowScope.WindowsWindowFrame(
                         accentColor = procedure.windowFrameColor,
                         frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
                         isActive = procedure.isWindowActive,
-                        modifier = Modifier.align(Alignment.CenterVertically).onSizeChanged {
+                        modifier = Modifier.align(Alignment.CenterEnd).onSizeChanged {
                             contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
                         }
                     )

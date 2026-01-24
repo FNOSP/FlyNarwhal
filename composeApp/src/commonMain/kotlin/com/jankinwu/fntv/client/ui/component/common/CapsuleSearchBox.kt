@@ -101,6 +101,7 @@ fun CapsuleSearchBox(
     height: Dp = 32.dp,
     placeholder: String = "搜索片名、演员",
     textStyle: TextStyle = FluentTheme.typography.caption,
+    collapseOnBlur: Boolean = false,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -113,6 +114,12 @@ fun CapsuleSearchBox(
 
     LaunchedEffect(value) {
         viewModel.search(value)
+    }
+    LaunchedEffect(isFocused, collapseOnBlur) {
+        if (!isFocused && collapseOnBlur && value.isNotEmpty()) {
+            onValueChange("")
+            viewModel.clearSearch()
+        }
     }
 
     val animatedWidth by animateDpAsState(
