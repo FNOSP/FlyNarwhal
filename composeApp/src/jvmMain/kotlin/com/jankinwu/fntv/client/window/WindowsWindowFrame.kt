@@ -35,7 +35,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -45,7 +47,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalFontFamilyResolver
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.platform.FontLoadResult
@@ -99,7 +106,7 @@ import io.github.composefluent.scheme.collectVisualState
 import kotlinx.coroutines.launch
 import java.awt.Window
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun FrameWindowScope.WindowsWindowFrame(
     onCloseRequest: () -> Unit,
@@ -137,6 +144,10 @@ fun FrameWindowScope.WindowsWindowFrame(
     val layoutHitTestOwner = rememberLayoutHitTestOwner()
     val contentPaddingInset = remember { MutableWindowInsets() }
     var searchQuery by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
+    var searchBoxBounds by remember { mutableStateOf<Rect?>(null) }
+    var isSearchBoxFocused by remember { mutableStateOf(false) }
+    var rootBoxOffset by remember { mutableStateOf(Offset.Zero) }
     
     val isFullscreen = state.placement == WindowPlacement.Fullscreen
 
@@ -166,7 +177,19 @@ fun FrameWindowScope.WindowsWindowFrame(
     }
 
     Box(
-        modifier = Modifier.windowInsetsPadding(if (isFullscreen) WindowInsets(0) else paddingInset)
+        modifier = Modifier
+            .windowInsetsPadding(if (isFullscreen) WindowInsets(0) else paddingInset)
+            .onGloballyPositioned { rootBoxOffset = it.positionInWindow() }
+            .onPointerEvent(PointerEventType.Press, pass = PointerEventPass.Final) { event ->
+                val bounds = searchBoxBounds
+                val position = event.changes.firstOrNull()?.position
+                if (bounds != null && position != null && isSearchBoxFocused) {
+                    val windowPosition = rootBoxOffset + position
+                    if (!bounds.contains(windowPosition)) {
+                        focusManager.clearFocus()
+                    }
+                }
+            }
     ) {
         if (isFullscreen) {
              content(WindowInsets(0), WindowInsets(0))
@@ -249,7 +272,9 @@ fun FrameWindowScope.WindowsWindowFrame(
                         onValueChange = { searchQuery = it },
                         navigator = navigator,
                         modifier = Modifier.align(Alignment.Center),
-                        collapseOnBlur = true
+                        collapseOnBlur = true,
+                        onFocusChanged = { isSearchBoxFocused = it },
+                        onBoundsChanged = { searchBoxBounds = it }
                     )
                 }
 
