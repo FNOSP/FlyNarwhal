@@ -733,7 +733,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         Column() {
                             CardExpanderItem(
                                 heading = { Text("飞鲸服务端地址") },
-                                caption = { Text("请填写完整服务端的 URL") },
+                                caption = { Text("请填写完整的服务端 URL") },
                                 icon = {
                                     Icon(
                                         Icons.Regular.Globe,

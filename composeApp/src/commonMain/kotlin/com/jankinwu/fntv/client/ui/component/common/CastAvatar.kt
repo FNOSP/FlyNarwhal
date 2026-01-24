@@ -46,6 +46,7 @@ import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
+import com.jankinwu.fntv.client.ui.screen.PersonDetailScreen
 import flynarwhal.composeapp.generated.resources.Res
 import flynarwhal.composeapp.generated.resources.person_placeholder
 import io.github.composefluent.FluentTheme
@@ -58,6 +59,8 @@ fun CastAvatar(
     onClick: () -> Unit = {},
     castName: String = "",
     role: String? = "",
+    guid: String? = null,
+    navigator: ComponentNavigator? = null
 ) {
     val store = LocalStore.current
     var isPosterHovered by remember { mutableStateOf(false) }
@@ -71,7 +74,23 @@ fun CastAvatar(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = {
-                    /* TODO: Handle click event */
+                    if (navigator != null && guid != null) {
+                        val personDetailComponent = ComponentItem(
+                            name = "演职员详情",
+                            group = "/详情",
+                            description = "演职员详情页面",
+                            guid = "person_detail_$guid",
+                            content = { nav ->
+                                PersonDetailScreen(
+                                    guid = guid,
+                                    navigator = nav
+                                )
+                            }
+                        )
+                        navigator.navigate(personDetailComponent)
+                    } else {
+                        onClick()
+                    }
                 }
             )
             .pointerHoverIcon(PointerIcon.Hand),

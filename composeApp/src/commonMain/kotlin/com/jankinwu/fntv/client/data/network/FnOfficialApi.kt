@@ -4,6 +4,7 @@ import com.jankinwu.fntv.client.data.model.request.AuthRequest
 import com.jankinwu.fntv.client.data.model.request.ItemListQueryRequest
 import com.jankinwu.fntv.client.data.model.request.LoginRequest
 import com.jankinwu.fntv.client.data.model.request.MediaPRequest
+import com.jankinwu.fntv.client.data.model.request.PersonItemListRequest
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
 import com.jankinwu.fntv.client.data.model.request.ScrapRescrapRequest
@@ -41,6 +42,9 @@ import com.jankinwu.fntv.client.data.model.response.SubtitleUploadResponse
 import com.jankinwu.fntv.client.data.model.response.SysConfigResponse
 import com.jankinwu.fntv.client.data.model.response.TagListResponse
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
+import com.jankinwu.fntv.client.data.model.response.PersonItemListQueryResponse
+import com.jankinwu.fntv.client.data.model.response.PersonResponse
+
 
 
 interface FnOfficialApi {
@@ -89,8 +93,6 @@ interface FnOfficialApi {
 
     suspend fun logout(): Boolean
 
-
-
     suspend fun episodeList(guid: String): List<EpisodeListResponse>
 
     suspend fun personList(guid: String): PersonListResponse
@@ -124,4 +126,8 @@ interface FnOfficialApi {
     suspend fun mediaResetQuality(request: MediaPRequest): MediaResetQualityResponse
 
     suspend fun seasonList(guid: String): List<SeasonListResponse>
+
+    suspend fun person(guid: String): PersonResponse
+
+    suspend fun personItemList(request: PersonItemListRequest): PersonItemListQueryResponse
 }

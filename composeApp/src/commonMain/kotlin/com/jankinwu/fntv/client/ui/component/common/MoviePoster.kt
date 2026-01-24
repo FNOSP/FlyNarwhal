@@ -473,8 +473,8 @@ fun MoviePoster(
             subtitle?.let {
                 Text(
                     text = it,
-                    style = LocalTypography.current.subtitle,
-                    fontSize = (12 * scaleFactor).sp,
+                    style = LocalTypography.current.subtitle.copy(fontWeight = FontWeight.Normal),
+                    fontSize = (11 * scaleFactor).sp,
                     textAlign = TextAlign.Center,
                     color = FluentTheme.colors.text.text.tertiary
                 )

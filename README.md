@@ -149,7 +149,7 @@
 | 首页            | ![Progress](https://progress-bar.xyz/90/) |
 | 收藏页          | ![Progress](https://progress-bar.xyz/0/)  |
 | 媒体库页        | ![Progress](https://progress-bar.xyz/90/) |
-| 媒体详情页      | ![Progress](https://progress-bar.xyz/60/) |
+| 媒体详情页      | ![Progress](https://progress-bar.xyz/80/) |
 | 播放器          | ![Progress](https://progress-bar.xyz/80/) |
 | 通用设置        | ![Progress](https://progress-bar.xyz/0/)  |
 | 媒体库管理      | ![Progress](https://progress-bar.xyz/0/)  |
