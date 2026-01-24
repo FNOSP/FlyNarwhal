@@ -25,6 +25,7 @@ import io.github.composefluent.FluentTheme
 fun CastScrollRow(
     modifier: Modifier = Modifier,
     castScrollRowItemList: List<ScrollRowItemData> = emptyList(),
+    navigator: ComponentNavigator
 ) {
     if (castScrollRowItemList.isNotEmpty()) {
         Column(
@@ -73,7 +74,9 @@ fun CastScrollRow(
                     modifier = modifier,
                     imageUrl = movie.posterImg,
                     castName = movie.title,
-                    role = movie.subtitle
+                    role = movie.subtitle,
+                    guid = movie.guid,
+                    navigator = navigator
                 )
             }
         }

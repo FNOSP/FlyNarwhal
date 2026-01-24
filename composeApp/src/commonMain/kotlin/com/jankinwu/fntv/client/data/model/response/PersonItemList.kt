@@ -4,115 +4,109 @@ import androidx.compose.runtime.Immutable
 import com.fasterxml.jackson.annotation.JsonProperty
 
 @Immutable
-data class ItemListQueryResponse(
-    @param:JsonProperty("dir")
-    val dir: String?,
-    @param:JsonProperty("jump_list")
-    val jumpList: List<String>? = null,
-    @param:JsonProperty("list")
-    val list: List<MediaItem>,
-    @param:JsonProperty("mdb_category")
-    val mdbCategory: String?,
-    @param:JsonProperty("mdb_name")
-    val mdbName: String?,
-    @param:JsonProperty("top_dir")
-    val topDir: String?,
-    @param:JsonProperty("total")
-    val total: Int
-)
-
-@Immutable
-data class MediaItem(
+data class PersonItemList(
     @param:JsonProperty("guid")
     val guid: String,
+
     @param:JsonProperty("lan")
-    val lan: String?,
-    @param:JsonProperty("douban_id")
-    val doubanId: Int?,
+    val lan: String,
+
     @param:JsonProperty("imdb_id")
     val imdbId: String?,
+
     @param:JsonProperty("trim_id")
-    val trimId: String?,
+    val trimId: String,
+
     @param:JsonProperty("tv_title")
-    val tvTitle: String?,
+    val tvTitle: String,
+
     @param:JsonProperty("parent_guid")
-    val parentGuid: String?,
+    val parentGuid: String,
+
     @param:JsonProperty("parent_title")
-    val parentTitle: String?,
+    val parentTitle: String,
+
     @param:JsonProperty("title")
     val title: String,
+
     @param:JsonProperty("type")
-    val type: String?,
+    val type: String,
+
     @param:JsonProperty("poster")
     val poster: String?,
+
     @param:JsonProperty("poster_width")
     val posterWidth: Int?,
+
     @param:JsonProperty("poster_height")
     val posterHeight: Int?,
+
+    @param:JsonProperty("runtime")
+    val runtime: Int?,
+
     @param:JsonProperty("is_favorite")
     val isFavorite: Int,
+
     @param:JsonProperty("watched")
-    val watched: Int?,
+    val watched: Int,
+
     @param:JsonProperty("watched_ts")
-    val watchedTs: Int?,
+    val watchedTs: Int,
+
     @param:JsonProperty("vote_average")
-    val voteAverage: String?,
+    val voteAverage: String,
+
     @param:JsonProperty("media_stream")
     val mediaStream: MediaStream,
+
     @param:JsonProperty("release_date")
-    val releaseDate: String?,
+    val releaseDate: String,
+
     @param:JsonProperty("season_number")
     val seasonNumber: Int,
+
     @param:JsonProperty("episode_number")
     val episodeNumber: Int,
+
     @param:JsonProperty("air_date")
     val airDate: String?,
+
     @param:JsonProperty("number_of_seasons")
-    val numberOfSeasons: Int?,
+    val numberOfSeasons: Int,
+
     @param:JsonProperty("number_of_episodes")
-    val numberOfEpisodes: Int?,
+    val numberOfEpisodes: Int,
+
     @param:JsonProperty("local_number_of_seasons")
-    val localNumberOfSeasons: Int?,
+    val localNumberOfSeasons: Int,
+
     @param:JsonProperty("local_number_of_episodes")
-    val localNumberOfEpisodes: Int?,
+    val localNumberOfEpisodes: Int,
+
     @param:JsonProperty("status")
-    val status: String?,
+    val status: String,
+
     @param:JsonProperty("overview")
     val overview: String?,
+
     @param:JsonProperty("ancestor_guid")
-    val ancestorGuid: String?,
+    val ancestorGuid: String,
+
     @param:JsonProperty("ancestor_name")
-    val ancestorName: String?,
+    val ancestorName: String,
+
     @param:JsonProperty("ancestor_category")
-    val ancestorCategory: String?,
+    val ancestorCategory: String,
+
     @param:JsonProperty("ts")
-    val ts: Int?,
+    val ts: Int,
+
     @param:JsonProperty("duration")
     val duration: Int,
+
     @param:JsonProperty("single_child_guid")
-    val singleChildGuid: String?,
+    val singleChildGuid: String,
+
     @param:JsonProperty("file_name")
-    val fileName: String?,
-    // 首播时间
-    @param:JsonProperty("first_air_date")
-    val firstAirDate: String? = null,
-    // 最后播出时间
-    @param:JsonProperty("last_air_date")
-    val lastAirDate: String? = null,
-
-    @param:JsonProperty("number_of_item")
-    val numberOfItem: Int? = null,
-
-    @param:JsonProperty("genres")
-    val genres: List<Int>? = null
-)
-
-@Immutable
-data class MediaStream(
-    @param:JsonProperty("resolutions")
-    val resolutions: List<String>? = null,
-    @param:JsonProperty("audio_type")
-    val audioType: String? = null,
-    @param:JsonProperty("color_range_type")
-    val colorRangeType: String? = null
+    val fileName: String
 )

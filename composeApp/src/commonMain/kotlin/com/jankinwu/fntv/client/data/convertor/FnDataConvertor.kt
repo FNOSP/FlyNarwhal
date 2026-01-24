@@ -4,6 +4,7 @@ import com.jankinwu.fntv.client.data.model.ScrollRowItemData
 import com.jankinwu.fntv.client.data.model.response.EpisodeListResponse
 import com.jankinwu.fntv.client.data.model.response.MediaDbListResponse
 import com.jankinwu.fntv.client.data.model.response.MediaItem
+import com.jankinwu.fntv.client.data.model.response.PersonItemList
 import com.jankinwu.fntv.client.data.model.response.PersonList
 import com.jankinwu.fntv.client.data.model.response.PlayDetailResponse
 import com.jankinwu.fntv.client.data.model.response.SearchingSubtitleInfo
@@ -22,6 +23,28 @@ import kotlinx.datetime.toLocalDateTime
 import java.util.concurrent.TimeUnit
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant.Companion.fromEpochMilliseconds
+
+fun convertPersonItemListResponseToScrollRowItemData(item: PersonItemList): ScrollRowItemData {
+    val subtitle = item.releaseDate.take(4)
+    val score = FnDataConvertor.formatVoteAverage(item.voteAverage)
+    val resolutions = item.mediaStream.resolutions?.filter { it != "Others" }?.distinct()
+
+    return ScrollRowItemData(
+        title = item.title,
+        subtitle = subtitle,
+        posterImg = item.poster,
+        duration = item.duration,
+        score = score,
+        resolutions = resolutions,
+        isFavourite = item.isFavorite == 1,
+        isAlreadyWatched = item.watched == 1,
+        guid = item.guid,
+        posterWidth = item.posterWidth ?: 0,
+        posterHeight = item.posterHeight ?: 0,
+        status = item.status,
+        type = item.type
+    )
+}
 
 fun convertMediaDbListResponseToScrollRowItem(item: MediaDbListResponse): ScrollRowItemData {
     return ScrollRowItemData(

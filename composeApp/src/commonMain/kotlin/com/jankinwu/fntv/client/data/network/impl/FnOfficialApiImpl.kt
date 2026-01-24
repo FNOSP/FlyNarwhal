@@ -10,6 +10,7 @@ import com.jankinwu.fntv.client.data.model.request.FavoriteRequest
 import com.jankinwu.fntv.client.data.model.request.ItemListQueryRequest
 import com.jankinwu.fntv.client.data.model.request.LoginRequest
 import com.jankinwu.fntv.client.data.model.request.MediaPRequest
+import com.jankinwu.fntv.client.data.model.request.PersonItemListRequest
 import com.jankinwu.fntv.client.data.model.request.PlayInfoRequest
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
@@ -30,10 +31,13 @@ import com.jankinwu.fntv.client.data.model.response.ItemListQueryResponse
 import com.jankinwu.fntv.client.data.model.response.ItemResponse
 import com.jankinwu.fntv.client.data.model.response.LoginResponse
 import com.jankinwu.fntv.client.data.model.response.MediaDbListResponse
+import com.jankinwu.fntv.client.data.model.response.MediaItem
 import com.jankinwu.fntv.client.data.model.response.MediaItemResponse
 import com.jankinwu.fntv.client.data.model.response.MediaResetQualityResponse
 import com.jankinwu.fntv.client.data.model.response.MediaTranscodeResponse
+import com.jankinwu.fntv.client.data.model.response.PersonItemListQueryResponse
 import com.jankinwu.fntv.client.data.model.response.PersonListResponse
+import com.jankinwu.fntv.client.data.model.response.PersonResponse
 import com.jankinwu.fntv.client.data.model.response.PlayDetailResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.PlayPlayResponse
@@ -68,7 +72,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.headers
-
 
 class FnOfficialApiImpl : FnOfficialApi {
     private val logger = Logger.withTag("FnOfficialApiImpl")
@@ -207,7 +210,17 @@ class FnOfficialApiImpl : FnOfficialApi {
         file: ByteArray,
         fileName: String
     ): SubtitleUploadResponse {
-        return postMultipartFile("/v/api/v1/subtitle/upload/$guid", "file", file, fileName)
+        return postMultipartFile(
+            "/v/api/v1/subtitle/upload",
+            "file",
+            file,
+            fileName,
+            mapOf("guid" to guid)
+        )
+    }
+
+    override suspend fun search(q: String): List<MediaItem> {
+        return get("/v/api/v1/search/list", mapOf("q" to q))
     }
 
     override suspend fun deleteSubtitle(subtitleGuid: String): Boolean {
@@ -264,6 +277,14 @@ class FnOfficialApiImpl : FnOfficialApi {
 
     override suspend fun setConfigByItem(request: SetConfigByItemRequest): Boolean {
         return post("/v/api/v1/play/setConfigByItem", request)
+    }
+
+    override suspend fun person(guid: String): PersonResponse {
+        return get("/v/api/v1/person/$guid")
+    }
+
+    override suspend fun personItemList(request: PersonItemListRequest): PersonItemListQueryResponse {
+        return post("/v/api/v1/person/item/list", request)
     }
 
     private suspend inline fun <reified T> get(
@@ -490,5 +511,4 @@ class FnOfficialApiImpl : FnOfficialApi {
         }
     }
 }
-
 

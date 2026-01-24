@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.MutableWindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -31,9 +32,12 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -43,7 +47,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalFontFamilyResolver
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.platform.FontLoadResult
@@ -59,6 +68,8 @@ import com.jankinwu.fntv.client.icons.Pin as PinIcon
 import com.jankinwu.fntv.client.icons.PinFill as PinFillIcon
 import com.jankinwu.fntv.client.icons.RefreshCircle
 import com.jankinwu.fntv.client.jna.windows.ComposeWindowProcedure
+import com.jankinwu.fntv.client.ui.component.common.CapsuleSearchBox
+import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.mayakapps.compose.windowstyler.WindowBackdrop
@@ -95,13 +106,14 @@ import io.github.composefluent.scheme.collectVisualState
 import kotlinx.coroutines.launch
 import java.awt.Window
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun FrameWindowScope.WindowsWindowFrame(
     onCloseRequest: () -> Unit,
     icon: Painter? = null,
     title: String = "",
     state: WindowState,
+    navigator: ComponentNavigator,
     backButtonVisible: Boolean = true,
     backButtonEnabled: Boolean = false,
     backButtonClick: () -> Unit = {},
@@ -131,6 +143,11 @@ fun FrameWindowScope.WindowsWindowFrame(
     val captionBarRect = remember { mutableStateOf(Rect.Zero) }
     val layoutHitTestOwner = rememberLayoutHitTestOwner()
     val contentPaddingInset = remember { MutableWindowInsets() }
+    var searchQuery by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
+    var searchBoxBounds by remember { mutableStateOf<Rect?>(null) }
+    var isSearchBoxFocused by remember { mutableStateOf(false) }
+    var rootBoxOffset by remember { mutableStateOf(Offset.Zero) }
     
     val isFullscreen = state.placement == WindowPlacement.Fullscreen
 
@@ -160,76 +177,107 @@ fun FrameWindowScope.WindowsWindowFrame(
     }
 
     Box(
-        modifier = Modifier.windowInsetsPadding(if (isFullscreen) WindowInsets(0) else paddingInset)
+        modifier = Modifier
+            .windowInsetsPadding(if (isFullscreen) WindowInsets(0) else paddingInset)
+            .onGloballyPositioned { rootBoxOffset = it.positionInWindow() }
+            .onPointerEvent(PointerEventType.Press, pass = PointerEventPass.Final) { event ->
+                val bounds = searchBoxBounds
+                val position = event.changes.firstOrNull()?.position
+                if (bounds != null && position != null && isSearchBoxFocused) {
+                    val windowPosition = rootBoxOffset + position
+                    if (!bounds.contains(windowPosition)) {
+                        focusManager.clearFocus()
+                    }
+                }
+            }
     ) {
         if (isFullscreen) {
              content(WindowInsets(0), WindowInsets(0))
         } else {
              content(WindowInsets(top = captionBarHeight), contentPaddingInset)
-             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.height(captionBarHeight)
+            val playerManager = LocalPlayerManager.current
+            val playerVisible = playerManager.playerState.isVisible
+            val uiVisible = playerManager.playerState.isUiVisible
+            val showCaptionButtons = !playerVisible || uiVisible
+
+            LaunchedEffect(showCaptionButtons) {
+                if (!showCaptionButtons) {
+                    maxButtonRect.value = Rect.Zero
+                    minButtonRect.value = Rect.Zero
+                    closeButtonRect.value = Rect.Zero
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(captionBarHeight)
                     .zIndex(10f)
                     .onGloballyPositioned { captionBarRect.value = it.boundsInWindow() }
             ) {
-                AnimatedContent(
-                    targetState = backButtonVisible,
-                    transitionSpec = {
-                        ContentTransform(
-                            targetContentEnter = expandHorizontally(),
-                            initialContentExit = shrinkHorizontally(),
-                            sizeTransform = SizeTransform { _, _ ->
-                                tween(
-                                    FluentDuration.ShortDuration,
-                                    easing = FluentEasing.FastInvokeEasing
-                                )
-                            }
-                        )
-                    }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.align(Alignment.CenterStart)
                 ) {
-                    if (it) {
-                        val interactionSource = remember { MutableInteractionSource() }
-                        NavigationDefaults.BackButton(
-                            onClick = backButtonClick,
-                            disabled = !backButtonEnabled,
-                            interaction = interactionSource,
-                            icon = { FontIconDefaults.BackIcon(interactionSource, size = FontIconSize(10f)) }
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.width(14.dp).height(36.dp))
+                    AnimatedContent(
+                        targetState = backButtonVisible,
+                        transitionSpec = {
+                            ContentTransform(
+                                targetContentEnter = expandHorizontally(),
+                                initialContentExit = shrinkHorizontally(),
+                                sizeTransform = SizeTransform { _, _ ->
+                                    tween(
+                                        FluentDuration.ShortDuration,
+                                        easing = FluentEasing.FastInvokeEasing
+                                    )
+                                }
+                            )
+                        }
+                    ) {
+                        if (it) {
+                            val interactionSource = remember { MutableInteractionSource() }
+                            NavigationDefaults.BackButton(
+                                onClick = backButtonClick,
+                                disabled = !backButtonEnabled,
+                                interaction = interactionSource,
+                                icon = { FontIconDefaults.BackIcon(interactionSource, size = FontIconSize(10f)) }
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.width(14.dp).height(36.dp))
+                        }
                     }
-                }
-                val playerManager = LocalPlayerManager.current
-                val playerVisible = playerManager.playerState.isVisible
-                val uiVisible = playerManager.playerState.isUiVisible
-                val showCaptionButtons = !playerVisible || uiVisible
 
-                LaunchedEffect(showCaptionButtons) {
-                    if (!showCaptionButtons) {
-                        maxButtonRect.value = Rect.Zero
-                        minButtonRect.value = Rect.Zero
-                        closeButtonRect.value = Rect.Zero
+                    if (!playerVisible) {
+                        if (icon != null) {
+                            Image(
+                                painter = icon,
+                                contentDescription = null,
+                                modifier = Modifier.padding(start = 6.dp).size(16.dp)
+                            )
+                        }
+                        if (title.isNotEmpty()) {
+                            Text(
+                                text = title,
+                                style = FluentTheme.typography.caption,
+                                modifier = Modifier.padding(start = 16.dp)
+                            )
+                            HasNewVersionTag()
+                        }
                     }
                 }
 
                 if (!playerVisible) {
-                    if (icon != null) {
-                        Image(
-                            painter = icon,
-                            contentDescription = null,
-                            modifier = Modifier.padding(start = 6.dp).size(16.dp)
-                        )
-                    }
-                    if (title.isNotEmpty()) {
-                        Text(
-                            text = title,
-                            style = FluentTheme.typography.caption,
-                            modifier = Modifier.padding(start = 16.dp)
-                        )
-                        HasNewVersionTag()
-                    }
+                    CapsuleSearchBox(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        navigator = navigator,
+                        modifier = Modifier.align(Alignment.Center),
+                        collapseOnBlur = true,
+                        onFocusChanged = { isSearchBoxFocused = it },
+                        onBoundsChanged = { searchBoxBounds = it }
+                    )
                 }
-                Spacer(modifier = Modifier.weight(1f))
+
                 if (showCaptionButtons) {
                     window.CaptionButtonRow(
                         windowHandle = procedure.windowHandle,
@@ -252,7 +300,7 @@ fun FrameWindowScope.WindowsWindowFrame(
                         accentColor = procedure.windowFrameColor,
                         frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
                         isActive = procedure.isWindowActive,
-                        modifier = Modifier.align(Alignment.CenterVertically).onSizeChanged {
+                        modifier = Modifier.align(Alignment.CenterEnd).onSizeChanged {
                             contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
                         }
                     )
