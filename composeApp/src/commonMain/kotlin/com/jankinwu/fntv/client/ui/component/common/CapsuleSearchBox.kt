@@ -1,12 +1,9 @@
 package com.jankinwu.fntv.client.ui.component.common
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +15,6 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -28,7 +24,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -58,7 +53,6 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -66,10 +60,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import coil3.PlatformContext
-import coil3.compose.AsyncImage
 import coil3.compose.SubcomposeAsyncImage
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
@@ -95,7 +87,6 @@ import flynarwhal.composeapp.generated.resources.person_placeholder
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.Icon
 import io.github.composefluent.component.Text
-import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -118,7 +109,6 @@ fun CapsuleSearchBox(
     val focusManager = LocalFocusManager.current
     val viewModel: SearchViewModel = koinViewModel()
     val searchUiState by viewModel.uiState.collectAsState()
-    val density = LocalDensity.current
     var searchBoxBounds by remember { mutableStateOf<Rect?>(null) }
 
     LaunchedEffect(value) {
@@ -246,7 +236,7 @@ private fun SearchResultDropdown(
     val genresMap = remember(genresUiState) {
         when (genresUiState) {
             is UiState.Success -> {
-                (genresUiState as UiState.Success<List<com.jankinwu.fntv.client.data.model.response.GenresResponse>>)
+                (genresUiState as UiState.Success<List<GenresResponse>>)
                     .data.associateBy { it.id }
             }
             else -> emptyMap()
@@ -462,7 +452,7 @@ private fun SearchResultItem(
                 .border(1.dp, Color.Gray.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
                 .clip(RoundedCornerShape(4.dp))
                 .width(80.dp * 11 / 17),
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.FillWidth,
             loading = { ImgLoadingProgressRing() },
             error = { ImgLoadingError(resource = Res.drawable.person_placeholder) }
         )

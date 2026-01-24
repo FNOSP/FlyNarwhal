@@ -201,7 +201,6 @@ fun MoviePoster(
                 }
         ) {
             if (posterImg != null) {
-                val widthGtHeight = posterWidth > posterHeight
                 SubcomposeAsyncImage(
                     model = ImageRequest.Builder(PlatformContext.INSTANCE)
                         .data("${AccountDataCache.getFnOfficialBaseUrl()}/v/api/v1/sys/img$posterImg${Constants.FN_IMG_URL_PARAM}")
@@ -210,7 +209,7 @@ fun MoviePoster(
                         .build(),
                     contentDescription = title,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = if (widthGtHeight) ContentScale.Fit else ContentScale.Crop,
+                    contentScale = ContentScale.FillWidth,
                     loading = {
                         ImgLoadingProgressRing()
                     },
