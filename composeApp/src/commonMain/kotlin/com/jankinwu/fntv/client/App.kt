@@ -44,6 +44,7 @@ import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.enums.Category
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.CategoryIcon
+import com.jankinwu.fntv.client.icons.Heart
 import com.jankinwu.fntv.client.icons.Home
 import com.jankinwu.fntv.client.icons.MediaLibrary
 import com.jankinwu.fntv.client.manager.PlayerResourceManager
@@ -54,6 +55,7 @@ import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.screen.FavoritesScreen
 import com.jankinwu.fntv.client.ui.screen.HomePageScreen
 import com.jankinwu.fntv.client.ui.screen.MediaDbScreen
 import com.jankinwu.fntv.client.ui.screen.SettingsScreen
@@ -205,6 +207,24 @@ fun Navigation(
         components.add(homePageItem)
     }
 
+    val favoritesItem = ComponentItem(
+        name = "收藏",
+        group = "",
+        description = "收藏",
+        icon = Heart,
+        guid = "favorites",
+        content = { FavoritesScreen(navigator) }
+    )
+    val favoritesIndex = components.indexOfFirst { it.guid == "favorites" }
+    if (favoritesIndex < 0) {
+        val homeIndex = components.indexOfFirst { it.guid == "homePage" }
+        if (homeIndex >= 0) {
+            components.add(homeIndex + 1, favoritesItem)
+        } else {
+            components.add(favoritesItem)
+        }
+    }
+
     // 确保 navigator 中有首页（即使 components 中已存在，navigator 可能是新建的）
     if (navigator.currentBackstack.isEmpty()) {
         val startItem = components.firstOrNull { it.guid == "homePage" } ?: homePageItem
@@ -257,7 +277,7 @@ fun Navigation(
                         navigator.latestBackEntry,
                         navigator::navigate,
                         navItem,
-                        navItem.name == "首页"
+                        navItem.name == "收藏"
                     )
                 }
             }

@@ -2,6 +2,8 @@ package com.jankinwu.fntv.client.data.model.response
 
 import androidx.compose.runtime.Immutable
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonSetter
+import com.fasterxml.jackson.annotation.Nulls
 
 @Immutable
 data class ItemListQueryResponse(
@@ -10,7 +12,8 @@ data class ItemListQueryResponse(
     @param:JsonProperty("jump_list")
     val jumpList: List<String>? = null,
     @param:JsonProperty("list")
-    val list: List<MediaItem>,
+    @param:JsonSetter(nulls = Nulls.AS_EMPTY)
+    val list: List<MediaItem> = emptyList(),
     @param:JsonProperty("mdb_category")
     val mdbCategory: String?,
     @param:JsonProperty("mdb_name")
@@ -18,7 +21,7 @@ data class ItemListQueryResponse(
     @param:JsonProperty("top_dir")
     val topDir: String?,
     @param:JsonProperty("total")
-    val total: Int
+    val total: Int = 0
 )
 
 @Immutable

@@ -52,18 +52,19 @@ data class SortItem(
 fun SortFlyout(
     onSortTypeSelected: (String) -> Unit = {},
     onSortOrderSelected: (String) -> Unit = {},
-) {
-    val sortTypeList: List<SortItem> = listOf(
-        SortItem("标题", "sort_title"),
-        SortItem("评分", "vote_average"),
+    sortOptions: List<SortItem> = listOf(
+        SortItem("添加日期", "create_time"),
         SortItem("发行年份", "release_date"),
-        SortItem("添加日期", "create_time")
+        SortItem("标题", "sort_title"),
+        SortItem("评分", "vote_average")
     )
+) {
+    val sortTypeList: List<SortItem> = sortOptions
     val sortOrder: List<SortItem> = listOf(
         SortItem("升序", "ASC"),
         SortItem("降序", "DESC")
     )
-    var selectedSortType by remember { mutableStateOf(sortTypeList[3]) }
+    var selectedSortType by remember(sortOptions) { mutableStateOf(sortTypeList.first()) }
     var selectedSortOrder by remember { mutableStateOf(sortOrder[1]) }
     MenuFlyoutContainer(
         flyout = {
