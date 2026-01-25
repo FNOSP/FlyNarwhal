@@ -83,6 +83,7 @@ import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.utils.LocalLogExporter
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
@@ -335,7 +336,8 @@ fun SettingsScreen(navigator: ComponentNavigator) {
             )
             Text(
                 text = "设置",
-                style = FluentTheme.typography.title,
+                style = LocalTypography.current.subtitle,
+                color = FluentTheme.colors.text.text.tertiary,
                 modifier = Modifier.alignHorizontalSpace()
 //                .padding(top = 36.dp)
             )

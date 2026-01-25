@@ -31,7 +31,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +52,7 @@ import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.manager.HandleFavoriteResult
 import com.jankinwu.fntv.client.manager.HandleWatchedResult
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
+import com.jankinwu.fntv.client.ui.component.common.EmptyFolder
 import com.jankinwu.fntv.client.ui.component.common.FilterBox
 import com.jankinwu.fntv.client.ui.component.common.FilterButton
 import com.jankinwu.fntv.client.ui.component.common.FilterItem
@@ -372,7 +372,7 @@ fun FavoritesScreen(
                     }
                 ) {
                     Text(
-                        text = "我的收藏",
+                        text = "收藏",
                         style = LocalTypography.current.subtitle,
                         color = FluentTheme.colors.text.text.tertiary,
                         modifier = Modifier.padding(top = 36.dp, start = 32.dp, bottom = 24.dp)
@@ -488,17 +488,23 @@ fun FavoritesScreen(
                                 slideOutHorizontally(targetOffsetX = { -it * direction }) + fadeOut()
                     }
                 ) { currentTab ->
-                    key(currentTab) {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            when (favoriteListUiState) {
-                                is UiState.Loading -> {
-                                    // Loading indicator if needed, or skeleton
+                    val tabFilters = if (currentTab == selectedTab) selectedFilters else emptyMap()
+                    val tabTags = buildTagsForTab(currentTab, tabFilters)
+                    val tabKey = FavoriteTabKey(currentTab, tabTags, sortColumnState, sortOrderState)
+                    val tabUiState = tabStates[tabKey] ?: UiState.Initial
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        when (tabUiState) {
+                            is UiState.Loading -> {
+                                // Loading indicator if needed, or skeleton
+                            }
+                            is UiState.Success -> {
+                                val itemDataList = remember(tabUiState.data) {
+                                    tabUiState.data.list.map { item -> convertToScrollRowItemDataList(item) }
                                 }
-                                is UiState.Success -> {
-                                    val itemDataList = remember(favoriteListUiState.data) {
-                                        favoriteListUiState.data.list.map { item -> convertToScrollRowItemDataList(item) }
-                                    }
 
+                                if (itemDataList.isEmpty()) {
+                                    EmptyFolder(modifier = Modifier.fillMaxSize(), text = "无数据", imgSize = 150.dp)
+                                } else {
                                     ScrollbarContainer(
                                         adapter = rememberScrollbarAdapter(state = gridState),
                                         modifier = Modifier.fillMaxSize()
@@ -543,14 +549,15 @@ fun FavoritesScreen(
                                         }
                                     }
                                 }
-                                is UiState.Error -> {
-                                    toastManager.showToast(
-                                        "获取收藏列表失败, cause: ${favoriteListUiState.message}",
-                                        ToastType.Failed,
-                                        10000
-                                    )
-                                }
-                                else -> {}
+                            }
+                            is UiState.Error -> {
+                                toastManager.showToast(
+                                    "获取收藏列表失败, cause: ${tabUiState.message}",
+                                    ToastType.Failed,
+                                    10000
+                                )
+                            }
+                            else -> {}
                             }
                         }
                     }
@@ -563,4 +570,3 @@ fun FavoritesScreen(
             modifier = Modifier.fillMaxSize()
         )
     }
-}
