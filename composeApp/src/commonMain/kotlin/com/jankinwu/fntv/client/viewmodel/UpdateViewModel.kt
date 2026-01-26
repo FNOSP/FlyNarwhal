@@ -166,7 +166,8 @@ class UpdateViewModel : BaseViewModel() {
                     throw IllegalStateException("服务端版本号为空")
                 }
 
-                _flyNarwhalServerTestState.value = UiState.Success(version)
+                val displayVersion = version.removeSuffix("-fnapp")
+                _flyNarwhalServerTestState.value = UiState.Success(displayVersion)
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
@@ -211,7 +212,8 @@ class UpdateViewModel : BaseViewModel() {
                 if (compareVersions(currentServerVersion, targetVersion) < 0) {
                     logger.i("Server update needed. Fetching release info...")
                     _serverUpdateStatus.value = "Checking server update..."
-                    performServerUpdate(targetVersion)
+                    val preferFnAppJar = currentServerVersion.endsWith("-fnapp")
+                    performServerUpdate(targetVersion, preferFnAppJar)
                 } else {
                     logger.i("Server is up to date.")
                 }
@@ -225,7 +227,7 @@ class UpdateViewModel : BaseViewModel() {
     }
 
     @OptIn(ExperimentalTime::class)
-    private suspend fun performServerUpdate(targetVersion: String) {
+    private suspend fun performServerUpdate(targetVersion: String, preferFnAppJar: Boolean) {
         if (!AppSettingsStore.flyNarwhalServerEnabled) return
 
         if (!serverUpdateMutex.tryLock()) return
@@ -243,16 +245,22 @@ class UpdateViewModel : BaseViewModel() {
             }
 
             // 2. Find Jar Asset
-            val asset = release.assets.find { it.name.endsWith(".jar") && !it.name.contains("sources") && !it.name.contains("javadoc") }
-            if (asset == null) {
+            val targetSuffix = if (preferFnAppJar) ".jar.fnapp" else ".jar"
+            val primaryAsset = release.assets.find { it.name.endsWith(targetSuffix) && !it.name.contains("sources") && !it.name.contains("javadoc") }
+            val selectedAsset = primaryAsset ?: if (preferFnAppJar) {
+                release.assets.find { it.name.endsWith(".jar") && !it.name.contains("sources") && !it.name.contains("javadoc") }
+            } else {
+                null
+            }
+            if (selectedAsset == null) {
                 logger.e("Jar asset not found for version $targetVersion")
                 _serverUpdateStatus.value = "Server update asset missing"
                 return
             }
 
             // 3. Start Update on Server
-            val downloadUrl = asset.browserDownloadUrl
-            val hash = asset.digest // Might be null
+            val downloadUrl = selectedAsset.browserDownloadUrl
+            val hash = selectedAsset.digest
             val proxyUrl = AppSettingsStore.githubResourceProxyUrl
             
             logger.i("Starting server update: $downloadUrl")
