@@ -6,11 +6,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.9.0"
+val appVersion = "1.10.0"
 
 val appVersionSuffix = ""
 
-val flyNarwhalServerVersion = "0.6.0"
+val flyNarwhalServerVersion = "0.6.2"
 
 val platformStr = when {
     osName.contains("win") -> {
