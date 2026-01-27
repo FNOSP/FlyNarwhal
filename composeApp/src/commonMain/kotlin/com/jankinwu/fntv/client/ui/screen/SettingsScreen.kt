@@ -306,11 +306,17 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                             .height(36.dp)
                             .onPreviewKeyEvent { event ->
                                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                                if (event.key != Key.C) return@onPreviewKeyEvent false
-                                if (!event.isCtrlPressed && !event.isMetaPressed) return@onPreviewKeyEvent false
-
-                                clipboardManager.setText(AnnotatedString(authCodeState.text.toString()))
-                                true
+                                if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
+                                    AppSettingsStore.authCode = authCodeState.text.toString()
+                                    showAuthCodeDialog = false
+                                    authCodeVisible = false
+                                    return@onPreviewKeyEvent true
+                                }
+                                if (event.key == Key.C && (event.isCtrlPressed || event.isMetaPressed)) {
+                                    clipboardManager.setText(AnnotatedString(authCodeState.text.toString()))
+                                    return@onPreviewKeyEvent true
+                                }
+                                false
                             }
                     )
                 }
