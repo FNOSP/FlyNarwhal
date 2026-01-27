@@ -108,6 +108,10 @@ class FnOfficialApiImpl : FnOfficialApi {
         return post("/v/api/v1/item/list", request)
     }
 
+    override suspend fun getFavoriteList(request: ItemListQueryRequest): ItemListQueryResponse {
+        return post("/v/api/v1/favorite/list", request)
+    }
+
     override suspend fun getPlayList(): List<PlayDetailResponse> {
         return get("/v/api/v1/play/list")
     }

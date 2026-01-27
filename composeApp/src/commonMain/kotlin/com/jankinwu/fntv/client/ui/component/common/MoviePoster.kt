@@ -63,6 +63,7 @@ import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.screen.MovieDetailScreen
+import com.jankinwu.fntv.client.ui.screen.PersonDetailScreen
 import com.jankinwu.fntv.client.ui.screen.TvDetailScreen
 import com.jankinwu.fntv.client.ui.screen.TvSeasonDetailScreen
 import com.jankinwu.fntv.client.ui.screen.rememberPlayMediaFunction
@@ -181,6 +182,20 @@ fun MoviePoster(
                             }
                         )
                         navigator.navigate(tvDetailComponent)
+                    } else if (type == "Person") {
+                        val personDetailComponent = ComponentItem(
+                            name = "人物详情",
+                            group = "/详情",
+                            description = "人物详情页面",
+                            guid = "person_detail_$guid",
+                            content = { nav ->
+                                PersonDetailScreen(
+                                    guid = guid,
+                                    navigator = nav
+                                )
+                            }
+                        )
+                        navigator.navigate(personDetailComponent)
                     }
                 }
             )

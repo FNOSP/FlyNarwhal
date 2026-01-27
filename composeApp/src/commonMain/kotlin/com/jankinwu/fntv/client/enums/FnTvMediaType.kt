@@ -11,11 +11,11 @@ enum class FnTvMediaType(val value: String, val description: String) {
 
     companion object {
         fun getCommonly(): List<String> {
-            return entries.map { it -> it.value } - EPISODE.value - SEASON.value
+            return entries.map { it.value } - EPISODE.value - SEASON.value
         }
 
         fun getDescByValue(value: String): String {
-            return entries.first { it.value == value }.description
+            return getByValue(value).description
         }
 
         fun getByCategory(category: String): List<String> {
@@ -36,7 +36,7 @@ enum class FnTvMediaType(val value: String, val description: String) {
         }
 
         fun getByValue(value: String): FnTvMediaType {
-            return entries.first { it.value == value }
+            return entries.firstOrNull { it.value == value } ?: VIDEO
         }
     }
 }

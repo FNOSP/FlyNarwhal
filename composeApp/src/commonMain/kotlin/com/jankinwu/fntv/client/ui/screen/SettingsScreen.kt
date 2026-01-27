@@ -83,6 +83,7 @@ import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.utils.LocalLogExporter
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
@@ -305,11 +306,17 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                             .height(36.dp)
                             .onPreviewKeyEvent { event ->
                                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                                if (event.key != Key.C) return@onPreviewKeyEvent false
-                                if (!event.isCtrlPressed && !event.isMetaPressed) return@onPreviewKeyEvent false
-
-                                clipboardManager.setText(AnnotatedString(authCodeState.text.toString()))
-                                true
+                                if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
+                                    AppSettingsStore.authCode = authCodeState.text.toString()
+                                    showAuthCodeDialog = false
+                                    authCodeVisible = false
+                                    return@onPreviewKeyEvent true
+                                }
+                                if (event.key == Key.C && (event.isCtrlPressed || event.isMetaPressed)) {
+                                    clipboardManager.setText(AnnotatedString(authCodeState.text.toString()))
+                                    return@onPreviewKeyEvent true
+                                }
+                                false
                             }
                     )
                 }
@@ -335,7 +342,8 @@ fun SettingsScreen(navigator: ComponentNavigator) {
             )
             Text(
                 text = "设置",
-                style = FluentTheme.typography.title,
+                style = LocalTypography.current.subtitle,
+                color = FluentTheme.colors.text.text.tertiary,
                 modifier = Modifier.alignHorizontalSpace()
 //                .padding(top = 36.dp)
             )

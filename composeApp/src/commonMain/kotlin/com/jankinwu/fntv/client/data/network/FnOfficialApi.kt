@@ -60,6 +60,8 @@ interface FnOfficialApi {
 
     suspend fun getItemList(request: ItemListQueryRequest): ItemListQueryResponse
 
+    suspend fun getFavoriteList(request: ItemListQueryRequest): ItemListQueryResponse
+
     suspend fun getPlayList(): List<PlayDetailResponse>
 
     suspend fun favorite(guid: String): Boolean

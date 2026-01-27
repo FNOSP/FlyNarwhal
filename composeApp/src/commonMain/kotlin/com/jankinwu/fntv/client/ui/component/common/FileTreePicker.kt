@@ -6,9 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,13 +37,11 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
 import com.jankinwu.fntv.client.ui.component.common.DirectoryContentFetcher.fetchDirectoryContents
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
 import com.jankinwu.fntv.client.utils.DisabledPointerIcon
 import flynarwhal.composeapp.generated.resources.Res
-import flynarwhal.composeapp.generated.resources.empty_folder
 import flynarwhal.composeapp.generated.resources.folder
 import flynarwhal.composeapp.generated.resources.text
 import io.github.composefluent.FluentTheme
@@ -575,32 +571,6 @@ private fun FileNodeItem(
                 color = FluentTheme.colors.text.text.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-fun EmptyFolder(modifier: Modifier, text: String) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Image(
-                painter = painterResource(Res.drawable.empty_folder),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(110.dp)
-                    .padding(bottom = 24.dp)
-            )
-            Text(
-                text,
-                fontSize = 14.sp,
-                color = FluentTheme.colors.text.text.primary
             )
         }
     }
