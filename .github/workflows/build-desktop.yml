@@ -300,8 +300,8 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.添加搜索功能  
-          2.添加人物详情页  
+          NOTES="1.新增收藏界面  
+          2.适配应用中心的服务端  
           3.其他 UI 方面的优化  
           　  
           此项目已更名为飞鲸影视，可执行程序名称也相应做了更改，从更名前的旧版本升级到新版过程中出现报错提示“Failed to launch application **”属于正常现象，安装成功后把旧的快捷方式从桌面或开始菜单删除即可。    

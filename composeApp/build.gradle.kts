@@ -10,7 +10,7 @@ val appVersion = "1.10.0"
 
 val appVersionSuffix = ""
 
-val flyNarwhalServerVersion = "0.6.2"
+val flyNarwhalServerVersion = "0.6.1"
 
 val platformStr = when {
     osName.contains("win") -> {
