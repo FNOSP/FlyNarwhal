@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -80,6 +81,7 @@ import java.awt.Dimension
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import java.io.File
+import kotlin.math.roundToInt
 
 private object WindowsDisplaySleepBlocker {
     private const val ES_SYSTEM_REQUIRED = 0x00000001
@@ -244,6 +246,43 @@ fun main() {
                     icon = icon,
                     visible = !playerManager.playerState.isVisible
                 ) {
+                        val density = LocalDensity.current
+                        val savedWindowX = remember { AppSettingsStore.windowX }
+                        val savedWindowY = remember { AppSettingsStore.windowY }
+                        var appliedSavedPosition by remember { mutableStateOf(false) }
+                        var allowPersistPosition by remember { mutableStateOf(false) }
+                        DisposableEffect(window, density, savedWindowX, savedWindowY) {
+                            if (!currentPlatform().isMacOS()) return@DisposableEffect onDispose {}
+                            val listener = object : ComponentAdapter() {
+                                override fun componentShown(e: ComponentEvent) {
+                                    if (mainState.placement == WindowPlacement.Maximized || mainState.placement == WindowPlacement.Fullscreen) {
+                                        allowPersistPosition = true
+                                        return
+                                    }
+                                    if (!appliedSavedPosition && !savedWindowX.isNaN() && !savedWindowY.isNaN()) {
+                                        val x = (savedWindowX * density.density).roundToInt()
+                                        val y = (savedWindowY * density.density).roundToInt()
+                                        window.setLocation(x, y)
+                                        mainState.position = WindowPosition(savedWindowX.dp, savedWindowY.dp)
+                                        appliedSavedPosition = true
+                                    }
+                                    allowPersistPosition = true
+                                }
+
+                                override fun componentMoved(e: ComponentEvent) {
+                                    if (!allowPersistPosition) return
+                                    if (mainState.placement == WindowPlacement.Maximized || mainState.placement == WindowPlacement.Fullscreen) return
+                                    val location = window.location
+                                    val x = location.x / density.density
+                                    val y = location.y / density.density
+                                    if (x.isNaN() || y.isNaN()) return
+                                    AppSettingsStore.windowX = x
+                                    AppSettingsStore.windowY = y
+                                }
+                            }
+                            window.addComponentListener(listener)
+                            onDispose { window.removeComponentListener(listener) }
+                        }
                         val shouldStartMaximized = remember { AppSettingsStore.isWindowMaximized }
                         DisposableEffect(shouldStartMaximized) {
                             if (!shouldStartMaximized) return@DisposableEffect onDispose {}
