@@ -156,7 +156,7 @@
 | 影视服务器设置  | ![Progress](https://progress-bar.xyz/0/)   |
 | 用户设置        | ![Progress](https://progress-bar.xyz/0/)   |
 | 任务计划        | ![Progress](https://progress-bar.xyz/0/)   |
-| 搜索            | ![Progress](https://progress-bar.xyz/0/)   |
+| 搜索            | ![Progress](https://progress-bar.xyz/100/) |
 | 弹幕            | ![Progress](https://progress-bar.xyz/60/)  |
 | 版本更新        | ![Progress](https://progress-bar.xyz/90/)  |
 | 集成 mpv 播放器 | ![Progress](https://progress-bar.xyz/0/)   |
