@@ -10,6 +10,7 @@ import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -37,6 +38,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -48,6 +51,11 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -145,11 +153,16 @@ fun FrameWindowScope.WindowsWindowFrame(
     val contentPaddingInset = remember { MutableWindowInsets() }
     var searchQuery by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
+    val rootFocusRequester = remember { FocusRequester() }
+    val searchFocusRequester = remember { FocusRequester() }
     var searchBoxBounds by remember { mutableStateOf<Rect?>(null) }
     var isSearchBoxFocused by remember { mutableStateOf(false) }
     var rootBoxOffset by remember { mutableStateOf(Offset.Zero) }
     
     val isFullscreen = state.placement == WindowPlacement.Fullscreen
+    val playerManager = LocalPlayerManager.current
+    val playerVisible = playerManager.playerState.isVisible
+    val uiVisible = playerManager.playerState.isUiVisible
 
     val procedure = remember(window) {
         ComposeWindowProcedure(
@@ -176,9 +189,21 @@ fun FrameWindowScope.WindowsWindowFrame(
         procedure.isFullscreen = isFullscreen
     }
 
+    LaunchedEffect(Unit) {
+        rootFocusRequester.requestFocus()
+    }
+
+    LaunchedEffect(navigator.latestBackEntry, playerVisible) {
+        if (!playerVisible && !isSearchBoxFocused) {
+            rootFocusRequester.requestFocus()
+        }
+    }
+
     Box(
         modifier = Modifier
             .windowInsetsPadding(if (isFullscreen) WindowInsets(0) else paddingInset)
+            .focusRequester(rootFocusRequester)
+            .focusable()
             .onGloballyPositioned { rootBoxOffset = it.positionInWindow() }
             .onPointerEvent(PointerEventType.Press, pass = PointerEventPass.Final) { event ->
                 val bounds = searchBoxBounds
@@ -190,14 +215,19 @@ fun FrameWindowScope.WindowsWindowFrame(
                     }
                 }
             }
+            .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (!playerVisible && (event.key == Key.Enter || event.key == Key.NumPadEnter) && !isSearchBoxFocused) {
+                    searchFocusRequester.requestFocus()
+                    return@onPreviewKeyEvent true
+                }
+                false
+            }
     ) {
         if (isFullscreen) {
              content(WindowInsets(0), WindowInsets(0))
         } else {
              content(WindowInsets(top = captionBarHeight), contentPaddingInset)
-            val playerManager = LocalPlayerManager.current
-            val playerVisible = playerManager.playerState.isVisible
-            val uiVisible = playerManager.playerState.isUiVisible
             val showCaptionButtons = !playerVisible || uiVisible
 
             LaunchedEffect(showCaptionButtons) {
@@ -273,8 +303,14 @@ fun FrameWindowScope.WindowsWindowFrame(
                         navigator = navigator,
                         modifier = Modifier.align(Alignment.Center),
                         collapseOnBlur = true,
-                        onFocusChanged = { isSearchBoxFocused = it },
-                        onBoundsChanged = { searchBoxBounds = it }
+                        onFocusChanged = {
+                            isSearchBoxFocused = it
+                            if (!it) {
+                                rootFocusRequester.requestFocus()
+                            }
+                        },
+                        onBoundsChanged = { searchBoxBounds = it },
+                        focusRequester = searchFocusRequester
                     )
                 }
 

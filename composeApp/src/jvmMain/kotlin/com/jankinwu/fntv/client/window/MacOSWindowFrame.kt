@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -25,7 +26,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.graphics.painter.Painter
@@ -82,9 +90,22 @@ fun FrameWindowScope.MacOSWindowFrame(
     val showTrafficLights = !playerVisible || uiVisible
     var searchQuery by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
+    val rootFocusRequester = remember { FocusRequester() }
+    val searchFocusRequester = remember { FocusRequester() }
+    var isSearchBoxFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(showTrafficLights) {
         com.jankinwu.fntv.client.utils.MacOSTrafficLightUtils.setTrafficLightButtonsVisible(window, showTrafficLights)
+    }
+
+    LaunchedEffect(Unit) {
+        rootFocusRequester.requestFocus()
+    }
+
+    LaunchedEffect(navigator.latestBackEntry, playerVisible) {
+        if (!playerVisible && !isSearchBoxFocused) {
+            rootFocusRequester.requestFocus()
+        }
     }
 
     //TODO Get real macOS caption bar width.
@@ -93,7 +114,17 @@ fun FrameWindowScope.MacOSWindowFrame(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .focusRequester(rootFocusRequester)
+                .focusable()
                 .onPointerEvent(PointerEventType.Press) { focusManager.clearFocus() }
+                .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    if (!playerVisible && (event.key == Key.Enter || event.key == Key.NumPadEnter) && !isSearchBoxFocused) {
+                        searchFocusRequester.requestFocus()
+                        return@onPreviewKeyEvent true
+                    }
+                    false
+                }
         ) {
             content(windowInset, contentInset)
         }
@@ -194,7 +225,14 @@ fun FrameWindowScope.MacOSWindowFrame(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
                             navigator = navigator,
-                            modifier = Modifier.align(Alignment.Center)
+                            modifier = Modifier.align(Alignment.Center),
+                            onFocusChanged = {
+                                isSearchBoxFocused = it
+                                if (!it) {
+                                    rootFocusRequester.requestFocus()
+                                }
+                            },
+                            focusRequester = searchFocusRequester
                         )
                     }
                 }
