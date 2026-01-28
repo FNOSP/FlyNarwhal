@@ -710,7 +710,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                                 Text("启用飞鲸服务端")
                                 Spacer(Modifier.width(6.dp))
                                 HoverTip(
-                                    tipText = "启用后可以通过部署在飞牛 NAS 上的飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持。\n请确保已在下方正确配置「飞鲸服务端地址」，并且客户端能访问该服务。服务端项目地址：https://github.com/FNOSP/fly-narwhal-server",
+                                    tipText = "启用后可以通过部署在飞牛 NAS 上的飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持。\n请确保已在下方正确配置「飞鲸服务端地址」，并且客户端能访问该服务。服务端项目地址：https://github.com/FNOSP/fly-narwhal-server\n智能跳过片头/片尾教程：\nhttps://club.fnnas.com/forum.php?mod=viewthread&tid=49998",
                                 )
                             }
                         },
