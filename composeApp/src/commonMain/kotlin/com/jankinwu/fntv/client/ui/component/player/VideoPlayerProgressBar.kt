@@ -47,6 +47,7 @@ fun VideoPlayerProgressBar(
     player: MediampPlayer,
     totalDuration: Long,
     onSeek: (Float) -> Unit,
+    onInteractionEnd: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     introSegmentMillis: Pair<Long, Long>? = null,
     creditsSegmentMillis: Pair<Long, Long>? = null
@@ -90,6 +91,7 @@ fun VideoPlayerProgressBar(
         buffered = 0f, // 如果需要缓冲进度，可以类似处理
         totalDuration = totalDuration,
         onSeek = onSeek,
+        onInteractionEnd = onInteractionEnd,
         modifier = modifier,
         introRangeRatio = introRangeRatio,
         creditsRangeRatio = creditsRangeRatio
@@ -112,6 +114,7 @@ fun VideoPlayerProgressBarImpl(
     buffered: Float,
     totalDuration: Long,
     onSeek: (Float) -> Unit,
+    onInteractionEnd: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     introRangeRatio: Pair<Float, Float>? = null,
     creditsRangeRatio: Pair<Float, Float>? = null
@@ -138,14 +141,21 @@ fun VideoPlayerProgressBarImpl(
                 detectTapGestures { offset ->
                     val newProgress = (offset.x / size.width).coerceIn(0f, 1f)
                     onSeek(newProgress)
+                    onInteractionEnd?.invoke()
                 }
             }
             .pointerInput(Unit) {
                 // 处理拖动
                 detectDragGestures(
                     onDragStart = { isDragging = true },
-                    onDragEnd = { isDragging = false },
-                    onDragCancel = { isDragging = false }
+                    onDragEnd = {
+                        isDragging = false
+                        onInteractionEnd?.invoke()
+                    },
+                    onDragCancel = {
+                        isDragging = false
+                        onInteractionEnd?.invoke()
+                    }
                 ) { change, _ ->
                     val newProgress = (change.position.x / size.width).coerceIn(0f, 1f)
                     onSeek(newProgress)

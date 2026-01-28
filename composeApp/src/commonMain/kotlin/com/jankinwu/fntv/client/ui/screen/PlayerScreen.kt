@@ -1525,6 +1525,9 @@ fun PlayerOverlay(
                 .fillMaxSize()
                 .hoverable(interactionSource)
                 .background(Color.Black)
+                .onPointerEvent(PointerEventType.Press) {
+                    playerFocusRequester.requestFocus()
+                }
                 .onPointerEvent(PointerEventType.Exit) {
                     isProgressBarHovered = false
                     lastMouseMoveTime = System.currentTimeMillis()
@@ -1723,6 +1726,7 @@ fun PlayerOverlay(
                     lastVolume = lastVolume,
                     onProgressBarHoverChanged = { isProgressBarHovered = it },
                     onResetMouseMoveTimer = { lastMouseMoveTime = System.currentTimeMillis() },
+                    onProgressBarInteractionEnd = { playerManager.requestKeyFocus() },
                     onSeek = { newProgress ->
                         playerManager.setLoading(true)
                         isSeeking = true
@@ -3601,6 +3605,7 @@ fun PlayerBottomBar(
     lastVolume: Float,
     onProgressBarHoverChanged: (Boolean) -> Unit,
     onResetMouseMoveTimer: () -> Unit,
+    onProgressBarInteractionEnd: () -> Unit,
     onSeek: (Float) -> Unit,
     onSpeedControlHoverChanged: (Boolean) -> Unit,
     onVolumeControlHoverChanged: (Boolean) -> Unit,
@@ -3671,6 +3676,7 @@ fun PlayerBottomBar(
                 player = mediaPlayer,
                 totalDuration = playerManager.playerState.duration,
                 onSeek = onSeek,
+                onInteractionEnd = onProgressBarInteractionEnd,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
                 introSegmentMillis = introSegmentMillis,
                 creditsSegmentMillis = creditsSegmentMillis
