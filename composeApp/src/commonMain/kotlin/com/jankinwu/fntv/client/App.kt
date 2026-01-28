@@ -404,7 +404,7 @@ fun Navigation(
                     it.content?.invoke(it, navigator)
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        io.github.composefluent.component.Text(
+                        Text(
                             "No content selected",
                             style = FluentTheme.typography.bodyStrong
                         )
@@ -447,7 +447,7 @@ private fun NavigationMenuItemScope.MenuItem(
                 }
             },
             icon = navItem.icon?.let { { Icon(it, navItem.name) } },
-            text = { io.github.composefluent.component.Text(navItem.name) },
+            text = { Text(navItem.name) },
             expandItems = expandedItems.value || flyoutVisible.value,
             onExpandItemsChanged = { flyoutVisible.value = it },
             items = navItem.items?.let {
@@ -480,7 +480,7 @@ private fun NavigationMenuItemScope.MenuItem(
                 expandedItems.value = !expandedItems.value
             },
             icon = navItem.icon?.let { { Icon(it, navItem.name) } },
-            text = { io.github.composefluent.component.Text(navItem.name) },
+            text = { Text(navItem.name) },
             expandItems = expandedItems.value || flyoutVisible.value,
             onExpandItemsChanged = { flyoutVisible.value = it },
             items = navItem.items?.let {
@@ -539,7 +539,7 @@ private fun NavigationItem(
             }
         },
         icon = navItem.icon?.let { { Icon(it, navItem.name, tint = Color.White) } },
-        content = { io.github.composefluent.component.Text(navItem.name) },
+        content = { Text(navItem.name) },
         expandItems = expandedItems.value,
         items = navItem.items?.let {
             if (it.isNotEmpty()) {
