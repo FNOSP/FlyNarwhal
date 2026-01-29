@@ -206,13 +206,20 @@ fun FrameWindowScope.WindowsWindowFrame(
             .focusable()
             .onGloballyPositioned { rootBoxOffset = it.positionInWindow() }
             .onPointerEvent(PointerEventType.Press, pass = PointerEventPass.Final) { event ->
-                val bounds = searchBoxBounds
-                val position = event.changes.firstOrNull()?.position
-                if (bounds != null && position != null && isSearchBoxFocused) {
-                    val windowPosition = rootBoxOffset + position
-                    if (!bounds.contains(windowPosition)) {
+                val change = event.changes.firstOrNull() ?: return@onPointerEvent
+                val windowPosition = rootBoxOffset + change.position
+                val clickInsideSearch = searchBoxBounds?.contains(windowPosition) == true
+                if (isSearchBoxFocused) {
+                    if (!clickInsideSearch) {
                         focusManager.clearFocus()
+                        if (!playerVisible) {
+                            rootFocusRequester.requestFocus()
+                        }
                     }
+                    return@onPointerEvent
+                }
+                if (!playerVisible && !clickInsideSearch && !change.isConsumed) {
+                    rootFocusRequester.requestFocus()
                 }
             }
             .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->

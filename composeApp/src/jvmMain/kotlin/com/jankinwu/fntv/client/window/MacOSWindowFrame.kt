@@ -28,14 +28,19 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
@@ -93,6 +98,8 @@ fun FrameWindowScope.MacOSWindowFrame(
     val rootFocusRequester = remember { FocusRequester() }
     val searchFocusRequester = remember { FocusRequester() }
     var isSearchBoxFocused by remember { mutableStateOf(false) }
+    var searchBoxBounds by remember { mutableStateOf<Rect?>(null) }
+    var rootBoxOffset by remember { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(showTrafficLights) {
         com.jankinwu.fntv.client.utils.MacOSTrafficLightUtils.setTrafficLightButtonsVisible(window, showTrafficLights)
@@ -116,7 +123,24 @@ fun FrameWindowScope.MacOSWindowFrame(
                 .fillMaxSize()
                 .focusRequester(rootFocusRequester)
                 .focusable()
-                .onPointerEvent(PointerEventType.Press) { focusManager.clearFocus() }
+                .onGloballyPositioned { rootBoxOffset = it.positionInWindow() }
+                .onPointerEvent(PointerEventType.Press, pass = PointerEventPass.Final) { event ->
+                    val change = event.changes.firstOrNull() ?: return@onPointerEvent
+                    val windowPosition = rootBoxOffset + change.position
+                    val clickInsideSearch = searchBoxBounds?.contains(windowPosition) == true
+                    if (isSearchBoxFocused) {
+                        if (!clickInsideSearch) {
+                            focusManager.clearFocus()
+                            if (!playerVisible) {
+                                rootFocusRequester.requestFocus()
+                            }
+                        }
+                        return@onPointerEvent
+                    }
+                    if (!playerVisible && !clickInsideSearch && !change.isConsumed) {
+                        rootFocusRequester.requestFocus()
+                    }
+                }
                 .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     if (!playerVisible && (event.key == Key.Enter || event.key == Key.NumPadEnter) && !isSearchBoxFocused) {
@@ -232,6 +256,7 @@ fun FrameWindowScope.MacOSWindowFrame(
                                     rootFocusRequester.requestFocus()
                                 }
                             },
+                            onBoundsChanged = { searchBoxBounds = it },
                             focusRequester = searchFocusRequester
                         )
                     }
