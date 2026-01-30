@@ -3,25 +3,50 @@ package com.jankinwu.fntv.client.ui.component.common.dialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.data.constants.Colors
-import com.jankinwu.fntv.client.data.store.*
+import com.jankinwu.fntv.client.data.store.ShortcutActionId
+import com.jankinwu.fntv.client.data.store.ShortcutBinding
+import com.jankinwu.fntv.client.data.store.ShortcutCategory
+import com.jankinwu.fntv.client.data.store.ShortcutKey
+import com.jankinwu.fntv.client.data.store.ShortcutSettingsStore
+import com.jankinwu.fntv.client.ui.providable.LocalWindowHandle
+import com.jankinwu.fntv.client.utils.setWindowImeDisabled
 import io.github.composefluent.FluentTheme
-import io.github.composefluent.component.*
+import io.github.composefluent.component.DialogSize
+import io.github.composefluent.component.FluentDialog
+import io.github.composefluent.component.Scrollbar
+import io.github.composefluent.component.ScrollbarContainer
+import io.github.composefluent.component.Text
+import io.github.composefluent.component.rememberScrollbarAdapter
 
 /**
  * Target for capturing a new shortcut key combination
@@ -46,12 +71,25 @@ fun ShortcutSettingsDialog(
     var shortcutBindings by remember(guid) { mutableStateOf(ShortcutSettingsStore.getAllBindings()) }
     var captureTarget by remember { mutableStateOf<ShortcutCaptureTarget?>(null) }
     val isMac = ShortcutSettingsStore.isMacPlatform()
+    val windowHandle = LocalWindowHandle.current
 
     // Reset state when dialog visibility or user GUID changes
     LaunchedEffect(visible, guid) {
         if (visible) {
             shortcutBindings = ShortcutSettingsStore.getAllBindings()
             captureTarget = null
+        }
+    }
+    LaunchedEffect(windowHandle, captureTarget) {
+        if (windowHandle != null) {
+            setWindowImeDisabled(windowHandle, captureTarget != null)
+        }
+    }
+    DisposableEffect(windowHandle) {
+        onDispose {
+            if (windowHandle != null) {
+                setWindowImeDisabled(windowHandle, false)
+            }
         }
     }
 
