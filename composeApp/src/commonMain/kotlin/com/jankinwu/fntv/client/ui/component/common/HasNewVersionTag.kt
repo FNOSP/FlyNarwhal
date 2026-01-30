@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,11 +18,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.icons.UpdateNoBorder
@@ -34,7 +38,10 @@ import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun HasNewVersionTag(modifier: Modifier = Modifier) {
+fun HasNewVersionTag(
+    modifier: Modifier = Modifier,
+    onBoundsChanged: (Rect?) -> Unit = {}
+) {
     val updateViewModel: UpdateViewModel = koinViewModel()
     val latestVersion by updateViewModel.latestVersion.collectAsState()
     val updateStatus by updateViewModel.status.collectAsState()
@@ -65,9 +72,16 @@ fun HasNewVersionTag(modifier: Modifier = Modifier) {
         }
     )
 
+    LaunchedEffect(latestVersion) {
+        if (latestVersion == null) {
+            onBoundsChanged(null)
+        }
+    }
+
     if (latestVersion != null) {
         Row(
             modifier = modifier
+                .onGloballyPositioned { onBoundsChanged(it.boundsInWindow()) }
                 .padding(start = 8.dp)
                 .pointerHoverIcon(PointerIcon.Hand)
                 .clickable (

@@ -149,7 +149,10 @@ fun FrameWindowScope.WindowsWindowFrame(
     val minButtonRect = remember { mutableStateOf(Rect.Zero) }
     val closeButtonRect = remember { mutableStateOf(Rect.Zero) }
     val captionBarRect = remember { mutableStateOf(Rect.Zero) }
-    val layoutHitTestOwner = rememberLayoutHitTestOwner()
+    val backButtonRect = remember { mutableStateOf(Rect.Zero) }
+    val refreshButtonRect = remember { mutableStateOf(Rect.Zero) }
+    val pinButtonRect = remember { mutableStateOf(Rect.Zero) }
+    val newVersionTagRect = remember { mutableStateOf(Rect.Zero) }
     val contentPaddingInset = remember { MutableWindowInsets() }
     var searchQuery by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
@@ -171,12 +174,17 @@ fun FrameWindowScope.WindowsWindowFrame(
                 if (state.placement == WindowPlacement.Fullscreen) {
                      HTCLIENT
                 } else {
+                    val isSearchBoxHit = searchBoxBounds?.contains(x, y) == true
+                    val isBackButtonHit = backButtonRect.value.contains(x, y)
+                    val isNewVersionTagHit = newVersionTagRect.value.contains(x, y)
+                    val isPinButtonHit = pinButtonRect.value.contains(x, y)
+                    val isRefreshButtonHit = refreshButtonRect.value.contains(x, y)
                     when {
                         maxButtonRect.value.contains(x, y) -> HTMAXBUTTON
                         minButtonRect.value.contains(x, y) -> HTMINBUTTON
                         closeButtonRect.value.contains(x, y) -> HTCLOSE
-                        captionBarRect.value.contains(x, y) && !layoutHitTestOwner.hitTest(x, y) -> HTCAPTION
-    
+                        isSearchBoxHit || isBackButtonHit || isNewVersionTagHit || isPinButtonHit || isRefreshButtonHit -> HTCLIENT
+                        captionBarRect.value.contains(x, y) -> HTCAPTION
                         else -> HTCLIENT
                     }
                 }
@@ -191,6 +199,30 @@ fun FrameWindowScope.WindowsWindowFrame(
 
     LaunchedEffect(Unit) {
         rootFocusRequester.requestFocus()
+    }
+
+    LaunchedEffect(backButtonVisible) {
+        if (!backButtonVisible) {
+            backButtonRect.value = Rect.Zero
+        }
+    }
+
+    LaunchedEffect(playerVisible) {
+        if (playerVisible) {
+            searchBoxBounds = null
+        }
+    }
+
+    LaunchedEffect(playerVisible, title) {
+        if (playerVisible || title.isEmpty()) {
+            newVersionTagRect.value = Rect.Zero
+        }
+    }
+
+    LaunchedEffect(playerVisible, onRefreshClick) {
+        if (playerVisible || onRefreshClick == null) {
+            refreshButtonRect.value = Rect.Zero
+        }
     }
 
     LaunchedEffect(navigator.latestBackEntry, playerVisible) {
@@ -242,6 +274,8 @@ fun FrameWindowScope.WindowsWindowFrame(
                     maxButtonRect.value = Rect.Zero
                     minButtonRect.value = Rect.Zero
                     closeButtonRect.value = Rect.Zero
+                    refreshButtonRect.value = Rect.Zero
+                    pinButtonRect.value = Rect.Zero
                 }
             }
 
@@ -273,12 +307,18 @@ fun FrameWindowScope.WindowsWindowFrame(
                     ) {
                         if (it) {
                             val interactionSource = remember { MutableInteractionSource() }
-                            NavigationDefaults.BackButton(
-                                onClick = backButtonClick,
-                                disabled = !backButtonEnabled,
-                                interaction = interactionSource,
-                                icon = { FontIconDefaults.BackIcon(interactionSource, size = FontIconSize(10f)) }
-                            )
+                            Box(
+                                modifier = Modifier.onGloballyPositioned {
+                                    backButtonRect.value = it.boundsInWindow()
+                                }
+                            ) {
+                                NavigationDefaults.BackButton(
+                                    onClick = backButtonClick,
+                                    disabled = !backButtonEnabled,
+                                    interaction = interactionSource,
+                                    icon = { FontIconDefaults.BackIcon(interactionSource, size = FontIconSize(10f)) }
+                                )
+                            }
                         } else {
                             Spacer(modifier = Modifier.width(14.dp).height(36.dp))
                         }
@@ -298,7 +338,9 @@ fun FrameWindowScope.WindowsWindowFrame(
                                 style = FluentTheme.typography.caption,
                                 modifier = Modifier.padding(start = 16.dp)
                             )
-                            HasNewVersionTag()
+                            HasNewVersionTag(
+                                onBoundsChanged = { newVersionTagRect.value = it ?: Rect.Zero }
+                            )
                         }
                     }
                 }
@@ -340,6 +382,12 @@ fun FrameWindowScope.WindowsWindowFrame(
                         onCloseButtonRectUpdate = {
                             closeButtonRect.value = it
                         },
+                        onRefreshButtonRectUpdate = {
+                            refreshButtonRect.value = it
+                        },
+                        onPinButtonRectUpdate = {
+                            pinButtonRect.value = it
+                        },
                         accentColor = procedure.windowFrameColor,
                         frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
                         isActive = procedure.isWindowActive,
@@ -369,7 +417,9 @@ fun Window.CaptionButtonRow(
     onRefreshAnimationEnd: (() -> Unit)? = null,
     onMaximizeButtonRectUpdate: (Rect) -> Unit,
     onMinimizeButtonRectUpdate: (Rect) -> Unit = {},
-    onCloseButtonRectUpdate: (Rect) -> Unit = {}
+    onCloseButtonRectUpdate: (Rect) -> Unit = {},
+    onRefreshButtonRectUpdate: (Rect) -> Unit = {},
+    onPinButtonRectUpdate: (Rect) -> Unit = {}
 ) {
     //Draw the caption button
     Row(
@@ -408,7 +458,10 @@ fun Window.CaptionButtonRow(
                     icon = CaptionButtonIcon.Refresh,
                     isActive = isActive,
                     colors = colors,
-                    rotation = rotation.value
+                    rotation = rotation.value,
+                    modifier = Modifier.onGloballyPositioned {
+                        onRefreshButtonRectUpdate(it.boundsInWindow())
+                    }
                 )
             }
         }
@@ -417,7 +470,10 @@ fun Window.CaptionButtonRow(
             icon = if (isAlwaysOnTop) CaptionButtonIcon.Unpin else CaptionButtonIcon.Pin,
             isActive = isActive,
             colors = colors,
-            iconSize = 15.dp
+            iconSize = 15.dp,
+            modifier = Modifier.onGloballyPositioned {
+                onPinButtonRectUpdate(it.boundsInWindow())
+            }
         )
         CaptionButton(
             onClick = {
