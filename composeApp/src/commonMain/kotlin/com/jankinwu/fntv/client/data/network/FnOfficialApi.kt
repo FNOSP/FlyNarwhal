@@ -135,4 +135,6 @@ interface FnOfficialApi {
     suspend fun person(guid: String): PersonResponse
 
     suspend fun personItemList(request: PersonItemListRequest): PersonItemListQueryResponse
+
+    suspend fun getMediaDbSum(): Map<String, Int>
 }

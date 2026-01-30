@@ -9,9 +9,12 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,8 +33,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.disk.DiskCache
@@ -186,11 +191,14 @@ fun Navigation(
     title: String
 ) {
     val updateViewModel: UpdateViewModel = koinViewModel()
+    val mediaDbListViewModel: MediaDbListViewModel = koinViewModel()
+    val mediaSum by mediaDbListViewModel.mediaSum.collectAsState()
 
     LaunchedEffect(Unit) {
         if (updateViewModel.status.value is UpdateStatus.Idle) {
             updateViewModel.checkUpdate(isManual = false)
         }
+        mediaDbListViewModel.loadData()
     }
 
     val homePageItem =
@@ -213,6 +221,7 @@ fun Navigation(
         description = "收藏",
         icon = Heart,
         guid = "favorites",
+        count = mediaSum["favorite"],
         content = { FavoritesScreen(navigator) }
     )
     val favoritesIndex = components.indexOfFirst { it.guid == "favorites" }
@@ -222,6 +231,11 @@ fun Navigation(
             components.add(homeIndex + 1, favoritesItem)
         } else {
             components.add(favoritesItem)
+        }
+    } else {
+        // 更新现有收藏项的 count
+        if (components[favoritesIndex].count != favoritesItem.count) {
+            components[favoritesIndex] = favoritesItem
         }
     }
 
@@ -241,7 +255,7 @@ fun Navigation(
         }
     }
 
-    MediaLibraryNavigationComponent()
+    MediaLibraryNavigationComponent(mediaDbListViewModel)
 
     var textFieldValue by remember {
         mutableStateOf(TextFieldValue())
@@ -416,6 +430,28 @@ fun Navigation(
 }
 
 @Composable
+private fun NavLabelWithCount(name: String, count: Int?) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(name)
+        if (count != null && count > 0) {
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = count.toString(),
+                style = FluentTheme.typography.caption.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = FluentTheme.colors.text.text.secondary
+                ),
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun NavigationMenuItemScope.MenuItem(
     selectedItem: ComponentItem?,
     onSelectedItemChanged: (ComponentItem) -> Unit,
@@ -447,7 +483,7 @@ private fun NavigationMenuItemScope.MenuItem(
                 }
             },
             icon = navItem.icon?.let { { Icon(it, navItem.name) } },
-            text = { Text(navItem.name) },
+            text = { NavLabelWithCount(navItem.name, navItem.count) },
             expandItems = expandedItems.value || flyoutVisible.value,
             onExpandItemsChanged = { flyoutVisible.value = it },
             items = navItem.items?.let {
@@ -480,7 +516,7 @@ private fun NavigationMenuItemScope.MenuItem(
                 expandedItems.value = !expandedItems.value
             },
             icon = navItem.icon?.let { { Icon(it, navItem.name) } },
-            text = { Text(navItem.name) },
+            text = { NavLabelWithCount(navItem.name, navItem.count) },
             expandItems = expandedItems.value || flyoutVisible.value,
             onExpandItemsChanged = { flyoutVisible.value = it },
             items = navItem.items?.let {
@@ -539,7 +575,7 @@ private fun NavigationItem(
             }
         },
         icon = navItem.icon?.let { { Icon(it, navItem.name, tint = Color.White) } },
-        content = { Text(navItem.name) },
+        content = { NavLabelWithCount(navItem.name, navItem.count) },
         expandItems = expandedItems.value,
         items = navItem.items?.let {
             if (it.isNotEmpty()) {
@@ -597,10 +633,10 @@ val flatMapComponents: List<ComponentItem> by lazy {
 //}
 
 @Composable
-fun MediaLibraryNavigationComponent() {
+fun MediaLibraryNavigationComponent(mediaDbListViewModel: MediaDbListViewModel) {
 
-    val mediaDbListViewModel: MediaDbListViewModel = koinViewModel<MediaDbListViewModel>()
     val mediaUiState by mediaDbListViewModel.uiState.collectAsState()
+    val mediaSum by mediaDbListViewModel.mediaSum.collectAsState()
     val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
     val refreshState = LocalRefreshState.current
     var lastRefreshKey by remember { mutableStateOf("") }
@@ -625,7 +661,7 @@ fun MediaLibraryNavigationComponent() {
         }
     }
     // 动态生成组件列表
-    LaunchedEffect(mediaUiState) {
+    LaunchedEffect(mediaUiState, mediaSum) {
         val categoryItems = listOf(
             ComponentItem(
                 name = "全部",
@@ -633,6 +669,7 @@ fun MediaLibraryNavigationComponent() {
                 description = "全部",
                 type = FnTvMediaType.getCommonly(),
                 guid = "bb042b7d-c038-f9e2-36ed-6e166a20019c",
+                count = mediaSum["total"],
                 content = { navigator ->
                     MediaDbScreen(title = "全部", category = "", navigator = navigator)
                 }
@@ -643,6 +680,7 @@ fun MediaLibraryNavigationComponent() {
                 description = "电视节目",
                 type = FnTvMediaType.getCommonly(),
                 guid = "709e30ec-9a51-34ab-b189-8ae6fdd1b0a7",
+                count = mediaSum["tv"],
                 content = { navigator ->
                     MediaDbScreen(
                         title = "电视节目",
@@ -657,6 +695,7 @@ fun MediaLibraryNavigationComponent() {
                 description = "电影",
                 type = FnTvMediaType.getCommonly(),
                 guid = "f1a58953-85c1-ab3f-3bda-d90f50db0d69",
+                count = mediaSum["movie"],
                 content = { navigator ->
                     MediaDbScreen(
                         title = "电影",
@@ -671,6 +710,7 @@ fun MediaLibraryNavigationComponent() {
                 description = "其他",
                 type = FnTvMediaType.getCommonly(),
                 guid = "b192a025-3cc5-a21c-7d68-726b852d02af",
+                count = mediaSum["video"],
                 content = { navigator ->
                     MediaDbScreen(
                         title = "其他",
@@ -693,6 +733,7 @@ fun MediaLibraryNavigationComponent() {
                         description = mediaDb.title,
                         guid = mediaDb.guid,
                         type = FnTvMediaType.getCommonly(),
+                        count = mediaSum[mediaDb.guid],
                         content = { navigator ->
                             MediaDbScreen(
                                 mediaDb.guid,
@@ -745,10 +786,5 @@ fun MediaLibraryNavigationComponent() {
             }
 
         }
-    }
-
-    // 在初始化时加载媒体数据
-    LaunchedEffect(Unit) {
-        mediaDbListViewModel.loadData()
     }
 }

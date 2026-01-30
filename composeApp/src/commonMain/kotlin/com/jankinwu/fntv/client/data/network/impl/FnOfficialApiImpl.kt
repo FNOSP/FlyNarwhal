@@ -291,6 +291,10 @@ class FnOfficialApiImpl : FnOfficialApi {
         return post("/v/api/v1/person/item/list", request)
     }
 
+    override suspend fun getMediaDbSum(): Map<String, Int> {
+        return get("/v/api/v1/mediadb/sum")
+    }
+
     private suspend inline fun <reified T> get(
         url: String,
         parameters: Map<String, Any?>? = null,
