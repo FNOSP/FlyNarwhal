@@ -398,11 +398,17 @@ fun main() {
                             val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
 
                             DisposableEffect(shouldBlockDisplaySleep) {
-                                WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
-                                MacDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                when (platform) {
+                                    is Platform.Windows -> WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                    is Platform.MacOS -> MacDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                    else -> Unit
+                                }
                                 onDispose {
-                                    WindowsDisplaySleepBlocker.setEnabled(false)
-                                    MacDisplaySleepBlocker.setEnabled(false)
+                                    when (platform) {
+                                        is Platform.Windows -> WindowsDisplaySleepBlocker.setEnabled(false)
+                                        is Platform.MacOS -> MacDisplaySleepBlocker.setEnabled(false)
+                                        else -> Unit
+                                    }
                                 }
                             }
 
