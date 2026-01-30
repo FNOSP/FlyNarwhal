@@ -25,7 +25,7 @@ private fun setWindowsImeDisabled(windowHandle: Long, disabled: Boolean) {
     val imm32 = Imm32Extend.instance ?: return
     val hwnd = HWND(Pointer(windowHandle))
     if (disabled) {
-        val previous = imm32.ImmAssociateContext(hwnd, Pointer.NULL) ?: Pointer.NULL
+        val previous = imm32.ImmAssociateContext(hwnd, Pointer.NULL) ?: Pointer(0)
         savedImeContextByHwnd.putIfAbsent(windowHandle, previous)
     } else {
         val previous = savedImeContextByHwnd.remove(windowHandle) ?: return
@@ -99,7 +99,7 @@ private fun runProcessForOutput(command: List<String>): String? {
 }
 
 private val savedImeContextByHwnd = ConcurrentHashMap<Long, Pointer>()
-private val savedInputLocaleByToken = ConcurrentHashMap<Long, Locale?>()
+private val savedInputLocaleByToken = ConcurrentHashMap<Long, Locale>()
 private val savedLinuxImeStateByToken = ConcurrentHashMap<Long, LinuxImeRestoreState>()
 
 private sealed interface LinuxImeRestoreState {
