@@ -215,26 +215,25 @@ fun Navigation(
         components.add(homePageItem)
     }
 
-    val favoritesItem = ComponentItem(
-        name = "收藏",
-        group = "",
-        description = "收藏",
-        icon = Heart,
-        guid = "favorites",
-        count = mediaSum["favorite"],
-        content = { FavoritesScreen(navigator) }
-    )
-    val favoritesIndex = components.indexOfFirst { it.guid == "favorites" }
-    if (favoritesIndex < 0) {
-        val homeIndex = components.indexOfFirst { it.guid == "homePage" }
-        if (homeIndex >= 0) {
-            components.add(homeIndex + 1, favoritesItem)
+    LaunchedEffect(mediaSum["favorite"]) {
+        val favoritesItem = ComponentItem(
+            name = "收藏",
+            group = "",
+            description = "收藏",
+            icon = Heart,
+            guid = "favorites",
+            count = mediaSum["favorite"],
+            content = { FavoritesScreen(navigator) }
+        )
+        val favoritesIndex = components.indexOfFirst { it.guid == "favorites" }
+        if (favoritesIndex < 0) {
+            val homeIndex = components.indexOfFirst { it.guid == "homePage" }
+            if (homeIndex >= 0) {
+                components.add(homeIndex + 1, favoritesItem)
+            } else {
+                components.add(favoritesItem)
+            }
         } else {
-            components.add(favoritesItem)
-        }
-    } else {
-        // 更新现有收藏项的 count
-        if (components[favoritesIndex].count != favoritesItem.count) {
             components[favoritesIndex] = favoritesItem
         }
     }
@@ -286,12 +285,27 @@ fun Navigation(
         },
         menuItems = {
             components.forEach { navItem ->
+                val resolvedNavItem = if (navItem.guid == "favorites") {
+                    ComponentItem(
+                        name = navItem.name,
+                        group = navItem.group,
+                        description = navItem.description,
+                        items = navItem.items,
+                        icon = navItem.icon,
+                        guid = navItem.guid,
+                        type = navItem.type,
+                        count = mediaSum["favorite"],
+                        content = navItem.content
+                    )
+                } else {
+                    navItem
+                }
                 item(key = navItem.guid) {
                     MenuItem(
                         navigator.latestBackEntry,
                         navigator::navigate,
-                        navItem,
-                        navItem.name == "收藏"
+                        resolvedNavItem,
+                        resolvedNavItem.name == "收藏"
                     )
                 }
             }
@@ -436,7 +450,7 @@ private fun NavLabelWithCount(name: String, count: Int?) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(name)
-        if (count != null && count > 0) {
+        if (count != null) {
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = count.toString(),
@@ -595,12 +609,6 @@ private fun NavigationItem(
         },
         modifier = Modifier
             .pointerHoverIcon(PointerIcon.Hand)
-    )
-}
-
-val flatMapComponents: List<ComponentItem> by lazy {
-    listOf(
-//        ComponentItem("测试", "测试组", "测试描述", content = null)
     )
 }
 
