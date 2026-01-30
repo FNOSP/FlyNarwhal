@@ -128,7 +128,7 @@ fun ShortcutSettingsDialog(
                 }
         ) {
             Text("快捷键设置", style = FluentTheme.typography.subtitle)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(24.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),

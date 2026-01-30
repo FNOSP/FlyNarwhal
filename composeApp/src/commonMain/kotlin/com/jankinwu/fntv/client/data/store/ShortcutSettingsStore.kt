@@ -266,7 +266,7 @@ object ShortcutSettingsStore {
     val definitions = listOf(
         ShortcutActionDefinition(
             id = ShortcutActionId.FocusSearch,
-            title = "聚焦搜索",
+            title = "聚焦搜索输入框",
             category = ShortcutCategory.Search,
             defaultBinding = ShortcutBinding(
                 primary = ShortcutKey(Key.Enter.keyCode),
