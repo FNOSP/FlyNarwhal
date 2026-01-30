@@ -112,7 +112,6 @@ import io.github.composefluent.scheme.PentaVisualScheme
 import io.github.composefluent.scheme.VisualStateScheme
 import io.github.composefluent.scheme.collectVisualState
 import kotlinx.coroutines.launch
-import java.awt.Window
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -179,13 +178,23 @@ fun FrameWindowScope.WindowsWindowFrame(
                     val isNewVersionTagHit = newVersionTagRect.value.contains(x, y)
                     val isPinButtonHit = pinButtonRect.value.contains(x, y)
                     val isRefreshButtonHit = refreshButtonRect.value.contains(x, y)
-                    when {
-                        maxButtonRect.value.contains(x, y) -> HTMAXBUTTON
-                        minButtonRect.value.contains(x, y) -> HTMINBUTTON
-                        closeButtonRect.value.contains(x, y) -> HTCLOSE
-                        isSearchBoxHit || isBackButtonHit || isNewVersionTagHit || isPinButtonHit || isRefreshButtonHit -> HTCLIENT
-                        captionBarRect.value.contains(x, y) -> HTCAPTION
-                        else -> HTCLIENT
+                    if (playerVisible) {
+                        when {
+                            maxButtonRect.value.contains(x, y) -> HTMAXBUTTON
+                            minButtonRect.value.contains(x, y) -> HTMINBUTTON
+                            closeButtonRect.value.contains(x, y) -> HTCLOSE
+                            isPinButtonHit || isRefreshButtonHit -> HTCLIENT
+                            else -> HTCLIENT
+                        }
+                    } else {
+                        when {
+                            maxButtonRect.value.contains(x, y) -> HTMAXBUTTON
+                            minButtonRect.value.contains(x, y) -> HTMINBUTTON
+                            closeButtonRect.value.contains(x, y) -> HTCLOSE
+                            isSearchBoxHit || isBackButtonHit || isNewVersionTagHit || isPinButtonHit || isRefreshButtonHit -> HTCLIENT
+                            captionBarRect.value.contains(x, y) -> HTCAPTION
+                            else -> HTCLIENT
+                        }
                     }
                 }
             },
@@ -364,10 +373,16 @@ fun FrameWindowScope.WindowsWindowFrame(
                 }
 
                 if (showCaptionButtons) {
-                    window.CaptionButtonRow(
+                    CaptionButtonRow(
                         windowHandle = procedure.windowHandle,
                         isMaximize = state.placement == WindowPlacement.Maximized,
+                        isActive = procedure.isWindowActive,
+                        accentColor = procedure.windowFrameColor,
+                        frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
                         onCloseRequest = onCloseRequest,
+                        modifier = Modifier.align(Alignment.CenterEnd).onSizeChanged {
+                            contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
+                        },
                         isAlwaysOnTop = isAlwaysOnTop,
                         onToggleAlwaysOnTop = onToggleAlwaysOnTop,
                         onRefreshClick = onRefreshClick,
@@ -384,17 +399,10 @@ fun FrameWindowScope.WindowsWindowFrame(
                         },
                         onRefreshButtonRectUpdate = {
                             refreshButtonRect.value = it
-                        },
-                        onPinButtonRectUpdate = {
-                            pinButtonRect.value = it
-                        },
-                        accentColor = procedure.windowFrameColor,
-                        frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
-                        isActive = procedure.isWindowActive,
-                        modifier = Modifier.align(Alignment.CenterEnd).onSizeChanged {
-                            contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
                         }
-                    )
+                    ) {
+                        pinButtonRect.value = it
+                    }
                 }
             }
         }
@@ -402,7 +410,7 @@ fun FrameWindowScope.WindowsWindowFrame(
 }
 
 @Composable
-fun Window.CaptionButtonRow(
+fun CaptionButtonRow(
     windowHandle: HWND,
     isMaximize: Boolean,
     isActive: Boolean,
