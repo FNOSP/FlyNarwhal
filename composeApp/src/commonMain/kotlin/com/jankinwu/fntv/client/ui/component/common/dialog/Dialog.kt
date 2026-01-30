@@ -136,7 +136,7 @@ fun AboutDialog() {
             }
         }
     }
-    io.github.composefluent.component.Button(
+    Button(
         onClick = {
             displayDialog = true
         },

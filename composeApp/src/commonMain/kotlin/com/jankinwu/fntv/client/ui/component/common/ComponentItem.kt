@@ -11,6 +11,7 @@ class ComponentItem(
     val icon: ImageVector? = null,
     val guid: String? = null,
     val type: List<String>? = listOf(),
+    val count: Int? = null,
     val content: (@Composable ComponentItem.(navigator: ComponentNavigator) -> Unit)?,
 ) {
     override fun equals(other: Any?): Boolean {

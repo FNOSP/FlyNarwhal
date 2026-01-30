@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -25,9 +26,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
@@ -35,6 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
+import com.jankinwu.fntv.client.data.store.ShortcutSettingsStore
+import com.jankinwu.fntv.client.data.store.ShortcutActionId
 import com.jankinwu.fntv.client.icons.Pin
 import com.jankinwu.fntv.client.icons.PinFill
 import com.jankinwu.fntv.client.icons.RefreshCircle
@@ -81,10 +94,26 @@ fun FrameWindowScope.MacOSWindowFrame(
     val uiVisible = playerManager.playerState.isUiVisible
     val showTrafficLights = !playerVisible || uiVisible
     var searchQuery by remember { mutableStateOf("") }
+    var suppressNextSearchInput by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val rootFocusRequester = remember { FocusRequester() }
+    val searchFocusRequester = remember { FocusRequester() }
+    var isSearchBoxFocused by remember { mutableStateOf(false) }
+    var searchBoxBounds by remember { mutableStateOf<Rect?>(null) }
+    var rootBoxOffset by remember { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(showTrafficLights) {
         com.jankinwu.fntv.client.utils.MacOSTrafficLightUtils.setTrafficLightButtonsVisible(window, showTrafficLights)
+    }
+
+    LaunchedEffect(Unit) {
+        rootFocusRequester.requestFocus()
+    }
+
+    LaunchedEffect(navigator.latestBackEntry, playerVisible) {
+        if (!playerVisible && !isSearchBoxFocused) {
+            rootFocusRequester.requestFocus()
+        }
     }
 
     //TODO Get real macOS caption bar width.
@@ -93,7 +122,35 @@ fun FrameWindowScope.MacOSWindowFrame(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .onPointerEvent(PointerEventType.Press) { focusManager.clearFocus() }
+                .focusRequester(rootFocusRequester)
+                .focusable()
+                .onGloballyPositioned { rootBoxOffset = it.positionInWindow() }
+                .onPointerEvent(PointerEventType.Press, pass = PointerEventPass.Final) { event ->
+                    val change = event.changes.firstOrNull() ?: return@onPointerEvent
+                    val windowPosition = rootBoxOffset + change.position
+                    val clickInsideSearch = searchBoxBounds?.contains(windowPosition) == true
+                    if (isSearchBoxFocused) {
+                        if (!clickInsideSearch) {
+                            focusManager.clearFocus()
+                            if (!playerVisible) {
+                                rootFocusRequester.requestFocus()
+                            }
+                        }
+                        return@onPointerEvent
+                    }
+                    if (!playerVisible && !clickInsideSearch && !change.isConsumed) {
+                        rootFocusRequester.requestFocus()
+                    }
+                }
+                .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    if (!playerVisible && !isSearchBoxFocused && ShortcutSettingsStore.matches(event, ShortcutActionId.FocusSearch)) {
+                        suppressNextSearchInput = ShortcutSettingsStore.shouldSuppressFocusSearchInput(event)
+                        searchFocusRequester.requestFocus()
+                        return@onPreviewKeyEvent true
+                    }
+                    false
+                }
         ) {
             content(windowInset, contentInset)
         }
@@ -192,9 +249,23 @@ fun FrameWindowScope.MacOSWindowFrame(
 
                         CapsuleSearchBox(
                             value = searchQuery,
-                            onValueChange = { searchQuery = it },
+                            onValueChange = {
+                                if (suppressNextSearchInput) {
+                                    suppressNextSearchInput = false
+                                } else {
+                                    searchQuery = it
+                                }
+                            },
                             navigator = navigator,
-                            modifier = Modifier.align(Alignment.Center)
+                            modifier = Modifier.align(Alignment.Center),
+                            onFocusChanged = {
+                                isSearchBoxFocused = it
+                                if (!it) {
+                                    rootFocusRequester.requestFocus()
+                                }
+                            },
+                            onBoundsChanged = { searchBoxBounds = it },
+                            focusRequester = searchFocusRequester
                         )
                     }
                 }

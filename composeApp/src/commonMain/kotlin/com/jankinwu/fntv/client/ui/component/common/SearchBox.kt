@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,6 +48,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -72,6 +78,8 @@ import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.response.GenresResponse
 import com.jankinwu.fntv.client.data.model.response.MediaItem
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.ShortcutActionId
+import com.jankinwu.fntv.client.data.store.ShortcutSettingsStore
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.Search
 import com.jankinwu.fntv.client.ui.providable.LocalStore
@@ -104,15 +112,36 @@ fun CapsuleSearchBox(
     collapseOnBlur: Boolean = false,
     onFocusChanged: (Boolean) -> Unit = {},
     onBoundsChanged: (Rect?) -> Unit = {},
+    focusRequester: FocusRequester? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val focusRequester = remember { FocusRequester() }
+    val internalFocusRequester = remember { FocusRequester() }
+    val actualFocusRequester = focusRequester ?: internalFocusRequester
     val focusManager = LocalFocusManager.current
     val viewModel: SearchViewModel = koinViewModel()
     val searchUiState by viewModel.uiState.collectAsState()
     var searchBoxBounds by remember { mutableStateOf<Rect?>(null) }
+    val tabs = remember { listOf("全部", "电影", "电视剧", "人物", "其他") }
+    var selectedTab by remember { mutableStateOf(tabs.first()) }
+    var selectedIndex by remember { mutableStateOf(-1) }
+    val allItems = (searchUiState as? UiState.Success<List<MediaItem>>)?.data ?: emptyList()
+    val filteredItems = remember(allItems, selectedTab) {
+        if (selectedTab == "全部") {
+            allItems
+        } else {
+            allItems.filter { item ->
+                when (selectedTab) {
+                    "电影" -> item.type == "Movie"
+                    "电视剧" -> item.type == "TV"
+                    "人物" -> item.type == "Person"
+                    "其他" -> item.type != "Movie" && item.type != "TV" && item.type != "Person"
+                    else -> true
+                }
+            }
+        }
+    }
 
     LaunchedEffect(value) {
         viewModel.search(value)
@@ -125,6 +154,13 @@ fun CapsuleSearchBox(
     }
     LaunchedEffect(isFocused) {
         onFocusChanged(isFocused)
+    }
+    LaunchedEffect(filteredItems) {
+        selectedIndex = if (filteredItems.isEmpty()) {
+            -1
+        } else {
+            selectedIndex.coerceIn(0, filteredItems.lastIndex)
+        }
     }
 
     val animatedWidth by animateDpAsState(
@@ -154,7 +190,7 @@ fun CapsuleSearchBox(
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = { focusRequester.requestFocus() }
+                onClick = { actualFocusRequester.requestFocus() }
             )
             .padding(horizontal = 10.dp)
             .onGloballyPositioned { coordinates ->
@@ -181,7 +217,63 @@ fun CapsuleSearchBox(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(start = 20.dp)
-                .focusRequester(focusRequester),
+                .focusRequester(actualFocusRequester)
+                .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->
+                    if (event.type != KeyEventType.KeyDown) {
+                        return@onPreviewKeyEvent false
+                    }
+                    val isDropdownVisible = isFocused && value.isNotEmpty()
+                    if (!isDropdownVisible) {
+                        if (ShortcutSettingsStore.matches(event, ShortcutActionId.SearchExit)) {
+                            focusManager.clearFocus()
+                            onValueChange("")
+                            viewModel.clearSearch()
+                            return@onPreviewKeyEvent true
+                        }
+                        return@onPreviewKeyEvent false
+                    }
+                    when {
+                        ShortcutSettingsStore.matches(event, ShortcutActionId.SearchNext) -> {
+                            if (filteredItems.isNotEmpty()) {
+                                val nextIndex = if (selectedIndex < 0) 0 else (selectedIndex + 1) % filteredItems.size
+                                selectedIndex = nextIndex
+                            }
+                            true
+                        }
+                        ShortcutSettingsStore.matches(event, ShortcutActionId.SearchPrev) -> {
+                            if (filteredItems.isNotEmpty()) {
+                                val nextIndex = if (selectedIndex < 0) filteredItems.lastIndex else (selectedIndex - 1 + filteredItems.size) % filteredItems.size
+                                selectedIndex = nextIndex
+                            }
+                            true
+                        }
+                        ShortcutSettingsStore.matches(event, ShortcutActionId.SearchSelect) -> {
+                            val item = filteredItems.getOrNull(selectedIndex)
+                            if (item != null) {
+                                focusManager.clearFocus()
+                                onValueChange("")
+                                viewModel.clearSearch()
+                                navigateToSearchItem(item, navigator)
+                                return@onPreviewKeyEvent true
+                            }
+                            false
+                        }
+                        ShortcutSettingsStore.matches(event, ShortcutActionId.SearchSwitchTab) -> {
+                            val currentIndex = tabs.indexOf(selectedTab).coerceAtLeast(0)
+                            val nextIndex = (currentIndex + 1) % tabs.size
+                            selectedTab = tabs[nextIndex]
+                            selectedIndex = if (filteredItems.isEmpty()) -1 else 0
+                            true
+                        }
+                        ShortcutSettingsStore.matches(event, ShortcutActionId.SearchExit) -> {
+                            focusManager.clearFocus()
+                            onValueChange("")
+                            viewModel.clearSearch()
+                            true
+                        }
+                        else -> false
+                    }
+                },
             decorationBox = { innerTextField ->
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -225,11 +317,19 @@ fun CapsuleSearchBox(
             ) {
                 SearchResultDropdown(
                     uiState = searchUiState,
-                    navigator = navigator,
-                    onItemClick = {
+                    tabs = tabs,
+                    selectedTab = selectedTab,
+                    onTabSelected = {
+                        selectedTab = it
+                        selectedIndex = if (filteredItems.isEmpty()) -1 else 0
+                    },
+                    items = filteredItems,
+                    selectedIndex = selectedIndex,
+                    onItemSelected = { item ->
                         focusManager.clearFocus()
                         onValueChange("")
                         viewModel.clearSearch()
+                        navigateToSearchItem(item, navigator)
                     }
                 )
             }
@@ -240,11 +340,13 @@ fun CapsuleSearchBox(
 @Composable
 private fun SearchResultDropdown(
     uiState: UiState<List<MediaItem>>,
-    navigator: ComponentNavigator,
-    onItemClick: () -> Unit
+    tabs: List<String>,
+    selectedTab: String,
+    onTabSelected: (String) -> Unit,
+    items: List<MediaItem>,
+    selectedIndex: Int,
+    onItemSelected: (MediaItem) -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf("全部") }
-    val tabs = listOf("全部", "电影", "电视剧", "人物", "其他")
     val genresViewModel: GenresViewModel = koinViewModel()
     val genresUiState by genresViewModel.uiState.collectAsState()
     val genresMap = remember(genresUiState) {
@@ -256,11 +358,16 @@ private fun SearchResultDropdown(
             else -> emptyMap()
         }
     }
-    val lazyListState = rememberLazyListState()
-
     LaunchedEffect(genresUiState) {
         if (genresUiState is UiState.Initial) {
             genresViewModel.loadGenres()
+        }
+    }
+
+    val lazyListState = rememberLazyListState()
+    LaunchedEffect(selectedIndex, items) {
+        if (selectedIndex >= 0 && selectedIndex < items.size) {
+            lazyListState.animateScrollToItem(selectedIndex)
         }
     }
 
@@ -297,7 +404,7 @@ private fun SearchResultDropdown(
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
-                            ) { selectedTab = tab }
+                            ) { onTabSelected(tab) }
                             .pointerHoverIcon(PointerIcon.Hand)
                     )
                 }
@@ -313,24 +420,7 @@ private fun SearchResultDropdown(
             // Content
             when (uiState) {
                 is UiState.Success -> {
-                    val allItems = uiState.data
-                    val filteredItems = remember(allItems, selectedTab) {
-                        if (selectedTab == "全部") {
-                            allItems
-                        } else {
-                            allItems.filter { item ->
-                                when (selectedTab) {
-                                    "电影" -> item.type == "Movie"
-                                    "电视剧" -> item.type == "TV"
-                                    "人物" -> item.type == "Person"
-                                    "其他" -> item.type != "Movie" && item.type != "TV" && item.type != "Person"
-                                    else -> true
-                                }
-                            }
-                        }
-                    }
-
-                    if (filteredItems.isEmpty()) {
+                    if (items.isEmpty()) {
                         EmptySearchResult()
                     } else {
                         AnimatedScrollbarLazyColumn(
@@ -340,8 +430,13 @@ private fun SearchResultDropdown(
                             scrollbarOffsetX = (-4).dp,
                             autoHidden = true
                         ) {
-                            items(filteredItems) { item ->
-                                SearchResultItem(item, navigator, onItemClick, genresMap)
+                            itemsIndexed(items) { index, item ->
+                                SearchResultItem(
+                                    item = item,
+                                    isSelected = index == selectedIndex,
+                                    onItemSelected = onItemSelected,
+                                    genresMap = genresMap
+                                )
                             }
                         }
                     }
@@ -382,8 +477,8 @@ private fun EmptySearchResult() {
 @OptIn(ExperimentalComposeUiApi::class)
 private fun SearchResultItem(
     item: MediaItem,
-    navigator: ComponentNavigator,
-    onItemClick: () -> Unit,
+    isSelected: Boolean,
+    onItemSelected: (MediaItem) -> Unit,
     genresMap: Map<Int, GenresResponse>
 ) {
     val isPerson = item.type == "Person"
@@ -395,56 +490,15 @@ private fun SearchResultItem(
             .height(80.dp)
             .hoverable(remember { MutableInteractionSource() }) // For hover effect if needed
             .pointerHoverIcon(PointerIcon.Hand)
-            .background(if (isHovered) FluentTheme.colors.subtleFill.secondary else Color.Transparent)
-            .clickable {
-                onItemClick()
-                when (item.type) {
-                    "Movie" -> navigator.navigate(
-                        ComponentItem(
-                            name = item.title,
-                            group = "MovieDetail",
-                            description = "",
-                            guid = item.guid,
-                            content = { MovieDetailScreen(item.guid, it) }
-                        )
-                    )
-                    "TV" -> navigator.navigate(
-                        ComponentItem(
-                            name = item.title,
-                            group = "TvDetail",
-                            description = "",
-                            guid = item.guid,
-                            content = { TvDetailScreen(item.guid, it) }
-                        )
-                    )
-                    "Person" -> navigator.navigate(
-                        ComponentItem(
-                            name = item.title,
-                            group = "PersonDetail",
-                            description = "",
-                            guid = item.guid,
-                            content = { PersonDetailScreen(item.guid, it) }
-                        )
-                    )
-                    "Video" -> navigator.navigate(
-                        ComponentItem(
-                            name = item.title,
-                            group = "MovieDetail",
-                            description = "",
-                            guid = item.guid,
-                            content = { MovieDetailScreen(item.guid, it) }
-                        )
-                    )
-                    else -> navigator.navigate(
-                        ComponentItem(
-                            name = item.title,
-                            group = "MovieDetail",
-                            description = "",
-                            guid = item.guid,
-                            content = { MovieDetailScreen(item.guid, it) }
-                        )
-                    )
+            .background(
+                when {
+                    isSelected -> FluentTheme.colors.subtleFill.secondary
+                    isHovered -> FluentTheme.colors.subtleFill.secondary
+                    else -> Color.Transparent
                 }
+            )
+            .clickable {
+                onItemSelected(item)
             }
             .onPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Enter) { isHovered = true }
             .onPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Exit) { isHovered = false }
@@ -555,5 +609,58 @@ private fun SearchResultItem(
                 }
             }
         }
+    }
+}
+
+private fun navigateToSearchItem(
+    item: MediaItem,
+    navigator: ComponentNavigator
+) {
+    when (item.type) {
+        "Movie" -> navigator.navigate(
+            ComponentItem(
+                name = item.title,
+                group = "MovieDetail",
+                description = "",
+                guid = item.guid,
+                content = { MovieDetailScreen(item.guid, it) }
+            )
+        )
+        "TV" -> navigator.navigate(
+            ComponentItem(
+                name = item.title,
+                group = "TvDetail",
+                description = "",
+                guid = item.guid,
+                content = { TvDetailScreen(item.guid, it) }
+            )
+        )
+        "Person" -> navigator.navigate(
+            ComponentItem(
+                name = item.title,
+                group = "PersonDetail",
+                description = "",
+                guid = item.guid,
+                content = { PersonDetailScreen(item.guid, it) }
+            )
+        )
+        "Video" -> navigator.navigate(
+            ComponentItem(
+                name = item.title,
+                group = "MovieDetail",
+                description = "",
+                guid = item.guid,
+                content = { MovieDetailScreen(item.guid, it) }
+            )
+        )
+        else -> navigator.navigate(
+            ComponentItem(
+                name = item.title,
+                group = "MovieDetail",
+                description = "",
+                guid = item.guid,
+                content = { MovieDetailScreen(item.guid, it) }
+            )
+        )
     }
 }

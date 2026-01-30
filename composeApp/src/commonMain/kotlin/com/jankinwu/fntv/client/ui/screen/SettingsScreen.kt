@@ -80,6 +80,7 @@ import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.ui.component.common.dialog.AboutDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
+import com.jankinwu.fntv.client.ui.component.common.dialog.ShortcutSettingsDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalStore
@@ -114,6 +115,7 @@ import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Color
 import io.github.composefluent.icons.regular.Globe
 import io.github.composefluent.icons.regular.Key
+import io.github.composefluent.icons.regular.Keyboard
 import io.github.composefluent.icons.regular.Navigation
 import io.github.composefluent.icons.regular.Person
 import io.github.composefluent.icons.regular.WeatherMoon
@@ -143,9 +145,10 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showHardwareInfoDialog by remember { mutableStateOf(false) }
     var showAuthCodeDialog by remember { mutableStateOf(false) }
-    var authCodeState = rememberTextFieldState(AppSettingsStore.authCode)
+    val authCodeState = rememberTextFieldState(AppSettingsStore.authCode)
     var authCodeVisible by remember { mutableStateOf(false) }
     val toastManager = rememberToastManager()
+    var showShortcutDialog by remember { mutableStateOf(false) }
 
     val logExporter = LocalLogExporter.current
     val availableDates = remember { logExporter.getAvailableLogDates() }
@@ -155,7 +158,6 @@ fun SettingsScreen(navigator: ComponentNavigator) {
 
     var flyNarwhalServerEnabled by remember(guid) { mutableStateOf(AppSettingsStore.flyNarwhalServerEnabled) }
     var flyNarwhalServerBaseUrl by remember(guid) { mutableStateOf(AppSettingsStore.flyNarwhalServerBaseUrl) }
-//    var wasSmartAnalysisBaseUrlFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(flyNarwhalServerTestState) {
         when (val state = flyNarwhalServerTestState) {
@@ -217,6 +219,12 @@ fun SettingsScreen(navigator: ComponentNavigator) {
             primaryButtonText = "确定"
         )
     }
+
+    ShortcutSettingsDialog(
+        visible = showShortcutDialog,
+        onDismiss = { showShortcutDialog = false },
+        guid = guid
+    )
 
     UpdateDialog(
         status = updateStatus,
@@ -572,6 +580,33 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         }
                     )
 
+                    Header("通用")
+                    CardExpanderItem(
+                        heading = {
+                            Text("快捷键设置")
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Regular.Keyboard,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        caption = {
+                            Text("自定义快捷键")
+                        },
+                        trailing = {
+                            Button(
+                                onClick = {
+                                    showShortcutDialog = true
+                                },
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                            ) {
+                                Text("自定义")
+                            }
+                        }
+                    )
+
                     // Hide this test component if gallery is release version.
 //                if (!BuildKonfig.CURRENT_BRANCH.equals("master", false)) {
 //                    Header("Test")
@@ -710,7 +745,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                                 Text("启用飞鲸服务端")
                                 Spacer(Modifier.width(6.dp))
                                 HoverTip(
-                                    tipText = "启用后可以通过部署在飞牛 NAS 上的飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持。\n请确保已在下方正确配置「飞鲸服务端地址」，并且客户端能访问该服务。服务端项目地址：https://github.com/FNOSP/fly-narwhal-server",
+                                    tipText = "启用后可以通过部署在飞牛 NAS 上的飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持。\n请确保已在下方正确配置「飞鲸服务端地址」，并且客户端能访问该服务。服务端项目地址：https://github.com/FNOSP/fly-narwhal-server\n智能跳过片头/片尾教程：\nhttps://club.fnnas.com/forum.php?mod=viewthread&tid=49998",
                                 )
                             }
                         },

@@ -10,6 +10,7 @@ import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -37,6 +38,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -48,6 +51,9 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -64,6 +70,8 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.zIndex
+import com.jankinwu.fntv.client.data.store.ShortcutActionId
+import com.jankinwu.fntv.client.data.store.ShortcutSettingsStore
 import com.jankinwu.fntv.client.icons.Pin as PinIcon
 import com.jankinwu.fntv.client.icons.PinFill as PinFillIcon
 import com.jankinwu.fntv.client.icons.RefreshCircle
@@ -104,7 +112,6 @@ import io.github.composefluent.scheme.PentaVisualScheme
 import io.github.composefluent.scheme.VisualStateScheme
 import io.github.composefluent.scheme.collectVisualState
 import kotlinx.coroutines.launch
-import java.awt.Window
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -141,15 +148,24 @@ fun FrameWindowScope.WindowsWindowFrame(
     val minButtonRect = remember { mutableStateOf(Rect.Zero) }
     val closeButtonRect = remember { mutableStateOf(Rect.Zero) }
     val captionBarRect = remember { mutableStateOf(Rect.Zero) }
-    val layoutHitTestOwner = rememberLayoutHitTestOwner()
+    val backButtonRect = remember { mutableStateOf(Rect.Zero) }
+    val refreshButtonRect = remember { mutableStateOf(Rect.Zero) }
+    val pinButtonRect = remember { mutableStateOf(Rect.Zero) }
+    val newVersionTagRect = remember { mutableStateOf(Rect.Zero) }
     val contentPaddingInset = remember { MutableWindowInsets() }
     var searchQuery by remember { mutableStateOf("") }
+    var suppressNextSearchInput by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val rootFocusRequester = remember { FocusRequester() }
+    val searchFocusRequester = remember { FocusRequester() }
     var searchBoxBounds by remember { mutableStateOf<Rect?>(null) }
     var isSearchBoxFocused by remember { mutableStateOf(false) }
     var rootBoxOffset by remember { mutableStateOf(Offset.Zero) }
     
     val isFullscreen = state.placement == WindowPlacement.Fullscreen
+    val playerManager = LocalPlayerManager.current
+    val playerVisible = playerManager.playerState.isVisible
+    val uiVisible = playerManager.playerState.isUiVisible
 
     val procedure = remember(window) {
         ComposeWindowProcedure(
@@ -158,13 +174,28 @@ fun FrameWindowScope.WindowsWindowFrame(
                 if (state.placement == WindowPlacement.Fullscreen) {
                      HTCLIENT
                 } else {
-                    when {
-                        maxButtonRect.value.contains(x, y) -> HTMAXBUTTON
-                        minButtonRect.value.contains(x, y) -> HTMINBUTTON
-                        closeButtonRect.value.contains(x, y) -> HTCLOSE
-                        captionBarRect.value.contains(x, y) && !layoutHitTestOwner.hitTest(x, y) -> HTCAPTION
-    
-                        else -> HTCLIENT
+                    val isSearchBoxHit = searchBoxBounds?.contains(x, y) == true
+                    val isBackButtonHit = backButtonRect.value.contains(x, y)
+                    val isNewVersionTagHit = newVersionTagRect.value.contains(x, y)
+                    val isPinButtonHit = pinButtonRect.value.contains(x, y)
+                    val isRefreshButtonHit = refreshButtonRect.value.contains(x, y)
+                    if (playerVisible) {
+                        when {
+                            maxButtonRect.value.contains(x, y) -> HTMAXBUTTON
+                            minButtonRect.value.contains(x, y) -> HTMINBUTTON
+                            closeButtonRect.value.contains(x, y) -> HTCLOSE
+                            isPinButtonHit || isRefreshButtonHit -> HTCLIENT
+                            else -> HTCLIENT
+                        }
+                    } else {
+                        when {
+                            maxButtonRect.value.contains(x, y) -> HTMAXBUTTON
+                            minButtonRect.value.contains(x, y) -> HTMINBUTTON
+                            closeButtonRect.value.contains(x, y) -> HTCLOSE
+                            isSearchBoxHit || isBackButtonHit || isNewVersionTagHit || isPinButtonHit || isRefreshButtonHit -> HTCLIENT
+                            captionBarRect.value.contains(x, y) -> HTCAPTION
+                            else -> HTCLIENT
+                        }
                     }
                 }
             },
@@ -176,28 +207,77 @@ fun FrameWindowScope.WindowsWindowFrame(
         procedure.isFullscreen = isFullscreen
     }
 
+    LaunchedEffect(Unit) {
+        rootFocusRequester.requestFocus()
+    }
+
+    LaunchedEffect(backButtonVisible) {
+        if (!backButtonVisible) {
+            backButtonRect.value = Rect.Zero
+        }
+    }
+
+    LaunchedEffect(playerVisible) {
+        if (playerVisible) {
+            searchBoxBounds = null
+        }
+    }
+
+    LaunchedEffect(playerVisible, title) {
+        if (playerVisible || title.isEmpty()) {
+            newVersionTagRect.value = Rect.Zero
+        }
+    }
+
+    LaunchedEffect(playerVisible, onRefreshClick) {
+        if (playerVisible || onRefreshClick == null) {
+            refreshButtonRect.value = Rect.Zero
+        }
+    }
+
+    LaunchedEffect(navigator.latestBackEntry, playerVisible) {
+        if (!playerVisible && !isSearchBoxFocused) {
+            rootFocusRequester.requestFocus()
+        }
+    }
+
     Box(
         modifier = Modifier
             .windowInsetsPadding(if (isFullscreen) WindowInsets(0) else paddingInset)
+            .focusRequester(rootFocusRequester)
+            .focusable()
             .onGloballyPositioned { rootBoxOffset = it.positionInWindow() }
             .onPointerEvent(PointerEventType.Press, pass = PointerEventPass.Final) { event ->
-                val bounds = searchBoxBounds
-                val position = event.changes.firstOrNull()?.position
-                if (bounds != null && position != null && isSearchBoxFocused) {
-                    val windowPosition = rootBoxOffset + position
-                    if (!bounds.contains(windowPosition)) {
+                val change = event.changes.firstOrNull() ?: return@onPointerEvent
+                val windowPosition = rootBoxOffset + change.position
+                val clickInsideSearch = searchBoxBounds?.contains(windowPosition) == true
+                if (isSearchBoxFocused) {
+                    if (!clickInsideSearch) {
                         focusManager.clearFocus()
+                        if (!playerVisible) {
+                            rootFocusRequester.requestFocus()
+                        }
                     }
+                    return@onPointerEvent
                 }
+                if (!playerVisible && !clickInsideSearch && !change.isConsumed) {
+                    rootFocusRequester.requestFocus()
+                }
+            }
+            .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (!playerVisible && !isSearchBoxFocused && ShortcutSettingsStore.matches(event, ShortcutActionId.FocusSearch)) {
+                    suppressNextSearchInput = ShortcutSettingsStore.shouldSuppressFocusSearchInput(event)
+                    searchFocusRequester.requestFocus()
+                    return@onPreviewKeyEvent true
+                }
+                false
             }
     ) {
         if (isFullscreen) {
              content(WindowInsets(0), WindowInsets(0))
         } else {
              content(WindowInsets(top = captionBarHeight), contentPaddingInset)
-            val playerManager = LocalPlayerManager.current
-            val playerVisible = playerManager.playerState.isVisible
-            val uiVisible = playerManager.playerState.isUiVisible
             val showCaptionButtons = !playerVisible || uiVisible
 
             LaunchedEffect(showCaptionButtons) {
@@ -205,6 +285,8 @@ fun FrameWindowScope.WindowsWindowFrame(
                     maxButtonRect.value = Rect.Zero
                     minButtonRect.value = Rect.Zero
                     closeButtonRect.value = Rect.Zero
+                    refreshButtonRect.value = Rect.Zero
+                    pinButtonRect.value = Rect.Zero
                 }
             }
 
@@ -236,12 +318,18 @@ fun FrameWindowScope.WindowsWindowFrame(
                     ) {
                         if (it) {
                             val interactionSource = remember { MutableInteractionSource() }
-                            NavigationDefaults.BackButton(
-                                onClick = backButtonClick,
-                                disabled = !backButtonEnabled,
-                                interaction = interactionSource,
-                                icon = { FontIconDefaults.BackIcon(interactionSource, size = FontIconSize(10f)) }
-                            )
+                            Box(
+                                modifier = Modifier.onGloballyPositioned {
+                                    backButtonRect.value = it.boundsInWindow()
+                                }
+                            ) {
+                                NavigationDefaults.BackButton(
+                                    onClick = backButtonClick,
+                                    disabled = !backButtonEnabled,
+                                    interaction = interactionSource,
+                                    icon = { FontIconDefaults.BackIcon(interactionSource, size = FontIconSize(10f)) }
+                                )
+                            }
                         } else {
                             Spacer(modifier = Modifier.width(14.dp).height(36.dp))
                         }
@@ -261,7 +349,9 @@ fun FrameWindowScope.WindowsWindowFrame(
                                 style = FluentTheme.typography.caption,
                                 modifier = Modifier.padding(start = 16.dp)
                             )
-                            HasNewVersionTag()
+                            HasNewVersionTag(
+                                onBoundsChanged = { newVersionTagRect.value = it ?: Rect.Zero }
+                            )
                         }
                     }
                 }
@@ -269,20 +359,38 @@ fun FrameWindowScope.WindowsWindowFrame(
                 if (!playerVisible) {
                     CapsuleSearchBox(
                         value = searchQuery,
-                        onValueChange = { searchQuery = it },
+                        onValueChange = {
+                            if (suppressNextSearchInput) {
+                                suppressNextSearchInput = false
+                            } else {
+                                searchQuery = it
+                            }
+                        },
                         navigator = navigator,
                         modifier = Modifier.align(Alignment.Center),
                         collapseOnBlur = true,
-                        onFocusChanged = { isSearchBoxFocused = it },
-                        onBoundsChanged = { searchBoxBounds = it }
+                        onFocusChanged = {
+                            isSearchBoxFocused = it
+                            if (!it) {
+                                rootFocusRequester.requestFocus()
+                            }
+                        },
+                        onBoundsChanged = { searchBoxBounds = it },
+                        focusRequester = searchFocusRequester
                     )
                 }
 
                 if (showCaptionButtons) {
-                    window.CaptionButtonRow(
+                    CaptionButtonRow(
                         windowHandle = procedure.windowHandle,
                         isMaximize = state.placement == WindowPlacement.Maximized,
+                        isActive = procedure.isWindowActive,
+                        accentColor = procedure.windowFrameColor,
+                        frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
                         onCloseRequest = onCloseRequest,
+                        modifier = Modifier.align(Alignment.CenterEnd).onSizeChanged {
+                            contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
+                        },
                         isAlwaysOnTop = isAlwaysOnTop,
                         onToggleAlwaysOnTop = onToggleAlwaysOnTop,
                         onRefreshClick = onRefreshClick,
@@ -297,13 +405,12 @@ fun FrameWindowScope.WindowsWindowFrame(
                         onCloseButtonRectUpdate = {
                             closeButtonRect.value = it
                         },
-                        accentColor = procedure.windowFrameColor,
-                        frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
-                        isActive = procedure.isWindowActive,
-                        modifier = Modifier.align(Alignment.CenterEnd).onSizeChanged {
-                            contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
+                        onRefreshButtonRectUpdate = {
+                            refreshButtonRect.value = it
                         }
-                    )
+                    ) {
+                        pinButtonRect.value = it
+                    }
                 }
             }
         }
@@ -311,7 +418,7 @@ fun FrameWindowScope.WindowsWindowFrame(
 }
 
 @Composable
-fun Window.CaptionButtonRow(
+fun CaptionButtonRow(
     windowHandle: HWND,
     isMaximize: Boolean,
     isActive: Boolean,
@@ -326,7 +433,9 @@ fun Window.CaptionButtonRow(
     onRefreshAnimationEnd: (() -> Unit)? = null,
     onMaximizeButtonRectUpdate: (Rect) -> Unit,
     onMinimizeButtonRectUpdate: (Rect) -> Unit = {},
-    onCloseButtonRectUpdate: (Rect) -> Unit = {}
+    onCloseButtonRectUpdate: (Rect) -> Unit = {},
+    onRefreshButtonRectUpdate: (Rect) -> Unit = {},
+    onPinButtonRectUpdate: (Rect) -> Unit = {}
 ) {
     //Draw the caption button
     Row(
@@ -365,7 +474,10 @@ fun Window.CaptionButtonRow(
                     icon = CaptionButtonIcon.Refresh,
                     isActive = isActive,
                     colors = colors,
-                    rotation = rotation.value
+                    rotation = rotation.value,
+                    modifier = Modifier.onGloballyPositioned {
+                        onRefreshButtonRectUpdate(it.boundsInWindow())
+                    }
                 )
             }
         }
@@ -374,7 +486,10 @@ fun Window.CaptionButtonRow(
             icon = if (isAlwaysOnTop) CaptionButtonIcon.Unpin else CaptionButtonIcon.Pin,
             isActive = isActive,
             colors = colors,
-            iconSize = 15.dp
+            iconSize = 15.dp,
+            modifier = Modifier.onGloballyPositioned {
+                onPinButtonRectUpdate(it.boundsInWindow())
+            }
         )
         CaptionButton(
             onClick = {

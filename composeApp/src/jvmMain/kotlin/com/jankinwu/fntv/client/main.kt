@@ -57,14 +57,15 @@ import com.jankinwu.fntv.client.utils.ExtraWindowProperties
 import com.jankinwu.fntv.client.utils.FileLogWriter
 import com.jankinwu.fntv.client.utils.LocalContext
 import com.jankinwu.fntv.client.utils.LocalLogExporter
+import com.jankinwu.fntv.client.utils.MacDisplaySleepBlocker
 import com.jankinwu.fntv.client.utils.WebViewBootstrap
+import com.jankinwu.fntv.client.utils.WindowsDisplaySleepBlocker
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.viewModelModule
 import com.jankinwu.fntv.client.window.WindowFrame
 import com.jankinwu.fntv.client.window.findSkiaLayer
 import com.sun.jna.Pointer
-import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinDef.HWND
 import com.sun.jna.platform.win32.WinUser
 import dev.datlag.kcef.KCEF
@@ -83,30 +84,6 @@ import java.awt.event.ComponentEvent
 import java.io.File
 import kotlin.math.roundToInt
 
-private object WindowsDisplaySleepBlocker {
-    private const val ES_SYSTEM_REQUIRED = 0x00000001
-    private const val ES_DISPLAY_REQUIRED = 0x00000002
-    private const val ES_CONTINUOUS = 0x80000000.toInt()
-
-    private val logger = Logger.withTag("WindowsDisplaySleepBlocker")
-
-    fun setEnabled(enabled: Boolean) {
-        if (!currentPlatform().isWindows()) return
-        try {
-            val flags = if (enabled) {
-                ES_CONTINUOUS or ES_SYSTEM_REQUIRED or ES_DISPLAY_REQUIRED
-            } else {
-                ES_CONTINUOUS
-            }
-            val previous = Kernel32.INSTANCE.SetThreadExecutionState(flags)
-            if (previous == 0) {
-                logger.w { "SetThreadExecutionState returned 0 (failed), enabled=$enabled" }
-            }
-        } catch (t: Throwable) {
-            logger.w(t) { "Failed to set execution state, enabled=$enabled" }
-        }
-    }
-}
 
 @OptIn(FlowPreview::class)
 fun main() {
@@ -421,9 +398,17 @@ fun main() {
                             val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
 
                             DisposableEffect(shouldBlockDisplaySleep) {
-                                WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                when (platform) {
+                                    is Platform.Windows -> WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                    is Platform.MacOS -> MacDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                    else -> Unit
+                                }
                                 onDispose {
-                                    WindowsDisplaySleepBlocker.setEnabled(false)
+                                    when (platform) {
+                                        is Platform.Windows -> WindowsDisplaySleepBlocker.setEnabled(false)
+                                        is Platform.MacOS -> MacDisplaySleepBlocker.setEnabled(false)
+                                        else -> Unit
+                                    }
                                 }
                             }
 
