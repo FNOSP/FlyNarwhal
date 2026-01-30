@@ -31,9 +31,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -48,6 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
+import com.jankinwu.fntv.client.data.store.ShortcutSettingsStore
+import com.jankinwu.fntv.client.data.store.ShortcutActionId
 import com.jankinwu.fntv.client.icons.Pin
 import com.jankinwu.fntv.client.icons.PinFill
 import com.jankinwu.fntv.client.icons.RefreshCircle
@@ -94,6 +94,7 @@ fun FrameWindowScope.MacOSWindowFrame(
     val uiVisible = playerManager.playerState.isUiVisible
     val showTrafficLights = !playerVisible || uiVisible
     var searchQuery by remember { mutableStateOf("") }
+    var suppressNextSearchInput by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val rootFocusRequester = remember { FocusRequester() }
     val searchFocusRequester = remember { FocusRequester() }
@@ -143,7 +144,8 @@ fun FrameWindowScope.MacOSWindowFrame(
                 }
                 .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    if (!playerVisible && (event.key == Key.Enter || event.key == Key.NumPadEnter) && !isSearchBoxFocused) {
+                    if (!playerVisible && !isSearchBoxFocused && ShortcutSettingsStore.matches(event, ShortcutActionId.FocusSearch)) {
+                        suppressNextSearchInput = ShortcutSettingsStore.shouldSuppressFocusSearchInput(event)
                         searchFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
                     }
@@ -247,7 +249,13 @@ fun FrameWindowScope.MacOSWindowFrame(
 
                         CapsuleSearchBox(
                             value = searchQuery,
-                            onValueChange = { searchQuery = it },
+                            onValueChange = {
+                                if (suppressNextSearchInput) {
+                                    suppressNextSearchInput = false
+                                } else {
+                                    searchQuery = it
+                                }
+                            },
                             navigator = navigator,
                             modifier = Modifier.align(Alignment.Center),
                             onFocusChanged = {

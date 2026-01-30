@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -80,6 +81,7 @@ import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.ui.component.common.dialog.AboutDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
+import com.jankinwu.fntv.client.ui.component.common.dialog.ShortcutSettingsDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalStore
@@ -114,6 +116,7 @@ import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Color
 import io.github.composefluent.icons.regular.Globe
 import io.github.composefluent.icons.regular.Key
+import io.github.composefluent.icons.regular.Keyboard
 import io.github.composefluent.icons.regular.Navigation
 import io.github.composefluent.icons.regular.Person
 import io.github.composefluent.icons.regular.WeatherMoon
@@ -143,9 +146,10 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showHardwareInfoDialog by remember { mutableStateOf(false) }
     var showAuthCodeDialog by remember { mutableStateOf(false) }
-    var authCodeState = rememberTextFieldState(AppSettingsStore.authCode)
+    val authCodeState = rememberTextFieldState(AppSettingsStore.authCode)
     var authCodeVisible by remember { mutableStateOf(false) }
     val toastManager = rememberToastManager()
+    var showShortcutDialog by remember { mutableStateOf(false) }
 
     val logExporter = LocalLogExporter.current
     val availableDates = remember { logExporter.getAvailableLogDates() }
@@ -155,7 +159,6 @@ fun SettingsScreen(navigator: ComponentNavigator) {
 
     var flyNarwhalServerEnabled by remember(guid) { mutableStateOf(AppSettingsStore.flyNarwhalServerEnabled) }
     var flyNarwhalServerBaseUrl by remember(guid) { mutableStateOf(AppSettingsStore.flyNarwhalServerBaseUrl) }
-//    var wasSmartAnalysisBaseUrlFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(flyNarwhalServerTestState) {
         when (val state = flyNarwhalServerTestState) {
@@ -217,6 +220,12 @@ fun SettingsScreen(navigator: ComponentNavigator) {
             primaryButtonText = "确定"
         )
     }
+
+    ShortcutSettingsDialog(
+        visible = showShortcutDialog,
+        onDismiss = { showShortcutDialog = false },
+        guid = guid
+    )
 
     UpdateDialog(
         status = updateStatus,
@@ -569,6 +578,33 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                                     )
                                 }
                             )
+                        }
+                    )
+
+                    Header("通用")
+                    CardExpanderItem(
+                        heading = {
+                            Text("快捷键设置")
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Regular.Keyboard,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        caption = {
+                            Text("自定义快捷键")
+                        },
+                        trailing = {
+                            Button(
+                                onClick = {
+                                    showShortcutDialog = true
+                                },
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                            ) {
+                                Text("自定义")
+                            }
                         }
                     )
 

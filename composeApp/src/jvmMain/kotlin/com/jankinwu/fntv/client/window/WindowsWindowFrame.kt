@@ -51,9 +51,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -72,6 +70,8 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.zIndex
+import com.jankinwu.fntv.client.data.store.ShortcutActionId
+import com.jankinwu.fntv.client.data.store.ShortcutSettingsStore
 import com.jankinwu.fntv.client.icons.Pin as PinIcon
 import com.jankinwu.fntv.client.icons.PinFill as PinFillIcon
 import com.jankinwu.fntv.client.icons.RefreshCircle
@@ -154,6 +154,7 @@ fun FrameWindowScope.WindowsWindowFrame(
     val newVersionTagRect = remember { mutableStateOf(Rect.Zero) }
     val contentPaddingInset = remember { MutableWindowInsets() }
     var searchQuery by remember { mutableStateOf("") }
+    var suppressNextSearchInput by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val rootFocusRequester = remember { FocusRequester() }
     val searchFocusRequester = remember { FocusRequester() }
@@ -265,7 +266,8 @@ fun FrameWindowScope.WindowsWindowFrame(
             }
             .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                if (!playerVisible && (event.key == Key.Enter || event.key == Key.NumPadEnter) && !isSearchBoxFocused) {
+                if (!playerVisible && !isSearchBoxFocused && ShortcutSettingsStore.matches(event, ShortcutActionId.FocusSearch)) {
+                    suppressNextSearchInput = ShortcutSettingsStore.shouldSuppressFocusSearchInput(event)
                     searchFocusRequester.requestFocus()
                     return@onPreviewKeyEvent true
                 }
@@ -357,7 +359,13 @@ fun FrameWindowScope.WindowsWindowFrame(
                 if (!playerVisible) {
                     CapsuleSearchBox(
                         value = searchQuery,
-                        onValueChange = { searchQuery = it },
+                        onValueChange = {
+                            if (suppressNextSearchInput) {
+                                suppressNextSearchInput = false
+                            } else {
+                                searchQuery = it
+                            }
+                        },
                         navigator = navigator,
                         modifier = Modifier.align(Alignment.Center),
                         collapseOnBlur = true,

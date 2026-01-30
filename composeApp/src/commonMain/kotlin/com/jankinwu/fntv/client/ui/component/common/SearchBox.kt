@@ -78,6 +78,8 @@ import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.response.GenresResponse
 import com.jankinwu.fntv.client.data.model.response.MediaItem
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.ShortcutActionId
+import com.jankinwu.fntv.client.data.store.ShortcutSettingsStore
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.Search
 import com.jankinwu.fntv.client.ui.providable.LocalStore
@@ -222,7 +224,7 @@ fun CapsuleSearchBox(
                     }
                     val isDropdownVisible = isFocused && value.isNotEmpty()
                     if (!isDropdownVisible) {
-                        if (event.key == Key.Escape) {
+                        if (ShortcutSettingsStore.matches(event, ShortcutActionId.SearchExit)) {
                             focusManager.clearFocus()
                             onValueChange("")
                             viewModel.clearSearch()
@@ -230,22 +232,22 @@ fun CapsuleSearchBox(
                         }
                         return@onPreviewKeyEvent false
                     }
-                    when (event.key) {
-                        Key.DirectionDown -> {
+                    when {
+                        ShortcutSettingsStore.matches(event, ShortcutActionId.SearchNext) -> {
                             if (filteredItems.isNotEmpty()) {
                                 val nextIndex = if (selectedIndex < 0) 0 else (selectedIndex + 1) % filteredItems.size
                                 selectedIndex = nextIndex
                             }
                             true
                         }
-                        Key.DirectionUp -> {
+                        ShortcutSettingsStore.matches(event, ShortcutActionId.SearchPrev) -> {
                             if (filteredItems.isNotEmpty()) {
                                 val nextIndex = if (selectedIndex < 0) filteredItems.lastIndex else (selectedIndex - 1 + filteredItems.size) % filteredItems.size
                                 selectedIndex = nextIndex
                             }
                             true
                         }
-                        Key.Enter, Key.NumPadEnter -> {
+                        ShortcutSettingsStore.matches(event, ShortcutActionId.SearchSelect) -> {
                             val item = filteredItems.getOrNull(selectedIndex)
                             if (item != null) {
                                 focusManager.clearFocus()
@@ -256,14 +258,14 @@ fun CapsuleSearchBox(
                             }
                             false
                         }
-                        Key.Tab -> {
+                        ShortcutSettingsStore.matches(event, ShortcutActionId.SearchSwitchTab) -> {
                             val currentIndex = tabs.indexOf(selectedTab).coerceAtLeast(0)
                             val nextIndex = (currentIndex + 1) % tabs.size
                             selectedTab = tabs[nextIndex]
                             selectedIndex = if (filteredItems.isEmpty()) -1 else 0
                             true
                         }
-                        Key.Escape -> {
+                        ShortcutSettingsStore.matches(event, ShortcutActionId.SearchExit) -> {
                             focusManager.clearFocus()
                             onValueChange("")
                             viewModel.clearSearch()
