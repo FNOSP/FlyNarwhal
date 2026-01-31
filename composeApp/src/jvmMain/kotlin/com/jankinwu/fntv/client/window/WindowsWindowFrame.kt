@@ -134,7 +134,11 @@ fun FrameWindowScope.WindowsWindowFrame(
     content: @Composable (windowInset: WindowInsets, captionBarInset: WindowInsets) -> Unit
 ) {
     LaunchedEffect(window) {
-        window.findSkiaLayer()?.transparency = true
+        window.findSkiaLayer()?.apply {
+            transparency = true
+            isOpaque = false
+        }
+        window.background = java.awt.Color(0, 0, 0, 0)
     }
     WindowStyle(
         isDarkTheme = FluentTheme.colors.darkMode,
