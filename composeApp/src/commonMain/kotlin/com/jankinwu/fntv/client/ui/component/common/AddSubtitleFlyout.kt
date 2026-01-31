@@ -41,7 +41,7 @@ import io.github.composefluent.component.Icon
 import io.github.composefluent.component.MenuFlyoutContainer
 import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.component.Text
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 @Preview
 @Composable
