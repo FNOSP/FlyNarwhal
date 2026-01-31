@@ -50,10 +50,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -102,8 +100,8 @@ import com.jankinwu.fntv.client.data.network.fnOfficialClient
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
-import com.jankinwu.fntv.client.data.store.ShortcutSettingsStore
 import com.jankinwu.fntv.client.data.store.ShortcutActionId
+import com.jankinwu.fntv.client.data.store.ShortcutSettingsStore
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.ArrowLeft
 import com.jankinwu.fntv.client.icons.Back10S
@@ -2489,7 +2487,6 @@ fun PlayerControlRow(
 
             // 全屏
             val windowState = LocalWindowState.current
-            val store = LocalStore.current
             FullScreenControl(
                 isFullScreen = windowState.placement == WindowPlacement.Fullscreen,
                 onClick = {
@@ -3206,10 +3203,10 @@ private fun handlePlayerKeyEvent(
             mediaPlayer.togglePause()
             return true
         }
-        if (ShortcutSettingsStore.matches(event, ShortcutActionId.StopPlayback)) {
-            mediaPlayer.pause()
-            return true
-        }
+//        if (ShortcutSettingsStore.matches(event, ShortcutActionId.StopPlayback)) {
+//            mediaPlayer.pause()
+//            return true
+//        }
         if (ShortcutSettingsStore.matches(event, ShortcutActionId.ToggleFullscreen)) {
             if (windowState.placement == WindowPlacement.Fullscreen) {
                 windowState.placement = WindowPlacement.Floating
