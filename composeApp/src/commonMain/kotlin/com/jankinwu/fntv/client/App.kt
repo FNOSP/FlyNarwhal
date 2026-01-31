@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -36,7 +35,6 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.ImageLoader
@@ -118,7 +116,6 @@ class RefreshManager {
 
 @OptIn(FlowPreview::class, ExperimentalFluentApi::class)
 @Composable
-@Preview
 fun App(
     navigator: ComponentNavigator = rememberComponentNavigator(),
     windowInset: WindowInsets = WindowInsets(0),
@@ -256,10 +253,6 @@ fun Navigation(
     }
 
     MediaLibraryNavigationComponent(mediaDbListViewModel)
-
-    var textFieldValue by remember {
-        mutableStateOf(TextFieldValue())
-    }
 
     val settingItem = remember(navigator) {
         ComponentItem(
