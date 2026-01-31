@@ -42,4 +42,13 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
+gradle.beforeProject {
+    configurations.configureEach {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("org.jetbrains.kotlin:kotlin-metadata-jvm"))
+                .using(module("org.jetbrains.kotlin:kotlin-metadata-jvm:2.2.0"))
+        }
+    }
+}
+
 include(":composeApp")

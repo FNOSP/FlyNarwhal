@@ -54,6 +54,10 @@ dependencies {
     add(kcefDownloaderClasspath.name, libs.ktor.http.get().toString())
 }
 
+configurations.configureEach {
+    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.2.0")
+}
+
 val downloadKcefBundle by tasks.registering(JavaExec::class) {
     val compileKotlinJvmTask = tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compileKotlinJvm")
     dependsOn(compileKotlinJvmTask)
@@ -479,8 +483,8 @@ compose.desktop {
         }
 
         buildTypes.release.proguard {
-            isEnabled = true
-            obfuscate.set(true)
+            isEnabled = false
+            obfuscate.set(false)
             configurationFiles.from(project.rootDir.resolve("compose-desktop.pro"))
         }
         nativeDistributions {
@@ -602,9 +606,6 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractRunDistri
     dependsOn(mergeResources)
 }
 
-/*
-// Fix for ProGuard crashing on newer Kotlin module metadata
 tasks.withType<Jar>().configureEach {
     exclude("META-INF/*.kotlin_module")
 }
-*/
