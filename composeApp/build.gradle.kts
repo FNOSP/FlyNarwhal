@@ -382,6 +382,7 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.window.styler)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -395,7 +396,6 @@ kotlin {
             implementation(libs.ktor.http)
             implementation(libs.fluent.ui)
             implementation(libs.fluent.icons)
-            implementation(libs.window.styler)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
@@ -448,6 +448,7 @@ kotlin {
             implementation(libs.jfa.get().toString()) {
                 exclude(group = "net.java.dev.jna")
             }
+            implementation(files("libs/window-styler-jvm-0.3.3-SNAPSHOT.jar"))
 //            implementation(libs.jna)
         }
     }
