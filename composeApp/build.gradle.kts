@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.11.0"
+val appVersion = "1.11.1"
 
 val appVersionSuffix = ""
 
@@ -52,6 +52,10 @@ dependencies {
     add(kcefDownloaderClasspath.name, libs.ktor.client.content.negotiation.get().toString())
     add(kcefDownloaderClasspath.name, libs.ktor.serialization.kotlinx.json.get().toString())
     add(kcefDownloaderClasspath.name, libs.ktor.http.get().toString())
+}
+
+configurations.configureEach {
+    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.2.0")
 }
 
 val downloadKcefBundle by tasks.registering(JavaExec::class) {
@@ -380,22 +384,29 @@ kotlin {
             kotlin.srcDir(buildConfigDir)
         }
         androidMain.dependencies {
-            implementation(compose.preview)
+//            implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+//            implementation(libs.window.styler)
         }
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.ui)
-            implementation(compose.components.resources)
-            implementation(compose.components.uiToolingPreview)
+//            implementation(compose.runtime)
+//            implementation(compose.foundation)
+//            implementation(compose.material3)
+//            implementation(compose.ui)
+//            implementation(compose.components.resources)
+//            implementation(compose.components.uiToolingPreview)
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.ui)
+            implementation(libs.ui.tooling.preview)
+            implementation(libs.compose.ui.tooling)
+            implementation(libs.compose.components.resources)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.ktor.http)
             implementation(libs.fluent.ui)
             implementation(libs.fluent.icons)
-            implementation(libs.window.styler)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
@@ -448,6 +459,7 @@ kotlin {
             implementation(libs.jfa.get().toString()) {
                 exclude(group = "net.java.dev.jna")
             }
+            implementation(files("libs/window-styler-jvm-0.3.3-SNAPSHOT.jar"))
 //            implementation(libs.jna)
         }
     }
@@ -523,7 +535,7 @@ compose.desktop {
 }
 
 dependencies {
-    debugImplementation(compose.uiTooling)
+    debugImplementation(libs.compose.ui.tooling)
 }
 
 
@@ -595,9 +607,6 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractRunDistri
     dependsOn(mergeResources)
 }
 
-/*
-// Fix for ProGuard crashing on newer Kotlin module metadata
 tasks.withType<Jar>().configureEach {
     exclude("META-INF/*.kotlin_module")
 }
-*/

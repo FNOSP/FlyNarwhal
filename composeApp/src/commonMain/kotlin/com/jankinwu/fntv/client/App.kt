@@ -89,7 +89,6 @@ import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.Response
 import okio.FileSystem
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 val components = mutableStateListOf<ComponentItem>()
@@ -117,7 +116,6 @@ class RefreshManager {
 
 @OptIn(FlowPreview::class, ExperimentalFluentApi::class)
 @Composable
-@Preview
 fun App(
     navigator: ComponentNavigator = rememberComponentNavigator(),
     windowInset: WindowInsets = WindowInsets(0),
@@ -255,10 +253,6 @@ fun Navigation(
     }
 
     MediaLibraryNavigationComponent(mediaDbListViewModel)
-
-    var textFieldValue by remember {
-        mutableStateOf(TextFieldValue())
-    }
 
     val settingItem = remember(navigator) {
         ComponentItem(

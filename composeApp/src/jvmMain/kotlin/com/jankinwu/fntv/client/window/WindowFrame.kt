@@ -31,6 +31,7 @@ fun FrameWindowScope.WindowFrame(
     title: String = "",
     state: WindowState,
     navigator: ComponentNavigator,
+    showSearchBox: Boolean = true,
     backButtonVisible: Boolean = true,
     backButtonEnabled: Boolean = false,
     backButtonClick: () -> Unit = {},
@@ -66,6 +67,7 @@ fun FrameWindowScope.WindowFrame(
                     content = content,
                     state = state,
                     navigator = navigator,
+                    showSearchBox = showSearchBox,
                     backButtonVisible = backButtonVisible && !isCollapsed,
                     backButtonEnabled = backButtonEnabled,
                     backButtonClick = backButtonClick,
@@ -95,6 +97,7 @@ fun FrameWindowScope.WindowFrame(
                 MacOSWindowFrame(
                     navigator = navigator,
                     content = content,
+                    showSearchBox = showSearchBox,
                     backButtonVisible = backButtonVisible && !isCollapsed,
                     backButtonEnabled = backButtonEnabled,
                     onBackButtonClick = backButtonClick,

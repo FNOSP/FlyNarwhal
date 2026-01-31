@@ -72,6 +72,7 @@ fun FrameWindowScope.MacOSWindowFrame(
     icon: Painter?,
     captionBarHeight: Dp,
     onBackButtonClick: () -> Unit,
+    showSearchBox: Boolean = true,
     isAlwaysOnTop: Boolean = false,
     onToggleAlwaysOnTop: () -> Unit = {},
     onRefreshClick: (() -> Unit)? = null,
@@ -106,6 +107,12 @@ fun FrameWindowScope.MacOSWindowFrame(
         com.jankinwu.fntv.client.utils.MacOSTrafficLightUtils.setTrafficLightButtonsVisible(window, showTrafficLights)
     }
 
+    LaunchedEffect(showSearchBox) {
+        if (!showSearchBox) {
+            searchBoxBounds = null
+        }
+    }
+
     LaunchedEffect(Unit) {
         rootFocusRequester.requestFocus()
     }
@@ -128,7 +135,7 @@ fun FrameWindowScope.MacOSWindowFrame(
                 .onPointerEvent(PointerEventType.Press, pass = PointerEventPass.Final) { event ->
                     val change = event.changes.firstOrNull() ?: return@onPointerEvent
                     val windowPosition = rootBoxOffset + change.position
-                    val clickInsideSearch = searchBoxBounds?.contains(windowPosition) == true
+                    val clickInsideSearch = showSearchBox && searchBoxBounds?.contains(windowPosition) == true
                     if (isSearchBoxFocused) {
                         if (!clickInsideSearch) {
                             focusManager.clearFocus()
@@ -144,7 +151,7 @@ fun FrameWindowScope.MacOSWindowFrame(
                 }
                 .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    if (!playerVisible && !isSearchBoxFocused && ShortcutSettingsStore.matches(event, ShortcutActionId.FocusSearch)) {
+                    if (showSearchBox && !playerVisible && !isSearchBoxFocused && ShortcutSettingsStore.matches(event, ShortcutActionId.FocusSearch)) {
                         suppressNextSearchInput = ShortcutSettingsStore.shouldSuppressFocusSearchInput(event)
                         searchFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
@@ -247,26 +254,28 @@ fun FrameWindowScope.MacOSWindowFrame(
                             HasNewVersionTag()
                         }
 
-                        CapsuleSearchBox(
-                            value = searchQuery,
-                            onValueChange = {
-                                if (suppressNextSearchInput) {
-                                    suppressNextSearchInput = false
-                                } else {
-                                    searchQuery = it
-                                }
-                            },
-                            navigator = navigator,
-                            modifier = Modifier.align(Alignment.Center),
-                            onFocusChanged = {
-                                isSearchBoxFocused = it
-                                if (!it) {
-                                    rootFocusRequester.requestFocus()
-                                }
-                            },
-                            onBoundsChanged = { searchBoxBounds = it },
-                            focusRequester = searchFocusRequester
-                        )
+                        if (showSearchBox) {
+                            CapsuleSearchBox(
+                                value = searchQuery,
+                                onValueChange = {
+                                    if (suppressNextSearchInput) {
+                                        suppressNextSearchInput = false
+                                    } else {
+                                        searchQuery = it
+                                    }
+                                },
+                                navigator = navigator,
+                                modifier = Modifier.align(Alignment.Center),
+                                onFocusChanged = {
+                                    isSearchBoxFocused = it
+                                    if (!it) {
+                                        rootFocusRequester.requestFocus()
+                                    }
+                                },
+                                onBoundsChanged = { searchBoxBounds = it },
+                                focusRequester = searchFocusRequester
+                            )
+                        }
                     }
                 }
         }
