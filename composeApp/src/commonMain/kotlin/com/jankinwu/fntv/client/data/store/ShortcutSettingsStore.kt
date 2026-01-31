@@ -233,7 +233,7 @@ enum class ShortcutCategory {
 enum class ShortcutActionId {
     FocusSearch,
     TogglePlayPause,
-    StopPlayback,
+//    StopPlayback,
     Mute,
     SeekBackward,
     SeekForward,
