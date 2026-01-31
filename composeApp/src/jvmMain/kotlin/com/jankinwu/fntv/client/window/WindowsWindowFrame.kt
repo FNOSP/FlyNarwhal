@@ -121,6 +121,7 @@ fun FrameWindowScope.WindowsWindowFrame(
     title: String = "",
     state: WindowState,
     navigator: ComponentNavigator,
+    showSearchBox: Boolean = true,
     backButtonVisible: Boolean = true,
     backButtonEnabled: Boolean = false,
     backButtonClick: () -> Unit = {},
@@ -174,7 +175,7 @@ fun FrameWindowScope.WindowsWindowFrame(
                 if (state.placement == WindowPlacement.Fullscreen) {
                      HTCLIENT
                 } else {
-                    val isSearchBoxHit = searchBoxBounds?.contains(x, y) == true
+                    val isSearchBoxHit = showSearchBox && searchBoxBounds?.contains(x, y) == true
                     val isBackButtonHit = backButtonRect.value.contains(x, y)
                     val isNewVersionTagHit = newVersionTagRect.value.contains(x, y)
                     val isPinButtonHit = pinButtonRect.value.contains(x, y)
@@ -223,6 +224,12 @@ fun FrameWindowScope.WindowsWindowFrame(
         }
     }
 
+    LaunchedEffect(showSearchBox) {
+        if (!showSearchBox) {
+            searchBoxBounds = null
+        }
+    }
+
     LaunchedEffect(playerVisible, title) {
         if (playerVisible || title.isEmpty()) {
             newVersionTagRect.value = Rect.Zero
@@ -250,7 +257,7 @@ fun FrameWindowScope.WindowsWindowFrame(
             .onPointerEvent(PointerEventType.Press, pass = PointerEventPass.Final) { event ->
                 val change = event.changes.firstOrNull() ?: return@onPointerEvent
                 val windowPosition = rootBoxOffset + change.position
-                val clickInsideSearch = searchBoxBounds?.contains(windowPosition) == true
+                val clickInsideSearch = showSearchBox && searchBoxBounds?.contains(windowPosition) == true
                 if (isSearchBoxFocused) {
                     if (!clickInsideSearch) {
                         focusManager.clearFocus()
@@ -266,7 +273,7 @@ fun FrameWindowScope.WindowsWindowFrame(
             }
             .onPreviewKeyEvent { event: androidx.compose.ui.input.key.KeyEvent ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                if (!playerVisible && !isSearchBoxFocused && ShortcutSettingsStore.matches(event, ShortcutActionId.FocusSearch)) {
+                if (showSearchBox && !playerVisible && !isSearchBoxFocused && ShortcutSettingsStore.matches(event, ShortcutActionId.FocusSearch)) {
                     suppressNextSearchInput = ShortcutSettingsStore.shouldSuppressFocusSearchInput(event)
                     searchFocusRequester.requestFocus()
                     return@onPreviewKeyEvent true
@@ -356,7 +363,7 @@ fun FrameWindowScope.WindowsWindowFrame(
                     }
                 }
 
-                if (!playerVisible) {
+                if (!playerVisible && showSearchBox) {
                     CapsuleSearchBox(
                         value = searchQuery,
                         onValueChange = {

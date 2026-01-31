@@ -334,6 +334,7 @@ fun main() {
                                 title = title,
                                 state = mainState,
                                 navigator = navigator,
+                                showSearchBox = isLoggedIn,
                                 backButtonEnabled = navigator.canNavigateUp,
                                 backButtonClick = { navigator.navigateUp() },
                                 backButtonVisible = false
@@ -444,6 +445,7 @@ fun main() {
                                     title = playerManager.playerState.mediaTitle,
                                     state = playerState,
                                     navigator = navigator,
+                                    showSearchBox = false,
                                     backButtonVisible = false,
                                     backButtonEnabled = false,
                                     backButtonClick = {
