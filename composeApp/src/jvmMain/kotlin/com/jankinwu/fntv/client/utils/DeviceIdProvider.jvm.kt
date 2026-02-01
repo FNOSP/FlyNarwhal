@@ -15,7 +15,9 @@ actual fun getDeviceId(context: Context): DeviceId {
             "unknown", "none", "default string", "to be filled by o.e.m.", 
             "00000000-0000-0000-0000-000000000000", "not available",
             "system serial number", "chassis serial number", "to be filled by oem",
-            "system product name", "to be filled by o.e.m."
+            "system product name", "to be filled by o.e.m.", "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+            "03000200-0400-0500-0006-000700080009", "5EKPM18320000397", "FEFEFEFE-FEFE-FEFE-FEFE-FEFEFEFEFEFE",
+            "Not Applicable", "Not Applicable", "Standard"
         )
         
         fun String?.isValidId(): Boolean {
