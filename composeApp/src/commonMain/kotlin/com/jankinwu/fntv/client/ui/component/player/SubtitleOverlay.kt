@@ -94,12 +94,14 @@ fun SubtitleOverlay(
         // Absolute positioning with GPU acceleration
         val align = props.alignment
 
+        val strokeScale = if (props.scaledBorderAndShadow) scaleY * settings.fontScale else settings.fontScale
         AssStyledText(
             text = cue.text,
             style = TextStyle(
                 fontSize = fontSizeSp,
             ),
-            strokeScale = scaleY,
+            strokeScale = strokeScale,
+            scaledBorderAndShadow = props.scaledBorderAndShadow,
             modifier = Modifier
                 .layout { measurable, constraints ->
                     val placeable = measurable.measure(constraints)
@@ -139,11 +141,11 @@ fun SubtitleOverlay(
                     val offsetX = when (align % 3) {
                         1 -> 0f
                         2 -> -pWidth / 2f
-                        0 -> -pWidth.toFloat()
+                        0 -> -pWidth
                         else -> 0f
                     }
                     val offsetY = when ((align - 1) / 3) {
-                        0 -> -pHeight.toFloat()
+                        0 -> -pHeight
                         1 -> -pHeight / 2f
                         2 -> 0f
                         else -> 0f
@@ -290,13 +292,15 @@ fun SubtitleOverlay(
                             val fontSizeDp = props.fontSize * scaleY * settings.fontScale * 0.55
                             val fontSizeSp = with(LocalDensity.current) { fontSizeDp.dp.toSp() }
 
+                            val strokeScale = if (props.scaledBorderAndShadow) scaleY * settings.fontScale else settings.fontScale
                             AssStyledText(
                                 text = cue.text,
                                 style = TextStyle(
                                     fontSize = fontSizeSp
                                 ),
                                 textAlign = TextAlign.Center,
-                                strokeScale = scaleY
+                                strokeScale = strokeScale,
+                                scaledBorderAndShadow = props.scaledBorderAndShadow
                             )
                         } else {
                             // Legacy/Simple Rendering for non-ASS
@@ -329,14 +333,17 @@ fun AssStyledText(
     modifier: Modifier = Modifier,
     style: TextStyle = TextStyle.Default,
     textAlign: TextAlign? = null,
-    strokeScale: Float = 1f
+    strokeScale: Float = 1f,
+    scaledBorderAndShadow: Boolean = true
 ) {
     Box(modifier = modifier) {
-        // Outline Layer
-        val outlineText = remember(text, strokeScale) {
-            val builder = AnnotatedString.Builder(text.text)
-            // Copy paragraph styles
-            text.paragraphStyles.forEach { builder.addStyle(it.item, it.start, it.end) }
+        val (shadowText, outlineText) = remember(text, strokeScale, scaledBorderAndShadow) {
+            val shadowBuilder = AnnotatedString.Builder(text.text)
+            val outlineBuilder = AnnotatedString.Builder(text.text)
+            text.paragraphStyles.forEach {
+                shadowBuilder.addStyle(it.item, it.start, it.end)
+                outlineBuilder.addStyle(it.item, it.start, it.end)
+            }
             
             // Iterate spans to find outline/shadow annotations
             text.spanStyles.forEach { range ->
@@ -353,61 +360,73 @@ fun AssStyledText(
                 val blurVal = blurAnnos.firstOrNull()?.item?.toFloatOrNull() ?: 0f
                 
                 val shadowColor = if (shadowColorVal != null) Color(shadowColorVal) else Color.Black
+                val outlineMultiplier = if (scaledBorderAndShadow) 2f else 1f
+                val shadowMultiplier = if (scaledBorderAndShadow) 2f else 1f
+                val shadowOffset = shadowDistVal * strokeScale * 2f
+                val shadowBlur = (blurVal + shadowDistVal * 0.6f) * strokeScale * shadowMultiplier
+                val shadowWidth = if (widthVal > 0f) {
+                    widthVal * strokeScale * outlineMultiplier + shadowDistVal * strokeScale * 0.6f
+                } else {
+                    0f
+                }
 
-                // Construct Shadow if distance > 0
-                val scaledShadow = if (shadowDistVal > 0f) {
-                    val scaledDist = shadowDistVal * strokeScale * 2f
-                    val scaledBlur = blurVal * strokeScale * 2f
+                val scaledShadow = if (shadowDistVal > 0f || blurVal > 0f) {
                     Shadow(
                         color = shadowColor,
-                        offset = Offset(scaledDist, scaledDist),
-                        blurRadius = scaledBlur
+                        offset = Offset(shadowOffset, shadowOffset),
+                        blurRadius = shadowBlur
                     )
                 } else null
+
+                if (scaledShadow != null) {
+                    val shadowStyle = if (shadowWidth > 0f) {
+                        range.item.copy(
+                            color = shadowColor,
+                            shadow = scaledShadow,
+                            drawStyle = Stroke(
+                                width = shadowWidth,
+                                join = StrokeJoin.Round,
+                                cap = StrokeCap.Round
+                            )
+                        )
+                    } else {
+                        range.item.copy(
+                            color = shadowColor,
+                            shadow = scaledShadow
+                        )
+                    }
+                    shadowBuilder.addStyle(shadowStyle, range.start, range.end)
+                } else {
+                    shadowBuilder.addStyle(range.item.copy(color = Color.Transparent), range.start, range.end)
+                }
 
                 if (widthVal > 0f) {
                      val colorVal = colorAnnos.firstOrNull()?.item?.toULongOrNull()
                      val outlineColor = if (colorVal != null) Color(colorVal) else Color.Black
                      
-                     // Create outline style
                      val outlineStyle = range.item.copy(
                          color = outlineColor,
                          shadow = scaledShadow, // Apply shadow to the outline layer
                          drawStyle = Stroke(
-                             width = widthVal * strokeScale * 3f,
+                           width = widthVal * strokeScale * outlineMultiplier,
                              join = StrokeJoin.Round,
                              cap = StrokeCap.Round
                          )
                      )
-                     builder.addStyle(outlineStyle, range.start, range.end)
+                     outlineBuilder.addStyle(outlineStyle, range.start, range.end)
                 } else {
-                     // No outline, but maybe shadow?
-                     // If no outline, we still want shadow. 
-                     // But this layer is the "Outline Layer" which renders below "Fill Layer".
-                     // If we set color=Transparent, the shadow might still render?
-                     // In Compose, transparent text casting shadow works if shadow color is opaque.
-                     
-                     if (scaledShadow != null) {
-                         // Render as Fill with Shadow, but Transparent Color
-                         // Wait, if color is Transparent, Compose might not render shadow properly?
-                         // Actually, Shadow is drawn based on alpha mask.
-                         // Let's assume we can just use Fill with Shadow here for the "Shadow Layer" purpose.
-                         builder.addStyle(
-                             range.item.copy(
-                                 color = Color.Transparent, // Transparent fill
-                                 shadow = scaledShadow
-                             ), 
-                             range.start, range.end
-                         )
-                     } else {
-                         // Completely invisible
-                         builder.addStyle(range.item.copy(color = Color.Transparent), range.start, range.end)
-                     }
+                     outlineBuilder.addStyle(range.item.copy(color = Color.Transparent), range.start, range.end)
                 }
             }
-            builder.toAnnotatedString()
+            shadowBuilder.toAnnotatedString() to outlineBuilder.toAnnotatedString()
         }
         
+        Text(
+            text = shadowText,
+            style = style.copy(color = Color.Transparent),
+            textAlign = textAlign
+        )
+
         // Render Outline
         Text(
             text = outlineText,
