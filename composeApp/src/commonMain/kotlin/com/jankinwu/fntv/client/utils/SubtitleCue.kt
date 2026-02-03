@@ -18,6 +18,7 @@ data class SubtitleCue(
 data class AssProperties(
     val playResX: Int,
     val playResY: Int,
+    val scaledBorderAndShadow: Boolean,
     val fontSize: Float,
     val alignment: Int = 2, // Default 2 (Bottom Center) in ASS
     val position: AssPosition? = null,

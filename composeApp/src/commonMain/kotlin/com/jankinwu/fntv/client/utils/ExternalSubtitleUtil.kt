@@ -64,6 +64,7 @@ class ExternalSubtitleUtil(
     private var isInitialized = false
     private var playResY = 288 // Default ASS height if not specified
     private var playResX = 0 // Will be parsed
+    private var scaledBorderAndShadow = true
 
     suspend fun initialize() {
         if (isInitialized) return
@@ -196,7 +197,7 @@ class ExternalSubtitleUtil(
         var section = ""
         
         for (line in lines) {
-            val trimmed = line.trim()
+            val trimmed = line.trim().trimStart('\uFEFF', '\u200B', '\u0000')
             if (trimmed.startsWith("[")) {
                 section = trimmed
                 continue
@@ -207,6 +208,9 @@ class ExternalSubtitleUtil(
                     playResY = trimmed.substringAfter(":").trim().toIntOrNull() ?: 288
                 } else if (trimmed.startsWith("PlayResX:", ignoreCase = true)) {
                     playResX = trimmed.substringAfter(":").trim().toIntOrNull() ?: 0
+                } else if (trimmed.startsWith("ScaledBorderAndShadow:", ignoreCase = true)) {
+                    val raw = trimmed.substringAfter(":").trim().lowercase()
+                    scaledBorderAndShadow = raw == "yes" || raw == "1" || raw == "true"
                 }
             } else if (section.equals("[V4+ Styles]", ignoreCase = true)) {
                 if (trimmed.startsWith("Format:", ignoreCase = true)) {
@@ -284,6 +288,7 @@ class ExternalSubtitleUtil(
                                 val assProps = AssProperties(
                                     playResX = playResX,
                                     playResY = playResY,
+                                    scaledBorderAndShadow = scaledBorderAndShadow,
                                     fontSize = baseStyle.fontSize,
                                     alignment = align,
                                     position = pos,

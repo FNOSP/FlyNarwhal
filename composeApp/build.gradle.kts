@@ -9,7 +9,7 @@ import java.net.HttpURLConnection
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.11.1"
+val appVersion = "1.11.2"
 
 val appVersionSuffix = ""
 
