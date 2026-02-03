@@ -1,7 +1,7 @@
 <h1 align="center">Fly Narwhal</h1>
 
 <p align="center">
-  <img src="http://oss.jankinwu.com/img/fnarwhal_login.png" alt="fnarwhal_login" width="600" />
+  <img src="img/fly_narwhal_banner.svg" alt="fnarwhal_home" width="800" />
 </p>
 
 <div align="center">
@@ -10,8 +10,8 @@
 [![GitHub forks](https://img.shields.io/github/forks/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/network)
 [![GitHub issues](https://img.shields.io/github/issues/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/issues)
 [![GitHub license](https://img.shields.io/github/license/FNOSP/fntv-client-multiplatform)](https://github.com/FNOSP/fntv-client-multiplatform/blob/master/LICENSE)
-[![Kotlin Version](https://img.shields.io/badge/Kotlin-2.2.21-%237F52FF.svg)](https://kotlinlang.org/)
-[![Compose Multiplatform Version](https://img.shields.io/badge/ComposeMultiplatform-1.9.3-%237f52ff.svg)](https://www.jetbrains.com/compose-multiplatform/)
+[![Kotlin Version](https://img.shields.io/badge/Kotlin-2.1.0-%237F52FF.svg)](https://kotlinlang.org/)
+[![Compose Multiplatform Version](https://img.shields.io/badge/ComposeMultiplatform-1.9.0-%237f52ff.svg)](https://www.jetbrains.com/compose-multiplatform/)
 
 基于 Compose Multiplatform 框架开发的适用于飞牛影视的跨平台客户端
 
@@ -131,29 +131,37 @@
 
 目前支持 NAS 本地 SDR 动态范围下的 MP4 格式视频在原画质下使用直链播放。
 
+#### 5. 启动客户端弹出“Failed to launch JVM”报错对话框如何解决。
+
+这是因为你将软件安装到了 `C:\Program Files` 目录下，这个目录需要在exe结尾的可执行文件或者快捷方式上右键，然后选择“以管理员身份运行”，或者右键->属性->兼容性，勾选“以管理员身份运行此程序”，然后应用并重新启动应用。如果不想每次启动都以管理员身份运行，请将软件安装到其他目录下。
+
+#### 6. 启动应用后 360 提示有风险，这是为什么。
+
+飞鲸影视客户端中有个 `fntv-proxy.exe` 代理程序会在启动时从包内解压出来，用于给视频和字幕请求加上鉴权相关的请求头，360 会误以为是病毒程序，提示程序有风险，请在 360 上忽略风险或加入白名单即可解决。如果你还是觉得不放心，请卸载飞鲸影视客户端，使用飞牛官方影视客户端。
+
 ## 开发进度
 
 ### 桌面端
 
-| 功能            | 进度                                      |
-| --------------- | ----------------------------------------- |
-| 登录页          | ![Progress](https://progress-bar.xyz/80/) |
-| 首页            | ![Progress](https://progress-bar.xyz/90/) |
-| 收藏页          | ![Progress](https://progress-bar.xyz/0/)  |
-| 媒体库页        | ![Progress](https://progress-bar.xyz/90/) |
-| 媒体详情页      | ![Progress](https://progress-bar.xyz/60/) |
-| 播放器          | ![Progress](https://progress-bar.xyz/80/) |
-| 通用设置        | ![Progress](https://progress-bar.xyz/0/)  |
-| 媒体库管理      | ![Progress](https://progress-bar.xyz/0/)  |
-| 影视服务器设置  | ![Progress](https://progress-bar.xyz/0/)  |
-| 用户设置        | ![Progress](https://progress-bar.xyz/0/)  |
-| 任务计划        | ![Progress](https://progress-bar.xyz/0/)  |
-| 搜索            | ![Progress](https://progress-bar.xyz/0/)  |
-| 弹幕            | ![Progress](https://progress-bar.xyz/0/)  |
-| 版本更新        | ![Progress](https://progress-bar.xyz/90/) |
-| 集成 mpv 播放器 | ![Progress](https://progress-bar.xyz/0/)  |
-| 文件夹视图      | ![Progress](https://progress-bar.xyz/0/)  |
-| 网盘视频播放    |  ![Progress](https://progress-bar.xyz/0/) |
+| 功能            | 进度                                         |
+| --------------- |--------------------------------------------|
+| 登录页          | ![Progress](https://progress-bar.xyz/80/)  |
+| 首页            | ![Progress](https://progress-bar.xyz/90/)  |
+| 收藏页          | ![Progress](https://progress-bar.xyz/100/) |
+| 媒体库页        | ![Progress](https://progress-bar.xyz/90/)  |
+| 媒体详情页      | ![Progress](https://progress-bar.xyz/80/)  |
+| 播放器          | ![Progress](https://progress-bar.xyz/80/)  |
+| 通用设置        | ![Progress](https://progress-bar.xyz/0/)   |
+| 媒体库管理      | ![Progress](https://progress-bar.xyz/0/)   |
+| 影视服务器设置  | ![Progress](https://progress-bar.xyz/0/)   |
+| 用户设置        | ![Progress](https://progress-bar.xyz/0/)   |
+| 任务计划        | ![Progress](https://progress-bar.xyz/0/)   |
+| 搜索            | ![Progress](https://progress-bar.xyz/100/) |
+| 弹幕            | ![Progress](https://progress-bar.xyz/60/)  |
+| 版本更新        | ![Progress](https://progress-bar.xyz/90/)  |
+| 集成 mpv 播放器 | ![Progress](https://progress-bar.xyz/0/)   |
+| 文件夹视图      | ![Progress](https://progress-bar.xyz/0/)   |
+| 网盘视频播放    | ![Progress](https://progress-bar.xyz/0/)   |
 
 ## 🙏 特别感谢
 
@@ -175,7 +183,7 @@
 
 @[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[MR_XIAOBO](https://github.com/xiaobonet) @[汪仔饭](https://club.fnnas.com/home.php?mod=space&uid=5021) @*观如
 
-感谢 [anmoliyang](anmoli.cn) 为此项目 UI 设计做出的贡献
+感谢 [anmoliyang](https://anmoli.cn) 为此项目 UI 设计做出的贡献
 
 ## 🌟 Star History
 

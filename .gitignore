@@ -25,3 +25,12 @@ captures
 /flutter-player/windows/flutter/ephemeral/
 /flutter-player/.flutter-plugins-dependencies
 /mapping.txt
+/flutter-player/macos/
+
+# Flutter-related
+**/Flutter/ephemeral/
+**/Pods/
+
+# Xcode-related
+**/dgph
+**/xcuserdata/

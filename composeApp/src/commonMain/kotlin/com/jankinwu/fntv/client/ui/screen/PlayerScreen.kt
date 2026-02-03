@@ -50,10 +50,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -102,6 +100,8 @@ import com.jankinwu.fntv.client.data.network.fnOfficialClient
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
+import com.jankinwu.fntv.client.data.store.ShortcutActionId
+import com.jankinwu.fntv.client.data.store.ShortcutSettingsStore
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.ArrowLeft
 import com.jankinwu.fntv.client.icons.Back10S
@@ -1572,6 +1572,9 @@ fun PlayerOverlay(
                 .fillMaxSize()
                 .hoverable(interactionSource)
                 .background(Color.Black)
+                .onPointerEvent(PointerEventType.Press) {
+                    playerFocusRequester.requestFocus()
+                }
                 .onPointerEvent(PointerEventType.Exit) {
                     isProgressBarHovered = false
                     lastMouseMoveTime = System.currentTimeMillis()
@@ -1770,6 +1773,7 @@ fun PlayerOverlay(
                     lastVolume = lastVolume,
                     onProgressBarHoverChanged = { isProgressBarHovered = it },
                     onResetMouseMoveTimer = { lastMouseMoveTime = System.currentTimeMillis() },
+                    onProgressBarInteractionEnd = { playerManager.requestKeyFocus() },
                     onSeek = { newProgress ->
                         playerManager.setLoading(true)
                         isSeeking = true
@@ -1822,8 +1826,24 @@ fun PlayerOverlay(
                         )
                     },
                     onAudioSelected = { audio ->
-                        val cache = playingInfoCache
+                        val cache = playerViewModel.playingInfoCache.value
                         if (cache != null) {
+                            playerViewModel.updatePlayingInfo(
+                                cache.copy(
+                                    currentAudioStream = audio
+                                )
+                            )
+                            callPlayRecord(
+                                ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                playingInfoCache = cache,
+                                playRecordViewModel = playRecordViewModel,
+                                onSuccess = {
+                                    logger.i("切换音频时调用playRecord成功")
+                                },
+                                onError = {
+                                    logger.i("切换音频时调用playRecord失败：缓存为空")
+                                },
+                            )
                             val request = MediaPRequest(
                                 req = "media.resetAudio",
                                 reqId = "1234567890ABCDEF2s",
@@ -2389,10 +2409,35 @@ fun PlayerControlRow(
                     onHoverStateChanged = onDanmakuSettingsHoverChanged
                 )
             }
+            val currentSubtitleStream = playingInfoCache?.currentSubtitleStream
+            var hasHlsSubtitlePlaylist by remember(
+                playingInfoCache?.playLink,
+                currentSubtitleStream?.guid
+            ) { mutableStateOf(false) }
+            LaunchedEffect(playingInfoCache?.playLink, currentSubtitleStream?.guid) {
+                hasHlsSubtitlePlaylist = false
+                val link = playingInfoCache?.playLink
+                val subtitle = currentSubtitleStream
+                if (!link.isNullOrBlank() && link.contains(".m3u8") && subtitle != null && subtitle.isExternal == 0) {
+                    hasHlsSubtitlePlaylist = try {
+                        val presetContent = HlsSubtitleUtil.fetchContent(fnOfficialClient, link)
+                        HlsSubtitleUtil.findSubtitleUri(presetContent, subtitle) != null
+                    } catch (_: Exception) {
+                        false
+                    }
+                }
+            }
+            val canAdjustSubtitle = remember(currentSubtitleStream?.guid, hasHlsSubtitlePlaylist) {
+                val subtitle = currentSubtitleStream
+                val isExternalSubtitle =
+                    subtitle != null && subtitle.isExternal == 1 && subtitle.format.lowercase() in listOf("srt", "ass", "vtt")
+                hasHlsSubtitlePlaylist || isExternalSubtitle
+            }
             SubtitleControlFlyout(
                 playingInfoCache = playingInfoCache,
                 isoTagData = isoTagData,
                 subtitleSettings = subtitleSettings,
+                canAdjustSubtitle = canAdjustSubtitle,
                 onSubtitleSettingsChanged = onSubtitleSettingsChanged,
                 onSubtitleSelected = { onSubtitleSelected?.invoke(it) },
                 onOpenSubtitleSearch = { onOpenSubtitleSearch?.invoke() },
@@ -2489,7 +2534,6 @@ fun PlayerControlRow(
 
             // 全屏
             val windowState = LocalWindowState.current
-            val store = LocalStore.current
             FullScreenControl(
                 isFullScreen = windowState.placement == WindowPlacement.Fullscreen,
                 onClick = {
@@ -3182,117 +3226,97 @@ private fun handlePlayerKeyEvent(
     onSeekTo: (Long) -> Unit
 ): Boolean {
     if (event.type == KeyEventType.KeyDown) {
-        var handled = true
-        when (event.key) {
-            Key.M, Key.VolumeMute -> {
-                audioLevelController?.let {
-                    val currentVolume = it.volume.value
-                    if (currentVolume > 0) {
-                        onLastVolumeChange(currentVolume)
-                        it.setVolume(0f)
-                        PlayingSettingsStore.saveVolume(0f)
-                        toastManager.showToast("静音", ToastType.Info, category = "volume")
-                    } else {
-                        val restoreVolume = if (lastVolume > 0) lastVolume else 0.05f
-                        it.setVolume(restoreVolume)
-                        PlayingSettingsStore.saveVolume(restoreVolume)
-                        toastManager.showToast(
-                            "解除静音：${(restoreVolume * 100).toInt()}%",
-                            ToastType.Info,
-                            category = "volume"
-                        )
-                    }
-                }
-            }
-
-            Key.DirectionLeft, Key.MediaStepBackward -> {
-                val seekPosition =
-                    (mediaPlayer.currentPositionMillis.value - 10000).coerceAtLeast(0)
-                onSeekTo(seekPosition)
-                val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
-                toastManager.showToast("快退至：$dateTime", ToastType.Info, category = "seek")
-                callPlayRecord(
-                    ts = (seekPosition / 1000).toInt(),
-                    playingInfoCache = playingInfoCache,
-                    playRecordViewModel = playRecordViewModel,
-                    onSuccess = { logger.i("Seek时调用playRecord成功") },
-                    onError = { logger.i("Seek时调用playRecord失败：缓存为空") }
-                )
-            }
-
-            Key.DirectionRight, Key.MediaStepForward -> {
-                val seekPosition =
-                    (mediaPlayer.currentPositionMillis.value + 10000).coerceAtMost(playerManager.playerState.duration)
-                onSeekTo(seekPosition)
-                val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
-                toastManager.showToast("快进至：$dateTime", ToastType.Info, category = "seek")
-                callPlayRecord(
-                    ts = (seekPosition / 1000).toInt(),
-                    playingInfoCache = playingInfoCache,
-                    playRecordViewModel = playRecordViewModel,
-                    onSuccess = { logger.i("Seek时调用playRecord成功") },
-                    onError = { logger.i("Seek时调用playRecord失败：缓存为空") }
-                )
-            }
-
-            Key.DirectionUp, Key.VolumeUp -> {
-                audioLevelController?.let {
-                    val newVolume =
-                        (((it.volume.value + 0.1f) * 10).roundToInt() / 10f).coerceIn(0f, 1f)
-                    it.setVolume(newVolume)
-                    toastManager.showToast(
-                        "当前音量：${(newVolume * 100).toInt()}%",
-                        ToastType.Info,
-                        category = "volume"
-                    )
-                    PlayingSettingsStore.saveVolume(newVolume)
-                    onLastVolumeChange(0f)
-                }
-            }
-
-            Key.DirectionDown, Key.VolumeDown -> {
-                audioLevelController?.let {
-                    val newVolume =
-                        (((it.volume.value - 0.1f) * 10).roundToInt() / 10f).coerceIn(0f, 1f)
-                    it.setVolume(newVolume)
-                    toastManager.showToast(
-                        "当前音量：${(newVolume * 100).toInt()}%",
-                        ToastType.Info,
-                        category = "volume"
-                    )
-                    PlayingSettingsStore.saveVolume(newVolume)
-                    onLastVolumeChange(0f)
-                }
-            }
-
-            Key.Spacebar, Key.MediaPlayPause -> {
-                mediaPlayer.togglePause()
-            }
-
-            Key.MediaStop -> {
-                mediaPlayer.pause()
-            }
-
-            Key.F -> {
-                if (windowState.placement == WindowPlacement.Fullscreen) {
-                    windowState.placement = WindowPlacement.Floating
-                    PlayingSettingsStore.playerIsFullscreen = false
+        if (ShortcutSettingsStore.matches(event, ShortcutActionId.Mute)) {
+            audioLevelController?.let {
+                val currentVolume = it.volume.value
+                if (currentVolume > 0) {
+                    onLastVolumeChange(currentVolume)
+                    it.setVolume(0f)
+                    PlayingSettingsStore.saveVolume(0f)
+                    toastManager.showToast("静音", ToastType.Info, category = "volume")
                 } else {
-                    windowState.placement = WindowPlacement.Fullscreen
-                    PlayingSettingsStore.playerIsFullscreen = true
+                    val restoreVolume = if (lastVolume > 0) lastVolume else 0.05f
+                    it.setVolume(restoreVolume)
+                    PlayingSettingsStore.saveVolume(restoreVolume)
+                    toastManager.showToast("解除静音：${(restoreVolume * 100).toInt()}%", ToastType.Info, category = "volume")
                 }
             }
-
-            Key.Escape -> {
-                if (windowState.placement == WindowPlacement.Fullscreen) {
-                    windowState.placement = WindowPlacement.Floating
-                    PlayingSettingsStore.playerIsFullscreen = false
-                }
-            }
-
-            else -> handled = false
+            return true
         }
-        return handled
+        if (ShortcutSettingsStore.matches(event, ShortcutActionId.SeekBackward)) {
+            val seekPosition = (mediaPlayer.currentPositionMillis.value - 10000).coerceAtLeast(0)
+            onSeekTo(seekPosition)
+            val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
+            toastManager.showToast("快退至：$dateTime", ToastType.Info, category = "seek")
+            callPlayRecord(
+                ts = (seekPosition / 1000).toInt(),
+                playingInfoCache = playingInfoCache,
+                playRecordViewModel = playRecordViewModel,
+                onSuccess = { logger.i("Seek时调用playRecord成功") },
+                onError = { logger.i("Seek时调用playRecord失败：缓存为空") }
+            )
+            return true
+        }
+        if (ShortcutSettingsStore.matches(event, ShortcutActionId.SeekForward)) {
+            val seekPosition = (mediaPlayer.currentPositionMillis.value + 10000).coerceAtMost(playerManager.playerState.duration)
+            onSeekTo(seekPosition)
+            val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
+            toastManager.showToast("快进至：$dateTime", ToastType.Info, category = "seek")
+            callPlayRecord(
+                ts = (seekPosition / 1000).toInt(),
+                playingInfoCache = playingInfoCache,
+                playRecordViewModel = playRecordViewModel,
+                onSuccess = { logger.i("Seek时调用playRecord成功") },
+                onError = { logger.i("Seek时调用playRecord失败：缓存为空") }
+            )
+            return true
+        }
+        if (ShortcutSettingsStore.matches(event, ShortcutActionId.VolumeUp)) {
+            audioLevelController?.let {
+                val newVolume = (((it.volume.value + 0.1f) * 10).roundToInt() / 10f).coerceIn(0f, 1f)
+                it.setVolume(newVolume)
+                toastManager.showToast("当前音量：${(newVolume * 100).toInt()}%", ToastType.Info, category = "volume")
+                PlayingSettingsStore.saveVolume(newVolume)
+                onLastVolumeChange(0f)
+            }
+            return true
+        }
+        if (ShortcutSettingsStore.matches(event, ShortcutActionId.VolumeDown)) {
+            audioLevelController?.let {
+                val newVolume = (((it.volume.value - 0.1f) * 10).roundToInt() / 10f).coerceIn(0f, 1f)
+                it.setVolume(newVolume)
+                toastManager.showToast("当前音量：${(newVolume * 100).toInt()}%", ToastType.Info, category = "volume")
+                PlayingSettingsStore.saveVolume(newVolume)
+                onLastVolumeChange(0f)
+            }
+            return true
+        }
+        if (ShortcutSettingsStore.matches(event, ShortcutActionId.TogglePlayPause)) {
+            mediaPlayer.togglePause()
+            return true
+        }
+//        if (ShortcutSettingsStore.matches(event, ShortcutActionId.StopPlayback)) {
+//            mediaPlayer.pause()
+//            return true
+//        }
+        if (ShortcutSettingsStore.matches(event, ShortcutActionId.ToggleFullscreen)) {
+            if (windowState.placement == WindowPlacement.Fullscreen) {
+                windowState.placement = WindowPlacement.Floating
+                PlayingSettingsStore.playerIsFullscreen = false
+            } else {
+                windowState.placement = WindowPlacement.Fullscreen
+                PlayingSettingsStore.playerIsFullscreen = true
+            }
+            return true
+        }
+        if (ShortcutSettingsStore.matches(event, ShortcutActionId.ExitFullscreen)) {
+            if (windowState.placement == WindowPlacement.Fullscreen) {
+                windowState.placement = WindowPlacement.Floating
+                PlayingSettingsStore.playerIsFullscreen = false
+            }
+            return true
+        }
+        return false
     } else {
         return false
     }
@@ -3439,7 +3463,7 @@ fun PlayerTopBar(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
+                    .padding(top = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
 //                Box(
@@ -3652,6 +3676,7 @@ fun PlayerBottomBar(
     lastVolume: Float,
     onProgressBarHoverChanged: (Boolean) -> Unit,
     onResetMouseMoveTimer: () -> Unit,
+    onProgressBarInteractionEnd: () -> Unit,
     onSeek: (Float) -> Unit,
     onSpeedControlHoverChanged: (Boolean) -> Unit,
     onVolumeControlHoverChanged: (Boolean) -> Unit,
@@ -3722,6 +3747,7 @@ fun PlayerBottomBar(
                 player = mediaPlayer,
                 totalDuration = playerManager.playerState.duration,
                 onSeek = onSeek,
+                onInteractionEnd = onProgressBarInteractionEnd,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
                 introSegmentMillis = introSegmentMillis,
                 creditsSegmentMillis = creditsSegmentMillis

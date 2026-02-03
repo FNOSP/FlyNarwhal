@@ -1,6 +1,5 @@
 package com.jankinwu.fntv.client.utils
 
-import androidx.compose.ui.text.AnnotatedString
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
@@ -94,6 +93,27 @@ class HlsSubtitleUtil(
                 }
             }
             return null
+        }
+
+        fun findSubtitleUri(m3u8Content: String, subtitleStream: SubtitleStream): String? {
+            val regex = Regex("""#EXT-X-MEDIA:TYPE=SUBTITLES(.*)""")
+            val matches = regex.findAll(m3u8Content)
+            val targetLang = subtitleStream.language
+            var bestMatchUri: String? = null
+
+            for (match in matches) {
+                val attributes = match.groupValues[1]
+                val uriMatch = Regex("""URI="(.*?)"""").find(attributes)
+                val langMatch = Regex("""LANGUAGE="(.*?)"""").find(attributes)
+
+                if (uriMatch != null) {
+                    val uri = uriMatch.groupValues[1]
+                    val lang = langMatch?.groupValues?.get(1)
+                    if (lang == targetLang) return uri
+                    if (bestMatchUri == null) bestMatchUri = uri
+                }
+            }
+            return bestMatchUri
         }
     }
 
@@ -304,7 +324,7 @@ class HlsSubtitleUtil(
                             SubtitleCue(
                                 startTime = startMs,
                                 endTime = endMs,
-                                text = AnnotatedString(text),
+                                text = parseSubtitleInlineTags(text),
                                 assProps = null
                             )
                         )
@@ -368,26 +388,5 @@ class HlsSubtitleUtil(
 //                 header("Authorization", AccountDataCache.authorization)
 //            }
         }.bodyAsText()
-    }
-
-    private fun findSubtitleUri(m3u8Content: String, subtitleStream: SubtitleStream): String? {
-        val regex = Regex("""#EXT-X-MEDIA:TYPE=SUBTITLES(.*)""")
-        val matches = regex.findAll(m3u8Content)
-        val targetLang = subtitleStream.language 
-        var bestMatchUri: String? = null
-        
-        for (match in matches) {
-            val attributes = match.groupValues[1]
-            val uriMatch = Regex("""URI="(.*?)"""").find(attributes)
-            val langMatch = Regex("""LANGUAGE="(.*?)"""").find(attributes)
-            
-            if (uriMatch != null) {
-                val uri = uriMatch.groupValues[1]
-                val lang = langMatch?.groupValues?.get(1)
-                if (lang == targetLang) return uri 
-                if (bestMatchUri == null) bestMatchUri = uri
-            }
-        }
-        return bestMatchUri
     }
 }

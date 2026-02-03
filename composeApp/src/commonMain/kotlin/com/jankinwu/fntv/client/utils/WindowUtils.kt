@@ -12,31 +12,33 @@ fun calculateOptimalPlayerWindowSize(
     aspectRatioSetting: String = "AUTO",
     isPipMode: Boolean = false
 ): DpSize? {
-    val videoW = videoStream.width.toFloat()
-    val videoH = videoStream.height.toFloat()
+    val videoW = videoStream.width.toDouble()
+    val videoH = videoStream.height.toDouble()
 
-    if (videoW <= 0 || videoH <= 0) return null
+    if (videoW <= 0.0 || videoH <= 0.0) return null
 
     // Determine target aspect ratio
     val targetAspectRatio = when (aspectRatioSetting) {
-        "4:3" -> 4f / 3f
-        "16:9" -> 16f / 9f
-        "21:9" -> 21f / 9f
+        "4:3" -> 4.0 / 3.0
+        "16:9" -> 16.0 / 9.0
+        "21:9" -> 21.0 / 9.0
         else -> parseAspectRatio(videoStream.displayAspectRatio) ?: (videoW / videoH)
     }
 
-    var targetH = baseHeight
-    var targetW = baseWidth
+    val currentWidth = baseWidth.toDouble()
+    val currentHeight = baseHeight.toDouble()
+    var targetH = currentHeight
+    var targetW = currentWidth
 
-    val currentAspectRatio = if (baseHeight > 0) baseWidth / baseHeight else targetAspectRatio
+    val currentAspectRatio = if (currentHeight > 0.0) currentWidth / currentHeight else targetAspectRatio
 
     // Compensation only applies in AUTO mode
     var compensation =
-        if (aspectRatioSetting == "AUTO") PlayingSettingsStore.playerWindowWidthCompensation else 0f
+        if (aspectRatioSetting == "AUTO") PlayingSettingsStore.playerWindowWidthCompensation.toDouble() else 0.0
 
     // In PiP mode, the compensation is halved
     if (isPipMode) {
-        compensation /= 2f
+        compensation /= 2.0
     }
 
     // Logic to expand window rather than shrink content
@@ -44,42 +46,40 @@ fun calculateOptimalPlayerWindowSize(
     if (targetAspectRatio > currentAspectRatio) {
         // Wider target: Keep Height, Expand Width
         // 只有当目标比当前更宽时，才增加宽度 (例如 4:3 -> 16:9)
-        targetH = baseHeight
+        targetH = currentHeight
         targetW = targetH * targetAspectRatio
-        targetW += compensation
     } else {
         // Narrower/Taller target: Keep Width, Expand Height
         // 如果目标比当前窄 (例如 16:9 -> 4:3)，保持宽度，增加高度
-        targetW = baseWidth
+        targetW = currentWidth
         targetH = targetW / targetAspectRatio
         // No width compensation needed when keeping baseWidth
     }
 
     // Constraints: +/- 50% of Base (Applied to Result)
-    val minW = baseWidth * 0.5f
-    val maxW = baseWidth * 1.5f
+    val minW = currentWidth * 0.5
+    val maxW = currentWidth * 1.5
 
     // Clamp width if needed (though Expand logic usually stays reasonable unless base was very distorted)
     if (targetW < minW) targetW = minW
     if (targetW > maxW) targetW = maxW
 
-    if (targetW != (if (targetAspectRatio > currentAspectRatio) baseHeight * targetAspectRatio + compensation else baseWidth)) {
-
+    if (targetW != (if (targetAspectRatio > currentAspectRatio) currentHeight * targetAspectRatio else currentWidth)) {
         val effectiveW = targetW - compensation
         targetH = effectiveW / targetAspectRatio
     }
 
-    return DpSize(targetW.dp, targetH.dp)
+    return DpSize(targetW.toFloat().dp, targetH.toFloat().dp)
 }
 
-fun parseAspectRatio(dar: String?): Float? {
+fun parseAspectRatio(dar: String?): Double? {
     if (dar.isNullOrBlank()) return null
     return try {
         val parts = dar.split(":")
         if (parts.size == 2) {
-            val w = parts[0].toFloat()
-            val h = parts[1].toFloat()
-            if (h > 0) w / h else null
+            val w = parts[0].toDouble()
+            val h = parts[1].toDouble()
+            if (h > 0.0) w / h else null
         } else {
             null
         }

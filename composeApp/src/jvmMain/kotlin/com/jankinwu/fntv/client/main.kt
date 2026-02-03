@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -56,14 +57,15 @@ import com.jankinwu.fntv.client.utils.ExtraWindowProperties
 import com.jankinwu.fntv.client.utils.FileLogWriter
 import com.jankinwu.fntv.client.utils.LocalContext
 import com.jankinwu.fntv.client.utils.LocalLogExporter
+import com.jankinwu.fntv.client.utils.MacDisplaySleepBlocker
 import com.jankinwu.fntv.client.utils.WebViewBootstrap
+import com.jankinwu.fntv.client.utils.WindowsDisplaySleepBlocker
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.viewModelModule
 import com.jankinwu.fntv.client.window.WindowFrame
 import com.jankinwu.fntv.client.window.findSkiaLayer
 import com.sun.jna.Pointer
-import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinDef.HWND
 import com.sun.jna.platform.win32.WinUser
 import dev.datlag.kcef.KCEF
@@ -80,31 +82,8 @@ import java.awt.Dimension
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import java.io.File
+import kotlin.math.roundToInt
 
-private object WindowsDisplaySleepBlocker {
-    private const val ES_SYSTEM_REQUIRED = 0x00000001
-    private const val ES_DISPLAY_REQUIRED = 0x00000002
-    private const val ES_CONTINUOUS = 0x80000000.toInt()
-
-    private val logger = Logger.withTag("WindowsDisplaySleepBlocker")
-
-    fun setEnabled(enabled: Boolean) {
-        if (!currentPlatform().isWindows()) return
-        try {
-            val flags = if (enabled) {
-                ES_CONTINUOUS or ES_SYSTEM_REQUIRED or ES_DISPLAY_REQUIRED
-            } else {
-                ES_CONTINUOUS
-            }
-            val previous = Kernel32.INSTANCE.SetThreadExecutionState(flags)
-            if (previous == 0) {
-                logger.w { "SetThreadExecutionState returned 0 (failed), enabled=$enabled" }
-            }
-        } catch (t: Throwable) {
-            logger.w(t) { "Failed to set execution state, enabled=$enabled" }
-        }
-    }
-}
 
 @OptIn(FlowPreview::class)
 fun main() {
@@ -244,6 +223,43 @@ fun main() {
                     icon = icon,
                     visible = !playerManager.playerState.isVisible
                 ) {
+                        val density = LocalDensity.current
+                        val savedWindowX = remember { AppSettingsStore.windowX }
+                        val savedWindowY = remember { AppSettingsStore.windowY }
+                        var appliedSavedPosition by remember { mutableStateOf(false) }
+                        var allowPersistPosition by remember { mutableStateOf(false) }
+                        DisposableEffect(window, density, savedWindowX, savedWindowY) {
+                            if (!currentPlatform().isMacOS()) return@DisposableEffect onDispose {}
+                            val listener = object : ComponentAdapter() {
+                                override fun componentShown(e: ComponentEvent) {
+                                    if (mainState.placement == WindowPlacement.Maximized || mainState.placement == WindowPlacement.Fullscreen) {
+                                        allowPersistPosition = true
+                                        return
+                                    }
+                                    if (!appliedSavedPosition && !savedWindowX.isNaN() && !savedWindowY.isNaN()) {
+                                        val x = (savedWindowX * density.density).roundToInt()
+                                        val y = (savedWindowY * density.density).roundToInt()
+                                        window.setLocation(x, y)
+                                        mainState.position = WindowPosition(savedWindowX.dp, savedWindowY.dp)
+                                        appliedSavedPosition = true
+                                    }
+                                    allowPersistPosition = true
+                                }
+
+                                override fun componentMoved(e: ComponentEvent) {
+                                    if (!allowPersistPosition) return
+                                    if (mainState.placement == WindowPlacement.Maximized || mainState.placement == WindowPlacement.Fullscreen) return
+                                    val location = window.location
+                                    val x = location.x / density.density
+                                    val y = location.y / density.density
+                                    if (x.isNaN() || y.isNaN()) return
+                                    AppSettingsStore.windowX = x
+                                    AppSettingsStore.windowY = y
+                                }
+                            }
+                            window.addComponentListener(listener)
+                            onDispose { window.removeComponentListener(listener) }
+                        }
                         val shouldStartMaximized = remember { AppSettingsStore.isWindowMaximized }
                         DisposableEffect(shouldStartMaximized) {
                             if (!shouldStartMaximized) return@DisposableEffect onDispose {}
@@ -317,6 +333,8 @@ fun main() {
                                 icon = icon,
                                 title = title,
                                 state = mainState,
+                                navigator = navigator,
+                                showSearchBox = isLoggedIn,
                                 backButtonEnabled = navigator.canNavigateUp,
                                 backButtonClick = { navigator.navigateUp() },
                                 backButtonVisible = false
@@ -381,9 +399,17 @@ fun main() {
                             val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
 
                             DisposableEffect(shouldBlockDisplaySleep) {
-                                WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                when (platform) {
+                                    is Platform.Windows -> WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                    is Platform.MacOS -> MacDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                    else -> Unit
+                                }
                                 onDispose {
-                                    WindowsDisplaySleepBlocker.setEnabled(false)
+                                    when (platform) {
+                                        is Platform.Windows -> WindowsDisplaySleepBlocker.setEnabled(false)
+                                        is Platform.MacOS -> MacDisplaySleepBlocker.setEnabled(false)
+                                        else -> Unit
+                                    }
                                 }
                             }
 
@@ -418,6 +444,8 @@ fun main() {
                                     icon = icon,
                                     title = playerManager.playerState.mediaTitle,
                                     state = playerState,
+                                    navigator = navigator,
+                                    showSearchBox = false,
                                     backButtonVisible = false,
                                     backButtonEnabled = false,
                                     backButtonClick = {
@@ -543,6 +571,7 @@ fun main() {
                                     icon = icon,
                                     title = "使用 NAS 登录",
                                     state = fnConnectWindowState,
+                                    navigator = navigator,
                                     backButtonVisible = false
                                 ) { windowInset, contentInset ->
                                     NasLoginWebViewScreen(

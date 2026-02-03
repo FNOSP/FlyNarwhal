@@ -115,6 +115,10 @@ object AppSettingsStore {
         get() = settings.getString(scopedKey("smart_analysis_base_url"), "")
         set(value) = settings.set(scopedKey("smart_analysis_base_url"), value)
 
+    var authCode: String
+        get() = settings.getString(scopedKey("auth_code"), "")
+        set(value) = settings.set(scopedKey("auth_code"), value)
+
     var kcefInitializedVersion: String
         get() = settings.getString(scopedKey("kcef_initialized_version"), "")
         set(value) = settings.set(scopedKey("kcef_initialized_version"), value)

@@ -252,7 +252,7 @@ fun MediaDescriptionDialog(
 ) {
     FluentDialog(
         visible = true,
-        size = DialogSize.Standard,
+        size = DialogSize(720.dp, 720.dp),
     ) {
         Column(
             modifier = Modifier

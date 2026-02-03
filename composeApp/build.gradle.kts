@@ -9,8 +9,11 @@ import java.net.HttpURLConnection
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.7.3"
+val appVersion = "1.11.1"
+
 val appVersionSuffix = ""
+
+val flyNarwhalServerVersion = "0.6.4"
 
 val platformStr = when {
     osName.contains("win") -> {
@@ -53,6 +56,10 @@ dependencies {
     add(kcefDownloaderClasspath.name, libs.ktor.client.content.negotiation.get().toString())
     add(kcefDownloaderClasspath.name, libs.ktor.serialization.kotlinx.json.get().toString())
     add(kcefDownloaderClasspath.name, libs.ktor.http.get().toString())
+}
+
+configurations.configureEach {
+    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.2.0")
 }
 
 val downloadKcefBundle by tasks.registering(JavaExec::class) {
@@ -107,14 +114,9 @@ val prepareKcefResources by tasks.registering(Copy::class) {
 val prepareProxyResources by tasks.registering(Copy::class) {
     val sourceDir = project.rootDir.resolve("fntv-proxy")
     
+    onlyIf { sourceDir.exists() }
     from(sourceDir)
     into(proxyResourcesDir.map { it.dir("fntv-proxy") })
-    
-    doFirst {
-        if (!sourceDir.exists()) {
-             throw GradleException("Proxy executable directory not found at ${sourceDir.absolutePath}")
-        }
-    }
 }
 
 fun resolveFlutterExecutable(project: Project): File? {
@@ -330,7 +332,7 @@ val prepareAllAppResources by tasks.registering(Copy::class) {
                 if (appBundle != null) {
                     val destDir = allAppResourcesDir.get().asFile
                     destDir.mkdirs()
-                    
+
                     // Clean up existing .app bundle to avoid symlink issues
                     val existingApp = destDir.resolve(appBundle.name)
                     if (existingApp.exists()) {
@@ -383,7 +385,7 @@ val prepareUpdaterResources by tasks.registering(Copy::class) {
     dependsOn(buildUpdater)
     enabled = osName.contains("win")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    
+
     val currentPlatform = platformStr
     val sourceDir = project.rootDir.resolve("fntv-updater/build").resolve(currentPlatform)
     
@@ -391,6 +393,119 @@ val prepareUpdaterResources by tasks.registering(Copy::class) {
         include("fntv-updater.exe")
     }
     into(proxyResourcesDir.map { it.dir("fntv-updater/$currentPlatform") })
+}
+
+val externalAuthxEnabled: Boolean = (project.findProperty("externalAuthx")?.toString()?.toBoolean() ?: false) ||
+    "1".equals(System.getenv("FLY_NARWHAL_BUILD_AUTHX_VERIFIER"))
+val authxVerifierDirEnv: String? = System.getenv("FLY_NARWHAL_AUTHX_VERIFIER_DIR")
+val authxVerifierSrcDir = authxVerifierDirEnv?.let { file(it) }
+val authxVerifierWorkDir = layout.buildDirectory.dir("authx-verifier/work")
+val authxVerifierOutDir = layout.buildDirectory.dir("authx-verifier/out")
+
+val authxOsPart = when {
+    osName.contains("win") -> "windows"
+    osName.contains("mac") -> "darwin"
+    osName.contains("nix") || osName.contains("nux") -> "linux"
+    else -> "unknown"
+}
+val authxArchPart = when {
+    osArch.contains("aarch64") || osArch.contains("arm64") -> "arm64"
+    osArch.contains("x86_64") || osArch.contains("amd64") || osArch.contains("x64") -> "amd64"
+    else -> "unknown"
+}
+val authxClassifier = "${authxOsPart}-${authxArchPart}"
+val authxExt = if (authxOsPart == "windows") ".exe" else ""
+
+val prepareAuthxVerifier by tasks.registering(Copy::class) {
+    onlyIf {
+        val enabled = (project.findProperty("externalAuthx")?.toString()?.toBoolean() ?: false) ||
+            (System.getenv("FLY_NARWHAL_BUILD_AUTHX_VERIFIER") == "1")
+        if (!enabled) return@onlyIf false
+
+        val srcDir = System.getenv("FLY_NARWHAL_AUTHX_VERIFIER_DIR")?.let { project.file(it) }
+        srcDir?.exists() == true
+    }
+
+    doFirst {
+        val workDir = authxVerifierWorkDir.get().asFile
+        if (workDir.exists()) {
+            workDir.deleteRecursively()
+        }
+    }
+
+    authxVerifierSrcDir?.let { from(it) }
+    into(authxVerifierWorkDir)
+}
+
+val generateAuthxVerifierSecret by tasks.registering(Exec::class) {
+    onlyIf {
+        val enabled = (project.findProperty("externalAuthx")?.toString()?.toBoolean() ?: false) ||
+            (System.getenv("FLY_NARWHAL_BUILD_AUTHX_VERIFIER") == "1")
+        if (!enabled) return@onlyIf false
+
+        val srcDir = System.getenv("FLY_NARWHAL_AUTHX_VERIFIER_DIR")?.let { project.file(it) }
+        srcDir?.exists() == true
+    }
+    dependsOn(prepareAuthxVerifier)
+
+    val secret = System.getenv("FLY_NARWHAL_API_SECRET")?.trim().orEmpty()
+    doFirst {
+        if (secret.isBlank()) {
+            throw GradleException("FLY_NARWHAL_API_SECRET is required when building authx verifier binaries")
+        }
+    }
+
+    workingDir = authxVerifierWorkDir.get().asFile
+    environment("AUTHX_SECRET", secret)
+    commandLine("go", "run", "./cmd/gensecret")
+}
+
+val buildAuthxVerifierBinary by tasks.registering(Exec::class) {
+    onlyIf {
+        val enabled = (project.findProperty("externalAuthx")?.toString()?.toBoolean() ?: false) ||
+            (System.getenv("FLY_NARWHAL_BUILD_AUTHX_VERIFIER") == "1")
+        if (!enabled) return@onlyIf false
+
+        val srcDir = System.getenv("FLY_NARWHAL_AUTHX_VERIFIER_DIR")?.let { project.file(it) }
+        srcDir?.exists() == true
+    }
+    dependsOn(generateAuthxVerifierSecret)
+
+    val outDir = authxVerifierOutDir.map { it.dir(authxClassifier) }
+    val outFile = outDir.map { it.file("flynarwhal-authx${authxExt}") }
+
+    inputs.property("authxClassifier", authxClassifier)
+    outputs.file(outFile)
+
+    doFirst {
+        outDir.get().asFile.mkdirs()
+    }
+
+    workingDir = authxVerifierWorkDir.get().asFile
+    environment("CGO_ENABLED", "0")
+    environment("GOOS", authxOsPart)
+    environment("GOARCH", authxArchPart)
+    commandLine("go", "build", "-tags", "secretgen", "-trimpath", "-ldflags", "-s -w", "-o", outFile.get().asFile.absolutePath, "./cmd/verifier")
+
+    doLast {
+        outFile.get().asFile.setExecutable(true)
+    }
+}
+
+val prepareAuthxVerifierResources by tasks.registering(Copy::class) {
+    onlyIf {
+        val enabled = (project.findProperty("externalAuthx")?.toString()?.toBoolean() ?: false) ||
+            (System.getenv("FLY_NARWHAL_BUILD_AUTHX_VERIFIER") == "1")
+        if (!enabled) return@onlyIf false
+
+        val srcDir = System.getenv("FLY_NARWHAL_AUTHX_VERIFIER_DIR")?.let { project.file(it) }
+        srcDir?.exists() == true
+    }
+    dependsOn(buildAuthxVerifierBinary)
+
+    val outFile = authxVerifierOutDir.map { it.dir(authxClassifier).file("flynarwhal-authx${authxExt}") }
+    from(outFile)
+    into(proxyResourcesDir.map { it.dir("native/authx/$authxClassifier") })
 }
 
 val mergeResources by tasks.registering(Copy::class) {
@@ -478,12 +593,15 @@ val generateBuildConfig by tasks.registering {
     // Read secrets from environment variables or project properties
     val reportApiSecret = System.getenv("REPORT_API_SECRET") ?: project.findProperty("REPORT_API_SECRET")?.toString() ?: ""
     val reportUrl = System.getenv("REPORT_URL") ?: project.findProperty("REPORT_URL")?.toString() ?: ""
-    var flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
+    val flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
+    val flyNarwhalServerVersion = flyNarwhalServerVersion
 
     inputs.property("version", version)
     inputs.property("suffix", suffix)
     inputs.property("reportApiSecret", reportApiSecret)
     inputs.property("reportUrl", reportUrl)
+    inputs.property("flyNarwhalApiSecret", flyNarwhalApiSecret)
+    inputs.property("flyNarwhalServerVersion", flyNarwhalServerVersion)
     outputs.dir(outputDir)
 
     doLast {
@@ -498,6 +616,7 @@ val generateBuildConfig by tasks.registering {
                 const val REPORT_API_SECRET = "$reportApiSecret"
                 const val REPORT_URL = "$reportUrl"
                 const val FLY_NARWHAL_API_SECRET = "$flyNarwhalApiSecret"
+                const val FLY_NARWHAL_SERVER_VERSION = "$flyNarwhalServerVersion"
             }
         """.trimIndent())
     }
@@ -533,22 +652,29 @@ kotlin {
             kotlin.srcDir(buildConfigDir)
         }
         androidMain.dependencies {
-            implementation(compose.preview)
+//            implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+//            implementation(libs.window.styler)
         }
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.ui)
-            implementation(compose.components.resources)
-            implementation(compose.components.uiToolingPreview)
+//            implementation(compose.runtime)
+//            implementation(compose.foundation)
+//            implementation(compose.material3)
+//            implementation(compose.ui)
+//            implementation(compose.components.resources)
+//            implementation(compose.components.uiToolingPreview)
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.ui)
+            implementation(libs.ui.tooling.preview)
+            implementation(libs.compose.ui.tooling)
+            implementation(libs.compose.components.resources)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.ktor.http)
             implementation(libs.fluent.ui)
             implementation(libs.fluent.icons)
-            implementation(libs.window.styler)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
@@ -579,7 +705,7 @@ kotlin {
             implementation(libs.filekit.coil)
             implementation(libs.multiplatform.markdown.renderer)
             implementation(libs.compose.webview)
-            implementation(libs.com.saralapps.composemultiplatformwebview4)
+            implementation(libs.com.saralapps.composemultiplatformwebview)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -604,6 +730,7 @@ kotlin {
             implementation(libs.jfa.get().toString()) {
                 exclude(group = "net.java.dev.jna")
             }
+            implementation(files("libs/window-styler-jvm-0.3.3-SNAPSHOT.jar"))
 //            implementation(libs.jna)
         }
     }
@@ -679,7 +806,7 @@ compose.desktop {
 }
 
 dependencies {
-    debugImplementation(compose.uiTooling)
+    debugImplementation(libs.compose.ui.tooling)
 }
 
 
@@ -752,9 +879,6 @@ tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractRunDistri
     dependsOn(mergeResources)
 }
 
-/*
-// Fix for ProGuard crashing on newer Kotlin module metadata
 tasks.withType<Jar>().configureEach {
     exclude("META-INF/*.kotlin_module")
 }
-*/

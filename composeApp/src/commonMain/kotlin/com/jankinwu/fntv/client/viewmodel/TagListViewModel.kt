@@ -9,12 +9,40 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.koin.java.KoinJavaComponent.inject
 
+data class TagListKey(
+    val ancestorGuid: String?,
+    val isFavorite: Int,
+    val type: String?
+)
+
 class TagListViewModel : BaseViewModel() {
 
     private val fnOfficialApi: FnOfficialApiImpl by inject(FnOfficialApiImpl::class.java)
 
     private val _uiState = MutableStateFlow<UiState<TagListResponse>>(UiState.Initial)
     val uiState: StateFlow<UiState<TagListResponse>> = _uiState.asStateFlow()
+
+    private val _tagStates = MutableStateFlow<Map<TagListKey, UiState<TagListResponse>>>(emptyMap())
+    val tagStates: StateFlow<Map<TagListKey, UiState<TagListResponse>>> = _tagStates.asStateFlow()
+
+    fun loadTagListForKey(
+        key: TagListKey,
+        force: Boolean = false
+    ) {
+        val existingState = _tagStates.value[key]
+        if (!force && (existingState is UiState.Success || existingState is UiState.Loading)) {
+            return
+        }
+        viewModelScope.launch {
+            _tagStates.value += (key to UiState.Loading)
+            try {
+                val result = fnOfficialApi.getTagList(key.ancestorGuid, key.isFavorite, key.type)
+                _tagStates.value += (key to UiState.Success(result))
+            } catch (e: Exception) {
+                _tagStates.value += (key to UiState.Error(e.message ?: "未知错误", exception = e))
+            }
+        }
+    }
 
     /**
      * 加载标签列表数据
@@ -27,9 +55,12 @@ class TagListViewModel : BaseViewModel() {
         isFavorite: Int = 0,
         type: String? = null
     ) {
+        val key = TagListKey(ancestorGuid, isFavorite, type)
         viewModelScope.launch {
             executeWithLoading(_uiState, "loadTagList") {
-                fnOfficialApi.getTagList(ancestorGuid, isFavorite, type)
+                val result = fnOfficialApi.getTagList(ancestorGuid, isFavorite, type)
+                _tagStates.value += (key to UiState.Success(result))
+                result
             }
         }
     }

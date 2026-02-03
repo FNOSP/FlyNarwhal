@@ -3,6 +3,7 @@ package com.jankinwu.fntv.client.viewmodel
 import androidx.lifecycle.viewModelScope
 import com.jankinwu.fntv.client.data.model.response.MediaDbListResponse
 import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,10 +17,18 @@ class MediaDbListViewModel() : BaseViewModel() {
     private val _uiState = MutableStateFlow<UiState<List<MediaDbListResponse>>>(UiState.Initial)
     val uiState: StateFlow<UiState<List<MediaDbListResponse>>> = _uiState.asStateFlow()
 
+    private val _mediaSum = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val mediaSum: StateFlow<Map<String, Int>> = _mediaSum.asStateFlow()
+
     fun loadData() {
         viewModelScope.launch {
             executeWithLoading(_uiState) {
-                fnOfficialApi.getMediaDbList()
+                val listDeferred = async { fnOfficialApi.getMediaDbList() }
+                val sumDeferred = async { fnOfficialApi.getMediaDbSum() }
+
+                val list = listDeferred.await()
+                _mediaSum.value = sumDeferred.await()
+                list
             }
         }
     }

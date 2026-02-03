@@ -9,9 +9,12 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,8 +33,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.disk.DiskCache
@@ -44,6 +49,7 @@ import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.enums.Category
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.CategoryIcon
+import com.jankinwu.fntv.client.icons.Heart
 import com.jankinwu.fntv.client.icons.Home
 import com.jankinwu.fntv.client.icons.MediaLibrary
 import com.jankinwu.fntv.client.manager.PlayerResourceManager
@@ -54,6 +60,7 @@ import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.screen.FavoritesScreen
 import com.jankinwu.fntv.client.ui.screen.HomePageScreen
 import com.jankinwu.fntv.client.ui.screen.MediaDbScreen
 import com.jankinwu.fntv.client.ui.screen.SettingsScreen
@@ -82,7 +89,6 @@ import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.Response
 import okio.FileSystem
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 val components = mutableStateListOf<ComponentItem>()
@@ -110,7 +116,6 @@ class RefreshManager {
 
 @OptIn(FlowPreview::class, ExperimentalFluentApi::class)
 @Composable
-@Preview
 fun App(
     navigator: ComponentNavigator = rememberComponentNavigator(),
     windowInset: WindowInsets = WindowInsets(0),
@@ -184,11 +189,14 @@ fun Navigation(
     title: String
 ) {
     val updateViewModel: UpdateViewModel = koinViewModel()
+    val mediaDbListViewModel: MediaDbListViewModel = koinViewModel()
+    val mediaSum by mediaDbListViewModel.mediaSum.collectAsState()
 
     LaunchedEffect(Unit) {
         if (updateViewModel.status.value is UpdateStatus.Idle) {
             updateViewModel.checkUpdate(isManual = false)
         }
+        mediaDbListViewModel.loadData()
     }
 
     val homePageItem =
@@ -203,6 +211,29 @@ fun Navigation(
     val homePageIndex = components.indexOfFirst { it.name == "首页" }
     if (homePageIndex < 0) {
         components.add(homePageItem)
+    }
+
+    LaunchedEffect(mediaSum["favorite"]) {
+        val favoritesItem = ComponentItem(
+            name = "收藏",
+            group = "",
+            description = "收藏",
+            icon = Heart,
+            guid = "favorites",
+            count = mediaSum["favorite"],
+            content = { FavoritesScreen(navigator) }
+        )
+        val favoritesIndex = components.indexOfFirst { it.guid == "favorites" }
+        if (favoritesIndex < 0) {
+            val homeIndex = components.indexOfFirst { it.guid == "homePage" }
+            if (homeIndex >= 0) {
+                components.add(homeIndex + 1, favoritesItem)
+            } else {
+                components.add(favoritesItem)
+            }
+        } else {
+            components[favoritesIndex] = favoritesItem
+        }
     }
 
     // 确保 navigator 中有首页（即使 components 中已存在，navigator 可能是新建的）
@@ -221,11 +252,7 @@ fun Navigation(
         }
     }
 
-    MediaLibraryNavigationComponent()
-
-    var textFieldValue by remember {
-        mutableStateOf(TextFieldValue())
-    }
+    MediaLibraryNavigationComponent(mediaDbListViewModel)
 
     val settingItem = remember(navigator) {
         ComponentItem(
@@ -252,12 +279,27 @@ fun Navigation(
         },
         menuItems = {
             components.forEach { navItem ->
+                val resolvedNavItem = if (navItem.guid == "favorites") {
+                    ComponentItem(
+                        name = navItem.name,
+                        group = navItem.group,
+                        description = navItem.description,
+                        items = navItem.items,
+                        icon = navItem.icon,
+                        guid = navItem.guid,
+                        type = navItem.type,
+                        count = mediaSum["favorite"],
+                        content = navItem.content
+                    )
+                } else {
+                    navItem
+                }
                 item(key = navItem.guid) {
                     MenuItem(
                         navigator.latestBackEntry,
                         navigator::navigate,
-                        navItem,
-                        navItem.name == "首页"
+                        resolvedNavItem,
+                        resolvedNavItem.name == "收藏"
                     )
                 }
             }
@@ -384,7 +426,7 @@ fun Navigation(
                     it.content?.invoke(it, navigator)
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        io.github.composefluent.component.Text(
+                        Text(
                             "No content selected",
                             style = FluentTheme.typography.bodyStrong
                         )
@@ -393,6 +435,28 @@ fun Navigation(
             }
         }
     )
+}
+
+@Composable
+private fun NavLabelWithCount(name: String, count: Int?) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(name)
+        if (count != null) {
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = count.toString(),
+                style = FluentTheme.typography.caption.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = FluentTheme.colors.text.text.secondary
+                ),
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -427,7 +491,7 @@ private fun NavigationMenuItemScope.MenuItem(
                 }
             },
             icon = navItem.icon?.let { { Icon(it, navItem.name) } },
-            text = { io.github.composefluent.component.Text(navItem.name) },
+            text = { NavLabelWithCount(navItem.name, navItem.count) },
             expandItems = expandedItems.value || flyoutVisible.value,
             onExpandItemsChanged = { flyoutVisible.value = it },
             items = navItem.items?.let {
@@ -460,7 +524,7 @@ private fun NavigationMenuItemScope.MenuItem(
                 expandedItems.value = !expandedItems.value
             },
             icon = navItem.icon?.let { { Icon(it, navItem.name) } },
-            text = { io.github.composefluent.component.Text(navItem.name) },
+            text = { NavLabelWithCount(navItem.name, navItem.count) },
             expandItems = expandedItems.value || flyoutVisible.value,
             onExpandItemsChanged = { flyoutVisible.value = it },
             items = navItem.items?.let {
@@ -519,7 +583,7 @@ private fun NavigationItem(
             }
         },
         icon = navItem.icon?.let { { Icon(it, navItem.name, tint = Color.White) } },
-        content = { io.github.composefluent.component.Text(navItem.name) },
+        content = { NavLabelWithCount(navItem.name, navItem.count) },
         expandItems = expandedItems.value,
         items = navItem.items?.let {
             if (it.isNotEmpty()) {
@@ -539,12 +603,6 @@ private fun NavigationItem(
         },
         modifier = Modifier
             .pointerHoverIcon(PointerIcon.Hand)
-    )
-}
-
-val flatMapComponents: List<ComponentItem> by lazy {
-    listOf(
-//        ComponentItem("测试", "测试组", "测试描述", content = null)
     )
 }
 
@@ -577,10 +635,10 @@ val flatMapComponents: List<ComponentItem> by lazy {
 //}
 
 @Composable
-fun MediaLibraryNavigationComponent() {
+fun MediaLibraryNavigationComponent(mediaDbListViewModel: MediaDbListViewModel) {
 
-    val mediaDbListViewModel: MediaDbListViewModel = koinViewModel<MediaDbListViewModel>()
     val mediaUiState by mediaDbListViewModel.uiState.collectAsState()
+    val mediaSum by mediaDbListViewModel.mediaSum.collectAsState()
     val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
     val refreshState = LocalRefreshState.current
     var lastRefreshKey by remember { mutableStateOf("") }
@@ -605,7 +663,7 @@ fun MediaLibraryNavigationComponent() {
         }
     }
     // 动态生成组件列表
-    LaunchedEffect(mediaUiState) {
+    LaunchedEffect(mediaUiState, mediaSum) {
         val categoryItems = listOf(
             ComponentItem(
                 name = "全部",
@@ -613,6 +671,7 @@ fun MediaLibraryNavigationComponent() {
                 description = "全部",
                 type = FnTvMediaType.getCommonly(),
                 guid = "bb042b7d-c038-f9e2-36ed-6e166a20019c",
+                count = mediaSum["total"],
                 content = { navigator ->
                     MediaDbScreen(title = "全部", category = "", navigator = navigator)
                 }
@@ -623,6 +682,7 @@ fun MediaLibraryNavigationComponent() {
                 description = "电视节目",
                 type = FnTvMediaType.getCommonly(),
                 guid = "709e30ec-9a51-34ab-b189-8ae6fdd1b0a7",
+                count = mediaSum["tv"],
                 content = { navigator ->
                     MediaDbScreen(
                         title = "电视节目",
@@ -637,6 +697,7 @@ fun MediaLibraryNavigationComponent() {
                 description = "电影",
                 type = FnTvMediaType.getCommonly(),
                 guid = "f1a58953-85c1-ab3f-3bda-d90f50db0d69",
+                count = mediaSum["movie"],
                 content = { navigator ->
                     MediaDbScreen(
                         title = "电影",
@@ -651,6 +712,7 @@ fun MediaLibraryNavigationComponent() {
                 description = "其他",
                 type = FnTvMediaType.getCommonly(),
                 guid = "b192a025-3cc5-a21c-7d68-726b852d02af",
+                count = mediaSum["video"],
                 content = { navigator ->
                     MediaDbScreen(
                         title = "其他",
@@ -673,6 +735,7 @@ fun MediaLibraryNavigationComponent() {
                         description = mediaDb.title,
                         guid = mediaDb.guid,
                         type = FnTvMediaType.getCommonly(),
+                        count = mediaSum[mediaDb.guid],
                         content = { navigator ->
                             MediaDbScreen(
                                 mediaDb.guid,
@@ -725,10 +788,5 @@ fun MediaLibraryNavigationComponent() {
             }
 
         }
-    }
-
-    // 在初始化时加载媒体数据
-    LaunchedEffect(Unit) {
-        mediaDbListViewModel.loadData()
     }
 }

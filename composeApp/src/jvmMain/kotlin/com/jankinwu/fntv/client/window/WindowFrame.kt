@@ -14,11 +14,14 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowState
 import com.jankinwu.fntv.client.AppTheme
 import com.jankinwu.fntv.client.RefreshManager
+import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.viewmodel.MediaDbListViewModel
 import io.github.composefluent.component.NavigationDisplayMode
 import io.github.composefluent.gallery.jna.windows.structure.isWindows10OrLater
 import io.github.composefluent.gallery.jna.windows.structure.isWindows11OrLater
+import org.koin.compose.viewmodel.koinViewModel
 import org.jetbrains.skiko.hostOs
 
 @Composable
@@ -27,6 +30,8 @@ fun FrameWindowScope.WindowFrame(
     icon: Painter? = null,
     title: String = "",
     state: WindowState,
+    navigator: ComponentNavigator,
+    showSearchBox: Boolean = true,
     backButtonVisible: Boolean = true,
     backButtonEnabled: Boolean = false,
     backButtonClick: () -> Unit = {},
@@ -50,6 +55,7 @@ fun FrameWindowScope.WindowFrame(
         refreshManager
     ) {
         val playerManager = LocalPlayerManager.current
+        val mediaDbListViewModel: MediaDbListViewModel = koinViewModel()
         val isCollapsed = LocalStore.current.navigationDisplayMode == NavigationDisplayMode.LeftCollapsed
         when {
             hostOs.isWindows && isWindows10OrLater() -> {
@@ -60,6 +66,8 @@ fun FrameWindowScope.WindowFrame(
                     title = if (isCollapsed) "" else title,
                     content = content,
                     state = state,
+                    navigator = navigator,
+                    showSearchBox = showSearchBox,
                     backButtonVisible = backButtonVisible && !isCollapsed,
                     backButtonEnabled = backButtonEnabled,
                     backButtonClick = backButtonClick,
@@ -71,10 +79,8 @@ fun FrameWindowScope.WindowFrame(
                         }
                     },
                     onRefreshClick = {
-                        // 执行刷新操作
                         refreshManager.requestRefresh {
-                            // 这里可以添加全局刷新逻辑（如果需要）
-//                            println("执行全局刷新")
+                            mediaDbListViewModel.loadData()
                         }
                     },
                     onRefreshAnimationStart = {
@@ -89,7 +95,9 @@ fun FrameWindowScope.WindowFrame(
 
             hostOs.isMacOS -> {
                 MacOSWindowFrame(
+                    navigator = navigator,
                     content = content,
+                    showSearchBox = showSearchBox,
                     backButtonVisible = backButtonVisible && !isCollapsed,
                     backButtonEnabled = backButtonEnabled,
                     onBackButtonClick = backButtonClick,
@@ -105,10 +113,8 @@ fun FrameWindowScope.WindowFrame(
                         }
                     },
                     onRefreshClick = {
-                        // 执行刷新操作
                         refreshManager.requestRefresh {
-                            // 这里可以添加全局刷新逻辑（如果需要）
-//                            println("执行全局刷新")
+                            mediaDbListViewModel.loadData()
                         }
                     }
                 )

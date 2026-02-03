@@ -490,7 +490,8 @@ fun MovieDetailBody(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp),
-                            castScrollRowItemList
+                            castScrollRowItemList,
+                            navigator
                         )
                         Spacer(modifier = Modifier.height(48.dp))
                     }

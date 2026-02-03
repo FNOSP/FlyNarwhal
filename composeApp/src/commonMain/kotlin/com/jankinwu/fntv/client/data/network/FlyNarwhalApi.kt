@@ -8,7 +8,13 @@ import com.jankinwu.fntv.client.data.model.response.Danmaku
 import com.jankinwu.fntv.client.data.model.response.EpisodeSegmentsResponse
 import com.jankinwu.fntv.client.data.model.response.SmartAnalysisResult
 
+import kotlinx.coroutines.flow.Flow
+
 interface FlyNarwhalApi {
+
+    suspend fun getVersion(): SmartAnalysisResult<String>
+
+    suspend fun startUpdate(downloadUrl: String, hash: String?, proxyUrl: String?): Flow<String>
 
     suspend fun analyze(request: AnalyzeRequest): SmartAnalysisResult<String>
 

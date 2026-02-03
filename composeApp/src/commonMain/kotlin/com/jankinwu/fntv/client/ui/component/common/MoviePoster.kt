@@ -23,8 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,14 +61,13 @@ import com.jankinwu.fntv.client.icons.HeartFilled
 import com.jankinwu.fntv.client.ui.component.common.dialog.VersionManagementDialog
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalStore
-import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.screen.MovieDetailScreen
+import com.jankinwu.fntv.client.ui.screen.PersonDetailScreen
 import com.jankinwu.fntv.client.ui.screen.TvDetailScreen
 import com.jankinwu.fntv.client.ui.screen.TvSeasonDetailScreen
 import com.jankinwu.fntv.client.ui.screen.rememberPlayMediaFunction
 import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
-import com.jankinwu.fntv.client.viewmodel.UiState
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
@@ -115,22 +112,6 @@ fun MoviePoster(
     val store = LocalStore.current
     val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel()
     val smartAnalysisEnabled = AppSettingsStore.flyNarwhalServerEnabled
-    val analyzeState by smartAnalysisViewModel.analyzeState.collectAsState()
-    val toastManager = LocalToastManager.current
-
-    LaunchedEffect(analyzeState) {
-        when(val state = analyzeState) {
-            is UiState.Success -> {
-                toastManager.showToast(state.data, ToastType.Success)
-                smartAnalysisViewModel.clearState()
-            }
-            is UiState.Error -> {
-                toastManager.showToast(state.message, ToastType.Failed)
-                smartAnalysisViewModel.clearState()
-            }
-            else -> {}
-        }
-    }
 
     val scaleFactor = store.scaleFactor
     var isPosterHovered by remember { mutableStateOf(false) }
@@ -201,6 +182,20 @@ fun MoviePoster(
                             }
                         )
                         navigator.navigate(tvDetailComponent)
+                    } else if (type == "Person") {
+                        val personDetailComponent = ComponentItem(
+                            name = "人物详情",
+                            group = "/详情",
+                            description = "人物详情页面",
+                            guid = "person_detail_$guid",
+                            content = { nav ->
+                                PersonDetailScreen(
+                                    guid = guid,
+                                    navigator = nav
+                                )
+                            }
+                        )
+                        navigator.navigate(personDetailComponent)
                     }
                 }
             )
@@ -221,7 +216,6 @@ fun MoviePoster(
                 }
         ) {
             if (posterImg != null) {
-                val widthGtHeight = posterWidth > posterHeight
                 SubcomposeAsyncImage(
                     model = ImageRequest.Builder(PlatformContext.INSTANCE)
                         .data("${AccountDataCache.getFnOfficialBaseUrl()}/v/api/v1/sys/img$posterImg${Constants.FN_IMG_URL_PARAM}")
@@ -230,7 +224,7 @@ fun MoviePoster(
                         .build(),
                     contentDescription = title,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = if (widthGtHeight) ContentScale.Fit else ContentScale.Crop,
+                    contentScale = ContentScale.FillWidth,
                     loading = {
                         ImgLoadingProgressRing()
                     },
@@ -493,8 +487,8 @@ fun MoviePoster(
             subtitle?.let {
                 Text(
                     text = it,
-                    style = LocalTypography.current.subtitle,
-                    fontSize = (12 * scaleFactor).sp,
+                    style = LocalTypography.current.subtitle.copy(fontWeight = FontWeight.Normal),
+                    fontSize = (11 * scaleFactor).sp,
                     textAlign = TextAlign.Center,
                     color = FluentTheme.colors.text.text.tertiary
                 )
