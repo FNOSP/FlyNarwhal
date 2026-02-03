@@ -288,7 +288,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                     Spacer(Modifier.height(20.dp))
                     SecureTextField(
                         state = authCodeState,
-                        header = {Text("请输入授权码：")},
+                        header = { Text("请输入授权码：") },
                         trailing = {
                             val image =
                                 if (authCodeVisible) MaterialIcons.Filled.Visibility else MaterialIcons.Filled.VisibilityOff
@@ -628,6 +628,25 @@ fun SettingsScreen(navigator: ComponentNavigator) {
 //                        }
 //                    )
 //                }
+                    Header("播放")
+                    var useExternalPlayer by remember(guid) { mutableStateOf(AppSettingsStore.useExternalPlayer) }
+                    CardExpanderItem(
+                        heading = { Text("使用外置播放器") },
+                        caption = { Text("开启后，播放视频时将调用 Flutter 实现的播放器") },
+                        icon = { Icon(Icons.Regular.Navigation, null, modifier = Modifier.size(18.dp)) },
+                        trailing = {
+                            Switcher(
+                                checked = useExternalPlayer,
+                                text = if (useExternalPlayer) "开启" else "关闭",
+                                textBefore = true,
+                                onCheckStateChange = {
+                                    useExternalPlayer = it
+                                    AppSettingsStore.useExternalPlayer = it
+                                }
+                            )
+                        }
+                    )
+
 
                     // Update Settings
                     Header("更新")
@@ -684,44 +703,25 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         }
                     )
 
-                Header("播放")
-                var useExternalPlayer by remember(guid) { mutableStateOf(AppSettingsStore.useExternalPlayer) }
-                CardExpanderItem(
-                    heading = { Text("使用外置播放器") },
-                    caption = { Text("开启后，播放视频时将调用 Flutter 实现的播放器") },
-                    icon = { Icon(Icons.Regular.Navigation, null, modifier = Modifier.size(18.dp)) },
-                    trailing = {
-                        Switcher(
-                            checked = useExternalPlayer,
-                            text = if (useExternalPlayer) "开启" else "关闭",
-                            textBefore = true,
-                            onCheckStateChange = {
-                                useExternalPlayer = it
-                                AppSettingsStore.useExternalPlayer = it
-                            }
-                        )
-                    }
-                )
-
-                CardExpanderItem(
-                    heading = { Text("当前版本") },
-                    caption = { Text(BuildConfig.VERSION_NAME) },
-                    icon = {
-                        Icon(
-                            VersionInfo,
-                            "版本升级", modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    trailing = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (latestVersion != null) {
-                                Row(
-                                    modifier = Modifier
-                                        .padding(start = 8.dp)
-                                        .background(
-                                            Colors.AccentColorDefault,
-                                            RoundedCornerShape(50)
-                                        )
+                    CardExpanderItem(
+                        heading = { Text("当前版本") },
+                        caption = { Text(BuildConfig.VERSION_NAME) },
+                        icon = {
+                            Icon(
+                                VersionInfo,
+                                "版本升级", modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        trailing = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (latestVersion != null) {
+                                    Row(
+                                        modifier = Modifier
+                                            .padding(start = 8.dp)
+                                            .background(
+                                                Colors.AccentColorDefault,
+                                                RoundedCornerShape(50)
+                                            )
 //                                        .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
                                             .padding(horizontal = 8.dp, vertical = 1.dp),
                                         verticalAlignment = Alignment.CenterVertically
