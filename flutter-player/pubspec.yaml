@@ -17,7 +17,9 @@ dependencies:
   shelf: ^1.4.1
   shelf_router: ^1.1.4
   http: ^1.6.0
-  provider: ^6.1.5+1
+  flutter_riverpod: ^2.5.1
+  flutter_hooks: ^0.20.5
+  hooks_riverpod: ^2.5.1
   google_fonts: ^6.3.3
   lottie: ^3.3.2
   path_provider: ^2.1.5

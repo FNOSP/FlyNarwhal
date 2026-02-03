@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 
 // --- Quality Flyout ---
-class QualityFlyout extends StatefulWidget {
+class QualityFlyout extends HookWidget {
   final Player player;
   final VoidCallback onClose;
 
   const QualityFlyout({super.key, required this.player, required this.onClose});
 
-  @override
-  State<QualityFlyout> createState() => _QualityFlyoutState();
-}
-
-class _QualityFlyoutState extends State<QualityFlyout> {
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -31,7 +28,7 @@ class _QualityFlyoutState extends State<QualityFlyout> {
           ),
           ListTile(
             title: const Text("返回", style: TextStyle(color: Colors.blue)),
-            onTap: widget.onClose,
+            onTap: onClose,
           ),
         ],
       ),
@@ -39,7 +36,7 @@ class _QualityFlyoutState extends State<QualityFlyout> {
   }
 }
 
-class IntroOutroDialog extends StatefulWidget {
+class IntroOutroDialog extends HookConsumerWidget {
   final Duration duration;
   final Duration currentPosition;
   final int initialIntroEndMs;
@@ -58,33 +55,19 @@ class IntroOutroDialog extends StatefulWidget {
   });
 
   @override
-  State<IntroOutroDialog> createState() => _IntroOutroDialogState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final introEnd = initialIntroEndMs.toDouble();
+    final outroStart = initialOutroStartMs > 0
+        ? initialOutroStartMs.toDouble()
+        : duration.inMilliseconds.toDouble();
 
-class _IntroOutroDialogState extends State<IntroOutroDialog> {
-  late double _introEnd;
-  late double _outroStart;
+    useEffect(() {
+      ref.read(_introOutroProvider.notifier).setInitial(introEnd, outroStart);
+      return null;
+    }, [introEnd, outroStart]);
 
-  @override
-  void initState() {
-    super.initState();
-    _introEnd = widget.initialIntroEndMs.toDouble();
-    _outroStart = widget.initialOutroStartMs > 0
-        ? widget.initialOutroStartMs.toDouble()
-        : widget.duration.inMilliseconds.toDouble();
-  }
-
-  String _formatDuration(double ms) {
-    final duration = Duration(milliseconds: ms.toInt());
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$minutes:$seconds";
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final maxMs = widget.duration.inMilliseconds.toDouble();
+    final state = ref.watch(_introOutroProvider);
+    final maxMs = duration.inMilliseconds.toDouble();
 
     return Container(
       width: 350,
@@ -102,7 +85,7 @@ class _IntroOutroDialogState extends State<IntroOutroDialog> {
             children: [
               const Text('跳过片头/片尾', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               TextButton(
-                onPressed: widget.onReset,
+                onPressed: onReset,
                 child: const Text('重置', style: TextStyle(color: Colors.white38)),
               ),
             ],
@@ -121,18 +104,17 @@ class _IntroOutroDialogState extends State<IntroOutroDialog> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4)),
-                    child: Text(_formatDuration(_introEnd), style: const TextStyle(color: Colors.white)),
+                    child: Text(_formatDuration(state.introEnd), style: const TextStyle(color: Colors.white)),
                   ),
                 ],
               ),
               GestureDetector(
                 onTap: () {
-                  setState(() {
-                    _introEnd = widget.currentPosition.inMilliseconds.toDouble();
-                    widget.onSave(_introEnd.toInt(), _outroStart.toInt());
-                  });
+                  final value = currentPosition.inMilliseconds.toDouble();
+                  ref.read(_introOutroProvider.notifier).setIntroEnd(value);
+                  onSave(value.toInt(), state.outroStart.toInt());
                 },
-                child: Text('将当前时间 ${_formatDuration(widget.currentPosition.inMilliseconds.toDouble())} 设为片头',
+                child: Text('将当前时间 ${_formatDuration(currentPosition.inMilliseconds.toDouble())} 设为片头',
                     style: const TextStyle(color: Colors.blue, fontSize: 12)),
               ),
             ],
@@ -144,13 +126,13 @@ class _IntroOutroDialogState extends State<IntroOutroDialog> {
               trackHeight: 2,
             ),
             child: Slider(
-              value: _introEnd.clamp(0.0, maxMs),
+              value: state.introEnd.clamp(0.0, maxMs),
               min: 0.0,
               max: maxMs / 2, // Limit intro to first half
               onChanged: (val) {
-                setState(() => _introEnd = val);
+                ref.read(_introOutroProvider.notifier).setIntroEnd(val);
               },
-              onChangeEnd: (val) => widget.onSave(val.toInt(), _outroStart.toInt()),
+              onChangeEnd: (val) => onSave(val.toInt(), state.outroStart.toInt()),
             ),
           ),
           const Row(
@@ -174,18 +156,17 @@ class _IntroOutroDialogState extends State<IntroOutroDialog> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4)),
-                    child: Text(_formatDuration(maxMs - _outroStart), style: const TextStyle(color: Colors.white)),
+                    child: Text(_formatDuration(maxMs - state.outroStart), style: const TextStyle(color: Colors.white)),
                   ),
                 ],
               ),
               GestureDetector(
                 onTap: () {
-                   setState(() {
-                    _outroStart = widget.currentPosition.inMilliseconds.toDouble();
-                    widget.onSave(_introEnd.toInt(), _outroStart.toInt());
-                  });
+                  final value = currentPosition.inMilliseconds.toDouble();
+                  ref.read(_introOutroProvider.notifier).setOutroStart(value);
+                  onSave(state.introEnd.toInt(), value.toInt());
                 },
-                child: Text('将当前剩余时长 ${_formatDuration(maxMs - widget.currentPosition.inMilliseconds.toDouble())} 设为片尾',
+                child: Text('将当前剩余时长 ${_formatDuration(maxMs - currentPosition.inMilliseconds.toDouble())} 设为片尾',
                     style: const TextStyle(color: Colors.blue, fontSize: 12)),
               ),
             ],
@@ -197,13 +178,13 @@ class _IntroOutroDialogState extends State<IntroOutroDialog> {
               trackHeight: 2,
             ),
             child: Slider(
-              value: _outroStart.clamp(0.0, maxMs),
+              value: state.outroStart.clamp(0.0, maxMs),
               min: maxMs / 2, // Limit outro to second half
               max: maxMs,
               onChanged: (val) {
-                setState(() => _outroStart = val);
+                ref.read(_introOutroProvider.notifier).setOutroStart(val);
               },
-              onChangeEnd: (val) => widget.onSave(_introEnd.toInt(), val.toInt()),
+              onChangeEnd: (val) => onSave(state.introEnd.toInt(), val.toInt()),
             ),
           ),
           const Row(
@@ -217,9 +198,57 @@ class _IntroOutroDialogState extends State<IntroOutroDialog> {
       ),
     );
   }
+
+  String _formatDuration(double ms) {
+    final duration = Duration(milliseconds: ms.toInt());
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return "$minutes:$seconds";
+  }
 }
 
-class SettingsMenu extends StatefulWidget {
+class IntroOutroState {
+  final double introEnd;
+  final double outroStart;
+
+  const IntroOutroState({
+    this.introEnd = 0,
+    this.outroStart = 0,
+  });
+
+  IntroOutroState copyWith({
+    double? introEnd,
+    double? outroStart,
+  }) {
+    return IntroOutroState(
+      introEnd: introEnd ?? this.introEnd,
+      outroStart: outroStart ?? this.outroStart,
+    );
+  }
+}
+
+class IntroOutroController extends StateNotifier<IntroOutroState> {
+  IntroOutroController() : super(const IntroOutroState());
+
+  void setInitial(double introEnd, double outroStart) {
+    state = IntroOutroState(introEnd: introEnd, outroStart: outroStart);
+  }
+
+  void setIntroEnd(double value) {
+    state = state.copyWith(introEnd: value);
+  }
+
+  void setOutroStart(double value) {
+    state = state.copyWith(outroStart: value);
+  }
+}
+
+final _introOutroProvider = StateNotifierProvider.autoDispose<IntroOutroController, IntroOutroState>(
+  (ref) => IntroOutroController(),
+);
+
+class SettingsMenu extends ConsumerWidget {
   final Player player;
   final String currentAspectRatio;
   final String currentWindowRatio;
@@ -240,14 +269,8 @@ class SettingsMenu extends StatefulWidget {
   });
 
   @override
-  State<SettingsMenu> createState() => _SettingsMenuState();
-}
-
-class _SettingsMenuState extends State<SettingsMenu> {
-  String? _subMenu; // 'aspect_ratio', 'window_ratio'
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final menuState = ref.watch(_settingsMenuProvider);
     return Container(
       width: 320,
       decoration: BoxDecoration(
@@ -258,41 +281,43 @@ class _SettingsMenuState extends State<SettingsMenu> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
-        child: _buildCurrentMenu(),
+        child: _buildCurrentMenu(ref, menuState.subMenu),
       ),
     );
   }
 
-  Widget _buildCurrentMenu() {
-    switch (_subMenu) {
+  Widget _buildCurrentMenu(WidgetRef ref, String? subMenu) {
+    switch (subMenu) {
       case 'aspect_ratio':
         return _buildSelectionMenu(
+           ref: ref,
            title: '画面比例',
            options: ['默认', '4:3', '16:9', '21:9'],
-           current: widget.currentAspectRatio,
+           current: currentAspectRatio,
            onSelect: (val) {
-             widget.onAspectRatioChanged(val);
-             setState(() => _subMenu = null);
+             onAspectRatioChanged(val);
+             ref.read(_settingsMenuProvider.notifier).closeSubMenu();
            },
-           onBack: () => setState(() => _subMenu = null),
+           onBack: () => ref.read(_settingsMenuProvider.notifier).closeSubMenu(),
         );
       case 'window_ratio':
          return _buildSelectionMenu(
+           ref: ref,
            title: '窗口比例',
            options: ['自动', '4:3', '16:9', '21:9'],
-           current: widget.currentWindowRatio,
+           current: currentWindowRatio,
            onSelect: (val) {
-             widget.onWindowRatioChanged(val);
-             setState(() => _subMenu = null);
+             onWindowRatioChanged(val);
+             ref.read(_settingsMenuProvider.notifier).closeSubMenu();
            },
-           onBack: () => setState(() => _subMenu = null),
+           onBack: () => ref.read(_settingsMenuProvider.notifier).closeSubMenu(),
          );
       default:
-        return _buildMainMenu();
+        return _buildMainMenu(ref);
     }
   }
 
-  Widget _buildMainMenu() {
+  Widget _buildMainMenu(WidgetRef ref) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -302,9 +327,9 @@ class _SettingsMenuState extends State<SettingsMenu> {
           child: Text("设置", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
         ),
         const Divider(color: Colors.white24, height: 1),
-        _buildMenuItem("画面比例", widget.currentAspectRatio, () => setState(() => _subMenu = 'aspect_ratio')),
-        _buildMenuItem("窗口比例", widget.currentWindowRatio, () => setState(() => _subMenu = 'window_ratio')),
-        _buildMenuItem("设置片头/片尾", "", widget.onIntroOutroTap),
+        _buildMenuItem("画面比例", currentAspectRatio, () => ref.read(_settingsMenuProvider.notifier).openSubMenu('aspect_ratio')),
+        _buildMenuItem("窗口比例", currentWindowRatio, () => ref.read(_settingsMenuProvider.notifier).openSubMenu('window_ratio')),
+        _buildMenuItem("设置片头/片尾", "", onIntroOutroTap),
         _buildMenuItem("音频", "暂不支持", () {}),
         _buildMenuItem("字幕", "暂不支持", () {}),
       ],
@@ -333,6 +358,7 @@ class _SettingsMenuState extends State<SettingsMenu> {
   }
   
   Widget _buildSelectionMenu({
+     required WidgetRef ref,
      required String title,
      required List<String> options,
      required String current,
@@ -368,7 +394,33 @@ class _SettingsMenuState extends State<SettingsMenu> {
    }
 }
 
-class SubtitleFlyout extends StatefulWidget {
+class SettingsMenuState {
+  final String? subMenu;
+
+  const SettingsMenuState({this.subMenu});
+
+  SettingsMenuState copyWith({String? subMenu}) {
+    return SettingsMenuState(subMenu: subMenu);
+  }
+}
+
+class SettingsMenuController extends StateNotifier<SettingsMenuState> {
+  SettingsMenuController() : super(const SettingsMenuState());
+
+  void openSubMenu(String value) {
+    state = state.copyWith(subMenu: value);
+  }
+
+  void closeSubMenu() {
+    state = state.copyWith(subMenu: null);
+  }
+}
+
+final _settingsMenuProvider = StateNotifierProvider.autoDispose<SettingsMenuController, SettingsMenuState>(
+  (ref) => SettingsMenuController(),
+);
+
+class SubtitleFlyout extends HookWidget {
   final Player player;
   final VoidCallback onClose;
   final VoidCallback onSearchTap;
@@ -380,11 +432,6 @@ class SubtitleFlyout extends StatefulWidget {
     required this.onSearchTap,
   });
 
-  @override
-  State<SubtitleFlyout> createState() => _SubtitleFlyoutState();
-}
-
-class _SubtitleFlyoutState extends State<SubtitleFlyout> {
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -403,7 +450,7 @@ class _SubtitleFlyoutState extends State<SubtitleFlyout> {
           ),
           ListTile(
             title: const Text("返回", style: TextStyle(color: Colors.blue)),
-            onTap: widget.onClose,
+            onTap: onClose,
           ),
         ],
       ),
@@ -411,17 +458,12 @@ class _SubtitleFlyoutState extends State<SubtitleFlyout> {
   }
 }
 
-class VolumeFlyout extends StatefulWidget {
+class VolumeFlyout extends HookWidget {
   final double volume;
   final Function(double) onVolumeChanged;
 
   const VolumeFlyout({super.key, required this.volume, required this.onVolumeChanged});
 
-  @override
-  State<VolumeFlyout> createState() => _VolumeFlyoutState();
-}
-
-class _VolumeFlyoutState extends State<VolumeFlyout> {
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -435,7 +477,7 @@ class _VolumeFlyoutState extends State<VolumeFlyout> {
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         children: [
-          Text("${widget.volume.toInt()}", style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+          Text("${volume.toInt()}", style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Expanded(
             child: RotatedBox(
@@ -450,10 +492,10 @@ class _VolumeFlyoutState extends State<VolumeFlyout> {
                   thumbColor: Colors.white,
                 ),
                 child: Slider(
-                  value: widget.volume,
+                  value: volume,
                   min: 0,
                   max: 100,
-                  onChanged: widget.onVolumeChanged,
+                  onChanged: onVolumeChanged,
                 ),
               ),
             ),

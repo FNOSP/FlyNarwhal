@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:lottie/lottie.dart';
 
-class FlyoutMenu extends StatefulWidget {
+class FlyoutMenu extends HookWidget {
   final Widget child;
   final Widget flyout;
   final bool isOpen;
@@ -27,257 +28,243 @@ class FlyoutMenu extends StatefulWidget {
   });
 
   @override
-  State<FlyoutMenu> createState() => _FlyoutMenuState();
-}
+  Widget build(BuildContext context) {
+    final targetKey = useMemoized(GlobalKey.new);
+    final flyoutKey = useMemoized(GlobalKey.new);
+    final overlayEntry = useRef<OverlayEntry?>(null);
+    final dismissTimer = useRef<Timer?>(null);
+    final lastPointerPosition = useRef<Offset?>(null);
+    final isMounted = useRef(true);
 
-class _FlyoutMenuState extends State<FlyoutMenu> {
-  final GlobalKey _targetKey = GlobalKey();
-  final GlobalKey _flyoutKey = GlobalKey();
-  OverlayEntry? _overlayEntry;
-  Timer? _dismissTimer;
-  Offset? _lastPointerPosition;
-
-  Offset? _computeAnchorPosition() {
-    final ctx = _targetKey.currentContext;
-    if (ctx == null) return null;
-    final renderObject = ctx.findRenderObject();
-    if (renderObject is! RenderBox) return null;
-    if (!renderObject.hasSize) return null;
-
-    final topLeft = renderObject.localToGlobal(Offset.zero);
-    final size = renderObject.size;
-    final targetFraction = _alignmentToFraction(widget.anchorAlignment);
-    return topLeft +
-        Offset(size.width * targetFraction.dx, size.height * targetFraction.dy) +
-        widget.offset;
-  }
-
-  Offset _alignmentToFraction(Alignment alignment) {
-    final dx = ((alignment.x + 1.0) / 2.0).clamp(0.0, 1.0);
-    final dy = ((alignment.y + 1.0) / 2.0).clamp(0.0, 1.0);
-    return Offset(dx, dy);
-  }
-
-  Rect? _globalRectForKey(GlobalKey key) {
-    final ctx = key.currentContext;
-    if (ctx == null) return null;
-    final renderObject = ctx.findRenderObject();
-    if (renderObject is! RenderBox) return null;
-    if (!renderObject.hasSize) return null;
-    final topLeft = renderObject.localToGlobal(Offset.zero);
-    return topLeft & renderObject.size;
-  }
-
-  bool _isPointerInHoverRegion() {
-    final pos = _lastPointerPosition;
-    if (pos == null) return false;
-    final targetRect = _globalRectForKey(_targetKey);
-    if (targetRect != null && targetRect.contains(pos)) return true;
-    final flyoutRect = _globalRectForKey(_flyoutKey);
-    if (flyoutRect != null && flyoutRect.contains(pos)) return true;
-    return false;
-  }
-
-  void _requestOpen() {
-    if (!widget.openOnHover) return;
-    if (widget.isOpen) return;
-    widget.onOpen?.call();
-  }
-
-  void _showOverlayAfterFrame() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (!widget.isOpen) return;
-      if (_overlayEntry != null) return;
-      _showOverlay();
-    });
-  }
-
-  @override
-  void didUpdateWidget(FlyoutMenu oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isOpen && !oldWidget.isOpen) {
-      _showOverlayAfterFrame();
-    } else if (!widget.isOpen && oldWidget.isOpen) {
-      _hideOverlay();
+    Offset alignmentToFraction(Alignment alignment) {
+      final dx = ((alignment.x + 1.0) / 2.0).clamp(0.0, 1.0);
+      final dy = ((alignment.y + 1.0) / 2.0).clamp(0.0, 1.0);
+      return Offset(dx, dy);
     }
-  }
 
-  void _showOverlay() {
-    if (_overlayEntry != null) return;
-    _overlayEntry = _createOverlayEntry();
-    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
-  }
+    Rect? globalRectForKey(GlobalKey key) {
+      final ctx = key.currentContext;
+      if (ctx == null) return null;
+      final renderObject = ctx.findRenderObject();
+      if (renderObject is! RenderBox) return null;
+      if (!renderObject.hasSize) return null;
+      final topLeft = renderObject.localToGlobal(Offset.zero);
+      return topLeft & renderObject.size;
+    }
 
-  void _hideOverlay() {
-    if (_overlayEntry == null) return;
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-  }
+    Offset? computeAnchorPosition() {
+      final ctx = targetKey.currentContext;
+      if (ctx == null) return null;
+      final renderObject = ctx.findRenderObject();
+      if (renderObject is! RenderBox) return null;
+      if (!renderObject.hasSize) return null;
 
-  OverlayEntry _createOverlayEntry() {
-    return OverlayEntry(
-      builder: (context) {
-        final anchor = _computeAnchorPosition();
-        if (anchor == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _overlayEntry?.markNeedsBuild();
-          });
-          return const SizedBox.shrink();
-        }
+      final topLeft = renderObject.localToGlobal(Offset.zero);
+      final size = renderObject.size;
+      final targetFraction = alignmentToFraction(anchorAlignment);
+      return topLeft +
+          Offset(size.width * targetFraction.dx, size.height * targetFraction.dy) +
+          offset;
+    }
 
-        final followerFraction = _alignmentToFraction(widget.flyoutAlignment);
-        final translation = Offset(-followerFraction.dx, -followerFraction.dy);
-        return Stack(
-          children: [
-            if (!widget.openOnHover)
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: widget.onDismiss,
-                  behavior: HitTestBehavior.translucent,
-                  child: Container(color: Colors.transparent),
+    bool isPointerInHoverRegion() {
+      final pos = lastPointerPosition.value;
+      if (pos == null) return false;
+      final targetRect = globalRectForKey(targetKey);
+      if (targetRect != null && targetRect.contains(pos)) return true;
+      final flyoutRect = globalRectForKey(flyoutKey);
+      if (flyoutRect != null && flyoutRect.contains(pos)) return true;
+      return false;
+    }
+
+    void cancelDismiss() {
+      dismissTimer.value?.cancel();
+      dismissTimer.value = null;
+    }
+
+    void hideOverlay() {
+      if (overlayEntry.value == null) return;
+      overlayEntry.value?.remove();
+      overlayEntry.value = null;
+    }
+
+    OverlayEntry createOverlayEntry() {
+      return OverlayEntry(
+        builder: (context) {
+          final anchor = computeAnchorPosition();
+          if (anchor == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              overlayEntry.value?.markNeedsBuild();
+            });
+            return const SizedBox.shrink();
+          }
+
+          final followerFraction = alignmentToFraction(flyoutAlignment);
+          final translation = Offset(-followerFraction.dx, -followerFraction.dy);
+          return Stack(
+            children: [
+              if (!openOnHover)
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: onDismiss,
+                    behavior: HitTestBehavior.translucent,
+                    child: Container(color: Colors.transparent),
+                  ),
                 ),
-              ),
-            Positioned(
-              left: anchor.dx,
-              top: anchor.dy,
-              child: FractionalTranslation(
-                translation: translation,
-                child: MouseRegion(
-                  onEnter: (_) {
-                    _cancelDismiss();
-                  },
-                  onHover: (event) {
-                    _lastPointerPosition = event.position;
-                    _cancelDismiss();
-                  },
-                  onExit: (_) {
-                    _scheduleDismiss();
-                  },
-                  child: Material(
-                    color: Colors.transparent,
-                    elevation: 0,
-                    child: KeyedSubtree(
-                      key: _flyoutKey,
-                      child: _FlyoutContent(child: widget.flyout),
+              Positioned(
+                left: anchor.dx,
+                top: anchor.dy,
+                child: FractionalTranslation(
+                  translation: translation,
+                  child: MouseRegion(
+                    onEnter: (_) {
+                      cancelDismiss();
+                    },
+                    onHover: (event) {
+                      lastPointerPosition.value = event.position;
+                      cancelDismiss();
+                    },
+                    onExit: (_) {
+                      if (!openOnHover) return;
+                      dismissTimer.value?.cancel();
+                      dismissTimer.value = Timer(const Duration(milliseconds: 120), () {
+                        if (!isMounted.value) return;
+                        if (!isOpen) return;
+                        if (isPointerInHoverRegion()) return;
+                        onDismiss();
+                      });
+                    },
+                    child: Material(
+                      color: Colors.transparent,
+                      elevation: 0,
+                      child: KeyedSubtree(
+                        key: flyoutKey,
+                        child: _FlyoutContent(child: flyout),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _cancelDismiss() {
-    _dismissTimer?.cancel();
-    _dismissTimer = null;
-  }
-
-  void _scheduleDismiss() {
-    if (!widget.openOnHover) return;
-    _dismissTimer?.cancel();
-    _dismissTimer = Timer(const Duration(milliseconds: 120), () {
-      if (!mounted) return;
-      if (!widget.isOpen) return;
-      if (_isPointerInHoverRegion()) return;
-      widget.onDismiss();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.isOpen && _overlayEntry == null) {
-      _showOverlayAfterFrame();
-    } else if (!widget.isOpen && _overlayEntry != null) {
-      _hideOverlay();
+            ],
+          );
+        },
+      );
     }
+
+    void showOverlay() {
+      if (overlayEntry.value != null) return;
+      overlayEntry.value = createOverlayEntry();
+      Overlay.of(context, rootOverlay: true).insert(overlayEntry.value!);
+    }
+
+    void showOverlayAfterFrame() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!isMounted.value) return;
+        if (!isOpen) return;
+        if (overlayEntry.value != null) return;
+        showOverlay();
+      });
+    }
+
+    void requestOpen() {
+      if (!openOnHover) return;
+      if (isOpen) return;
+      onOpen?.call();
+    }
+
+    useEffect(() {
+      return () {
+        isMounted.value = false;
+        cancelDismiss();
+        hideOverlay();
+      };
+    }, const []);
+
+    useEffect(() {
+      if (isOpen) {
+        showOverlayAfterFrame();
+      } else {
+        hideOverlay();
+      }
+      return null;
+    }, [isOpen]);
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
-        _cancelDismiss();
-        _requestOpen();
+        cancelDismiss();
+        requestOpen();
       },
       onHover: (event) {
-        _lastPointerPosition = event.position;
-        _cancelDismiss();
-        _requestOpen();
+        lastPointerPosition.value = event.position;
+        cancelDismiss();
+        requestOpen();
       },
       onExit: (_) {
-        _scheduleDismiss();
+        if (!openOnHover) return;
+        dismissTimer.value?.cancel();
+        dismissTimer.value = Timer(const Duration(milliseconds: 120), () {
+          if (!isMounted.value) return;
+          if (!isOpen) return;
+          if (isPointerInHoverRegion()) return;
+          onDismiss();
+        });
       },
       child: KeyedSubtree(
-        key: _targetKey,
-        child: widget.child,
+        key: targetKey,
+        child: child,
       ),
     );
   }
-
-  @override
-  void dispose() {
-    _cancelDismiss();
-    _hideOverlay();
-    super.dispose();
-  }
 }
 
-class _FlyoutContent extends StatefulWidget {
+class _FlyoutContent extends HookWidget {
   final Widget child;
 
   const _FlyoutContent({required this.child});
 
   @override
-  State<_FlyoutContent> createState() => _FlyoutContentState();
-}
-
-class _FlyoutContentState extends State<_FlyoutContent> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
-  late Animation<Offset> _slideAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
+  Widget build(BuildContext context) {
+    final controller = useAnimationController(
       duration: const Duration(milliseconds: 200),
     );
-    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _scaleAnimation = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    final fadeAnimation = useMemoized(
+      () => CurvedAnimation(parent: controller, curve: Curves.easeOut),
+      [controller],
     );
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    final scaleAnimation = useMemoized(
+      () => Tween<double>(begin: 0.4, end: 1.0).animate(
+        CurvedAnimation(parent: controller, curve: Curves.easeOut),
+      ),
+      [controller],
     );
-    _controller.forward();
-  }
+    final slideAnimation = useMemoized(
+      () => Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
+        CurvedAnimation(parent: controller, curve: Curves.easeOut),
+      ),
+      [controller],
+    );
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+    useEffect(() {
+      controller.forward();
+      return null;
+    }, [controller]);
 
-  @override
-  Widget build(BuildContext context) {
     return FadeTransition(
-      opacity: _fadeAnimation,
+      opacity: fadeAnimation,
       child: ScaleTransition(
-        scale: _scaleAnimation,
+        scale: scaleAnimation,
         alignment: Alignment.bottomCenter,
         child: SlideTransition(
-          position: _slideAnimation,
-          child: widget.child,
+          position: slideAnimation,
+          child: child,
         ),
       ),
     );
   }
 }
 
-class LottieIconButton extends StatefulWidget {
+class LottieIconButton extends HookWidget {
   final String assetName;
   final VoidCallback onTap;
   final bool animate;
@@ -294,50 +281,32 @@ class LottieIconButton extends StatefulWidget {
   });
 
   @override
-  State<LottieIconButton> createState() => _LottieIconButtonState();
-}
-
-class _LottieIconButtonState extends State<LottieIconButton> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
-  }
-
-  @override
-  void didUpdateWidget(LottieIconButton oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.animate && !oldWidget.animate) {
-      _controller.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = useAnimationController(duration: const Duration(milliseconds: 1000));
+
+    useEffect(() {
+      if (animate) {
+        controller.forward(from: 0);
+      }
+      return null;
+    }, [animate]);
+
     Widget icon = GestureDetector(
-      onTap: widget.onTap,
+      onTap: onTap,
       child: Lottie.asset(
-        'assets/${widget.assetName}',
-        controller: _controller,
-        width: widget.size,
-        height: widget.size,
+        'assets/$assetName',
+        controller: controller,
+        width: size,
+        height: size,
         fit: BoxFit.contain,
         onLoaded: (composition) {
-          _controller.duration = composition.duration;
+          controller.duration = composition.duration;
         },
       ),
     );
 
-    if (widget.tooltip != null) {
-      icon = Tooltip(message: widget.tooltip!, child: icon);
+    if (tooltip != null) {
+      icon = Tooltip(message: tooltip!, child: icon);
     }
 
     return icon;
@@ -397,7 +366,7 @@ class CustomProgressBar extends StatelessWidget {
   }
 }
 
-class CircularLoadingIndicator extends StatefulWidget {
+class CircularLoadingIndicator extends HookWidget {
   final double size;
   final Color color;
 
@@ -408,36 +377,23 @@ class CircularLoadingIndicator extends StatefulWidget {
   });
 
   @override
-  State<CircularLoadingIndicator> createState() => _CircularLoadingIndicatorState();
-}
-
-class _CircularLoadingIndicatorState extends State<CircularLoadingIndicator> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 1),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = useAnimationController(
+      duration: const Duration(seconds: 1),
+    );
+
+    useEffect(() {
+      controller.repeat();
+      return null;
+    }, [controller]);
+
     return RotationTransition(
-      turns: _controller,
+      turns: controller,
       child: SizedBox(
-        width: widget.size,
-        height: widget.size,
+        width: size,
+        height: size,
         child: CustomPaint(
-          painter: _RingPainter(color: widget.color),
+          painter: _RingPainter(color: color),
         ),
       ),
     );

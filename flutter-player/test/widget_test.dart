@@ -7,18 +7,25 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flutter_player/main.dart';
 
 void main() {
   testWidgets('Player screen smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MaterialApp(
-      home: PlayerScreen(
-        url: null,
-        title: 'Test Player',
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: PlayerScreen(
+            url: null,
+            title: 'Test Player',
+            enableWindowManager: false,
+            enablePlayerEngine: false,
+          ),
+        ),
       ),
-    ));
+    );
 
     // Verify that the player screen is rendered.
     expect(find.byType(PlayerScreen), findsOneWidget);

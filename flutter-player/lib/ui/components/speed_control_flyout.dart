@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 class SpeedItem {
   final String label;
@@ -18,7 +20,69 @@ const List<SpeedItem> speeds = [
   SpeedItem("0.5x", 0.5),
 ];
 
-class SpeedControlFlyout extends StatefulWidget {
+const int _flyoutAnimationDurationMs = 200;
+
+class SpeedFlyoutState {
+  final Size buttonSize;
+  final bool isExpanded;
+  final bool isButtonHovered;
+  final bool isPopupHovered;
+  final String? hoveredLabel;
+
+  const SpeedFlyoutState({
+    this.buttonSize = Size.zero,
+    this.isExpanded = false,
+    this.isButtonHovered = false,
+    this.isPopupHovered = false,
+    this.hoveredLabel,
+  });
+
+  SpeedFlyoutState copyWith({
+    Size? buttonSize,
+    bool? isExpanded,
+    bool? isButtonHovered,
+    bool? isPopupHovered,
+    String? hoveredLabel,
+  }) {
+    return SpeedFlyoutState(
+      buttonSize: buttonSize ?? this.buttonSize,
+      isExpanded: isExpanded ?? this.isExpanded,
+      isButtonHovered: isButtonHovered ?? this.isButtonHovered,
+      isPopupHovered: isPopupHovered ?? this.isPopupHovered,
+      hoveredLabel: hoveredLabel,
+    );
+  }
+}
+
+class SpeedFlyoutController extends StateNotifier<SpeedFlyoutState> {
+  SpeedFlyoutController() : super(const SpeedFlyoutState());
+
+  void setButtonSize(Size value) {
+    state = state.copyWith(buttonSize: value);
+  }
+
+  void setExpanded(bool value) {
+    state = state.copyWith(isExpanded: value);
+  }
+
+  void setButtonHovered(bool value) {
+    state = state.copyWith(isButtonHovered: value);
+  }
+
+  void setPopupHovered(bool value) {
+    state = state.copyWith(isPopupHovered: value);
+  }
+
+  void setHoveredLabel(String? value) {
+    state = state.copyWith(hoveredLabel: value);
+  }
+}
+
+final _speedFlyoutProvider = StateNotifierProvider.autoDispose<SpeedFlyoutController, SpeedFlyoutState>(
+  (ref) => SpeedFlyoutController(),
+);
+
+class SpeedControlFlyout extends HookConsumerWidget {
   final double currentSpeed;
   final ValueChanged<double> onSpeedChanged;
 
@@ -29,77 +93,80 @@ class SpeedControlFlyout extends StatefulWidget {
   });
 
   @override
-  State<SpeedControlFlyout> createState() => _SpeedControlFlyoutState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    const int hideDelayMs = 200;
+    const double flyoutWidth = 120;
 
-class _SpeedControlFlyoutState extends State<SpeedControlFlyout> {
-  final GlobalKey _buttonKey = GlobalKey();
-  Size _buttonSize = Size.zero;
-  bool _isExpanded = false;
-  bool _isButtonHovered = false;
-  bool _isPopupHovered = false;
-  Timer? _hideTimer;
+    final buttonKey = useMemoized(GlobalKey.new);
+    final hideTimer = useRef<Timer?>(null);
+    final animationController = useAnimationController(
+      duration: const Duration(milliseconds: _flyoutAnimationDurationMs),
+    );
+    final isMounted = useRef(true);
 
-  static const int hideDelayMs = 200;
-  static const double flyoutWidth = 120;
-
-  @override
-  void dispose() {
-    _hideTimer?.cancel();
-    super.dispose();
-  }
-
-  void _updateButtonSizeAfterFrame() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final ctx = _buttonKey.currentContext;
-      if (ctx == null) return;
-      final renderObject = ctx.findRenderObject();
-      if (renderObject is! RenderBox) return;
-      if (!renderObject.hasSize) return;
-      final nextSize = renderObject.size;
-      if (nextSize == _buttonSize) return;
-      setState(() {
-        _buttonSize = nextSize;
-      });
-    });
-  }
-
-  void _showFlyout() {
-    _hideTimer?.cancel();
-    if (!_isExpanded) {
-      setState(() {
-        _isExpanded = true;
+    void updateButtonSizeAfterFrame() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        final ctx = buttonKey.currentContext;
+        if (ctx == null) return;
+        final renderObject = ctx.findRenderObject();
+        if (renderObject is! RenderBox) return;
+        if (!renderObject.hasSize) return;
+        final nextSize = renderObject.size;
+        final currentSize = ref.read(_speedFlyoutProvider).buttonSize;
+        if (nextSize == currentSize) return;
+        ref.read(_speedFlyoutProvider.notifier).setButtonSize(nextSize);
       });
     }
-  }
 
-  void _hideFlyoutWithDelay() {
-    _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(milliseconds: hideDelayMs), () {
-      if (mounted && !_isButtonHovered && !_isPopupHovered) {
-        _flyoutAnimationKey.currentState?.animateClose();
+    void showFlyout() {
+      hideTimer.value?.cancel();
+      if (!ref.read(_speedFlyoutProvider).isExpanded) {
+        ref.read(_speedFlyoutProvider.notifier).setExpanded(true);
       }
-    });
-  }
+    }
 
-  final GlobalKey<_FlyoutWithAnimationState> _flyoutAnimationKey = GlobalKey();
+    Future<void> animateClose() async {
+      if (!ref.read(_speedFlyoutProvider).isExpanded) return;
+      if (animationController.status == AnimationStatus.dismissed) {
+        ref.read(_speedFlyoutProvider.notifier).setExpanded(false);
+        return;
+      }
+      await animationController.reverse();
+      if (!isMounted.value) return;
+      ref.read(_speedFlyoutProvider.notifier).setExpanded(false);
+    }
 
-  void _onAnimationFinished() {
-    if (mounted) {
-      setState(() {
-        _isExpanded = false;
+    void hideFlyoutWithDelay() {
+      hideTimer.value?.cancel();
+      hideTimer.value = Timer(const Duration(milliseconds: hideDelayMs), () {
+        final state = ref.read(_speedFlyoutProvider);
+        if (context.mounted && !state.isButtonHovered && !state.isPopupHovered) {
+          animateClose();
+        }
       });
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    _updateButtonSizeAfterFrame();
+    useEffect(() {
+      return () {
+        isMounted.value = false;
+        hideTimer.value?.cancel();
+      };
+    }, const []);
+
+    final flyoutState = ref.watch(_speedFlyoutProvider);
+    useEffect(() {
+      if (flyoutState.isExpanded) {
+        animationController.forward(from: 0);
+      }
+      return null;
+    }, [flyoutState.isExpanded]);
+
+    updateButtonSizeAfterFrame();
 
     String label = "倍速";
     try {
-      final item = speeds.firstWhere((s) => (s.value - widget.currentSpeed).abs() < 0.01);
+      final item = speeds.firstWhere((s) => (s.value - currentSpeed).abs() < 0.01);
       if (item.label != "1.0x") {
         label = item.label;
       }
@@ -108,21 +175,21 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout> {
     final button = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
-        _isButtonHovered = true;
-        _showFlyout();
+        ref.read(_speedFlyoutProvider.notifier).setButtonHovered(true);
+        showFlyout();
       },
       onExit: (_) {
-        _isButtonHovered = false;
-        _hideFlyoutWithDelay();
+        ref.read(_speedFlyoutProvider.notifier).setButtonHovered(false);
+        hideFlyoutWithDelay();
       },
       child: KeyedSubtree(
-        key: _buttonKey,
+        key: buttonKey,
         child: GestureDetector(
-          onTap: () {
-            if (_isExpanded) {
-              _flyoutAnimationKey.currentState?.animateClose();
+          onTap: () async {
+            if (flyoutState.isExpanded) {
+              await animateClose();
             } else {
-              _showFlyout();
+              showFlyout();
             }
           },
           child: Padding(
@@ -130,7 +197,7 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout> {
             child: Text(
               label,
               style: TextStyle(
-                color: _isButtonHovered || _isExpanded ? Colors.white : Colors.white.withAlpha(200),
+                color: flyoutState.isButtonHovered || flyoutState.isExpanded ? Colors.white : Colors.white.withAlpha(200),
                 fontSize: 17,
                 fontWeight: FontWeight.normal,
               ),
@@ -140,33 +207,32 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout> {
       ),
     );
 
-    final popup = _isExpanded
+    final popup = flyoutState.isExpanded
         ? Positioned(
-            left: (_buttonSize.width - flyoutWidth) / 2,
-            bottom: _buttonSize.height,
+            left: (flyoutState.buttonSize.width - flyoutWidth) / 2,
+            bottom: flyoutState.buttonSize.height,
             child: MouseRegion(
               onEnter: (_) {
-                _isPopupHovered = true;
-                _hideTimer?.cancel();
+                ref.read(_speedFlyoutProvider.notifier).setPopupHovered(true);
+                hideTimer.value?.cancel();
               },
               onExit: (_) {
-                _isPopupHovered = false;
-                _hideFlyoutWithDelay();
+                ref.read(_speedFlyoutProvider.notifier).setPopupHovered(false);
+                hideFlyoutWithDelay();
               },
               cursor: SystemMouseCursors.basic,
               child: Material(
                 color: Colors.transparent,
                 elevation: 0,
                 child: FlyoutWithAnimation(
-                  key: _flyoutAnimationKey,
+                  controller: animationController,
                   speeds: speeds,
-                  selectedSpeed: widget.currentSpeed,
+                  selectedSpeed: currentSpeed,
                   onSpeedClick: (speed) {
-                    widget.onSpeedChanged(speed);
-                    _isPopupHovered = false;
-                    _flyoutAnimationKey.currentState?.animateClose();
+                    onSpeedChanged(speed);
+                    ref.read(_speedFlyoutProvider.notifier).setPopupHovered(false);
+                    animateClose();
                   },
-                  onAnimationFinished: _onAnimationFinished,
                 ),
               ),
             ),
@@ -183,88 +249,60 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout> {
   }
 }
 
-class FlyoutWithAnimation extends StatefulWidget {
+class FlyoutWithAnimation extends HookWidget {
+  final AnimationController controller;
   final List<SpeedItem> speeds;
   final double selectedSpeed;
   final ValueChanged<double> onSpeedClick;
-  final VoidCallback onAnimationFinished;
 
   const FlyoutWithAnimation({
     super.key,
+    required this.controller,
     required this.speeds,
     required this.selectedSpeed,
     required this.onSpeedClick,
-    required this.onAnimationFinished,
   });
 
   @override
-  State<FlyoutWithAnimation> createState() => _FlyoutWithAnimationState();
-}
-
-class _FlyoutWithAnimationState extends State<FlyoutWithAnimation> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _alpha;
-  late Animation<double> _scale;
-  late Animation<double> _offsetY;
-
-  static const int animationDurationMs = 200;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: animationDurationMs),
-    );
-
-    _alpha = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.linear),
-    );
-
-    _scale = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.linear),
-    );
-
-    _offsetY = Tween<double>(begin: 10.0, end: 0.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.linear),
-    );
-
-    _controller.forward();
-  }
-
-  void animateClose() {
-    _controller.reverse().then((_) {
-      widget.onAnimationFinished();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final alpha = useMemoized(
+      () => Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: controller, curve: Curves.linear),
+      ),
+      [controller],
+    );
+    final scale = useMemoized(
+      () => Tween<double>(begin: 0.4, end: 1.0).animate(
+        CurvedAnimation(parent: controller, curve: Curves.linear),
+      ),
+      [controller],
+    );
+    final offsetY = useMemoized(
+      () => Tween<double>(begin: 10.0, end: 0.0).animate(
+        CurvedAnimation(parent: controller, curve: Curves.linear),
+      ),
+      [controller],
+    );
+
     return AnimatedBuilder(
-      animation: _controller,
+      animation: controller,
       builder: (context, child) {
         return Opacity(
-          opacity: _alpha.value,
+          opacity: alpha.value,
           child: Transform.translate(
-            offset: Offset(0, _offsetY.value),
+            offset: Offset(0, offsetY.value),
             child: Transform(
               alignment: Alignment.bottomCenter,
-              transform: Matrix4.diagonal3Values(_scale.value, _scale.value, 1.0),
+              transform: Matrix4.diagonal3Values(scale.value, scale.value, 1.0),
               child: child,
             ),
           ),
         );
       },
       child: FlyoutContent(
-        speeds: widget.speeds,
-        selectedSpeed: widget.selectedSpeed,
-        onSpeedClick: widget.onSpeedClick,
+        speeds: speeds,
+        selectedSpeed: selectedSpeed,
+        onSpeedClick: onSpeedClick,
       ),
     );
   }
@@ -310,7 +348,7 @@ class FlyoutContent extends StatelessWidget {
   }
 }
 
-class FlyoutItem extends StatefulWidget {
+class FlyoutItem extends ConsumerWidget {
   final SpeedItem speed;
   final bool isSelected;
   final VoidCallback onClick;
@@ -323,44 +361,38 @@ class FlyoutItem extends StatefulWidget {
   });
 
   @override
-  State<FlyoutItem> createState() => _FlyoutItemState();
-}
-
-class _FlyoutItemState extends State<FlyoutItem> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     const hoverBackgroundColor = Color(0x1AFFFFFF);
     const selectedTextColor = Color(0xFF2073DF);
     const defaultTextColor = Color(0xC8FFFFFF);
+    final isHovered = ref.watch(_speedFlyoutProvider).hoveredLabel == speed.label;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      onEnter: (_) => ref.read(_speedFlyoutProvider.notifier).setHoveredLabel(speed.label),
+      onExit: (_) => ref.read(_speedFlyoutProvider.notifier).setHoveredLabel(null),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: widget.onClick,
+        onTap: onClick,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 8),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: _isHovered ? hoverBackgroundColor : Colors.transparent,
+            color: isHovered ? hoverBackgroundColor : Colors.transparent,
             borderRadius: BorderRadius.circular(4),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                widget.speed.label,
+                speed.label,
                 style: TextStyle(
-                  color: widget.isSelected ? selectedTextColor : defaultTextColor,
+                  color: isSelected ? selectedTextColor : defaultTextColor,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                   decoration: TextDecoration.none,
                 ),
               ),
-              if (widget.isSelected)
+              if (isSelected)
                 const Icon(
                   Icons.check,
                   color: defaultTextColor,
