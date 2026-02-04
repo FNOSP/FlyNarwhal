@@ -182,12 +182,18 @@ final playerUiProvider = StateNotifierProvider<PlayerUiController, PlayerUiState
   (ref) => PlayerUiController(),
 );
 
-void main(List<String> args) async {
+Future<void> startPlayerApp({
+  required List<String> args,
+  bool enableWindowManager = true,
+  bool enablePlayerEngine = true,
+}) async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   MediaKit.ensureInitialized();
-  
-  await windowManager.ensureInitialized();
+
+  if (enableWindowManager) {
+    await windowManager.ensureInitialized();
+  }
 
   String? url;
   String? title;
@@ -196,8 +202,8 @@ void main(List<String> args) async {
   if (args.isNotEmpty) {
     url = args[0];
     if (args.length > 1) {
-        title = args[1];
-      }
+      title = args[1];
+    }
     if (args.length > 2) {
       try {
         final posMs = int.parse(args[2]);
@@ -219,10 +225,20 @@ void main(List<String> args) async {
             secondary: Colors.blueAccent,
           ),
         ),
-        home: PlayerScreen(url: url, title: title, startPosition: startPosition),
+        home: PlayerScreen(
+          url: url,
+          title: title,
+          startPosition: startPosition,
+          enableWindowManager: enableWindowManager,
+          enablePlayerEngine: enablePlayerEngine,
+        ),
       ),
     ),
   );
+}
+
+Future<void> main(List<String> args) async {
+  await startPlayerApp(args: args);
 }
 
 class _PlayerWindowListener extends WindowListener {}
@@ -355,51 +371,58 @@ class PlayerScreen extends HookConsumerWidget {
     }
 
     useEffect(() {
-      if (enableWindowManager) {
-        windowManager.addListener(windowListener);
-      }
-
-      if (enablePlayerEngine) {
-        try {
-          final player = Player();
-          final controller = VideoController(
-            player,
-            configuration: const VideoControllerConfiguration(
-              enableHardwareAcceleration: true,
-            ),
-          );
-          playerRef.value = player;
-          controllerRef.value = controller;
-          playerInitialized.value = true;
-          ref.read(playerUiProvider.notifier).setPlayerInitialized(true);
-          
-          subscriptionsRef.value = [
-            player.stream.position.listen((p) => ref.read(playerUiProvider.notifier).setPosition(p)),
-            player.stream.duration.listen((d) => ref.read(playerUiProvider.notifier).setDuration(d)),
-            player.stream.playing.listen((playing) => ref.read(playerUiProvider.notifier).setPlaying(playing)),
-            player.stream.buffering.listen((buffering) => ref.read(playerUiProvider.notifier).setBuffering(buffering)),
-            player.stream.volume.listen((volume) => ref.read(playerUiProvider.notifier).setVolume(volume / 100.0)),
-            player.stream.rate.listen((rate) => ref.read(playerUiProvider.notifier).setPlaybackSpeed(rate)),
-            player.stream.error.listen((error) {
-               debugPrint("Player Error: $error");
-            }),
-          ];
-
-          initPlayer();
-        } catch (e, stack) {
-          ref.read(playerUiProvider.notifier).setInitError(e.toString());
-          debugPrint("Error initializing player: $e");
-          debugPrint(stack.toString());
+      Future.microtask(() async {
+        if (!context.mounted) return;
+        if (enableWindowManager) {
+          windowManager.addListener(windowListener);
         }
-      }
 
-      if (enableWindowManager) {
-        startHttpServer();
-        initWindow();
-      }
-      if (enablePlayerEngine) {
-        fetchBridgeSettings();
-      }
+        if (enablePlayerEngine) {
+          try {
+            final player = Player();
+            final controller = VideoController(
+              player,
+              configuration: const VideoControllerConfiguration(
+                enableHardwareAcceleration: true,
+              ),
+            );
+            playerRef.value = player;
+            controllerRef.value = controller;
+            playerInitialized.value = true;
+            if (context.mounted) {
+              ref.read(playerUiProvider.notifier).setPlayerInitialized(true);
+            }
+
+            subscriptionsRef.value = [
+              player.stream.position.listen((p) => ref.read(playerUiProvider.notifier).setPosition(p)),
+              player.stream.duration.listen((d) => ref.read(playerUiProvider.notifier).setDuration(d)),
+              player.stream.playing.listen((playing) => ref.read(playerUiProvider.notifier).setPlaying(playing)),
+              player.stream.buffering.listen((buffering) => ref.read(playerUiProvider.notifier).setBuffering(buffering)),
+              player.stream.volume.listen((volume) => ref.read(playerUiProvider.notifier).setVolume(volume / 100.0)),
+              player.stream.rate.listen((rate) => ref.read(playerUiProvider.notifier).setPlaybackSpeed(rate)),
+              player.stream.error.listen((error) {
+                 debugPrint("Player Error: $error");
+              }),
+            ];
+
+            await initPlayer();
+          } catch (e, stack) {
+            if (context.mounted) {
+              ref.read(playerUiProvider.notifier).setInitError(e.toString());
+            }
+            debugPrint("Error initializing player: $e");
+            debugPrint(stack.toString());
+          }
+        }
+
+        if (enableWindowManager) {
+          await startHttpServer();
+          await initWindow();
+        }
+        if (enablePlayerEngine) {
+          await fetchBridgeSettings();
+        }
+      });
 
       return () {
         if (enableWindowManager) {
