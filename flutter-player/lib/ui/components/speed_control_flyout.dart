@@ -96,8 +96,12 @@ class SpeedControlFlyout extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     const int hideDelayMs = 200;
     const double flyoutWidth = 120;
+    const double flyoutGap = 14;
 
     final buttonKey = useMemoized(GlobalKey.new);
+    final flyoutKey = useMemoized(GlobalKey.new);
+    final overlayEntry = useRef<OverlayEntry?>(null);
+    final flyoutSize = useRef<Size?>(null);
     final hideTimer = useRef<Timer?>(null);
     final animationController = useAnimationController(
       duration: const Duration(milliseconds: _flyoutAnimationDurationMs),
@@ -119,6 +123,21 @@ class SpeedControlFlyout extends HookConsumerWidget {
       });
     }
 
+    void updateFlyoutSizeAfterFrame() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        final ctx = flyoutKey.currentContext;
+        if (ctx == null) return;
+        final renderObject = ctx.findRenderObject();
+        if (renderObject is! RenderBox) return;
+        if (!renderObject.hasSize) return;
+        final nextSize = renderObject.size;
+        if (nextSize == flyoutSize.value) return;
+        flyoutSize.value = nextSize;
+        overlayEntry.value?.markNeedsBuild();
+      });
+    }
+
     void showFlyout() {
       hideTimer.value?.cancel();
       if (!ref.read(_speedFlyoutProvider).isExpanded) {
@@ -137,27 +156,106 @@ class SpeedControlFlyout extends HookConsumerWidget {
       ref.read(_speedFlyoutProvider.notifier).setExpanded(false);
     }
 
-    void hideFlyoutWithDelay() {
+    void scheduleHideIfNotHovered() {
       hideTimer.value?.cancel();
       hideTimer.value = Timer(const Duration(milliseconds: hideDelayMs), () {
+        if (!context.mounted) {
+          return;
+        }
         final state = ref.read(_speedFlyoutProvider);
-        if (context.mounted && !state.isButtonHovered && !state.isPopupHovered) {
+        if (!state.isButtonHovered && !state.isPopupHovered) {
           animateClose();
         }
       });
+    }
+
+    OverlayEntry buildOverlayEntry() {
+      return OverlayEntry(
+        builder: (context) {
+          final ctx = buttonKey.currentContext;
+          if (ctx == null) return const SizedBox.shrink();
+          final renderObject = ctx.findRenderObject();
+          if (renderObject is! RenderBox) return const SizedBox.shrink();
+          if (!renderObject.hasSize) return const SizedBox.shrink();
+          final buttonOffset = renderObject.localToGlobal(Offset.zero);
+          final buttonSize = renderObject.size;
+          final flyoutHeight = flyoutSize.value?.height ?? 0;
+          updateFlyoutSizeAfterFrame();
+          return Stack(
+            children: [
+              Positioned(
+                left: buttonOffset.dx + (buttonSize.width - flyoutWidth) / 2,
+                top: buttonOffset.dy - flyoutHeight - flyoutGap,
+                child: MouseRegion(
+                  onEnter: (_) {
+                    ref.read(_speedFlyoutProvider.notifier).setPopupHovered(true);
+                    hideTimer.value?.cancel();
+                  },
+                  onHover: (_) {
+                    if (!ref.read(_speedFlyoutProvider).isPopupHovered) {
+                      ref.read(_speedFlyoutProvider.notifier).setPopupHovered(true);
+                    }
+                  },
+                  onExit: (_) {
+                    ref.read(_speedFlyoutProvider.notifier).setPopupHovered(false);
+                    scheduleHideIfNotHovered();
+                  },
+                  cursor: SystemMouseCursors.basic,
+                  child: Material(
+                    color: Colors.transparent,
+                    elevation: 0,
+                    child: KeyedSubtree(
+                      key: flyoutKey,
+                      child: FlyoutWithAnimation(
+                        controller: animationController,
+                        speeds: speeds,
+                        selectedSpeed: currentSpeed,
+                        onSpeedClick: (speed) {
+                          onSpeedChanged(speed);
+                          ref.read(_speedFlyoutProvider.notifier).setPopupHovered(false);
+                          animateClose();
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    void showOverlayAfterFrame() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        if (!ref.read(_speedFlyoutProvider).isExpanded) return;
+        if (overlayEntry.value != null) return;
+        overlayEntry.value = buildOverlayEntry();
+        Overlay.of(context, rootOverlay: true).insert(overlayEntry.value!);
+      });
+    }
+
+    void hideOverlay() {
+      overlayEntry.value?.remove();
+      overlayEntry.value = null;
     }
 
     useEffect(() {
       return () {
         isMounted.value = false;
         hideTimer.value?.cancel();
+        hideOverlay();
       };
     }, const []);
 
     final flyoutState = ref.watch(_speedFlyoutProvider);
     useEffect(() {
       if (flyoutState.isExpanded) {
+        showOverlayAfterFrame();
         animationController.forward(from: 0);
+      } else {
+        hideOverlay();
       }
       return null;
     }, [flyoutState.isExpanded]);
@@ -180,7 +278,7 @@ class SpeedControlFlyout extends HookConsumerWidget {
       },
       onExit: (_) {
         ref.read(_speedFlyoutProvider.notifier).setButtonHovered(false);
-        hideFlyoutWithDelay();
+        scheduleHideIfNotHovered();
       },
       child: KeyedSubtree(
         key: buttonKey,
@@ -207,43 +305,10 @@ class SpeedControlFlyout extends HookConsumerWidget {
       ),
     );
 
-    final popup = flyoutState.isExpanded
-        ? Positioned(
-            left: (flyoutState.buttonSize.width - flyoutWidth) / 2,
-            bottom: flyoutState.buttonSize.height,
-            child: MouseRegion(
-              onEnter: (_) {
-                ref.read(_speedFlyoutProvider.notifier).setPopupHovered(true);
-                hideTimer.value?.cancel();
-              },
-              onExit: (_) {
-                ref.read(_speedFlyoutProvider.notifier).setPopupHovered(false);
-                hideFlyoutWithDelay();
-              },
-              cursor: SystemMouseCursors.basic,
-              child: Material(
-                color: Colors.transparent,
-                elevation: 0,
-                child: FlyoutWithAnimation(
-                  controller: animationController,
-                  speeds: speeds,
-                  selectedSpeed: currentSpeed,
-                  onSpeedClick: (speed) {
-                    onSpeedChanged(speed);
-                    ref.read(_speedFlyoutProvider.notifier).setPopupHovered(false);
-                    animateClose();
-                  },
-                ),
-              ),
-            ),
-          )
-        : null;
-
     return Stack(
       clipBehavior: Clip.none,
       children: [
         button,
-        if (popup != null) popup,
       ],
     );
   }
