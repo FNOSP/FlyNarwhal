@@ -43,7 +43,7 @@ class HomeScreen extends ConsumerWidget {
                       child: Text('Error loading libraries: $err'),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                   playListAsync.when(
                     data: (data) => RecentlyWatched(
                       title: "继续观看",
@@ -52,7 +52,7 @@ class HomeScreen extends ConsumerWidget {
                     loading: () => const SizedBox.shrink(),
                     error: (err, stack) => const SizedBox.shrink(),
                   ),
-                  const SizedBox(height: 32),
+                  // const SizedBox(height: 12),
                   mediaDbListAsync.when(
                     data: (data) {
                       return Column(
@@ -69,7 +69,7 @@ class HomeScreen extends ConsumerWidget {
                     loading: () => const SizedBox.shrink(),
                     error: (err, stack) => const SizedBox.shrink(),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),

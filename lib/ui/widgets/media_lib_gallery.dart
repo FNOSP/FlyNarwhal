@@ -14,6 +14,24 @@ class MediaLibGallery extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final listAsync = ref.watch(itemListNotifierProvider(guid));
+    final scaleFactor = resolveWindowScaleFactor(context);
+    const posterWidth = 150.0;
+    const posterHeight = 225.0;
+    final scaledPosterHeight = posterHeight * scaleFactor;
+    final captionStyle = FluentTheme.of(context).typography.caption?.copyWith(fontSize: 12 * scaleFactor);
+    final subtitleStyle = FluentTheme.of(context).typography.caption?.copyWith(fontSize: 11 * scaleFactor);
+    double lineHeight(TextStyle? style) {
+      final painter = TextPainter(
+        text: TextSpan(text: 'A', style: style),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout(minWidth: 0, maxWidth: double.infinity);
+      return painter.height;
+    }
+    final titleHeight = lineHeight(captionStyle);
+    final subtitleLineHeight = lineHeight(subtitleStyle);
+    final textSpacing = (8 + 4) * scaleFactor;
+    final rowHeight = scaledPosterHeight + textSpacing + titleHeight + subtitleLineHeight * 2;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -26,9 +44,9 @@ class MediaLibGallery extends ConsumerWidget {
           data: (data) {
             if (data.list.isEmpty) return const SizedBox.shrink();
             return ScrollRow(
-              height: 280,
+              height: rowHeight,
               padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              itemSpacing: 16,
+              itemSpacing: 16 * scaleFactor,
               itemCount: data.list.length,
               itemBuilder: (context, index) {
                 final item = data.list[index];
@@ -40,19 +58,20 @@ class MediaLibGallery extends ConsumerWidget {
                   resolutions: item.mediaStream?.resolutions,
                   isFavorite: item.isFavorite == 1,
                   isWatched: (item.watched ?? 0) == 1,
-                  width: 150,
-                  height: 225,
+                  width: posterWidth,
+                  height: posterHeight,
+                  scaleFactor: scaleFactor,
                   onTap: () {},
                 );
               },
             );
           },
-          loading: () => const SizedBox(
-            height: 280,
-            child: Center(child: ProgressRing()),
+          loading: () => SizedBox(
+            height: rowHeight,
+            child: const Center(child: ProgressRing()),
           ),
           error: (err, stack) => SizedBox(
-            height: 280,
+            height: rowHeight,
             child: Center(child: Text('Error: $err')),
           ),
         ),

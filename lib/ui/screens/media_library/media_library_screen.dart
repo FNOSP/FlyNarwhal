@@ -15,6 +15,10 @@ class MediaLibraryScreen extends ConsumerWidget {
     final asyncData = ref.watch(mediaLibraryNotifierProvider(id!));
     final notifier = ref.read(mediaLibraryNotifierProvider(id!).notifier);
     final mdbName = asyncData.asData?.value.mdbName;
+    final scaleFactor = resolveWindowScaleFactor(context);
+    final gridSpacing = 16 * scaleFactor;
+    const posterWidth = 150.0;
+    const posterHeight = 225.0;
 
     return ScaffoldPage(
       header: PageHeader(title: Text(mdbName ?? '媒体库')),
@@ -29,11 +33,11 @@ class MediaLibraryScreen extends ConsumerWidget {
           data: (data) {
             if (data.list.isEmpty) return const Center(child: Text("No items"));
             return GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 200,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
+              padding: EdgeInsets.all(gridSpacing),
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 200 * scaleFactor,
+                mainAxisSpacing: gridSpacing,
+                crossAxisSpacing: gridSpacing,
                 childAspectRatio: 0.6,
               ),
               itemCount: data.list.length,
@@ -47,8 +51,9 @@ class MediaLibraryScreen extends ConsumerWidget {
                   resolutions: item.mediaStream?.resolutions,
                   isFavorite: item.isFavorite == 1,
                   isWatched: (item.watched ?? 0) == 1,
-                  width: 150,
-                  height: 225,
+                  width: posterWidth,
+                  height: posterHeight,
+                  scaleFactor: scaleFactor,
                   onTap: () {},
                 );
               },

@@ -15,7 +15,7 @@ class RecentlyWatched extends ConsumerWidget {
     super.key,
     required this.title,
     required this.items,
-    this.itemHeight = 240,
+    this.itemHeight = 190,
     this.padding = const EdgeInsets.symmetric(horizontal: 32),
   });
 
@@ -24,6 +24,7 @@ class RecentlyWatched extends ConsumerWidget {
     if (items.isEmpty) {
       return const SizedBox.shrink();
     }
+    final scaleFactor = resolveWindowScaleFactor(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -32,9 +33,9 @@ class RecentlyWatched extends ConsumerWidget {
           child: Text(title, style: FluentTheme.of(context).typography.subtitle),
         ),
         ScrollRow(
-          height: itemHeight,
+          height: itemHeight * scaleFactor,
           padding: padding,
-          itemSpacing: 16,
+          itemSpacing: 16 * scaleFactor,
           itemCount: items.length,
           itemBuilder: (context, index) {
             final item = items[index];
@@ -68,16 +69,20 @@ class RecentlyWatchedItem extends ConsumerWidget {
             if (cookie != null && cookie.isNotEmpty) 'Cookie': cookie,
           }
         : null;
-    final progress = item.watched == 0 ? 0.0 : 1.0;
+    final watchedTs = item.ts ?? 0;
+    final duration = item.duration ?? 0;
+    final progress = duration > 0 ? (watchedTs / duration).clamp(0.0, 1.0) : 0.0;
     final displayTitle = buildPlayDetailTitle(item);
     final displaySubtitle = buildPlayDetailSubtitle(item);
+    final scaleFactor = resolveWindowScaleFactor(context);
+    final posterWidth = 240 * scaleFactor;
 
     return HoverButton(
       onPressed: () {},
       builder: (context, states) {
         final isHovered = states.isHovered;
         return SizedBox(
-          width: 320,
+          width: posterWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -85,7 +90,7 @@ class RecentlyWatchedItem extends ConsumerWidget {
                 aspectRatio: 16 / 9,
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14 * scaleFactor),
                     border: Border.all(color: Colors.grey[160].withValues(alpha: 0.6)),
                     color: Colors.grey[160],
                   ),
@@ -104,16 +109,18 @@ class RecentlyWatchedItem extends ConsumerWidget {
                       else
                         const Center(child: Icon(FluentIcons.file_image)),
                       Align(
-                        alignment: Alignment.bottomCenter,
+                        alignment: Alignment.bottomLeft,
                         child: SizedBox(
+                          width: double.infinity,
                           height: 5,
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                                  Container(color: Colors.white.withValues(alpha: 0.05)),
+                              Container(color: Colors.white.withValues(alpha: 0.05)),
                               if (progress > 0)
                                 FractionallySizedBox(
                                   widthFactor: progress,
+                                  alignment: Alignment.centerLeft,
                                   child: Container(color: const Color(0xFF2073DF)),
                                 ),
                             ],
@@ -167,7 +174,7 @@ class RecentlyWatchedItem extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               SizedBox(
-                width: 320,
+                width: posterWidth,
                 child: Text(
                   displayTitle,
                   maxLines: 1,
@@ -183,7 +190,7 @@ class RecentlyWatchedItem extends ConsumerWidget {
               if (displaySubtitle != null) ...[
                 const SizedBox(height: 4),
                 SizedBox(
-                  width: 320,
+                  width: posterWidth,
                   child: Text(
                     displaySubtitle,
                     maxLines: 2,
@@ -203,4 +210,14 @@ class RecentlyWatchedItem extends ConsumerWidget {
       },
     );
   }
+}
+
+double resolveWindowScaleFactor(BuildContext context) {
+  final windowWidth = MediaQuery.of(context).size.width;
+  final windowScaleFactor = windowWidth / 1280.0;
+  if (windowScaleFactor == 1) {
+    return 1;
+  }
+  final scaled = 1 + (windowScaleFactor - 1) * 0.3;
+  return scaled.clamp(1.0, 1.3);
 }

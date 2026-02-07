@@ -10,6 +10,7 @@ class MoviePoster extends ConsumerWidget {
   final List<String>? resolutions;
   final double width;
   final double height;
+  final double scaleFactor;
   final String? score;
   final bool isFavorite;
   final bool isWatched;
@@ -27,6 +28,7 @@ class MoviePoster extends ConsumerWidget {
     this.resolutions,
     this.width = 150,
     this.height = 225,
+    this.scaleFactor = 1,
     this.score,
     this.isFavorite = false,
     this.isWatched = false,
@@ -56,21 +58,25 @@ class MoviePoster extends ConsumerWidget {
     final theme = FluentTheme.of(context);
     final formattedScore = formatVoteAverage(score);
     final showScore = formattedScore != '0.0';
+    final scaleFactor = this.scaleFactor;
+    final scaledWidth = width * scaleFactor;
+    final scaledHeight = height * scaleFactor;
+    final displayResolutions = normalizeResolutions(resolutions);
 
     return HoverButton(
       onPressed: onTap,
       builder: (context, states) {
         final isHovered = states.isHovered;
         return SizedBox(
-          width: width,
+          width: scaledWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                height: height,
-                width: width,
+                height: scaledHeight,
+                width: scaledWidth,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(14 * scaleFactor),
                   border: Border.all(color: Colors.grey[160].withValues(alpha: 0.6)),
                   color: Colors.grey[160],
                 ),
@@ -114,7 +120,7 @@ class MoviePoster extends ConsumerWidget {
                         duration: const Duration(milliseconds: 200),
                         opacity: isHovered ? 0 : 1,
                         child: Container(
-                          height: height / 2,
+                          height: scaledHeight / 2,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.bottomCenter,
@@ -128,29 +134,46 @@ class MoviePoster extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    if (resolutions != null && resolutions!.isNotEmpty)
+                    if (displayResolutions.isNotEmpty)
                       Positioned(
                         right: 6,
                         bottom: 6,
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
-                          children: resolutions!.map((resolution) {
-                            final isK = resolution.toLowerCase().endsWith('k');
+                          children: displayResolutions.map((resolution) {
+                            final lowerResolution = resolution.toLowerCase();
+                            final isK = lowerResolution.endsWith('k');
+                            final isP = lowerResolution.endsWith('p');
+                            final label =
+                                isK ? resolution.toUpperCase() : (isP ? resolution.substring(0, resolution.length - 1) : resolution);
                             return Padding(
-                              padding: const EdgeInsets.only(left: 4),
+                              padding: EdgeInsets.only(left: 4 * scaleFactor),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                padding: EdgeInsets.fromLTRB(
+                                  (isK ? 6 : 2) * scaleFactor,
+                                  0.2 * scaleFactor,
+                                  (isK ? 6 : 2) * scaleFactor,
+                                  0.2 * scaleFactor,
+                                ),
                                 decoration: BoxDecoration(
                                   color: isK ? Colors.white.withValues(alpha: 0.8) : Colors.transparent,
-                                  border: isK ? null : Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
-                                  borderRadius: BorderRadius.circular(3),
+                                  border: isK
+                                      ? null
+                                      : Border.all(
+                                          color: Colors.white.withValues(alpha: 0.6),
+                                        width: 2 * scaleFactor,
+                                        ),
+                                  borderRadius: BorderRadius.circular(4 * scaleFactor),
                                 ),
-                                child: Text(
-                                  isK ? resolution.toUpperCase() : resolution.replaceAll(RegExp('[kK]'), ''),
-                                  style: TextStyle(
-                                    color: isK ? Colors.black.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.6),
-                                    fontSize: 11,
-                                    fontWeight: isK ? FontWeight.w800 : FontWeight.bold,
+                                child: Transform.translate(
+                                  offset: Offset(0, -0.6 * scaleFactor),
+                                  child: Text(
+                                    label,
+                                    style: TextStyle(
+                                      color: isK ? Colors.black.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.6),
+                                      fontSize: (isK ? 12 : 10) * scaleFactor,
+                                      fontWeight: isK ? FontWeight.w800 : FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -214,9 +237,9 @@ class MoviePoster extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8 * scaleFactor),
               SizedBox(
-                width: width,
+                width: scaledWidth,
                 child: Text(
                   title,
                   maxLines: 1,
@@ -224,15 +247,15 @@ class MoviePoster extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                   style: theme.typography.caption?.copyWith(
                     fontWeight: FontWeight.normal,
-                    fontSize: 12,
+                    fontSize: 12 * scaleFactor,
                     color: isHovered ? const Color(0xFF2073DF) : theme.typography.body?.color,
                   ),
                 ),
               ),
               if (subtitle != null && subtitle!.isNotEmpty) ...[
-                const SizedBox(height: 4),
+                SizedBox(height: 4 * scaleFactor),
                 SizedBox(
-                  width: width,
+                  width: scaledWidth,
                   child: Text(
                     subtitle!,
                     maxLines: 2,
@@ -240,7 +263,7 @@ class MoviePoster extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.typography.caption?.copyWith(
                       fontWeight: FontWeight.normal,
-                      fontSize: 11,
+                      fontSize: 11 * scaleFactor,
                       color: theme.typography.caption?.color?.withValues(alpha: 0.7),
                     ),
                   ),
@@ -263,4 +286,31 @@ String formatVoteAverage(String? value) {
     return '0.0';
   }
   return parsed.toStringAsFixed(1);
+}
+
+double resolveWindowScaleFactor(BuildContext context) {
+  final windowWidth = MediaQuery.of(context).size.width;
+  final windowScaleFactor = windowWidth / 1280.0;
+  if (windowScaleFactor == 1) {
+    return 1;
+  }
+  final scaled = 1 + (windowScaleFactor - 1) * 0.3;
+  return scaled.clamp(1.0, 1.1);
+}
+
+List<String> normalizeResolutions(List<String>? input) {
+  if (input == null || input.isEmpty) {
+    return [];
+  }
+  final seen = <String>{};
+  final result = <String>[];
+  for (final resolution in input) {
+    if (resolution == 'Others') {
+      continue;
+    }
+    if (seen.add(resolution)) {
+      result.add(resolution);
+    }
+  }
+  return result;
 }
