@@ -21,6 +21,22 @@ class MediaDbListNotifier extends _$MediaDbListNotifier {
 }
 
 @riverpod
+class MediaSumNotifier extends _$MediaSumNotifier {
+  @override
+  FutureOr<Map<String, int>> build() async {
+    final dioClient = ref.read(dioClientProvider);
+    final response = await dioClient.dio.get('/v/api/v1/mediadb/sum');
+    final baseResponse = FnBaseResponse<Map<String, int>>.fromJson(
+      response.data,
+      (json) => (json as Map<String, dynamic>)
+          .map((key, value) => MapEntry(key, value as int)),
+    );
+    if (baseResponse.code != 0) throw Exception(baseResponse.msg);
+    return baseResponse.data ?? {};
+  }
+}
+
+@riverpod
 class PlayListNotifier extends _$PlayListNotifier {
   @override
   FutureOr<List<PlayDetailResponse>> build() async {

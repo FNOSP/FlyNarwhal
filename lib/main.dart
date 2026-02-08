@@ -11,13 +11,17 @@ void main() async {
   await acrylic.Window.initialize();
   await windowManager.ensureInitialized();
 
-  const windowOptions = WindowOptions(
+  final devicePixelRatio = windowManager.getDevicePixelRatio();
+  final logicalWidth = 1280 / devicePixelRatio;
+  final logicalHeight = 720 / devicePixelRatio;
+  final windowOptions = WindowOptions(
     title: 'Fly Narwhal',
-    size: Size(1200, 800),
+    size: Size(logicalWidth, logicalHeight),
     center: true,
   );
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.setMinimumSize(Size(logicalWidth, logicalHeight));
     await windowManager.show();
     await windowManager.focus();
   });

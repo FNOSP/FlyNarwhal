@@ -282,8 +282,30 @@ class ItemListQueryRequest {
 @JsonSerializable()
 class Tags {
   final List<String> type;
+  final int? genres;
+  final String? resolution;
+  @JsonKey(name: 'color_range')
+  final String? colorRange;
+  @JsonKey(name: 'locate')
+  final String? locate;
+  final String? decade;
+  @JsonKey(name: 'recognition_status')
+  final String? recognitionStatus;
+  final String? watched;
+  @JsonKey(name: 'audio_type')
+  final String? audioType;
   
-  Tags({required this.type});
+  Tags({
+    required this.type,
+    this.genres,
+    this.resolution,
+    this.colorRange,
+    this.locate,
+    this.decade,
+    this.recognitionStatus,
+    this.watched,
+    this.audioType,
+  });
 
   factory Tags.fromJson(Map<String, dynamic> json) => _$TagsFromJson(json);
   Map<String, dynamic> toJson() => _$TagsToJson(this);

@@ -7,7 +7,7 @@ part of 'media_library_view_model.dart';
 // **************************************************************************
 
 String _$mediaLibraryNotifierHash() =>
-    r'f4883e5ffd576dd898fb102639b9015f0fe1e62e';
+    r'5ab7bd5be43c3aa3000dcd58e1c3e6130f982bbf';
 
 /// Copied from Dart SDK
 class _SystemHash {

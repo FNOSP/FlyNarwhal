@@ -176,8 +176,24 @@ Map<String, dynamic> _$ItemListQueryRequestToJson(
 
 Tags _$TagsFromJson(Map<String, dynamic> json) => Tags(
       type: (json['type'] as List<dynamic>).map((e) => e as String).toList(),
+      genres: (json['genres'] as num?)?.toInt(),
+      resolution: json['resolution'] as String?,
+      colorRange: json['color_range'] as String?,
+      locate: json['locate'] as String?,
+      decade: json['decade'] as String?,
+      recognitionStatus: json['recognition_status'] as String?,
+      watched: json['watched'] as String?,
+      audioType: json['audio_type'] as String?,
     );
 
 Map<String, dynamic> _$TagsToJson(Tags instance) => <String, dynamic>{
       'type': instance.type,
+      'genres': instance.genres,
+      'resolution': instance.resolution,
+      'color_range': instance.colorRange,
+      'locate': instance.locate,
+      'decade': instance.decade,
+      'recognition_status': instance.recognitionStatus,
+      'watched': instance.watched,
+      'audio_type': instance.audioType,
     };

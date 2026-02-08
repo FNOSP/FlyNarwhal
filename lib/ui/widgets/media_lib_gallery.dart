@@ -15,8 +15,8 @@ class MediaLibGallery extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final listAsync = ref.watch(itemListNotifierProvider(guid));
     final scaleFactor = resolveWindowScaleFactor(context);
-    const posterWidth = 150.0;
     const posterHeight = 225.0;
+    const posterWidth = posterHeight * 9 / 16;
     final scaledPosterHeight = posterHeight * scaleFactor;
     final captionStyle = FluentTheme.of(context).typography.caption?.copyWith(fontSize: 12 * scaleFactor);
     final subtitleStyle = FluentTheme.of(context).typography.caption?.copyWith(fontSize: 11 * scaleFactor);

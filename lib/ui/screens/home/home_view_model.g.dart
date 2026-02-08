@@ -24,6 +24,22 @@ final mediaDbListNotifierProvider = AutoDisposeAsyncNotifierProvider<
 
 typedef _$MediaDbListNotifier
     = AutoDisposeAsyncNotifier<List<MediaDbListResponse>>;
+String _$mediaSumNotifierHash() => r'2f7e0cfd2e842062142c84f0c33477b14314c42e';
+
+/// See also [MediaSumNotifier].
+@ProviderFor(MediaSumNotifier)
+final mediaSumNotifierProvider = AutoDisposeAsyncNotifierProvider<
+    MediaSumNotifier, Map<String, int>>.internal(
+  MediaSumNotifier.new,
+  name: r'mediaSumNotifierProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$mediaSumNotifierHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$MediaSumNotifier = AutoDisposeAsyncNotifier<Map<String, int>>;
 String _$playListNotifierHash() => r'057f952aa67f3ed6e3be593339b514307a43b62f';
 
 /// See also [PlayListNotifier].
@@ -40,7 +56,7 @@ final playListNotifierProvider = AutoDisposeAsyncNotifierProvider<
 );
 
 typedef _$PlayListNotifier = AutoDisposeAsyncNotifier<List<PlayDetailResponse>>;
-String _$itemListNotifierHash() => r'0b68766d5c775a28ee88a2242c4b9f077fbd3db9';
+String _$itemListNotifierHash() => r'fa9e8bf4500c00be2bbd7d9a3376b8614ce2f169';
 
 /// Copied from Dart SDK
 class _SystemHash {

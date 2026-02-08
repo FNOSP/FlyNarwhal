@@ -1,24 +1,24 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../data/models/home_models.dart';
-import '../../../data/models/base_response.dart';
-import '../../../data/models/tag_models.dart';
-import '../../../providers/providers.dart';
-import '../../widgets/movie_poster.dart';
 import '../../widgets/filter_box.dart';
 import '../../widgets/sort_flyout.dart';
-import '../home/home_view_model.dart';
+import '../../../data/models/home_models.dart';
+import '../../../data/models/tag_models.dart';
+import '../../../providers/providers.dart';
+import '../../../data/models/base_response.dart';
+import '../../widgets/movie_poster.dart';
 
-class MediaLibraryScreen extends ConsumerStatefulWidget {
-  final String? id;
-  final String? categoryType;
-  const MediaLibraryScreen({super.key, this.id, this.categoryType});
+final _tabs = <String>['全部', '电影', '电视节目', '单集', '人物'];
+
+class FavoritesScreen extends ConsumerStatefulWidget {
+  const FavoritesScreen({super.key});
 
   @override
-  ConsumerState<MediaLibraryScreen> createState() => _MediaLibraryScreenState();
+  ConsumerState<FavoritesScreen> createState() => _FavoritesScreenState();
 }
 
-class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
+class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
+  String _selectedTab = _tabs.first;
   bool _isFilterOpen = false;
   Map<String, FilterItem> _selectedFilters = {};
   String _sortColumn = 'create_time';
@@ -39,90 +39,14 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     _refresh(force: true);
   }
 
-  @override
-  void didUpdateWidget(covariant MediaLibraryScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.id != widget.id || oldWidget.categoryType != widget.categoryType) {
-      setState(() {
-        _isFilterOpen = false;
-        _selectedFilters = {};
-        _sortColumn = 'create_time';
-        _sortOrder = 'DESC';
-        _page = 1;
-        _isLoadingMore = false;
-        _items = [];
-        _mdbName = null;
-        _tagList = null;
-        _genres = null;
-        _iso3166 = null;
-      });
-      _loadStaticTags();
-      _refresh(force: true);
-    }
-  }
-
-  String _resolveTitle() {
-    switch (widget.categoryType) {
-      case 'total':
-        return '全部';
-      case 'tv':
-        return '电视节目';
-      case 'movie':
-        return '电影';
-      case 'video':
-        return '其他';
-      default:
-        return '媒体库';
-    }
-  }
-
-  String? _resolveMediaDbTitle(List<MediaDbListResponse> list) {
-    if (widget.id == null) return null;
-    for (final item in list) {
-      if (item.guid == widget.id) {
-        return item.title;
-      }
-    }
-    return null;
-  }
-
-  String? _categoryTagType(String? category) {
-    switch (category) {
-      case 'movie':
-        return 'Movie';
-      case 'tv':
-        return 'TV';
-      case 'video':
-        return 'Video';
-      case 'total':
-        return null;
-      default:
-        return null;
-    }
-  }
-
-  List<String> _categoryTypes(String? category) {
-    switch (category) {
-      case 'movie':
-        return ['Movie'];
-      case 'tv':
-        return ['TV', 'Season'];
-      case 'video':
-        return ['Video'];
-      case 'total':
-      default:
-        return ['Movie', 'TV', 'Directory', 'Video'];
-    }
-  }
-
   Future<void> _loadStaticTags() async {
     final repo = ref.read(tagRepositoryProvider);
     try {
-      final tagList = await repo.getTagList(
-        ancestorGuid: widget.id,
-        isFavorite: 0,
-        type: widget.id == null ? _categoryTagType(widget.categoryType) : null,
-      );
+      TagListResponse? tagList;
+      if (_selectedTab != '人物') {
+        final type = _getTypeForTagApi(_selectedTab);
+        tagList = await repo.getTagList(ancestorGuid: null, isFavorite: 1, type: type);
+      }
       final genres = await repo.getGenres(lan: 'zh');
       final iso3166 = await repo.getTag('iso3166', lan: 'zh');
       await repo.getTag('iso6391', lan: 'zh');
@@ -131,13 +55,41 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         _genres = genres;
         _iso3166 = iso3166;
       });
-    } catch (_) {}
+    } catch (_) {
+    }
   }
 
-  Tags _buildTags(Map<String, FilterItem> filters) {
-    final types = List<String>.from(
-      widget.id == null ? _categoryTypes(widget.categoryType) : ['Movie', 'TV', 'Directory', 'Video'],
-    );
+  List<String>? _getTypesForTab(String tab) {
+    switch (tab) {
+      case '电影':
+        return ['Movie'];
+      case '电视节目':
+        return ['TV', 'Season'];
+      case '单集':
+        return ['Episode'];
+      case '人物':
+        return ['Person'];
+      case '全部':
+      default:
+        return null;
+    }
+  }
+
+  String? _getTypeForTagApi(String tab) {
+    switch (tab) {
+      case '电影':
+        return 'Movie';
+      case '电视节目':
+        return 'TV';
+      case '单集':
+        return 'Episode';
+      default:
+        return null;
+    }
+  }
+
+  Tags _buildTagsForTab(String tab, Map<String, FilterItem> filters) {
+    final types = List<String>.from(_getTypesForTab(tab) ?? ['Movie', 'TV', 'Directory', 'Video']);
     int? genres;
     String? resolution;
     String? colorRange;
@@ -207,9 +159,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     if (_isLoadingMore) return;
     _isLoadingMore = true;
     final dioClient = ref.read(dioClientProvider);
-    final tags = _buildTags(_selectedFilters);
+    final tags = _buildTagsForTab(_selectedTab, _selectedFilters);
     final request = ItemListQueryRequest(
-      ancestorGuid: widget.id,
       tags: tags,
       page: page,
       pageSize: 50,
@@ -217,7 +168,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       sortType: _sortOrder,
     );
     final response = await dioClient.dio.post(
-      '/v/api/v1/item/list',
+      '/v/api/v1/favorite/list',
       data: request.toJson(),
     );
     final baseResponse = FnBaseResponse<ItemListQueryResponse>.fromJson(
@@ -229,11 +180,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       return;
     }
     final data = baseResponse.data ?? ItemListQueryResponse();
-    final resolvedMdbName = (data.mdbName != null && data.mdbName!.trim().isNotEmpty)
-        ? data.mdbName
-        : null;
     setState(() {
-      _mdbName = widget.id != null ? resolvedMdbName : null;
+      _mdbName = data.mdbName;
       if (page == 1) {
         _items = data.list;
       } else {
@@ -261,16 +209,11 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.id == null && widget.categoryType == null) {
-      return const Center(child: Text("Invalid Library ID"));
-    }
     final scaleFactor = resolveWindowScaleFactor(context);
-    final mediaDbList = ref.watch(mediaDbListNotifierProvider).asData?.value ?? const [];
-    final mediaDbTitle = _resolveMediaDbTitle(mediaDbList);
-    final title = widget.id != null ? (_mdbName ?? mediaDbTitle ?? '媒体库') : _resolveTitle();
+    final headerTitle = _mdbName ?? '收藏';
 
     return ScaffoldPage(
-      header: PageHeader(title: Text(title)),
+      header: PageHeader(title: Text(headerTitle)),
       content: NotificationListener<ScrollNotification>(
         onNotification: (scrollInfo) {
           if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
@@ -282,15 +225,54 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  ..._tabs.map((tab) {
+                    final isSelected = tab == _selectedTab;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: HoverButton(
+                        onPressed: () {
+                          if (_selectedTab != tab) {
+                            setState(() {
+                              _selectedTab = tab;
+                              _isFilterOpen = false;
+                            });
+                            _loadStaticTags();
+                            _refresh(force: true);
+                          }
+                        },
+                        builder: (context, states) => Text(
+                          tab,
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected ? const Color(0xFF2073DF) : FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              height: 1,
+              color: FluentTheme.of(context).resources.controlStrokeColorDefault.withValues(alpha: 0.1),
+            ),
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Row(
                 children: [
-                  FilterButton(
-                    isSelected: _isFilterOpen,
-                    selectedFilters: _selectedFilters,
-                    onFilterClear: _onClearFilter,
-                    onClick: () => setState(() => _isFilterOpen = !_isFilterOpen),
-                  ),
+                  if (_selectedTab != '人物')
+                    FilterButton(
+                      isSelected: _isFilterOpen,
+                      selectedFilters: _selectedFilters,
+                      onFilterClear: _onClearFilter,
+                      onClick: () => setState(() => _isFilterOpen = !_isFilterOpen),
+                    ),
                   const SizedBox(width: 8),
                   SortFlyout(
                     onSortTypeSelected: (type) {
@@ -301,6 +283,12 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                       setState(() => _sortOrder = order);
                       _refresh(force: true);
                     },
+                    sortOptions: const [
+                      SortItem('收藏时间', 'create_time'),
+                      SortItem('发行年份', 'release_date'),
+                      SortItem('标题', 'sort_title'),
+                      SortItem('评分', 'vote_average'),
+                    ],
                   ),
                 ],
               ),

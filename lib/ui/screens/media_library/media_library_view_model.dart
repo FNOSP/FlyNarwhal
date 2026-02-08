@@ -20,17 +20,12 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
 
   Future<ItemListQueryResponse> _fetch(String guid, {required int page}) async {
     final dioClient = ref.read(dioClientProvider);
-    
-    final request = ItemListQueryRequest(
-      ancestorGuid: guid,
-      tags: Tags(type: ["Movie", "TV", "Directory", "Video"]),
-      page: page,
-      pageSize: 50,
-    );
+    final query = _buildQuery(guid, page);
+    final endpoint = _resolveEndpoint(guid);
 
     final response = await dioClient.dio.post(
-      '/v/api/v1/item/list',
-      data: request.toJson(),
+      endpoint,
+      data: query.toJson(),
     );
     
     final baseResponse = FnBaseResponse<ItemListQueryResponse>.fromJson(
@@ -40,6 +35,52 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
     
     if (baseResponse.code != 0) throw Exception(baseResponse.msg);
     return baseResponse.data ?? ItemListQueryResponse();
+  }
+
+  ItemListQueryRequest _buildQuery(String guid, int page) {
+    if (guid.startsWith('category:')) {
+      final category = guid.substring('category:'.length);
+      final types = _categoryTypes(category);
+      return ItemListQueryRequest(
+        tags: Tags(type: types),
+        page: page,
+        pageSize: 50,
+      );
+    }
+    if (guid == 'favorite') {
+      return ItemListQueryRequest(
+        tags: Tags(type: ["Movie", "TV", "Directory", "Video"]),
+        page: page,
+        pageSize: 50,
+      );
+    }
+    return ItemListQueryRequest(
+      ancestorGuid: guid,
+      tags: Tags(type: ["Movie", "TV", "Directory", "Video"]),
+      page: page,
+      pageSize: 50,
+    );
+  }
+
+  String _resolveEndpoint(String guid) {
+    if (guid == 'favorite') {
+      return '/v/api/v1/favorite/list';
+    }
+    return '/v/api/v1/item/list';
+  }
+
+  List<String> _categoryTypes(String category) {
+    switch (category) {
+      case 'movie':
+        return ["Movie"];
+      case 'tv':
+        return ["TV"];
+      case 'video':
+        return ["Video"];
+      case 'total':
+      default:
+        return ["Movie", "TV", "Directory", "Video"];
+    }
   }
 
   Future<void> loadMore() async {
