@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/home_models.dart';
 import '../../providers/providers.dart';
@@ -30,6 +31,7 @@ class MediaLibCardRow extends ConsumerWidget {
           }
         : null;
     final itemHeight = 160 * scaleFactor;
+    final cacheManager = ref.watch(imageCacheManagerProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,6 +60,7 @@ class MediaLibCardRow extends ConsumerWidget {
                   httpHeaders: httpHeaders,
                   scaleFactor: scaleFactor,
                   isHovered: states.isHovered,
+                  cacheManager: cacheManager,
                 );
               },
             );
@@ -75,6 +78,7 @@ class MediaLibraryCard extends StatelessWidget {
   final Map<String, String>? httpHeaders;
   final double scaleFactor;
   final bool isHovered;
+  final CacheManager cacheManager;
 
   const MediaLibraryCard({
     super.key,
@@ -84,6 +88,7 @@ class MediaLibraryCard extends StatelessWidget {
     required this.httpHeaders,
     required this.scaleFactor,
     required this.isHovered,
+    required this.cacheManager,
   });
 
   @override
@@ -124,6 +129,7 @@ class MediaLibraryCard extends StatelessWidget {
                               posters: visiblePosters,
                               baseUrl: baseUrl,
                               httpHeaders: httpHeaders,
+                              cacheManager: cacheManager,
                             ),
                           ),
                           Expanded(
@@ -135,6 +141,7 @@ class MediaLibraryCard extends StatelessWidget {
                                 posters: visiblePosters,
                                 baseUrl: baseUrl,
                                 httpHeaders: httpHeaders,
+                                cacheManager: cacheManager,
                               ),
                             ),
                           ),
@@ -184,11 +191,13 @@ class _PosterRow extends StatelessWidget {
   final List<String> posters;
   final String? baseUrl;
   final Map<String, String>? httpHeaders;
+  final CacheManager cacheManager;
 
   const _PosterRow({
     required this.posters,
     required this.baseUrl,
     required this.httpHeaders,
+    required this.cacheManager,
   });
 
   @override
@@ -215,6 +224,7 @@ class _PosterRow extends StatelessWidget {
                   poster: poster,
                   baseUrl: baseUrl,
                   httpHeaders: httpHeaders,
+                  cacheManager: cacheManager,
                 ),
               );
             }).toList(),
@@ -229,11 +239,13 @@ class _PosterImage extends StatelessWidget {
   final String poster;
   final String? baseUrl;
   final Map<String, String>? httpHeaders;
+  final CacheManager cacheManager;
 
   const _PosterImage({
     required this.poster,
     required this.baseUrl,
     required this.httpHeaders,
+    required this.cacheManager,
   });
 
   @override
@@ -250,7 +262,9 @@ class _PosterImage extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: imageUrl,
       httpHeaders: httpHeaders,
+      cacheManager: cacheManager,
       fit: BoxFit.cover,
+      fadeOutDuration: const Duration(milliseconds: 120),
       errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
       placeholder: (context, url) => const Center(child: ProgressRing()),
     );

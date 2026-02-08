@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:system_info2/system_info2.dart';
 import 'providers/providers.dart';
 import 'ui/navigation/app_router.dart';
 import 'package:window_manager/window_manager.dart';
@@ -8,6 +9,10 @@ import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final freeMemoryBytes = SysInfo.getFreePhysicalMemory();
+  if (freeMemoryBytes > 0) {
+    PaintingBinding.instance.imageCache.maximumSizeBytes = (freeMemoryBytes * 0.05).round();
+  }
   await acrylic.Window.initialize();
   await windowManager.ensureInitialized();
 

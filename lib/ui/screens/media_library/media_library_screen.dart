@@ -266,6 +266,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     }
     final scaleFactor = resolveWindowScaleFactor(context);
     final mediaDbList = ref.watch(mediaDbListNotifierProvider).asData?.value ?? const [];
+    const posterHeight = 200.0;
+    const posterWidth = posterHeight * 2 / 3;
     final mediaDbTitle = _resolveMediaDbTitle(mediaDbList);
     final title = widget.id != null ? (_mdbName ?? mediaDbTitle ?? '媒体库') : _resolveTitle();
 
@@ -331,9 +333,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                   : GridView.builder(
                       padding: EdgeInsets.all(16 * scaleFactor),
                       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 200 * scaleFactor,
-                        mainAxisSpacing: 16 * scaleFactor,
-                        crossAxisSpacing: 16 * scaleFactor,
+                        maxCrossAxisExtent: 180 * scaleFactor,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 0,
                         childAspectRatio: 0.6,
                       ),
                       itemCount: _items.length,
@@ -347,8 +349,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                           resolutions: item.mediaStream?.resolutions,
                           isFavorite: item.isFavorite == 1,
                           isWatched: (item.watched ?? 0) == 1,
-                          width: 150,
-                          height: 225,
+                          width: posterWidth,
+                          height: posterHeight,
                           scaleFactor: scaleFactor,
                           onTap: () {},
                         );

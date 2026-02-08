@@ -69,6 +69,7 @@ class RecentlyWatchedItem extends ConsumerWidget {
             if (cookie != null && cookie.isNotEmpty) 'Cookie': cookie,
           }
         : null;
+    final cacheManager = ref.watch(imageCacheManagerProvider);
     final watchedTs = item.ts ?? 0;
     final duration = item.duration ?? 0;
     final progress = duration > 0 ? (watchedTs / duration).clamp(0.0, 1.0) : 0.0;
@@ -102,7 +103,9 @@ class RecentlyWatchedItem extends ConsumerWidget {
                         CachedNetworkImage(
                           imageUrl: imageUrl,
                           httpHeaders: httpHeaders,
+                          cacheManager: cacheManager,
                           fit: BoxFit.cover,
+                          fadeOutDuration: const Duration(milliseconds: 120),
                           errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
                           placeholder: (context, url) => const Center(child: ProgressRing()),
                         )

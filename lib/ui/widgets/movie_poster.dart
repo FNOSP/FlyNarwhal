@@ -1,5 +1,5 @@
-import 'package:fluent_ui/fluent_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/providers.dart';
 
@@ -55,6 +55,7 @@ class MoviePoster extends ConsumerWidget {
             if (cookie != null && cookie.isNotEmpty) 'Cookie': cookie,
           }
         : null;
+    final cacheManager = ref.watch(imageCacheManagerProvider);
     final theme = FluentTheme.of(context);
     final formattedScore = formatVoteAverage(score);
     final showScore = formattedScore != '0.0';
@@ -88,7 +89,9 @@ class MoviePoster extends ConsumerWidget {
                       CachedNetworkImage(
                         imageUrl: imageUrl,
                         httpHeaders: httpHeaders,
+                        cacheManager: cacheManager,
                         fit: BoxFit.cover,
+                        fadeOutDuration: const Duration(milliseconds: 120),
                         errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
                         placeholder: (context, url) => const Center(child: ProgressRing()),
                       )

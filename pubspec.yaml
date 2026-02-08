@@ -16,6 +16,8 @@ dependencies:
     path: /Users/jankinwu/Desktop/workspace/github/fluent_ui
   flutter_acrylic: ^1.1.4
   cached_network_image: ^3.3.1
+  flutter_cache_manager: ^3.4.1
+  system_info2: ^4.0.0
   window_manager: ^0.3.9
   
   # State Management
