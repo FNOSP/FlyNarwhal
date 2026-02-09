@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,27 +11,31 @@ import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final freeMemoryBytes = SysInfo.getFreePhysicalMemory();
-  if (freeMemoryBytes > 0) {
-    PaintingBinding.instance.imageCache.maximumSizeBytes = (freeMemoryBytes * 0.05).round();
+  
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    final freeMemoryBytes = SysInfo.getFreePhysicalMemory();
+    if (freeMemoryBytes > 0) {
+      PaintingBinding.instance.imageCache.maximumSizeBytes = (freeMemoryBytes * 0.05).round();
+    }
+    
+    await acrylic.Window.initialize();
+    await windowManager.ensureInitialized();
+
+    final devicePixelRatio = windowManager.getDevicePixelRatio();
+    final logicalWidth = 1280 / devicePixelRatio;
+    final logicalHeight = 720 / devicePixelRatio;
+    final windowOptions = WindowOptions(
+      title: 'Fly Narwhal',
+      size: Size(logicalWidth, logicalHeight),
+      center: true,
+    );
+
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.setMinimumSize(Size(logicalWidth, logicalHeight));
+      await windowManager.show();
+      await windowManager.focus();
+    });
   }
-  await acrylic.Window.initialize();
-  await windowManager.ensureInitialized();
-
-  final devicePixelRatio = windowManager.getDevicePixelRatio();
-  final logicalWidth = 1280 / devicePixelRatio;
-  final logicalHeight = 720 / devicePixelRatio;
-  final windowOptions = WindowOptions(
-    title: 'Fly Narwhal',
-    size: Size(logicalWidth, logicalHeight),
-    center: true,
-  );
-
-  await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.setMinimumSize(Size(logicalWidth, logicalHeight));
-    await windowManager.show();
-    await windowManager.focus();
-  });
   
   final prefs = await SharedPreferences.getInstance();
 

@@ -66,6 +66,7 @@ class MainLayout extends ConsumerWidget {
                 title: const Text('暂无媒体库'),
                 icon: const Icon(FluentIcons.info),
                 enabled: false,
+                body: const SizedBox.shrink(),
               ),
             ];
           }
@@ -83,6 +84,7 @@ class MainLayout extends ConsumerWidget {
             title: const Text('加载中…'),
             icon: const ProgressRing(),
             enabled: false,
+            body: const SizedBox.shrink(),
           ),
         ],
         error: (err, _) => [
@@ -90,6 +92,7 @@ class MainLayout extends ConsumerWidget {
             title: const Text('加载失败'),
             icon: const Icon(FluentIcons.error),
             enabled: false,
+            body: const SizedBox.shrink(),
           ),
         ],
       );
@@ -184,6 +187,7 @@ class MainLayout extends ConsumerWidget {
       PaneItemExpander(
         icon: const Icon(FluentIcons.library),
         title: const Text('媒体库'),
+        body: const SizedBox.shrink(),
         items: mediaDbPaneItems.map((item) {
           if (item is PaneItem) {
             final key = item.key;
@@ -206,6 +210,7 @@ class MainLayout extends ConsumerWidget {
       PaneItemExpander(
         icon: const Icon(FluentIcons.filter),
         title: const Text('分类'),
+        body: const SizedBox.shrink(),
         items: categoryPaneItems.map((item) {
           if (item is PaneItem) {
             final key = item.key;

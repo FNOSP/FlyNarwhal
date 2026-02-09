@@ -4,6 +4,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/history_sidebar.dart';
 import 'login_view_model.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'dart:io' show Platform;
+import 'package:webview_windows/webview_windows.dart';
+import 'dart:async';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -24,6 +28,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isNasLogin = false;
   bool _showHistorySidebar = false;
   bool _passwordVisible = false;
+  bool _showFnConnectWebView = false;
+  String _fnConnectUrl = '';
+  WebviewController? _winWebviewController;
+  bool _winWebviewReady = false;
+  StreamSubscription<String>? _winUrlSub;
+  StreamSubscription<LoadingState>? _winLoadingSub;
 
   @override
   void initState() {
@@ -35,6 +45,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _populateFields(last);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _disposeWindowsWebView();
+    _hostController.dispose();
+    _portController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _fnIdController.dispose();
+    super.dispose();
   }
 
   void _populateFields(var item) {
@@ -57,6 +78,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final password = _passwordController.text;
     final fnId = _fnIdController.text;
 
+    if (_isNasLogin) {
+      final url = _normalizeFnConnectUrl(fnId, true);
+      if (url.isEmpty) {
+        _showErrorDialog('请输入 FN ID');
+        return;
+      }
+      setState(() {
+        _fnConnectUrl = url;
+        _showFnConnectWebView = true;
+      });
+      if (Platform.isWindows) {
+        _initWindowsWebView();
+      }
+      return;
+    }
+
+    final needsProbe = _needsProbe(host);
+    if (needsProbe) {
+      final probeUrl = _normalizeFnConnectUrl(host, true);
+      if (probeUrl.isEmpty) {
+        _showErrorDialog('请填写正确的 IP、域名或 FN ID');
+        return;
+      }
+      setState(() {
+        _fnConnectUrl = probeUrl;
+        _showFnConnectWebView = true;
+      });
+      if (Platform.isWindows) {
+        _initWindowsWebView();
+      }
+      return;
+    }
+
     try {
       await ref.read(loginViewModelProvider.notifier).login(
             host: host,
@@ -65,29 +119,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             password: password,
             isHttps: _isHttps,
             rememberPassword: _rememberPassword,
-            isNasLogin: _isNasLogin,
-            fnId: fnId,
+            isNasLogin: false,
+            fnId: null,
           );
-      
-      if (mounted) {
-        context.go('/home');
-      }
+      if (mounted) context.go('/home');
     } catch (e) {
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => ContentDialog(
-            title: const Text('Error'),
-            content: Text(e.toString()),
-            actions: [
-              Button(
-                child: const Text('OK'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
-      }
+      _showErrorDialog(e.toString());
     }
   }
 
@@ -266,6 +303,214 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 },
               ),
             ),
+          
+          if (_showFnConnectWebView) 
+            Positioned.fill(
+              child: Acrylic(
+                tint: Colors.black.withValues(alpha: 0.7),
+                blurAmount: 30,
+                shape: const RoundedRectangleBorder(),
+                child: Column(
+                  children: [
+                    Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        children: [
+                          Button(
+                            child: const Text('关闭'),
+                            onPressed: () {
+                              setState(() {
+                                _showFnConnectWebView = false;
+                              });
+                              _disposeWindowsWebView();
+                            },
+                          ),
+                          const SizedBox(width: 12),
+                          const Text('正在验证服务器...', style: TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Platform.isWindows
+                          ? (_winWebviewController != null && _winWebviewReady
+                              ? Webview(
+                                  _winWebviewController!,
+                                  permissionRequested: _onWinPermissionRequested,
+                                )
+                              : const Center(child: ProgressRing()))
+                          : InAppWebView(
+                              initialUrlRequest: URLRequest(url: Uri.parse(_fnConnectUrl)),
+                              initialOptions: InAppWebViewGroupOptions(
+                                crossPlatform: InAppWebViewOptions(
+                                  javaScriptEnabled: true,
+                                ),
+                              ),
+                              onLoadStop: (controller, url) async {
+                                if (url == null) return;
+                                final uri = url;
+                                final host = uri.host;
+                                if (host.isEmpty) return;
+                                final isRelay = host.contains('5ddd.com') || host.contains('fnos.net');
+                                if (!isRelay) {
+                                  final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
+                                  setState(() {
+                                    _showFnConnectWebView = false;
+                                  });
+                                  _hostController.text = host;
+                                  _portController.text = (uri.hasPort ? uri.port : 0).toString();
+                                  _isHttps = scheme == 'https';
+                                  _finalizeLogin();
+                                }
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _initWindowsWebView() async {
+    _disposeWindowsWebView();
+    final controller = WebviewController();
+    _winWebviewController = controller;
+    try {
+      await controller.initialize();
+      _winUrlSub = controller.url.listen((url) {
+        final uri = Uri.tryParse(url);
+        if (uri == null) return;
+        final host = uri.host;
+        if (host.isEmpty) return;
+        final isRelay = host.contains('5ddd.com') || host.contains('fnos.net');
+        if (!isRelay) {
+          final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
+          setState(() {
+            _showFnConnectWebView = false;
+          });
+          _hostController.text = host;
+          _portController.text = (uri.hasPort ? uri.port : 0).toString();
+          _isHttps = scheme == 'https';
+          _finalizeLogin();
+        }
+      });
+      await controller.setBackgroundColor(const Color(0x00000000));
+      await controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.sameWindow);
+      _winLoadingSub = controller.loadingState.listen((state) async {
+        if (state == LoadingState.navigationCompleted) {
+          final value = await controller.executeScript('window.location.href');
+          if (value is String) {
+            final uri = Uri.tryParse(value);
+            if (uri != null) {
+              _handleResolvedUri(uri);
+            }
+          }
+        }
+      });
+      await controller.loadUrl(_fnConnectUrl);
+      if (!mounted) return;
+      setState(() {
+        _winWebviewReady = true;
+      });
+    } catch (_) {
+      // Fallback: close overlay on error
+      setState(() {
+        _showFnConnectWebView = false;
+        _winWebviewReady = false;
+      });
+    }
+  }
+
+  void _disposeWindowsWebView() {
+    _winUrlSub?.cancel();
+    _winUrlSub = null;
+    _winLoadingSub?.cancel();
+    _winLoadingSub = null;
+    _winWebviewController = null;
+    _winWebviewReady = false;
+  }
+
+  Future<WebviewPermissionDecision> _onWinPermissionRequested(
+    String url,
+    WebviewPermissionKind kind,
+    bool isUserInitiated,
+  ) async {
+    return WebviewPermissionDecision.allow;
+  }
+
+  String _normalizeFnConnectUrl(String input, bool https) {
+    final raw = input.trim();
+    if (raw.isEmpty) return '';
+    final hasScheme = raw.startsWith('http://') || raw.startsWith('https://');
+    if (raw.contains('.')) {
+      if (hasScheme) return raw;
+      return '${https ? 'https' : 'http'}://$raw';
+    }
+    return 'https://5ddd.com/$raw';
+  }
+
+  bool _needsProbe(String host) {
+    final h = host.trim().toLowerCase();
+    if (h.isEmpty) return false;
+    if (!h.contains('.')) return true;
+    if (h.contains('5ddd.com') || h.contains('fnos.net')) return true;
+    return false;
+  }
+
+  bool _isRelayHost(String host) {
+    return host.contains('5ddd.com') || host.contains('fnos.net');
+  }
+
+  void _handleResolvedUri(Uri uri) {
+    final host = uri.host;
+    if (host.isEmpty || _isRelayHost(host)) return;
+    final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
+    setState(() {
+      _showFnConnectWebView = false;
+    });
+    _disposeWindowsWebView();
+    _hostController.text = host;
+    _portController.text = (uri.hasPort ? uri.port : 0).toString();
+    _isHttps = scheme == 'https';
+    _finalizeLogin();
+  }
+  Future<void> _finalizeLogin() async {
+    final host = _hostController.text.trim();
+    final port = int.tryParse(_portController.text) ?? 0;
+    final username = _usernameController.text;
+    final password = _passwordController.text;
+    try {
+      await ref.read(loginViewModelProvider.notifier).login(
+            host: host,
+            port: port,
+            username: username,
+            password: password,
+            isHttps: _isHttps,
+            rememberPassword: _rememberPassword,
+            isNasLogin: false,
+          );
+      if (mounted) context.go('/home');
+    } catch (e) {
+      _showErrorDialog(e.toString());
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => ContentDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          Button(
+            child: const Text('OK'),
+            onPressed: () => Navigator.pop(context),
+          ),
         ],
       ),
     );

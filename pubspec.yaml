@@ -12,8 +12,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   
   # UI
-  fluent_ui:
-    path: /Users/jankinwu/Desktop/workspace/github/fluent_ui
+  fluent_ui: ^4.13.0
   flutter_acrylic: ^1.1.4
   cached_network_image: ^3.3.1
   flutter_cache_manager: ^3.4.1
@@ -38,6 +37,8 @@ dependencies:
   flutter_svg: ^2.2.3
   crypto: ^3.0.7
   cryptography: ^2.7.0
+  flutter_inappwebview: ^5.7.2
+  webview_windows: ^0.2.1
 
 dev_dependencies:
   flutter_test:

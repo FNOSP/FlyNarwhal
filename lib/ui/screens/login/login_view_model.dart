@@ -30,7 +30,7 @@ class LoginViewModel extends _$LoginViewModel {
       final protocol = isHttps ? 'https' : 'http';
       final baseUrl = isNasLogin 
           ? (await _resolveNasUrl(fnId!)) 
-          : '$protocol://$host:$port';
+          : (port == 0 ? '$protocol://$host' : '$protocol://$host:$port');
       
       dioClient.updateBaseUrl(baseUrl);
       prefs.saveBaseUrl(baseUrl);
