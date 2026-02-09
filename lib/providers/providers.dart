@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../data/models/base_response.dart';
+import '../data/models/user_info.dart';
 import '../data/storage/preferences_manager.dart';
 import '../data/network/dio_client.dart';
 import '../data/network/tag_repository.dart';
@@ -23,6 +25,79 @@ final dioClientProvider = Provider<DioClient>((ref) {
 final tagRepositoryProvider = Provider<TagRepository>((ref) {
   final dioClient = ref.watch(dioClientProvider);
   return TagRepository(dioClient);
+});
+
+class SettingsState {
+  final bool followSystemTheme;
+  final bool darkMode;
+  final String navigationDisplayMode;
+
+  const SettingsState({
+    required this.followSystemTheme,
+    required this.darkMode,
+    required this.navigationDisplayMode,
+  });
+
+  SettingsState copyWith({
+    bool? followSystemTheme,
+    bool? darkMode,
+    String? navigationDisplayMode,
+  }) {
+    return SettingsState(
+      followSystemTheme: followSystemTheme ?? this.followSystemTheme,
+      darkMode: darkMode ?? this.darkMode,
+      navigationDisplayMode: navigationDisplayMode ?? this.navigationDisplayMode,
+    );
+  }
+}
+
+class SettingsNotifier extends StateNotifier<SettingsState> {
+  SettingsNotifier(this._prefs)
+      : super(SettingsState(
+          followSystemTheme: _prefs.getFollowSystemTheme(),
+          darkMode: _prefs.getDarkMode(),
+          navigationDisplayMode: _prefs.getNavigationDisplayMode(),
+        ));
+
+  final PreferencesManager _prefs;
+
+  Future<void> setFollowSystemTheme(bool value) async {
+    await _prefs.saveFollowSystemTheme(value);
+    state = state.copyWith(followSystemTheme: value);
+  }
+
+  Future<void> setDarkMode(bool value) async {
+    await _prefs.saveDarkMode(value);
+    state = state.copyWith(darkMode: value);
+  }
+
+  Future<void> setNavigationDisplayMode(String value) async {
+    await _prefs.saveNavigationDisplayMode(value);
+    state = state.copyWith(navigationDisplayMode: value);
+  }
+}
+
+final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
+  final prefs = ref.watch(preferencesManagerProvider);
+  return SettingsNotifier(prefs);
+});
+
+final userInfoProvider = FutureProvider<UserInfo>((ref) async {
+  final dioClient = ref.read(dioClientProvider);
+  final response = await dioClient.dio.get('/v/api/v1/user/info');
+  final baseResponse = FnBaseResponse<UserInfo>.fromJson(
+    response.data,
+    (json) {
+      if (json is Map<String, dynamic>) {
+        return UserInfo.fromJson(json);
+      }
+      return UserInfo.fromJson(Map<String, dynamic>.from(json as Map));
+    },
+  );
+  if (baseResponse.code != 0) {
+    throw Exception(baseResponse.msg);
+  }
+  return baseResponse.data ?? UserInfo(guid: '', username: '', isAdmin: 0);
 });
 
 final imageCacheManagerProvider = Provider<CacheManager>((ref) {

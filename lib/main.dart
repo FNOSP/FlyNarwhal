@@ -53,11 +53,16 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
-    
+    final settings = ref.watch(settingsProvider);
+    final platformBrightness = MediaQuery.of(context).platformBrightness;
+    final isDark = settings.followSystemTheme
+        ? platformBrightness == Brightness.dark
+        : settings.darkMode;
+
     return FluentApp.router(
       title: 'Fly Narwhal',
       theme: FluentThemeData(
-        brightness: Brightness.dark,
+        brightness: isDark ? Brightness.dark : Brightness.light,
         accentColor: Colors.blue,
       ),
       routeInformationParser: router.routeInformationParser,

@@ -8,6 +8,9 @@ class PreferencesManager {
   static const String _keyBaseUrl = 'base_url';
   static const String _keyCookie = 'cookie_state';
   static const String _keyAuthCode = 'auth_code';
+  static const String _keyFollowSystemTheme = 'follow_system_theme';
+  static const String _keyDarkMode = 'dark_mode';
+  static const String _keyNavigationDisplayMode = 'navigation_display_mode';
 
   final SharedPreferences _prefs;
 
@@ -59,6 +62,30 @@ class PreferencesManager {
 
   Future<void> saveBaseUrl(String url) async {
     await _prefs.setString(_keyBaseUrl, url);
+  }
+
+  bool getFollowSystemTheme() {
+    return _prefs.getBool(_keyFollowSystemTheme) ?? true;
+  }
+
+  Future<void> saveFollowSystemTheme(bool value) async {
+    await _prefs.setBool(_keyFollowSystemTheme, value);
+  }
+
+  bool getDarkMode() {
+    return _prefs.getBool(_keyDarkMode) ?? true;
+  }
+
+  Future<void> saveDarkMode(bool value) async {
+    await _prefs.setBool(_keyDarkMode, value);
+  }
+
+  String getNavigationDisplayMode() {
+    return _prefs.getString(_keyNavigationDisplayMode) ?? 'Left';
+  }
+
+  Future<void> saveNavigationDisplayMode(String value) async {
+    await _prefs.setString(_keyNavigationDisplayMode, value);
   }
 
   Future<void> clear() async {

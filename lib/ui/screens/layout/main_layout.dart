@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../home/home_view_model.dart';
+import '../../../providers/providers.dart';
 
 class MainLayout extends ConsumerWidget {
   final Widget child;
@@ -19,6 +20,7 @@ class MainLayout extends ConsumerWidget {
     final mediaDbList = ref.watch(mediaDbListNotifierProvider);
     final mediaSumAsync = ref.watch(mediaSumNotifierProvider);
     final mediaSum = mediaSumAsync.asData?.value ?? const <String, int>{};
+    final settings = ref.watch(settingsProvider);
 
     Widget? buildCountText(int? count) {
       if (count == null) return null;
@@ -265,15 +267,17 @@ class MainLayout extends ConsumerWidget {
     ];
     final footerPaneItems = <NavigationPaneItem>[
       PaneItemAction(
+        key: const ValueKey('nav-settings'),
         icon: const Icon(FluentIcons.settings),
         title: const Text('设置'),
-        onTap: () {},
+        onTap: () => context.go('/settings'),
       ),
     ];
 
     String? resolveSelectedKey(String path) {
       if (path == '/home') return 'nav-home';
       if (path == '/favorites') return 'nav-favorites';
+      if (path == '/settings') return 'nav-settings';
       if (path.startsWith('/library/')) {
         return 'media-${path.substring('/library/'.length)}';
       }
@@ -297,7 +301,7 @@ class MainLayout extends ConsumerWidget {
       ),
       selected: null,
       onChanged: null,
-      displayMode: PaneDisplayMode.compact,
+      displayMode: _resolveDisplayMode(settings.navigationDisplayMode),
       items: paneItems,
       footerItems: footerPaneItems,
     );
@@ -325,5 +329,21 @@ class MainLayout extends ConsumerWidget {
       ),
       paneBodyBuilder: (item, body) => child,
     );
+  }
+}
+
+PaneDisplayMode _resolveDisplayMode(String value) {
+  switch (value) {
+    case 'Top':
+      return PaneDisplayMode.top;
+    case 'Left':
+      return PaneDisplayMode.expanded;
+    case 'LeftCompact':
+      return PaneDisplayMode.compact;
+    case 'LeftMinimal':
+      return PaneDisplayMode.minimal;
+    case 'Auto':
+    default:
+      return PaneDisplayMode.auto;
   }
 }
