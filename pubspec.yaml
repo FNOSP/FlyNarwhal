@@ -35,11 +35,12 @@ dependencies:
   # Storage
   shared_preferences: ^2.2.3
   flutter_svg: ^2.2.3
+  path_provider: ^2.1.2
+  path: ^1.8.3
   crypto: ^3.0.7
   cryptography: ^2.7.0
   flutter_inappwebview: ^5.7.2
-  webview_windows: ^0.2.1
-
+  webview_windows: ^0.4.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

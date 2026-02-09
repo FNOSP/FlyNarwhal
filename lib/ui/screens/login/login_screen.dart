@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../widgets/history_sidebar.dart';
 import 'login_view_model.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'dart:io' show Platform;
 import 'package:webview_windows/webview_windows.dart';
 import 'dart:async';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'dart:io' show Platform, Directory;
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -17,6 +19,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
+  static bool _winEnvInitialized = false;
   final _hostController = TextEditingController();
   final _portController = TextEditingController(text: '5666');
   final _usernameController = TextEditingController();
@@ -377,9 +380,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _initWindowsWebView() async {
     _disposeWindowsWebView();
-    final controller = WebviewController();
-    _winWebviewController = controller;
     try {
+      String? userDataPath;
+      if (Platform.isWindows) {
+        try {
+          final supportDir = await getApplicationSupportDirectory();
+          userDataPath = p.join(supportDir.path, 'fly_narwhal', 'webview_data');
+          final dir = Directory(userDataPath);
+          if (!dir.existsSync()) {
+            await dir.create(recursive: true);
+          }
+        } catch (e) {
+          debugPrint('Failed to initialize webview data folder: $e');
+        }
+      }
+      if (!_winEnvInitialized) {
+        try {
+          await WebviewController.initializeEnvironment(
+            userDataPath: userDataPath,
+          );
+          _winEnvInitialized = true;
+        } catch (_) {}
+      }
+      final controller = WebviewController();
+      _winWebviewController = controller;
       await controller.initialize();
       _winUrlSub = controller.url.listen((url) {
         final uri = Uri.tryParse(url);

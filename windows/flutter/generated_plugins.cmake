@@ -3,7 +3,6 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  clipboard_watcher
   flutter_acrylic
   screen_retriever
   webview_windows
