@@ -153,6 +153,7 @@ class MainLayout extends ConsumerWidget {
         final value = key.value;
         if (value == 'nav-home') return '/home';
         if (value == 'nav-favorites') return '/favorites';
+        if (value == 'nav-settings') return '/settings';
         if (value.startsWith('media-')) {
           return '/library/${value.substring('media-'.length)}';
         }
@@ -266,10 +267,11 @@ class MainLayout extends ConsumerWidget {
       ),
     ];
     final footerPaneItems = <NavigationPaneItem>[
-      PaneItemAction(
+      PaneItem(
         key: const ValueKey('nav-settings'),
         icon: const Icon(FluentIcons.settings),
         title: const Text('设置'),
+        body: const SizedBox.shrink(),
         onTap: () => context.go('/settings'),
       ),
     ];
@@ -277,7 +279,7 @@ class MainLayout extends ConsumerWidget {
     String? resolveSelectedKey(String path) {
       if (path == '/home') return 'nav-home';
       if (path == '/favorites') return 'nav-favorites';
-      if (path == '/settings') return 'nav-settings';
+      if (path == '/settings' || path.startsWith('/settings/')) return 'nav-settings';
       if (path.startsWith('/library/')) {
         return 'media-${path.substring('/library/'.length)}';
       }

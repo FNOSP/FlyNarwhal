@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../storage/preferences_manager.dart';
 import '../../utils/fn_api_helper.dart';
 
@@ -53,6 +54,11 @@ class DioClient {
             options.headers['Keyx'] = keyx;
           }
         }
+
+        final resolvedBaseUrl = options.baseUrl.isEmpty ? (baseUrl ?? '') : options.baseUrl;
+        debugPrint(
+          '[Dio] request: method=${options.method} path=${options.path} baseUrl="$resolvedBaseUrl" token=${token != null && token.isNotEmpty} tokenLength=${token?.length ?? 0} cookie=${cookie != null && cookie.isNotEmpty} authCode=${authCode != null && authCode.isNotEmpty}',
+        );
 
         return handler.next(options);
       },

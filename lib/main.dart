@@ -30,7 +30,7 @@ void main() async {
     );
 
     await windowManager.waitUntilReadyToShow(windowOptions, () async {
-      await windowManager.setMinimumSize(Size(logicalWidth, logicalHeight));
+      await windowManager.setMinimumSize(const Size(logicalWidth, logicalHeight));
       await windowManager.show();
       await windowManager.focus();
     });

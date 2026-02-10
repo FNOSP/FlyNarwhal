@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/history_sidebar.dart';
 import 'login_view_model.dart';
+import '../../../providers/providers.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:webview_windows/webview_windows.dart';
 import 'dart:async';
@@ -33,6 +34,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _passwordVisible = false;
   bool _showFnConnectWebView = false;
   String _fnConnectUrl = '';
+  String _displayHost = '';
+  int _displayPort = 0;
   WebviewController? _winWebviewController;
   bool _winWebviewReady = false;
   StreamSubscription<String>? _winUrlSub;
@@ -63,14 +66,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _populateFields(var item) {
     setState(() {
-      _hostController.text = item.host;
-      _portController.text = item.port.toString();
+      final displayHost = item.displayHost.toString();
+      final displayPort = item.displayPort ?? item.port;
+      _hostController.text = displayHost.isEmpty ? item.host : displayHost;
+      _portController.text = displayPort.toString();
       _usernameController.text = item.username;
       _passwordController.text = item.password ?? '';
       _isHttps = item.isHttps;
       _rememberPassword = item.rememberPassword;
       _isNasLogin = item.isNasLogin;
       _fnIdController.text = item.fnId;
+      _displayHost = _hostController.text;
+      _displayPort = displayPort;
     });
   }
 
@@ -80,10 +87,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final username = _usernameController.text;
     final password = _passwordController.text;
     final fnId = _fnIdController.text;
+    debugPrint('[Login] start: isNasLogin=$_isNasLogin host="$host" port=$port fnId="$fnId" isHttps=$_isHttps');
 
     if (_isNasLogin) {
+      _displayHost = fnId.trim();
+      _displayPort = 0;
       final url = _normalizeFnConnectUrl(fnId, true);
+      debugPrint('[Login] nas login: normalizedUrl="$url"');
       if (url.isEmpty) {
+        debugPrint('[Login] nas login: empty url, abort');
         _showErrorDialog('请输入 FN ID');
         return;
       }
@@ -92,15 +104,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showFnConnectWebView = true;
       });
       if (Platform.isWindows) {
+        debugPrint('[Login] nas login: init windows webview');
         _initWindowsWebView();
       }
       return;
     }
 
     final needsProbe = _needsProbe(host);
+    debugPrint('[Login] needsProbe=$needsProbe');
     if (needsProbe) {
+      _displayHost = host.trim();
+      _displayPort = port;
       final probeUrl = _normalizeFnConnectUrl(host, true);
+      debugPrint('[Login] probe: normalizedUrl="$probeUrl"');
       if (probeUrl.isEmpty) {
+        debugPrint('[Login] probe: empty url, abort');
         _showErrorDialog('请填写正确的 IP、域名或 FN ID');
         return;
       }
@@ -109,12 +127,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showFnConnectWebView = true;
       });
       if (Platform.isWindows) {
+        debugPrint('[Login] probe: init windows webview');
         _initWindowsWebView();
       }
       return;
     }
 
     try {
+      _displayHost = host.trim();
+      _displayPort = port;
+      debugPrint('[Login] direct login start');
       await ref.read(loginViewModelProvider.notifier).login(
             host: host,
             port: port,
@@ -124,9 +146,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             rememberPassword: _rememberPassword,
             isNasLogin: false,
             fnId: null,
+            displayHost: _displayHost,
+            displayPort: _displayPort,
           );
+      debugPrint('[Login] direct login success, navigate');
       if (mounted) context.go('/home');
     } catch (e) {
+      debugPrint('[Login] direct login error: $e');
       _showErrorDialog(e.toString());
     }
   }
@@ -352,20 +378,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               onLoadStop: (controller, url) async {
                                 if (url == null) return;
-                                final uri = url;
-                                final host = uri.host;
-                                if (host.isEmpty) return;
-                                final isRelay = host.contains('5ddd.com') || host.contains('fnos.net');
-                                if (!isRelay) {
-                                  final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
-                                  setState(() {
-                                    _showFnConnectWebView = false;
-                                  });
-                                  _hostController.text = host;
-                                  _portController.text = (uri.hasPort ? uri.port : 0).toString();
-                                  _isHttps = scheme == 'https';
-                                  _finalizeLogin();
-                                }
+                                _handleResolvedUrl(url.toString());
                               },
                             ),
                     ),
@@ -400,38 +413,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             userDataPath: userDataPath,
           );
           _winEnvInitialized = true;
+          debugPrint('[Login][WinWebView] environment initialized userDataPath="$userDataPath"');
         } catch (_) {}
       }
       final controller = WebviewController();
       _winWebviewController = controller;
       await controller.initialize();
+      debugPrint('[Login][WinWebView] controller initialized, loadUrl="$_fnConnectUrl"');
       _winUrlSub = controller.url.listen((url) {
-        final uri = Uri.tryParse(url);
-        if (uri == null) return;
-        final host = uri.host;
-        if (host.isEmpty) return;
-        final isRelay = host.contains('5ddd.com') || host.contains('fnos.net');
-        if (!isRelay) {
-          final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
-          setState(() {
-            _showFnConnectWebView = false;
-          });
-          _hostController.text = host;
-          _portController.text = (uri.hasPort ? uri.port : 0).toString();
-          _isHttps = scheme == 'https';
-          _finalizeLogin();
-        }
+        debugPrint('[Login][WinWebView] url event: $url');
+        _handleResolvedUrl(url);
       });
       await controller.setBackgroundColor(const Color(0x00000000));
       await controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.sameWindow);
       _winLoadingSub = controller.loadingState.listen((state) async {
+        debugPrint('[Login][WinWebView] loadingState=$state');
         if (state == LoadingState.navigationCompleted) {
           final value = await controller.executeScript('window.location.href');
+          debugPrint('[Login][WinWebView] navigationCompleted href="$value"');
           if (value is String) {
-            final uri = Uri.tryParse(value);
-            if (uri != null) {
-              _handleResolvedUri(uri);
-            }
+            _handleResolvedUrl(value);
           }
         }
       });
@@ -440,12 +441,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _winWebviewReady = true;
       });
+      debugPrint('[Login][WinWebView] ready');
     } catch (_) {
       // Fallback: close overlay on error
       setState(() {
         _showFnConnectWebView = false;
         _winWebviewReady = false;
       });
+      debugPrint('[Login][WinWebView] init failed');
     }
   }
 
@@ -470,11 +473,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final raw = input.trim();
     if (raw.isEmpty) return '';
     final hasScheme = raw.startsWith('http://') || raw.startsWith('https://');
-    if (raw.contains('.')) {
-      if (hasScheme) return raw;
-      return '${https ? 'https' : 'http'}://$raw';
-    }
-    return 'https://5ddd.com/$raw';
+    if (hasScheme) return raw;
+    final slashIndex = raw.indexOf('/');
+    final host = slashIndex == -1 ? raw : raw.substring(0, slashIndex);
+    final path = slashIndex == -1 ? '' : raw.substring(slashIndex);
+    final normalizedHost = host.contains('.') ? host : '5ddd.com/$host';
+    final protocolPrefix = normalizedHost.contains('5ddd.com') || normalizedHost.contains('fnos.net')
+        ? 'https://'
+        : (https ? 'https://' : 'http://');
+    return '$protocolPrefix$normalizedHost$path';
   }
 
   bool _needsProbe(String host) {
@@ -485,29 +492,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return false;
   }
 
-  bool _isRelayHost(String host) {
-    return host.contains('5ddd.com') || host.contains('fnos.net');
+  String? _extractBaseUrl(String url) {
+    final trimmed = url.trim();
+    final normalized = trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length > 1
+        ? trimmed.substring(1, trimmed.length - 1)
+        : trimmed;
+    final index = normalized.indexOf('/login');
+    if (index == -1) return null;
+    return normalized.substring(0, index);
   }
 
-  void _handleResolvedUri(Uri uri) {
-    final host = uri.host;
-    if (host.isEmpty || _isRelayHost(host)) return;
+  void _handleResolvedUrl(String url) {
+    debugPrint('[Login] handleResolvedUrl: $url');
+    final baseUrl = _extractBaseUrl(url);
+    if (baseUrl == null) {
+      debugPrint('[Login] handleResolvedUrl ignored: baseUrl not found');
+      return;
+    }
+    final uri = Uri.tryParse(baseUrl);
+    if (uri == null || uri.host.isEmpty) {
+      debugPrint('[Login] handleResolvedUrl ignored: invalid baseUrl="$baseUrl"');
+      return;
+    }
     final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
     setState(() {
       _showFnConnectWebView = false;
     });
     _disposeWindowsWebView();
-    _hostController.text = host;
+    _hostController.text = uri.host;
     _portController.text = (uri.hasPort ? uri.port : 0).toString();
     _isHttps = scheme == 'https';
+    debugPrint('[Login] handleResolvedUrl resolved: scheme=$scheme host="${uri.host}" port=${uri.hasPort ? uri.port : 0} baseUrl="$baseUrl"');
     _finalizeLogin();
   }
-  Future<void> _finalizeLogin() async {
+  Future<void> _finalizeLogin({String? displayHost, int? displayPort}) async {
     final host = _hostController.text.trim();
     final port = int.tryParse(_portController.text) ?? 0;
     final username = _usernameController.text;
     final password = _passwordController.text;
     try {
+      debugPrint('[Login] finalize login start: host="$host" port=$port isHttps=$_isHttps');
       await ref.read(loginViewModelProvider.notifier).login(
             host: host,
             port: port,
@@ -516,9 +540,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             isHttps: _isHttps,
             rememberPassword: _rememberPassword,
             isNasLogin: false,
+            displayHost: displayHost ?? _displayHost,
+            displayPort: displayPort ?? _displayPort,
           );
+      debugPrint('[Login] finalize login success, navigate');
+      final prefs = ref.read(preferencesManagerProvider);
+      final token = prefs.getToken();
+      final baseUrl = prefs.getBaseUrl();
+      debugPrint('[Login] prefs after login: token=${token != null} tokenLength=${token?.length ?? 0} baseUrl=${baseUrl != null}');
+      final refreshNotifier = ref.read(authRefreshProvider.notifier);
+      refreshNotifier.state = refreshNotifier.state + 1;
+      debugPrint('[Login] auth refresh from screen=${refreshNotifier.state}');
       if (mounted) context.go('/home');
     } catch (e) {
+      debugPrint('[Login] finalize login error: $e');
       _showErrorDialog(e.toString());
     }
   }

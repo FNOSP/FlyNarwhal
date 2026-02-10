@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/home/home_screen.dart';
@@ -10,6 +11,7 @@ import '../../providers/providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final prefs = ref.watch(preferencesManagerProvider);
+  ref.watch(authRefreshProvider);
   
   return GoRouter(
     initialLocation: '/login',
@@ -18,6 +20,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final baseUrl = prefs.getBaseUrl();
       final isLoggedIn = token != null && baseUrl != null;
       final isOnLogin = state.matchedLocation == '/login';
+      debugPrint('[Router] location="${state.matchedLocation}" token=${token != null} tokenLength=${token?.length ?? 0} baseUrl=${baseUrl != null} isLoggedIn=$isLoggedIn');
 
       if (!isLoggedIn) {
         return isOnLogin ? null : '/login';

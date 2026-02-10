@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../data/models/base_response.dart';
 import '../../../data/models/login_history.dart';
@@ -21,6 +23,8 @@ class LoginViewModel extends _$LoginViewModel {
     required bool rememberPassword,
     required bool isNasLogin,
     String? fnId,
+    String? displayHost,
+    int? displayPort,
   }) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
@@ -33,16 +37,56 @@ class LoginViewModel extends _$LoginViewModel {
           : (port == 0 ? '$protocol://$host' : '$protocol://$host:$port');
       
       dioClient.updateBaseUrl(baseUrl);
-      prefs.saveBaseUrl(baseUrl);
+      await prefs.saveBaseUrl(baseUrl);
+      
+      final parsed = Uri.tryParse(baseUrl);
+      final isRelay = (parsed?.host.contains('5ddd.com') ?? false) || (parsed?.host.contains('fnos.net') ?? false) || isNasLogin;
+      if (isRelay) {
+        await prefs.saveCookie('mode=relay');
+        debugPrint('[Login] relay mode enabled: cookie="mode=relay" baseUrl="$baseUrl"');
+      }
 
-      final response = await dioClient.dio.post(
-        '/v/api/v1/login',
-        data: LoginRequest(username: username, password: password).toJson(),
+      debugPrint(
+        '[Login] login request: baseUrl="$baseUrl" path="/v/api/v1/login" username="$username" passwordLength=${password.length} isNasLogin=$isNasLogin',
       );
+      final requestData = LoginRequest(username: username, password: password).toJson();
+      final maskedRequestData = Map<String, dynamic>.from(requestData);
+      if (maskedRequestData.containsKey('password')) {
+        maskedRequestData['password'] = password.isEmpty ? '' : '***';
+      }
+      debugPrint('[Login] login request body: $maskedRequestData');
+
+      Response response;
+      try {
+        response = await dioClient.dio.post(
+          '/v/api/v1/login',
+          data: requestData,
+        );
+        debugPrint(
+          '[Login] login response: status=${response.statusCode} dataType=${response.data.runtimeType}',
+        );
+        if (response.data is Map) {
+          final keys = (response.data as Map).keys.toList();
+          debugPrint('[Login] login response keys: $keys');
+        }
+      } on DioException catch (e) {
+        final status = e.response?.statusCode;
+        final data = e.response?.data;
+        debugPrint(
+          '[Login] login error response: status=$status dataType=${data?.runtimeType}',
+        );
+        if (data is Map) {
+          debugPrint('[Login] login error response keys: ${data.keys.toList()}');
+        }
+        rethrow;
+      }
       
       final baseResponse = FnBaseResponse<LoginResponse>.fromJson(
         response.data, 
         (json) => LoginResponse.fromJson(json as Map<String, dynamic>)
+      );
+      debugPrint(
+        '[Login] login parsed: code=${baseResponse.code} msg="${baseResponse.msg}" hasData=${baseResponse.data != null}',
       );
 
       if (baseResponse.code != 0) {
@@ -54,8 +98,21 @@ class LoginViewModel extends _$LoginViewModel {
       }
       
       final token = baseResponse.data!.token;
+      debugPrint(
+        '[Login] login token: empty=${token.isEmpty} length=${token.length}',
+      );
       await prefs.saveToken(token);
-      await prefs.saveCookie("Trim-MC-token=$token");
+      if (isRelay) {
+        await prefs.saveCookie("Trim-MC-token=$token; mode=relay");
+        debugPrint('[Login] cookie saved for relay: hasToken=${token.isNotEmpty} cookie="Trim-MC-token=***; mode=relay"');
+      } else {
+        await prefs.saveCookie("Trim-MC-token=$token");
+        debugPrint('[Login] cookie saved: hasToken=${token.isNotEmpty} cookie="Trim-MC-token=***"');
+      }
+      final storedToken = prefs.getToken();
+      debugPrint(
+        '[Login] token saved: ${token.isNotEmpty} stored=${storedToken != null} storedLength=${storedToken?.length ?? 0}',
+      );
       
       // Save History
       final history = LoginHistory(
@@ -67,8 +124,8 @@ class LoginViewModel extends _$LoginViewModel {
         rememberPassword: rememberPassword,
         isNasLogin: isNasLogin,
         fnId: fnId ?? "",
-        displayHost: host, 
-        displayPort: port,
+        displayHost: displayHost ?? host, 
+        displayPort: displayPort ?? port,
       );
       
       final currentHistory = prefs.getLoginHistory();
@@ -78,6 +135,9 @@ class LoginViewModel extends _$LoginViewModel {
       
       await prefs.saveLoginHistory(updatedHistory);
       ref.invalidate(loginHistoryNotifierProvider);
+      final refreshNotifier = ref.read(authRefreshProvider.notifier);
+      refreshNotifier.state = refreshNotifier.state + 1;
+      debugPrint('[Login] auth refresh state=${refreshNotifier.state}');
     });
   }
   
