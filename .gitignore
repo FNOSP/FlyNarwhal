@@ -58,6 +58,45 @@ linked_*.ds
 unlinked.ds
 unlinked_spec.ds
 
+# Flutter generated files
+**/generated_*
+**/GeneratedPluginRegistrant.*
+**/ephemeral/
+
+# Dart/Flutter build artifacts
+**/.dart_tool/
+**/.packages
+**/.pub-cache/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+
+# IDE files
+**/.idea/
+**/*.iml
+**/.vscode/
+
+# OS generated files
+**/Thumbs.db
+**/.DS_Store
+**/*.swp
+**/*.swo
+
+# Log files
+**/*.log
+
+# Environment files
+**/.env
+**/.env.local
+
+# Coverage reports
+**/coverage/
+**/*.lcov
+
+# Temporary files
+**/tmp/
+**/temp/
+
 # Symbolication related
 app.*.symbols
 
