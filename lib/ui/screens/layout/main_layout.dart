@@ -337,7 +337,7 @@ PaneDisplayMode _resolveDisplayMode(String value) {
     case 'Top':
       return PaneDisplayMode.top;
     case 'Left':
-      return PaneDisplayMode.expanded;
+      return PaneDisplayMode.open;
     case 'LeftCompact':
       return PaneDisplayMode.compact;
     case 'LeftMinimal':

@@ -21,10 +21,9 @@ void main() async {
     await acrylic.Window.initialize();
     await windowManager.ensureInitialized();
 
-    final devicePixelRatio = windowManager.getDevicePixelRatio();
-    final logicalWidth = 1280 / devicePixelRatio;
-    final logicalHeight = 720 / devicePixelRatio;
-    final windowOptions = WindowOptions(
+    const logicalWidth = 1280.0;
+    const logicalHeight = 720.0;
+    const windowOptions = WindowOptions(
       title: 'Fly Narwhal',
       size: Size(logicalWidth, logicalHeight),
       center: true,

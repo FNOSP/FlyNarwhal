@@ -166,7 +166,7 @@ class SettingsScreen extends ConsumerWidget {
     switch (mode) {
       case PaneDisplayMode.top:
         return 'Top';
-      case PaneDisplayMode.expanded:
+      case PaneDisplayMode.open:
         return 'Left';
       case PaneDisplayMode.compact:
         return 'LeftCompact';
