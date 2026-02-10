@@ -46,6 +46,30 @@ class _FilterButtonState extends State<FilterButton> {
     final backgroundColor = (_hovered || widget.isSelected)
         ? theme.resources.controlStrokeColorDefault
         : Colors.transparent;
+    final textColor = theme.typography.body?.color;
+    final chipVisible = _hasNonDefaultFilters && !widget.isSelected;
+    final chipContent = Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        ...widget.selectedFilters.entries
+            .where(
+              (entry) =>
+                  entry.value.label != '全部' && entry.value.value != null,
+            )
+            .map(
+              (entry) => FilterChip(
+                label: entry.value.label,
+                onClear: () => widget.onFilterClear(entry.key),
+              ),
+            ),
+        FilterChip(
+          label: '重置',
+          icon: FluentIcons.refresh,
+          onClear: () => widget.onFilterClear('all'),
+        ),
+      ],
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -53,61 +77,59 @@ class _FilterButtonState extends State<FilterButton> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onClick,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: Colors.grey[120].withValues(alpha: 0.6)),
+            border: Border.all(color: Colors.grey[120].withValues(alpha: 0.4)),
           ),
-          child: AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '筛选',
-                      style: theme.typography.body?.copyWith(fontSize: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '筛选',
+                    style: theme.typography.body?.copyWith(
+                      fontSize: 14,
+                      color: textColor,
                     ),
-                    const SizedBox(width: 4),
-                    AnimatedRotation(
-                      turns: widget.isSelected ? 0.5 : 0.0,
-                      duration: const Duration(milliseconds: 200),
-                      child: const Icon(FluentIcons.chevron_down, size: 14),
+                  ),
+                  const SizedBox(width: 4),
+                  AnimatedRotation(
+                    turns: widget.isSelected ? 0.5 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      FluentIcons.chevron_down,
+                      size: 12,
+                      color: textColor,
                     ),
-                  ],
-                ),
-                if (_hasNonDefaultFilters && !widget.isSelected) ...[
-                  const SizedBox(width: 8),
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    children: [
-                      ...widget.selectedFilters.entries
-                          .where(
-                            (entry) =>
-                                entry.value.label != '全部' &&
-                                entry.value.value != null,
-                          )
-                          .map(
-                            (entry) => FilterChip(
-                              label: entry.value.label,
-                              onClear: () => widget.onFilterClear(entry.key),
-                            ),
-                          ),
-                      FilterChip(
-                        label: '重置',
-                        onClear: () => widget.onFilterClear('all'),
-                      ),
-                    ],
                   ),
                 ],
-              ],
-            ),
+              ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, animation) {
+                  return SizeTransition(
+                    sizeFactor: animation,
+                    axis: Axis.horizontal,
+                    child: FadeTransition(opacity: animation, child: child),
+                  );
+                },
+                child: chipVisible
+                    ? Padding(
+                        key: const ValueKey('filter-chips'),
+                        padding: const EdgeInsets.only(left: 8),
+                        child: chipContent,
+                      )
+                    : const SizedBox(
+                        key: ValueKey('filter-chips-empty'),
+                      ),
+              ),
+            ],
           ),
         ),
       ),
@@ -117,11 +139,13 @@ class _FilterButtonState extends State<FilterButton> {
 
 class FilterChip extends StatefulWidget {
   final String label;
+  final IconData icon;
   final VoidCallback onClear;
 
   const FilterChip({
     super.key,
     required this.label,
+    this.icon = FluentIcons.clear,
     required this.onClear,
   });
 
@@ -155,14 +179,15 @@ class _FilterChipState extends State<FilterChip> {
             children: [
               Text(
                 widget.label,
-                style: theme.typography.caption?.copyWith(
+                style: theme.typography.body?.copyWith(
                   fontSize: 12,
-                  color: theme.typography.caption?.color,
+                  color: theme.typography.body?.color,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(width: 4),
               Icon(
-                FluentIcons.clear,
+                widget.icon,
                 size: 12,
                 color: _hovered
                     ? theme.typography.body?.color
@@ -322,18 +347,23 @@ class FilterRow extends StatelessWidget {
               final isSelected = option.label == selected.label && option.value == selected.value;
               return MouseRegion(
                 cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: () => onSelected(option),
-                  child: Text(
-                    option.label,
-                    style: theme.typography.body?.copyWith(
-                      color: isSelected
-                          ? const Color(0xFF2073DF)
-                          : theme.typography.caption?.color,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
+                child: HoverButton(
+                  onPressed: () => onSelected(option),
+                  builder: (context, states) {
+                    final color = isSelected
+                        ? const Color(0xFF2073DF)
+                        : states.isHovered
+                            ? theme.typography.body?.color
+                            : theme.typography.caption?.color;
+                    return Text(
+                      option.label,
+                      style: theme.typography.body?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    );
+                  },
                 ),
               );
             }).toList(),

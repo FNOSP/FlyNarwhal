@@ -307,11 +307,22 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                 ],
               ),
             ),
-            AnimatedContainer(
+            AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
-              height: _isFilterOpen ? null : 0,
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                return ClipRect(
+                  child: SizeTransition(
+                    sizeFactor: animation,
+                    axisAlignment: -1,
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+                );
+              },
               child: _isFilterOpen
                   ? Padding(
+                      key: const ValueKey('filter-box'),
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: FilterBox(
                         tagList: _tagList,
@@ -325,7 +336,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                         onCollapse: () => setState(() => _isFilterOpen = false),
                       ),
                     )
-                  : null,
+                  : const SizedBox(
+                      key: ValueKey('filter-box-empty'),
+                    ),
             ),
             Expanded(
               child: _items.isEmpty
