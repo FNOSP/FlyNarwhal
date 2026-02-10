@@ -90,7 +90,7 @@ class MoviePoster extends ConsumerWidget {
                         imageUrl: imageUrl,
                         httpHeaders: httpHeaders,
                         cacheManager: cacheManager,
-                        fit: BoxFit.cover,
+                        fit: BoxFit.fitWidth,
                         fadeOutDuration: const Duration(milliseconds: 120),
                         errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
                         placeholder: (context, url) => const Center(child: ProgressRing()),
