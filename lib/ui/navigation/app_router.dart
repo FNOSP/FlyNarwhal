@@ -7,6 +7,7 @@ import '../screens/login/login_screen.dart';
 import '../screens/media_library/media_library_screen.dart';
 import '../screens/favorites/favorites_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/movie_detail/movie_detail_screen.dart';
 import '../../providers/providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -57,6 +58,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/settings',
             builder: (context, state) => const SettingsScreen(),
+          ),
+          GoRoute(
+            path: '/movie/:guid',
+            builder: (context, state) => MovieDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
         ],
       ),

@@ -18,6 +18,7 @@ final preferencesManagerProvider = Provider<PreferencesManager>((ref) {
 });
 
 final authRefreshProvider = StateProvider<int>((ref) => 0);
+final lastNavigationKeyProvider = StateProvider<String?>((ref) => null);
 
 final dioClientProvider = Provider<DioClient>((ref) {
   final prefsManager = ref.watch(preferencesManagerProvider);

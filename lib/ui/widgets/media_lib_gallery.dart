@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../screens/home/home_view_model.dart';
 import '../../data/models/home_models.dart';
 import 'movie_poster.dart';
@@ -61,7 +62,7 @@ class MediaLibGallery extends ConsumerWidget {
                   width: posterWidth,
                   height: posterHeight,
                   scaleFactor: scaleFactor,
-                  onTap: () {},
+                  onTap: () => context.go('/movie/${item.guid}'),
                 );
               },
             );

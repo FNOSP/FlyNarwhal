@@ -28,6 +28,7 @@ dependencies:
   
   # Navigation
   go_router: ^14.2.0
+  url_launcher: ^6.2.4
   
   # Serialization
   json_annotation: ^4.9.0

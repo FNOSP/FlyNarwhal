@@ -277,6 +277,7 @@ class MainLayout extends ConsumerWidget {
     ];
 
     String? resolveSelectedKey(String path) {
+      if (path.startsWith('/movie/')) return null;
       if (path == '/home') return 'nav-home';
       if (path == '/favorites') return 'nav-favorites';
       if (path == '/settings' || path.startsWith('/settings/')) return 'nav-settings';
@@ -308,10 +309,18 @@ class MainLayout extends ConsumerWidget {
       footerItems: footerPaneItems,
     );
 
+    final isMovieDetail = state.uri.path.startsWith('/movie/');
+    final lastSelectedKey = ref.watch(lastNavigationKeyProvider);
     final selectedKey = resolveSelectedKey(state.uri.path);
+    if (!isMovieDetail && selectedKey != null && selectedKey != lastSelectedKey) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(lastNavigationKeyProvider.notifier).state = selectedKey;
+      });
+    }
+    final effectiveSelectedKey = selectedKey ?? lastSelectedKey;
     var selectedIndex = pane.effectiveItems.indexWhere((item) {
       final key = item.key;
-      return key is ValueKey<String> && key.value == selectedKey;
+      return key is ValueKey<String> && key.value == effectiveSelectedKey;
     });
     if (selectedIndex < 0) {
       selectedIndex = pane.effectiveItems.indexWhere((item) {
