@@ -18,9 +18,9 @@ class ItemResponse {
   final String? originalTitle;
   final String? backdrops;
   final String posters;
-  @JsonKey(name: 'poster_width')
+  @JsonKey(name: 'poster_width', defaultValue: 0)
   final int posterWidth;
-  @JsonKey(name: 'poster_height')
+  @JsonKey(name: 'poster_height', defaultValue: 0)
   final int posterHeight;
   @JsonKey(name: 'vote_average')
   final String voteAverage;
@@ -32,23 +32,23 @@ class ItemResponse {
   @JsonKey(name: 'production_countries')
   final List<String>? productionCountries;
   final String? overview;
-  @JsonKey(name: 'is_favorite')
+  @JsonKey(name: 'is_favorite', defaultValue: 0)
   final int isFavorite;
-  @JsonKey(name: 'is_watched')
+  @JsonKey(name: 'is_watched', defaultValue: 0)
   final int isWatched;
-  @JsonKey(name: 'watched_ts')
+  @JsonKey(name: 'watched_ts', defaultValue: 0)
   final int watchedTs;
-  @JsonKey(name: 'season_number')
+  @JsonKey(name: 'season_number', defaultValue: 0)
   final int seasonNumber;
-  @JsonKey(name: 'number_of_seasons')
+  @JsonKey(name: 'number_of_seasons', defaultValue: 0)
   final int numberOfSeasons;
-  @JsonKey(name: 'number_of_episodes')
+  @JsonKey(name: 'number_of_episodes', defaultValue: 0)
   final int numberOfEpisodes;
-  @JsonKey(name: 'local_number_of_episodes')
+  @JsonKey(name: 'local_number_of_episodes', defaultValue: 0)
   final int localNumberOfEpisodes;
-  @JsonKey(name: 'local_number_of_seasons')
+  @JsonKey(name: 'local_number_of_seasons', defaultValue: 0)
   final int localNumberOfSeasons;
-  @JsonKey(name: 'can_play')
+  @JsonKey(name: 'can_play', defaultValue: 0)
   final int canPlay;
   final String type;
   @JsonKey(name: 'play_error')
@@ -59,8 +59,9 @@ class ItemResponse {
   final String ancestorName;
   @JsonKey(name: 'play_item_guid')
   final String playItemGuid;
+  @JsonKey(defaultValue: 0)
   final int duration;
-  @JsonKey(name: 'logic_type')
+  @JsonKey(name: 'logic_type', defaultValue: 0)
   final int logicType;
   final String? logos;
   @JsonKey(name: 'air_date')

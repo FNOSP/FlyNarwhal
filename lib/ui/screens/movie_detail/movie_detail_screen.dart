@@ -5,7 +5,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
 import '../../../providers/providers.dart';
+
+String _buildImageUrl(String baseUrl, String path) {
+  if (baseUrl.isEmpty || path.isEmpty) return '';
+  final normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+  return '$normalizedBaseUrl/v/api/v1/sys/img$path';
+}
 
 class MovieDetailScreen extends ConsumerWidget {
   final String guid;
@@ -17,11 +24,26 @@ class MovieDetailScreen extends ConsumerWidget {
     final detailState = ref.watch(movieDetailNotifierProvider(guid));
     final prefsManager = ref.watch(preferencesManagerProvider);
     final baseUrl = prefsManager.getBaseUrl() ?? '';
+    final token = prefsManager.getToken();
+    final cookie = prefsManager.getCookie();
+    final httpHeaders = token != null || (cookie != null && cookie.isNotEmpty)
+        ? {
+            if (token != null) 'Authorization': token,
+            if (cookie != null && cookie.isNotEmpty) 'Cookie': cookie,
+          }
+        : null;
+    final cacheManager = ref.watch(imageCacheManagerProvider);
 
     return ScaffoldPage(
       padding: EdgeInsets.zero,
       content: detailState.when(
-        data: (state) => _MovieDetailContent(state: state, baseUrl: baseUrl, guid: guid),
+        data: (state) => _MovieDetailContent(
+          state: state,
+          baseUrl: baseUrl,
+          guid: guid,
+          httpHeaders: httpHeaders,
+          cacheManager: cacheManager,
+        ),
         loading: () => const Center(child: ProgressRing()),
         error: (error, stack) => Center(
           child: Column(
@@ -45,8 +67,16 @@ class _MovieDetailContent extends ConsumerStatefulWidget {
   final MovieDetailState state;
   final String baseUrl;
   final String guid;
+  final Map<String, String>? httpHeaders;
+  final cache_manager.CacheManager cacheManager;
 
-  const _MovieDetailContent({required this.state, required this.baseUrl, required this.guid});
+  const _MovieDetailContent({
+    required this.state,
+    required this.baseUrl,
+    required this.guid,
+    required this.httpHeaders,
+    required this.cacheManager,
+  });
 
   @override
   ConsumerState<_MovieDetailContent> createState() => _MovieDetailContentState();
@@ -98,119 +128,99 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final item = widget.state.item;
     if (item == null) return const Center(child: Text('未找到电影信息'));
 
-    final backdropUrl = item.backdrops != null ? '${widget.baseUrl}${item.backdrops}' : '';
-    final posterUrl = '${widget.baseUrl}${item.posters}';
+    final windowHeight = MediaQuery.of(context).size.height;
+    final backdropPath = (item.backdrops?.isNotEmpty ?? false) ? item.backdrops! : item.posters;
+    final backdropUrl = _buildImageUrl(widget.baseUrl, backdropPath);
+    final logoUrl = item.logos != null ? _buildImageUrl(widget.baseUrl, item.logos!) : '';
 
     return Stack(
       children: [
-        // Background Backdrop with Gradient
-        if (backdropUrl.isNotEmpty)
-          Positioned.fill(
-            child: Stack(
-              children: [
-                CachedNetworkImage(
-                  imageUrl: backdropUrl,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.3),
-                        Colors.black.withOpacity(0.8),
-                        FluentTheme.of(context).scaffoldBackgroundColor,
-                      ],
-                      stops: const [0.0, 0.4, 1.0],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        
-        // Main Content
         CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
+              child: SizedBox(
+                height: windowHeight * 0.5,
+                child: Stack(
+                  children: [
+                    if (backdropUrl.isNotEmpty)
+                      CachedNetworkImage(
+                        imageUrl: backdropUrl,
+                        httpHeaders: widget.httpHeaders,
+                        cacheManager: widget.cacheManager,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                      ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            FluentTheme.of(context).scaffoldBackgroundColor,
+                          ],
+                          stops: const [0.45, 1.0],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 48,
+                      bottom: 24,
+                      right: 48,
+                      child: logoUrl.isNotEmpty
+                          ? _LogoTitle(
+                              url: logoUrl,
+                              title: item.title,
+                              httpHeaders: widget.httpHeaders,
+                              cacheManager: widget.cacheManager,
+                            )
+                          : Text(
+                              item.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: FluentTheme.of(context).typography.titleLarge?.copyWith(
+                                fontSize: 60,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                height: 1.1,
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(48, 100, 48, 48),
-                child: Row(
+                padding: const EdgeInsets.fromLTRB(48, 24, 48, 24),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Poster
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
-                        imageUrl: posterUrl,
-                        width: 240,
-                        height: 360,
-                        fit: BoxFit.cover,
+                    if (item.watchedTs > 0)
+                      _ProgressBar(
+                        watchedTs: item.watchedTs,
+                        totalDuration: widget.state.streamList?.videoStreams.firstOrNull?.duration ?? 0,
                       ),
-                    ),
-                    const SizedBox(width: 48),
-                    // Info
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.title,
-                            style: FluentTheme.of(context).typography.titleLarge?.copyWith(
-                              fontSize: 48,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          if (item.originalTitle != null && item.originalTitle != item.title)
-                            Text(
-                              item.originalTitle!,
-                              style: FluentTheme.of(context).typography.bodyStrong?.copyWith(
-                                fontSize: 24,
-                                color: FluentTheme.of(context).typography.bodyStrong?.color?.withOpacity(0.7),
-                              ),
-                            ),
-                          const SizedBox(height: 24),
-                          _buildMetadataRow(context, item),
-                          const SizedBox(height: 16),
-                          if (item.watchedTs > 0)
-                            _ProgressBar(
-                              watchedTs: item.watchedTs,
-                              totalDuration: widget.state.streamList?.videoStreams.firstOrNull?.duration ?? 0,
-                            ),
-                          const SizedBox(height: 32),
-                          _buildActionRow(context, item),
-                          const SizedBox(height: 48),
-                          if (widget.state.streamList != null && widget.state.streamList!.videoStreams.length > 1)
-                            _MediaSourceBoxes(
-                              videoStreams: widget.state.streamList!.videoStreams,
-                              selectedIndex: _selectedVideoStreamIndex,
-                              onChanged: (index) => setState(() => _selectedVideoStreamIndex = index),
-                            ),
-                          const SizedBox(height: 24),
-                          Text(
-                            '概览',
-                            style: FluentTheme.of(context).typography.subtitle?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: () => _showDescriptionDialog(context, item),
-                            child: Text(
-                              item.overview ?? '暂无介绍',
-                              style: FluentTheme.of(context).typography.body?.copyWith(
-                                fontSize: 16,
-                                height: 1.6,
-                              ),
-                              maxLines: 4,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                    if (item.watchedTs > 0) const SizedBox(height: 16),
+                    _buildActionRow(context, item),
+                    const SizedBox(height: 16),
+                    _buildMetadataRow(context, item),
+                    if (widget.state.streamList != null && widget.state.streamList!.videoStreams.length > 1) ...[
+                      const SizedBox(height: 16),
+                      _MediaSourceBoxes(
+                        videoStreams: widget.state.streamList!.videoStreams,
+                        selectedIndex: _selectedVideoStreamIndex,
+                        onChanged: (index) => setState(() => _selectedVideoStreamIndex = index),
                       ),
-                    ),
+                    ],
+                    if (item.overview != null && item.overview!.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _OverviewSection(
+                        text: item.overview!,
+                        onMore: () => _showDescriptionDialog(context, item),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -237,7 +247,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                           separatorBuilder: (_, __) => const SizedBox(width: 24),
                           itemBuilder: (context, index) {
                             final person = widget.state.personList[index];
-                            return _PersonCard(person: person, baseUrl: widget.baseUrl);
+                            return _PersonCard(
+                              person: person,
+                              baseUrl: widget.baseUrl,
+                              httpHeaders: widget.httpHeaders,
+                              cacheManager: widget.cacheManager,
+                            );
                           },
                         ),
                       ),
@@ -260,21 +275,6 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           ],
         ),
 
-        // Back Button
-        Positioned(
-          top: 32,
-          left: 32,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.4),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(FluentIcons.back, size: 20),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -481,6 +481,133 @@ class _StreamSelector<T extends dynamic> extends StatelessWidget {
   }
 }
 
+class _LogoTitle extends StatefulWidget {
+  final String url;
+  final String title;
+  final Map<String, String>? httpHeaders;
+  final cache_manager.CacheManager cacheManager;
+
+  const _LogoTitle({
+    required this.url,
+    required this.title,
+    required this.httpHeaders,
+    required this.cacheManager,
+  });
+
+  @override
+  State<_LogoTitle> createState() => _LogoTitleState();
+}
+
+class _LogoTitleState extends State<_LogoTitle> {
+  double _height = 90.0;
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveImageSize();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LogoTitle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _resolveImageSize();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_stream != null && _listener != null) {
+      _stream!.removeListener(_listener!);
+    }
+    super.dispose();
+  }
+
+  void _resolveImageSize() {
+    if (_stream != null && _listener != null) {
+      _stream!.removeListener(_listener!);
+    }
+    final provider = CachedNetworkImageProvider(
+      widget.url,
+      headers: widget.httpHeaders,
+      cacheManager: widget.cacheManager,
+    );
+    final stream = provider.resolve(ImageConfiguration.empty);
+    final listener = ImageStreamListener((info, _) {
+      final width = info.image.width.toDouble();
+      final height = info.image.height.toDouble();
+      final actualWidth = height > 0 ? width / height * 90 : 0;
+      final nextHeight = actualWidth > 0 && actualWidth < 280 ? 150.0 : 90.0;
+      if (mounted) {
+        setState(() => _height = nextHeight);
+      }
+    });
+    stream.addListener(listener);
+    _stream = stream;
+    _listener = listener;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CachedNetworkImage(
+      imageUrl: widget.url,
+      httpHeaders: widget.httpHeaders,
+      cacheManager: widget.cacheManager,
+      height: _height,
+      fit: BoxFit.fitHeight,
+      errorWidget: (context, url, error) => Text(
+        widget.title,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: FluentTheme.of(context).typography.titleLarge?.copyWith(
+          fontSize: 60,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+          height: 1.1,
+        ),
+      ),
+      placeholder: (context, url) => const SizedBox(
+        height: 90,
+        child: ProgressRing(),
+      ),
+    );
+  }
+}
+
+class _OverviewSection extends StatelessWidget {
+  final String text;
+  final VoidCallback onMore;
+
+  const _OverviewSection({required this.text, required this.onMore});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: FluentTheme.of(context).typography.body?.copyWith(
+              fontSize: 16,
+              height: 1.6,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        HyperlinkButton(
+          onPressed: onMore,
+          child: const Text('更多'),
+        ),
+      ],
+    );
+  }
+}
+
 class _CircleButton extends StatelessWidget {
   final IconData icon;
   final Color? color;
@@ -612,12 +739,19 @@ class _MetadataItem extends StatelessWidget {
 class _PersonCard extends StatelessWidget {
   final PersonList person;
   final String baseUrl;
+  final Map<String, String>? httpHeaders;
+  final cache_manager.CacheManager cacheManager;
 
-  const _PersonCard({required this.person, required this.baseUrl});
+  const _PersonCard({
+    required this.person,
+    required this.baseUrl,
+    required this.httpHeaders,
+    required this.cacheManager,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = person.profilePath.isNotEmpty ? '$baseUrl${person.profilePath}' : '';
+    final imageUrl = _buildImageUrl(baseUrl, person.profilePath);
     
     return SizedBox(
       width: 120,
@@ -628,6 +762,8 @@ class _PersonCard extends StatelessWidget {
             child: imageUrl.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: imageUrl,
+                    httpHeaders: httpHeaders,
+                    cacheManager: cacheManager,
                     width: 120,
                     height: 180,
                     fit: BoxFit.cover,

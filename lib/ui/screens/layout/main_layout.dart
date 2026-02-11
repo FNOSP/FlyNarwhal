@@ -21,6 +21,11 @@ class MainLayout extends ConsumerWidget {
     final mediaSumAsync = ref.watch(mediaSumNotifierProvider);
     final mediaSum = mediaSumAsync.asData?.value ?? const <String, int>{};
     final settings = ref.watch(settingsProvider);
+    final navigationStack = ref.watch(navigationStackProvider);
+    final currentPath = state.uri.toString();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(navigationStackProvider.notifier).pushPath(currentPath);
+    });
 
     Widget? buildCountText(int? count) {
       if (count == null) return null;
@@ -338,7 +343,34 @@ class MainLayout extends ConsumerWidget {
         items: pane.items,
         footerItems: pane.footerItems,
       ),
-      paneBodyBuilder: (item, body) => child,
+      paneBodyBuilder: (item, body) {
+        final canNavigateUp = navigationStack.length > 1;
+        return Stack(
+          children: [
+            child,
+            if (canNavigateUp)
+              Positioned(
+                top: 16,
+                left: 16,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(FluentIcons.back, size: 20),
+                    onPressed: () {
+                      final target = ref.read(navigationStackProvider.notifier).pop();
+                      if (target != null) {
+                        context.go(target);
+                      }
+                    },
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

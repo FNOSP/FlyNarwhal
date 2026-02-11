@@ -19,6 +19,30 @@ final preferencesManagerProvider = Provider<PreferencesManager>((ref) {
 
 final authRefreshProvider = StateProvider<int>((ref) => 0);
 final lastNavigationKeyProvider = StateProvider<String?>((ref) => null);
+final navigationStackProvider = StateNotifierProvider<NavigationStackNotifier, List<String>>(
+  (ref) => NavigationStackNotifier(),
+);
+
+class NavigationStackNotifier extends StateNotifier<List<String>> {
+  NavigationStackNotifier() : super(const []);
+
+  void pushPath(String path) {
+    if (path.isEmpty) return;
+    if (state.isNotEmpty && state.last == path) return;
+    final updated = [...state, path];
+    if (updated.length > 20) {
+      updated.removeAt(0);
+    }
+    state = updated;
+  }
+
+  String? pop() {
+    if (state.length <= 1) return null;
+    final updated = [...state]..removeLast();
+    state = updated;
+    return updated.isNotEmpty ? updated.last : null;
+  }
+}
 
 final dioClientProvider = Provider<DioClient>((ref) {
   final prefsManager = ref.watch(preferencesManagerProvider);

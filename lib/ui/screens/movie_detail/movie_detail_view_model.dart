@@ -70,19 +70,16 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
       }
     }
 
-    final itemResult = await dioClient.dio.get(
-      '/v/api/v1/item/info',
-      queryParameters: {'guid': guid},
-    );
+    final itemResult = await dioClient.dio.get('/v/api/v1/item/$guid');
 
     final streamResult = await safeRequest(
-      () => dioClient.dio.get('/v/api/v1/item/stream_list', queryParameters: {'guid': guid}),
+      () => dioClient.dio.get('/v/api/v1/stream/list/$guid'),
     );
     final playInfoResult = await safeRequest(
-      () => dioClient.dio.get('/v/api/v1/play/info', queryParameters: {'guid': guid}),
+      () => dioClient.dio.post('/v/api/v1/play/info', data: {'guid': guid}),
     );
     final personListResult = await safeRequest(
-      () => dioClient.dio.get('/v/api/v1/person/list', queryParameters: {'item_guid': guid}),
+      () => dioClient.dio.post('/v/api/v1/person/list/$guid'),
     );
     final iso6391 = await safeRequest(() => tagRepo.getTag('iso6391', lan: 'zh')) ?? const <QueryTagResponse>[];
     final iso6392 = await safeRequest(() => tagRepo.getTag('iso6392', lan: 'zh')) ?? const <QueryTagResponse>[];
@@ -92,6 +89,9 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
       itemResult.data as Map<String, dynamic>,
       (json) => ItemResponse.fromJson(json as Map<String, dynamic>),
     );
+    if (itemResponse.code != 0) {
+      throw Exception(itemResponse.msg);
+    }
 
     final streamResponse = streamResult == null
         ? null
