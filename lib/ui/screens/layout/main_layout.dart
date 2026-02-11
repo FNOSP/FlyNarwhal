@@ -297,10 +297,10 @@ class MainLayout extends ConsumerWidget {
     }
 
     final pane = NavigationPane(
-      header: const Padding(
-        padding: EdgeInsets.only(left: 20.0),
-        child: Text('Fly Narwhal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-      ),
+      // header: const Padding(
+      //   padding: EdgeInsets.only(left: 20.0),
+      //   child: Text('Fly Narwhal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      // ),
       selected: null,
       onChanged: null,
       displayMode: _resolveDisplayMode(settings.navigationDisplayMode),
