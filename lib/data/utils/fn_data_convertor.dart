@@ -157,7 +157,7 @@ class FnDataConvertor {
       videoTrack: videoTrack,
       audioTrack: audioTrack,
       subtitleTrack: subtitleTrack,
-      imdbLink: imdbId != null && imdbId.isNotEmpty ? 'https://www.imdb.com/title/$imdbId/' : '',
+      imdbLink: getImdbLink(imdbId),
     );
   }
 
@@ -165,5 +165,10 @@ class FnDataConvertor {
     if (langCode == null || langCode.isEmpty) return '未知';
     if (langCode == '_no_display_') return '无';
     return iso6391Map[langCode] ?? langCode;
+  }
+
+  static String getImdbLink(String? imdbId) {
+    if (imdbId == null || imdbId.isEmpty) return '';
+    return 'https://www.imdb.com/title/$imdbId/';
   }
 }

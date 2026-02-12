@@ -504,6 +504,12 @@ class PlayInfoResponse {
   final ItemResponse item;
   @JsonKey(name: 'direct_link_audio_index')
   final int directLinkAudioIndex;
+  @JsonKey(name: 'episode_number')
+  final int episodeNumber;
+  @JsonKey(name: 'season_number')
+  final int seasonNumber;
+  @JsonKey(name: 'play_item_guid')
+  final String playItemGuid;
 
   PlayInfoResponse({
     required this.grandGuid,
@@ -518,6 +524,9 @@ class PlayInfoResponse {
     required this.mediaGuid,
     required this.item,
     required this.directLinkAudioIndex,
+    this.episodeNumber = 0,
+    this.seasonNumber = 0,
+    this.playItemGuid = '',
   });
 
   factory PlayInfoResponse.fromJson(Map<String, dynamic> json) => _$PlayInfoResponseFromJson(json);

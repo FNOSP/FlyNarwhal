@@ -366,7 +366,13 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                           width: posterWidth,
                           height: posterHeight,
                           scaleFactor: scaleFactor,
-                          onTap: () => context.go('/movie/${item.guid}'),
+                          onTap: () {
+                            if (item.type == 'TV') {
+                              context.go('/tv/${item.guid}');
+                            } else {
+                              context.go('/movie/${item.guid}');
+                            }
+                          },
                         );
                       },
                     ),

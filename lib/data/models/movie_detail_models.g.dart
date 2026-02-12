@@ -340,6 +340,9 @@ PlayInfoResponse _$PlayInfoResponseFromJson(Map<String, dynamic> json) =>
       mediaGuid: json['media_guid'] as String,
       item: ItemResponse.fromJson(json['item'] as Map<String, dynamic>),
       directLinkAudioIndex: (json['direct_link_audio_index'] as num).toInt(),
+      episodeNumber: (json['episode_number'] as num?)?.toInt() ?? 0,
+      seasonNumber: (json['season_number'] as num?)?.toInt() ?? 0,
+      playItemGuid: json['play_item_guid'] as String? ?? '',
     );
 
 Map<String, dynamic> _$PlayInfoResponseToJson(PlayInfoResponse instance) =>
@@ -356,6 +359,9 @@ Map<String, dynamic> _$PlayInfoResponseToJson(PlayInfoResponse instance) =>
       'media_guid': instance.mediaGuid,
       'item': instance.item,
       'direct_link_audio_index': instance.directLinkAudioIndex,
+      'episode_number': instance.episodeNumber,
+      'season_number': instance.seasonNumber,
+      'play_item_guid': instance.playItemGuid,
     };
 
 PersonList _$PersonListFromJson(Map<String, dynamic> json) => PersonList(
