@@ -343,37 +343,7 @@ class MainLayout extends ConsumerWidget {
         items: pane.items,
         footerItems: pane.footerItems,
       ),
-      paneBodyBuilder: (item, body) {
-        final canNavigateUp = navigationStack.length > 1;
-        return Stack(
-          children: [
-            child,
-            if (canNavigateUp)
-              Positioned(
-                top: 16,
-                left: 16,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    shape: BoxShape.circle,
-                  ),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: IconButton(
-                      icon: const Icon(FluentIcons.back, size: 20),
-                      onPressed: () {
-                        final target = ref.read(navigationStackProvider.notifier).pop();
-                        if (target != null) {
-                          context.go(target);
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
+      paneBodyBuilder: (item, body) => child,
     );
   }
 }

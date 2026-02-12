@@ -14,6 +14,7 @@ class MovieDetailState {
   final List<QueryTagResponse> iso6391;
   final List<QueryTagResponse> iso6392;
   final List<QueryTagResponse> iso3166;
+  final Map<int, String> genres;
   final bool isLoading;
   final String? error;
 
@@ -25,6 +26,7 @@ class MovieDetailState {
     this.iso6391 = const [],
     this.iso6392 = const [],
     this.iso3166 = const [],
+    this.genres = const {},
     this.isLoading = false,
     this.error,
   });
@@ -37,6 +39,7 @@ class MovieDetailState {
     List<QueryTagResponse>? iso6391,
     List<QueryTagResponse>? iso6392,
     List<QueryTagResponse>? iso3166,
+    Map<int, String>? genres,
     bool? isLoading,
     String? error,
   }) {
@@ -48,6 +51,7 @@ class MovieDetailState {
       iso6391: iso6391 ?? this.iso6391,
       iso6392: iso6392 ?? this.iso6392,
       iso3166: iso3166 ?? this.iso3166,
+      genres: genres ?? this.genres,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
     );
@@ -84,6 +88,7 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
     final iso6391 = await safeRequest(() => tagRepo.getTag('iso6391', lan: 'zh')) ?? const <QueryTagResponse>[];
     final iso6392 = await safeRequest(() => tagRepo.getTag('iso6392', lan: 'zh')) ?? const <QueryTagResponse>[];
     final iso3166 = await safeRequest(() => tagRepo.getTag('iso3166', lan: 'zh')) ?? const <QueryTagResponse>[];
+    final genresList = await safeRequest(() => tagRepo.getGenres(lan: 'zh')) ?? const <GenresResponse>[];
 
     final itemResponse = FnBaseResponse<ItemResponse>.fromJson(
       itemResult.data as Map<String, dynamic>,
@@ -114,6 +119,8 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
             (json) => PersonListResponse.fromJson(json as Map<String, dynamic>),
           );
 
+    final genresMap = {for (var g in genresList) g.id: g.value};
+
     return MovieDetailState(
       item: itemResponse.data,
       streamList: streamResponse?.data,
@@ -122,6 +129,7 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
       iso6391: iso6391,
       iso6392: iso6392,
       iso3166: iso3166,
+      genres: genresMap,
     );
   }
 
