@@ -200,9 +200,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: TextFormBox(
                           controller: _fnIdController,
                           placeholder: '请输入 IP:Port、域名或 FN ID',
-                          suffix: IconButton(
-                            icon: const Icon(FluentIcons.history),
-                            onPressed: () => setState(() => _showHistorySidebar = true),
+                          suffix: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: IconButton(
+                              icon: const Icon(FluentIcons.history),
+                              onPressed: () => setState(() => _showHistorySidebar = true),
+                            ),
                           ),
                         ),
                       )
@@ -217,9 +220,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               child: TextFormBox(
                                 controller: _hostController,
                                 placeholder: 'IP、域名或 FN ID',
-                                suffix: IconButton(
-                                  icon: const Icon(FluentIcons.history),
-                                  onPressed: () => setState(() => _showHistorySidebar = true),
+                                suffix: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: IconButton(
+                                    icon: const Icon(FluentIcons.history),
+                                    onPressed: () => setState(() => _showHistorySidebar = true),
+                                  ),
                                 ),
                               ),
                             ),
@@ -251,9 +257,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: TextFormBox(
                         controller: _passwordController,
                         obscureText: !_passwordVisible,
-                        suffix: IconButton(
-                          icon: Icon(_passwordVisible ? FluentIcons.red_eye : FluentIcons.hide),
-                          onPressed: () => setState(() => _passwordVisible = !_passwordVisible),
+                        suffix: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: IconButton(
+                            icon: Icon(_passwordVisible ? FluentIcons.red_eye : FluentIcons.hide),
+                            onPressed: () => setState(() => _passwordVisible = !_passwordVisible),
+                          ),
                         ),
                       ),
                     ),
@@ -262,14 +271,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Checkbox(
-                          checked: _rememberPassword,
-                          onChanged: (v) => setState(() => _rememberPassword = v ?? false),
-                          content: const Text('记住密码'),
+                        MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Checkbox(
+                            checked: _rememberPassword,
+                            onChanged: (v) => setState(() => _rememberPassword = v ?? false),
+                            content: const Text('记住密码'),
+                          ),
                         ),
-                        HyperlinkButton(
-                          child: const Text('忘记密码'),
-                          onPressed: () {},
+                        MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: HyperlinkButton(
+                            child: const Text('忘记密码'),
+                            onPressed: () {},
+                          ),
                         ),
                       ],
                     ),
@@ -279,9 +294,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                          const Text('使用 NAS 登录', style: TextStyle(color: Colors.grey)),
-                         ToggleSwitch(
-                          checked: _isNasLogin,
-                          onChanged: (v) => setState(() => _isNasLogin = v),
+                         MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: ToggleSwitch(
+                            checked: _isNasLogin,
+                            onChanged: (v) => setState(() => _isNasLogin = v),
+                          ),
                         ),
                       ],
                     ),
@@ -290,9 +308,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                          const Text('HTTPS 安全访问', style: TextStyle(color: Colors.grey)),
-                         ToggleSwitch(
-                          checked: _isHttps,
-                          onChanged: (v) => setState(() => _isHttps = v),
+                         MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: ToggleSwitch(
+                            checked: _isHttps,
+                            onChanged: (v) => setState(() => _isHttps = v),
+                          ),
                         ),
                       ],
                     ),
@@ -301,11 +322,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     SizedBox(
                       width: double.infinity,
                       height: 48,
-                      child: FilledButton(
-                        onPressed: loginState.isLoading ? null : _onLogin,
-                        child: loginState.isLoading 
-                            ? const ProgressRing() 
-                            : Text(_isNasLogin ? '下一步' : '登录', style: const TextStyle(fontSize: 16)),
+                      child: MouseRegion(
+                        cursor: loginState.isLoading ? SystemMouseCursors.basic : SystemMouseCursors.click,
+                        child: FilledButton(
+                          onPressed: loginState.isLoading ? null : _onLogin,
+                          child: loginState.isLoading 
+                              ? const ProgressRing() 
+                              : Text(_isNasLogin ? '下一步' : '登录', style: const TextStyle(fontSize: 16)),
+                        ),
                       ),
                     ),
                   ],
@@ -347,14 +371,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       alignment: Alignment.centerLeft,
                       child: Row(
                         children: [
-                          Button(
-                            child: const Text('关闭'),
-                            onPressed: () {
-                              setState(() {
-                                _showFnConnectWebView = false;
-                              });
-                              _disposeWindowsWebView();
-                            },
+                          MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: Button(
+                              child: const Text('关闭'),
+                              onPressed: () {
+                                setState(() {
+                                  _showFnConnectWebView = false;
+                                });
+                                _disposeWindowsWebView();
+                              },
+                            ),
                           ),
                           const SizedBox(width: 12),
                           const Text('正在验证服务器...', style: TextStyle(color: Colors.grey)),

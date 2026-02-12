@@ -27,9 +27,12 @@ class HistorySidebar extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                IconButton(
-                  icon: const Icon(FluentIcons.double_chevron_left, size: 15),
-                  onPressed: onDismiss,
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: IconButton(
+                    icon: const Icon(FluentIcons.double_chevron_left, size: 15),
+                    onPressed: onDismiss,
+                  ),
                 ),
               ],
             ),
@@ -41,14 +44,20 @@ class HistorySidebar extends StatelessWidget {
                     itemCount: historyList.length,
                     itemBuilder: (context, index) {
                       final history = historyList[index];
-                      return ListTile(
-                        title: Text(history.username),
-                        subtitle: Text(history.getEndpoint()),
-                        trailing: IconButton(
-                          icon: const Icon(FluentIcons.delete, size: 16),
-                          onPressed: () => onDelete(history),
+                      return MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: ListTile(
+                          title: Text(history.username),
+                          subtitle: Text(history.getEndpoint()),
+                          trailing: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: IconButton(
+                              icon: const Icon(FluentIcons.delete, size: 16),
+                              onPressed: () => onDelete(history),
+                            ),
+                          ),
+                          onPressed: () => onSelect(history),
                         ),
-                        onPressed: () => onSelect(history),
                       );
                     },
                   ),

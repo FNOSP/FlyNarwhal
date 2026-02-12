@@ -55,9 +55,12 @@ class TvDetailScreen extends ConsumerWidget {
             children: [
               Text('加载失败: $error'),
               const SizedBox(height: 16),
-              Button(
-                child: const Text('重试'),
-                onPressed: () => ref.read(tvDetailNotifierProvider(guid).notifier).refresh(),
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Button(
+                  child: const Text('重试'),
+                  onPressed: () => ref.read(tvDetailNotifierProvider(guid).notifier).refresh(),
+                ),
               ),
             ],
           ),
@@ -248,26 +251,32 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                SliverToBoxAdapter(
                  child: Padding(
                    padding: const EdgeInsets.fromLTRB(48, 24, 48, 48),
-                   child: HyperlinkButton(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('在 IMDb 上查看'),
-                        const SizedBox(width: 8),
-                        const Icon(FluentIcons.open_in_new_window, size: 12),
-                      ],
+                   child: MouseRegion(
+                     cursor: SystemMouseCursors.click,
+                     child: HyperlinkButton(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('在 IMDb 上查看'),
+                          const SizedBox(width: 8),
+                          const Icon(FluentIcons.open_in_new_window, size: 12),
+                        ],
+                      ),
+                      onPressed: () => launchUrl(Uri.parse(FnDataConvertor.getImdbLink(item.imdbId))),
                     ),
-                    onPressed: () => launchUrl(Uri.parse(FnDataConvertor.getImdbLink(item.imdbId))),
-                  ),
+                   ),
                  ),
                ),
           ],
         ),
         Padding(
             padding: const EdgeInsets.only(top: 24, left: 24),
-            child: IconButton(
-                icon: const Icon(FluentIcons.back, size: 24),
-                onPressed: () => context.pop(),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: IconButton(
+                  icon: const Icon(FluentIcons.back, size: 24),
+                  onPressed: () => context.pop(),
+              ),
             ),
         ),
       ],
@@ -288,9 +297,12 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
           ),
         ),
         actions: [
-          Button(
-            child: const Text('关闭'),
-            onPressed: () => Navigator.of(context).pop(),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Button(
+              child: const Text('关闭'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
           ),
         ],
       ),
@@ -331,48 +343,51 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
 
     return Row(
       children: [
-        FilledButton(
-          onPressed: () async {
-            // TODO: Implement playback logic for TV
-            // Similar to movie, but we need to know which episode to play.
-            // Assuming the playInfo contains the "next episode to watch" or "last watched"
-            final prefsManager = ref.read(preferencesManagerProvider);
-            final baseUrl = prefsManager.getBaseUrl() ?? '';
-            
-            // Construct play URL based on playInfo
-            // The logic from KMP:
-            // val playMedia = rememberPlayMediaFunction(guid = guid, player = player)
-            // It seems it delegates to a player.
-            
-            if (playInfo != null) {
-                 // Actually in KMP `rememberPlayMediaFunction` uses `guid` (which is item guid)
-                 // But `TvDetailScreen` calls `playMedia()` which presumably plays the item returned by `playInfo`?
-                 // In `TvMiddleControls`:
-                 // DetailPlayButton("第 ${playInfo.item.seasonNumber} 季 第 ${playInfo.item.episodeNumber} 集") { playMedia() }
-                 
-                 // So we can try launching the player with the item guid, and backend decides what to play?
-                 // Or we use `playInfo.playItemGuid` if available.
-                 
-                 final targetGuid = playInfo.playItemGuid.isNotEmpty ? playInfo.playItemGuid : widget.guid;
-                 final playUrl = '$baseUrl/v/api/v1/play/video?guid=$targetGuid';
-                 
-                 final uri = Uri.parse(playUrl);
-                 if (await canLaunchUrl(uri)) {
-                   await launchUrl(uri);
-                 }
-            }
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            child: Row(
-              children: [
-                const Icon(FluentIcons.play, size: 20),
-                const SizedBox(width: 12),
-                Text(
-                  playButtonText,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: FilledButton(
+            onPressed: () async {
+              // TODO: Implement playback logic for TV
+              // Similar to movie, but we need to know which episode to play.
+              // Assuming the playInfo contains the "next episode to watch" or "last watched"
+              final prefsManager = ref.read(preferencesManagerProvider);
+              final baseUrl = prefsManager.getBaseUrl() ?? '';
+              
+              // Construct play URL based on playInfo
+              // The logic from KMP:
+              // val playMedia = rememberPlayMediaFunction(guid = guid, player = player)
+              // It seems it delegates to a player.
+              
+              if (playInfo != null) {
+                   // Actually in KMP `rememberPlayMediaFunction` uses `guid` (which is item guid)
+                   // But `TvDetailScreen` calls `playMedia()` which presumably plays the item returned by `playInfo`?
+                   // In `TvMiddleControls`:
+                   // DetailPlayButton("第 ${playInfo.item.seasonNumber} 季 第 ${playInfo.item.episodeNumber} 集") { playMedia() }
+                   
+                   // So we can try launching the player with the item guid, and backend decides what to play?
+                   // Or we use `playInfo.playItemGuid` if available.
+                   
+                   final targetGuid = playInfo.playItemGuid.isNotEmpty ? playInfo.playItemGuid : widget.guid;
+                   final playUrl = '$baseUrl/v/api/v1/play/video?guid=$targetGuid';
+                   
+                   final uri = Uri.parse(playUrl);
+                   if (await canLaunchUrl(uri)) {
+                     await launchUrl(uri);
+                   }
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(FluentIcons.play, size: 20),
+                  const SizedBox(width: 12),
+                  Text(
+                    playButtonText,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -583,9 +598,12 @@ class _OverviewSection extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        HyperlinkButton(
-          onPressed: onMore,
-          child: const Text('更多'),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: HyperlinkButton(
+            onPressed: onMore,
+            child: const Text('更多'),
+          ),
         ),
       ],
     );
@@ -614,9 +632,12 @@ class _CircleButton extends StatelessWidget {
           color: Colors.white.withOpacity(0.1),
           shape: BoxShape.circle,
         ),
-        child: IconButton(
-          icon: Icon(icon, color: color, size: 20),
-          onPressed: onPressed,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: IconButton(
+            icon: Icon(icon, color: color, size: 20),
+            onPressed: onPressed,
+          ),
         ),
       ),
     );

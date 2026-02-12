@@ -166,6 +166,7 @@ class _ScrollButtonState extends State<_ScrollButton> {
           child: MouseRegion(
             onEnter: (_) => setState(() => _hovered = true),
             onExit: (_) => setState(() => _hovered = false),
+            cursor: SystemMouseCursors.click,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: widget.onTap,

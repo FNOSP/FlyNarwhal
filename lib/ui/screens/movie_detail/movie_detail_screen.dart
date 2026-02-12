@@ -51,9 +51,12 @@ class MovieDetailScreen extends ConsumerWidget {
             children: [
               Text('加载失败: $error'),
               const SizedBox(height: 16),
-              Button(
-                child: const Text('重试'),
-                onPressed: () => ref.read(movieDetailNotifierProvider(guid).notifier).refresh(),
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Button(
+                  child: const Text('重试'),
+                  onPressed: () => ref.read(movieDetailNotifierProvider(guid).notifier).refresh(),
+                ),
               ),
             ],
           ),
@@ -293,9 +296,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           ),
         ),
         actions: [
-          Button(
-            child: const Text('关闭'),
-            onPressed: () => Navigator.of(context).pop(),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Button(
+              child: const Text('关闭'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
           ),
         ],
       ),
@@ -339,55 +345,60 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
 
     return Row(
       children: [
-        FilledButton(
-          onPressed: () async {
-            final dioClient = ref.read(dioClientProvider);
-            final prefsManager = ref.read(preferencesManagerProvider);
-            final baseUrl = prefsManager.getBaseUrl() ?? '';
-            
-            // Replicate KMP's play URL logic
-            // KMP uses play_url = baseUrl + "/v/api/v1/play/video?guid=" + guid + "&media_guid=" + mediaGuid
-            // + "&audio_guid=" + audioGuid + "&subtitle_guid=" + subtitleGuid
-            final audioGuid = _selectedAudioGuid ?? '';
-            final subtitleGuid = _selectedSubtitleGuid ?? '';
-            
-            final playUrl = '$baseUrl/v/api/v1/play/video?guid=${widget.guid}&media_guid=$currentMediaGuid'
-                '&audio_guid=$audioGuid&subtitle_guid=$subtitleGuid';
-            
-            // For now, since we don't have a dedicated player widget, 
-            // we'll try to open it in an external player or browser
-            final uri = Uri.parse(playUrl);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri);
-            } else {
-              if (context.mounted) {
-                showDialog(
-                  context: context,
-                  builder: (context) => ContentDialog(
-                    title: const Text('播放失败'),
-                    content: const Text('无法启动外部播放器，请检查网络连接或播放地址。'),
-                    actions: [
-                      Button(
-                        child: const Text('确定'),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
-                );
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: FilledButton(
+            onPressed: () async {
+              final prefsManager = ref.read(preferencesManagerProvider);
+              final baseUrl = prefsManager.getBaseUrl() ?? '';
+              
+              // Replicate KMP's play URL logic
+              // KMP uses play_url = baseUrl + "/v/api/v1/play/video?guid=" + guid + "&media_guid=" + mediaGuid
+              // + "&audio_guid=" + audioGuid + "&subtitle_guid=" + subtitleGuid
+              final audioGuid = _selectedAudioGuid ?? '';
+              final subtitleGuid = _selectedSubtitleGuid ?? '';
+              
+              final playUrl = '$baseUrl/v/api/v1/play/video?guid=${widget.guid}&media_guid=$currentMediaGuid'
+                  '&audio_guid=$audioGuid&subtitle_guid=$subtitleGuid';
+              
+              // For now, since we don't have a dedicated player widget, 
+              // we'll try to open it in an external player or browser
+              final uri = Uri.parse(playUrl);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri);
+              } else {
+                if (context.mounted) {
+                  showDialog(
+                    context: context,
+                    builder: (context) => ContentDialog(
+                      title: const Text('播放失败'),
+                      content: const Text('无法启动外部播放器，请检查网络连接或播放地址。'),
+                      actions: [
+                        MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Button(
+                            child: const Text('确定'),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
               }
-            }
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            child: Row(
-              children: [
-                const Icon(FluentIcons.play, size: 20),
-                const SizedBox(width: 12),
-                Text(
-                  item.watchedTs > 0 ? '继续播放' : '立即播放',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(FluentIcons.play, size: 20),
+                  const SizedBox(width: 12),
+                  Text(
+                    item.watchedTs > 0 ? '继续播放' : '立即播放',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -599,9 +610,12 @@ class _OverviewSection extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        HyperlinkButton(
-          onPressed: onMore,
-          child: const Text('更多'),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: HyperlinkButton(
+            onPressed: onMore,
+            child: const Text('更多'),
+          ),
         ),
       ],
     );
@@ -630,9 +644,12 @@ class _CircleButton extends StatelessWidget {
           color: Colors.white.withOpacity(0.1),
           shape: BoxShape.circle,
         ),
-        child: IconButton(
-          icon: Icon(icon, color: color, size: 20),
-          onPressed: onPressed,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: IconButton(
+            icon: Icon(icon, color: color, size: 20),
+            onPressed: onPressed,
+          ),
         ),
       ),
     );
@@ -693,16 +710,19 @@ class _MediaSourceBoxes extends StatelessWidget {
         final isSelected = index == selectedIndex;
         final label = '${stream.resolutionType.toUpperCase()} ${stream.colorRangeType == 'DolbyVision' ? '杜比视界' : stream.colorRangeType}';
         
-        return Button(
-          style: ButtonStyle(
-            backgroundColor: isSelected ? ButtonState.all(FluentTheme.of(context).accentColor) : null,
-          ),
-          onPressed: () => onChanged(index),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.white : null,
-              fontWeight: isSelected ? FontWeight.bold : null,
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Button(
+            style: ButtonStyle(
+              backgroundColor: isSelected ? ButtonState.all(FluentTheme.of(context).accentColor) : null,
+            ),
+            onPressed: () => onChanged(index),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : null,
+                fontWeight: isSelected ? FontWeight.bold : null,
+              ),
             ),
           ),
         );

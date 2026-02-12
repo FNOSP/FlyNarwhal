@@ -78,139 +78,154 @@ class RecentlyWatchedItem extends ConsumerWidget {
     final scaleFactor = resolveWindowScaleFactor(context);
     final posterWidth = 240 * scaleFactor;
 
-    return HoverButton(
-      onPressed: () {},
-      builder: (context, states) {
-        final isHovered = states.isHovered;
-        return SizedBox(
-          width: posterWidth,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14 * scaleFactor),
-                    border: Border.all(color: Colors.grey[160].withValues(alpha: 0.6)),
-                    color: Colors.grey[160],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (imageUrl != null)
-                        CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          httpHeaders: httpHeaders,
-                          cacheManager: cacheManager,
-                          fit: BoxFit.cover,
-                          fadeOutDuration: const Duration(milliseconds: 120),
-                          errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
-                          placeholder: (context, url) => const Center(child: ProgressRing()),
-                        )
-                      else
-                        const Center(child: Icon(FluentIcons.file_image)),
-                      Align(
-                        alignment: Alignment.bottomLeft,
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 5,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Container(color: Colors.white.withValues(alpha: 0.05)),
-                              if (progress > 0)
-                                FractionallySizedBox(
-                                  widthFactor: progress,
-                                  alignment: Alignment.centerLeft,
-                                  child: Container(color: const Color(0xFF2073DF)),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: HoverButton(
+        onPressed: () {},
+        builder: (context, states) {
+          final isHovered = states.isHovered;
+          return SizedBox(
+            width: posterWidth,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14 * scaleFactor),
+                      border: Border.all(color: Colors.grey[160].withValues(alpha: 0.6)),
+                      color: Colors.grey[160],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (imageUrl != null)
+                          CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            httpHeaders: httpHeaders,
+                            cacheManager: cacheManager,
+                            fit: BoxFit.cover,
+                            fadeOutDuration: const Duration(milliseconds: 120),
+                            errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
+                            placeholder: (context, url) => const Center(child: ProgressRing()),
+                          )
+                        else
+                          const Center(child: Icon(FluentIcons.file_image)),
+                        Align(
+                          alignment: Alignment.bottomLeft,
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 5,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Container(color: Colors.white.withValues(alpha: 0.05)),
+                                if (progress > 0)
+                                  FractionallySizedBox(
+                                    widthFactor: progress,
+                                    alignment: Alignment.centerLeft,
+                                    child: Container(color: const Color(0xFF2073DF)),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: isHovered ? 1 : 0,
+                          child: Container(
+                            color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
+                          ),
+                        ),
+                        Center(
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 200),
+                            opacity: isHovered ? 1 : 0,
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: IconButton(
+                                icon: const Icon(FluentIcons.play, size: 40),
+                                onPressed: () {},
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 8,
+                          bottom: 8,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 200),
+                            opacity: isHovered ? 1 : 0,
+                            child: Row(
+                              children: [
+                                MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: IconButton(
+                                    icon: Icon(FluentIcons.check_mark, color: item.watched == 1 ? Colors.green : Colors.white),
+                                    onPressed: () {},
+                                  ),
                                 ),
-                            ],
+                                MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: IconButton(
+                                    icon: Icon(FluentIcons.favorite_star, color: item.isFavorite == 1 ? Colors.red : Colors.white),
+                                    onPressed: () {},
+                                  ),
+                                ),
+                                MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: IconButton(
+                                    icon: const Icon(FluentIcons.more),
+                                    onPressed: () {},
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      AnimatedOpacity(
-                        duration: const Duration(milliseconds: 200),
-                        opacity: isHovered ? 1 : 0,
-                        child: Container(
-                          color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
-                        ),
-                      ),
-                      Center(
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 200),
-                          opacity: isHovered ? 1 : 0,
-                          child: IconButton(
-                            icon: const Icon(FluentIcons.play, size: 40),
-                            onPressed: () {},
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 8,
-                        bottom: 8,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 200),
-                          opacity: isHovered ? 1 : 0,
-                          child: Row(
-                            children: [
-                              IconButton(
-                                icon: Icon(FluentIcons.check_mark, color: item.watched == 1 ? Colors.green : Colors.white),
-                                onPressed: () {},
-                              ),
-                              IconButton(
-                                icon: Icon(FluentIcons.favorite_star, color: item.isFavorite == 1 ? Colors.red : Colors.white),
-                                onPressed: () {},
-                              ),
-                              IconButton(
-                                icon: const Icon(FluentIcons.more),
-                                onPressed: () {},
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: posterWidth,
-                child: Text(
-                  displayTitle,
-                  maxLines: 1,
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.typography.caption?.copyWith(
-                    fontWeight: FontWeight.normal,
-                    fontSize: 12,
-                    color: isHovered ? const Color(0xFF2073DF) : theme.typography.body?.color,
-                  ),
-                ),
-              ),
-              if (displaySubtitle != null) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: posterWidth,
                   child: Text(
-                    displaySubtitle,
-                    maxLines: 2,
+                    displayTitle,
+                    maxLines: 1,
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                     style: theme.typography.caption?.copyWith(
                       fontWeight: FontWeight.normal,
                       fontSize: 12,
-                      color: theme.typography.caption?.color?.withValues(alpha: 0.7),
+                      color: isHovered ? const Color(0xFF2073DF) : theme.typography.body?.color,
                     ),
                   ),
                 ),
+                if (displaySubtitle != null) ...[
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: posterWidth,
+                    child: Text(
+                      displaySubtitle,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.typography.caption?.copyWith(
+                        fontWeight: FontWeight.normal,
+                        fontSize: 12,
+                        color: theme.typography.caption?.color?.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 }

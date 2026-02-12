@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/models/base_response.dart';
@@ -197,17 +196,6 @@ class TvDetailNotifier extends _$TvDetailNotifier {
       if (response.data['success'] == true) {
          // Need to refresh or update specific season in list
          // For simplicity, refresh whole data or update list locally
-         final currentState = state.value!;
-         final updatedList = currentState.seasonList.map((season) {
-             if (season.guid == seasonGuid) {
-                 // Creating a copy manually as SeasonListResponse is immutable and we didn't add copyWith
-                 // Ideally should add copyWith to SeasonListResponse
-                 // For now, let's just refresh the data to keep it simple and correct
-                 return season; 
-             }
-             return season;
-         }).toList();
-         
          // Actually refreshing is better to get correct counts/status from server
          refresh();
       }

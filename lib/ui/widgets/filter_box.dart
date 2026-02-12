@@ -278,25 +278,28 @@ class _FilterBoxState extends State<FilterBox> {
             ];
           }),
           if (widget.onCollapse != null)
-            HoverButton(
-              onPressed: widget.onCollapse,
-              builder: (context, states) {
-                final color = states.isHovered
-                    ? theme.typography.body?.color
-                    : theme.typography.caption?.color;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('收起', style: TextStyle(color: color, fontSize: 14)),
-                    const SizedBox(width: 4),
-                    Icon(
-                      FluentIcons.chevron_up,
-                      size: 14,
-                      color: color,
-                    ),
-                  ],
-                );
-              },
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: HoverButton(
+                onPressed: widget.onCollapse,
+                builder: (context, states) {
+                  final color = states.isHovered
+                      ? theme.typography.body?.color
+                      : theme.typography.caption?.color;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('收起', style: TextStyle(color: color, fontSize: 14)),
+                      const SizedBox(width: 4),
+                      Icon(
+                        FluentIcons.chevron_up,
+                        size: 14,
+                        color: color,
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
         ],
       ),

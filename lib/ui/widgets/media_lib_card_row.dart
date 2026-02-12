@@ -50,19 +50,22 @@ class MediaLibCardRow extends ConsumerWidget {
           itemCount: items.length,
           itemBuilder: (context, index) {
             final item = items[index];
-            return HoverButton(
-              onPressed: () => onItemClick(item),
-              builder: (context, states) {
-                return MediaLibraryCard(
-                  title: item.title,
-                  posters: item.posters,
-                  baseUrl: baseUrl,
-                  httpHeaders: httpHeaders,
-                  scaleFactor: scaleFactor,
-                  isHovered: states.isHovered,
-                  cacheManager: cacheManager,
-                );
-              },
+            return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: HoverButton(
+                onPressed: () => onItemClick(item),
+                builder: (context, states) {
+                  return MediaLibraryCard(
+                    title: item.title,
+                    posters: item.posters,
+                    baseUrl: baseUrl,
+                    httpHeaders: httpHeaders,
+                    scaleFactor: scaleFactor,
+                    isHovered: states.isHovered,
+                    cacheManager: cacheManager,
+                  );
+                },
+              ),
             );
           },
         ),

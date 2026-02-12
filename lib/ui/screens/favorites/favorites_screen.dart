@@ -315,33 +315,36 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     final isSelected = tab == _selectedTab;
                     return Padding(
                       padding: const EdgeInsets.only(right: 16),
-                      child: HoverButton(
-                        onPressed: () {
-                          if (_selectedTab != tab) {
-                            final nextIndex = _tabs.indexOf(tab);
-                            setState(() {
-                              _enableTabAnimation = true;
-                              _tabSwitchDirection = nextIndex >= _selectedTabIndex ? 1 : -1;
-                              _selectedTabIndex = nextIndex;
-                              _selectedTab = tab;
-                              _isFilterOpen = false;
-                              _selectedFilters = {};
-                            });
-                            _loadStaticTags();
-                            _applyCacheToSelected(const {});
-                            _loadData(
-                              tab: _selectedTab,
-                              page: 1,
-                              filters: const {},
-                              force: false,
-                            );
-                          }
-                        },
-                        builder: (context, states) => Text(
-                          tab,
-                          style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? const Color(0xFF2073DF) : FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: HoverButton(
+                          onPressed: () {
+                            if (_selectedTab != tab) {
+                              final nextIndex = _tabs.indexOf(tab);
+                              setState(() {
+                                _enableTabAnimation = true;
+                                _tabSwitchDirection = nextIndex >= _selectedTabIndex ? 1 : -1;
+                                _selectedTabIndex = nextIndex;
+                                _selectedTab = tab;
+                                _isFilterOpen = false;
+                                _selectedFilters = {};
+                              });
+                              _loadStaticTags();
+                              _applyCacheToSelected(const {});
+                              _loadData(
+                                tab: _selectedTab,
+                                page: 1,
+                                filters: const {},
+                                force: false,
+                              );
+                            }
+                          },
+                          builder: (context, states) => Text(
+                            tab,
+                            style: TextStyle(
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? const Color(0xFF2073DF) : FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+                            ),
                           ),
                         ),
                       ),

@@ -357,14 +357,17 @@ class MainLayout extends ConsumerWidget {
                     color: Colors.black.withValues(alpha: 0.4),
                     shape: BoxShape.circle,
                   ),
-                  child: IconButton(
-                    icon: const Icon(FluentIcons.back, size: 20),
-                    onPressed: () {
-                      final target = ref.read(navigationStackProvider.notifier).pop();
-                      if (target != null) {
-                        context.go(target);
-                      }
-                    },
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: IconButton(
+                      icon: const Icon(FluentIcons.back, size: 20),
+                      onPressed: () {
+                        final target = ref.read(navigationStackProvider.notifier).pop();
+                        if (target != null) {
+                          context.go(target);
+                        }
+                      },
+                    ),
                   ),
                 ),
               ),
