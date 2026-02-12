@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'movie_detail_view_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
@@ -190,6 +191,15 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         _updateCurrentStreamSelections();
       }
     });
+  }
+
+  void _handleBackNavigation(BuildContext context) {
+    final previousPath = ref.read(navigationStackProvider.notifier).pop();
+    if (previousPath != null && previousPath.isNotEmpty) {
+      context.go(previousPath);
+      return;
+    }
+    context.go('/home');
   }
 
   @override
@@ -480,7 +490,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
             cursor: SystemMouseCursors.click,
             child: IconButton(
               icon: const Icon(FluentIcons.back, size: 24, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => _handleBackNavigation(context),
               style: ButtonStyle(
                 backgroundColor: ButtonState.all(Colors.black.withOpacity(0.5)),
                 shape: ButtonState.all(const CircleBorder()),

@@ -90,6 +90,15 @@ class _TvDetailContent extends ConsumerStatefulWidget {
 }
 
 class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
+  void _handleBackNavigation(BuildContext context) {
+    final previousPath = ref.read(navigationStackProvider.notifier).pop();
+    if (previousPath != null && previousPath.isNotEmpty) {
+      context.go(previousPath);
+      return;
+    }
+    context.go('/home');
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.state.item;
@@ -275,7 +284,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
               cursor: SystemMouseCursors.click,
               child: IconButton(
                   icon: const Icon(FluentIcons.back, size: 24),
-                  onPressed: () => context.pop(),
+                  onPressed: () => _handleBackNavigation(context),
               ),
             ),
         ),
