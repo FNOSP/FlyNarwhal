@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'movie_detail_view_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
@@ -11,6 +12,8 @@ import '../../../providers/providers.dart';
 import '../../../providers/file_providers.dart';
 import 'detail_components.dart';
 import '../../widgets/nas/add_nas_subtitle_dialog.dart';
+import '../../widgets/cast_scroll_row.dart';
+import '../../widgets/toast.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   if (baseUrl.isEmpty || path.isEmpty) return '';
@@ -99,6 +102,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   // Maps to track selection per media guid
   final Map<String, String> _mediaGuidAudioGuidMap = {};
   final Map<String, String> _mediaGuidSubtitleGuidMap = {};
+  late final ToastManager _toastManager = ToastManager();
 
   @override
   void initState() {
@@ -112,6 +116,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     if (oldWidget.state != widget.state) {
       _initializeSelection();
     }
+  }
+
+  @override
+  void dispose() {
+    _toastManager.dispose();
+    super.dispose();
   }
 
   void _initializeSelection() {
@@ -253,6 +263,42 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     context.go('/home');
   }
 
+  Future<void> _handleToggleFavorite() async {
+    final result = await ref.read(movieDetailNotifierProvider(widget.guid).notifier).toggleFavorite();
+    if (!mounted) return;
+    if (result.success) {
+      _toastManager.showToast(
+        result.message,
+        type: ToastType.success,
+        category: 'favorite_${widget.guid}',
+      );
+    } else {
+      _toastManager.showToast(
+        '操作失败，${result.message}',
+        type: ToastType.failed,
+        category: 'favorite_${widget.guid}',
+      );
+    }
+  }
+
+  Future<void> _handleToggleWatched() async {
+    final result = await ref.read(movieDetailNotifierProvider(widget.guid).notifier).toggleWatched();
+    if (!mounted) return;
+    if (result.success) {
+      _toastManager.showToast(
+        result.message,
+        type: ToastType.success,
+        category: 'watched_${widget.guid}',
+      );
+    } else {
+      _toastManager.showToast(
+        '操作失败，${result.message}',
+        type: ToastType.failed,
+        category: 'watched_${widget.guid}',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.state.item;
@@ -264,6 +310,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final logoUrl = item.logos != null ? _buildImageUrl(widget.baseUrl, item.logos!) : '';
 
     final iso3166Map = widget.state.iso3166;
+    final textColor = FluentTheme.of(context).typography.body?.color;
+    final isFavorite = item.isFavorite == 1;
+    final isWatched = item.isWatched == 1;
 
     // Calculate total duration for progress bar
     final totalDuration = widget.state.streamList?.videoStreams.elementAtOrNull(_selectedVideoStreamIndex)?.duration ?? 0;
@@ -294,18 +343,17 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
+                            Colors.black.withValues(alpha: 0.35),
                             FluentTheme.of(context).scaffoldBackgroundColor,
                           ],
-                          stops: const [0.45, 1.0],
+                          stops: const [0.4, 0.72, 1.0],
                         ),
                       ),
                     ),
-                    Positioned(
-                      left: 48,
-                      bottom: 0, // Adjusted to match KMP logic which aligns bottom start with padding
-                      right: 48,
+                    Align(
+                      alignment: Alignment.bottomLeft,
                       child: Padding(
-                        padding: const EdgeInsets.only(bottom: 0), // Adjust padding if needed
+                        padding: const EdgeInsets.fromLTRB(48, 0, 48, 24),
                         child: logoUrl.isNotEmpty
                             ? _LogoTitle(
                                 url: logoUrl,
@@ -318,11 +366,11 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: FluentTheme.of(context).typography.titleLarge?.copyWith(
-                                  fontSize: 60,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                  height: 1.1,
-                                ),
+                                      fontSize: 60,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                      height: 1.1,
+                                    ),
                               ),
                       ),
                     ),
@@ -346,12 +394,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                         ),
                       ),
 
-                    // Controls Row
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Left: Actions
                         Row(
                           children: [
                             DetailPlayButton(
@@ -361,16 +406,27 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                             const SizedBox(width: 16),
                             CircleIconButton(
                               icon: item.isFavorite == 1 ? FluentIcons.heart_fill : FluentIcons.heart,
-                              iconColor: item.isFavorite == 1 ? Colors.red : null,
+                              iconColor: textColor,
+                              iconWidget: isFavorite
+                                  ? SvgPicture.asset(
+                                      'assets/images/heart_fill.svg',
+                                      width: 22,
+                                      height: 22,
+                                      colorFilter: const ColorFilter.mode(
+                                        Color(0xFFFF0420),
+                                        BlendMode.srcIn,
+                                      ),
+                                    )
+                                  : null,
                               tooltip: item.isFavorite == 1 ? '取消收藏' : '加入收藏',
-                              onPressed: () => ref.read(movieDetailNotifierProvider(widget.guid).notifier).toggleFavorite(),
+                              onPressed: _handleToggleFavorite,
                             ),
                             const SizedBox(width: 16),
                             CircleIconButton(
                               icon: item.isWatched == 1 ? FluentIcons.check_mark : FluentIcons.check_mark,
-                              iconColor: item.isWatched == 1 ? FluentTheme.of(context).accentColor : null,
+                              iconColor: isWatched ? kAccentColor : textColor,
                               tooltip: item.isWatched == 1 ? '标记为未看' : '标记为已看',
-                              onPressed: () => ref.read(movieDetailNotifierProvider(widget.guid).notifier).toggleWatched(),
+                              onPressed: _handleToggleWatched,
                             ),
                             const SizedBox(width: 16),
                             CircleIconButton(
@@ -380,14 +436,16 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                             ),
                           ],
                         ),
-                        
-                        // Right: Tags
-                        Flexible(
-                          child: DetailTags(
-                            item: item,
-                            formatedTotalDuration: formatedTotalDuration,
-                            iso3166Map: iso3166Map,
-                            genresMap: widget.state.genres,
+                        const SizedBox(width: 96),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: DetailTags(
+                              item: item,
+                              formatedTotalDuration: formatedTotalDuration,
+                              iso3166Map: iso3166Map,
+                              genresMap: widget.state.genres,
+                            ),
                           ),
                         ),
                       ],
@@ -480,10 +538,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                           if (widget.state.streamList!.videoStreams.isNotEmpty && _selectedVideoStreamIndex < widget.state.streamList!.videoStreams.length) ...[
                              MediaQualityTag(text: widget.state.streamList!.videoStreams[_selectedVideoStreamIndex].resolutionType.toUpperCase()),
                              const SizedBox(width: 8),
-                             if (widget.state.streamList!.videoStreams[_selectedVideoStreamIndex].colorRangeType == 'DolbyVision')
-                                const MediaQualityTag(text: '杜比视界')
-                             else 
-                                MediaQualityTag(text: widget.state.streamList!.videoStreams[_selectedVideoStreamIndex].colorRangeType),
+                             // Pass raw string to let MediaQualityTag handle image/text
+                             MediaQualityTag(text: widget.state.streamList!.videoStreams[_selectedVideoStreamIndex].colorRangeType),
                           ],
                           const SizedBox(width: 8),
                            // Audio Type Tag
@@ -526,30 +582,11 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 48),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Text('演职员', style: FluentTheme.of(context).typography.subtitle), // Optional Header
-                      // const SizedBox(height: 16),
-                      SizedBox(
-                        height: 240,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 32),
-                          itemCount: widget.state.personList.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 24),
-                          itemBuilder: (context, index) {
-                            final person = widget.state.personList[index];
-                            return _PersonCard(
-                              person: person,
-                              baseUrl: widget.baseUrl,
-                              httpHeaders: widget.httpHeaders,
-                              cacheManager: widget.cacheManager,
-                            );
-                          },
-                        ),
-                      ),
-                    ],
+                  child: CastScrollRow(
+                    persons: widget.state.personList,
+                    baseUrl: widget.baseUrl,
+                    httpHeaders: widget.httpHeaders,
+                    cacheManager: widget.cacheManager,
                   ),
                 ),
               ),
@@ -573,19 +610,36 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         
         // Back Button
         Positioned(
-          top: 20,
-          left: 20,
+          top: 12,
+          left: 12,
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
-            child: IconButton(
-              icon: const Icon(FluentIcons.back, size: 24, color: Colors.white),
-              onPressed: () => _handleBackNavigation(context),
-              style: ButtonStyle(
-                backgroundColor: ButtonState.all(Colors.black.withOpacity(0.5)),
-                shape: ButtonState.all(const CircleBorder()),
+            child: GestureDetector(
+              onTap: () => _handleBackNavigation(context),
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.black.withValues(alpha: 0.2),
+                      Colors.black.withValues(alpha: 0.15),
+                      Colors.black.withValues(alpha: 0.1),
+                      Colors.black.withValues(alpha: 0.01),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.4, 0.65, 0.85, 1.0],
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(FluentIcons.back, size: 24, color: Colors.white),
               ),
             ),
           ),
+        ),
+        Positioned.fill(
+          child: ToastHost(toastManager: _toastManager),
         ),
       ],
     );
@@ -737,14 +791,14 @@ class _ProgressBar extends StatelessWidget {
           width: 300,
           child: ProgressBar(
             value: progress * 100,
-            backgroundColor: Colors.white.withOpacity(0.1),
+            backgroundColor: Colors.white.withValues(alpha: 0.1),
           ),
         ),
         const SizedBox(width: 12),
         Text(
           '剩余 ${FnDataConvertor.formatSecondsToCNDateTime(remaining)}',
           style: FluentTheme.of(context).typography.caption?.copyWith(
-            color: FluentTheme.of(context).typography.caption?.color?.withOpacity(0.6),
+            color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.6),
           ),
         ),
       ],
@@ -771,89 +825,15 @@ class _MediaSourceBoxes extends StatelessWidget {
       children: List.generate(videoStreams.length, (index) {
         final stream = videoStreams[index];
         final isSelected = index == selectedIndex;
-        final label = '${stream.resolutionType.toUpperCase()} ${stream.colorRangeType == 'DolbyVision' ? '杜比视界' : stream.colorRangeType}';
+        final colorRangeType = stream.colorRangeType == 'DolbyVision' ? '杜比视界' : stream.colorRangeType;
+        final label = '${stream.resolutionType.toUpperCase()} $colorRangeType';
         
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Button(
-            style: ButtonStyle(
-              backgroundColor: isSelected ? ButtonState.all(FluentTheme.of(context).accentColor) : null,
-            ),
-            onPressed: () => onChanged(index),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : null,
-                fontWeight: isSelected ? FontWeight.bold : null,
-              ),
-            ),
-          ),
+        return VideoSelectionBox(
+          text: label,
+          isSelected: isSelected,
+          onClick: () => onChanged(index),
         );
       }),
-    );
-  }
-}
-
-class _PersonCard extends StatelessWidget {
-  final PersonList person;
-  final String baseUrl;
-  final Map<String, String>? httpHeaders;
-  final cache_manager.CacheManager cacheManager;
-
-  const _PersonCard({
-    required this.person,
-    required this.baseUrl,
-    required this.httpHeaders,
-    required this.cacheManager,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final imageUrl = _buildImageUrl(baseUrl, person.profilePath);
-    
-    return SizedBox(
-      width: 120,
-      child: Column(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: imageUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    httpHeaders: httpHeaders,
-                    cacheManager: cacheManager,
-                    width: 120,
-                    height: 180,
-                    fit: BoxFit.cover,
-                  )
-                : Container(
-                    width: 120,
-                    height: 180,
-                    color: Colors.grey[160],
-                    child: const Icon(FluentIcons.contact, size: 48),
-                  ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            person.name,
-            style: FluentTheme.of(context).typography.bodyStrong?.copyWith(fontSize: 14),
-            maxLines: 1,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            person.job == 'Actor' ? '饰 ${person.role}' : person.job,
-            style: FluentTheme.of(context).typography.caption?.copyWith(
-              fontSize: 12,
-              color: FluentTheme.of(context).typography.caption?.color?.withOpacity(0.6),
-            ),
-            maxLines: 1,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1031,9 +1011,9 @@ class _InfoSection extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           child: child,
         ),
@@ -1056,7 +1036,7 @@ class _InfoRow extends StatelessWidget {
         Text(
           label,
           style: FluentTheme.of(context).typography.caption?.copyWith(
-            color: FluentTheme.of(context).typography.caption?.color?.withOpacity(0.5),
+            color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.5),
           ),
         ),
         const SizedBox(height: 4),

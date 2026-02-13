@@ -4,6 +4,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
 
+const kAccentColor = Color(0xFF2173DF);
+
 class DetailPlayButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
@@ -16,25 +18,43 @@ class DetailPlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FilledButton(
-      onPressed: onPressed,
-      style: ButtonStyle(
-        shape: ButtonState.all(const StadiumBorder()),
-        padding: ButtonState.all(const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(FluentIcons.play, size: 20),
-          const SizedBox(width: 12),
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
+    return SizedBox(
+      height: 56,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 160),
+        child: FilledButton(
+          onPressed: onPressed,
+          style: const ButtonStyle(
+            backgroundColor: WidgetStatePropertyAll(kAccentColor),
+            shape: WidgetStatePropertyAll(StadiumBorder()),
+            padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 24)),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                '▶',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  height: 1.0,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -50,7 +70,7 @@ class Separator extends StatelessWidget {
       child: Text(
         '/',
         style: TextStyle(
-          color: FluentTheme.of(context).typography.caption?.color?.withOpacity(0.5),
+          color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.5),
           fontSize: 14,
         ),
       ),
@@ -93,7 +113,7 @@ class DetailTags extends StatelessWidget {
       items.add(Text(
         item.contentRatings!,
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       ));
@@ -103,7 +123,7 @@ class DetailTags extends StatelessWidget {
       items.add(Text(
         item.airDate!.substring(0, 4),
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       ));
@@ -119,7 +139,7 @@ class DetailTags extends StatelessWidget {
         items.add(Text(
           genresText,
           style: TextStyle(
-            color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+            color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
             fontSize: 14,
           ),
         ));
@@ -139,7 +159,7 @@ class DetailTags extends StatelessWidget {
         items.add(Text(
           countriesText,
           style: TextStyle(
-            color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+            color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
             fontSize: 14,
           ),
         ));
@@ -150,7 +170,7 @@ class DetailTags extends StatelessWidget {
       items.add(Text(
         formatedTotalDuration!,
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       ));
@@ -160,7 +180,7 @@ class DetailTags extends StatelessWidget {
       items.add(Text(
         item.ancestorName,
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       ));
@@ -170,7 +190,7 @@ class DetailTags extends StatelessWidget {
       items.add(Text(
         '智能片头/片尾检测状态：$smartAnalysisStatusText',
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       ));
@@ -215,7 +235,7 @@ class _ImdbLinkState extends State<ImdbLink> {
         Text(
           '链接:  ',
           style: TextStyle(
-            color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+            color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
             fontSize: 14,
           ),
         ),
@@ -273,7 +293,7 @@ class _MediaDescriptionState extends State<MediaDescription> {
         final span = TextSpan(
           text: processedOverview,
           style: TextStyle(
-            color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+            color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
             fontSize: 15,
             height: 1.5,
           ),
@@ -293,7 +313,7 @@ class _MediaDescriptionState extends State<MediaDescription> {
             Text(
               processedOverview,
               style: TextStyle(
-                color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+                color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
                 fontSize: 15,
                 height: 1.5,
               ),
@@ -303,29 +323,29 @@ class _MediaDescriptionState extends State<MediaDescription> {
             if (isOverflowing)
               Positioned(
                 bottom: 0,
-                right: 0,
+                right: -10,
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                       colors: [
-                        FluentTheme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                        FluentTheme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.0),
                         FluentTheme.of(context).scaffoldBackgroundColor,
                         FluentTheme.of(context).scaffoldBackgroundColor,
                       ],
                       stops: const [0.0, 0.4, 1.0],
                     ),
                   ),
-                  padding: const EdgeInsets.only(left: 32, right: 0),
+                  padding: const EdgeInsets.only(left: 32, right: 10),
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
                       onTap: widget.onMore,
-                      child: Text(
-                        '更多',
+                      child: const Text(
+                        '  更多',
                         style: TextStyle(
-                          color: FluentTheme.of(context).accentColor,
+                          color: kAccentColor,
                           fontSize: 15,
                         ),
                       ),
@@ -370,7 +390,7 @@ class MediaDescriptionDialog extends StatelessWidget {
           style: TextStyle(
             fontSize: 15,
             height: 1.6,
-            color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+            color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
           ),
         ),
       ),
@@ -378,11 +398,13 @@ class MediaDescriptionDialog extends StatelessWidget {
   }
 }
 
-class CircleIconButton extends StatelessWidget {
+class CircleIconButton extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
   final Color? iconColor;
+  final Widget? iconWidget;
+  final double iconSize;
 
   const CircleIconButton({
     super.key,
@@ -390,22 +412,46 @@ class CircleIconButton extends StatelessWidget {
     required this.tooltip,
     required this.onPressed,
     this.iconColor,
+    this.iconWidget,
+    this.iconSize = 22,
   });
 
   @override
+  State<CircleIconButton> createState() => _CircleIconButtonState();
+}
+
+class _CircleIconButtonState extends State<CircleIconButton> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
+    final borderColor = Colors.white.withValues(alpha: _hovered ? 0.3 : 0.1);
+    final backgroundColor = _hovered ? Colors.white.withValues(alpha: 0.02) : Colors.transparent;
     return Tooltip(
-      message: tooltip,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: IconButton(
-            icon: Icon(icon, color: iconColor, size: 20),
-            onPressed: onPressed,
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: borderColor),
+            ),
+            child: Center(
+              child: widget.iconWidget ??
+                  Icon(
+                    widget.icon,
+                    color: widget.iconColor,
+                    size: widget.iconSize,
+                  ),
+            ),
           ),
         ),
       ),
@@ -421,17 +467,122 @@ class MediaQualityTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (text.isEmpty) return const SizedBox.shrink();
+    final raw = text.trim();
+    const imageTags = {
+      'DolbySurround': 'dolby_surround_logo.png',
+      'DolbyVision': 'dolby_vision_logo.png',
+      'DTS': 'dts_logo.png',
+      'DolbyAtmos': 'dolby_atmos_logo.png',
+    };
+    if (imageTags.containsKey(raw)) {
+      return Image.asset(
+        'assets/images/${imageTags[raw]}',
+        height: 24,
+        color: Colors.white.withValues(alpha: 0.5),
+        colorBlendMode: BlendMode.srcIn,
+      );
+    }
+    final lower = raw.toLowerCase();
+    final isResolution = lower.endsWith('k') || lower.endsWith('p');
+    const textColor = Colors.white;
+    final backgroundColor = Colors.white.withValues(alpha: 0.2);
+    final borderColor = Colors.white.withValues(alpha: 0.5);
+
+    if (isResolution) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          raw.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: textColor,
+            height: 1.1,
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
+        border: Border.all(color: borderColor, width: 1.0),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        text,
+        raw,
         style: TextStyle(
           fontSize: 12,
-          color: FluentTheme.of(context).typography.caption?.color,
+          fontWeight: FontWeight.w600,
+          color: textColor.withValues(alpha: 0.9),
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+}
+
+class VideoSelectionBox extends StatefulWidget {
+  final String text;
+  final VoidCallback onClick;
+  final bool isSelected;
+
+  const VideoSelectionBox({
+    super.key,
+    required this.text,
+    required this.onClick,
+    required this.isSelected,
+  });
+
+  @override
+  State<VideoSelectionBox> createState() => _VideoSelectionBoxState();
+}
+
+class _VideoSelectionBoxState extends State<VideoSelectionBox> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final textColor = widget.isSelected ? kAccentColor : theme.typography.body?.color ?? Colors.white;
+    final borderColor = widget.isSelected
+        ? kAccentColor
+        : _isHovered
+            ? Colors.white.withValues(alpha: 0.3)
+            : Colors.white.withValues(alpha: 0.1);
+    final backgroundColor = _isHovered ? Colors.white.withValues(alpha: 0.02) : Colors.transparent;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onClick,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 128,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            border: Border.all(
+              color: borderColor,
+              width: widget.isSelected ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            widget.text,
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
         ),
       ),
     );
@@ -675,9 +826,9 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
             controller: _addController,
             child: Button(
               onPressed: hasAddActions ? _showAddFlyout : null,
-              style: ButtonStyle(
-                padding: ButtonState.all(const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-                shape: ButtonState.all(const StadiumBorder()),
+              style: const ButtonStyle(
+                padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                shape: WidgetStatePropertyAll(StadiumBorder()),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -696,7 +847,7 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
                     child: Icon(
                       FluentIcons.chevron_down_small,
                       size: 12,
-                      color: theme.typography.body?.color?.withOpacity(0.8),
+                      color: theme.typography.body?.color?.withValues(alpha: 0.8),
                     ),
                   ),
                 ],
@@ -745,7 +896,7 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
                 fontSize: 12,
                 color: isSelected
                     ? theme.accentColor
-                    : theme.typography.body?.color?.withOpacity(0.7),
+                    : theme.typography.body?.color?.withValues(alpha: 0.7),
               ),
             ),
         ],
@@ -786,7 +937,7 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
             '无内容',
             style: TextStyle(
               fontSize: 13,
-              color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.7),
+              color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.7),
             ),
           ),
         ),
@@ -814,7 +965,7 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
       return Text(
         label,
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       );
@@ -834,7 +985,7 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
               Text(
                 label,
                 style: TextStyle(
-                  color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.8),
+                  color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
                   fontSize: 14,
                 ),
               ),
@@ -845,7 +996,7 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
                 child: Icon(
                   FluentIcons.chevron_down_small,
                   size: 12,
-                  color: FluentTheme.of(context).typography.body?.color?.withOpacity(0.6),
+                  color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.6),
                 ),
               ),
             ],

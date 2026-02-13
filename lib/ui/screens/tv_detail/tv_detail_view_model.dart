@@ -84,7 +84,7 @@ class TvDetailNotifier extends _$TvDetailNotifier {
     );
 
     final personListResult = await safeRequest(
-      () => dioClient.dio.post('/v/api/v1/person/list/$guid'),
+      () => dioClient.dio.post('/v/api/v1/person/list/$guid', data: const {}),
     );
     
     final iso6391 = await safeRequest(() => tagRepo.getTag('iso6391')) ?? const <String, String>{};

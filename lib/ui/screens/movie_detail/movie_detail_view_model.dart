@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../data/models/base_response.dart';
 import '../../../data/models/movie_detail_models.dart';
@@ -83,7 +84,7 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
       () => dioClient.dio.post('/v/api/v1/play/info', data: {'guid': guid}),
     );
     final personListResult = await safeRequest(
-      () => dioClient.dio.post('/v/api/v1/person/list/$guid'),
+      () => dioClient.dio.post('/v/api/v1/person/list/$guid', data: const {}),
     );
     final iso6391 = await safeRequest(() => tagRepo.getTag('iso6391')) ?? const <String, String>{};
     final iso6392 = await safeRequest(() => tagRepo.getTag('iso6392')) ?? const <String, String>{};
@@ -138,53 +139,82 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
     await future;
   }
 
-  Future<void> toggleFavorite() async {
+  bool _isSuccessResponse(dynamic data) {
+    if (data is bool) return data;
+    if (data is Map && data['success'] == true) return true;
+    return false;
+  }
+
+  Future<ActionResult> toggleFavorite() async {
     final item = state.value?.item;
-    if (item == null) return;
+    if (item == null) return const ActionResult(success: false, message: '未找到影片信息');
 
     try {
       final dioClient = ref.read(dioClientProvider);
       final isFavorite = item.isFavorite == 1;
-      
-      final response = await dioClient.dio.get(
-        isFavorite ? '/v/api/v1/favorite/delete' : '/v/api/v1/favorite/add',
-        queryParameters: {'guid': guid},
-      );
 
-      if (response.data['success'] == true) {
-        // Update local state
+      debugPrint('favorite request: item_guid=$guid action=${isFavorite ? 'cancel' : 'add'}');
+      final response = isFavorite
+          ? await dioClient.dio.delete(
+              '/v/api/v1/item/favorite',
+              data: {'item_guid': guid},
+            )
+          : await dioClient.dio.put(
+              '/v/api/v1/item/favorite',
+              data: {'item_guid': guid},
+            );
+
+      if (_isSuccessResponse(response.data)) {
         final currentState = state.value!;
         state = AsyncValue.data(currentState.copyWith(
           item: item.copyWith(isFavorite: isFavorite ? 0 : 1),
         ));
+        return ActionResult(success: true, message: isFavorite ? '已取消收藏' : '已收藏');
       }
+      final message = response.data is Map ? response.data['message']?.toString() ?? '操作失败' : '操作失败';
+      return ActionResult(success: false, message: message);
     } catch (e) {
-      // Handle error
+      return ActionResult(success: false, message: e.toString());
     }
   }
 
-  Future<void> toggleWatched() async {
+  Future<ActionResult> toggleWatched() async {
     final item = state.value?.item;
-    if (item == null) return;
+    if (item == null) return const ActionResult(success: false, message: '未找到影片信息');
 
     try {
       final dioClient = ref.read(dioClientProvider);
       final isWatched = item.isWatched == 1;
-      
-      final response = await dioClient.dio.get(
-        isWatched ? '/v/api/v1/watched/delete' : '/v/api/v1/watched/add',
-        queryParameters: {'guid': guid},
-      );
 
-      if (response.data['success'] == true) {
-        // Update local state
+      debugPrint('watched request: item_guid=$guid action=${isWatched ? 'cancel' : 'add'}');
+      final response = isWatched
+          ? await dioClient.dio.delete(
+              '/v/api/v1/item/watched',
+              data: {'item_guid': guid},
+            )
+          : await dioClient.dio.post(
+              '/v/api/v1/item/watched',
+              data: {'item_guid': guid},
+            );
+
+      if (_isSuccessResponse(response.data)) {
         final currentState = state.value!;
         state = AsyncValue.data(currentState.copyWith(
           item: item.copyWith(isWatched: isWatched ? 0 : 1),
         ));
+        return ActionResult(success: true, message: isWatched ? '标记为未观看' : '标记为已观看');
       }
+      final message = response.data is Map ? response.data['message']?.toString() ?? '操作失败' : '操作失败';
+      return ActionResult(success: false, message: message);
     } catch (e) {
-      // Handle error
+      return ActionResult(success: false, message: e.toString());
     }
   }
+}
+
+class ActionResult {
+  final bool success;
+  final String message;
+
+  const ActionResult({required this.success, required this.message});
 }
