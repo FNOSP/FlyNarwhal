@@ -40,7 +40,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   TagListResponse? _tagList;
   List<GenresResponse>? _genres;
-  List<QueryTagResponse>? _iso3166;
+  Map<String, String>? _iso3166;
 
   @override
   void initState() {
@@ -57,9 +57,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         final type = _getTypeForTagApi(_selectedTab);
         tagList = await repo.getTagList(ancestorGuid: null, isFavorite: 1, type: type);
       }
-      final genres = await repo.getGenres(lan: 'zh');
-      final iso3166 = await repo.getTag('iso3166', lan: 'zh');
-      await repo.getTag('iso6391', lan: 'zh');
+      final genres = await repo.getGenres();
+      final iso3166 = await repo.getTag('iso3166');
+      await repo.getTag('iso6391');
       setState(() {
         _tagList = tagList;
         _genres = genres;

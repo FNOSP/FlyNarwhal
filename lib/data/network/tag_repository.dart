@@ -1,3 +1,5 @@
+import 'package:fluent_ui/fluent_ui.dart';
+
 import '../models/base_response.dart';
 import '../models/tag_models.dart';
 import 'dio_client.dart';
@@ -6,11 +8,11 @@ class TagRepository {
   final DioClient _dioClient;
 
   List<GenresResponse>? _genresCache;
-  final Map<String, List<QueryTagResponse>> _tagCache = {};
+  final Map<String, Map<String, String>> _tagCache = {};
 
   TagRepository(this._dioClient);
 
-  Future<List<GenresResponse>> getGenres({String? lan, bool force = false}) async {
+  Future<List<GenresResponse>> getGenres({String? lan = 'zh-CN', bool force = false}) async {
     if (!force && _genresCache != null && _genresCache!.isNotEmpty) {
       return _genresCache!;
     }
@@ -32,9 +34,9 @@ class TagRepository {
     return data;
   }
 
-  Future<List<QueryTagResponse>> getTag(
+  Future<Map<String, String>> getTag(
     String tag, {
-    String? lan,
+    String? lan = 'zh-CN',
     bool force = false,
   }) async {
     final cached = _tagCache[tag];
@@ -45,6 +47,7 @@ class TagRepository {
       '/v/api/v1/tag/$tag',
       queryParameters: lan == null ? null : {'lan': lan},
     );
+    
     final baseResponse = FnBaseResponse<List<QueryTagResponse>>.fromJson(
       response.data,
       (json) => (json as List)
@@ -53,10 +56,11 @@ class TagRepository {
     );
     if (baseResponse.code != 0) throw Exception(baseResponse.msg);
     final data = baseResponse.data ?? [];
-    if (data.isNotEmpty) {
-      _tagCache[tag] = data;
+    final dataMap = {for (final item in data) item.key: item.value};
+    if (dataMap.isNotEmpty) {
+      _tagCache[tag] = dataMap;
     }
-    return data;
+    return dataMap;
   }
 
   Future<TagListResponse> getTagList({

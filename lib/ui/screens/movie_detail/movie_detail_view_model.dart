@@ -11,9 +11,9 @@ class MovieDetailState {
   final StreamListResponse? streamList;
   final PlayInfoResponse? playInfo;
   final List<PersonList> personList;
-  final List<QueryTagResponse> iso6391;
-  final List<QueryTagResponse> iso6392;
-  final List<QueryTagResponse> iso3166;
+  final Map<String, String> iso6391;
+  final Map<String, String> iso6392;
+  final Map<String, String> iso3166;
   final Map<int, String> genres;
   final bool isLoading;
   final String? error;
@@ -23,9 +23,9 @@ class MovieDetailState {
     this.streamList,
     this.playInfo,
     this.personList = const [],
-    this.iso6391 = const [],
-    this.iso6392 = const [],
-    this.iso3166 = const [],
+    this.iso6391 = const {},
+    this.iso6392 = const {},
+    this.iso3166 = const {},
     this.genres = const {},
     this.isLoading = false,
     this.error,
@@ -36,9 +36,9 @@ class MovieDetailState {
     StreamListResponse? streamList,
     PlayInfoResponse? playInfo,
     List<PersonList>? personList,
-    List<QueryTagResponse>? iso6391,
-    List<QueryTagResponse>? iso6392,
-    List<QueryTagResponse>? iso3166,
+    Map<String, String>? iso6391,
+    Map<String, String>? iso6392,
+    Map<String, String>? iso3166,
     Map<int, String>? genres,
     bool? isLoading,
     String? error,
@@ -85,10 +85,10 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
     final personListResult = await safeRequest(
       () => dioClient.dio.post('/v/api/v1/person/list/$guid'),
     );
-    final iso6391 = await safeRequest(() => tagRepo.getTag('iso6391', lan: 'zh')) ?? const <QueryTagResponse>[];
-    final iso6392 = await safeRequest(() => tagRepo.getTag('iso6392', lan: 'zh')) ?? const <QueryTagResponse>[];
-    final iso3166 = await safeRequest(() => tagRepo.getTag('iso3166', lan: 'zh')) ?? const <QueryTagResponse>[];
-    final genresList = await safeRequest(() => tagRepo.getGenres(lan: 'zh')) ?? const <GenresResponse>[];
+    final iso6391 = await safeRequest(() => tagRepo.getTag('iso6391')) ?? const <String, String>{};
+    final iso6392 = await safeRequest(() => tagRepo.getTag('iso6392')) ?? const <String, String>{};
+    final iso3166 = await safeRequest(() => tagRepo.getTag('iso3166')) ?? const <String, String>{};
+    final genresList = await safeRequest(() => tagRepo.getGenres()) ?? const <GenresResponse>[];
 
     final itemResponse = FnBaseResponse<ItemResponse>.fromJson(
       itemResult.data as Map<String, dynamic>,

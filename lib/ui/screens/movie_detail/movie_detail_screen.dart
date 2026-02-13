@@ -212,7 +212,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final backdropUrl = _buildImageUrl(widget.baseUrl, backdropPath);
     final logoUrl = item.logos != null ? _buildImageUrl(widget.baseUrl, item.logos!) : '';
 
-    final iso3166Map = {for (var tag in widget.state.iso3166) tag.key: tag.value};
+    final iso3166Map = widget.state.iso3166;
 
     // Calculate total duration for progress bar
     final totalDuration = widget.state.streamList?.videoStreams.elementAtOrNull(_selectedVideoStreamIndex)?.duration ?? 0;
@@ -860,7 +860,7 @@ class _MediaInfoSection extends StatelessWidget {
       ),
     );
 
-    final iso6391Map = {for (var tag in state.iso6391) tag.key: tag.value};
+    final iso6391Map = state.iso6391;
     
     final mediaDetails = FnDataConvertor.convertToMediaDetails(
       fileInfo: fileInfo.guid.isNotEmpty ? fileInfo : null,

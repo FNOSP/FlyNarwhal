@@ -1,6 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../data/models/movie_detail_models.dart';
-import '../../data/models/tag_models.dart';
 
 class FileInfoData {
   final String location;
@@ -92,22 +91,13 @@ class FnDataConvertor {
     }
   }
 
-  static String getLanguageName(String? langCode, List<QueryTagResponse> iso6391, List<QueryTagResponse> iso6392) {
+  static String getLanguageName(String? langCode, Map<String, String> iso6391, Map<String, String> iso6392) {
     if (langCode == null || langCode.isEmpty) return '未知';
     if (langCode == '_no_display_') return '无';
-    
-    // Try iso6391 first
-    try {
-      final tag1 = iso6391.firstWhere((t) => t.key == langCode);
-      if (tag1.value.isNotEmpty) return tag1.value;
-    } catch (_) {}
-
-    // Try iso6392
-    try {
-      final tag2 = iso6392.firstWhere((t) => t.key == langCode);
-      if (tag2.value.isNotEmpty) return tag2.value;
-    } catch (_) {}
-
+    final iso6391Value = iso6391[langCode];
+    if (iso6391Value != null && iso6391Value.isNotEmpty) return iso6391Value;
+    final iso6392Value = iso6392[langCode];
+    if (iso6392Value != null && iso6392Value.isNotEmpty) return iso6392Value;
     return langCode;
   }
 

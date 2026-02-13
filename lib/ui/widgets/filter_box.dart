@@ -204,7 +204,7 @@ class _FilterChipState extends State<FilterChip> {
 class FilterBox extends StatefulWidget {
   final TagListResponse? tagList;
   final List<GenresResponse>? genres;
-  final List<QueryTagResponse>? iso3166;
+  final Map<String, String>? iso3166;
   final Map<String, FilterItem> initialSelectedFilters;
   final ValueChanged<Map<String, FilterItem>> onFilterChanged;
   final VoidCallback? onCollapse;
@@ -380,7 +380,7 @@ class FilterRow extends StatelessWidget {
 List<FilterGroup> _buildFilterGroups({
   TagListResponse? tagList,
   List<GenresResponse>? genres,
-  List<QueryTagResponse>? iso3166,
+  Map<String, String>? iso3166,
 }) {
   final groups = <FilterGroup>[];
   groups.add(
@@ -455,7 +455,7 @@ List<FilterGroup> _buildFilterGroups({
   }
 
   if (tagList != null && iso3166 != null) {
-    final isoMap = {for (final item in iso3166) item.key: item.value};
+    final isoMap = iso3166;
     final options = <FilterItem>[const FilterItem('全部', null)];
     for (final code in tagList.locate) {
       options.add(FilterItem(isoMap[code] ?? code, code));

@@ -1,7 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
-import '../../../data/models/tag_models.dart';
 
 class DetailPlayButton extends StatelessWidget {
   final String text;

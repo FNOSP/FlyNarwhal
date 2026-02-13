@@ -31,7 +31,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
 
   TagListResponse? _tagList;
   List<GenresResponse>? _genres;
-  List<QueryTagResponse>? _iso3166;
+  Map<String, String>? _iso3166;
 
   @override
   void initState() {
@@ -124,9 +124,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         isFavorite: 0,
         type: widget.id == null ? _categoryTagType(widget.categoryType) : null,
       );
-      final genres = await repo.getGenres(lan: 'zh');
-      final iso3166 = await repo.getTag('iso3166', lan: 'zh');
-      await repo.getTag('iso6391', lan: 'zh');
+      final genres = await repo.getGenres();
+      final iso3166 = await repo.getTag('iso3166');
+      await repo.getTag('iso6391');
       setState(() {
         _tagList = tagList;
         _genres = genres;
