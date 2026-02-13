@@ -8,7 +8,9 @@ import '../../../data/utils/fn_data_convertor.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
 import '../../../providers/providers.dart';
+import '../../../providers/file_providers.dart';
 import 'detail_components.dart';
+import '../../widgets/nas/add_nas_subtitle_dialog.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   if (baseUrl.isEmpty || path.isEmpty) return '';
@@ -184,6 +186,52 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         _mediaGuidSubtitleGuidMap[_currentMediaGuid] = '_no_display_';
       }
     }
+  }
+
+  String _resolveCurrentFilePath() {
+    final files = widget.state.streamList?.files ?? [];
+    for (final file in files) {
+      if (file.guid == _currentMediaGuid) {
+        return file.path;
+      }
+    }
+    if (files.isNotEmpty) {
+      return files.first.path;
+    }
+    return '';
+  }
+
+  void _showAddNasSubtitleDialog(String mediaGuid) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AddNasSubtitleDialog(
+        title: '添加字幕',
+        currentPath: _resolveCurrentFilePath(),
+        onConfirm: (paths) async {
+          try {
+            await ref.read(fileRepositoryProvider).markSubtitle(mediaGuid, paths);
+            if (mounted) {
+              ref.read(movieDetailNotifierProvider(widget.guid).notifier).refresh();
+            }
+          } catch (error) {
+            if (!mounted) return;
+            showDialog(
+              context: context,
+              builder: (errorContext) => ContentDialog(
+                title: const Text('添加字幕失败'),
+                content: Text('请稍后重试：$error'),
+                actions: [
+                  Button(
+                    child: const Text('确定'),
+                    onPressed: () => Navigator.of(errorContext).pop(),
+                  ),
+                ],
+              ),
+            );
+          }
+        },
+      ),
+    );
   }
 
   void _onVideoStreamSelected(int index) {
@@ -385,6 +433,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                               selectedValue: _selectedSubtitleGuid,
                               items: subtitleItems,
                               isSubtitle: true,
+                              onAddNasSubtitle: () => _showAddNasSubtitleDialog(_currentMediaGuid),
                               onChanged: (val) {
                                 setState(() {
                                   _selectedSubtitleGuid = val;

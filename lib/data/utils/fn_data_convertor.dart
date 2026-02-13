@@ -161,4 +161,15 @@ class FnDataConvertor {
     if (imdbId == null || imdbId.isEmpty) return '';
     return 'https://www.imdb.com/title/$imdbId/';
   }
+
+  static String getVolumeCNName(String path, {bool hasSpace = true}) {
+    if (path.isEmpty) return '';
+    final regex = RegExp(r'^/vol(\d+)');
+    final match = regex.firstMatch(path);
+    if (match != null) {
+      final volumeNumber = match.group(1);
+      return '存储空间${hasSpace ? ' ' : ''}$volumeNumber';
+    }
+    return path;
+  }
 }

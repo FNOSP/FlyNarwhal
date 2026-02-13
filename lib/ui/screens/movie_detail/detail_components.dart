@@ -16,30 +16,25 @@ class DetailPlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: Button(
-        onPressed: onPressed,
-        style: ButtonStyle(
-          backgroundColor: ButtonState.all(FluentTheme.of(context).accentColor),
-          shape: ButtonState.all(const StadiumBorder()),
-          padding: ButtonState.all(const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(FluentIcons.play, size: 20, color: Colors.white),
-            const SizedBox(width: 12),
-            Text(
-              text,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
+    return FilledButton(
+      onPressed: onPressed,
+      style: ButtonStyle(
+        shape: ButtonState.all(const StadiumBorder()),
+        padding: ButtonState.all(const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(FluentIcons.play, size: 20),
+          const SizedBox(width: 12),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -472,6 +467,9 @@ class StreamSelector<T> extends StatefulWidget {
   final List<StreamOptionItem<T>> items;
   final ValueChanged<T> onChanged;
   final bool isSubtitle;
+  final VoidCallback? onAddNasSubtitle;
+  final VoidCallback? onSearchSubtitle;
+  final VoidCallback? onAddLocalSubtitle;
 
   const StreamSelector({
     super.key,
@@ -481,6 +479,9 @@ class StreamSelector<T> extends StatefulWidget {
     required this.items,
     required this.onChanged,
     this.isSubtitle = false,
+    this.onAddNasSubtitle,
+    this.onSearchSubtitle,
+    this.onAddLocalSubtitle,
   });
 
   @override
@@ -489,10 +490,12 @@ class StreamSelector<T> extends StatefulWidget {
 
 class _StreamSelectorState<T> extends State<StreamSelector<T>> {
   final FlyoutController _controller = FlyoutController();
+  final FlyoutController _addController = FlyoutController();
   bool _isTargetHovered = false;
   bool _isFlyoutHovered = false;
   bool _isHovered = false;
   Timer? _hideTimer;
+  bool _isAddOpen = false;
 
   @override
   void initState() {
@@ -507,6 +510,7 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
   void dispose() {
     _hideTimer?.cancel();
     _controller.dispose();
+    _addController.dispose();
     super.dispose();
   }
 
@@ -595,8 +599,66 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
     return 57.0 * count;
   }
 
+  void _showAddFlyout() async {
+    if (_isAddOpen) return;
+    setState(() {
+      _isAddOpen = true;
+    });
+    try {
+      await _addController.showFlyout<void>(
+        placementMode: FlyoutPlacementMode.bottomCenter,
+        builder: (context) {
+          final items = <MenuFlyoutItem>[];
+          if (widget.onSearchSubtitle != null) {
+            items.add(
+              MenuFlyoutItem(
+                text: const Text('搜索字幕'),
+                onPressed: () {
+                  widget.onSearchSubtitle?.call();
+                  Flyout.of(context).close();
+                },
+              ),
+            );
+          }
+          if (widget.onAddNasSubtitle != null) {
+            items.add(
+              MenuFlyoutItem(
+                text: const Text('添加 NAS 字幕'),
+                onPressed: () {
+                  widget.onAddNasSubtitle?.call();
+                  Flyout.of(context).close();
+                },
+              ),
+            );
+          }
+          if (widget.onAddLocalSubtitle != null) {
+            items.add(
+              MenuFlyoutItem(
+                text: const Text('添加本地字幕'),
+                onPressed: () {
+                  widget.onAddLocalSubtitle?.call();
+                  Flyout.of(context).close();
+                },
+              ),
+            );
+          }
+          return MenuFlyout(items: items);
+        },
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAddOpen = false;
+        });
+      }
+    }
+  }
+
   Widget _buildHeader(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final hasAddActions = widget.onAddNasSubtitle != null ||
+        widget.onSearchSubtitle != null ||
+        widget.onAddLocalSubtitle != null;
     return Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 4),
       child: Row(
@@ -609,29 +671,36 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
               color: theme.typography.body?.color,
             ),
           ),
-          Button(
-            onPressed: () {},
-            style: ButtonStyle(
-              padding: ButtonState.all(const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-              shape: ButtonState.all(const StadiumBorder()),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '添加',
-                  style: TextStyle(
-                    color: theme.typography.body?.color,
-                    fontSize: 13,
+          FlyoutTarget(
+            controller: _addController,
+            child: Button(
+              onPressed: hasAddActions ? _showAddFlyout : null,
+              style: ButtonStyle(
+                padding: ButtonState.all(const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                shape: ButtonState.all(const StadiumBorder()),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '添加',
+                    style: TextStyle(
+                      color: theme.typography.body?.color,
+                      fontSize: 13,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  FluentIcons.chevron_down_small,
-                  size: 12,
-                  color: theme.typography.body?.color?.withOpacity(0.8),
-                ),
-              ],
+                  const SizedBox(width: 4),
+                  AnimatedRotation(
+                    turns: _isAddOpen ? -0.5 : 0,
+                    duration: const Duration(milliseconds: 160),
+                    child: Icon(
+                      FluentIcons.chevron_down_small,
+                      size: 12,
+                      color: theme.typography.body?.color?.withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
