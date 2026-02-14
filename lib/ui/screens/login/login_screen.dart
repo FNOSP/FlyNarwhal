@@ -1,16 +1,24 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io' show Directory, Platform;
+import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart' as material;
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import '../../widgets/history_sidebar.dart';
-import 'login_view_model.dart';
-import '../../../providers/providers.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:webview_windows/webview_windows.dart';
-import 'dart:async';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'dart:io' show Platform, Directory;
+import 'package:path_provider/path_provider.dart';
+import 'package:webview_windows/webview_windows.dart';
+import '../../../data/models/login_history.dart';
+import '../../../data/network/dio_client.dart';
+import '../../../data/storage/preferences_manager.dart';
+import '../../../providers/providers.dart';
+import '../../../utils/fn_api_helper.dart';
+import '../../widgets/history_sidebar.dart';
+import 'login_js_injection.dart';
+import 'login_view_model.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -21,6 +29,10 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   static bool _winEnvInitialized = false;
+  static const Color _primaryBlue = Color(0xFF3A7BFF);
+  static const Color _borderColor = Color(0x99FFFFFF);
+  static const Color _hintColor = Color(0xFF9BA0A6);
+  static const Color _textColor = Color(0xFFE6E8EC);
   final _hostController = TextEditingController();
   final _portController = TextEditingController(text: '5666');
   final _usernameController = TextEditingController();
@@ -33,13 +45,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _showHistorySidebar = false;
   bool _passwordVisible = false;
   bool _showFnConnectWebView = false;
+  bool _isProbeMode = false;
+  bool _allowAutoLogin = false;
+  bool _autoLoginFromHistory = false;
   String _fnConnectUrl = '';
   String _displayHost = '';
   int _displayPort = 0;
+  String _baseUrl = '';
+  String _autoLoginUsername = '';
+  String _autoLoginPassword = '';
+  String _capturedUsername = '';
+  String _capturedPassword = '';
+  bool _capturedRememberPassword = false;
   WebviewController? _winWebviewController;
   bool _winWebviewReady = false;
   StreamSubscription<String>? _winUrlSub;
   StreamSubscription<LoadingState>? _winLoadingSub;
+  InAppWebViewController? _inAppWebViewController;
+  _NetworkMessageProcessor? _networkMessageProcessor;
 
   @override
   void initState() {
@@ -48,7 +71,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final history = ref.read(loginHistoryNotifierProvider);
       if (history.isNotEmpty) {
         final last = history.first;
-        _populateFields(last);
+        _populateFields(last, allowAutoLogin: false);
       }
     });
   }
@@ -64,7 +87,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  void _populateFields(var item) {
+  void _populateFields(
+    var item, {
+    bool allowAutoLogin = false,
+  }) {
     setState(() {
       final displayHost = item.displayHost.toString();
       final displayPort = item.displayPort ?? item.port;
@@ -78,6 +104,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _fnIdController.text = item.fnId;
       _displayHost = _hostController.text;
       _displayPort = displayPort;
+      _autoLoginFromHistory = allowAutoLogin;
     });
   }
 
@@ -99,14 +126,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showErrorDialog('请输入 FN ID');
         return;
       }
-      setState(() {
-        _fnConnectUrl = url;
-        _showFnConnectWebView = true;
-      });
-      if (Platform.isWindows) {
-        debugPrint('[Login] nas login: init windows webview');
-        _initWindowsWebView();
-      }
+      final shouldAutoLogin = _autoLoginFromHistory && _rememberPassword && password.isNotEmpty;
+      _openFnConnectWebView(
+        url: url,
+        isProbe: false,
+        autoLoginUsername: username,
+        autoLoginPassword: shouldAutoLogin ? password : null,
+        allowAutoLogin: shouldAutoLogin,
+      );
       return;
     }
 
@@ -122,14 +149,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showErrorDialog('请填写正确的 IP、域名或 FN ID');
         return;
       }
-      setState(() {
-        _fnConnectUrl = probeUrl;
-        _showFnConnectWebView = true;
-      });
-      if (Platform.isWindows) {
-        debugPrint('[Login] probe: init windows webview');
-        _initWindowsWebView();
-      }
+      _openFnConnectWebView(url: probeUrl, isProbe: true);
       return;
     }
 
@@ -157,6 +177,299 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  void _openFnConnectWebView({
+    required String url,
+    required bool isProbe,
+    String? autoLoginUsername,
+    String? autoLoginPassword,
+    bool allowAutoLogin = false,
+  }) {
+    final normalizedUrl = _normalizeFnConnectUrl(url, true);
+    _baseUrl = _originFromUrl(normalizedUrl);
+    _allowAutoLogin = allowAutoLogin;
+    _autoLoginUsername = autoLoginUsername?.trim() ?? '';
+    _autoLoginPassword = autoLoginPassword ?? '';
+    setState(() {
+      _fnConnectUrl = normalizedUrl;
+      _showFnConnectWebView = true;
+      _isProbeMode = isProbe;
+    });
+    _prepareNetworkProcessor();
+    if (Platform.isWindows) {
+      _initWindowsWebView();
+    }
+  }
+
+  void _prepareNetworkProcessor() {
+    final prefs = ref.read(preferencesManagerProvider);
+    final dioClient = ref.read(dioClientProvider);
+    // Initialize network processor for NAS auth flow
+    debugPrint('[Login][Bridge] prepare network processor');
+    _networkMessageProcessor = _NetworkMessageProcessor(
+      dioClient: dioClient,
+      preferencesManager: prefs,
+      onError: _showErrorDialog,
+      setCookie: _setWebViewCookie,
+      loadUrl: _loadWebViewUrl,
+      onLoginSuccess: _onNasLoginSuccess,
+      onBaseUrlChange: (value) => _baseUrl = value,
+      fnId: _fnIdController.text.trim(),
+      autoLoginUsername: _autoLoginUsername,
+    );
+  }
+
+  material.ThemeData _buildMaterialTheme() {
+    return material.ThemeData(
+      useMaterial3: true,
+      brightness: material.Brightness.dark,
+      colorScheme: material.ColorScheme.fromSeed(
+        seedColor: _primaryBlue,
+        brightness: material.Brightness.dark,
+      ),
+      inputDecorationTheme: material.InputDecorationTheme(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        filled: false,
+        labelStyle: const TextStyle(color: _hintColor, fontSize: 15),
+        floatingLabelStyle: const TextStyle(color: _primaryBlue, fontSize: 15),
+        hintStyle: const TextStyle(color: _hintColor, fontSize: 13),
+        enabledBorder: material.OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _borderColor),
+        ),
+        focusedBorder: material.OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _primaryBlue, width: 1.4),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOutlinedField({
+    required String label,
+    required TextEditingController controller,
+    String? hint,
+    Widget? suffix,
+    bool obscureText = false,
+    TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
+  }) {
+    return material.TextField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      onChanged: onChanged,
+      style: const TextStyle(color: _textColor, fontSize: 16),
+      cursorColor: _primaryBlue,
+      decoration: material.InputDecoration(
+        labelText: label,
+        hintText: hint,
+        suffixIcon: suffix,
+      ),
+    );
+  }
+
+  String _originFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return '';
+    final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
+    final portPart = uri.hasPort ? ':${uri.port}' : '';
+    return '$scheme://${uri.host}$portPart';
+  }
+
+  List<String> _buildUsernameHistory(List<LoginHistory> history) {
+    final seen = <String>{};
+    final result = <String>[];
+    for (final item in history) {
+      final username = item.username.trim();
+      if (username.isEmpty) continue;
+      if (seen.add(username)) {
+        result.add(username);
+      }
+    }
+    return result;
+  }
+
+  Future<void> _injectInAppWebViewScript(List<LoginHistory> history) async {
+    final controller = _inAppWebViewController;
+    if (controller == null) return;
+    // Inject login helper script for mobile/web WebView
+    debugPrint('[Login][Bridge] inject script for InAppWebView');
+    final script = LoginJsInjectionBuilder(
+      autoLoginUsernameLiteral: jsonEncode(_autoLoginUsername),
+      autoLoginPasswordLiteral: jsonEncode(_autoLoginPassword),
+      allowAutoLogin: _allowAutoLogin,
+      usernameHistoryJsonLiteral: jsonEncode(_buildUsernameHistory(history)),
+    ).build();
+    await controller.evaluateJavascript(source: script);
+  }
+
+  Future<void> _injectWinWebViewScript(List<LoginHistory> history) async {
+    final controller = _winWebviewController;
+    if (controller == null) return;
+    // Inject login helper script for Windows WebView
+    debugPrint('[Login][Bridge] inject script for WinWebView');
+    final script = LoginJsInjectionBuilder(
+      autoLoginUsernameLiteral: jsonEncode(_autoLoginUsername),
+      autoLoginPasswordLiteral: jsonEncode(_autoLoginPassword),
+      allowAutoLogin: _allowAutoLogin,
+      usernameHistoryJsonLiteral: jsonEncode(_buildUsernameHistory(history)),
+    ).build();
+    await controller.executeScript(script);
+  }
+
+  void _handlePageUrl(String url) {
+    final normalized = _stripQuotes(url);
+    if (_handleBridgeMessageFromUrl(normalized)) {
+      debugPrint('[Login][Bridge] handled bridge url');
+      return;
+    }
+    _updateBaseUrlFromUrl(normalized);
+    if (_isProbeMode) {
+      final baseUrl = _extractBaseUrlFromLogin(normalized);
+      if (baseUrl == null) return;
+      final uri = Uri.tryParse(baseUrl);
+      if (uri == null || uri.host.isEmpty) return;
+      final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
+      setState(() {
+        _showFnConnectWebView = false;
+      });
+      _disposeWindowsWebView();
+      _hostController.text = uri.host;
+      _portController.text = (uri.hasPort ? uri.port : 0).toString();
+      _isHttps = scheme == 'https';
+      _finalizeLogin();
+    }
+  }
+
+  bool _handleBridgeMessageFromUrl(String url) {
+    final hashIndex = url.indexOf('#flynarwhal_bridge');
+    if (hashIndex == -1) return false;
+    final fragment = url.substring(hashIndex + 1);
+    final queryIndex = fragment.indexOf('?');
+    if (queryIndex == -1) {
+      debugPrint('[Login][Bridge] invalid fragment="$fragment"');
+      return false;
+    }
+    final query = fragment.substring(queryIndex + 1);
+    final uri = Uri.tryParse('scheme://bridge?$query');
+    if (uri == null) {
+      debugPrint('[Login][Bridge] parse failed queryLength=${query.length}');
+      return false;
+    }
+    final method = uri.queryParameters['method'] ?? '';
+    final params = uri.queryParameters['params'] ?? '';
+    if (method.isEmpty) {
+      debugPrint('[Login][Bridge] empty method queryLength=${query.length}');
+      return false;
+    }
+    String decodedParams;
+    try {
+      decodedParams = Uri.decodeComponent(params);
+    } catch (e) {
+      debugPrint('[Login][Bridge] decode failed method="$method" paramsLength=${params.length} error=$e');
+      decodedParams = params;
+    }
+    debugPrint(
+      '[Login][Bridge] receive message method="$method" paramsLength=${params.length} decodedLength=${decodedParams.length}',
+    );
+    _handleJsBridgeMessage(method, decodedParams);
+    return true;
+  }
+
+  void _updateBaseUrlFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return;
+    final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
+    final portPart = uri.hasPort ? ':${uri.port}' : '';
+    _baseUrl = '$scheme://${uri.host}$portPart';
+  }
+
+  void _handleJsBridgeMessage(String method, String params) {
+    if (method == 'CaptureLoginInfo') {
+      try {
+        final data = jsonDecode(params);
+        if (data is! Map) return;
+        _capturedUsername = (data['username'] ?? '').toString();
+        _capturedPassword = (data['password'] ?? '').toString();
+        _capturedRememberPassword = data['rememberPassword'] == true;
+      } catch (_) {}
+      return;
+    }
+    if (method == 'LogNetwork') {
+      debugPrint('[Login][Bridge] receive network log payload');
+      _handleNetworkLog(params);
+    }
+  }
+
+  Future<void> _handleNetworkLog(String params) async {
+    final processor = _networkMessageProcessor;
+    if (processor == null) {
+      debugPrint('[Login][Bridge] skip network log: processor=null');
+      return;
+    }
+    debugPrint(
+      '[Login][Bridge] process network log baseUrl="$_baseUrl" capturedUser="${_capturedUsername.isNotEmpty}" remember=$_capturedRememberPassword',
+    );
+    await processor.process(
+      params: params,
+      baseUrl: _baseUrl,
+      displayHost: _displayHost,
+      displayPort: _displayPort,
+      isHttps: _isHttps,
+      capturedUsername: _capturedUsername,
+      capturedPassword: _capturedPassword,
+      capturedRememberPassword: _capturedRememberPassword,
+    );
+  }
+
+  Future<void> _setWebViewCookie(String baseUrl, String name, String value) async {
+    if (baseUrl.isEmpty || name.isEmpty) return;
+    if (Platform.isWindows) {
+      final controller = _winWebviewController;
+      if (controller == null) return;
+      await controller.executeScript('document.cookie = "$name=$value; path=/";');
+      return;
+    }
+    final uri = Uri.tryParse(baseUrl);
+    if (uri == null) return;
+    await CookieManager.instance().setCookie(
+      url: uri,
+      name: name,
+      value: value,
+      path: '/',
+      isSecure: uri.scheme == 'https',
+    );
+  }
+
+  Future<void> _loadWebViewUrl(String url) async {
+    if (url.isEmpty) return;
+    if (Platform.isWindows) {
+      await _winWebviewController?.loadUrl(url);
+      return;
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await _inAppWebViewController?.loadUrl(urlRequest: URLRequest(url: uri));
+  }
+
+  Future<void> _onNasLoginSuccess(_NasLoginResult result) async {
+    final prefs = ref.read(preferencesManagerProvider);
+    await prefs.saveToken(result.token);
+    await prefs.saveCookie(result.cookie);
+    await prefs.saveBaseUrl(result.baseUrl);
+    await prefs.saveLoginHistory(result.history);
+    ref.invalidate(loginHistoryNotifierProvider);
+    final refreshNotifier = ref.read(authRefreshProvider.notifier);
+    refreshNotifier.state = refreshNotifier.state + 1;
+    if (!mounted) return;
+    setState(() {
+      _showFnConnectWebView = false;
+    });
+    _disposeWindowsWebView();
+    context.go('/home');
+  }
+
   @override
   Widget build(BuildContext context) {
     final history = ref.watch(loginHistoryNotifierProvider);
@@ -180,159 +493,153 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               blurAmount: 20,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Container(
-                width: 400,
-                padding: const EdgeInsets.all(40),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Logo
-                    SvgPicture.asset(
-                      'assets/images/fnarwhal_login.svg',
-                      width: 174,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text('Fly Narwhal', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                    const SizedBox(height: 32),
-                    
-                    if (_isNasLogin)
-                      InfoLabel(
-                        label: '请输入 IP:Port、域名或 FN ID',
-                        child: TextFormBox(
+                width: 420,
+                padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 40),
+                child: material.Theme(
+                  data: _buildMaterialTheme(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SvgPicture.asset(
+                        'assets/images/fnarwhal_login.svg',
+                        width: 174,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('Fly Narwhal', style: TextStyle(color: _hintColor, fontSize: 16)),
+                      const SizedBox(height: 28),
+                      if (_isNasLogin)
+                        _buildOutlinedField(
+                          label: 'IP:Port、域名或 FN ID',
                           controller: _fnIdController,
-                          placeholder: '请输入 IP:Port、域名或 FN ID',
-                          suffix: MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: IconButton(
-                              icon: const Icon(FluentIcons.history),
-                              onPressed: () => setState(() => _showHistorySidebar = true),
-                            ),
+                          hint: '请输入 IP:Port、域名或 FN ID',
+                          onChanged: (_) => _autoLoginFromHistory = false,
+                          suffix: material.IconButton(
+                            icon: const material.Icon(material.Icons.history, color: _hintColor),
+                            onPressed: () => setState(() => _showHistorySidebar = true),
                           ),
-                        ),
-                      )
-                    else
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: InfoLabel(
-                              label: '请输入 IP、域名或 FN ID',
-                              child: TextFormBox(
+                        )
+                      else
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: _buildOutlinedField(
+                                label: 'IP、域名或 FN ID',
                                 controller: _hostController,
-                                placeholder: 'IP、域名或 FN ID',
-                                suffix: MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: IconButton(
-                                    icon: const Icon(FluentIcons.history),
-                                    onPressed: () => setState(() => _showHistorySidebar = true),
-                                  ),
+                                hint: '请输入 IP、域名或 FN ID',
+                                onChanged: (_) => _autoLoginFromHistory = false,
+                                suffix: material.IconButton(
+                                  icon: const material.Icon(material.Icons.history, color: _hintColor),
+                                  onPressed: () => setState(() => _showHistorySidebar = true),
                                 ),
                               ),
                             ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                            child: Text(':', style: TextStyle(fontSize: 20, color: Colors.grey)),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: TextFormBox(
-                              controller: _portController,
-                              placeholder: '端口',
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 1,
+                              child: _buildOutlinedField(
+                                label: '端口',
+                                controller: _portController,
+                                hint: '端口',
+                                keyboardType: TextInputType.number,
+                                onChanged: (_) => _autoLoginFromHistory = false,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      
-                    const SizedBox(height: 16),
-                    InfoLabel(
-                      label: '用户名或邮箱',
-                      child: TextFormBox(
-                        controller: _usernameController,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    InfoLabel(
-                      label: '密码',
-                      child: TextFormBox(
-                        controller: _passwordController,
-                        obscureText: !_passwordVisible,
-                        suffix: MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: IconButton(
-                            icon: Icon(_passwordVisible ? FluentIcons.red_eye : FluentIcons.hide),
+                          ],
+                        ),
+                      if (!_isNasLogin) ...[
+                        const SizedBox(height: 16),
+                        _buildOutlinedField(
+                          label: '用户名或邮箱',
+                          controller: _usernameController,
+                          onChanged: (_) => _autoLoginFromHistory = false,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildOutlinedField(
+                          label: '密码',
+                          controller: _passwordController,
+                          obscureText: !_passwordVisible,
+                          onChanged: (_) => _autoLoginFromHistory = false,
+                          suffix: material.IconButton(
+                            icon: material.Icon(
+                              _passwordVisible ? material.Icons.visibility : material.Icons.visibility_off,
+                              color: _hintColor,
+                            ),
                             onPressed: () => setState(() => _passwordVisible = !_passwordVisible),
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            material.Checkbox(
+                              value: _rememberPassword,
+                              onChanged: (v) => setState(() {
+                                _rememberPassword = v ?? false;
+                                _autoLoginFromHistory = false;
+                              }),
+                              activeColor: _primaryBlue,
+                            ),
+                            const Expanded(
+                              child: Text('记住密码', style: TextStyle(color: _textColor)),
+                            ),
+                            material.TextButton(
+                              onPressed: () {},
+                              child: const Text('忘记密码'),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text('使用 NAS 登录', style: TextStyle(color: _hintColor)),
+                          ),
+                          material.Switch(
+                            value: _isNasLogin,
+                            onChanged: (v) => setState(() {
+                              _isNasLogin = v;
+                              _autoLoginFromHistory = false;
+                            }),
+                            activeColor: _primaryBlue,
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: Checkbox(
-                            checked: _rememberPassword,
-                            onChanged: (v) => setState(() => _rememberPassword = v ?? false),
-                            content: const Text('记住密码'),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text('HTTPS 安全访问', style: TextStyle(color: _hintColor)),
                           ),
-                        ),
-                        MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: HyperlinkButton(
-                            child: const Text('忘记密码'),
-                            onPressed: () {},
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                         const Text('使用 NAS 登录', style: TextStyle(color: Colors.grey)),
-                         MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: ToggleSwitch(
-                            checked: _isNasLogin,
-                            onChanged: (v) => setState(() => _isNasLogin = v),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                         const Text('HTTPS 安全访问', style: TextStyle(color: Colors.grey)),
-                         MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: ToggleSwitch(
-                            checked: _isHttps,
+                          material.Switch(
+                            value: _isHttps,
                             onChanged: (v) => setState(() => _isHttps = v),
+                            activeColor: _primaryBlue,
                           ),
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: MouseRegion(
-                        cursor: loginState.isLoading ? SystemMouseCursors.basic : SystemMouseCursors.click,
-                        child: FilledButton(
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        height: 48,
+                        child: material.FilledButton(
                           onPressed: loginState.isLoading ? null : _onLogin,
-                          child: loginState.isLoading 
-                              ? const ProgressRing() 
+                          style: material.FilledButton.styleFrom(
+                            backgroundColor: _primaryBlue,
+                            disabledBackgroundColor: _primaryBlue.withValues(alpha: 0.5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: loginState.isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: material.CircularProgressIndicator(strokeWidth: 2),
+                                )
                               : Text(_isNasLogin ? '下一步' : '登录', style: const TextStyle(fontSize: 16)),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -351,7 +658,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                    ref.read(loginHistoryNotifierProvider.notifier).delete(item);
                 },
                 onSelect: (item) {
-                  _populateFields(item);
+                  final canAutoLogin = item.rememberPassword && (item.password ?? '').isNotEmpty;
+                  _populateFields(
+                    item,
+                    allowAutoLogin: item.isNasLogin && canAutoLogin,
+                  );
                   setState(() => _showHistorySidebar = false);
                 },
               ),
@@ -403,9 +714,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   javaScriptEnabled: true,
                                 ),
                               ),
+                              onWebViewCreated: (controller) {
+                                _inAppWebViewController = controller;
+                              },
                               onLoadStop: (controller, url) async {
                                 if (url == null) return;
-                                _handleResolvedUrl(url.toString());
+                                _handlePageUrl(url.toString());
+                                await _injectInAppWebViewScript(history);
+                              },
+                              onUpdateVisitedHistory: (controller, url, _) async {
+                                if (url == null) return;
+                                _handlePageUrl(url.toString());
                               },
                             ),
                     ),
@@ -419,7 +738,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _initWindowsWebView() async {
-    _disposeWindowsWebView();
+    _disposeWindowsWebView(keepProcessor: true);
     try {
       String? userDataPath;
       if (Platform.isWindows) {
@@ -449,7 +768,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       debugPrint('[Login][WinWebView] controller initialized, loadUrl="$_fnConnectUrl"');
       _winUrlSub = controller.url.listen((url) {
         debugPrint('[Login][WinWebView] url event: $url');
-        _handleResolvedUrl(url);
+        _handlePageUrl(url);
       });
       await controller.setBackgroundColor(const Color(0x00000000));
       await controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.sameWindow);
@@ -459,8 +778,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           final value = await controller.executeScript('window.location.href');
           debugPrint('[Login][WinWebView] navigationCompleted href="$value"');
           if (value is String) {
-            _handleResolvedUrl(value);
+            _handlePageUrl(value);
           }
+          await _injectWinWebViewScript(ref.read(loginHistoryNotifierProvider));
         }
       });
       await controller.loadUrl(_fnConnectUrl);
@@ -479,13 +799,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  void _disposeWindowsWebView() {
+  void _disposeWindowsWebView({bool keepProcessor = false}) {
     _winUrlSub?.cancel();
     _winUrlSub = null;
     _winLoadingSub?.cancel();
     _winLoadingSub = null;
     _winWebviewController = null;
     _winWebviewReady = false;
+    _inAppWebViewController = null;
+    if (!keepProcessor) {
+      _networkMessageProcessor = null;
+    }
   }
 
   Future<WebviewPermissionDecision> _onWinPermissionRequested(
@@ -519,38 +843,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return false;
   }
 
-  String? _extractBaseUrl(String url) {
+  String _stripQuotes(String url) {
     final trimmed = url.trim();
-    final normalized = trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length > 1
-        ? trimmed.substring(1, trimmed.length - 1)
-        : trimmed;
+    if (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length > 1) {
+      return trimmed.substring(1, trimmed.length - 1);
+    }
+    return trimmed;
+  }
+
+  String? _extractBaseUrlFromLogin(String url) {
+    final normalized = _stripQuotes(url);
     final index = normalized.indexOf('/login');
     if (index == -1) return null;
     return normalized.substring(0, index);
-  }
-
-  void _handleResolvedUrl(String url) {
-    debugPrint('[Login] handleResolvedUrl: $url');
-    final baseUrl = _extractBaseUrl(url);
-    if (baseUrl == null) {
-      debugPrint('[Login] handleResolvedUrl ignored: baseUrl not found');
-      return;
-    }
-    final uri = Uri.tryParse(baseUrl);
-    if (uri == null || uri.host.isEmpty) {
-      debugPrint('[Login] handleResolvedUrl ignored: invalid baseUrl="$baseUrl"');
-      return;
-    }
-    final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
-    setState(() {
-      _showFnConnectWebView = false;
-    });
-    _disposeWindowsWebView();
-    _hostController.text = uri.host;
-    _portController.text = (uri.hasPort ? uri.port : 0).toString();
-    _isHttps = scheme == 'https';
-    debugPrint('[Login] handleResolvedUrl resolved: scheme=$scheme host="${uri.host}" port=${uri.hasPort ? uri.port : 0} baseUrl="$baseUrl"');
-    _finalizeLogin();
   }
   Future<void> _finalizeLogin({String? displayHost, int? displayPort}) async {
     final host = _hostController.text.trim();
@@ -600,5 +905,360 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ],
       ),
     );
+  }
+}
+
+class _NasLoginResult {
+  final String token;
+  final String cookie;
+  final String baseUrl;
+  final List<LoginHistory> history;
+
+  const _NasLoginResult({
+    required this.token,
+    required this.cookie,
+    required this.baseUrl,
+    required this.history,
+  });
+}
+
+class _NetworkMessageProcessor {
+  _NetworkMessageProcessor({
+    required this.dioClient,
+    required this.preferencesManager,
+    required this.onError,
+    required this.setCookie,
+    required this.loadUrl,
+    required this.onLoginSuccess,
+    required this.onBaseUrlChange,
+    required this.fnId,
+    required this.autoLoginUsername,
+  });
+
+  final DioClient dioClient;
+  final PreferencesManager preferencesManager;
+  final void Function(String message) onError;
+  final Future<void> Function(String baseUrl, String name, String value) setCookie;
+  final Future<void> Function(String url) loadUrl;
+  final Future<void> Function(_NasLoginResult result) onLoginSuccess;
+  final void Function(String baseUrl) onBaseUrlChange;
+  final String fnId;
+  final String autoLoginUsername;
+
+  bool _isAuthRequested = false;
+  bool _isSysConfigInFlight = false;
+  bool _isSysConfigLoaded = false;
+
+  // Route network logs to NAS OAuth flow handlers
+  Future<void> process({
+    required String params,
+    required String baseUrl,
+    required String displayHost,
+    required int displayPort,
+    required bool isHttps,
+    required String capturedUsername,
+    required String capturedPassword,
+    required bool capturedRememberPassword,
+  }) async {
+    Map<String, dynamic> payload;
+    try {
+      final decoded = jsonDecode(params);
+      if (decoded is! Map) return;
+      payload = Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      return;
+    }
+    final url = (payload['url'] ?? '').toString();
+    if (url.isEmpty) return;
+    var currentBaseUrl = baseUrl;
+    final derivedBaseUrl = _originFromUrl(url);
+    if (derivedBaseUrl.isNotEmpty && derivedBaseUrl != currentBaseUrl) {
+      debugPrint('[Login][Bridge] baseUrl updated from url="$url" baseUrl="$derivedBaseUrl"');
+      onBaseUrlChange(derivedBaseUrl);
+      currentBaseUrl = derivedBaseUrl;
+    }
+    debugPrint('[Login][Bridge] network url="$url" baseUrl="$currentBaseUrl"');
+    if (url.contains('/sac/rpcproxy/v1/new-user-guide/status')) {
+      await _handleStatusMessage(payload, currentBaseUrl);
+      return;
+    }
+    if (url.contains('/v/api/v1/sys/config')) {
+      await _handleSysConfigMessage(payload, currentBaseUrl);
+      return;
+    }
+    if (url.contains('/oauthapi/authorize')) {
+      await _handleOauthAuthorize(
+        payload,
+        currentBaseUrl,
+        displayHost,
+        displayPort,
+        isHttps,
+        capturedUsername,
+        capturedPassword,
+        capturedRememberPassword,
+      );
+    }
+  }
+
+  Future<void> _handleStatusMessage(Map<String, dynamic> payload, String baseUrl) async {
+    if (_isSysConfigLoaded || _isSysConfigInFlight) return;
+    final cookie = _extractCookie(payload);
+    if (cookie == null || cookie.isEmpty) return;
+    final normalizedCookie = _normalizeRelayCookie(cookie, baseUrl);
+    await _fetchSysConfig(baseUrl, normalizedCookie);
+  }
+
+  Future<void> _handleSysConfigMessage(Map<String, dynamic> payload, String baseUrl) async {
+    if (_isSysConfigLoaded) return;
+    final body = (payload['body'] ?? '').toString();
+    if (body.isEmpty) return;
+    final cookie = _extractCookie(payload);
+    await _handleSysConfigBody(baseUrl, body, cookie);
+  }
+
+  Future<void> _fetchSysConfig(String baseUrl, String cookie) async {
+    if (baseUrl.isEmpty) return;
+    _isSysConfigInFlight = true;
+    try {
+      final authx = FnApiHelper.genAuthxForOfficial('/v/api/v1/sys/config');
+      final response = await dioClient.dio.get(
+        '$baseUrl/v/api/v1/sys/config',
+        options: Options(
+          headers: {
+            'Authx': authx,
+            'Cookie': cookie,
+          },
+        ),
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        await _handleSysConfigBody(baseUrl, jsonEncode(data), cookie);
+      }
+    } catch (e) {
+      _isSysConfigInFlight = false;
+      onError('获取系统配置失败: $e');
+    }
+  }
+
+  Future<void> _handleSysConfigBody(String baseUrl, String body, String? cookie) async {
+    Map<String, dynamic> jsonBody;
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is! Map) return;
+      jsonBody = Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      return;
+    }
+    final data = jsonBody['data'];
+    if (data is! Map) return;
+    final oauth = data['nas_oauth'];
+    if (oauth is! Map) return;
+    final appId = (oauth['app_id'] ?? '').toString();
+    if (appId.isEmpty) return;
+    final oauthUrl = (oauth['url'] ?? '').toString();
+    final targetBaseUrl = (oauthUrl.isNotEmpty && oauthUrl != '://') ? oauthUrl : baseUrl;
+    if (targetBaseUrl.isEmpty) return;
+    // Build OAuth URL from sys config
+    debugPrint('[Login][Bridge] sys config resolved oauthBase="$targetBaseUrl"');
+    onBaseUrlChange(targetBaseUrl);
+    final redirectUri = '$targetBaseUrl/v/oauth/result';
+    final targetUrl = '$targetBaseUrl/signin?client_id=$appId&redirect_uri=$redirectUri';
+    if (cookie != null && cookie.isNotEmpty) {
+      await _applyCookieToDomain(targetBaseUrl, cookie);
+    }
+    _isSysConfigLoaded = true;
+    _isSysConfigInFlight = false;
+    await loadUrl(targetUrl);
+  }
+
+  Future<void> _handleOauthAuthorize(
+    Map<String, dynamic> payload,
+    String baseUrl,
+    String displayHost,
+    int displayPort,
+    bool isHttps,
+    String capturedUsername,
+    String capturedPassword,
+    bool capturedRememberPassword,
+  ) async {
+    if (_isAuthRequested) return;
+    final payloadUrl = payload['url']?.toString() ?? '';
+    final derivedBaseUrl = _originFromUrl(payloadUrl);
+    final resolvedBaseUrl = derivedBaseUrl.isNotEmpty ? derivedBaseUrl : baseUrl;
+    if (resolvedBaseUrl.isNotEmpty && resolvedBaseUrl != baseUrl) {
+      debugPrint('[Login][Bridge] oauth baseUrl sync="$resolvedBaseUrl" from url="$payloadUrl"');
+      onBaseUrlChange(resolvedBaseUrl);
+    }
+    debugPrint(
+      '[Login][Bridge] oauth authorize received baseUrl="$resolvedBaseUrl" payloadKeys=${payload.keys.join(',')}',
+    );
+    final directCode = payload['code']?.toString();
+    var code = directCode ?? '';
+    if (code.isEmpty) {
+      final body = payload['body']?.toString() ?? '';
+      if (body.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(body);
+          if (decoded is Map) {
+            final data = decoded['data'];
+            if (data is Map && data['code'] != null) {
+              code = data['code'].toString();
+            }
+          }
+        } catch (_) {}
+      }
+    }
+    if (code.isEmpty) {
+      debugPrint('[Login][Bridge] oauth code empty, skip token exchange');
+      return;
+    }
+    // Exchange OAuth code for token
+    debugPrint(
+      '[Login][Bridge] oauth code captured, exchange token codeLength=${code.length}',
+    );
+    _isAuthRequested = true;
+    try {
+      final token = await _exchangeCodeForToken(resolvedBaseUrl, code);
+      if (token.isEmpty) {
+        _isAuthRequested = false;
+        onError('登录失败: Token 为空');
+        return;
+      }
+      final relayCookie = _normalizeRelayCookie('Trim-MC-token=$token', resolvedBaseUrl);
+      final username = capturedUsername.trim().isNotEmpty
+          ? capturedUsername.trim()
+          : autoLoginUsername.trim();
+      final shouldRemember = capturedRememberPassword && capturedPassword.isNotEmpty;
+      final historyItem = LoginHistory(
+        host: '',
+        port: 0,
+        username: username,
+        password: shouldRemember ? capturedPassword : null,
+        isHttps: isHttps,
+        rememberPassword: shouldRemember,
+        isNasLogin: true,
+        fnConnectUrl: baseUrl,
+        fnId: fnId,
+        displayHost: displayHost,
+        displayPort: displayPort == 0 ? null : displayPort,
+      );
+      final currentHistory = preferencesManager.getLoginHistory();
+      final updatedHistory = currentHistory.where((element) => element != historyItem).toList();
+      updatedHistory.insert(0, historyItem);
+      debugPrint('[Login][Bridge] oauth success, history=${updatedHistory.length}');
+      await onLoginSuccess(
+        _NasLoginResult(
+          token: token,
+          cookie: relayCookie,
+          baseUrl: resolvedBaseUrl,
+          history: updatedHistory,
+        ),
+      );
+    } catch (e) {
+      _isAuthRequested = false;
+      onError('登录失败: $e');
+    }
+  }
+
+  Future<String> _exchangeCodeForToken(String baseUrl, String code) async {
+    if (baseUrl.isEmpty) {
+      debugPrint('[Login][Bridge] exchange token aborted: baseUrl empty');
+      return '';
+    }
+    final authx = FnApiHelper.genAuthxForOfficial('/v/api/v1/auth');
+    debugPrint(
+      '[Login][Bridge] exchange token request baseUrl="$baseUrl" codeLength=${code.length}',
+    );
+    final response = await dioClient.dio.post(
+      '$baseUrl/v/api/v1/auth',
+      data: {'source': 'Trim-NAS', 'code': code},
+      options: Options(
+        headers: {'Authx': authx},
+        followRedirects: true,
+        validateStatus: (status) => status != null && status >= 200 && status <= 302,
+      ),
+    );
+    debugPrint(
+      '[Login][Bridge] exchange token response status=${response.statusCode} contentType=${response.headers.value('content-type')}',
+    );
+    final data = response.data;
+    if (data is Map) {
+      debugPrint(
+        '[Login][Bridge] exchange token payload keys=${data.keys.join(',')}',
+      );
+      final codeValue = data['code'];
+      if (codeValue is int && codeValue != 0) {
+        final msg = data['msg']?.toString() ?? '认证失败';
+        throw Exception(msg);
+      }
+      final body = data['data'];
+      if (body is Map && body['token'] != null) {
+        final tokenValue = body['token'].toString();
+        debugPrint('[Login][Bridge] exchange token success tokenLength=${tokenValue.length}');
+        return tokenValue;
+      }
+      debugPrint(
+        '[Login][Bridge] exchange token body missing token bodyKeys=${body is Map ? body.keys.join(',') : body.runtimeType}',
+      );
+      return '';
+    }
+    debugPrint('[Login][Bridge] exchange token unexpected responseType=${data.runtimeType}');
+    return '';
+  }
+
+  String _originFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return '';
+    final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
+    final portPart = uri.hasPort ? ':${uri.port}' : '';
+    return '$scheme://${uri.host}$portPart';
+  }
+
+  String? _extractCookie(Map<String, dynamic> payload) {
+    final direct = payload['cookie']?.toString();
+    if (direct != null && direct.isNotEmpty) return direct;
+    final headers = payload['headers'];
+    if (headers is Map) {
+      final lowered = headers.map((key, value) => MapEntry(key.toString().toLowerCase(), value.toString()));
+      final cookie = lowered['set-cookie'] ?? lowered['cookie'];
+      if (cookie != null && cookie.isNotEmpty) return cookie;
+    }
+    if (headers is String) {
+      final lines = headers.split('\n');
+      for (final line in lines) {
+        final parts = line.split(':');
+        if (parts.length < 2) continue;
+        final key = parts.first.trim().toLowerCase();
+        final value = parts.sublist(1).join(':').trim();
+        if (key == 'set-cookie' || key == 'cookie') {
+          if (value.isNotEmpty) return value;
+        }
+      }
+    }
+    return null;
+  }
+
+  String _normalizeRelayCookie(String cookie, String baseUrl) {
+    if (!baseUrl.contains('5ddd.com') && !baseUrl.contains('fnos.net')) {
+      return cookie;
+    }
+    if (cookie.contains('mode=relay')) {
+      return cookie;
+    }
+    return '$cookie; mode=relay';
+  }
+
+  Future<void> _applyCookieToDomain(String baseUrl, String cookie) async {
+    final pairs = cookie.split(';');
+    for (final pair in pairs) {
+      final trimmed = pair.trim();
+      if (trimmed.isEmpty) continue;
+      final segments = trimmed.split('=');
+      if (segments.length < 2) continue;
+      final name = segments.first.trim();
+      final value = segments.sublist(1).join('=').trim();
+      if (name.isEmpty) continue;
+      await setCookie(baseUrl, name, value);
+    }
   }
 }

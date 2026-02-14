@@ -33,7 +33,9 @@ class DioClient {
         }
         
         final authCode = _preferencesManager.getAuthCode();
-        if (authCode != null && authCode.isNotEmpty) {
+        final hasAuthx = options.headers.containsKey('Authx');
+        final hasSignx = options.headers.containsKey('Signx');
+        if (authCode != null && authCode.isNotEmpty && !hasAuthx && !hasSignx) {
           final path = _resolvePath(options.path);
           final authx = FnApiHelper.genAuthxForFlyNarwhal(
             path,
@@ -53,6 +55,9 @@ class DioClient {
             final keyx = await FnApiHelper.clientKeyxBase64Url();
             options.headers['Keyx'] = keyx;
           }
+        }
+        if (authCode != null && authCode.isNotEmpty && (hasAuthx || hasSignx)) {
+          debugPrint('[Dio] skip fly-narwhal auth headers: custom headers provided');
         }
 
         final resolvedBaseUrl = options.baseUrl.isEmpty ? (baseUrl ?? '') : options.baseUrl;

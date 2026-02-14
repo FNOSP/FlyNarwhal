@@ -142,8 +142,18 @@ class LoginViewModel extends _$LoginViewModel {
   }
   
   Future<String> _resolveNasUrl(String fnId) async {
-    // TODO: Implement FN Connect resolution
-    throw UnimplementedError("FN Connect not implemented yet");
+    final raw = fnId.trim();
+    if (raw.isEmpty) {
+      throw Exception('FN ID 不能为空');
+    }
+    final hasScheme = raw.startsWith('http://') || raw.startsWith('https://');
+    if (hasScheme) {
+      return raw;
+    }
+    if (raw.contains('.')) {
+      return 'https://$raw';
+    }
+    return 'https://5ddd.com/$raw';
   }
 
   void clearError() {
