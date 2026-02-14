@@ -1,11 +1,15 @@
+import 'dart:io' show Platform;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:window_manager/window_manager.dart' hide WindowCaption, DragToMoveArea;
 import '../home/home_view_model.dart';
 import '../../../providers/providers.dart';
+import '../../widgets/window_caption.dart';
 
-class MainLayout extends ConsumerWidget {
+class MainLayout extends ConsumerStatefulWidget {
   final Widget child;
   final GoRouterState state;
 
@@ -16,13 +20,42 @@ class MainLayout extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MainLayout> createState() => _MainLayoutState();
+}
+
+class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
+  @override
+  void initState() {
+    super.initState();
+    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      windowManager.addListener(this);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      windowManager.removeListener(this);
+    }
+    super.dispose();
+  }
+
+  @override
+  void onWindowClose() async {
+    if (Platform.isMacOS) {
+      await windowManager.hide();
+    } else {
+      await windowManager.destroy();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final mediaDbList = ref.watch(mediaDbListNotifierProvider);
     final mediaSumAsync = ref.watch(mediaSumNotifierProvider);
     final mediaSum = mediaSumAsync.asData?.value ?? const <String, int>{};
     final settings = ref.watch(settingsProvider);
-    final navigationStack = ref.watch(navigationStackProvider);
-    final currentPath = state.uri.toString();
+    final currentPath = widget.state.uri.toString();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(navigationStackProvider.notifier).pushPath(currentPath);
     });
@@ -303,10 +336,6 @@ class MainLayout extends ConsumerWidget {
     }
 
     final pane = NavigationPane(
-      // header: const Padding(
-      //   padding: EdgeInsets.only(left: 20.0),
-      //   child: Text('Fly Narwhal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-      // ),
       selected: null,
       onChanged: null,
       displayMode: _resolveDisplayMode(settings.navigationDisplayMode),
@@ -314,9 +343,9 @@ class MainLayout extends ConsumerWidget {
       footerItems: footerPaneItems,
     );
 
-    final isMovieDetail = state.uri.path.startsWith('/movie/');
+    final isMovieDetail = widget.state.uri.path.startsWith('/movie/');
     final lastSelectedKey = ref.watch(lastNavigationKeyProvider);
-    final selectedKey = resolveSelectedKey(state.uri.path);
+    final selectedKey = resolveSelectedKey(widget.state.uri.path);
     if (!isMovieDetail && selectedKey != null && selectedKey != lastSelectedKey) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(lastNavigationKeyProvider.notifier).state = selectedKey;
@@ -330,20 +359,70 @@ class MainLayout extends ConsumerWidget {
     if (selectedIndex < 0) {
       selectedIndex = pane.effectiveItems.indexWhere((item) {
         final route = resolveRouteForItem(item);
-        return route != null && state.uri.path.startsWith(route);
+        return route != null && widget.state.uri.path.startsWith(route);
       });
     }
 
-    return NavigationView(
-      pane: NavigationPane(
-        header: pane.header,
-        selected: selectedIndex >= 0 ? selectedIndex : null,
-        onChanged: pane.onChanged,
-        displayMode: pane.displayMode,
-        items: pane.items,
-        footerItems: pane.footerItems,
-      ),
-      paneBodyBuilder: (item, body) => child,
+    final theme = FluentTheme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final isMacOS = !kIsWeb && Platform.isMacOS;
+
+    // Traffic light buttons area dimensions for macOS
+    const double kTrafficLightLeftPadding = 20.0;
+    const double kTrafficLightTopPadding = 10.0;
+    const double kTrafficLightAreaWidth = 70.0;
+
+    return Column(
+      children: [
+        if (isMacOS)
+          Container(
+            height: kWindowTitleBarHeight,
+            color: theme.resources.solidBackgroundFillColorBase,
+            child: Padding(
+              padding: const EdgeInsets.only(top: kTrafficLightTopPadding),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(width: kTrafficLightLeftPadding + kTrafficLightAreaWidth),
+                  Expanded(
+                    child: DragToMoveArea(
+                      child: Container(
+                        height: 28.0,
+                        alignment: Alignment.centerLeft,
+                        // child: DefaultTextStyle(
+                        //   style: TextStyle(
+                        //     color: theme.resources.textFillColorPrimary,
+                        //     fontSize: 14,
+                        //   ),
+                        //   child: const Text('飞鲸影视'),
+                        // ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          WindowCaption(
+            title: const Text('飞鲸影视'),
+            brightness: isDark ? Brightness.dark : Brightness.light,
+          ),
+        Expanded(
+          child: NavigationView(
+            pane: NavigationPane(
+              header: pane.header,
+              selected: selectedIndex >= 0 ? selectedIndex : null,
+              onChanged: pane.onChanged,
+              displayMode: pane.displayMode,
+              items: pane.items,
+              footerItems: pane.footerItems,
+            ),
+            paneBodyBuilder: (item, body) => widget.child,
+          ),
+        ),
+      ],
     );
   }
 }

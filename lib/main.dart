@@ -19,14 +19,20 @@ void main() async {
     }
     
     await acrylic.Window.initialize();
+    
+    if (Platform.isWindows) {
+      await acrylic.Window.hideWindowControls();
+    }
+    
     await windowManager.ensureInitialized();
 
     const logicalWidth = 1280.0;
     const logicalHeight = 720.0;
     const windowOptions = WindowOptions(
-      title: 'Fly Narwhal',
+      title: '飞鲸影视',
       size: Size(logicalWidth, logicalHeight),
       center: true,
+      titleBarStyle: TitleBarStyle.hidden,
     );
 
     await windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -59,7 +65,7 @@ class MyApp extends ConsumerWidget {
         : settings.darkMode;
 
     return FluentApp.router(
-      title: 'Fly Narwhal',
+      title: '飞鲸影视',
       theme: FluentThemeData(
         brightness: isDark ? Brightness.dark : Brightness.light,
         accentColor: Colors.blue,
