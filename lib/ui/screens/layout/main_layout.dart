@@ -408,6 +408,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
           WindowCaption(
             title: const Text('飞鲸影视'),
             brightness: isDark ? Brightness.dark : Brightness.light,
+            backgroundColor: theme.resources.solidBackgroundFillColorBase,
           ),
         Expanded(
           child: NavigationView(

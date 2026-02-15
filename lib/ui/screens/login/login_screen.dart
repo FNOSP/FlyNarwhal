@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io' show Directory, Platform;
 import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' as material;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,7 @@ import '../../../data/storage/preferences_manager.dart';
 import '../../../providers/providers.dart';
 import '../../../utils/fn_api_helper.dart';
 import '../../widgets/history_sidebar.dart';
+import '../../widgets/window_caption.dart';
 import 'login_js_injection.dart';
 import 'login_view_model.dart';
 
@@ -475,177 +477,190 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final history = ref.watch(loginHistoryNotifierProvider);
     final loginState = ref.watch(loginViewModelProvider);
     
+    final isWindows = !kIsWeb && Platform.isWindows;
+    final isLinux = !kIsWeb && Platform.isLinux;
+    final showWindowCaption = isWindows || isLinux;
+    
     return ScaffoldPage(
+      padding: EdgeInsets.zero,
       content: Stack(
         children: [
-          // Background
           Positioned.fill(
             child: Image.asset(
               'assets/images/login_background.webp',
               fit: BoxFit.cover,
             ),
           ),
-          
-          // Login Form
-          Center(
-            child: Acrylic(
-              tint: Colors.black.withValues(alpha: 0.6),
-              blurAmount: 20,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Container(
-                width: 420,
-                padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 40),
-                child: material.Theme(
-                  data: _buildMaterialTheme(),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SvgPicture.asset(
-                        'assets/images/fnarwhal_login.svg',
-                        width: 174,
-                      ),
-                      const SizedBox(height: 8),
-                      const Text('Fly Narwhal', style: TextStyle(color: _hintColor, fontSize: 16)),
-                      const SizedBox(height: 28),
-                      if (_isNasLogin)
-                        _buildOutlinedField(
-                          label: 'IP:Port、域名或 FN ID',
-                          controller: _fnIdController,
-                          hint: '请输入 IP:Port、域名或 FN ID',
-                          onChanged: (_) => _autoLoginFromHistory = false,
-                          suffix: material.IconButton(
-                            icon: const material.Icon(material.Icons.history, color: _hintColor),
-                            onPressed: () => setState(() => _showHistorySidebar = true),
-                          ),
-                        )
-                      else
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: _buildOutlinedField(
-                                label: 'IP、域名或 FN ID',
-                                controller: _hostController,
-                                hint: '请输入 IP、域名或 FN ID',
-                                onChanged: (_) => _autoLoginFromHistory = false,
-                                suffix: material.IconButton(
-                                  icon: const material.Icon(material.Icons.history, color: _hintColor),
-                                  onPressed: () => setState(() => _showHistorySidebar = true),
+          if (showWindowCaption)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: WindowCaption(
+                brightness: Brightness.dark,
+                backgroundColor: Colors.transparent,
+              ),
+            ),
+          Positioned.fill(
+            top: showWindowCaption ? kWindowTitleBarHeight : 0,
+            child: Center(
+              child: Acrylic(
+                tint: Colors.black.withValues(alpha: 0.6),
+                blurAmount: 20,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Container(
+                  width: 420,
+                  padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 40),
+                  child: material.Theme(
+                    data: _buildMaterialTheme(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SvgPicture.asset(
+                          'assets/images/fnarwhal_login.svg',
+                          width: 174,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text('Fly Narwhal', style: TextStyle(color: _hintColor, fontSize: 16)),
+                        const SizedBox(height: 28),
+                        if (_isNasLogin)
+                          _buildOutlinedField(
+                            label: 'IP:Port、域名或 FN ID',
+                            controller: _fnIdController,
+                            hint: '请输入 IP:Port、域名或 FN ID',
+                            onChanged: (_) => _autoLoginFromHistory = false,
+                            suffix: material.IconButton(
+                              icon: const material.Icon(material.Icons.history, color: _hintColor),
+                              onPressed: () => setState(() => _showHistorySidebar = true),
+                            ),
+                          )
+                        else
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: _buildOutlinedField(
+                                  label: 'IP、域名或 FN ID',
+                                  controller: _hostController,
+                                  hint: '请输入 IP、域名或 FN ID',
+                                  onChanged: (_) => _autoLoginFromHistory = false,
+                                  suffix: material.IconButton(
+                                    icon: const material.Icon(material.Icons.history, color: _hintColor),
+                                    onPressed: () => setState(() => _showHistorySidebar = true),
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 1,
-                              child: _buildOutlinedField(
-                                label: '端口',
-                                controller: _portController,
-                                hint: '端口',
-                                keyboardType: TextInputType.number,
-                                onChanged: (_) => _autoLoginFromHistory = false,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 1,
+                                child: _buildOutlinedField(
+                                  label: '端口',
+                                  controller: _portController,
+                                  hint: '端口',
+                                  keyboardType: TextInputType.number,
+                                  onChanged: (_) => _autoLoginFromHistory = false,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      if (!_isNasLogin) ...[
-                        const SizedBox(height: 16),
-                        _buildOutlinedField(
-                          label: '用户名或邮箱',
-                          controller: _usernameController,
-                          onChanged: (_) => _autoLoginFromHistory = false,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildOutlinedField(
-                          label: '密码',
-                          controller: _passwordController,
-                          obscureText: !_passwordVisible,
-                          onChanged: (_) => _autoLoginFromHistory = false,
-                          suffix: material.IconButton(
-                            icon: material.Icon(
-                              _passwordVisible ? material.Icons.visibility : material.Icons.visibility_off,
-                              color: _hintColor,
-                            ),
-                            onPressed: () => setState(() => _passwordVisible = !_passwordVisible),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 16),
+                        if (!_isNasLogin) ...[
+                          const SizedBox(height: 16),
+                          _buildOutlinedField(
+                            label: '用户名或邮箱',
+                            controller: _usernameController,
+                            onChanged: (_) => _autoLoginFromHistory = false,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildOutlinedField(
+                            label: '密码',
+                            controller: _passwordController,
+                            obscureText: !_passwordVisible,
+                            onChanged: (_) => _autoLoginFromHistory = false,
+                            suffix: material.IconButton(
+                              icon: material.Icon(
+                                _passwordVisible ? material.Icons.visibility : material.Icons.visibility_off,
+                                color: _hintColor,
+                              ),
+                              onPressed: () => setState(() => _passwordVisible = !_passwordVisible),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              material.Checkbox(
+                                value: _rememberPassword,
+                                onChanged: (v) => setState(() {
+                                  _rememberPassword = v ?? false;
+                                  _autoLoginFromHistory = false;
+                                }),
+                                activeColor: _primaryBlue,
+                              ),
+                              const Expanded(
+                                child: Text('记住密码', style: TextStyle(color: _textColor)),
+                              ),
+                              material.TextButton(
+                                onPressed: () {},
+                                child: const Text('忘记密码'),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 6),
                         Row(
                           children: [
-                            material.Checkbox(
-                              value: _rememberPassword,
+                            const Expanded(
+                              child: Text('使用 NAS 登录', style: TextStyle(color: _hintColor)),
+                            ),
+                            material.Switch(
+                              value: _isNasLogin,
                               onChanged: (v) => setState(() {
-                                _rememberPassword = v ?? false;
+                                _isNasLogin = v;
                                 _autoLoginFromHistory = false;
                               }),
                               activeColor: _primaryBlue,
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
                             const Expanded(
-                              child: Text('记住密码', style: TextStyle(color: _textColor)),
+                              child: Text('HTTPS 安全访问', style: TextStyle(color: _hintColor)),
                             ),
-                            material.TextButton(
-                              onPressed: () {},
-                              child: const Text('忘记密码'),
+                            material.Switch(
+                              value: _isHttps,
+                              onChanged: (v) => setState(() => _isHttps = v),
+                              activeColor: _primaryBlue,
                             ),
                           ],
                         ),
-                      ],
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text('使用 NAS 登录', style: TextStyle(color: _hintColor)),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          height: 48,
+                          child: material.FilledButton(
+                            onPressed: loginState.isLoading ? null : _onLogin,
+                            style: material.FilledButton.styleFrom(
+                              backgroundColor: _primaryBlue,
+                              disabledBackgroundColor: _primaryBlue.withValues(alpha: 0.5),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: loginState.isLoading
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: material.CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : Text(_isNasLogin ? '下一步' : '登录', style: const TextStyle(fontSize: 16)),
                           ),
-                          material.Switch(
-                            value: _isNasLogin,
-                            onChanged: (v) => setState(() {
-                              _isNasLogin = v;
-                              _autoLoginFromHistory = false;
-                            }),
-                            activeColor: _primaryBlue,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text('HTTPS 安全访问', style: TextStyle(color: _hintColor)),
-                          ),
-                          material.Switch(
-                            value: _isHttps,
-                            onChanged: (v) => setState(() => _isHttps = v),
-                            activeColor: _primaryBlue,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        height: 48,
-                        child: material.FilledButton(
-                          onPressed: loginState.isLoading ? null : _onLogin,
-                          style: material.FilledButton.styleFrom(
-                            backgroundColor: _primaryBlue,
-                            disabledBackgroundColor: _primaryBlue.withValues(alpha: 0.5),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: loginState.isLoading
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: material.CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : Text(_isNasLogin ? '下一步' : '登录', style: const TextStyle(fontSize: 16)),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-          
-          // History Sidebar
           if (_showHistorySidebar)
             Positioned(
               left: 0,

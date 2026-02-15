@@ -241,6 +241,7 @@ class _WindowCaptionButtonState extends State<WindowCaptionButton> {
           width: 46,
           height: kWindowTitleBarHeight,
           color: backgroundColor,
+          alignment: Alignment.center,
           child: widget.icon,
         ),
       ),
