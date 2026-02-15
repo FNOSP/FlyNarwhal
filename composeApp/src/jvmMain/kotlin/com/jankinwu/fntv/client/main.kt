@@ -605,6 +605,7 @@ fun main() {
                                     title = "使用 NAS 登录",
                                     state = fnConnectWindowState,
                                     navigator = navigator,
+                                    showSearchBox = false,
                                     backButtonVisible = false
                                 ) { windowInset, contentInset ->
                                     NasLoginWebViewScreen(
