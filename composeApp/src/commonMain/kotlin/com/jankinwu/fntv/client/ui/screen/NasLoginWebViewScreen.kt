@@ -134,7 +134,7 @@ fun NasLoginWebViewScreen(
                         .fillMaxSize()
                         .windowInsetsPadding(windowInset)
                 ) {
-                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Box(modifier = Modifier.padding(end = 12.dp)) {
                         NasLoginAddressBar(
                             addressBarValue = addressBarValue,
                             onAddressBarValueChange = { addressBarValue = it },
