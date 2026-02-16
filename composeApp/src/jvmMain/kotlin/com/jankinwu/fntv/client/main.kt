@@ -428,6 +428,7 @@ fun main() {
                             icon = icon,
                             undecorated = false
                         ) {
+                            val density = LocalDensity.current
                             val playState by player.playbackState.collectAsState()
                             val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
 
@@ -450,6 +451,38 @@ fun main() {
                                 val baseWidth = 600
                                 val baseHeight = 400
                                 window.minimumSize = Dimension(baseWidth, baseHeight)
+                            }
+                            DisposableEffect(window, density) {
+                                var applied = false
+                                val listener = object : ComponentAdapter() {
+                                    override fun componentShown(e: ComponentEvent) {
+                                        if (applied) return
+                                        applied = true
+                                        val bounds = window.bounds
+                                        if (bounds.width <= 0 || bounds.height <= 0) {
+                                            window.setSize(1280, 720)
+                                        }
+                                        val windowBounds = window.bounds
+                                        val environment = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                                        val screenBounds = environment.screenDevices.map { it.defaultConfiguration.bounds }
+                                        val isOnScreen = screenBounds.any { it.intersects(windowBounds) }
+                                        if (!isOnScreen) {
+                                            val primaryBounds = environment.defaultScreenDevice.defaultConfiguration.bounds
+                                            val newX =
+                                                (primaryBounds.x + (primaryBounds.width - windowBounds.width) / 2.0).roundToInt()
+                                            val newY =
+                                                (primaryBounds.y + (primaryBounds.height - windowBounds.height) / 2.0).roundToInt()
+                                            window.setLocation(newX, newY)
+                                            val newXDp = with(density) { newX.toDp() }
+                                            val newYDp = with(density) { newY.toDp() }
+                                            playerState.position = WindowPosition(newXDp, newYDp)
+                                            AppSettingsStore.playerWindowX = newXDp.value
+                                            AppSettingsStore.playerWindowY = newYDp.value
+                                        }
+                                    }
+                                }
+                                window.addComponentListener(listener)
+                                onDispose { window.removeComponentListener(listener) }
                             }
 
                             CompositionLocalProvider(
