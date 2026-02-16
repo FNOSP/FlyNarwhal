@@ -1,4 +1,6 @@
 import org.gradle.api.tasks.JavaExec
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaToolchainService
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -72,6 +74,12 @@ val downloadKcefBundle by tasks.registering(JavaExec::class) {
 
     val classesDir = compileKotlinJvmTask.flatMap { it.destinationDirectory }
     classpath = files(classesDir, kcefDownloaderClasspath)
+
+    javaLauncher.set(
+        project.extensions.getByType<JavaToolchainService>().launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        }
+    )
 
     onlyIf {
         !installDirFile.exists() || installDirFile.listFiles()?.isEmpty() != false

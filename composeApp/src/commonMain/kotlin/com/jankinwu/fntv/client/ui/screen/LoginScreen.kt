@@ -92,8 +92,10 @@ import com.jankinwu.fntv.client.isWindows
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.NumberInput
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
+import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.ui.component.common.dialog.ForgotPasswordDialog
+import com.jankinwu.fntv.client.ui.component.common.dialog.SslTrustDialogHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.login.getTextFieldColors
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
@@ -138,6 +140,17 @@ data class FnConnectWindowRequest(
     val autoLoginPassword: String? = null,
     val allowAutoLogin: Boolean = false,
     val onBaseUrlDetected: ((String) -> Unit)? = null
+)
+
+data class LoginAttempt(
+    val host: String,
+    val port: Int,
+    val username: String,
+    val password: String,
+    val isHttps: Boolean,
+    val rememberPassword: Boolean,
+    val isProbeFinished: Boolean,
+    val onProbeRequired: ((String) -> Unit)?
 )
 
 @OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalComposeUiApi::class,
@@ -188,6 +201,43 @@ fun LoginScreen(
     var isProbeMode by remember { mutableStateOf(false) }
     // 登录历史记录列表
     var loginHistoryList by remember { mutableStateOf<List<LoginHistory>>(emptyList()) }
+    var lastLoginAttempt by remember { mutableStateOf<LoginAttempt?>(null) }
+
+    fun performLogin(
+        host: String,
+        port: Int,
+        username: String,
+        password: String,
+        isHttps: Boolean,
+        toastManager: ToastManager,
+        loginViewModel: LoginViewModel,
+        rememberPassword: Boolean,
+        isProbeFinished: Boolean,
+        onProbeRequired: ((String) -> Unit)? = null
+    ) {
+        lastLoginAttempt = LoginAttempt(
+            host = host,
+            port = port,
+            username = username,
+            password = password,
+            isHttps = isHttps,
+            rememberPassword = rememberPassword,
+            isProbeFinished = isProbeFinished,
+            onProbeRequired = onProbeRequired
+        )
+        handleLogin(
+            host = host,
+            port = port,
+            username = username,
+            password = password,
+            isHttps = isHttps,
+            toastManager = toastManager,
+            loginViewModel = loginViewModel,
+            rememberPassword = rememberPassword,
+            isProbeFinished = isProbeFinished,
+            onProbeRequired = onProbeRequired
+        )
+    }
 
     val hostFocusRequester = remember { FocusRequester() }
 
@@ -312,7 +362,7 @@ fun LoginScreen(
                 { _ ->
                     showFnConnectWebView = false
                     isProbeMode = false
-                    handleLogin(
+                    performLogin(
                         host = host,
                         port = port,
                         username = username,
@@ -683,7 +733,7 @@ fun LoginScreen(
                                     toastManager.showToast("请输入 FN ID", ToastType.Info)
                                 }
                             } else {
-                                handleLogin(
+                                performLogin(
                                     host = host,
                                     port = port,
                                     username = username,
@@ -692,10 +742,11 @@ fun LoginScreen(
                                     toastManager = toastManager,
                                     loginViewModel = loginViewModel,
                                     rememberPassword = rememberPassword,
+                                    isProbeFinished = false,
                                     onProbeRequired = { url ->
                                         if (isNasLoginDisabledPlatform) {
                                             toastManager.showToast("当前平台暂时不支持 FN ID 登录", ToastType.Failed)
-                                            return@handleLogin
+                                            return@performLogin
                                         }
                                         if (!canUseFnConnectWebView && shouldBlockWebViewDependency) {
                                             val msg =
@@ -703,7 +754,7 @@ fun LoginScreen(
                                                 else "组件正在初始化，请稍后..."
 
                                             toastManager.showToast(msg, ToastType.Failed)
-                                            return@handleLogin
+                                            return@performLogin
                                         }
                                         if (!canUseFnConnectWebView && !shouldBlockWebViewDependency) {
                                             val msg =
@@ -721,7 +772,7 @@ fun LoginScreen(
                                                     autoLoginPassword = null,
                                                     allowAutoLogin = false,
                                                     onBaseUrlDetected = {
-                                                        handleLogin(
+                                                        performLogin(
                                                             host = host,
                                                             port = port,
                                                             username = username,
@@ -837,7 +888,7 @@ fun LoginScreen(
                             rememberPassword = history.rememberPassword
                             // 如果有密码，则直接登录
                             if (history.rememberPassword && !history.password.isNullOrEmpty()) {
-                                handleLogin(
+                                performLogin(
                                     host = history.displayHost.ifBlank { history.host },
                                     port = history.displayPort ?: history.port,
                                     username = history.username,
@@ -846,17 +897,18 @@ fun LoginScreen(
                                     toastManager = toastManager,
                                     loginViewModel = loginViewModel,
                                     rememberPassword = true,
+                                    isProbeFinished = false,
                                     onProbeRequired = { url ->
                                         if (isNasLoginDisabledPlatform) {
                                             toastManager.showToast("当前平台暂不支持 NAS 登录", ToastType.Failed)
-                                            return@handleLogin
+                                            return@performLogin
                                         }
                                         if (!canUseFnConnectWebView && shouldBlockWebViewDependency) {
                                             val msg =
                                                 if (webViewInitError != null) "组件加载失败，无法验证服务器"
                                                 else "组件正在初始化，请稍后..."
                                             toastManager.showToast(msg, ToastType.Failed)
-                                            return@handleLogin
+                                            return@performLogin
                                         }
                                         if (!canUseFnConnectWebView && !shouldBlockWebViewDependency) {
                                             val msg =
@@ -874,7 +926,7 @@ fun LoginScreen(
                                                     autoLoginPassword = null,
                                                     allowAutoLogin = false,
                                                     onBaseUrlDetected = {
-                                                        handleLogin(
+                                                        performLogin(
                                                             host = host,
                                                             port = port,
                                                             username = username,
@@ -903,6 +955,24 @@ fun LoginScreen(
             }
         }
     }
+    SslTrustDialogHost(
+        onAllow = {
+            if (loginUiState is UiState.Loading) return@SslTrustDialogHost
+            val attempt = lastLoginAttempt ?: return@SslTrustDialogHost
+            performLogin(
+                host = attempt.host,
+                port = attempt.port,
+                username = attempt.username,
+                password = attempt.password,
+                isHttps = attempt.isHttps,
+                toastManager = toastManager,
+                loginViewModel = loginViewModel,
+                rememberPassword = attempt.rememberPassword,
+                isProbeFinished = attempt.isProbeFinished,
+                onProbeRequired = attempt.onProbeRequired
+            )
+        }
+    )
 }
 
 //@Composable

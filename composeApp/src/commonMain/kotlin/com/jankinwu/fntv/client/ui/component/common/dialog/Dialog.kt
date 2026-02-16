@@ -19,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
+import com.jankinwu.fntv.client.data.store.SslTrustManager
 import com.jankinwu.fntv.client.icons.SkipLink
 import com.jankinwu.fntv.client.icons.Warning
 import com.jankinwu.fntv.client.ui.customAccentButtonColors
@@ -346,4 +348,31 @@ fun CustomContentDialog(
             }
         }
     }
+}
+
+@Composable
+fun SslTrustDialogHost(
+    onAllow: ((String) -> Unit)? = null,
+    onReject: ((String) -> Unit)? = null
+) {
+    val prompt by SslTrustManager.pendingPrompt.collectAsState()
+    val host = prompt?.host ?: return
+    CustomConfirmDialog(
+        onDismissRequest = {
+            SslTrustManager.resolvePrompt(false)
+            onReject?.invoke(host)
+        },
+        title = "证书校验失败",
+        contentText = "$host 的证书校验失败，可能存在安全风险，是否继续连接？",
+        dismissButtonText = "取消",
+        onDismissClick = {
+            SslTrustManager.resolvePrompt(false)
+            onReject?.invoke(host)
+        },
+        confirmButtonText = "忽略风险",
+        onConfirmClick = {
+            SslTrustManager.resolvePrompt(true)
+            onAllow?.invoke(host)
+        }
+    )
 }

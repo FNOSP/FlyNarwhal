@@ -56,8 +56,10 @@ import com.jankinwu.fntv.client.data.model.response.TagListResponse
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.data.network.FnOfficialApi
 import com.jankinwu.fntv.client.data.network.fnOfficialClient
+import com.jankinwu.fntv.client.data.network.fnOfficialInsecureClient
 import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genAuthxForOfficial
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.SslTrustManager
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.forms.formData
@@ -71,7 +73,10 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
+import io.ktor.http.Url
 import io.ktor.http.headers
+import javax.net.ssl.SSLHandshakeException
+import javax.net.ssl.SSLPeerUnverifiedException
 
 class FnOfficialApiImpl : FnOfficialApi {
     private val logger = Logger.withTag("FnOfficialApiImpl")
@@ -301,19 +306,23 @@ class FnOfficialApiImpl : FnOfficialApi {
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
     ): T {
         return try {
-            if (AccountDataCache.getFnOfficialBaseUrl().isBlank()) {
+            val baseUrl = AccountDataCache.getFnOfficialBaseUrl()
+            if (baseUrl.isBlank()) {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
+            val requestUrl = "$baseUrl$url"
             val authx = genAuthxForOfficial(url, parameters)
-            logger.i { "GET request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters, cookie: ${AccountDataCache.cookieState}" }
-            val response = fnOfficialClient.get("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
-                header("Authx", authx)
-                parameters?.forEach { (key, value) ->
-                    if (value != null) {
-                        parameter(key, value)
+            logger.i { "GET request, url: $requestUrl, authx: $authx, parameters: $parameters, cookie: ${AccountDataCache.cookieState}" }
+            val response = executeWithSslPrompt(resolveHost(baseUrl), "GET $requestUrl") { client ->
+                client.get(requestUrl) {
+                    header("Authx", authx)
+                    parameters?.forEach { (key, value) ->
+                        if (value != null) {
+                            parameter(key, value)
+                        }
                     }
+                    block?.invoke(this)
                 }
-                block?.invoke(this)
             }
             val responseString = response.bodyAsText()
             logger.i { "url: $url Get response content: $responseString" }
@@ -341,20 +350,23 @@ class FnOfficialApiImpl : FnOfficialApi {
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
     ): T {
         return try {
-            // 校验 baseURL 是否存在
-            if (AccountDataCache.getFnOfficialBaseUrl().isBlank()) {
+            val baseUrl = AccountDataCache.getFnOfficialBaseUrl()
+            if (baseUrl.isBlank()) {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
+            val requestUrl = "$baseUrl$url"
 
             val authx = genAuthxForOfficial(url, data = body)
-            logger.i { "POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body, cookie: ${AccountDataCache.cookieState}" }
-            val response = fnOfficialClient.post("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
-                header(HttpHeaders.ContentType, "application/json; charset=utf-8")
-                header("Authx", authx)
-                if (body != null) {
-                    setBody(body)
+            logger.i { "POST request, url: $requestUrl, authx: $authx, body: $body, cookie: ${AccountDataCache.cookieState}" }
+            val response = executeWithSslPrompt(resolveHost(baseUrl), "POST $requestUrl") { client ->
+                client.post(requestUrl) {
+                    header(HttpHeaders.ContentType, "application/json; charset=utf-8")
+                    header("Authx", authx)
+                    if (body != null) {
+                        setBody(body)
+                    }
+                    block?.invoke(this)
                 }
-                block?.invoke(this)
             }
 
             val responseString = response.bodyAsText()
@@ -390,29 +402,30 @@ class FnOfficialApiImpl : FnOfficialApi {
         additionalParams: Map<String, String> = emptyMap()
     ): T {
         return try {
-            if (AccountDataCache.getFnOfficialBaseUrl().isBlank()) {
+            val baseUrl = AccountDataCache.getFnOfficialBaseUrl()
+            if (baseUrl.isBlank()) {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
+            val requestUrl = "$baseUrl$url"
 
             val authx = genAuthxForOfficial(url)
-            logger.i { "POST multipart file request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx" }
-            val response = fnOfficialClient.submitFormWithBinaryData(
-                url = "${AccountDataCache.getFnOfficialBaseUrl()}$url",
-                formData = formData {
-                    // 添加文件
-                    append(fileParamName, file, Headers.build {
-                        append(HttpHeaders.ContentType, "application/octet-stream")
-                        append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
-                    })
-
-                    // 添加其他参数
-                    additionalParams.forEach { (key, value) ->
-                        append(key, value)
+            logger.i { "POST multipart file request, url: $requestUrl, authx: $authx" }
+            val response = executeWithSslPrompt(resolveHost(baseUrl), "POST-MULTIPART $requestUrl") { client ->
+                client.submitFormWithBinaryData(
+                    url = requestUrl,
+                    formData = formData {
+                        append(fileParamName, file, Headers.build {
+                            append(HttpHeaders.ContentType, "application/octet-stream")
+                            append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                        })
+                        additionalParams.forEach { (key, value) ->
+                            append(key, value)
+                        }
                     }
-                }
-            ) {
-                headers {
-                    append("Authx", authx)
+                ) {
+                    headers {
+                        append("Authx", authx)
+                    }
                 }
             }
 
@@ -436,20 +449,23 @@ class FnOfficialApiImpl : FnOfficialApi {
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
     ): T {
         return try {
-            // 校验 baseURL 是否存在
-            if (AccountDataCache.getFnOfficialBaseUrl().isBlank()) {
+            val baseUrl = AccountDataCache.getFnOfficialBaseUrl()
+            if (baseUrl.isBlank()) {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
+            val requestUrl = "$baseUrl$url"
 
             val authx = genAuthxForOfficial(url, data = body)
-            logger.i { "url: $url PUT request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body" }
-            val response = fnOfficialClient.put("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
-                header(HttpHeaders.ContentType, "application/json; charset=utf-8")
-                header("Authx", authx)
-                if (body != null) {
-                    setBody(body)
+            logger.i { "url: $url PUT request, url: $requestUrl, authx: $authx, body: $body" }
+            val response = executeWithSslPrompt(resolveHost(baseUrl), "PUT $requestUrl") { client ->
+                client.put(requestUrl) {
+                    header(HttpHeaders.ContentType, "application/json; charset=utf-8")
+                    header("Authx", authx)
+                    if (body != null) {
+                        setBody(body)
+                    }
+                    block?.invoke(this)
                 }
-                block?.invoke(this)
             }
 
             val responseString = response.bodyAsText()
@@ -480,15 +496,16 @@ class FnOfficialApiImpl : FnOfficialApi {
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
     ): T {
         return try {
-            // 校验 baseURL 是否存在
-            if (AccountDataCache.getFnOfficialBaseUrl().isBlank()) {
+            val baseUrl = AccountDataCache.getFnOfficialBaseUrl()
+            if (baseUrl.isBlank()) {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
+            val requestUrl = "$baseUrl$url"
 
             val authx = genAuthxForOfficial(url, data = body)
-            logger.i { "DELETE request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body" }
-            val response =
-                fnOfficialClient.delete("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
+            logger.i { "DELETE request, url: $requestUrl, authx: $authx, body: $body" }
+            val response = executeWithSslPrompt(resolveHost(baseUrl), "DELETE $requestUrl") { client ->
+                client.delete(requestUrl) {
                     header(HttpHeaders.ContentType, "application/json; charset=utf-8")
                     header("Authx", authx)
                     if (body != null) {
@@ -496,6 +513,7 @@ class FnOfficialApiImpl : FnOfficialApi {
                     }
                     block?.invoke(this)
                 }
+            }
 
             val responseString = response.bodyAsText()
             logger.i { "url: $url Delete response content: $responseString" }
@@ -517,6 +535,50 @@ class FnOfficialApiImpl : FnOfficialApi {
         } catch (e: Exception) {
             throw Exception("请求失败: ${e.message}", e)
         }
+    }
+
+    private fun resolveHost(baseUrl: String): String? {
+        return runCatching { Url(baseUrl).host }.getOrNull()?.ifBlank { null }
+    }
+
+    private suspend fun <T> executeWithSslPrompt(
+        host: String?,
+        requestTag: String,
+        block: suspend (io.ktor.client.HttpClient) -> T
+    ): T {
+        val useInsecure = host != null && SslTrustManager.isHostWhitelisted(host)
+        val initialClient = if (useInsecure) fnOfficialInsecureClient else fnOfficialClient
+        return try {
+            block(initialClient)
+        } catch (e: Throwable) {
+            if (!isCertificateException(e) || host == null) {
+                logger.e { "SSL 证书异常: ${e.message}" }
+                throw e
+            }
+            logger.w { "SSL trust prompt triggered, request: $requestTag, host: $host, error: ${e.message}" }
+            val allow = SslTrustManager.requestTrust(host)
+            if (!allow) {
+                logger.e { "用户拒绝了证书信任, request: $requestTag, host: $host" }
+                throw e
+            }
+            SslTrustManager.addHostToWhitelist(host)
+            block(fnOfficialInsecureClient)
+        }
+    }
+
+    private fun isCertificateException(throwable: Throwable): Boolean {
+        var current: Throwable? = throwable
+        while (current != null) {
+            if (current is SSLHandshakeException || current is SSLPeerUnverifiedException) {
+                return true
+            }
+            val message = current.message.orEmpty()
+            if (message.contains("PKIX", true) || message.contains("certificate", true) || message.contains("not verified", true)) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
     }
 }
 

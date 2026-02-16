@@ -2,8 +2,11 @@ package com.jankinwu.fntv.client.data.store
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import co.touchlab.kermit.Logger
 
 object AccountDataCache {
+
+    private val logger = Logger.withTag("AccountDataCache")
 
     var authorization: String = ""
 
@@ -55,6 +58,7 @@ object AccountDataCache {
     }
     
     fun insertCookie(pair: Pair<String, String>) {
+        logger.i("insertCookie: $pair")
         cookieMap[pair.first] = pair.second
         _cookieState.value = getCookie()
     }

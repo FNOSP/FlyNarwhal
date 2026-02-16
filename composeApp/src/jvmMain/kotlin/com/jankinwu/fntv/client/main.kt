@@ -373,15 +373,16 @@ fun main() {
                                 backButtonVisible = false
                             ) { windowInset, contentInset ->
                                 // 使用LoginStateManagement来管理登录状态
-                                LaunchedEffect(isLoggedIn) {
-                                    if (isLoggedIn) {
-                                        userInfoViewModel.refresh()
-                                    }
-                                }
-
                                 LaunchedEffect(userInfoState, isLoggedIn) {
-                                    if (isLoggedIn && userInfoState is UiState.Error) {
-                                        LoginStateManager.updateLoginStatus(false)
+                                    if (!isLoggedIn) return@LaunchedEffect
+                                    if (userInfoState is UiState.Error) {
+                                        val message = (userInfoState as UiState.Error).message
+                                        val shouldLogout = message.contains("auth failed", true) ||
+                                            message.contains("code: -2", true) ||
+                                            message.contains("401", true)
+                                        if (shouldLogout) {
+                                            LoginStateManager.updateLoginStatus(false)
+                                        }
                                     }
                                 }
 

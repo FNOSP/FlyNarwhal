@@ -21,6 +21,7 @@ import com.jankinwu.fntv.client.data.store.Store
 import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
+import com.jankinwu.fntv.client.ui.providable.LocalRefreshManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
@@ -93,7 +94,8 @@ fun AppTheme(
     }
     CompositionLocalProvider(
         LocalStore provides store,
-        LocalRefreshState provides refreshManager.refreshState // 提供刷新状态
+        LocalRefreshState provides refreshManager.refreshState,
+        LocalRefreshManager provides refreshManager
     ) {
         FluentTheme(
             colors = if (store.darkMode) darkColors() else lightColors(),

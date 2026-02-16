@@ -23,6 +23,7 @@ class LoginViewModel : BaseViewModel() {
         username: String,
         password: String,
     ) {
+        if (_uiState.value is UiState.Loading) return
         viewModelScope.launch {
             executeWithLoading(_uiState) {
                 val request = LoginRequest(username, password)

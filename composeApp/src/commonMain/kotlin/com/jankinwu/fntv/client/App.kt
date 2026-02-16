@@ -57,7 +57,9 @@ import com.jankinwu.fntv.client.manager.UpdateStatus
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
+import com.jankinwu.fntv.client.ui.component.common.dialog.SslTrustDialogHost
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
+import com.jankinwu.fntv.client.ui.providable.LocalRefreshManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.screen.FavoritesScreen
@@ -85,7 +87,6 @@ import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.ArrowLeft
 import io.github.composefluent.icons.regular.Settings
 import kotlinx.coroutines.FlowPreview
-import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -131,12 +132,19 @@ fun App(
     title: String = ""
 ) {
     val context = LocalContext.current
+    val refreshManager = LocalRefreshManager.current
+    val refreshState = LocalRefreshState.current
     LaunchedEffect(Unit) {
         PlayerResourceManager.preload()
         ReportingService(context).reportLaunch()
     }
     CoilSetting()
     Navigation(navigator, windowInset, contentInset, collapseWindowInset, icon, title)
+    SslTrustDialogHost(
+        onAllow = {
+            refreshManager.requestRefresh(refreshState.onRefresh)
+        }
+    )
 }
 
 @Composable
