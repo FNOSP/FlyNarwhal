@@ -7,3 +7,5 @@ actual val apiModule: Module
     get() = TODO("Not yet implemented")
 actual val fnOfficialClient: HttpClient
     get() = TODO("Not yet implemented")
+actual val fnOfficialInsecureClient: HttpClient
+    get() = TODO("Not yet implemented")

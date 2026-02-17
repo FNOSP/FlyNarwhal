@@ -9,6 +9,7 @@ import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowState
+import com.jankinwu.fntv.client.RefreshManager
 import com.jankinwu.fntv.client.RefreshState
 import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.model.response.FileInfo
@@ -129,6 +130,10 @@ val LocalFrameWindowScope = staticCompositionLocalOf<FrameWindowScope> {
 // from App.kt
 val LocalRefreshState = staticCompositionLocalOf<RefreshState> {
     error("RefreshState not provided")
+}
+
+val LocalRefreshManager = staticCompositionLocalOf<RefreshManager> {
+    error("RefreshManager not provided")
 }
 
 val LocalWindowState = compositionLocalOf<WindowState> { error("WindowState not provided") }

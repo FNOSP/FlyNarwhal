@@ -2,6 +2,12 @@ package com.jankinwu.fntv.client.data.store
 
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 object AppSettingsStore {
     private val settings: Settings = Settings()
@@ -91,6 +97,10 @@ object AppSettingsStore {
         get() = settings.getString(scopedKey("skipped_versions"), "").split(",").filter { it.isNotEmpty() }.toSet()
         set(value) = settings.set(scopedKey("skipped_versions"), value.joinToString(","))
 
+    var sslIgnoreHostWhitelist: Set<String>
+        get() = settings.getString(scopedKey("ssl_ignore_host_whitelist"), "").split(",").filter { it.isNotEmpty() }.toSet()
+        set(value) = settings.set(scopedKey("ssl_ignore_host_whitelist"), value.joinToString(","))
+
     var navigationDisplayMode: String
         get() = settings.getString(scopedKey("navigation_display_mode"), "Left")
         set(value) = settings.set(scopedKey("navigation_display_mode"), value)
@@ -114,4 +124,80 @@ object AppSettingsStore {
     var kcefInitializedVersion: String
         get() = settings.getString(scopedKey("kcef_initialized_version"), "")
         set(value) = settings.set(scopedKey("kcef_initialized_version"), value)
+}
+
+enum class SslTrustDecision {
+    Reject,
+    AllowTemporary,
+    AllowPersist
+}
+
+data class SslTrustPrompt(
+    val host: String,
+    val deferred: CompletableDeferred<SslTrustDecision>
+)
+
+object SslTrustManager {
+    private val promptMutex = Mutex()
+    private val _pendingPrompt = MutableStateFlow<SslTrustPrompt?>(null)
+    val pendingPrompt: StateFlow<SslTrustPrompt?> = _pendingPrompt.asStateFlow()
+    private val temporaryWhitelist = mutableSetOf<String>()
+
+    fun isHostWhitelisted(host: String): Boolean {
+        val key = normalizeHost(host)
+        return key.isNotBlank() && (temporaryWhitelist.contains(key) || AppSettingsStore.sslIgnoreHostWhitelist.contains(key))
+    }
+
+    fun addHostToWhitelist(host: String) {
+        val key = normalizeHost(host)
+        if (key.isBlank()) return
+        AppSettingsStore.sslIgnoreHostWhitelist = AppSettingsStore.sslIgnoreHostWhitelist + key
+    }
+
+    fun addHostToTemporaryWhitelist(host: String) {
+        val key = normalizeHost(host)
+        if (key.isBlank()) return
+        temporaryWhitelist.add(key)
+    }
+
+    suspend fun requestTrust(host: String): SslTrustDecision {
+        val key = normalizeHost(host)
+        if (key.isBlank()) return SslTrustDecision.Reject
+        while (true) {
+            val prompt = promptMutex.withLock {
+                val existing = _pendingPrompt.value
+                if (existing != null && !existing.deferred.isCompleted) {
+                    // Reuse active prompt to avoid duplicate dialogs
+                    return@withLock existing
+                }
+                val deferred = CompletableDeferred<SslTrustDecision>()
+                val next = SslTrustPrompt(key, deferred)
+                // Publish new prompt for current host
+                _pendingPrompt.value = next
+                next
+            }
+            val result = prompt.deferred.await()
+            promptMutex.withLock {
+                if (_pendingPrompt.value?.deferred == prompt.deferred) {
+                    // Clear prompt after user decision
+                    _pendingPrompt.value = null
+                }
+            }
+            if (prompt.host == key) {
+                return result
+            }
+        }
+    }
+
+    fun resolvePrompt(decision: SslTrustDecision) {
+        val prompt = _pendingPrompt.value ?: return
+        if (!prompt.deferred.isCompleted) {
+            prompt.deferred.complete(decision)
+        }
+        _pendingPrompt.value = null
+    }
+
+    private fun normalizeHost(host: String): String {
+        return host.trim().lowercase()
+    }
 }

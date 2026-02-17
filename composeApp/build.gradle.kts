@@ -1,4 +1,6 @@
 import org.gradle.api.tasks.JavaExec
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaToolchainService
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -6,7 +8,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.11.2"
+val appVersion = "1.11.3"
 
 val appVersionSuffix = ""
 
@@ -72,6 +74,12 @@ val downloadKcefBundle by tasks.registering(JavaExec::class) {
 
     val classesDir = compileKotlinJvmTask.flatMap { it.destinationDirectory }
     classpath = files(classesDir, kcefDownloaderClasspath)
+
+    javaLauncher.set(
+        project.extensions.getByType<JavaToolchainService>().launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        }
+    )
 
     onlyIf {
         !installDirFile.exists() || installDirFile.listFiles()?.isEmpty() != false

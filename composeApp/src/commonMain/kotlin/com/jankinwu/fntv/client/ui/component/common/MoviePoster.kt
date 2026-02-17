@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import coil3.PlatformContext
 import coil3.compose.SubcomposeAsyncImage
 import coil3.network.httpHeaders
@@ -74,6 +75,8 @@ import io.github.composefluent.icons.regular.Checkmark
 import io.github.composefluent.icons.regular.MoreHorizontal
 import io.github.composefluent.icons.regular.PlayCircle
 import org.koin.compose.viewmodel.koinViewModel
+
+private val moviePosterLogger = Logger.withTag("MoviePoster")
 
 /**
  * 电影海报组件
@@ -228,7 +231,10 @@ fun MoviePoster(
                     loading = {
                         ImgLoadingProgressRing()
                     },
-                    error = {
+                    error = { state ->
+                        moviePosterLogger.e(state.result.throwable) {
+                            "Poster load failed: ${state.result.request.data} headers=${store.fnImgHeaders}"
+                        }
                         ImgLoadingError()
                     },
                 )

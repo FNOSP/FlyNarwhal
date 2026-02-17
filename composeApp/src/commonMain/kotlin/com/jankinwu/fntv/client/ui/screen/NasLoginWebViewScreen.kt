@@ -6,10 +6,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -93,10 +91,6 @@ fun NasLoginWebViewScreen(
     val isMacPlatform = remember {
         runCatching { currentPlatform().isMacOS() }.getOrNull() == true
     }
-    val captionSideInset = remember(contentInset) {
-        contentInset.only(WindowInsetsSides.Horizontal)
-    }
-
     var baseUrl by remember { mutableStateOf("") }
     var addressBarValue by remember(initialUrl) { mutableStateOf(initialUrl) }
     val messageChannel = remember { Channel<String>(Channel.UNLIMITED) }
@@ -140,7 +134,7 @@ fun NasLoginWebViewScreen(
                         .fillMaxSize()
                         .windowInsetsPadding(windowInset)
                 ) {
-                    Box(modifier = Modifier.windowInsetsPadding(captionSideInset)) {
+                    Box(modifier = Modifier.padding(end = 12.dp)) {
                         NasLoginAddressBar(
                             addressBarValue = addressBarValue,
                             onAddressBarValueChange = { addressBarValue = it },

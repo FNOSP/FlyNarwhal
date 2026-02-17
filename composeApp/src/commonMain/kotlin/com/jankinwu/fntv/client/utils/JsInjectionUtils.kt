@@ -167,9 +167,12 @@ fun getJsInjectionScript(
                              dropdown.style.width = r.width + 'px';
                          }
 
-                         function render(filterText) {
+                        function render(filterText) {
                              dropdown.innerHTML = '';
                              var list = USERNAME_HISTORY || [];
+                            if (!list.length) {
+                                return false;
+                            }
                              var q = (filterText || '').trim().toLowerCase();
                              if (q) {
                                  list = list.filter(function(u) {
@@ -182,8 +185,8 @@ fun getJsInjectionScript(
                                  empty.style.padding = '10px 10px';
                                  empty.style.color = 'rgba(0,0,0,0.45)';
                                  empty.style.fontSize = '14px';
-                                 dropdown.appendChild(empty);
-                                 return;
+                                dropdown.appendChild(empty);
+                                return true;
                              }
                              for (var i = 0; i < list.length; i++) {
                                  (function(name) {
@@ -205,15 +208,16 @@ fun getJsInjectionScript(
                                          triggerInput(input, name);
                                          dropdown.style.display = 'none';
                                      });
-                                     dropdown.appendChild(item);
+                                    dropdown.appendChild(item);
                                  })(list[i]);
                              }
+                            return true;
                          }
 
                          function show() {
                              position();
-                             render(input.value);
-                             dropdown.style.display = 'block';
+                            var hasHistory = render(input.value);
+                            dropdown.style.display = hasHistory ? 'block' : 'none';
                          }
 
                          function hide() {

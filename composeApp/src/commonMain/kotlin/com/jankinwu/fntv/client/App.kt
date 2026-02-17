@@ -34,13 +34,14 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.CachePolicy
 import coil3.request.crossfade
 import com.jankinwu.fntv.client.data.network.impl.ReportingService
@@ -52,12 +53,15 @@ import com.jankinwu.fntv.client.icons.CategoryIcon
 import com.jankinwu.fntv.client.icons.Heart
 import com.jankinwu.fntv.client.icons.Home
 import com.jankinwu.fntv.client.icons.MediaLibrary
+import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import com.jankinwu.fntv.client.manager.UpdateStatus
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.HasNewVersionTag
+import com.jankinwu.fntv.client.ui.component.common.dialog.SslTrustDialogHost
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
+import com.jankinwu.fntv.client.ui.providable.LocalRefreshManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.screen.FavoritesScreen
@@ -85,11 +89,18 @@ import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.ArrowLeft
 import io.github.composefluent.icons.regular.Settings
 import kotlinx.coroutines.FlowPreview
-import okhttp3.Headers
 import okhttp3.Interceptor
+import okhttp3.OkHttpClient
 import okhttp3.Response
 import okio.FileSystem
 import org.koin.compose.viewmodel.koinViewModel
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
+
+private val logger = Logger.withTag("App")
 
 val components = mutableStateListOf<ComponentItem>()
 
@@ -125,12 +136,23 @@ fun App(
     title: String = ""
 ) {
     val context = LocalContext.current
+    val refreshManager = LocalRefreshManager.current
+    val refreshState = LocalRefreshState.current
     LaunchedEffect(Unit) {
         PlayerResourceManager.preload()
         ReportingService(context).reportLaunch()
     }
     CoilSetting()
     Navigation(navigator, windowInset, contentInset, collapseWindowInset, icon, title)
+    SslTrustDialogHost(
+        onAllow = {
+            refreshManager.requestRefresh(refreshState.onRefresh)
+        },
+        onReject = {
+            logger.i("Reject SSL trust")
+            LoginStateManager.updateLoginStatus(false)
+        }
+    )
 }
 
 @Composable
@@ -152,28 +174,43 @@ fun CoilSetting() {
                     .directory(FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "fntv_coil_cache")
                     .build()
             )
-//            .components {
-//                add(
-//                    OkHttpNetworkFetcherFactory(
-//                        callFactory = OkHttpClient.Builder()
-//                            .addNetworkInterceptor(RequestHeaderInterceptor())
-//                            .build()
-//                    )
-//                )
-//            }
+            .components {
+                add(
+                    OkHttpNetworkFetcherFactory(
+                        callFactory = createInsecureOkHttpClient()
+                    )
+                )
+            }
 //            .logger(DebugLogger())
             .build()
     }
 }
 
+private fun createInsecureOkHttpClient(): OkHttpClient {
+    val trustAllCerts = arrayOf<TrustManager>(
+        object : X509TrustManager {
+            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+        }
+    )
+    val sslContext = SSLContext.getInstance("SSL")
+    sslContext.init(null, trustAllCerts, SecureRandom())
+    val trustManager = trustAllCerts[0] as X509TrustManager
+    return OkHttpClient.Builder()
+        .sslSocketFactory(sslContext.socketFactory, trustManager)
+        .hostnameVerifier { _, _ -> true }
+        .addNetworkInterceptor(RequestHeaderInterceptor())
+        .build()
+}
+
 class RequestHeaderInterceptor() : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-        val headers = Headers.Builder()
-            .set("cookie", AccountDataCache.cookieState)
-            .build()
-        val request = chain.request().newBuilder()
-            .headers(headers)
-            .build()
+        val requestBuilder = chain.request().newBuilder()
+        if (AccountDataCache.cookieState.isNotBlank()) {
+            requestBuilder.header("cookie", AccountDataCache.cookieState)
+        }
+        val request = requestBuilder.build()
         return chain.proceed(request)
     }
 }

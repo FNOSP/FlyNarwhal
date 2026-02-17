@@ -79,6 +79,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.rememberMediampPlayer
 import java.awt.Dimension
+import java.awt.GraphicsEnvironment
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import java.io.File
@@ -260,6 +261,38 @@ fun main() {
                             window.addComponentListener(listener)
                             onDispose { window.removeComponentListener(listener) }
                         }
+                        DisposableEffect(window, density) {
+                            var applied = false
+                            val listener = object : ComponentAdapter() {
+                                override fun componentShown(e: ComponentEvent) {
+                                    if (applied) return
+                                    applied = true
+                                    val bounds = window.bounds
+                                    if (bounds.width <= 0 || bounds.height <= 0) {
+                                        window.setSize(1280, 720)
+                                    }
+                                    val windowBounds = window.bounds
+                                    val environment = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                                    val screenBounds = environment.screenDevices.map { it.defaultConfiguration.bounds }
+                                    val isOnScreen = screenBounds.any { it.intersects(windowBounds) }
+                                    if (!isOnScreen) {
+                                        val primaryBounds = environment.defaultScreenDevice.defaultConfiguration.bounds
+                                        val newX =
+                                            (primaryBounds.x + (primaryBounds.width - windowBounds.width) / 2.0).roundToInt()
+                                        val newY =
+                                            (primaryBounds.y + (primaryBounds.height - windowBounds.height) / 2.0).roundToInt()
+                                        window.setLocation(newX, newY)
+                                        val newXDp = with(density) { newX.toDp() }
+                                        val newYDp = with(density) { newY.toDp() }
+                                        mainState.position = WindowPosition(newXDp, newYDp)
+                                        AppSettingsStore.windowX = newXDp.value
+                                        AppSettingsStore.windowY = newYDp.value
+                                    }
+                                }
+                            }
+                            window.addComponentListener(listener)
+                            onDispose { window.removeComponentListener(listener) }
+                        }
                         val shouldStartMaximized = remember { AppSettingsStore.isWindowMaximized }
                         DisposableEffect(shouldStartMaximized) {
                             if (!shouldStartMaximized) return@DisposableEffect onDispose {}
@@ -340,15 +373,16 @@ fun main() {
                                 backButtonVisible = false
                             ) { windowInset, contentInset ->
                                 // 使用LoginStateManagement来管理登录状态
-                                LaunchedEffect(isLoggedIn) {
-                                    if (isLoggedIn) {
-                                        userInfoViewModel.refresh()
-                                    }
-                                }
-
                                 LaunchedEffect(userInfoState, isLoggedIn) {
-                                    if (isLoggedIn && userInfoState is UiState.Error) {
-                                        LoginStateManager.updateLoginStatus(false)
+                                    if (!isLoggedIn) return@LaunchedEffect
+                                    if (userInfoState is UiState.Error) {
+                                        val message = (userInfoState as UiState.Error).message
+                                        val shouldLogout = message.contains("auth failed", true) ||
+                                            message.contains("code: -2", true) ||
+                                            message.contains("401", true)
+                                        if (shouldLogout) {
+                                            LoginStateManager.updateLoginStatus(false)
+                                        }
                                     }
                                 }
 
@@ -395,6 +429,7 @@ fun main() {
                             icon = icon,
                             undecorated = false
                         ) {
+                            val density = LocalDensity.current
                             val playState by player.playbackState.collectAsState()
                             val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
 
@@ -417,6 +452,38 @@ fun main() {
                                 val baseWidth = 600
                                 val baseHeight = 400
                                 window.minimumSize = Dimension(baseWidth, baseHeight)
+                            }
+                            DisposableEffect(window, density) {
+                                var applied = false
+                                val listener = object : ComponentAdapter() {
+                                    override fun componentShown(e: ComponentEvent) {
+                                        if (applied) return
+                                        applied = true
+                                        val bounds = window.bounds
+                                        if (bounds.width <= 0 || bounds.height <= 0) {
+                                            window.setSize(1280, 720)
+                                        }
+                                        val windowBounds = window.bounds
+                                        val environment = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                                        val screenBounds = environment.screenDevices.map { it.defaultConfiguration.bounds }
+                                        val isOnScreen = screenBounds.any { it.intersects(windowBounds) }
+                                        if (!isOnScreen) {
+                                            val primaryBounds = environment.defaultScreenDevice.defaultConfiguration.bounds
+                                            val newX =
+                                                (primaryBounds.x + (primaryBounds.width - windowBounds.width) / 2.0).roundToInt()
+                                            val newY =
+                                                (primaryBounds.y + (primaryBounds.height - windowBounds.height) / 2.0).roundToInt()
+                                            window.setLocation(newX, newY)
+                                            val newXDp = with(density) { newX.toDp() }
+                                            val newYDp = with(density) { newY.toDp() }
+                                            playerState.position = WindowPosition(newXDp, newYDp)
+                                            AppSettingsStore.playerWindowX = newXDp.value
+                                            AppSettingsStore.playerWindowY = newYDp.value
+                                        }
+                                    }
+                                }
+                                window.addComponentListener(listener)
+                                onDispose { window.removeComponentListener(listener) }
                             }
 
                             CompositionLocalProvider(
@@ -572,6 +639,7 @@ fun main() {
                                     title = "使用 NAS 登录",
                                     state = fnConnectWindowState,
                                     navigator = navigator,
+                                    showSearchBox = false,
                                     backButtonVisible = false
                                 ) { windowInset, contentInset ->
                                     NasLoginWebViewScreen(
@@ -713,8 +781,14 @@ private fun initializeLoggingDirectory(): File {
  */
 @Composable
 private fun createWindowConfiguration(): Triple<WindowState, String, Painter> {
+    val baseWidth = 1280f
+    val baseHeight = 720f
     val windowX = AppSettingsStore.windowX
     val windowY = AppSettingsStore.windowY
+    val rawWidth = AppSettingsStore.windowWidth
+    val rawHeight = AppSettingsStore.windowHeight
+    val safeWidth = if (rawWidth.isNaN() || rawWidth < baseWidth) baseWidth else rawWidth
+    val safeHeight = if (rawHeight.isNaN() || rawHeight < baseHeight) baseHeight else rawHeight
     val position = if (!windowX.isNaN() && !windowY.isNaN()) {
         WindowPosition(windowX.dp, windowY.dp)
     } else {
@@ -723,7 +797,7 @@ private fun createWindowConfiguration(): Triple<WindowState, String, Painter> {
     val state = rememberWindowState(
         position = position,
         placement = WindowPlacement.Floating,
-        size = DpSize(AppSettingsStore.windowWidth.dp, AppSettingsStore.windowHeight.dp)
+        size = DpSize(safeWidth.dp, safeHeight.dp)
     )
     val title = "飞鲸影视"
     val icon = painterResource(Res.drawable.icon)
