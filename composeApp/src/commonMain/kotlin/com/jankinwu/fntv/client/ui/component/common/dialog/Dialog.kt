@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
+import com.jankinwu.fntv.client.data.store.SslTrustDecision
 import com.jankinwu.fntv.client.data.store.SslTrustManager
 import com.jankinwu.fntv.client.icons.SkipLink
 import com.jankinwu.fntv.client.icons.Warning
@@ -179,7 +180,9 @@ fun CustomConfirmDialog(
     dismissButtonText: String = "取消",
     onDismissClick: () -> Unit = {},
     confirmButtonText: String,
-    onConfirmClick: () -> Unit = {}
+    onConfirmClick: () -> Unit = {},
+    extraButtonText: String? = null,
+    onExtraClick: () -> Unit = {}
 ) {
     val store = LocalStore.current
     Dialog(onDismissRequest = onDismissRequest) {
@@ -256,6 +259,21 @@ fun CustomConfirmDialog(
                     ) {
                         Text(confirmButtonText, color = primaryTextColor)
                     }
+                    if (extraButtonText != null) {
+                        Button(
+                            onClick = {
+                                onExtraClick()
+                                onDismissRequest()
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = confirmButtonColor
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(extraButtonText, color = primaryTextColor)
+                        }
+                    }
                 }
             }
         }
@@ -269,7 +287,9 @@ fun CustomContentDialog(
     content: @Composable () -> Unit,
     primaryButtonText: String,
     secondaryButtonText: String? = null,
+    tertiaryButtonText: String? = null,
     onButtonClick: (ContentDialogButton) -> Unit,
+    onTertiaryClick: () -> Unit = {},
     size: DialogSize = DialogSize.Standard,
     isWarning: Boolean = false
 ) {
@@ -318,31 +338,77 @@ fun CustomContentDialog(
                     .padding(horizontal = 25.dp, vertical = 8.dp),
                 Alignment.CenterEnd
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (secondaryButtonText != null) Button(
-                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                        onClick = { onButtonClick(ContentDialogButton.Secondary) },
+                if (tertiaryButtonText != null) {
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            secondaryButtonText,
-                            style = LocalTypography.current.bodyStrong,
-                            color = FluentTheme.colors.text.text.primary
-                        )
+                        if (secondaryButtonText != null) Button(
+                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                            onClick = { onButtonClick(ContentDialogButton.Secondary) },
+                        ) {
+                            Text(
+                                secondaryButtonText,
+                                style = LocalTypography.current.bodyStrong,
+                                color = FluentTheme.colors.text.text.primary
+                            )
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Button(
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                                onClick = { onButtonClick(ContentDialogButton.Secondary) },
+                            ) {
+                                Text(
+                                    tertiaryButtonText,
+                                    style = LocalTypography.current.bodyStrong,
+                                    color = FluentTheme.colors.text.text.primary
+                                )
+                            }
+                            AccentButton(
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                                onClick = { onButtonClick(ContentDialogButton.Primary) },
+                                buttonColors = if (isWarning) customDangerButtonColors() else customAccentButtonColors()
+                            ) {
+                                Text(
+                                    primaryButtonText,
+                                    style = LocalTypography.current.bodyStrong,
+                                    color = FluentTheme.colors.text.text.primary
+                                )
+                            }
+                        }
                     }
-                    AccentButton(
-                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                        onClick = { onButtonClick(ContentDialogButton.Primary) },
-                        buttonColors = if (isWarning) customDangerButtonColors() else customAccentButtonColors()
+                } else {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            primaryButtonText,
-                            style = LocalTypography.current.bodyStrong,
-                            color = FluentTheme.colors.text.text.primary
-                        )
+                        if (secondaryButtonText != null) Button(
+                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                            onClick = { onButtonClick(ContentDialogButton.Secondary) },
+                        ) {
+                            Text(
+                                secondaryButtonText,
+                                style = LocalTypography.current.bodyStrong,
+                                color = FluentTheme.colors.text.text.primary
+                            )
+                        }
+                        AccentButton(
+                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                            onClick = { onButtonClick(ContentDialogButton.Primary) },
+                            buttonColors = if (isWarning) customDangerButtonColors() else customAccentButtonColors()
+                        ) {
+                            Text(
+                                primaryButtonText,
+                                style = LocalTypography.current.bodyStrong,
+                                color = FluentTheme.colors.text.text.primary
+                            )
+                        }
                     }
                 }
             }
@@ -357,22 +423,33 @@ fun SslTrustDialogHost(
 ) {
     val prompt by SslTrustManager.pendingPrompt.collectAsState()
     val host = prompt?.host ?: return
-    CustomConfirmDialog(
-        onDismissRequest = {
-            SslTrustManager.resolvePrompt(false)
-            onReject?.invoke(host)
-        },
+    CustomContentDialog(
         title = "证书校验失败",
-        contentText = "$host 的证书校验失败，可能存在安全风险，是否继续连接？",
-        dismissButtonText = "取消",
-        onDismissClick = {
-            SslTrustManager.resolvePrompt(false)
-            onReject?.invoke(host)
+        visible = true,
+        primaryButtonText = "忽略风险，继续访问",
+        secondaryButtonText = "取消访问",
+        tertiaryButtonText = "将此 ip 或域名加入白名单",
+        size = DialogSize.Max,
+        isWarning = true,
+        onButtonClick = { button ->
+            when (button) {
+                ContentDialogButton.Primary -> {
+                    SslTrustManager.resolvePrompt(SslTrustDecision.AllowTemporary)
+                    onAllow?.invoke(host)
+                }
+                ContentDialogButton.Secondary -> {
+                    SslTrustManager.resolvePrompt(SslTrustDecision.Reject)
+                    onReject?.invoke(host)
+                }
+                else -> Unit
+            }
         },
-        confirmButtonText = "忽略风险",
-        onConfirmClick = {
-            SslTrustManager.resolvePrompt(true)
+        onTertiaryClick = {
+            SslTrustManager.resolvePrompt(SslTrustDecision.AllowPersist)
             onAllow?.invoke(host)
+        },
+        content = {
+            Text("「$host」的证书校验不通过，可能是证书过期、域名不匹配或自签名证书。继续连接将绕过安全保护，是否继续访问？")
         }
     )
 }

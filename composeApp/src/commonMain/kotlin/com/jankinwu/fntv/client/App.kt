@@ -36,6 +36,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.disk.DiskCache
@@ -52,6 +53,7 @@ import com.jankinwu.fntv.client.icons.CategoryIcon
 import com.jankinwu.fntv.client.icons.Heart
 import com.jankinwu.fntv.client.icons.Home
 import com.jankinwu.fntv.client.icons.MediaLibrary
+import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import com.jankinwu.fntv.client.manager.UpdateStatus
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
@@ -98,6 +100,8 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
+private val logger = Logger.withTag("App")
+
 val components = mutableStateListOf<ComponentItem>()
 
 // 刷新状态数据类
@@ -143,6 +147,10 @@ fun App(
     SslTrustDialogHost(
         onAllow = {
             refreshManager.requestRefresh(refreshState.onRefresh)
+        },
+        onReject = {
+            logger.i("Reject SSL trust")
+            LoginStateManager.updateLoginStatus(false)
         }
     )
 }

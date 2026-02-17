@@ -59,6 +59,7 @@ import com.jankinwu.fntv.client.data.network.fnOfficialClient
 import com.jankinwu.fntv.client.data.network.fnOfficialInsecureClient
 import com.jankinwu.fntv.client.data.network.impl.FnApiHelper.genAuthxForOfficial
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.SslTrustDecision
 import com.jankinwu.fntv.client.data.store.SslTrustManager
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
@@ -556,12 +557,18 @@ class FnOfficialApiImpl : FnOfficialApi {
                 throw e
             }
             logger.w { "SSL trust prompt triggered, request: $requestTag, host: $host, error: ${e.message}" }
-            val allow = SslTrustManager.requestTrust(host)
-            if (!allow) {
+            when (SslTrustManager.requestTrust(host)) {
+                SslTrustDecision.Reject -> {
                 logger.e { "用户拒绝了证书信任, request: $requestTag, host: $host" }
                 throw e
             }
-            SslTrustManager.addHostToWhitelist(host)
+                SslTrustDecision.AllowTemporary -> {
+                    SslTrustManager.addHostToTemporaryWhitelist(host)
+                }
+                SslTrustDecision.AllowPersist -> {
+                    SslTrustManager.addHostToWhitelist(host)
+                }
+            }
             block(fnOfficialInsecureClient)
         }
     }

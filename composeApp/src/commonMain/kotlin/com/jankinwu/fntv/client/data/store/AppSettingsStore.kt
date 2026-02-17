@@ -126,19 +126,26 @@ object AppSettingsStore {
         set(value) = settings.set(scopedKey("kcef_initialized_version"), value)
 }
 
+enum class SslTrustDecision {
+    Reject,
+    AllowTemporary,
+    AllowPersist
+}
+
 data class SslTrustPrompt(
     val host: String,
-    val deferred: CompletableDeferred<Boolean>
+    val deferred: CompletableDeferred<SslTrustDecision>
 )
 
 object SslTrustManager {
     private val promptMutex = Mutex()
     private val _pendingPrompt = MutableStateFlow<SslTrustPrompt?>(null)
     val pendingPrompt: StateFlow<SslTrustPrompt?> = _pendingPrompt.asStateFlow()
+    private val temporaryWhitelist = mutableSetOf<String>()
 
     fun isHostWhitelisted(host: String): Boolean {
         val key = normalizeHost(host)
-        return key.isNotBlank() && AppSettingsStore.sslIgnoreHostWhitelist.contains(key)
+        return key.isNotBlank() && (temporaryWhitelist.contains(key) || AppSettingsStore.sslIgnoreHostWhitelist.contains(key))
     }
 
     fun addHostToWhitelist(host: String) {
@@ -147,9 +154,15 @@ object SslTrustManager {
         AppSettingsStore.sslIgnoreHostWhitelist = AppSettingsStore.sslIgnoreHostWhitelist + key
     }
 
-    suspend fun requestTrust(host: String): Boolean {
+    fun addHostToTemporaryWhitelist(host: String) {
         val key = normalizeHost(host)
-        if (key.isBlank()) return false
+        if (key.isBlank()) return
+        temporaryWhitelist.add(key)
+    }
+
+    suspend fun requestTrust(host: String): SslTrustDecision {
+        val key = normalizeHost(host)
+        if (key.isBlank()) return SslTrustDecision.Reject
         while (true) {
             val prompt = promptMutex.withLock {
                 val existing = _pendingPrompt.value
@@ -157,7 +170,7 @@ object SslTrustManager {
                     // Reuse active prompt to avoid duplicate dialogs
                     return@withLock existing
                 }
-                val deferred = CompletableDeferred<Boolean>()
+                val deferred = CompletableDeferred<SslTrustDecision>()
                 val next = SslTrustPrompt(key, deferred)
                 // Publish new prompt for current host
                 _pendingPrompt.value = next
@@ -176,10 +189,10 @@ object SslTrustManager {
         }
     }
 
-    fun resolvePrompt(allow: Boolean) {
+    fun resolvePrompt(decision: SslTrustDecision) {
         val prompt = _pendingPrompt.value ?: return
         if (!prompt.deferred.isCompleted) {
-            prompt.deferred.complete(allow)
+            prompt.deferred.complete(decision)
         }
         _pendingPrompt.value = null
     }
