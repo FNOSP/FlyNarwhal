@@ -6,7 +6,7 @@ part of 'tv_detail_view_model.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$tvDetailNotifierHash() => r'f773ade81efc0641bc8a943c1743096342a9b571';
+String _$tvDetailNotifierHash() => r'bcbddf9e9a140ef65cc0624cd4db377b99c00946';
 
 /// Copied from Dart SDK
 class _SystemHash {

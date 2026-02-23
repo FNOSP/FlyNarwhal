@@ -335,6 +335,11 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
+                        progressIndicatorBuilder: (context, url, progress) {
+                          return Center(
+                            child: ProgressRing(),
+                          );
+                        },
                       ),
                     Container(
                       decoration: BoxDecoration(
@@ -343,10 +348,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withValues(alpha: 0.35),
                             FluentTheme.of(context).scaffoldBackgroundColor,
                           ],
-                          stops: const [0.4, 0.72, 1.0],
+                          stops: const [0.45, 1.0],
                         ),
                       ),
                     ),
@@ -792,6 +796,7 @@ class _ProgressBar extends StatelessWidget {
           child: ProgressBar(
             value: progress * 100,
             backgroundColor: Colors.white.withValues(alpha: 0.1),
+            color: kAccentColor,
           ),
         ),
         const SizedBox(width: 12),

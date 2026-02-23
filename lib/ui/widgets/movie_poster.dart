@@ -1,7 +1,24 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/providers.dart';
+
+enum FnMediaType {
+  movie('Movie'),
+  video('Video'),
+  tv('TV'),
+  season('Season'),
+  person('Person');
+
+  final String value;
+  const FnMediaType(this.value);
+
+  static FnMediaType? fromString(String? value) {
+    if (value == null) return null;
+    return FnMediaType.values.where((e) => e.value == value).firstOrNull;
+  }
+}
 
 class MoviePoster extends ConsumerWidget {
   final String? posterPath;
@@ -19,6 +36,12 @@ class MoviePoster extends ConsumerWidget {
   final VoidCallback? onFavoriteTap;
   final VoidCallback? onWatchedTap;
   final VoidCallback? onMoreTap;
+  final String? type;
+  final String? guid;
+  final String? mediaTitle;
+  final int? seasonNumber;
+  final Function(String guid, bool isFavorite, bool success)? onFavoriteToggle;
+  final Function(String guid, bool isWatched, bool success)? onWatchedToggle;
 
   const MoviePoster({
     super.key,
@@ -37,7 +60,57 @@ class MoviePoster extends ConsumerWidget {
     this.onFavoriteTap,
     this.onWatchedTap,
     this.onMoreTap,
+    this.type,
+    this.guid,
+    this.mediaTitle,
+    this.seasonNumber,
+    this.onFavoriteToggle,
+    this.onWatchedToggle,
   });
+
+  void _handleNavigation(BuildContext context, WidgetRef ref) {
+    if (guid == null || guid!.isEmpty) return;
+
+    final mediaType = FnMediaType.fromString(type);
+    switch (mediaType) {
+      case FnMediaType.movie:
+      case FnMediaType.video:
+        ref.read(navigationStackProvider.notifier).pushPath('/home');
+        context.go('/movie/$guid');
+        break;
+      case FnMediaType.tv:
+        ref.read(navigationStackProvider.notifier).pushPath('/home');
+        context.go('/tv/$guid');
+        break;
+      case FnMediaType.season:
+        ref.read(navigationStackProvider.notifier).pushPath('/home');
+        context.go('/tv/season/$guid');
+        break;
+      case FnMediaType.person:
+        // TODO: Person detail page not implemented yet
+        break;
+      case null:
+        break;
+    }
+  }
+
+  void _handleFavoriteToggle(WidgetRef ref) {
+    if (guid == null) return;
+    final newFavorite = !isFavorite;
+    onFavoriteToggle?.call(guid!, newFavorite, true);
+    if (onFavoriteTap != null) {
+      onFavoriteTap!();
+    }
+  }
+
+  void _handleWatchedToggle(WidgetRef ref) {
+    if (guid == null) return;
+    final newWatched = !isWatched;
+    onWatchedToggle?.call(guid!, newWatched, true);
+    if (onWatchedTap != null) {
+      onWatchedTap!();
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,11 +136,13 @@ class MoviePoster extends ConsumerWidget {
     final scaledWidth = width * scaleFactor;
     final scaledHeight = height * scaleFactor;
     final displayResolutions = normalizeResolutions(resolutions);
+    final mediaType = FnMediaType.fromString(type);
+    final showFavoriteButton = mediaType != FnMediaType.season;
 
     return MouseRegion(
-      cursor: onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      cursor: SystemMouseCursors.click,
       child: HoverButton(
-        onPressed: onTap,
+        onPressed: onTap ?? () => _handleNavigation(context, ref),
         builder: (context, states) {
           final isHovered = states.isHovered;
           return SizedBox(
@@ -215,20 +290,25 @@ class MoviePoster extends ConsumerWidget {
                           opacity: isHovered ? 1 : 0,
                           child: Row(
                             children: [
-                              if (onWatchedTap != null)
-                                MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: IconButton(
-                                    icon: Icon(FluentIcons.check_mark, color: isWatched ? Colors.green : Colors.white),
-                                    onPressed: onWatchedTap,
+                              MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: IconButton(
+                                  icon: Icon(
+                                    FluentIcons.check_mark,
+                                    color: isWatched ? const Color(0xFF2173DF) : Colors.white,
                                   ),
+                                  onPressed: () => _handleWatchedToggle(ref),
                                 ),
-                              if (onFavoriteTap != null)
+                              ),
+                              if (showFavoriteButton)
                                 MouseRegion(
                                   cursor: SystemMouseCursors.click,
                                   child: IconButton(
-                                    icon: Icon(FluentIcons.favorite_star, color: isFavorite ? Colors.red : Colors.white),
-                                    onPressed: onFavoriteTap,
+                                    icon: Icon(
+                                      FluentIcons.favorite_star,
+                                      color: isFavorite ? const Color(0xFFFF0420) : Colors.white,
+                                    ),
+                                    onPressed: () => _handleFavoriteToggle(ref),
                                   ),
                                 ),
                             ],

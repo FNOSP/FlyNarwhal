@@ -204,15 +204,8 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                       _SeasonListGrid(
                         seasons: widget.state.seasonList,
                         itemTitle: item.title,
-                        scaleFactor: 1.0, // Can be adjusted based on window size
-                        onSeasonTap: (season) {
-                           // Navigate to Season Detail
-                           // Since TvSeasonDetailScreen is not yet implemented, we can just log or show toast
-                           // Or maybe we can reuse TvDetailScreen if it supports season guid?
-                           // The prompt asked to replicate TvDetailScreen.
-                           // For now, let's just implement the grid.
-                        },
-                        onWatchedToggle: (guid, isWatched) {
+                        scaleFactor: 1.0,
+                        onWatchedToggle: (guid, isWatched, success) {
                             ref.read(tvDetailNotifierProvider(widget.guid).notifier).toggleSeasonWatched(guid, isWatched);
                         },
                       ),
@@ -431,30 +424,32 @@ class _SeasonListGrid extends StatelessWidget {
   final List<SeasonListResponse> seasons;
   final String itemTitle;
   final double scaleFactor;
-  final ValueChanged<SeasonListResponse> onSeasonTap;
-  final Function(String guid, bool isWatched) onWatchedToggle;
+  final Function(String guid, bool isWatched, bool success) onWatchedToggle;
 
   const _SeasonListGrid({
     required this.seasons,
     required this.itemTitle,
     this.scaleFactor = 1.0,
-    required this.onSeasonTap,
     required this.onWatchedToggle,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Determine number of columns based on width
-    // Replicating FlowRow logic from KMP
-    
     return LayoutBuilder(builder: (context, constraints) {
         final availableWidth = constraints.maxWidth;
         final posterMinWidth = 128.0 * scaleFactor;
+        final posterMaxWidth = 190.0 * scaleFactor;
         final spacing = 16.0;
         
         final itemsPerRow = ((availableWidth + spacing) / (posterMinWidth + spacing)).floor().clamp(1, 10);
-        final itemWidth = (availableWidth - (spacing * (itemsPerRow - 1))) / itemsPerRow;
-        final itemHeight = itemWidth * 1.5; // Aspect ratio 2:3
+        double itemWidth;
+        if (itemsPerRow >= 4) {
+          final totalSpacing = spacing * (itemsPerRow - 1);
+          itemWidth = ((availableWidth - totalSpacing) / itemsPerRow).clamp(posterMinWidth, posterMaxWidth);
+        } else {
+          itemWidth = posterMinWidth;
+        }
+        final itemHeight = itemWidth * 1.5;
 
         return Wrap(
            spacing: spacing,
@@ -467,7 +462,7 @@ class _SeasonListGrid extends StatelessWidget {
               
               return SizedBox(
                  width: itemWidth,
-                 // height: itemHeight + 60, // Add space for text
+                 height: itemHeight + 60,
                  child: MoviePoster(
                     posterPath: season.poster,
                     title: season.title,
@@ -478,8 +473,11 @@ class _SeasonListGrid extends StatelessWidget {
                     width: itemWidth,
                     height: itemHeight,
                     scaleFactor: scaleFactor,
-                    onTap: () => onSeasonTap(season),
-                    onWatchedTap: () => onWatchedToggle(season.guid, season.watched == 1),
+                    type: season.type,
+                    guid: season.guid,
+                    mediaTitle: itemTitle,
+                    seasonNumber: season.seasonNumber,
+                    onWatchedToggle: onWatchedToggle,
                     resolutions: season.mediaStream.resolutions,
                  ),
               );

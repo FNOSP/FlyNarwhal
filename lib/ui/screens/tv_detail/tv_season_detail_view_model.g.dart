@@ -1,13 +1,13 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'movie_detail_view_model.dart';
+part of 'tv_season_detail_view_model.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$movieDetailNotifierHash() =>
-    r'88eebdb84fe6f6014283d24b52ed1aba6e2b9bfc';
+String _$tvSeasonDetailNotifierHash() =>
+    r'06157d965c0f5b744aad416e7531e8fc337a68ab';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -30,36 +30,37 @@ class _SystemHash {
   }
 }
 
-abstract class _$MovieDetailNotifier
-    extends BuildlessAutoDisposeAsyncNotifier<MovieDetailState> {
+abstract class _$TvSeasonDetailNotifier
+    extends BuildlessAutoDisposeAsyncNotifier<TvSeasonDetailState> {
   late final String guid;
 
-  FutureOr<MovieDetailState> build(
+  FutureOr<TvSeasonDetailState> build(
     String guid,
   );
 }
 
-/// See also [MovieDetailNotifier].
-@ProviderFor(MovieDetailNotifier)
-const movieDetailNotifierProvider = MovieDetailNotifierFamily();
+/// See also [TvSeasonDetailNotifier].
+@ProviderFor(TvSeasonDetailNotifier)
+const tvSeasonDetailNotifierProvider = TvSeasonDetailNotifierFamily();
 
-/// See also [MovieDetailNotifier].
-class MovieDetailNotifierFamily extends Family<AsyncValue<MovieDetailState>> {
-  /// See also [MovieDetailNotifier].
-  const MovieDetailNotifierFamily();
+/// See also [TvSeasonDetailNotifier].
+class TvSeasonDetailNotifierFamily
+    extends Family<AsyncValue<TvSeasonDetailState>> {
+  /// See also [TvSeasonDetailNotifier].
+  const TvSeasonDetailNotifierFamily();
 
-  /// See also [MovieDetailNotifier].
-  MovieDetailNotifierProvider call(
+  /// See also [TvSeasonDetailNotifier].
+  TvSeasonDetailNotifierProvider call(
     String guid,
   ) {
-    return MovieDetailNotifierProvider(
+    return TvSeasonDetailNotifierProvider(
       guid,
     );
   }
 
   @override
-  MovieDetailNotifierProvider getProviderOverride(
-    covariant MovieDetailNotifierProvider provider,
+  TvSeasonDetailNotifierProvider getProviderOverride(
+    covariant TvSeasonDetailNotifierProvider provider,
   ) {
     return call(
       provider.guid,
@@ -78,30 +79,31 @@ class MovieDetailNotifierFamily extends Family<AsyncValue<MovieDetailState>> {
       _allTransitiveDependencies;
 
   @override
-  String? get name => r'movieDetailNotifierProvider';
+  String? get name => r'tvSeasonDetailNotifierProvider';
 }
 
-/// See also [MovieDetailNotifier].
-class MovieDetailNotifierProvider extends AutoDisposeAsyncNotifierProviderImpl<
-    MovieDetailNotifier, MovieDetailState> {
-  /// See also [MovieDetailNotifier].
-  MovieDetailNotifierProvider(
+/// See also [TvSeasonDetailNotifier].
+class TvSeasonDetailNotifierProvider
+    extends AutoDisposeAsyncNotifierProviderImpl<TvSeasonDetailNotifier,
+        TvSeasonDetailState> {
+  /// See also [TvSeasonDetailNotifier].
+  TvSeasonDetailNotifierProvider(
     String guid,
   ) : this._internal(
-          () => MovieDetailNotifier()..guid = guid,
-          from: movieDetailNotifierProvider,
-          name: r'movieDetailNotifierProvider',
+          () => TvSeasonDetailNotifier()..guid = guid,
+          from: tvSeasonDetailNotifierProvider,
+          name: r'tvSeasonDetailNotifierProvider',
           debugGetCreateSourceHash:
               const bool.fromEnvironment('dart.vm.product')
                   ? null
-                  : _$movieDetailNotifierHash,
-          dependencies: MovieDetailNotifierFamily._dependencies,
+                  : _$tvSeasonDetailNotifierHash,
+          dependencies: TvSeasonDetailNotifierFamily._dependencies,
           allTransitiveDependencies:
-              MovieDetailNotifierFamily._allTransitiveDependencies,
+              TvSeasonDetailNotifierFamily._allTransitiveDependencies,
           guid: guid,
         );
 
-  MovieDetailNotifierProvider._internal(
+  TvSeasonDetailNotifierProvider._internal(
     super._createNotifier, {
     required super.name,
     required super.dependencies,
@@ -114,8 +116,8 @@ class MovieDetailNotifierProvider extends AutoDisposeAsyncNotifierProviderImpl<
   final String guid;
 
   @override
-  FutureOr<MovieDetailState> runNotifierBuild(
-    covariant MovieDetailNotifier notifier,
+  FutureOr<TvSeasonDetailState> runNotifierBuild(
+    covariant TvSeasonDetailNotifier notifier,
   ) {
     return notifier.build(
       guid,
@@ -123,10 +125,10 @@ class MovieDetailNotifierProvider extends AutoDisposeAsyncNotifierProviderImpl<
   }
 
   @override
-  Override overrideWith(MovieDetailNotifier Function() create) {
+  Override overrideWith(TvSeasonDetailNotifier Function() create) {
     return ProviderOverride(
       origin: this,
-      override: MovieDetailNotifierProvider._internal(
+      override: TvSeasonDetailNotifierProvider._internal(
         () => create()..guid = guid,
         from: from,
         name: null,
@@ -139,14 +141,14 @@ class MovieDetailNotifierProvider extends AutoDisposeAsyncNotifierProviderImpl<
   }
 
   @override
-  AutoDisposeAsyncNotifierProviderElement<MovieDetailNotifier, MovieDetailState>
-      createElement() {
-    return _MovieDetailNotifierProviderElement(this);
+  AutoDisposeAsyncNotifierProviderElement<TvSeasonDetailNotifier,
+      TvSeasonDetailState> createElement() {
+    return _TvSeasonDetailNotifierProviderElement(this);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is MovieDetailNotifierProvider && other.guid == guid;
+    return other is TvSeasonDetailNotifierProvider && other.guid == guid;
   }
 
   @override
@@ -160,19 +162,19 @@ class MovieDetailNotifierProvider extends AutoDisposeAsyncNotifierProviderImpl<
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-mixin MovieDetailNotifierRef
-    on AutoDisposeAsyncNotifierProviderRef<MovieDetailState> {
+mixin TvSeasonDetailNotifierRef
+    on AutoDisposeAsyncNotifierProviderRef<TvSeasonDetailState> {
   /// The parameter `guid` of this provider.
   String get guid;
 }
 
-class _MovieDetailNotifierProviderElement
-    extends AutoDisposeAsyncNotifierProviderElement<MovieDetailNotifier,
-        MovieDetailState> with MovieDetailNotifierRef {
-  _MovieDetailNotifierProviderElement(super.provider);
+class _TvSeasonDetailNotifierProviderElement
+    extends AutoDisposeAsyncNotifierProviderElement<TvSeasonDetailNotifier,
+        TvSeasonDetailState> with TvSeasonDetailNotifierRef {
+  _TvSeasonDetailNotifierProviderElement(super.provider);
 
   @override
-  String get guid => (origin as MovieDetailNotifierProvider).guid;
+  String get guid => (origin as TvSeasonDetailNotifierProvider).guid;
 }
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
