@@ -796,7 +796,7 @@ class _ProgressBar extends StatelessWidget {
           child: ProgressBar(
             value: progress * 100,
             backgroundColor: Colors.white.withValues(alpha: 0.1),
-            color: kAccentColor,
+            activeColor: kAccentColor,
           ),
         ),
         const SizedBox(width: 12),
