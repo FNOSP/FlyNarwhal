@@ -41,9 +41,16 @@ class MovieDetailScreen extends ConsumerWidget {
         : null;
     final cacheManager = ref.watch(imageCacheManagerProvider);
 
-    return ScaffoldPage(
-      padding: EdgeInsets.zero,
-      content: detailState.when(
+    final theme = FluentTheme.of(context);
+    final scaffoldBackgroundColor = theme.brightness == Brightness.dark
+        ? const Color(0xFF282828)
+        : theme.scaffoldBackgroundColor;
+
+    return FluentTheme(
+      data: theme.copyWith(scaffoldBackgroundColor: scaffoldBackgroundColor),
+      child: ScaffoldPage(
+        padding: EdgeInsets.zero,
+        content: detailState.when(
         data: (state) => _MovieDetailContent(
           state: state,
           baseUrl: baseUrl,
@@ -69,7 +76,7 @@ class MovieDetailScreen extends ConsumerWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -305,6 +312,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     if (item == null) return const Center(child: Text('未找到电影信息'));
 
     final windowHeight = MediaQuery.of(context).size.height;
+    final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+    // Align backdrop height to an integer number of physical pixels to prevent
+    // a 1px seam caused by drawRect (gradient) and drawImageRect (image) using
+    // different sub-pixel rounding rules at fractional DPI boundaries.
+    final backdropHeight = (windowHeight * 0.5 * pixelRatio).roundToDouble() / pixelRatio;
+
     final backdropPath = (item.backdrops?.isNotEmpty ?? false) ? item.backdrops! : item.posters;
     final backdropUrl = _buildImageUrl(widget.baseUrl, backdropPath);
     final logoUrl = item.logos != null ? _buildImageUrl(widget.baseUrl, item.logos!) : '';
@@ -324,33 +337,35 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           slivers: [
             SliverToBoxAdapter(
               child: SizedBox(
-                height: windowHeight * 0.5,
+                height: backdropHeight,
                 child: Stack(
+                  fit: StackFit.expand,
                   children: [
                     if (backdropUrl.isNotEmpty)
-                      CachedNetworkImage(
-                        imageUrl: backdropUrl,
-                        httpHeaders: widget.httpHeaders,
-                        cacheManager: widget.cacheManager,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                        progressIndicatorBuilder: (context, url, progress) {
-                          return Center(
-                            child: ProgressRing(),
-                          );
-                        },
+                      Positioned.fill(
+                        child: Image(
+                          image: CachedNetworkImageProvider(
+                            backdropUrl,
+                            headers: widget.httpHeaders,
+                            cacheManager: widget.cacheManager,
+                          ),
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
+                          filterQuality: FilterQuality.high,
+                        ),
                       ),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            FluentTheme.of(context).scaffoldBackgroundColor,
-                          ],
-                          stops: const [0.45, 1.0],
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              FluentTheme.of(context).scaffoldBackgroundColor,
+                            ],
+                            stops: const [0.45, 1.0],
+                          ),
                         ),
                       ),
                     ),
