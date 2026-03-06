@@ -1,0 +1,117 @@
+---
+description: 开发规范和编码标准 - 注释要求、skill 使用指南、中文回答
+alwaysApply: true
+---
+
+# 开发规范 Development Standards
+
+## 1. 代码注释规范 Code Comments
+
+在主要逻辑处必须添加简短的英文注释：
+
+### 要求 Requirements
+
+- ✅ 在关键算法、复杂逻辑处添加英文注释
+- ✅ 在函数/方法的开头说明其目的
+- ✅ 在条件分支处说明判断原因
+- ✅ 注释要简洁，通常不超过一行
+
+### 示例 Examples
+
+```dart
+// ✅ GOOD - 简短清晰的英文注释
+// Validate user input before submission
+if (_formKey.currentState!.validate()) {
+  // Navigate to home screen after successful login
+  context.go('/home');
+}
+
+// ✅ GOOD - 说明复杂逻辑的目的
+// Calculate weighted average with decay factor
+// to prioritize recent user interactions
+final score = interactions.fold<double>(
+  0,
+  (sum, interaction) => sum + interaction.weight * interaction.value,
+) / totalWeight;
+```
+
+```kotlin
+// ✅ GOOD
+// Check if user has premium subscription
+if (user.isPremium) {
+  // Unlock all features for premium users
+  unlockAllFeatures()
+}
+```
+
+---
+
+## 2. Skill 使用指南 Skill Usage
+
+在解决问题前，必须先参考可用的 skills：
+
+### 流程 Process
+
+1. **先查看 available_skills** - 检查是否有相关技能可用
+2. **选择合适的 skill** - 根据任务类型选择对应的 expert skill
+3. **读取并遵循 skill** - 使用 Read 工具读取 skill 文件并严格执行
+
+### 示例 Examples
+
+- Flutter 开发 → 使用 `flutter-expert` skill
+- Flutter 测试 → 使用 `flutter-tester` skill
+- UI/UX 设计 → 使用 `ui-ux-pro-max` skill
+- Go 开发 → 使用 `golang-patterns` 或 `golang-pro` skill
+- GitHub Actions → 使用 `github-actions-creator` skill
+
+### ❌ BAD - 未参考 skill 就直接开始
+
+```
+用户：帮我写一个 Flutter 测试
+助手：好的，我来写测试代码...（直接开始写代码）
+```
+
+### ✅ GOOD - 先读取并应用 skill
+
+```
+用户：帮我写一个 Flutter 测试
+助手：我来读取 flutter-tester skill 以确保遵循最佳实践...
+（读取 skill 文件）
+根据 skill 的 Given-When-Then 模式，测试应该这样组织...
+```
+
+---
+
+## 3. 回答语言 Response Language
+
+### 默认使用中文
+
+- ✅ 所有解释、说明、讨论使用中文
+- ✅ 代码注释保持英文（国际通用）
+- ✅ 技术术语可保留英文（如 widget、provider、stream 等）
+
+### 示例 Examples
+
+```
+用户：这个函数怎么工作？
+
+✅ GOOD:
+这个函数使用了 Riverpod 的 StateNotifier 来管理状态。
+当调用 update() 方法时，它会：
+1. 验证输入数据
+2. 更新内部状态
+3. 通知所有监听者
+
+❌ BAD:
+This function uses Riverpod's StateNotifier to manage state...
+```
+
+---
+
+## 总结 Summary
+
+| 规范 | 要求 |
+|------|------|
+| 代码注释 | 主要逻辑处添加简短英文注释 |
+| Skill 使用 | 解决问题前先读取并应用相关 skill |
+| 回答语言 | 默认使用中文，代码注释用英文 |
