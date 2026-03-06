@@ -420,7 +420,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 }
 
-class _SeasonListGrid extends StatelessWidget {
+class _SeasonListGrid extends ConsumerWidget {
   final List<SeasonListResponse> seasons;
   final String itemTitle;
   final double scaleFactor;
@@ -434,7 +434,7 @@ class _SeasonListGrid extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return LayoutBuilder(builder: (context, constraints) {
         final availableWidth = constraints.maxWidth;
         final posterMinWidth = 128.0 * scaleFactor;
@@ -479,6 +479,9 @@ class _SeasonListGrid extends StatelessWidget {
                     seasonNumber: season.seasonNumber,
                     onWatchedToggle: onWatchedToggle,
                     resolutions: season.mediaStream.resolutions,
+                    onPlayTap: () {
+                       // TODO: 实现播放功能
+                    },
                  ),
               );
            }).toList(),

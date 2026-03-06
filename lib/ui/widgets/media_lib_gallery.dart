@@ -5,6 +5,7 @@ import '../screens/home/home_view_model.dart';
 import '../../data/models/home_models.dart';
 import 'movie_poster.dart';
 import 'scroll_row.dart';
+import '../../providers/providers.dart';
 
 class MediaLibGallery extends ConsumerWidget {
   final String title;
@@ -62,12 +63,17 @@ class MediaLibGallery extends ConsumerWidget {
                   width: posterWidth,
                   height: posterHeight,
                   scaleFactor: scaleFactor,
+                  type: item.type,
+                  guid: item.guid,
                   onTap: () {
                     if (item.type == 'TV') {
                       context.go('/tv/${item.guid}');
                     } else {
                       context.go('/movie/${item.guid}');
                     }
+                  },
+                  onPlayTap: () {
+                    // TODO: 实现播放功能
                   },
                 );
               },

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/providers.dart';
 
@@ -20,7 +21,7 @@ enum FnMediaType {
   }
 }
 
-class MoviePoster extends ConsumerWidget {
+class MoviePoster extends ConsumerStatefulWidget {
   final String? posterPath;
   final String title;
   final String? subtitle;
@@ -68,57 +69,20 @@ class MoviePoster extends ConsumerWidget {
     this.onWatchedToggle,
   });
 
-  void _handleNavigation(BuildContext context, WidgetRef ref) {
-    if (guid == null || guid!.isEmpty) return;
+  @override
+  ConsumerState<MoviePoster> createState() => _MoviePosterState();
+}
 
-    final mediaType = FnMediaType.fromString(type);
-    switch (mediaType) {
-      case FnMediaType.movie:
-      case FnMediaType.video:
-        ref.read(navigationStackProvider.notifier).pushPath('/home');
-        context.go('/movie/$guid');
-        break;
-      case FnMediaType.tv:
-        ref.read(navigationStackProvider.notifier).pushPath('/home');
-        context.go('/tv/$guid');
-        break;
-      case FnMediaType.season:
-        ref.read(navigationStackProvider.notifier).pushPath('/home');
-        context.go('/tv/season/$guid');
-        break;
-      case FnMediaType.person:
-        // TODO: Person detail page not implemented yet
-        break;
-      case null:
-        break;
-    }
-  }
-
-  void _handleFavoriteToggle(WidgetRef ref) {
-    if (guid == null) return;
-    final newFavorite = !isFavorite;
-    onFavoriteToggle?.call(guid!, newFavorite, true);
-    if (onFavoriteTap != null) {
-      onFavoriteTap!();
-    }
-  }
-
-  void _handleWatchedToggle(WidgetRef ref) {
-    if (guid == null) return;
-    final newWatched = !isWatched;
-    onWatchedToggle?.call(guid!, newWatched, true);
-    if (onWatchedTap != null) {
-      onWatchedTap!();
-    }
-  }
+class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProviderStateMixin {
+  bool _isPlayButtonHovered = false;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final prefs = ref.watch(preferencesManagerProvider);
     final baseUrl = prefs.getBaseUrl();
     final token = prefs.getToken();
     final cookie = prefs.getCookie();
-    final resolvedPosterPath = posterPath?.trim();
+    final resolvedPosterPath = widget.posterPath?.trim();
     final imageUrl = resolvedPosterPath != null && resolvedPosterPath.isNotEmpty && baseUrl != null
         ? '$baseUrl/v/api/v1/sys/img$resolvedPosterPath${resolvedPosterPath.contains('?') ? '' : '?w=400'}'
         : null;
@@ -130,19 +94,24 @@ class MoviePoster extends ConsumerWidget {
         : null;
     final cacheManager = ref.watch(imageCacheManagerProvider);
     final theme = FluentTheme.of(context);
-    final formattedScore = formatVoteAverage(score);
+    final formattedScore = formatVoteAverage(widget.score);
     final showScore = formattedScore != '0.0';
-    final scaleFactor = this.scaleFactor;
-    final scaledWidth = width * scaleFactor;
-    final scaledHeight = height * scaleFactor;
-    final displayResolutions = normalizeResolutions(resolutions);
-    final mediaType = FnMediaType.fromString(type);
+    final scaleFactor = widget.scaleFactor;
+    final scaledWidth = widget.width * scaleFactor;
+    final scaledHeight = widget.height * scaleFactor;
+    final displayResolutions = normalizeResolutions(widget.resolutions);
+    final mediaType = FnMediaType.fromString(widget.type);
     final showFavoriteButton = mediaType != FnMediaType.season;
+
+    // Play button sizes (matching Kotlin implementation)
+    final normalPlayButtonSize = 48.0 * scaleFactor;
+    final hoveredPlayButtonSize = 56.0 * scaleFactor;
+    final playButtonSize = _isPlayButtonHovered ? hoveredPlayButtonSize : normalPlayButtonSize;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: HoverButton(
-        onPressed: onTap ?? () => _handleNavigation(context, ref),
+        onPressed: widget.onTap ?? () => _handleNavigation(context, ref),
         builder: (context, states) {
           final isHovered = states.isHovered;
           return SizedBox(
@@ -268,16 +237,31 @@ class MoviePoster extends ConsumerWidget {
                           color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
                         ),
                       ),
-                      if (onPlayTap != null)
+                      if (widget.onPlayTap != null)
                         Center(
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 200),
                             opacity: isHovered ? 1 : 0,
                             child: MouseRegion(
                               cursor: SystemMouseCursors.click,
-                              child: IconButton(
-                                icon: const Icon(FluentIcons.play, size: 40),
-                                onPressed: onPlayTap,
+                              onEnter: (_) => setState(() => _isPlayButtonHovered = true),
+                              onExit: (_) => setState(() => _isPlayButtonHovered = false),
+                              child: GestureDetector(
+                                onTap: widget.onPlayTap,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  width: playButtonSize,
+                                  height: playButtonSize,
+                                  child: SvgPicture.asset(
+                                    'assets/images/play_circle.svg',
+                                    width: playButtonSize,
+                                    height: playButtonSize,
+                                    colorFilter: const ColorFilter.mode(
+                                      Colors.white,
+                                      BlendMode.srcIn,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -295,7 +279,7 @@ class MoviePoster extends ConsumerWidget {
                                 child: IconButton(
                                   icon: Icon(
                                     FluentIcons.check_mark,
-                                    color: isWatched ? const Color(0xFF2173DF) : Colors.white,
+                                    color: widget.isWatched ? const Color(0xFF2173DF) : Colors.white,
                                   ),
                                   onPressed: () => _handleWatchedToggle(ref),
                                 ),
@@ -306,7 +290,7 @@ class MoviePoster extends ConsumerWidget {
                                   child: IconButton(
                                     icon: Icon(
                                       FluentIcons.favorite_star,
-                                      color: isFavorite ? const Color(0xFFFF0420) : Colors.white,
+                                      color: widget.isFavorite ? const Color(0xFFFF0420) : Colors.white,
                                     ),
                                     onPressed: () => _handleFavoriteToggle(ref),
                                   ),
@@ -315,7 +299,7 @@ class MoviePoster extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      if (onMoreTap != null)
+                      if (widget.onMoreTap != null)
                         Positioned(
                           right: 8,
                           bottom: 8,
@@ -326,7 +310,7 @@ class MoviePoster extends ConsumerWidget {
                               cursor: SystemMouseCursors.click,
                               child: IconButton(
                                 icon: const Icon(FluentIcons.more),
-                                onPressed: onMoreTap,
+                                onPressed: widget.onMoreTap,
                               ),
                             ),
                           ),
@@ -338,7 +322,7 @@ class MoviePoster extends ConsumerWidget {
                 SizedBox(
                   width: scaledWidth,
                   child: Text(
-                    title,
+                    widget.title,
                     maxLines: 1,
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
@@ -349,12 +333,12 @@ class MoviePoster extends ConsumerWidget {
                     ),
                   ),
                 ),
-                if (subtitle != null && subtitle!.isNotEmpty) ...[
+                if (widget.subtitle != null && widget.subtitle!.isNotEmpty) ...[
                   SizedBox(height: 4 * scaleFactor),
                   SizedBox(
                     width: scaledWidth,
                     child: Text(
-                      subtitle!,
+                      widget.subtitle!,
                       maxLines: 2,
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
@@ -372,6 +356,50 @@ class MoviePoster extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  void _handleNavigation(BuildContext context, WidgetRef ref) {
+    if (widget.guid == null || widget.guid!.isEmpty) return;
+
+    final mediaType = FnMediaType.fromString(widget.type);
+    switch (mediaType) {
+      case FnMediaType.movie:
+      case FnMediaType.video:
+        ref.read(navigationStackProvider.notifier).pushPath('/home');
+        context.go('/movie/${widget.guid}');
+        break;
+      case FnMediaType.tv:
+        ref.read(navigationStackProvider.notifier).pushPath('/home');
+        context.go('/tv/${widget.guid}');
+        break;
+      case FnMediaType.season:
+        ref.read(navigationStackProvider.notifier).pushPath('/home');
+        context.go('/tv/season/${widget.guid}');
+        break;
+      case FnMediaType.person:
+        // TODO: Person detail page not implemented yet
+        break;
+      case null:
+        break;
+    }
+  }
+
+  void _handleFavoriteToggle(WidgetRef ref) {
+    if (widget.guid == null) return;
+    final newFavorite = !widget.isFavorite;
+    widget.onFavoriteToggle?.call(widget.guid!, newFavorite, true);
+    if (widget.onFavoriteTap != null) {
+      widget.onFavoriteTap!();
+    }
+  }
+
+  void _handleWatchedToggle(WidgetRef ref) {
+    if (widget.guid == null) return;
+    final newWatched = !widget.isWatched;
+    widget.onWatchedToggle?.call(widget.guid!, newWatched, true);
+    if (widget.onWatchedTap != null) {
+      widget.onWatchedTap!();
+    }
   }
 }
 
