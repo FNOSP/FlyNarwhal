@@ -458,116 +458,116 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                         ),
                         const SizedBox(width: 96),
                         Expanded(
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: DetailTags(
-                              item: item,
-                              formatedTotalDuration: formatedTotalDuration,
-                              iso3166Map: iso3166Map,
-                              genresMap: widget.state.genres,
-                            ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              DetailTags(
+                                item: item,
+                                formatedTotalDuration: formatedTotalDuration,
+                                iso3166Map: iso3166Map,
+                                genresMap: widget.state.genres,
+                              ),
+                              const SizedBox(height: 8),
+                              // Quality Tags & Selectors
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  if (widget.state.streamList != null) ...[
+                                    Builder(builder: (context) {
+                                      final subtitleStreams = widget.state.streamList!.subtitleStreams
+                                          .where((s) => s.mediaGuid == _currentMediaGuid)
+                                          .toList();
+                                      final currentSubtitle = subtitleStreams.where((s) => s.guid == _selectedSubtitleGuid).firstOrNull;
+                                      final subtitleLabel = _selectedSubtitleGuid == '_no_display_'
+                                          ? '无字幕'
+                                          : '${FnDataConvertor.getLanguageName(currentSubtitle?.language ?? '', widget.state.iso6391, widget.state.iso6392)}字幕';
+                                      final subtitleItems = [
+                                        StreamOptionItem<String>(
+                                          title: '无',
+                                          value: '_no_display_',
+                                          isNoDisplay: true,
+                                        ),
+                                        ...subtitleStreams.map((s) {
+                                          final lang = FnDataConvertor.getLanguageName(s.language, widget.state.iso6391, widget.state.iso6392);
+                                          final title = s.isExternal == 1 ? '$lang - 外挂' : lang;
+                                          return StreamOptionItem<String>(
+                                            title: title,
+                                            value: s.guid,
+                                            subtitle1: s.format.toUpperCase(),
+                                            subtitle3: s.title,
+                                            isDefault: s.isDefault == 1,
+                                            isExternal: s.isExternal == 1,
+                                          );
+                                        }),
+                                      ];
+                                      return StreamSelector<String>(
+                                        placeholder: '字幕',
+                                        selectedLabel: subtitleLabel,
+                                        selectedValue: _selectedSubtitleGuid,
+                                        items: subtitleItems,
+                                        isSubtitle: true,
+                                        onAddNasSubtitle: () => _showAddNasSubtitleDialog(_currentMediaGuid),
+                                        onChanged: (val) {
+                                          setState(() {
+                                            _selectedSubtitleGuid = val;
+                                            _mediaGuidSubtitleGuidMap[_currentMediaGuid] = val;
+                                          });
+                                        },
+                                      );
+                                    }),
+                                    const SizedBox(width: 12),
+                                    Builder(builder: (context) {
+                                      final audioStreams = widget.state.streamList!.audioStreams
+                                          .where((s) => s.mediaGuid == _currentMediaGuid)
+                                          .toList();
+                                      final currentAudio = audioStreams.where((s) => s.guid == _selectedAudioGuid).firstOrNull;
+                                      final audioLabel = currentAudio == null
+                                          ? '音频'
+                                          : '${FnDataConvertor.getLanguageName(currentAudio.language, widget.state.iso6391, widget.state.iso6392)}音频';
+                                      final audioItems = audioStreams.map((s) {
+                                        final lang = FnDataConvertor.getLanguageName(s.language, widget.state.iso6391, widget.state.iso6392);
+                                        return StreamOptionItem<String>(
+                                          title: lang,
+                                          value: s.guid,
+                                          subtitle1: s.codecName,
+                                          subtitle2: s.channelLayout,
+                                          subtitle3: s.title,
+                                          isDefault: s.isDefault == 1,
+                                        );
+                                      }).toList();
+                                      return StreamSelector<String>(
+                                        placeholder: '音频',
+                                        selectedLabel: audioLabel,
+                                        selectedValue: _selectedAudioGuid,
+                                        items: audioItems,
+                                        onChanged: (val) {
+                                          setState(() {
+                                            _selectedAudioGuid = val;
+                                            _mediaGuidAudioGuidMap[_currentMediaGuid] = val;
+                                          });
+                                        },
+                                      );
+                                    }),
+                                    const SizedBox(width: 12),
+                                    // Quality Tags
+                                    if (widget.state.streamList!.videoStreams.isNotEmpty && _selectedVideoStreamIndex < widget.state.streamList!.videoStreams.length) ...[
+                                      MediaQualityTag(text: widget.state.streamList!.videoStreams[_selectedVideoStreamIndex].resolutionType.toUpperCase()),
+                                      const SizedBox(width: 8),
+                                      MediaQualityTag(text: widget.state.streamList!.videoStreams[_selectedVideoStreamIndex].colorRangeType),
+                                    ],
+                                    const SizedBox(width: 8),
+                                    // Audio Type Tag
+                                    Builder(builder: (context) {
+                                      final audio = widget.state.streamList!.audioStreams.where((s) => s.guid == _selectedAudioGuid).firstOrNull;
+                                      return MediaQualityTag(text: audio?.audioType ?? '');
+                                    }),
+                                  ],
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Quality Tags & Selectors
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        if (widget.state.streamList != null) ...[
-                          Builder(builder: (context) {
-                            final subtitleStreams = widget.state.streamList!.subtitleStreams
-                                .where((s) => s.mediaGuid == _currentMediaGuid)
-                                .toList();
-                            final currentSubtitle = subtitleStreams.where((s) => s.guid == _selectedSubtitleGuid).firstOrNull;
-                            final subtitleLabel = _selectedSubtitleGuid == '_no_display_'
-                                ? '无字幕'
-                                : '${FnDataConvertor.getLanguageName(currentSubtitle?.language ?? '', widget.state.iso6391, widget.state.iso6392)}字幕';
-                            final subtitleItems = [
-                              StreamOptionItem<String>(
-                                title: '无',
-                                value: '_no_display_',
-                                isNoDisplay: true,
-                              ),
-                              ...subtitleStreams.map((s) {
-                                final lang = FnDataConvertor.getLanguageName(s.language, widget.state.iso6391, widget.state.iso6392);
-                                final title = s.isExternal == 1 ? '$lang - 外挂' : lang;
-                                return StreamOptionItem<String>(
-                                  title: title,
-                                  value: s.guid,
-                                  subtitle1: s.format.toUpperCase(),
-                                  subtitle3: s.title,
-                                  isDefault: s.isDefault == 1,
-                                  isExternal: s.isExternal == 1,
-                                );
-                              }),
-                            ];
-                            return StreamSelector<String>(
-                              placeholder: '字幕',
-                              selectedLabel: subtitleLabel,
-                              selectedValue: _selectedSubtitleGuid,
-                              items: subtitleItems,
-                              isSubtitle: true,
-                              onAddNasSubtitle: () => _showAddNasSubtitleDialog(_currentMediaGuid),
-                              onChanged: (val) {
-                                setState(() {
-                                  _selectedSubtitleGuid = val;
-                                  _mediaGuidSubtitleGuidMap[_currentMediaGuid] = val;
-                                });
-                              },
-                            );
-                          }),
-                          const SizedBox(width: 12),
-                          Builder(builder: (context) {
-                            final audioStreams = widget.state.streamList!.audioStreams
-                                .where((s) => s.mediaGuid == _currentMediaGuid)
-                                .toList();
-                            final currentAudio = audioStreams.where((s) => s.guid == _selectedAudioGuid).firstOrNull;
-                            final audioLabel = currentAudio == null
-                                ? '音频'
-                                : '${FnDataConvertor.getLanguageName(currentAudio.language, widget.state.iso6391, widget.state.iso6392)}音频';
-                            final audioItems = audioStreams.map((s) {
-                              final lang = FnDataConvertor.getLanguageName(s.language, widget.state.iso6391, widget.state.iso6392);
-                              return StreamOptionItem<String>(
-                                title: lang,
-                                value: s.guid,
-                                subtitle1: s.codecName,
-                                subtitle2: s.channelLayout,
-                                subtitle3: s.title,
-                                isDefault: s.isDefault == 1,
-                              );
-                            }).toList();
-                            return StreamSelector<String>(
-                              placeholder: '音频',
-                              selectedLabel: audioLabel,
-                              selectedValue: _selectedAudioGuid,
-                              items: audioItems,
-                              onChanged: (val) {
-                                setState(() {
-                                  _selectedAudioGuid = val;
-                                  _mediaGuidAudioGuidMap[_currentMediaGuid] = val;
-                                });
-                              },
-                            );
-                          }),
-                          const SizedBox(width: 12),
-                          // Quality Tags
-                          if (widget.state.streamList!.videoStreams.isNotEmpty && _selectedVideoStreamIndex < widget.state.streamList!.videoStreams.length) ...[
-                             MediaQualityTag(text: widget.state.streamList!.videoStreams[_selectedVideoStreamIndex].resolutionType.toUpperCase()),
-                             const SizedBox(width: 8),
-                             // Pass raw string to let MediaQualityTag handle image/text
-                             MediaQualityTag(text: widget.state.streamList!.videoStreams[_selectedVideoStreamIndex].colorRangeType),
-                          ],
-                          const SizedBox(width: 8),
-                           // Audio Type Tag
-                          Builder(builder: (context) {
-                             final audio = widget.state.streamList!.audioStreams.where((s) => s.guid == _selectedAudioGuid).firstOrNull;
-                             return MediaQualityTag(text: audio?.audioType ?? '');
-                          }),
-                        ],
                       ],
                     ),
 
@@ -601,7 +601,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
             if (widget.state.personList.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 48),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   child: CastScrollRow(
                     persons: widget.state.personList,
                     baseUrl: widget.baseUrl,
@@ -615,7 +615,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
             if (widget.state.streamList != null)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(48, 24, 48, 48),
+                  padding: const EdgeInsets.fromLTRB(48, 0, 48, 48),
                   child: _MediaInfoSection(
                     state: widget.state,
                     selectedVideoStreamIndex: _selectedVideoStreamIndex,
