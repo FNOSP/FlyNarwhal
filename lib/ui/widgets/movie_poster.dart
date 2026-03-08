@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/providers.dart';
+import 'img_loading_progress_ring.dart';
 
 enum FnMediaType {
   movie('Movie'),
@@ -139,7 +140,7 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                           fit: BoxFit.fitWidth,
                           fadeOutDuration: const Duration(milliseconds: 120),
                           errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
-                          placeholder: (context, url) => const Center(child: ProgressRing()),
+                          placeholder: (context, url) => const ImgLoadingProgressRing(),
                         )
                       else
                         const Center(child: Icon(FluentIcons.file_image)),

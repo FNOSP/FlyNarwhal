@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
 import '../../data/models/movie_detail_models.dart';
+import 'img_loading_progress_ring.dart';
 import 'scroll_row.dart';
 
 class CastScrollRow extends StatelessWidget {
@@ -116,6 +117,7 @@ class _CastAvatarState extends State<_CastAvatar> {
                             httpHeaders: widget.httpHeaders,
                             cacheManager: widget.cacheManager,
                             fit: BoxFit.cover,
+                            placeholder: (context, url) => const ImgLoadingProgressRing(size: 24),
                           )
                         : Container(
                             color: Colors.grey[160],

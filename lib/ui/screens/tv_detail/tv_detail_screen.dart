@@ -9,6 +9,7 @@ import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/season_list_response.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../providers/providers.dart';
+import '../../widgets/img_loading_progress_ring.dart';
 import '../../widgets/movie_poster.dart';
 import 'tv_detail_view_model.dart';
 
@@ -577,10 +578,7 @@ class _LogoTitleState extends State<_LogoTitle> {
               height: 1.1,
             ),
       ),
-      placeholder: (context, url) => const SizedBox(
-        height: 90,
-        child: ProgressRing(),
-      ),
+      placeholder: (context, url) => const ImgLoadingProgressRing(),
     );
   }
 }

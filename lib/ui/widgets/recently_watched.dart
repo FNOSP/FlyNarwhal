@@ -3,6 +3,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/home_models.dart';
 import '../../providers/providers.dart';
+import 'img_loading_progress_ring.dart';
 import 'scroll_row.dart';
 
 class RecentlyWatched extends ConsumerWidget {
@@ -109,7 +110,7 @@ class RecentlyWatchedItem extends ConsumerWidget {
                             fit: BoxFit.cover,
                             fadeOutDuration: const Duration(milliseconds: 120),
                             errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
-                            placeholder: (context, url) => const Center(child: ProgressRing()),
+                            placeholder: (context, url) => const ImgLoadingProgressRing(),
                           )
                         else
                           const Center(child: Icon(FluentIcons.file_image)),

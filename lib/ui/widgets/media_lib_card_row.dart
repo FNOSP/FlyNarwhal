@@ -4,6 +4,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/home_models.dart';
 import '../../providers/providers.dart';
+import 'img_loading_progress_ring.dart';
 import 'scroll_row.dart';
 
 class MediaLibCardRow extends ConsumerWidget {
@@ -269,7 +270,7 @@ class _PosterImage extends StatelessWidget {
       fit: BoxFit.cover,
       fadeOutDuration: const Duration(milliseconds: 120),
       errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
-      placeholder: (context, url) => const Center(child: ProgressRing()),
+      placeholder: (context, url) => const ImgLoadingProgressRing(),
     );
   }
 }

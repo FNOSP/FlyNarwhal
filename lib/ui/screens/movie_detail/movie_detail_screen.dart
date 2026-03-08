@@ -11,6 +11,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manag
 import '../../../providers/providers.dart';
 import '../../../providers/file_providers.dart';
 import 'detail_components.dart';
+import '../../widgets/img_loading_progress_ring.dart';
 import '../../widgets/nas/add_nas_subtitle_dialog.dart';
 import '../../widgets/cast_scroll_row.dart';
 import '../../widgets/toast.dart';
@@ -715,6 +716,7 @@ class _LogoTitle extends StatefulWidget {
 }
 
 class _LogoTitleState extends State<_LogoTitle> {
+  double _width = 280.0;
   double _height = 90.0;
   ImageStream? _stream;
   ImageStreamListener? _listener;
@@ -752,12 +754,18 @@ class _LogoTitleState extends State<_LogoTitle> {
     );
     final stream = provider.resolve(ImageConfiguration.empty);
     final listener = ImageStreamListener((info, _) {
-      final width = info.image.width.toDouble();
-      final height = info.image.height.toDouble();
-      final actualWidth = height > 0 ? width / height * 90 : 0;
-      final nextHeight = actualWidth > 0 && actualWidth < 280 ? 150.0 : 90.0;
+      final imgWidth = info.image.width.toDouble();
+      final imgHeight = info.image.height.toDouble();
+      // Determine height based on aspect ratio
+      final aspectRatio = imgHeight > 0 ? imgWidth / imgHeight : 1.0;
+      final nextHeight = aspectRatio > 0 && aspectRatio < 280.0 / 90.0 ? 150.0 : 90.0;
+      // Calculate width based on aspect ratio and height
+      final nextWidth = aspectRatio * nextHeight;
       if (mounted) {
-        setState(() => _height = nextHeight);
+        setState(() {
+          _height = nextHeight;
+          _width = nextWidth;
+        });
       }
     });
     stream.addListener(listener);
@@ -767,26 +775,30 @@ class _LogoTitleState extends State<_LogoTitle> {
 
   @override
   Widget build(BuildContext context) {
-    return CachedNetworkImage(
-      imageUrl: widget.url,
-      httpHeaders: widget.httpHeaders,
-      cacheManager: widget.cacheManager,
+    return SizedBox(
+      width: _width,
       height: _height,
-      fit: BoxFit.fitHeight,
-      errorWidget: (context, url, error) => Text(
-        widget.title,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: FluentTheme.of(context).typography.titleLarge?.copyWith(
-          fontSize: 60,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-          height: 1.1,
+      child: CachedNetworkImage(
+        imageUrl: widget.url,
+        httpHeaders: widget.httpHeaders,
+        cacheManager: widget.cacheManager,
+        height: _height,
+        fit: BoxFit.fitHeight,
+        errorWidget: (context, url, error) => Text(
+          widget.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: FluentTheme.of(context).typography.titleLarge?.copyWith(
+            fontSize: 60,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            height: 1.1,
+          ),
         ),
-      ),
-      placeholder: (context, url) => const SizedBox(
-        height: 90,
-        child: ProgressRing(),
+        placeholder: (context, url) => const Align(
+          alignment: Alignment.centerLeft,
+          child: ImgLoadingProgressRing(),
+        ),
       ),
     );
   }
