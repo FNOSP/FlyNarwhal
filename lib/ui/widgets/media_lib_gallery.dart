@@ -5,7 +5,6 @@ import '../screens/home/home_view_model.dart';
 import '../../data/models/home_models.dart';
 import 'movie_poster.dart';
 import 'scroll_row.dart';
-import '../../providers/providers.dart';
 
 class MediaLibGallery extends ConsumerWidget {
   final String title;

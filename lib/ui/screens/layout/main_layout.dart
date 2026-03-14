@@ -42,11 +42,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
 
   @override
   void onWindowClose() async {
-    if (Platform.isMacOS) {
-      await windowManager.hide();
-    } else {
-      await windowManager.destroy();
-    }
+    // On all platforms, destroy the window to properly close the app
+    await windowManager.destroy();
   }
 
   @override

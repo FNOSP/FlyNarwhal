@@ -1,8 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../storage/preferences_manager.dart';
-import '../../utils/fn_api_helper.dart';
+import '../../core/network/auth_signer.dart';
 
+/// Legacy DioClient for backward compatibility
+/// Consider migrating to core/network/dio_client.dart
 class DioClient {
   final Dio _dio;
   final PreferencesManager _preferencesManager;
@@ -37,13 +39,13 @@ class DioClient {
         final hasSignx = options.headers.containsKey('Signx');
         if (authCode != null && authCode.isNotEmpty && !hasAuthx && !hasSignx) {
           final path = _resolvePath(options.path);
-          final authx = FnApiHelper.genAuthxForFlyNarwhal(
+          final authx = AuthSigner.genAuthx(
             path,
             parameters: options.queryParameters,
             data: options.data is Map<String, dynamic> ? options.data : null,
           );
           options.headers['Authx'] = authx;
-          final signx = FnApiHelper.genSignxForFlyNarwhal(
+          final signx = AuthSigner.genSignx(
             url: path,
             authx: authx,
             parameters: options.queryParameters,
@@ -52,7 +54,7 @@ class DioClient {
           );
           options.headers['Signx'] = signx;
           if (authCode.startsWith('FN1_')) {
-            final keyx = await FnApiHelper.clientKeyxBase64Url();
+            final keyx = await AuthSigner.clientKeyxBase64Url();
             options.headers['Keyx'] = keyx;
           }
         }
