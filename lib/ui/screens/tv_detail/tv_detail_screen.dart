@@ -478,10 +478,13 @@ class _SeasonListGrid extends ConsumerWidget {
                     guid: season.guid,
                     mediaTitle: itemTitle,
                     seasonNumber: season.seasonNumber,
-                    onWatchedToggle: onWatchedToggle,
+                    onWatchedToggle: (guid, currentState, callback) {
+                      onWatchedToggle(guid, currentState, true);
+                      callback(true);
+                    },
                     resolutions: season.mediaStream.resolutions,
                     onPlayTap: () {
-                       // TODO: 实现播放功能
+                       // TODO: Implement play function
                     },
                  ),
               );

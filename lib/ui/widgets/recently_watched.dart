@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,11 +8,19 @@ import '../../providers/providers.dart';
 import 'img_loading_progress_ring.dart';
 import 'scroll_row.dart';
 
+// Accent color for watched state
+const Color kAccentColorDefault = Color(0xFF2173DF);
+// Danger color for favorite state
+const Color kDangerDefaultColor = Color(0xFFFF0420);
+
 class RecentlyWatched extends ConsumerWidget {
   final String title;
   final List<PlayDetailResponse> items;
   final double itemHeight;
   final EdgeInsetsGeometry padding;
+  final Function(String guid, bool currentState, Function(bool success) callback)? onFavoriteToggle;
+  final Function(String guid, bool currentState, Function(bool success) callback)? onWatchedToggle;
+  final Function(String guid)? onItemRemoved;
 
   const RecentlyWatched({
     super.key,
@@ -18,6 +28,9 @@ class RecentlyWatched extends ConsumerWidget {
     required this.items,
     this.itemHeight = 190,
     this.padding = const EdgeInsets.symmetric(horizontal: 32),
+    this.onFavoriteToggle,
+    this.onWatchedToggle,
+    this.onItemRemoved,
   });
 
   @override
@@ -40,7 +53,12 @@ class RecentlyWatched extends ConsumerWidget {
           itemCount: items.length,
           itemBuilder: (context, index) {
             final item = items[index];
-            return RecentlyWatchedItem(item: item);
+            return RecentlyWatchedItem(
+              item: item,
+              onFavoriteToggle: onFavoriteToggle,
+              onWatchedToggle: onWatchedToggle,
+              onItemRemoved: onItemRemoved,
+            );
           },
         ),
       ],
@@ -48,19 +66,109 @@ class RecentlyWatched extends ConsumerWidget {
   }
 }
 
-class RecentlyWatchedItem extends ConsumerWidget {
+class RecentlyWatchedItem extends ConsumerStatefulWidget {
   final PlayDetailResponse item;
+  final Function(String guid, bool currentState, Function(bool success) callback)? onFavoriteToggle;
+  final Function(String guid, bool currentState, Function(bool success) callback)? onWatchedToggle;
+  final Function(String guid)? onItemRemoved;
 
-  const RecentlyWatchedItem({super.key, required this.item});
+  const RecentlyWatchedItem({
+    super.key,
+    required this.item,
+    this.onFavoriteToggle,
+    this.onWatchedToggle,
+    this.onItemRemoved,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RecentlyWatchedItem> createState() => _RecentlyWatchedItemState();
+}
+
+class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with SingleTickerProviderStateMixin {
+  bool _isFavorite = false;
+  bool _isWatched = false;
+  bool _isVisible = true;
+  bool _isRemoved = false;
+  Timer? _removeTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.item.isFavorite == 1;
+    _isWatched = widget.item.watched == 1;
+  }
+
+  @override
+  void didUpdateWidget(covariant RecentlyWatchedItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.guid != widget.item.guid) {
+      _isFavorite = widget.item.isFavorite == 1;
+      _isWatched = widget.item.watched == 1;
+      _isVisible = true;
+      _isRemoved = false;
+      _removeTimer?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleFavoriteToggle() {
+    widget.onFavoriteToggle?.call(
+      widget.item.guid,
+      _isFavorite,
+      (success) {
+        if (success) {
+          setState(() {
+            _isFavorite = !_isFavorite;
+          });
+        }
+      },
+    );
+  }
+
+  void _handleWatchedToggle() {
+    widget.onWatchedToggle?.call(
+      widget.item.guid,
+      _isWatched,
+      (success) {
+        if (success && !_isWatched) {
+          // Mark as watched, trigger remove animation
+          setState(() {
+            _isWatched = true;
+            _isVisible = false;
+          });
+          // Wait for animation then remove
+          _removeTimer = Timer(const Duration(milliseconds: 500), () {
+            widget.onItemRemoved?.call(widget.item.guid);
+            setState(() {
+              _isRemoved = true;
+            });
+          });
+        } else if (success) {
+          setState(() {
+            _isWatched = !_isWatched;
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isRemoved) {
+      return const SizedBox.shrink();
+    }
+
     final theme = FluentTheme.of(context);
     final prefs = ref.watch(preferencesManagerProvider);
     final baseUrl = prefs.getBaseUrl();
     final token = prefs.getToken();
     final cookie = prefs.getCookie();
-    final resolvedPosterPath = item.poster?.trim();
+    final resolvedPosterPath = widget.item.poster?.trim();
     final imageUrl = resolvedPosterPath != null && resolvedPosterPath.isNotEmpty && baseUrl != null
         ? '$baseUrl/v/api/v1/sys/img$resolvedPosterPath${resolvedPosterPath.contains('?') ? '' : '?w=400'}'
         : null;
@@ -71,161 +179,234 @@ class RecentlyWatchedItem extends ConsumerWidget {
           }
         : null;
     final cacheManager = ref.watch(imageCacheManagerProvider);
-    final watchedTs = item.ts ?? 0;
-    final duration = item.duration ?? 0;
+    final watchedTs = widget.item.ts ?? 0;
+    final duration = widget.item.duration ?? 0;
     final progress = duration > 0 ? (watchedTs / duration).clamp(0.0, 1.0) : 0.0;
-    final displayTitle = buildPlayDetailTitle(item);
-    final displaySubtitle = buildPlayDetailSubtitle(item);
+    final displayTitle = buildPlayDetailTitle(widget.item);
+    final displaySubtitle = buildPlayDetailSubtitle(widget.item);
     final scaleFactor = resolveWindowScaleFactor(context);
     final posterWidth = 240 * scaleFactor;
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: HoverButton(
-        onPressed: () {},
-        builder: (context, states) {
-          final isHovered = states.isHovered;
-          return SizedBox(
-            width: posterWidth,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14 * scaleFactor),
-                      border: Border.all(color: Colors.grey[160].withValues(alpha: 0.6)),
-                      color: Colors.grey[160],
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (imageUrl != null)
-                          CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            httpHeaders: httpHeaders,
-                            cacheManager: cacheManager,
-                            fit: BoxFit.cover,
-                            fadeOutDuration: const Duration(milliseconds: 120),
-                            errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
-                            placeholder: (context, url) => const ImgLoadingProgressRing(),
-                          )
-                        else
-                          const Center(child: Icon(FluentIcons.file_image)),
-                        Align(
-                          alignment: Alignment.bottomLeft,
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 5,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Container(color: Colors.white.withValues(alpha: 0.05)),
-                                if (progress > 0)
-                                  FractionallySizedBox(
-                                    widthFactor: progress,
-                                    alignment: Alignment.centerLeft,
-                                    child: Container(color: const Color(0xFF2073DF)),
-                                  ),
-                              ],
-                            ),
-                          ),
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 300),
+        opacity: _isVisible ? 1.0 : 0.0,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: HoverButton(
+            onPressed: () {},
+            builder: (context, states) {
+              final isHovered = states.isHovered;
+              return SizedBox(
+                width: posterWidth,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14 * scaleFactor),
+                          border: Border.all(color: Colors.grey[160].withValues(alpha: 0.6)),
+                          color: Colors.grey[160],
                         ),
-                        AnimatedOpacity(
-                          duration: const Duration(milliseconds: 200),
-                          opacity: isHovered ? 1 : 0,
-                          child: Container(
-                            color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
-                          ),
-                        ),
-                        Center(
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 200),
-                            opacity: isHovered ? 1 : 0,
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: IconButton(
-                                icon: const Icon(FluentIcons.play, size: 40),
-                                onPressed: () {},
+                        clipBehavior: Clip.antiAlias,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (imageUrl != null)
+                              CachedNetworkImage(
+                                imageUrl: imageUrl,
+                                httpHeaders: httpHeaders,
+                                cacheManager: cacheManager,
+                                fit: BoxFit.cover,
+                                fadeOutDuration: const Duration(milliseconds: 120),
+                                errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
+                                placeholder: (context, url) => const ImgLoadingProgressRing(),
+                              )
+                            else
+                              const Center(child: Icon(FluentIcons.file_image)),
+                            Align(
+                              alignment: Alignment.bottomLeft,
+                              child: SizedBox(
+                                width: double.infinity,
+                                height: 5,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Container(color: Colors.white.withValues(alpha: 0.05)),
+                                    if (progress > 0)
+                                      FractionallySizedBox(
+                                        widthFactor: progress,
+                                        alignment: Alignment.centerLeft,
+                                        child: Container(color: const Color(0xFF2073DF)),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        Positioned(
-                          right: 8,
-                          bottom: 8,
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 200),
-                            opacity: isHovered ? 1 : 0,
-                            child: Row(
-                              children: [
-                                MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: IconButton(
-                                    icon: Icon(FluentIcons.check_mark, color: item.watched == 1 ? Colors.green : Colors.white),
-                                    onPressed: () {},
-                                  ),
-                                ),
-                                MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: IconButton(
-                                    icon: Icon(FluentIcons.favorite_star, color: item.isFavorite == 1 ? Colors.red : Colors.white),
-                                    onPressed: () {},
-                                  ),
-                                ),
-                                MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: IconButton(
-                                    icon: const Icon(FluentIcons.more),
-                                    onPressed: () {},
-                                  ),
-                                ),
-                              ],
+                            AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: isHovered ? 1 : 0,
+                              child: Container(
+                                color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
+                              ),
                             ),
-                          ),
+                            Center(
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 200),
+                                opacity: isHovered ? 1 : 0,
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: IconButton(
+                                    icon: const Icon(FluentIcons.play, size: 40),
+                                    onPressed: () {},
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: 8,
+                              bottom: 8,
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 200),
+                                opacity: isHovered ? 1 : 0,
+                                child: Row(
+                                  children: [
+                                    _PosterIconButton(
+                                      icon: FluentIcons.check_mark,
+                                      isActive: _isWatched,
+                                      activeColor: kAccentColorDefault,
+                                      scaleFactor: scaleFactor,
+                                      onPressed: _handleWatchedToggle,
+                                    ),
+                                    _PosterIconButton(
+                                      icon: FluentIcons.favorite_star,
+                                      isActive: _isFavorite,
+                                      activeColor: kDangerDefaultColor,
+                                      scaleFactor: scaleFactor,
+                                      onPressed: _handleFavoriteToggle,
+                                    ),
+                                    _PosterIconButton(
+                                      icon: FluentIcons.more,
+                                      isActive: false,
+                                      activeColor: Colors.white,
+                                      scaleFactor: scaleFactor,
+                                      onPressed: () {},
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: posterWidth,
-                  child: Text(
-                    displayTitle,
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.typography.caption?.copyWith(
-                      fontWeight: FontWeight.normal,
-                      fontSize: 12,
-                      color: isHovered ? const Color(0xFF2073DF) : theme.typography.body?.color,
-                    ),
-                  ),
-                ),
-                if (displaySubtitle != null) ...[
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    width: posterWidth,
-                    child: Text(
-                      displaySubtitle,
-                      maxLines: 2,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.typography.caption?.copyWith(
-                        fontWeight: FontWeight.normal,
-                        fontSize: 12,
-                        color: theme.typography.caption?.color?.withValues(alpha: 0.7),
                       ),
                     ),
-                  ),
-                ],
-              ],
-            ),
-          );
-        },
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: posterWidth,
+                      child: Text(
+                        displayTitle,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.typography.caption?.copyWith(
+                          fontWeight: FontWeight.normal,
+                          fontSize: 12,
+                          color: isHovered ? const Color(0xFF2073DF) : theme.typography.body?.color,
+                        ),
+                      ),
+                    ),
+                    if (displaySubtitle != null) ...[
+                      const SizedBox(height: 4),
+                      SizedBox(
+                        width: posterWidth,
+                        child: Text(
+                          displaySubtitle,
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.typography.caption?.copyWith(
+                            fontWeight: FontWeight.normal,
+                            fontSize: 12,
+                            color: theme.typography.caption?.color?.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Poster icon button with hover effect
+class _PosterIconButton extends StatefulWidget {
+  final IconData icon;
+  final bool isActive;
+  final Color activeColor;
+  final double scaleFactor;
+  final VoidCallback? onPressed;
+
+  const _PosterIconButton({
+    required this.icon,
+    required this.isActive,
+    required this.activeColor,
+    required this.scaleFactor,
+    this.onPressed,
+  });
+
+  @override
+  State<_PosterIconButton> createState() => _PosterIconButtonState();
+}
+
+class _PosterIconButtonState extends State<_PosterIconButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = 16.0 * widget.scaleFactor;
+    final buttonSize = 28.0 * widget.scaleFactor;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: buttonSize,
+          height: buttonSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Hover background
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: buttonSize,
+                height: buttonSize,
+                decoration: BoxDecoration(
+                  color: _isHovered ? Colors.black.withValues(alpha: 0.5) : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              // Icon
+              Icon(
+                widget.icon,
+                size: iconSize,
+                color: widget.isActive ? widget.activeColor : Colors.white,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

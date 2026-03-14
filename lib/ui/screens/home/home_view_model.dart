@@ -49,6 +49,11 @@ class PlayListNotifier extends _$PlayListNotifier {
     if (baseResponse.code != 0) throw Exception(baseResponse.msg);
     return baseResponse.data ?? [];
   }
+
+  Future<void> refresh() async {
+    ref.invalidateSelf();
+    await future;
+  }
 }
 
 @riverpod
@@ -73,5 +78,158 @@ class ItemListNotifier extends _$ItemListNotifier {
     );
     if (baseResponse.code != 0) throw Exception(baseResponse.msg);
     return baseResponse.data ?? ItemListQueryResponse();
+  }
+}
+
+// Favorite action result
+class FavoriteActionResult {
+  final String guid;
+  final bool isFavorite;
+  final bool success;
+  final String message;
+  final bool previousState;
+
+  const FavoriteActionResult({
+    required this.guid,
+    required this.isFavorite,
+    required this.success,
+    required this.message,
+    required this.previousState,
+  });
+}
+
+// Watched action result
+class WatchedActionResult {
+  final String guid;
+  final bool isWatched;
+  final bool success;
+  final String message;
+  final bool previousState;
+
+  const WatchedActionResult({
+    required this.guid,
+    required this.isWatched,
+    required this.success,
+    required this.message,
+    required this.previousState,
+  });
+}
+
+@riverpod
+class FavoriteNotifier extends _$FavoriteNotifier {
+  @override
+  FavoriteActionResult? build() => null;
+
+  Future<FavoriteActionResult> toggleFavorite(String guid, bool currentFavoriteState) async {
+    try {
+      final dioClient = ref.read(dioClientProvider);
+      
+      final response = currentFavoriteState
+          ? await dioClient.dio.delete(
+              '/v/api/v1/item/favorite',
+              data: {'item_guid': guid},
+            )
+          : await dioClient.dio.put(
+              '/v/api/v1/item/favorite',
+              data: {'item_guid': guid},
+            );
+
+      final isSuccess = _isSuccessResponse(response.data);
+      
+      final result = FavoriteActionResult(
+        guid: guid,
+        isFavorite: !currentFavoriteState,
+        success: isSuccess,
+        message: currentFavoriteState ? '已取消收藏' : '已收藏',
+        previousState: currentFavoriteState,
+      );
+      
+      state = result;
+      return result;
+    } catch (e) {
+      final result = FavoriteActionResult(
+        guid: guid,
+        isFavorite: currentFavoriteState,
+        success: false,
+        message: '操作失败，$e',
+        previousState: currentFavoriteState,
+      );
+      state = result;
+      return result;
+    }
+  }
+
+  void clear() {
+    state = null;
+  }
+
+  bool _isSuccessResponse(dynamic data) {
+    if (data is bool) return data;
+    if (data is Map) {
+      // Check for code == 0 (API returns {code: 0, data: true/false})
+      if (data['code'] == 0) return true;
+      // Also check for success field for backward compatibility
+      if (data['success'] == true) return true;
+    }
+    return false;
+  }
+}
+
+@riverpod
+class WatchedNotifier extends _$WatchedNotifier {
+  @override
+  WatchedActionResult? build() => null;
+
+  Future<WatchedActionResult> toggleWatched(String guid, bool currentWatchedState) async {
+    try {
+      final dioClient = ref.read(dioClientProvider);
+      
+      final response = currentWatchedState
+          ? await dioClient.dio.delete(
+              '/v/api/v1/item/watched',
+              data: {'item_guid': guid},
+            )
+          : await dioClient.dio.post(
+              '/v/api/v1/item/watched',
+              data: {'item_guid': guid},
+            );
+
+      final isSuccess = _isSuccessResponse(response.data);
+      final result = WatchedActionResult(
+        guid: guid,
+        isWatched: !currentWatchedState,
+        success: isSuccess,
+        message: currentWatchedState ? '标记为未观看' : '标记为已观看',
+        previousState: currentWatchedState,
+      );
+      
+      state = result;
+      return result;
+    } catch (e) {
+      final result = WatchedActionResult(
+        guid: guid,
+        isWatched: currentWatchedState,
+        success: false,
+        message: '操作失败，$e',
+        previousState: currentWatchedState,
+      );
+      state = result;
+      return result;
+    }
+  }
+
+  void clear() {
+    state = null;
+  }
+
+  bool _isSuccessResponse(dynamic data) {
+    if (data is bool) return data;
+    if (data is Map) {
+      // Check for code == 0 (API returns {code: 0, data: true/false})
+      if (data['code'] == 0) return true;
+      // Also check for success field for backward compatibility
+      if (data['success'] == true) return true;
+    }
+    return false;
   }
 }

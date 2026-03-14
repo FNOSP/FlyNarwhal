@@ -1,14 +1,18 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../widgets/filter_box.dart';
 import '../../widgets/sort_flyout.dart';
+import '../../widgets/toast.dart';
 import '../../../data/models/home_models.dart';
 import '../../../data/models/tag_models.dart';
 import '../../../providers/providers.dart';
 import '../../../data/models/base_response.dart';
 import '../../widgets/movie_poster.dart';
+import '../home/home_view_model.dart';
 
 final _tabs = <String>['全部', '电影', '电视节目', '单集', '人物'];
 
@@ -41,6 +45,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   TagListResponse? _tagList;
   List<GenresResponse>? _genres;
   Map<String, String>? _iso3166;
+
+  late final ToastManager _toastManager = ToastManager();
+  Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
+  Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
 
   @override
   void initState() {
@@ -281,238 +289,365 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     );
   }
 
+  // Handle favorite toggle
+  void _handleFavoriteToggle(String guid, bool currentFavoriteState, Function(bool success) callback) {
+    _pendingFavoriteCallbacks[guid] = callback;
+    ref.read(favoriteNotifierProvider.notifier).toggleFavorite(guid, currentFavoriteState);
+  }
+
+  // Handle watched toggle
+  void _handleWatchedToggle(String guid, bool currentWatchedState, Function(bool success) callback) {
+    _pendingWatchedCallbacks[guid] = callback;
+    ref.read(watchedNotifierProvider.notifier).toggleWatched(guid, currentWatchedState);
+  }
+
+  // Handle favorite result
+  void _handleFavoriteResult(FavoriteActionResult? result) {
+    if (result == null) return;
+
+    _toastManager.showToast(
+      result.message,
+      type: result.success ? ToastType.success : ToastType.failed,
+    );
+
+    _pendingFavoriteCallbacks[result.guid]?.call(result.success);
+    _pendingFavoriteCallbacks.remove(result.guid);
+
+    // Remove item from list if unfavorited successfully
+    if (result.success && !result.isFavorite) {
+      setState(() {
+        _items = _items.where((item) => item.guid != result.guid).toList();
+      });
+      // Update cache
+      final cacheKey = _buildCacheKey(_selectedTab, _selectedFilters);
+      if (_tabItemsCache.containsKey(cacheKey)) {
+        _tabItemsCache[cacheKey] = _tabItemsCache[cacheKey]!
+            .where((item) => item.guid != result.guid)
+            .toList();
+      }
+    }
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        ref.read(favoriteNotifierProvider.notifier).clear();
+      }
+    });
+  }
+
+  // Handle watched result
+  void _handleWatchedResult(WatchedActionResult? result) {
+    if (result == null) return;
+
+    _toastManager.showToast(
+      result.message,
+      type: result.success ? ToastType.success : ToastType.failed,
+    );
+
+    _pendingWatchedCallbacks[result.guid]?.call(result.success);
+    _pendingWatchedCallbacks.remove(result.guid);
+
+    // Update item's watched status in the list
+    if (result.success) {
+      setState(() {
+        final index = _items.indexWhere((item) => item.guid == result.guid);
+        if (index != -1) {
+          final item = _items[index];
+          _items[index] = MediaItem(
+            guid: item.guid,
+            title: item.title,
+            poster: item.poster,
+            type: item.type,
+            voteAverage: item.voteAverage,
+            isFavorite: item.isFavorite,
+            watched: result.isWatched ? 1 : 0,
+            mediaStream: item.mediaStream,
+            releaseDate: item.releaseDate,
+            seasonNumber: item.seasonNumber,
+            episodeNumber: item.episodeNumber,
+          );
+        }
+      });
+      // Update cache
+      final cacheKey = _buildCacheKey(_selectedTab, _selectedFilters);
+      if (_tabItemsCache.containsKey(cacheKey)) {
+        final cacheList = _tabItemsCache[cacheKey]!;
+        final index = cacheList.indexWhere((item) => item.guid == result.guid);
+        if (index != -1) {
+          final item = cacheList[index];
+          cacheList[index] = MediaItem(
+            guid: item.guid,
+            title: item.title,
+            poster: item.poster,
+            type: item.type,
+            voteAverage: item.voteAverage,
+            isFavorite: item.isFavorite,
+            watched: result.isWatched ? 1 : 0,
+            mediaStream: item.mediaStream,
+            releaseDate: item.releaseDate,
+            seasonNumber: item.seasonNumber,
+            episodeNumber: item.episodeNumber,
+          );
+        }
+      }
+    }
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        ref.read(watchedNotifierProvider.notifier).clear();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Listen to favorite result changes
+    ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (previous, next) {
+      _handleFavoriteResult(next);
+    });
+
+    // Listen to watched result changes
+    ref.listen<WatchedActionResult?>(watchedNotifierProvider, (previous, next) {
+      _handleWatchedResult(next);
+    });
+
     final scaleFactor = resolveWindowScaleFactor(context);
     final headerTitle = _mdbName ?? '收藏';
 
     return ScaffoldPage(
       header: PageHeader(title: Text(headerTitle)),
-      content: NotificationListener<ScrollNotification>(
-        onNotification: (scrollInfo) {
-          if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
-            final cacheKey = _buildCacheKey(_selectedTab, _selectedFilters);
-            if (_isLoadingMore || (_tabLastPageCache[cacheKey] ?? false)) {
+      content: Stack(
+        children: [
+          NotificationListener<ScrollNotification>(
+            onNotification: (scrollInfo) {
+              if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
+                final cacheKey = _buildCacheKey(_selectedTab, _selectedFilters);
+                if (_isLoadingMore || (_tabLastPageCache[cacheKey] ?? false)) {
+                  return false;
+                }
+                _loadData(
+                  tab: _selectedTab,
+                  page: _page + 1,
+                  filters: _selectedFilters,
+                  force: true,
+                );
+              }
               return false;
-            }
-            _loadData(
-              tab: _selectedTab,
-              page: _page + 1,
-              filters: _selectedFilters,
-              force: true,
-            );
-          }
-          return false;
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  ..._tabs.map((tab) {
-                    final isSelected = tab == _selectedTab;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 16),
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: HoverButton(
-                          onPressed: () {
-                            if (_selectedTab != tab) {
-                              final nextIndex = _tabs.indexOf(tab);
-                              setState(() {
-                                _enableTabAnimation = true;
-                                _tabSwitchDirection = nextIndex >= _selectedTabIndex ? 1 : -1;
-                                _selectedTabIndex = nextIndex;
-                                _selectedTab = tab;
-                                _isFilterOpen = false;
-                                _selectedFilters = {};
-                              });
-                              _loadStaticTags();
-                              _applyCacheToSelected(const {});
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    children: [
+                      ..._tabs.map((tab) {
+                        final isSelected = tab == _selectedTab;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 16),
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: HoverButton(
+                              onPressed: () {
+                                if (_selectedTab != tab) {
+                                  final nextIndex = _tabs.indexOf(tab);
+                                  setState(() {
+                                    _enableTabAnimation = true;
+                                    _tabSwitchDirection = nextIndex >= _selectedTabIndex ? 1 : -1;
+                                    _selectedTabIndex = nextIndex;
+                                    _selectedTab = tab;
+                                    _isFilterOpen = false;
+                                    _selectedFilters = {};
+                                  });
+                                  _loadStaticTags();
+                                  _applyCacheToSelected(const {});
+                                  _loadData(
+                                    tab: _selectedTab,
+                                    page: 1,
+                                    filters: const {},
+                                    force: false,
+                                  );
+                                }
+                              },
+                              builder: (context, states) => Text(
+                                tab,
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? const Color(0xFF2073DF) : FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  height: 1,
+                  color: FluentTheme.of(context).resources.controlStrokeColorDefault.withValues(alpha: 0.1),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Row(
+                    children: [
+                      if (_selectedTab != '人物')
+                        FilterButton(
+                          isSelected: _isFilterOpen,
+                          selectedFilters: _selectedFilters,
+                          onFilterClear: _onClearFilter,
+                          onClick: () => setState(() => _isFilterOpen = !_isFilterOpen),
+                        ),
+                      const SizedBox(width: 8),
+                      SortFlyout(
+                        onSortTypeSelected: (type) {
+                          setState(() => _sortColumn = type);
+                          _clearCaches();
+                          _loadAllTabs(force: true);
+                        },
+                        onSortOrderSelected: (order) {
+                          setState(() => _sortOrder = order);
+                          _clearCaches();
+                          _loadAllTabs(force: true);
+                        },
+                        sortOptions: const [
+                          SortItem('收藏时间', 'create_time'),
+                          SortItem('发行年份', 'release_date'),
+                          SortItem('标题', 'sort_title'),
+                          SortItem('评分', 'vote_average'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) {
+                    return ClipRect(
+                      child: SizeTransition(
+                        sizeFactor: animation,
+                        axisAlignment: -1,
+                        child: FadeTransition(opacity: animation, child: child),
+                      ),
+                    );
+                  },
+                  child: _isFilterOpen
+                      ? Padding(
+                          key: const ValueKey('filter-box'),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: FilterBox(
+                            tagList: _tagList,
+                            genres: _genres,
+                            iso3166: _iso3166,
+                            initialSelectedFilters: _selectedFilters,
+                            onFilterChanged: (filters) {
+                              _selectedFilters = Map<String, FilterItem>.from(filters);
                               _loadData(
                                 tab: _selectedTab,
                                 page: 1,
-                                filters: const {},
-                                force: false,
+                                filters: _selectedFilters,
+                                force: true,
                               );
-                            }
-                          },
-                          builder: (context, states) => Text(
-                            tab,
-                            style: TextStyle(
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              color: isSelected ? const Color(0xFF2073DF) : FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
-                            ),
+                            },
+                            onCollapse: () => setState(() => _isFilterOpen = false),
                           ),
+                        )
+                      : const SizedBox(
+                          key: ValueKey('filter-box-empty'),
                         ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              height: 1,
-              color: FluentTheme.of(context).resources.controlStrokeColorDefault.withValues(alpha: 0.1),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              child: Row(
-                children: [
-                  if (_selectedTab != '人物')
-                    FilterButton(
-                      isSelected: _isFilterOpen,
-                      selectedFilters: _selectedFilters,
-                      onFilterClear: _onClearFilter,
-                      onClick: () => setState(() => _isFilterOpen = !_isFilterOpen),
-                    ),
-                  const SizedBox(width: 8),
-                  SortFlyout(
-                    onSortTypeSelected: (type) {
-                      setState(() => _sortColumn = type);
-                      _clearCaches();
-                      _loadAllTabs(force: true);
+                ),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: _enableTabAnimation ? const Duration(milliseconds: 300) : Duration.zero,
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, animation) {
+                      final curved = CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOut,
+                        reverseCurve: Curves.easeIn,
+                      );
+                      final isCurrent = child.key == ValueKey('favorites-grid-$_selectedTab') ||
+                          child.key == const ValueKey('favorites-empty');
+                      final baseAnimation = isCurrent ? curved : ReverseAnimation(curved);
+                      final slideAnimation = Tween<Offset>(
+                        begin: isCurrent ? Offset(_tabSwitchDirection.toDouble(), 0) : Offset.zero,
+                        end: isCurrent ? Offset.zero : Offset(-_tabSwitchDirection.toDouble(), 0),
+                      ).animate(baseAnimation);
+                      return SlideTransition(
+                        position: slideAnimation,
+                        child: FadeTransition(opacity: curved, child: child),
+                      );
                     },
-                    onSortOrderSelected: (order) {
-                      setState(() => _sortOrder = order);
-                      _clearCaches();
-                      _loadAllTabs(force: true);
-                    },
-                    sortOptions: const [
-                      SortItem('收藏时间', 'create_time'),
-                      SortItem('发行年份', 'release_date'),
-                      SortItem('标题', 'sort_title'),
-                      SortItem('评分', 'vote_average'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              transitionBuilder: (child, animation) {
-                return ClipRect(
-                  child: SizeTransition(
-                    sizeFactor: animation,
-                    axisAlignment: -1,
-                    child: FadeTransition(opacity: animation, child: child),
-                  ),
-                );
-              },
-              child: _isFilterOpen
-                  ? Padding(
-                      key: const ValueKey('filter-box'),
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: FilterBox(
-                        tagList: _tagList,
-                        genres: _genres,
-                        iso3166: _iso3166,
-                        initialSelectedFilters: _selectedFilters,
-                        onFilterChanged: (filters) {
-                          _selectedFilters = Map<String, FilterItem>.from(filters);
-                          _loadData(
-                            tab: _selectedTab,
-                            page: 1,
-                            filters: _selectedFilters,
-                            force: true,
-                          );
-                        },
-                        onCollapse: () => setState(() => _isFilterOpen = false),
-                      ),
-                    )
-                  : const SizedBox(
-                      key: ValueKey('filter-box-empty'),
-                    ),
-            ),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: _enableTabAnimation ? const Duration(milliseconds: 300) : Duration.zero,
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                transitionBuilder: (child, animation) {
-                  final curved = CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOut,
-                    reverseCurve: Curves.easeIn,
-                  );
-                  final isCurrent = child.key == ValueKey('favorites-grid-$_selectedTab') ||
-                      child.key == const ValueKey('favorites-empty');
-                  final baseAnimation = isCurrent ? curved : ReverseAnimation(curved);
-                  final slideAnimation = Tween<Offset>(
-                    begin: isCurrent ? Offset(_tabSwitchDirection.toDouble(), 0) : Offset.zero,
-                    end: isCurrent ? Offset.zero : Offset(-_tabSwitchDirection.toDouble(), 0),
-                  ).animate(baseAnimation);
-                  return SlideTransition(
-                    position: slideAnimation,
-                    child: FadeTransition(opacity: curved, child: child),
-                  );
-                },
-                child: _items.isEmpty
-                    ? Center(
-                        key: const ValueKey('favorites-empty'),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SvgPicture.asset(
-                              'assets/images/empty_folder.svg',
-                              width: 160 * scaleFactor,
-                              height: 150 * scaleFactor,
+                    child: _items.isEmpty
+                        ? Center(
+                            key: const ValueKey('favorites-empty'),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SvgPicture.asset(
+                                  'assets/images/empty_folder.svg',
+                                  width: 160 * scaleFactor,
+                                  height: 150 * scaleFactor,
+                                ),
+                                const SizedBox(height: 12),
+                                const Text('无数据'),
+                              ],
                             ),
-                            const SizedBox(height: 12),
-                            const Text('无数据'),
-                          ],
-                        ),
-                      )
-                    : GridView.builder(
-                        key: ValueKey('favorites-grid-$_selectedTab'),
-                        padding: EdgeInsets.all(16 * scaleFactor),
-                        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 160 * scaleFactor,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 0,
-                          childAspectRatio: 0.6,
-                        ),
-                        itemCount: _items.length,
-                        itemBuilder: (context, index) {
-                          final item = _items[index];
-                          const posterHeight = 200.0;
-                          const posterWidth = posterHeight * 2 / 3;
-                          return MoviePoster(
-                            title: item.title,
-                            subtitle: buildPosterSubtitle(item),
-                            posterPath: item.poster,
-                            score: item.voteAverage,
-                            resolutions: item.mediaStream?.resolutions,
-                            isFavorite: item.isFavorite == 1,
-                            isWatched: (item.watched ?? 0) == 1,
-                            width: posterWidth,
-                            height: posterHeight,
-                            scaleFactor: scaleFactor,
-                            type: item.type,
-                            guid: item.guid,
-                            onTap: () {
-                              if (item.type == 'TV') {
-                                context.go('/tv/${item.guid}');
-                              } else {
-                                context.go('/movie/${item.guid}');
-                              }
+                          )
+                        : GridView.builder(
+                            key: ValueKey('favorites-grid-$_selectedTab'),
+                            padding: EdgeInsets.all(16 * scaleFactor),
+                            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 160 * scaleFactor,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 0,
+                              childAspectRatio: 0.6,
+                            ),
+                            itemCount: _items.length,
+                            itemBuilder: (context, index) {
+                              final item = _items[index];
+                              const posterHeight = 200.0;
+                              const posterWidth = posterHeight * 2 / 3;
+                              return MoviePoster(
+                                title: item.title,
+                                subtitle: buildPosterSubtitle(item),
+                                posterPath: item.poster,
+                                score: item.voteAverage,
+                                resolutions: item.mediaStream?.resolutions,
+                                isFavorite: item.isFavorite == 1,
+                                isWatched: (item.watched ?? 0) == 1,
+                                width: posterWidth,
+                                height: posterHeight,
+                                scaleFactor: scaleFactor,
+                                type: item.type,
+                                guid: item.guid,
+                                onTap: () {
+                                  if (item.type == 'TV') {
+                                    context.go('/tv/${item.guid}');
+                                  } else {
+                                    context.go('/movie/${item.guid}');
+                                  }
+                                },
+                                onPlayTap: () {
+                                  // TODO: Implement play function
+                                },
+                                onFavoriteToggle: _handleFavoriteToggle,
+                                onWatchedToggle: _handleWatchedToggle,
+                              );
                             },
-                            onPlayTap: () {
-                              // TODO: 实现播放功能
-                            },
-                          );
-                        },
-                      ),
-              ),
+                          ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          // Toast overlay
+          ToastHost(toastManager: _toastManager),
+        ],
       ),
     );
   }

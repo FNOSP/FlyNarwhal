@@ -10,8 +10,16 @@ import '../../providers/providers.dart';
 class MediaLibGallery extends ConsumerWidget {
   final String title;
   final String guid;
+  final Function(String guid, bool currentState, Function(bool success) callback)? onFavoriteToggle;
+  final Function(String guid, bool currentState, Function(bool success) callback)? onWatchedToggle;
 
-  const MediaLibGallery({super.key, required this.title, required this.guid});
+  const MediaLibGallery({
+    super.key,
+    required this.title,
+    required this.guid,
+    this.onFavoriteToggle,
+    this.onWatchedToggle,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -73,8 +81,10 @@ class MediaLibGallery extends ConsumerWidget {
                     }
                   },
                   onPlayTap: () {
-                    // TODO: 实现播放功能
+                    // TODO: Implement play function
                   },
+                  onFavoriteToggle: onFavoriteToggle,
+                  onWatchedToggle: onWatchedToggle,
                 );
               },
             );

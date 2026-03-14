@@ -40,7 +40,7 @@ final mediaSumNotifierProvider = AutoDisposeAsyncNotifierProvider<
 );
 
 typedef _$MediaSumNotifier = AutoDisposeAsyncNotifier<Map<String, int>>;
-String _$playListNotifierHash() => r'057f952aa67f3ed6e3be593339b514307a43b62f';
+String _$playListNotifierHash() => r'1c0b3400e10a29636b1d598c2bc90ef6c054de3e';
 
 /// See also [PlayListNotifier].
 @ProviderFor(PlayListNotifier)
@@ -223,5 +223,38 @@ class _ItemListNotifierProviderElement
   @override
   String get guid => (origin as ItemListNotifierProvider).guid;
 }
+
+String _$favoriteNotifierHash() => r'85fc60815c59acc67d9bb3ca60aeac102689e0a6';
+
+/// See also [FavoriteNotifier].
+@ProviderFor(FavoriteNotifier)
+final favoriteNotifierProvider = AutoDisposeNotifierProvider<FavoriteNotifier,
+    FavoriteActionResult?>.internal(
+  FavoriteNotifier.new,
+  name: r'favoriteNotifierProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$favoriteNotifierHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$FavoriteNotifier = AutoDisposeNotifier<FavoriteActionResult?>;
+String _$watchedNotifierHash() => r'd0513619e7d04b0c0dadd14a1989ab7292be6748';
+
+/// See also [WatchedNotifier].
+@ProviderFor(WatchedNotifier)
+final watchedNotifierProvider =
+    AutoDisposeNotifierProvider<WatchedNotifier, WatchedActionResult?>.internal(
+  WatchedNotifier.new,
+  name: r'watchedNotifierProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$watchedNotifierHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$WatchedNotifier = AutoDisposeNotifier<WatchedActionResult?>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

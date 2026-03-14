@@ -22,6 +22,11 @@ enum FnMediaType {
   }
 }
 
+// Accent color for watched state
+const Color kAccentColorDefault = Color(0xFF2173DF);
+// Danger color for favorite state
+const Color kDangerDefaultColor = Color(0xFFFF0420);
+
 class MoviePoster extends ConsumerStatefulWidget {
   final String? posterPath;
   final String title;
@@ -42,8 +47,8 @@ class MoviePoster extends ConsumerStatefulWidget {
   final String? guid;
   final String? mediaTitle;
   final int? seasonNumber;
-  final Function(String guid, bool isFavorite, bool success)? onFavoriteToggle;
-  final Function(String guid, bool isWatched, bool success)? onWatchedToggle;
+  final Function(String guid, bool currentState, Function(bool success) callback)? onFavoriteToggle;
+  final Function(String guid, bool currentState, Function(bool success) callback)? onWatchedToggle;
 
   const MoviePoster({
     super.key,
@@ -76,6 +81,26 @@ class MoviePoster extends ConsumerStatefulWidget {
 
 class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProviderStateMixin {
   bool _isPlayButtonHovered = false;
+  bool _isFavorite = false;
+  bool _isWatched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.isFavorite;
+    _isWatched = widget.isWatched;
+  }
+
+  @override
+  void didUpdateWidget(covariant MoviePoster oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isFavorite != widget.isFavorite) {
+      _isFavorite = widget.isFavorite;
+    }
+    if (oldWidget.isWatched != widget.isWatched) {
+      _isWatched = widget.isWatched;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -275,26 +300,20 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                           opacity: isHovered ? 1 : 0,
                           child: Row(
                             children: [
-                              MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: IconButton(
-                                  icon: Icon(
-                                    FluentIcons.check_mark,
-                                    color: widget.isWatched ? const Color(0xFF2173DF) : Colors.white,
-                                  ),
-                                  onPressed: () => _handleWatchedToggle(ref),
-                                ),
+                              _PosterIconButton(
+                                icon: FluentIcons.check_mark,
+                                isActive: _isWatched,
+                                activeColor: kAccentColorDefault,
+                                scaleFactor: scaleFactor,
+                                onPressed: _handleWatchedToggle,
                               ),
                               if (showFavoriteButton)
-                                MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: IconButton(
-                                    icon: Icon(
-                                      FluentIcons.favorite_star,
-                                      color: widget.isFavorite ? const Color(0xFFFF0420) : Colors.white,
-                                    ),
-                                    onPressed: () => _handleFavoriteToggle(ref),
-                                  ),
+                                _PosterIconButton(
+                                  icon: FluentIcons.favorite_star,
+                                  isActive: _isFavorite,
+                                  activeColor: kDangerDefaultColor,
+                                  scaleFactor: scaleFactor,
+                                  onPressed: _handleFavoriteToggle,
                                 ),
                             ],
                           ),
@@ -307,12 +326,12 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 200),
                             opacity: isHovered ? 1 : 0,
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: IconButton(
-                                icon: const Icon(FluentIcons.more),
-                                onPressed: widget.onMoreTap,
-                              ),
+                            child: _PosterIconButton(
+                              icon: FluentIcons.more,
+                              isActive: false,
+                              activeColor: Colors.white,
+                              scaleFactor: scaleFactor,
+                              onPressed: widget.onMoreTap,
                             ),
                           ),
                         ),
@@ -378,29 +397,107 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
         context.go('/tv/season/${widget.guid}');
         break;
       case FnMediaType.person:
-        // TODO: Person detail page not implemented yet
         break;
       case null:
         break;
     }
   }
 
-  void _handleFavoriteToggle(WidgetRef ref) {
+  void _handleFavoriteToggle() {
     if (widget.guid == null) return;
-    final newFavorite = !widget.isFavorite;
-    widget.onFavoriteToggle?.call(widget.guid!, newFavorite, true);
-    if (widget.onFavoriteTap != null) {
-      widget.onFavoriteTap!();
-    }
+    widget.onFavoriteToggle?.call(
+      widget.guid!,
+      _isFavorite,
+      (success) {
+        if (success) {
+          setState(() {
+            _isFavorite = !_isFavorite;
+          });
+        }
+      },
+    );
+    widget.onFavoriteTap?.call();
   }
 
-  void _handleWatchedToggle(WidgetRef ref) {
+  void _handleWatchedToggle() {
     if (widget.guid == null) return;
-    final newWatched = !widget.isWatched;
-    widget.onWatchedToggle?.call(widget.guid!, newWatched, true);
-    if (widget.onWatchedTap != null) {
-      widget.onWatchedTap!();
-    }
+    widget.onWatchedToggle?.call(
+      widget.guid!,
+      _isWatched,
+      (success) {
+        if (success) {
+          setState(() {
+            _isWatched = !_isWatched;
+          });
+        }
+      },
+    );
+    widget.onWatchedTap?.call();
+  }
+}
+
+// Poster icon button with hover effect
+class _PosterIconButton extends StatefulWidget {
+  final IconData icon;
+  final bool isActive;
+  final Color activeColor;
+  final double scaleFactor;
+  final VoidCallback? onPressed;
+
+  const _PosterIconButton({
+    required this.icon,
+    required this.isActive,
+    required this.activeColor,
+    required this.scaleFactor,
+    this.onPressed,
+  });
+
+  @override
+  State<_PosterIconButton> createState() => _PosterIconButtonState();
+}
+
+class _PosterIconButtonState extends State<_PosterIconButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = 16.0 * widget.scaleFactor;
+    final buttonSize = 28.0 * widget.scaleFactor;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: buttonSize,
+          height: buttonSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Hover background
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: buttonSize,
+                height: buttonSize,
+                decoration: BoxDecoration(
+                  color: _isHovered ? Colors.black.withValues(alpha: 0.5) : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              // Icon
+              Icon(
+                widget.icon,
+                size: iconSize,
+                color: widget.isActive ? widget.activeColor : Colors.white,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

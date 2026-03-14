@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,77 +7,189 @@ import 'home_view_model.dart';
 import '../../widgets/media_lib_card_row.dart';
 import '../../widgets/media_lib_gallery.dart';
 import '../../widgets/recently_watched.dart';
+import '../../widgets/toast.dart';
+import '../../../data/models/home_models.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late final ToastManager _toastManager = ToastManager();
+  
+  // Pending callbacks for favorite/watched operations
+  Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
+  Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
+  
+  // Track items to be removed from recently watched
+  Set<String> _itemsToBeRemoved = {};
+
+  @override
+  Widget build(BuildContext context) {
     final mediaDbListAsync = ref.watch(mediaDbListNotifierProvider);
     final playListAsync = ref.watch(playListNotifierProvider);
     
+    // Listen to favorite result changes
+    ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (previous, next) {
+      _handleFavoriteResult(next);
+    });
+    
+    // Listen to watched result changes
+    ref.listen<WatchedActionResult?>(watchedNotifierProvider, (previous, next) {
+      _handleWatchedResult(next);
+    });
+    
     return ScaffoldPage(
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      content: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 36, left: 32, bottom: 32),
-            child: Text(
-              "首页",
-              style: FluentTheme.of(context).typography.subtitle,
-            ),
-          ),
-          Expanded(
-            child: Scrollbar(
-              child: ListView(
-                padding: const EdgeInsets.only(bottom: 16),
-                children: [
-                  mediaDbListAsync.when(
-                    data: (data) => MediaLibCardRow(
-                      items: data,
-                      onItemClick: (item) {
-                        context.go('/library/${item.guid}');
-                      },
-                    ),
-                    loading: () => const Center(child: ProgressRing()),
-                    error: (err, stack) => Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Text('Error loading libraries: $err'),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  playListAsync.when(
-                    data: (data) => RecentlyWatched(
-                      title: "继续观看",
-                      items: data,
-                    ),
-                    loading: () => const SizedBox.shrink(),
-                    error: (err, stack) => const SizedBox.shrink(),
-                  ),
-                  // const SizedBox(height: 12),
-                  mediaDbListAsync.when(
-                    data: (data) {
-                      return Column(
-                        children: data
-                            .map(
-                              (lib) => MediaLibGallery(
-                                title: lib.title,
-                                guid: lib.guid,
-                              ),
-                            )
-                            .toList(),
-                      );
-                    },
-                    loading: () => const SizedBox.shrink(),
-                    error: (err, stack) => const SizedBox.shrink(),
-                  ),
-                  const SizedBox(height: 24),
-                ],
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 36, left: 32, bottom: 32),
+                child: Text(
+                  "首页",
+                  style: FluentTheme.of(context).typography.subtitle,
+                ),
               ),
-            ),
+              Expanded(
+                child: Scrollbar(
+                  child: ListView(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    children: [
+                      mediaDbListAsync.when(
+                        data: (data) => MediaLibCardRow(
+                          items: data,
+                          onItemClick: (item) {
+                            context.go('/library/${item.guid}');
+                          },
+                        ),
+                        loading: () => const Center(child: ProgressRing()),
+                        error: (err, stack) => Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Text('Error loading libraries: $err'),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      playListAsync.when(
+                        data: (data) {
+                          // Filter out removed items
+                          final filteredData = data.where((item) => !_itemsToBeRemoved.contains(item.guid)).toList();
+                          return RecentlyWatched(
+                            title: "继续观看",
+                            items: filteredData,
+                            onFavoriteToggle: _handleFavoriteToggle,
+                            onWatchedToggle: _handleWatchedToggle,
+                            onItemRemoved: _onItemRemoved,
+                          );
+                        },
+                        loading: () => const SizedBox.shrink(),
+                        error: (err, stack) => const SizedBox.shrink(),
+                      ),
+                      mediaDbListAsync.when(
+                        data: (data) {
+                          return Column(
+                            children: data
+                                .map(
+                                  (lib) => MediaLibGallery(
+                                    title: lib.title,
+                                    guid: lib.guid,
+                                    onFavoriteToggle: _handleFavoriteToggle,
+                                    onWatchedToggle: _handleWatchedToggle,
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        },
+                        loading: () => const SizedBox.shrink(),
+                        error: (err, stack) => const SizedBox.shrink(),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
+          // Toast overlay
+          ToastHost(toastManager: _toastManager),
         ],
       ),
     );
+  }
+
+  // Handle favorite toggle
+  void _handleFavoriteToggle(String guid, bool currentFavoriteState, Function(bool success) callback) {
+    // Store the callback
+    _pendingFavoriteCallbacks[guid] = callback;
+    // Call the notifier
+    ref.read(favoriteNotifierProvider.notifier).toggleFavorite(guid, currentFavoriteState);
+  }
+
+  // Handle watched toggle
+  void _handleWatchedToggle(String guid, bool currentWatchedState, Function(bool success) callback) {
+    // Store the callback
+    _pendingWatchedCallbacks[guid] = callback;
+    // Call the notifier
+    ref.read(watchedNotifierProvider.notifier).toggleWatched(guid, currentWatchedState);
+  }
+
+  // Handle favorite result
+  void _handleFavoriteResult(FavoriteActionResult? result) {
+    if (result == null) return;
+    
+    // Show toast
+    _toastManager.showToast(
+      result.message,
+      type: result.success ? ToastType.success : ToastType.failed,
+    );
+    
+    // Call the pending callback
+    _pendingFavoriteCallbacks[result.guid]?.call(result.success);
+    _pendingFavoriteCallbacks.remove(result.guid);
+    
+    // Clear the state after delay
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        ref.read(favoriteNotifierProvider.notifier).clear();
+      }
+    });
+  }
+
+  // Handle watched result
+  void _handleWatchedResult(WatchedActionResult? result) {
+    if (result == null) return;
+    
+    // Show toast
+    _toastManager.showToast(
+      result.message,
+      type: result.success ? ToastType.success : ToastType.failed,
+    );
+    
+    // Call the pending callback
+    _pendingWatchedCallbacks[result.guid]?.call(result.success);
+    _pendingWatchedCallbacks.remove(result.guid);
+    
+    // Refresh play list if marked as watched
+    if (result.success && result.isWatched) {
+      ref.read(playListNotifierProvider.notifier).refresh();
+    }
+    
+    // Clear the state after delay
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        ref.read(watchedNotifierProvider.notifier).clear();
+      }
+    });
+  }
+
+  // Handle item removed from recently watched
+  void _onItemRemoved(String guid) {
+    setState(() {
+      _itemsToBeRemoved.add(guid);
+    });
   }
 }

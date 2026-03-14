@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import '../../../providers/providers.dart';
 import '../../widgets/movie_poster.dart';
 import '../../widgets/filter_box.dart';
 import '../../widgets/sort_flyout.dart';
+import '../../widgets/toast.dart';
 import '../home/home_view_model.dart';
 
 class MediaLibraryScreen extends ConsumerStatefulWidget {
@@ -32,6 +35,10 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   TagListResponse? _tagList;
   List<GenresResponse>? _genres;
   Map<String, String>? _iso3166;
+
+  late final ToastManager _toastManager = ToastManager();
+  Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
+  Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
 
   @override
   void initState() {
@@ -260,11 +267,72 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     _refresh(force: true);
   }
 
+  // Handle favorite toggle
+  void _handleFavoriteToggle(String guid, bool currentFavoriteState, Function(bool success) callback) {
+    _pendingFavoriteCallbacks[guid] = callback;
+    ref.read(favoriteNotifierProvider.notifier).toggleFavorite(guid, currentFavoriteState);
+  }
+
+  // Handle watched toggle
+  void _handleWatchedToggle(String guid, bool currentWatchedState, Function(bool success) callback) {
+    _pendingWatchedCallbacks[guid] = callback;
+    ref.read(watchedNotifierProvider.notifier).toggleWatched(guid, currentWatchedState);
+  }
+
+  // Handle favorite result
+  void _handleFavoriteResult(FavoriteActionResult? result) {
+    if (result == null) return;
+
+    _toastManager.showToast(
+      result.message,
+      type: result.success ? ToastType.success : ToastType.failed,
+    );
+
+    _pendingFavoriteCallbacks[result.guid]?.call(result.success);
+    _pendingFavoriteCallbacks.remove(result.guid);
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        ref.read(favoriteNotifierProvider.notifier).clear();
+      }
+    });
+  }
+
+  // Handle watched result
+  void _handleWatchedResult(WatchedActionResult? result) {
+    if (result == null) return;
+
+    _toastManager.showToast(
+      result.message,
+      type: result.success ? ToastType.success : ToastType.failed,
+    );
+
+    _pendingWatchedCallbacks[result.guid]?.call(result.success);
+    _pendingWatchedCallbacks.remove(result.guid);
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        ref.read(watchedNotifierProvider.notifier).clear();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.id == null && widget.categoryType == null) {
       return const Center(child: Text("Invalid Library ID"));
     }
+
+    // Listen to favorite result changes
+    ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (previous, next) {
+      _handleFavoriteResult(next);
+    });
+
+    // Listen to watched result changes
+    ref.listen<WatchedActionResult?>(watchedNotifierProvider, (previous, next) {
+      _handleWatchedResult(next);
+    });
+
     final scaleFactor = resolveWindowScaleFactor(context);
     final mediaDbList = ref.watch(mediaDbListNotifierProvider).asData?.value ?? const [];
     const posterHeight = 200.0;
@@ -274,116 +342,124 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
 
     return ScaffoldPage(
       header: PageHeader(title: Text(title)),
-      content: NotificationListener<ScrollNotification>(
-        onNotification: (scrollInfo) {
-          if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
-            _loadData(page: _page + 1);
-          }
-          return false;
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              child: Row(
-                children: [
-                  FilterButton(
-                    isSelected: _isFilterOpen,
-                    selectedFilters: _selectedFilters,
-                    onFilterClear: _onClearFilter,
-                    onClick: () => setState(() => _isFilterOpen = !_isFilterOpen),
-                  ),
-                  const SizedBox(width: 8),
-                  SortFlyout(
-                    onSortTypeSelected: (type) {
-                      setState(() => _sortColumn = type);
-                      _refresh(force: true);
-                    },
-                    onSortOrderSelected: (order) {
-                      setState(() => _sortOrder = order);
-                      _refresh(force: true);
-                    },
-                  ),
-                ],
-              ),
-            ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              transitionBuilder: (child, animation) {
-                return ClipRect(
-                  child: SizeTransition(
-                    sizeFactor: animation,
-                    axisAlignment: -1,
-                    child: FadeTransition(opacity: animation, child: child),
-                  ),
-                );
-              },
-              child: _isFilterOpen
-                  ? Padding(
-                      key: const ValueKey('filter-box'),
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: FilterBox(
-                        tagList: _tagList,
-                        genres: _genres,
-                        iso3166: _iso3166,
-                        initialSelectedFilters: _selectedFilters,
-                        onFilterChanged: (filters) {
-                          _selectedFilters = Map<String, FilterItem>.from(filters);
+      content: Stack(
+        children: [
+          NotificationListener<ScrollNotification>(
+            onNotification: (scrollInfo) {
+              if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
+                _loadData(page: _page + 1);
+              }
+              return false;
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Row(
+                    children: [
+                      FilterButton(
+                        isSelected: _isFilterOpen,
+                        selectedFilters: _selectedFilters,
+                        onFilterClear: _onClearFilter,
+                        onClick: () => setState(() => _isFilterOpen = !_isFilterOpen),
+                      ),
+                      const SizedBox(width: 8),
+                      SortFlyout(
+                        onSortTypeSelected: (type) {
+                          setState(() => _sortColumn = type);
                           _refresh(force: true);
                         },
-                        onCollapse: () => setState(() => _isFilterOpen = false),
+                        onSortOrderSelected: (order) {
+                          setState(() => _sortOrder = order);
+                          _refresh(force: true);
+                        },
                       ),
-                    )
-                  : const SizedBox(
-                      key: ValueKey('filter-box-empty'),
-                    ),
-            ),
-            Expanded(
-              child: _items.isEmpty
-                  ? const Center(child: ProgressRing())
-                  : GridView.builder(
-                      padding: EdgeInsets.all(16 * scaleFactor),
-                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 180 * scaleFactor,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 0,
-                        childAspectRatio: 0.6,
+                    ],
+                  ),
+                ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) {
+                    return ClipRect(
+                      child: SizeTransition(
+                        sizeFactor: animation,
+                        axisAlignment: -1,
+                        child: FadeTransition(opacity: animation, child: child),
                       ),
-                      itemCount: _items.length,
-                      itemBuilder: (context, index) {
-                        final item = _items[index];
-                        return MoviePoster(
-                          title: item.title,
-                          subtitle: buildPosterSubtitle(item),
-                          posterPath: item.poster,
-                          score: item.voteAverage,
-                          resolutions: item.mediaStream?.resolutions,
-                          isFavorite: item.isFavorite == 1,
-                          isWatched: (item.watched ?? 0) == 1,
-                          width: posterWidth,
-                          height: posterHeight,
-                          scaleFactor: scaleFactor,
-                          type: item.type,
-                          guid: item.guid,
-                          onTap: () {
-                            if (item.type == 'TV') {
-                              context.go('/tv/${item.guid}');
-                            } else {
-                              context.go('/movie/${item.guid}');
-                            }
+                    );
+                  },
+                  child: _isFilterOpen
+                      ? Padding(
+                          key: const ValueKey('filter-box'),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: FilterBox(
+                            tagList: _tagList,
+                            genres: _genres,
+                            iso3166: _iso3166,
+                            initialSelectedFilters: _selectedFilters,
+                            onFilterChanged: (filters) {
+                              _selectedFilters = Map<String, FilterItem>.from(filters);
+                              _refresh(force: true);
+                            },
+                            onCollapse: () => setState(() => _isFilterOpen = false),
+                          ),
+                        )
+                      : const SizedBox(
+                          key: ValueKey('filter-box-empty'),
+                        ),
+                ),
+                Expanded(
+                  child: _items.isEmpty
+                      ? const Center(child: ProgressRing())
+                      : GridView.builder(
+                          padding: EdgeInsets.all(16 * scaleFactor),
+                          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 180 * scaleFactor,
+                            mainAxisSpacing: 8,
+                            crossAxisSpacing: 0,
+                            childAspectRatio: 0.6,
+                          ),
+                          itemCount: _items.length,
+                          itemBuilder: (context, index) {
+                            final item = _items[index];
+                            return MoviePoster(
+                              title: item.title,
+                              subtitle: buildPosterSubtitle(item),
+                              posterPath: item.poster,
+                              score: item.voteAverage,
+                              resolutions: item.mediaStream?.resolutions,
+                              isFavorite: item.isFavorite == 1,
+                              isWatched: (item.watched ?? 0) == 1,
+                              width: posterWidth,
+                              height: posterHeight,
+                              scaleFactor: scaleFactor,
+                              type: item.type,
+                              guid: item.guid,
+                              onTap: () {
+                                if (item.type == 'TV') {
+                                  context.go('/tv/${item.guid}');
+                                } else {
+                                  context.go('/movie/${item.guid}');
+                                }
+                              },
+                              onPlayTap: () {
+                                // TODO: Implement play function
+                              },
+                              onFavoriteToggle: _handleFavoriteToggle,
+                              onWatchedToggle: _handleWatchedToggle,
+                            );
                           },
-                          onPlayTap: () {
-                            // TODO: 实现播放功能
-                          },
-                        );
-                      },
-                    ),
+                        ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          // Toast overlay
+          ToastHost(toastManager: _toastManager),
+        ],
       ),
     );
   }
