@@ -480,6 +480,18 @@ class PlayConfig {
 
   factory PlayConfig.fromJson(Map<String, dynamic> json) => _$PlayConfigFromJson(json);
   Map<String, dynamic> toJson() => _$PlayConfigToJson(this);
+
+  PlayConfig copyWith({
+    String? guid,
+    int? skipOpening,
+    int? skipEnding,
+  }) {
+    return PlayConfig(
+      guid: guid ?? this.guid,
+      skipOpening: skipOpening ?? this.skipOpening,
+      skipEnding: skipEnding ?? this.skipEnding,
+    );
+  }
 }
 
 @JsonSerializable()

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../data/models/home_models.dart';
 import '../../providers/providers.dart';
 import 'img_loading_progress_ring.dart';
@@ -260,9 +261,13 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
                                 opacity: isHovered ? 1 : 0,
                                 child: MouseRegion(
                                   cursor: SystemMouseCursors.click,
-                                  child: IconButton(
-                                    icon: const Icon(FluentIcons.play, size: 40),
-                                    onPressed: () {},
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      // Navigate to player screen
+                                      ref.read(navigationStackProvider.notifier).pushPath('/home');
+                                      context.go('/player/${widget.item.guid}');
+                                    },
+                                    child: const Icon(FluentIcons.play, size: 40, color: Colors.white),
                                   ),
                                 ),
                               ),

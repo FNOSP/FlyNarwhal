@@ -42,6 +42,14 @@ dependencies:
   cryptography: ^2.7.0
   flutter_inappwebview: ^5.7.2
   webview_windows: ^0.4.0
+  
+  # Video Player
+  media_kit: ^1.1.10
+  media_kit_video: ^1.2.4
+  media_kit_libs_video: ^1.0.4
+  
+  # Animation
+  lottie: ^3.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -55,3 +63,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/lottie/

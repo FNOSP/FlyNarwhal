@@ -1,4 +1,3 @@
-import '../../../domain/entities/index.dart';
 
 /// Authentication repository interface
 abstract class IAuthRepository {

@@ -80,7 +80,7 @@ class MediaLibGallery extends ConsumerWidget {
                     }
                   },
                   onPlayTap: () {
-                    // TODO: Implement play function
+                    context.go('/player/${item.guid}');
                   },
                   onFavoriteToggle: onFavoriteToggle,
                   onWatchedToggle: onWatchedToggle,

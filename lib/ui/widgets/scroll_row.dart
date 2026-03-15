@@ -109,6 +109,7 @@ class _ScrollRowState extends State<ScrollRow> {
                   controller: _controller,
                   padding: widget.padding,
                   scrollDirection: Axis.horizontal,
+                  primary: false,
                   itemCount: widget.itemCount,
                   separatorBuilder: (context, index) => SizedBox(width: widget.itemSpacing),
                   itemBuilder: widget.itemBuilder,

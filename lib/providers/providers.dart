@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/models/base_response.dart';
 import '../data/models/user_info.dart';
 import '../data/storage/preferences_manager.dart';
+import '../data/storage/player_settings_store.dart';
 import '../data/network/dio_client.dart';
 import '../data/network/tag_repository.dart';
 
@@ -328,3 +329,9 @@ class _InMemoryCacheInfoRepository implements CacheInfoRepository {
     return CacheObject.fromMap(map);
   }
 }
+
+// Player settings manager provider
+final playerSettingsManagerProvider = Provider<PlayerSettingsManager>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return PlayerSettingsManager(prefs);
+});

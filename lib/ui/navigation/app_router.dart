@@ -10,6 +10,7 @@ import '../screens/settings/settings_screen.dart';
 import '../screens/movie_detail/movie_detail_screen.dart';
 import '../screens/tv_detail/tv_detail_screen.dart';
 import '../screens/tv_detail/tv_season_detail_screen.dart';
+import '../screens/player/player_screen.dart';
 import '../../providers/providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -35,6 +36,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      // Player route - outside ShellRoute for fullscreen
+      GoRoute(
+        path: '/player/:guid',
+        builder: (context, state) => PlayerScreen(
+          guid: state.pathParameters['guid'] ?? '',
+          mediaGuid: state.uri.queryParameters['media_guid'],
+          audioGuid: state.uri.queryParameters['audio_guid'],
+          subtitleGuid: state.uri.queryParameters['subtitle_guid'],
+        ),
       ),
       ShellRoute(
         builder: (context, state, child) {

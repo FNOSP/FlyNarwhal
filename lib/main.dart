@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:system_info2/system_info2.dart';
+import 'package:media_kit/media_kit.dart';
 import 'providers/providers.dart';
 import 'ui/navigation/app_router.dart';
 import 'package:window_manager/window_manager.dart';
@@ -11,6 +12,9 @@ import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize MediaKit for video playback
+  MediaKit.ensureInitialized();
   
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
     final freeMemoryBytes = SysInfo.getFreePhysicalMemory();

@@ -8,7 +8,6 @@ import '../../widgets/media_lib_card_row.dart';
 import '../../widgets/media_lib_gallery.dart';
 import '../../widgets/recently_watched.dart';
 import '../../widgets/toast.dart';
-import '../../../data/models/home_models.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});

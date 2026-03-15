@@ -633,7 +633,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                   }
                                 },
                                 onPlayTap: () {
-                                  // TODO: Implement play function
+                                  context.go('/player/${item.guid}');
                                 },
                                 onFavoriteToggle: _handleFavoriteToggle,
                                 onWatchedToggle: _handleWatchedToggle,

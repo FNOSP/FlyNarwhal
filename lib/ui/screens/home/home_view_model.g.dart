@@ -224,7 +224,7 @@ class _ItemListNotifierProviderElement
   String get guid => (origin as ItemListNotifierProvider).guid;
 }
 
-String _$favoriteNotifierHash() => r'85fc60815c59acc67d9bb3ca60aeac102689e0a6';
+String _$favoriteNotifierHash() => r'6d96a9ec8fe59801071775acaf30011e2bd188be';
 
 /// See also [FavoriteNotifier].
 @ProviderFor(FavoriteNotifier)
@@ -240,7 +240,7 @@ final favoriteNotifierProvider = AutoDisposeNotifierProvider<FavoriteNotifier,
 );
 
 typedef _$FavoriteNotifier = AutoDisposeNotifier<FavoriteActionResult?>;
-String _$watchedNotifierHash() => r'd0513619e7d04b0c0dadd14a1989ab7292be6748';
+String _$watchedNotifierHash() => r'78b1728da635cfffc47067562bd89a5c446be42b';
 
 /// See also [WatchedNotifier].
 @ProviderFor(WatchedNotifier)

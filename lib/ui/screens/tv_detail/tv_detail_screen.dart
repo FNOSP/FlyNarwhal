@@ -350,33 +350,11 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
           cursor: SystemMouseCursors.click,
           child: FilledButton(
             onPressed: () async {
-              // TODO: Implement playback logic for TV
-              // Similar to movie, but we need to know which episode to play.
-              // Assuming the playInfo contains the "next episode to watch" or "last watched"
-              final prefsManager = ref.read(preferencesManagerProvider);
-              final baseUrl = prefsManager.getBaseUrl() ?? '';
-              
-              // Construct play URL based on playInfo
-              // The logic from KMP:
-              // val playMedia = rememberPlayMediaFunction(guid = guid, player = player)
-              // It seems it delegates to a player.
-              
+              // Navigate to player screen
               if (playInfo != null) {
-                   // Actually in KMP `rememberPlayMediaFunction` uses `guid` (which is item guid)
-                   // But `TvDetailScreen` calls `playMedia()` which presumably plays the item returned by `playInfo`?
-                   // In `TvMiddleControls`:
-                   // DetailPlayButton("第 ${playInfo.item.seasonNumber} 季 第 ${playInfo.item.episodeNumber} 集") { playMedia() }
-                   
-                   // So we can try launching the player with the item guid, and backend decides what to play?
-                   // Or we use `playInfo.playItemGuid` if available.
-                   
-                   final targetGuid = playInfo.playItemGuid.isNotEmpty ? playInfo.playItemGuid : widget.guid;
-                   final playUrl = '$baseUrl/v/api/v1/play/video?guid=$targetGuid';
-                   
-                   final uri = Uri.parse(playUrl);
-                   if (await canLaunchUrl(uri)) {
-                     await launchUrl(uri);
-                   }
+                final targetGuid = playInfo.playItemGuid.isNotEmpty ? playInfo.playItemGuid : widget.guid;
+                ref.read(navigationStackProvider.notifier).pushPath('/home');
+                context.go('/player/$targetGuid');
               }
             },
             child: Padding(
@@ -484,7 +462,8 @@ class _SeasonListGrid extends ConsumerWidget {
                     },
                     resolutions: season.mediaStream.resolutions,
                     onPlayTap: () {
-                       // TODO: Implement play function
+                       // For Season type, navigate to season detail page
+                       context.go('/tv/season/${season.guid}');
                     },
                  ),
               );

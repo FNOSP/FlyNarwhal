@@ -276,7 +276,9 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
                   httpHeaders: widget.httpHeaders,
                   cacheManager: widget.cacheManager,
                   onEpisodeTap: (episode) {
-                    // TODO: Navigate to episode detail or play
+                    // Navigate to player screen for this episode
+                    ref.read(navigationStackProvider.notifier).pushPath('/home');
+                    context.go('/player/${episode.guid}');
                   },
                   onWatchedToggle: (guid, isWatched) {
                     ref.read(tvSeasonDetailNotifierProvider(widget.guid).notifier).toggleEpisodeWatched(guid, isWatched);
@@ -400,14 +402,9 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
           text: playButtonText,
           onPressed: () async {
             if (playInfo != null) {
-              final prefsManager = ref.read(preferencesManagerProvider);
-              final baseUrl = prefsManager.getBaseUrl() ?? '';
               final targetGuid = playInfo.playItemGuid.isNotEmpty ? playInfo.playItemGuid : widget.guid;
-              final playUrl = '$baseUrl/v/api/v1/play/video?guid=$targetGuid';
-              final uri = Uri.parse(playUrl);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri);
-              }
+              ref.read(navigationStackProvider.notifier).pushPath('/home');
+              context.go('/player/$targetGuid');
             }
           },
         ),

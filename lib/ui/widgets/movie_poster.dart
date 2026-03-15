@@ -263,7 +263,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                           color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
                         ),
                       ),
-                      if (widget.onPlayTap != null)
+                      // Show play button for Movie and Video types
+                      if (mediaType == FnMediaType.movie || mediaType == FnMediaType.video || widget.onPlayTap != null)
                         Center(
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 200),
@@ -273,7 +274,7 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                               onEnter: (_) => setState(() => _isPlayButtonHovered = true),
                               onExit: (_) => setState(() => _isPlayButtonHovered = false),
                               child: GestureDetector(
-                                onTap: widget.onPlayTap,
+                                onTap: widget.onPlayTap ?? () => _handlePlay(context),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   width: playButtonSize,
@@ -400,6 +401,17 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
         break;
       case null:
         break;
+    }
+  }
+
+  void _handlePlay(BuildContext context) {
+    if (widget.guid == null || widget.guid!.isEmpty) return;
+
+    final mediaType = FnMediaType.fromString(widget.type);
+    // Only allow play for Movie and Video types
+    if (mediaType == FnMediaType.movie || mediaType == FnMediaType.video) {
+      ref.read(navigationStackProvider.notifier).pushPath('/home');
+      context.go('/player/${widget.guid}');
     }
   }
 

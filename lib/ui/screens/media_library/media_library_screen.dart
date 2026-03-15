@@ -446,7 +446,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                 }
                               },
                               onPlayTap: () {
-                                // TODO: Implement play function
+                                context.go('/player/${item.guid}');
                               },
                               onFavoriteToggle: _handleFavoriteToggle,
                               onWatchedToggle: _handleWatchedToggle,

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'movie_detail_view_model.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -666,35 +665,14 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   }
 
   Future<void> _playMedia() async {
-    final prefsManager = ref.read(preferencesManagerProvider);
-    final baseUrl = prefsManager.getBaseUrl() ?? '';
-    
-    final audioGuid = _selectedAudioGuid ?? '';
-    final subtitleGuid = _selectedSubtitleGuid ?? '';
-    
-    final playUrl = '$baseUrl/v/api/v1/play/video?guid=${widget.guid}&media_guid=$_currentMediaGuid'
-        '&audio_guid=$audioGuid&subtitle_guid=$subtitleGuid';
-    
-    final uri = Uri.parse(playUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => ContentDialog(
-            title: const Text('播放失败'),
-            content: const Text('无法启动外部播放器，请检查网络连接或播放地址。'),
-            actions: [
-              Button(
-                child: const Text('确定'),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
-        );
-      }
-    }
+    // Navigate to player screen
+    ref.read(navigationStackProvider.notifier).pushPath('/home');
+    context.go(
+      '/player/${widget.guid}'
+      '?media_guid=$_currentMediaGuid'
+      '&audio_guid=${_selectedAudioGuid ?? ''}'
+      '&subtitle_guid=${_selectedSubtitleGuid ?? ''}',
+    );
   }
 }
 
