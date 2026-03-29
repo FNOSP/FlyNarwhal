@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/base_response.dart';
-import '../../data/models/player_models.dart';
 import '../../data/models/movie_detail_models.dart';
+import '../../data/models/player_models.dart';
 import '../../data/network/dio_client.dart';
 import '../../providers/providers.dart';
 
@@ -62,19 +62,8 @@ class PlayerService {
     return baseResponse.data!;
   }
 
-  // Play video with specified parameters
-  Future<PlayPlayResponse> playVideo({
-    required String guid,
-    String? mediaGuid,
-    String? audioGuid,
-    String? subtitleGuid,
-  }) async {
-    final request = PlayPlayRequest(
-      guid: guid,
-      mediaGuid: mediaGuid,
-      audioGuid: audioGuid,
-      subtitleGuid: subtitleGuid,
-    );
+  // Play video with specified parameters (aligned with KMP PlayPlayRequest)
+  Future<PlayPlayResponse> playVideo(PlayPlayRequest request) async {
     final response = await _dioClient.dio.post(
       '/v/api/v1/play/play',
       data: request.toJson(),
@@ -190,23 +179,6 @@ class PlayerService {
       '/v/api/v1/config/set-by-item',
       data: request.toJson(),
     );
-  }
-
-  // Build play URL for direct link
-  String buildDirectPlayUrl({
-    required String baseUrl,
-    required String mediaGuid,
-    String? audioGuid,
-    String? subtitleGuid,
-  }) {
-    final url = StringBuffer('$baseUrl/v/api/v1/play/video?media_guid=$mediaGuid');
-    if (audioGuid != null && audioGuid.isNotEmpty) {
-      url.write('&audio_guid=$audioGuid');
-    }
-    if (subtitleGuid != null && subtitleGuid.isNotEmpty) {
-      url.write('&subtitle_guid=$subtitleGuid');
-    }
-    return url.toString();
   }
 
   // Build HLS play URL

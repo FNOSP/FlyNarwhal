@@ -146,6 +146,7 @@ class SubtitleSettings {
 
 @JsonSerializable()
 class PlayPlayResponse {
+  @JsonKey(name: 'play_link')
   final String playLink;
 
   PlayPlayResponse({required this.playLink});
@@ -157,6 +158,7 @@ class PlayPlayResponse {
 
 @JsonSerializable()
 class MediaResetQualityResponse {
+  @JsonKey(name: 'play_link')
   final String playLink;
   final int position;
 
@@ -350,19 +352,38 @@ class MediaPRequest {
 
 @JsonSerializable()
 class PlayPlayRequest {
-  final String guid;
   @JsonKey(name: 'media_guid')
-  final String? mediaGuid;
+  final String mediaGuid;
+  @JsonKey(name: 'video_guid')
+  final String videoGuid;
+  @JsonKey(name: 'video_encoder')
+  final String videoEncoder;
+  final String resolution;
+  final int bitrate;
+  @JsonKey(name: 'startTimestamp')
+  final int startTimestamp;
+  @JsonKey(name: 'audio_encoder')
+  final String audioEncoder;
   @JsonKey(name: 'audio_guid')
-  final String? audioGuid;
+  final String audioGuid;
   @JsonKey(name: 'subtitle_guid')
-  final String? subtitleGuid;
+  final String subtitleGuid;
+  final int channels;
+  @JsonKey(name: 'forced_sdr')
+  final int forcedSdr;
 
   PlayPlayRequest({
-    required this.guid,
-    this.mediaGuid,
-    this.audioGuid,
-    this.subtitleGuid,
+    required this.mediaGuid,
+    required this.videoGuid,
+    required this.videoEncoder,
+    required this.resolution,
+    required this.bitrate,
+    this.startTimestamp = 0,
+    this.audioEncoder = 'aac',
+    required this.audioGuid,
+    this.subtitleGuid = '',
+    this.channels = 2,
+    this.forcedSdr = 0,
   });
 
   factory PlayPlayRequest.fromJson(Map<String, dynamic> json) =>

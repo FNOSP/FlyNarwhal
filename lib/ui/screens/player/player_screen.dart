@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,9 +10,8 @@ import 'package:window_manager/window_manager.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/providers.dart';
-import '../../player/player_manager.dart';
+import '../../player/mp4_parser.dart';
 import '../../player/player_service.dart';
-import '../../player/player_view_model.dart';
 import '../../player/widgets/video_player_progress_bar.dart';
 import '../../player/widgets/speed_control_flyout.dart';
 import '../../player/widgets/quality_control_flyout.dart';
@@ -52,9 +52,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   double _volume = 1.0;
   double _speed = 1.0;
   List<QualityResponse> _qualities = [];
+  QualityResponse? _currentQuality;
   String _currentResolution = '';
   int? _currentBitrate;
   PlayingInfoCache? _playingInfoCache;
+  PlayInfoResponse? _playInfo;
+  StreamResponse? _streamInfo;
   Timer? _hideUiTimer;
   Timer? _playRecordTimer;
   int _lastRecordedPosition = 0;
@@ -80,63 +83,247 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await _loadAndPlayMedia();
   }
 
+  Map<String, String> _buildPlayerHeaders() {
+    final prefs = ref.read(preferencesManagerProvider);
+    final headers = <String, String>{};
+    final cookie = prefs.getCookie();
+    if (cookie != null && cookie.isNotEmpty) {
+      headers['Cookie'] = cookie;
+    }
+    final token = prefs.getToken();
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = token;
+    }
+    return headers;
+  }
+
+  String _absolutePlayUrl(String baseUrl, String playLink) {
+    if (playLink.startsWith('http://') || playLink.startsWith('https://')) {
+      return playLink;
+    }
+    final base =
+        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final path = playLink.startsWith('/') ? playLink : '/$playLink';
+    return '$base$path';
+  }
+
+  PlayPlayRequest _createPlayRequest({
+    required VideoStream videoStream,
+    required FileInfo fileStream,
+    required String audioGuid,
+    required String? subtitleGuid,
+  }) {
+    return PlayPlayRequest(
+      mediaGuid: fileStream.guid,
+      videoGuid: videoStream.guid,
+      videoEncoder: videoStream.codecName,
+      resolution: videoStream.resolutionType,
+      bitrate: videoStream.bps,
+      startTimestamp: 0,
+      audioEncoder: 'aac',
+      audioGuid: audioGuid,
+      subtitleGuid: subtitleGuid ?? '',
+      channels: 2,
+      forcedSdr: 0,
+    );
+  }
+
+  Future<
+      ({
+        String playUri,
+        String? playLinkRaw,
+        int effectiveStartMs,
+        bool isDirectLink,
+      })> _resolvePlayLink({
+    required PlayInfoResponse playInfo,
+    required VideoStream videoStream,
+    required FileInfo fileStream,
+    required String audioGuid,
+    required String? subtitleGuid,
+    required List<QualityResponse> qualities,
+    required int startPositionMs,
+    required String baseUrl,
+    required PlayerService playerService,
+    required Dio dio,
+  }) async {
+    final originalQuality = qualities.isNotEmpty ? qualities.first : null;
+    final isOriginalQuality = _currentQuality != null &&
+        originalQuality != null &&
+        _currentQuality!.resolution == originalQuality.resolution &&
+        _currentQuality!.bitrate == originalQuality.bitrate;
+
+    final useDirectLink = videoStream.wrapper == 'MP4' && isOriginalQuality;
+
+    if (useDirectLink) {
+      final r = await _getDirectPlayLink(
+        mediaGuid: videoStream.mediaGuid,
+        startPositionMs: startPositionMs,
+        baseUrl: baseUrl,
+        dio: dio,
+      );
+      return (
+        playUri: r.url,
+        playLinkRaw: null,
+        effectiveStartMs: r.effectiveStartMs,
+        isDirectLink: true,
+      );
+    }
+
+    try {
+      final request = _createPlayRequest(
+        videoStream: videoStream,
+        fileStream: fileStream,
+        audioGuid: audioGuid,
+        subtitleGuid: subtitleGuid,
+      );
+      final resp = await playerService.playVideo(request);
+      final raw = resp.playLink;
+      final uri = _absolutePlayUrl(baseUrl, raw);
+      return (
+        playUri: uri,
+        playLinkRaw: raw,
+        effectiveStartMs: startPositionMs,
+        isDirectLink: false,
+      );
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('8192')) {
+        final r = await _getDirectPlayLink(
+          mediaGuid: playInfo.mediaGuid,
+          startPositionMs: startPositionMs,
+          baseUrl: baseUrl,
+          dio: dio,
+        );
+        return (
+          playUri: r.url,
+          playLinkRaw: null,
+          effectiveStartMs: r.effectiveStartMs,
+          isDirectLink: false,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<({String url, int effectiveStartMs})> _getDirectPlayLink({
+    required String mediaGuid,
+    required int startPositionMs,
+    required String baseUrl,
+    required Dio dio,
+  }) async {
+    final base =
+        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final fullUrl = '$base/v/api/v1/media/range/$mediaGuid';
+    final ts = startPositionMs / 1000.0;
+    try {
+      final parser = Mp4Parser(dio);
+      final offset = await parser.getOffset(fullUrl, ts);
+      if (offset > 0) {
+        final uri = '$fullUrl?range=bytes=$offset-';
+        return (url: uri, effectiveStartMs: 0);
+      }
+      return (url: fullUrl, effectiveStartMs: startPositionMs);
+    } catch (e) {
+      debugPrint('[Player] getDirectPlayLink fallback: $e');
+      return (url: fullUrl, effectiveStartMs: startPositionMs);
+    }
+  }
+
   Future<void> _loadAndPlayMedia() async {
     try {
       setState(() => _isLoading = true);
 
       final playerService = ref.read(playerServiceProvider);
       final prefs = ref.read(preferencesManagerProvider);
+      final dio = ref.read(dioClientProvider).dio;
       final baseUrl = prefs.getBaseUrl() ?? '';
 
-      // Get play info
-      final playInfo = await playerService.getPlayInfo(widget.guid);
-      debugPrint('[Player] playInfo: guid=${playInfo.guid}, mediaGuid=${playInfo.mediaGuid}, videoGuid=${playInfo.videoGuid}, type=${playInfo.item.type}');
+      final playInfo = await playerService.getPlayInfo(
+        widget.guid,
+        mediaGuid: widget.mediaGuid,
+      );
+      _playInfo = playInfo;
+      debugPrint(
+        '[Player] playInfo: guid=${playInfo.guid}, mediaGuid=${playInfo.mediaGuid}, videoGuid=${playInfo.videoGuid}, type=${playInfo.item.type}',
+      );
 
-      // Use playInfo.mediaGuid directly (same as Kotlin implementation)
       final targetMediaGuid = playInfo.mediaGuid;
       debugPrint('[Player] targetMediaGuid: $targetMediaGuid');
 
-      // Get stream info (Kotlin always calls stream API with playInfo.mediaGuid)
       final streamInfo = await playerService.getStreamInfo(
         targetMediaGuid,
         ip: playerService.getIpHash(prefs.getToken() ?? ''),
       );
-      debugPrint('[Player] streamInfo: videoStream=${streamInfo.videoStream?.mediaGuid}, audioStreams=${streamInfo.audioStreams?.length ?? 0}');
-
-      // Build play URL - use direct link
-      String playUrl;
-      bool isUseDirectLink = true;
-
-      playUrl = playerService.buildDirectPlayUrl(
-        baseUrl: baseUrl,
-        mediaGuid: targetMediaGuid,
-        audioGuid: widget.audioGuid ?? playInfo.audioGuid,
-        subtitleGuid: widget.subtitleGuid ?? playInfo.subtitleGuid,
+      _streamInfo = streamInfo;
+      debugPrint(
+        '[Player] streamInfo: videoStream=${streamInfo.videoStream?.mediaGuid}, audioStreams=${streamInfo.audioStreams?.length ?? 0}',
       );
-      debugPrint('[Player] Direct play URL: $playUrl');
 
-      // Find current video stream
-      VideoStream? currentVideoStream;
+      final currentVideoStream = streamInfo.videoStream;
+      final fileStream = streamInfo.fileStream;
+      if (currentVideoStream == null || fileStream == null) {
+        throw Exception('Missing video_stream or file_stream');
+      }
+
+      final audioStreams = streamInfo.audioStreams ?? [];
+      final subtitleStreams = streamInfo.subtitleStreams ?? [];
+
       AudioStream? currentAudioStream;
       SubtitleStream? currentSubtitleStream;
 
-      currentVideoStream = streamInfo.videoStream;
-      final audioStreams = streamInfo.audioStreams ?? [];
-      final subtitleStreams = streamInfo.subtitleStreams ?? [];
-      
       if (widget.audioGuid != null) {
-        currentAudioStream = audioStreams.where((s) => s.guid == widget.audioGuid).firstOrNull;
+        currentAudioStream =
+            audioStreams.where((s) => s.guid == widget.audioGuid).firstOrNull;
       } else {
-        currentAudioStream = audioStreams.where((s) => s.isDefault == 1).firstOrNull ??
+        currentAudioStream = audioStreams
+                .where((s) => s.isDefault == 1)
+                .firstOrNull ??
             audioStreams.firstOrNull;
       }
       if (widget.subtitleGuid != null) {
-        currentSubtitleStream = subtitleStreams.where((s) => s.guid == widget.subtitleGuid).firstOrNull;
+        currentSubtitleStream = subtitleStreams
+            .where((s) => s.guid == widget.subtitleGuid)
+            .firstOrNull;
       } else {
-        currentSubtitleStream = subtitleStreams.where((s) => s.isDefault == 1).firstOrNull;
+        currentSubtitleStream =
+            subtitleStreams.where((s) => s.isDefault == 1).firstOrNull;
       }
 
-      // Update playing info cache
+      final audioGuid = widget.audioGuid ??
+          currentAudioStream?.guid ??
+          playInfo.audioGuid;
+      final subtitleGuid =
+          widget.subtitleGuid ?? currentSubtitleStream?.guid;
+
+      final qualities = streamInfo.qualities ?? [];
+      _qualities = qualities;
+      _currentQuality = qualities.isNotEmpty ? qualities.first : null;
+
+      final historyMs = playInfo.ts * 1000;
+      final resolved = await _resolvePlayLink(
+        playInfo: playInfo,
+        videoStream: currentVideoStream,
+        fileStream: fileStream,
+        audioGuid: audioGuid,
+        subtitleGuid: subtitleGuid,
+        qualities: qualities,
+        startPositionMs: historyMs,
+        baseUrl: baseUrl,
+        playerService: playerService,
+        dio: dio,
+      );
+
+      if (!resolved.isDirectLink && resolved.playLinkRaw != null) {
+        try {
+          _qualities = await playerService.getQualities(resolved.playLinkRaw!);
+          if (_qualities.isNotEmpty) {
+            _currentQuality = _qualities.first;
+          }
+        } catch (_) {
+          // Ignore quality list errors
+        }
+      }
+
       _playingInfoCache = PlayingInfoCache(
         itemGuid: widget.guid,
         parentGuid: playInfo.parentGuid,
@@ -146,51 +333,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         currentSubtitleStream: currentSubtitleStream,
         currentAudioStreamList: audioStreams,
         currentSubtitleStreamList: subtitleStreams,
-        playLink: isUseDirectLink ? null : playUrl,
-        isUseDirectLink: isUseDirectLink,
+        playLink: resolved.playLinkRaw ?? resolved.playUri,
+        isUseDirectLink: resolved.isDirectLink,
         playConfig: playInfo.playConfig,
         streamInfo: streamInfo,
         isEpisode: playInfo.item.type == 'Episode',
       );
 
-      // Open media
-      await _player!.open(Media(playUrl));
+      final headers = _buildPlayerHeaders();
+      await _player!.open(
+        Media(
+          resolved.playUri,
+          httpHeaders: headers.isEmpty ? null : headers,
+        ),
+      );
 
-      // Resume from last position
-      if (playInfo.ts > 0) {
-        await _player!.seek(Duration(milliseconds: playInfo.ts));
+      if (resolved.effectiveStartMs > 0) {
+        await _player!.seek(Duration(milliseconds: resolved.effectiveStartMs));
       }
 
-      // Set initial volume
       _volume = ref.read(playerSettingsManagerProvider).getVolume();
       await _player!.setVolume(_volume * 100);
 
-      // Set initial speed
       _speed = ref.read(playerSettingsManagerProvider).getSpeed();
       await _player!.setRate(_speed);
-
-      // Get qualities if using HLS
-      if (!isUseDirectLink) {
-        try {
-          _qualities = await playerService.getQualities(playUrl);
-          if (_qualities.isNotEmpty) {
-            _currentResolution = _qualities.first.resolution;
-            _currentBitrate = _qualities.first.bitrate;
-          }
-        } catch (_) {
-          // Ignore quality errors
-        }
-      }
 
       setState(() {
         _isLoading = false;
         _isInitialized = true;
-        _duration = currentVideoStream?.duration ?? playInfo.item.duration * 1000;
+        _duration = currentVideoStream.duration > 0
+            ? currentVideoStream.duration * 1000
+            : playInfo.item.duration * 1000;
+        _currentResolution = _currentQuality?.resolution ?? '';
+        _currentBitrate = _currentQuality?.bitrate;
       });
 
-      // Start play record timer
       _startPlayRecordTimer();
-
     } catch (e) {
       debugPrint('[Player] Error loading media: $e');
       _toastManager.showToast(
@@ -290,33 +468,94 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _onQualitySelected(QualityResponse quality) async {
-    if (_playingInfoCache?.playLink == null) return;
+    final playInfo = _playInfo;
+    final streamInfo = _streamInfo;
+    final videoStream = streamInfo?.videoStream;
+    final fileStream = streamInfo?.fileStream;
+    if (playInfo == null ||
+        streamInfo == null ||
+        videoStream == null ||
+        fileStream == null ||
+        _player == null) {
+      return;
+    }
 
     try {
+      setState(() => _isLoading = true);
+
+      final prefs = ref.read(preferencesManagerProvider);
+      final baseUrl = prefs.getBaseUrl() ?? '';
       final playerService = ref.read(playerServiceProvider);
-      final newPlayLink = await playerService.setQuality(
-        playLink: _playingInfoCache!.playLink!,
-        resolution: quality.resolution,
-        bitrate: quality.bitrate,
+      final dio = ref.read(dioClientProvider).dio;
+
+      final audioStreams = streamInfo.audioStreams ?? [];
+      final currentAudioStream = audioStreams
+              .where((s) => s.guid == (widget.audioGuid ?? playInfo.audioGuid))
+              .firstOrNull ??
+          audioStreams.where((s) => s.isDefault == 1).firstOrNull ??
+          audioStreams.firstOrNull;
+      final audioGuid =
+          widget.audioGuid ?? currentAudioStream?.guid ?? playInfo.audioGuid;
+
+      final subtitleStreams = streamInfo.subtitleStreams ?? [];
+      final currentSubtitleStream = widget.subtitleGuid != null
+          ? subtitleStreams
+              .where((s) => s.guid == widget.subtitleGuid)
+              .firstOrNull
+          : subtitleStreams.where((s) => s.isDefault == 1).firstOrNull;
+      final subtitleGuid =
+          widget.subtitleGuid ?? currentSubtitleStream?.guid;
+
+      final currentPosition = _player!.state.position.inMilliseconds;
+      _currentQuality = quality;
+
+      final qualities = streamInfo.qualities ?? [];
+      final resolved = await _resolvePlayLink(
+        playInfo: playInfo,
+        videoStream: videoStream,
+        fileStream: fileStream,
+        audioGuid: audioGuid,
+        subtitleGuid: subtitleGuid,
+        qualities: qualities,
+        startPositionMs: currentPosition,
+        baseUrl: baseUrl,
+        playerService: playerService,
+        dio: dio,
       );
 
-      // Store current position
-      final currentPosition = _player?.state.position.inMilliseconds ?? 0;
+      if (!resolved.isDirectLink && resolved.playLinkRaw != null) {
+        try {
+          _qualities = await playerService.getQualities(resolved.playLinkRaw!);
+        } catch (_) {
+          // Ignore quality list errors
+        }
+      }
 
-      // Open new quality stream
-      await _player!.open(Media(newPlayLink));
+      _playingInfoCache = _playingInfoCache?.copyWith(
+        playLink: resolved.playLinkRaw ?? resolved.playUri,
+        isUseDirectLink: resolved.isDirectLink,
+      );
 
-      // Seek to stored position
-      if (currentPosition > 0) {
-        await _player!.seek(Duration(milliseconds: currentPosition));
+      final headers = _buildPlayerHeaders();
+      await _player!.open(
+        Media(
+          resolved.playUri,
+          httpHeaders: headers.isEmpty ? null : headers,
+        ),
+      );
+
+      if (resolved.effectiveStartMs > 0) {
+        await _player!.seek(Duration(milliseconds: resolved.effectiveStartMs));
       }
 
       setState(() {
+        _isLoading = false;
         _currentResolution = quality.resolution;
         _currentBitrate = quality.bitrate;
       });
     } catch (e) {
       _toastManager.showToast('切换画质失败: $e', type: ToastType.failed);
+      setState(() => _isLoading = false);
     }
   }
 
@@ -352,7 +591,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             child: Container(
               color: Colors.black,
               child: _isInitialized && _videoController != null
-                  ? Video(controller: _videoController!)
+                  ? Video(
+                      controller: _videoController!,
+                      controls: NoVideoControls,
+                    )
                   : const Center(child: ProgressRing()),
             ),
           ),

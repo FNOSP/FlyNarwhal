@@ -105,25 +105,25 @@ Map<String, dynamic> _$SubtitleSettingsToJson(SubtitleSettings instance) =>
 
 PlayPlayResponse _$PlayPlayResponseFromJson(Map<String, dynamic> json) =>
     PlayPlayResponse(
-      playLink: json['playLink'] as String,
+      playLink: json['play_link'] as String,
     );
 
 Map<String, dynamic> _$PlayPlayResponseToJson(PlayPlayResponse instance) =>
     <String, dynamic>{
-      'playLink': instance.playLink,
+      'play_link': instance.playLink,
     };
 
 MediaResetQualityResponse _$MediaResetQualityResponseFromJson(
         Map<String, dynamic> json) =>
     MediaResetQualityResponse(
-      playLink: json['playLink'] as String,
+      playLink: json['play_link'] as String,
       position: (json['position'] as num).toInt(),
     );
 
 Map<String, dynamic> _$MediaResetQualityResponseToJson(
         MediaResetQualityResponse instance) =>
     <String, dynamic>{
-      'playLink': instance.playLink,
+      'play_link': instance.playLink,
       'position': instance.position,
     };
 
@@ -183,16 +183,30 @@ Map<String, dynamic> _$MediaPRequestToJson(MediaPRequest instance) =>
 
 PlayPlayRequest _$PlayPlayRequestFromJson(Map<String, dynamic> json) =>
     PlayPlayRequest(
-      guid: json['guid'] as String,
-      mediaGuid: json['media_guid'] as String?,
-      audioGuid: json['audio_guid'] as String?,
-      subtitleGuid: json['subtitle_guid'] as String?,
+      mediaGuid: json['media_guid'] as String,
+      videoGuid: json['video_guid'] as String,
+      videoEncoder: json['video_encoder'] as String,
+      resolution: json['resolution'] as String,
+      bitrate: (json['bitrate'] as num).toInt(),
+      startTimestamp: (json['startTimestamp'] as num?)?.toInt() ?? 0,
+      audioEncoder: json['audio_encoder'] as String? ?? 'aac',
+      audioGuid: json['audio_guid'] as String,
+      subtitleGuid: json['subtitle_guid'] as String? ?? '',
+      channels: (json['channels'] as num?)?.toInt() ?? 2,
+      forcedSdr: (json['forced_sdr'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$PlayPlayRequestToJson(PlayPlayRequest instance) =>
     <String, dynamic>{
-      'guid': instance.guid,
       'media_guid': instance.mediaGuid,
+      'video_guid': instance.videoGuid,
+      'video_encoder': instance.videoEncoder,
+      'resolution': instance.resolution,
+      'bitrate': instance.bitrate,
+      'startTimestamp': instance.startTimestamp,
+      'audio_encoder': instance.audioEncoder,
       'audio_guid': instance.audioGuid,
       'subtitle_guid': instance.subtitleGuid,
+      'channels': instance.channels,
+      'forced_sdr': instance.forcedSdr,
     };
