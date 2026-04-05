@@ -47,8 +47,12 @@ class MoviePoster extends ConsumerStatefulWidget {
   final String? guid;
   final String? mediaTitle;
   final int? seasonNumber;
-  final Function(String guid, bool currentState, Function(bool success) callback)? onFavoriteToggle;
-  final Function(String guid, bool currentState, Function(bool success) callback)? onWatchedToggle;
+  final Function(
+          String guid, bool currentState, Function(bool success) callback)?
+      onFavoriteToggle;
+  final Function(
+          String guid, bool currentState, Function(bool success) callback)?
+      onWatchedToggle;
 
   const MoviePoster({
     super.key,
@@ -79,7 +83,8 @@ class MoviePoster extends ConsumerStatefulWidget {
   ConsumerState<MoviePoster> createState() => _MoviePosterState();
 }
 
-class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProviderStateMixin {
+class _MoviePosterState extends ConsumerState<MoviePoster>
+    with SingleTickerProviderStateMixin {
   bool _isPlayButtonHovered = false;
   bool _isFavorite = false;
   bool _isWatched = false;
@@ -109,7 +114,9 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
     final token = prefs.getToken();
     final cookie = prefs.getCookie();
     final resolvedPosterPath = widget.posterPath?.trim();
-    final imageUrl = resolvedPosterPath != null && resolvedPosterPath.isNotEmpty && baseUrl != null
+    final imageUrl = resolvedPosterPath != null &&
+            resolvedPosterPath.isNotEmpty &&
+            baseUrl != null
         ? '$baseUrl/v/api/v1/sys/img$resolvedPosterPath${resolvedPosterPath.contains('?') ? '' : '?w=400'}'
         : null;
     final httpHeaders = token != null || (cookie != null && cookie.isNotEmpty)
@@ -128,11 +135,13 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
     final displayResolutions = normalizeResolutions(widget.resolutions);
     final mediaType = FnMediaType.fromString(widget.type);
     final showFavoriteButton = mediaType != FnMediaType.season;
+    final actionInset = 8.0 * scaleFactor;
 
     // Play button sizes (matching Kotlin implementation)
     final normalPlayButtonSize = 48.0 * scaleFactor;
     final hoveredPlayButtonSize = 56.0 * scaleFactor;
-    final playButtonSize = _isPlayButtonHovered ? hoveredPlayButtonSize : normalPlayButtonSize;
+    final playButtonSize =
+        _isPlayButtonHovered ? hoveredPlayButtonSize : normalPlayButtonSize;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -150,7 +159,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                   width: scaledWidth,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14 * scaleFactor),
-                    border: Border.all(color: Colors.grey[160].withValues(alpha: 0.6)),
+                    border: Border.all(
+                        color: Colors.grey[160].withValues(alpha: 0.6)),
                     color: Colors.grey[160],
                   ),
                   clipBehavior: Clip.antiAlias,
@@ -164,8 +174,10 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                           cacheManager: cacheManager,
                           fit: BoxFit.fitWidth,
                           fadeOutDuration: const Duration(milliseconds: 120),
-                          errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
-                          placeholder: (context, url) => const ImgLoadingProgressRing(),
+                          errorWidget: (context, url, error) =>
+                              const Center(child: Icon(FluentIcons.error)),
+                          placeholder: (context, url) =>
+                              const ImgLoadingProgressRing(),
                         )
                       else
                         const Center(child: Icon(FluentIcons.file_image)),
@@ -174,7 +186,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                           top: 4,
                           left: 4,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.5),
                               borderRadius: BorderRadius.circular(4),
@@ -201,7 +214,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                                 begin: Alignment.bottomCenter,
                                 end: Alignment.topCenter,
                                 colors: [
-                                  const Color(0xFF1C1C1C).withValues(alpha: 0.8),
+                                  const Color(0xFF1C1C1C)
+                                      .withValues(alpha: 0.8),
                                   Colors.transparent,
                                 ],
                               ),
@@ -219,8 +233,12 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                               final lowerResolution = resolution.toLowerCase();
                               final isK = lowerResolution.endsWith('k');
                               final isP = lowerResolution.endsWith('p');
-                              final label =
-                                  isK ? resolution.toUpperCase() : (isP ? resolution.substring(0, resolution.length - 1) : resolution);
+                              final label = isK
+                                  ? resolution.toUpperCase()
+                                  : (isP
+                                      ? resolution.substring(
+                                          0, resolution.length - 1)
+                                      : resolution);
                               return Padding(
                                 padding: EdgeInsets.only(left: 4 * scaleFactor),
                                 child: Container(
@@ -231,23 +249,33 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                                     0.2 * scaleFactor,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: isK ? Colors.white.withValues(alpha: 0.8) : Colors.transparent,
+                                    color: isK
+                                        ? Colors.white.withValues(alpha: 0.8)
+                                        : Colors.transparent,
                                     border: isK
                                         ? null
                                         : Border.all(
-                                            color: Colors.white.withValues(alpha: 0.6),
-                                          width: 2 * scaleFactor,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.6),
+                                            width: 2 * scaleFactor,
                                           ),
-                                    borderRadius: BorderRadius.circular(4 * scaleFactor),
+                                    borderRadius:
+                                        BorderRadius.circular(4 * scaleFactor),
                                   ),
                                   child: Transform.translate(
                                     offset: Offset(0, -0.6 * scaleFactor),
                                     child: Text(
                                       label,
                                       style: TextStyle(
-                                        color: isK ? Colors.black.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.6),
+                                        color: isK
+                                            ? Colors.black
+                                                .withValues(alpha: 0.6)
+                                            : Colors.white
+                                                .withValues(alpha: 0.6),
                                         fontSize: (isK ? 12 : 10) * scaleFactor,
-                                        fontWeight: isK ? FontWeight.w800 : FontWeight.bold,
+                                        fontWeight: isK
+                                            ? FontWeight.w800
+                                            : FontWeight.bold,
                                       ),
                                     ),
                                   ),
@@ -264,17 +292,22 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                         ),
                       ),
                       // Show play button for Movie and Video types
-                      if (mediaType == FnMediaType.movie || mediaType == FnMediaType.video || widget.onPlayTap != null)
+                      if (mediaType == FnMediaType.movie ||
+                          mediaType == FnMediaType.video ||
+                          widget.onPlayTap != null)
                         Center(
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 200),
                             opacity: isHovered ? 1 : 0,
                             child: MouseRegion(
                               cursor: SystemMouseCursors.click,
-                              onEnter: (_) => setState(() => _isPlayButtonHovered = true),
-                              onExit: (_) => setState(() => _isPlayButtonHovered = false),
+                              onEnter: (_) =>
+                                  setState(() => _isPlayButtonHovered = true),
+                              onExit: (_) =>
+                                  setState(() => _isPlayButtonHovered = false),
                               child: GestureDetector(
-                                onTap: widget.onPlayTap ?? () => _handlePlay(context),
+                                onTap: widget.onPlayTap ??
+                                    () => _handlePlay(context),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   width: playButtonSize,
@@ -294,48 +327,58 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                           ),
                         ),
                       Positioned(
-                        left: 8,
-                        bottom: 8,
+                        left: actionInset,
+                        bottom: actionInset,
                         child: AnimatedOpacity(
                           duration: const Duration(milliseconds: 200),
                           opacity: isHovered ? 1 : 0,
-                          child: Row(
-                            children: [
-                              _PosterIconButton(
-                                icon: FluentIcons.check_mark,
-                                isActive: _isWatched,
-                                activeColor: kAccentColorDefault,
-                                scaleFactor: scaleFactor,
-                                onPressed: _handleWatchedToggle,
-                              ),
-                              if (showFavoriteButton)
-                                _PosterIconButton(
-                                  icon: FluentIcons.favorite_star,
-                                  isActive: _isFavorite,
-                                  activeColor: kDangerDefaultColor,
-                                  scaleFactor: scaleFactor,
-                                  onPressed: _handleFavoriteToggle,
-                                ),
-                            ],
+                          child: _PosterIconButton(
+                            svgAssetPath: _isWatched
+                                ? 'assets/images/watched_fill.svg'
+                                : 'assets/images/watched.svg',
+                            isActive: _isWatched,
+                            activeColor: kAccentColorDefault,
+                            scaleFactor: scaleFactor,
+                            onPressed: _handleWatchedToggle,
                           ),
                         ),
                       ),
-                      if (widget.onMoreTap != null)
+                      if (showFavoriteButton)
                         Positioned(
-                          right: 8,
-                          bottom: 8,
+                          left: 0,
+                          right: 0,
+                          bottom: actionInset,
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 200),
                             opacity: isHovered ? 1 : 0,
-                            child: _PosterIconButton(
-                              icon: FluentIcons.more,
-                              isActive: false,
-                              activeColor: Colors.white,
-                              scaleFactor: scaleFactor,
-                              onPressed: widget.onMoreTap,
+                            child: Center(
+                              child: _PosterIconButton(
+                                svgAssetPath: _isFavorite
+                                    ? 'assets/images/favorite_fill.svg'
+                                    : 'assets/images/favorite.svg',
+                                isActive: _isFavorite,
+                                activeColor: kDangerDefaultColor,
+                                scaleFactor: scaleFactor,
+                                onPressed: _handleFavoriteToggle,
+                              ),
                             ),
                           ),
                         ),
+                      Positioned(
+                        right: actionInset,
+                        bottom: actionInset,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: isHovered ? 1 : 0,
+                          child: _PosterIconButton(
+                            icon: FluentIcons.more,
+                            isActive: false,
+                            activeColor: Colors.white,
+                            scaleFactor: scaleFactor,
+                            onPressed: widget.onMoreTap,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -350,7 +393,9 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                     style: theme.typography.caption?.copyWith(
                       fontWeight: FontWeight.normal,
                       fontSize: 12 * scaleFactor,
-                      color: isHovered ? const Color(0xFF2073DF) : theme.typography.body?.color,
+                      color: isHovered
+                          ? const Color(0xFF2073DF)
+                          : theme.typography.body?.color,
                     ),
                   ),
                 ),
@@ -366,7 +411,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
                       style: theme.typography.caption?.copyWith(
                         fontWeight: FontWeight.normal,
                         fontSize: 11 * scaleFactor,
-                        color: theme.typography.caption?.color?.withValues(alpha: 0.7),
+                        color: theme.typography.caption?.color
+                            ?.withValues(alpha: 0.7),
                       ),
                     ),
                   ),
@@ -450,14 +496,16 @@ class _MoviePosterState extends ConsumerState<MoviePoster> with SingleTickerProv
 
 // Poster icon button with hover effect
 class _PosterIconButton extends StatefulWidget {
-  final IconData icon;
+  final IconData? icon;
+  final String? svgAssetPath;
   final bool isActive;
   final Color activeColor;
   final double scaleFactor;
   final VoidCallback? onPressed;
 
   const _PosterIconButton({
-    required this.icon,
+    this.icon,
+    this.svgAssetPath,
     required this.isActive,
     required this.activeColor,
     required this.scaleFactor,
@@ -495,16 +543,29 @@ class _PosterIconButtonState extends State<_PosterIconButton> {
                 width: buttonSize,
                 height: buttonSize,
                 decoration: BoxDecoration(
-                  color: _isHovered ? Colors.black.withValues(alpha: 0.5) : Colors.transparent,
+                  color: _isHovered
+                      ? Colors.black.withValues(alpha: 0.5)
+                      : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
               ),
               // Icon
-              Icon(
-                widget.icon,
-                size: iconSize,
-                color: widget.isActive ? widget.activeColor : Colors.white,
-              ),
+              if (widget.svgAssetPath != null)
+                SvgPicture.asset(
+                  widget.svgAssetPath!,
+                  width: iconSize,
+                  height: iconSize,
+                  colorFilter: ColorFilter.mode(
+                    widget.isActive ? widget.activeColor : Colors.white,
+                    BlendMode.srcIn,
+                  ),
+                )
+              else if (widget.icon != null)
+                Icon(
+                  widget.icon,
+                  size: iconSize,
+                  color: widget.isActive ? widget.activeColor : Colors.white,
+                ),
             ],
           ),
         ),

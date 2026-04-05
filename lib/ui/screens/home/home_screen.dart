@@ -18,6 +18,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   late final ToastManager _toastManager = ToastManager();
+  late final ScrollController _scrollController = ScrollController();
   
   // Pending callbacks for favorite/watched operations
   Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
@@ -25,6 +26,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   
   // Track items to be removed from recently watched
   Set<String> _itemsToBeRemoved = {};
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,8 +63,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               Expanded(
                 child: Scrollbar(
+                  controller: _scrollController,
                   child: ListView(
+                    controller: _scrollController,
                     padding: const EdgeInsets.only(bottom: 16),
+                    primary: false,
                     children: [
                       mediaDbListAsync.when(
                         data: (data) => MediaLibCardRow(

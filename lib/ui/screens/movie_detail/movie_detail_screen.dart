@@ -324,6 +324,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
 
     final iso3166Map = widget.state.iso3166;
     final textColor = FluentTheme.of(context).typography.body?.color;
+    final resolvedTextColor = textColor ?? Colors.white;
     final isFavorite = item.isFavorite == 1;
     final isWatched = item.isWatched == 1;
 
@@ -426,24 +427,37 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                             CircleIconButton(
                               icon: item.isFavorite == 1 ? FluentIcons.heart_fill : FluentIcons.heart,
                               iconColor: textColor,
-                              iconWidget: isFavorite
-                                  ? SvgPicture.asset(
-                                      'assets/images/heart_fill.svg',
-                                      width: 22,
-                                      height: 22,
-                                      colorFilter: const ColorFilter.mode(
-                                        Color(0xFFFF0420),
-                                        BlendMode.srcIn,
-                                      ),
-                                    )
-                                  : null,
+                              iconWidget: SvgPicture.asset(
+                                isFavorite
+                                    ? 'assets/images/favorite_fill.svg'
+                                    : 'assets/images/favorite.svg',
+                                width: 22,
+                                height: 22,
+                                colorFilter: ColorFilter.mode(
+                                  isFavorite
+                                      ? const Color(0xFFFF0420)
+                                      : resolvedTextColor,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
                               tooltip: item.isFavorite == 1 ? '取消收藏' : '加入收藏',
                               onPressed: _handleToggleFavorite,
                             ),
                             const SizedBox(width: 16),
                             CircleIconButton(
-                              icon: item.isWatched == 1 ? FluentIcons.check_mark : FluentIcons.check_mark,
+                              icon: FluentIcons.check_mark,
                               iconColor: isWatched ? kAccentColor : textColor,
+                              iconWidget: SvgPicture.asset(
+                                item.isWatched == 1
+                                    ? 'assets/images/watched_fill.svg'
+                                    : 'assets/images/watched.svg',
+                                width: 22,
+                                height: 22,
+                                colorFilter: ColorFilter.mode(
+                                  isWatched ? kAccentColor : resolvedTextColor,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
                               tooltip: item.isWatched == 1 ? '标记为未看' : '标记为已看',
                               onPressed: _handleToggleWatched,
                             ),

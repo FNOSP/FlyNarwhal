@@ -93,9 +93,11 @@ class _TvSeasonDetailContent extends ConsumerStatefulWidget {
 
 class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> {
   late final ToastManager _toastManager = ToastManager();
+  late final ScrollController _descriptionScrollController = ScrollController();
 
   @override
   void dispose() {
+    _descriptionScrollController.dispose();
     _toastManager.dispose();
     super.dispose();
   }
@@ -118,12 +120,18 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
   }
 
   void _showDescriptionDialog(BuildContext context, ItemResponse item) {
+    if (_descriptionScrollController.hasClients) {
+      _descriptionScrollController.jumpTo(0);
+    }
     showDialog(
       context: context,
       builder: (context) => ContentDialog(
         title: const Text('剧集简介'),
         content: Scrollbar(
+          controller: _descriptionScrollController,
           child: SingleChildScrollView(
+            controller: _descriptionScrollController,
+            primary: false,
             child: Text(
               item.overview ?? '暂无介绍',
               style: FluentTheme.of(context).typography.body?.copyWith(height: 1.6),

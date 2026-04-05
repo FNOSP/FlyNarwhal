@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
+import 'package:flutter_cache_manager/flutter_cache_manager.dart'
+    as cache_manager;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -11,11 +13,14 @@ import '../../../data/utils/fn_data_convertor.dart';
 import '../../../providers/providers.dart';
 import '../../widgets/img_loading_progress_ring.dart';
 import '../../widgets/movie_poster.dart';
+import '../../widgets/toast.dart';
 import 'tv_detail_view_model.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   if (baseUrl.isEmpty || path.isEmpty) return '';
-  final normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+  final normalizedBaseUrl = baseUrl.endsWith('/')
+      ? baseUrl.substring(0, baseUrl.length - 1)
+      : baseUrl;
   return '$normalizedBaseUrl/v/api/v1/sys/img$path';
 }
 
@@ -60,7 +65,9 @@ class TvDetailScreen extends ConsumerWidget {
                 cursor: SystemMouseCursors.click,
                 child: Button(
                   child: const Text('重试'),
-                  onPressed: () => ref.read(tvDetailNotifierProvider(guid).notifier).refresh(),
+                  onPressed: () => ref
+                      .read(tvDetailNotifierProvider(guid).notifier)
+                      .refresh(),
                 ),
               ),
             ],
@@ -91,6 +98,16 @@ class _TvDetailContent extends ConsumerStatefulWidget {
 }
 
 class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
+  late final ToastManager _toastManager = ToastManager();
+  late final ScrollController _descriptionScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _descriptionScrollController.dispose();
+    _toastManager.dispose();
+    super.dispose();
+  }
+
   void _handleBackNavigation(BuildContext context) {
     final previousPath = ref.read(navigationStackProvider.notifier).pop();
     if (previousPath != null && previousPath.isNotEmpty) {
@@ -100,15 +117,79 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     context.go('/home');
   }
 
+  Future<void> _handleToggleFavorite() async {
+    final result = await ref
+        .read(tvDetailNotifierProvider(widget.guid).notifier)
+        .toggleFavorite();
+    if (!mounted) return;
+    if (result.success) {
+      _toastManager.showToast(
+        result.message,
+        type: ToastType.success,
+        category: 'favorite_${widget.guid}',
+      );
+    } else {
+      _toastManager.showToast(
+        '操作失败，${result.message}',
+        type: ToastType.failed,
+        category: 'favorite_${widget.guid}',
+      );
+    }
+  }
+
+  Future<void> _handleToggleWatched() async {
+    final result = await ref
+        .read(tvDetailNotifierProvider(widget.guid).notifier)
+        .toggleWatched();
+    if (!mounted) return;
+    if (result.success) {
+      _toastManager.showToast(
+        result.message,
+        type: ToastType.success,
+        category: 'watched_${widget.guid}',
+      );
+    } else {
+      _toastManager.showToast(
+        '操作失败，${result.message}',
+        type: ToastType.failed,
+        category: 'watched_${widget.guid}',
+      );
+    }
+  }
+
+  Future<bool> _handleToggleSeasonWatched(
+      String seasonGuid, bool isWatched) async {
+    final result = await ref
+        .read(tvDetailNotifierProvider(widget.guid).notifier)
+        .toggleSeasonWatched(seasonGuid, isWatched);
+    if (!mounted) return false;
+    if (result.success) {
+      _toastManager.showToast(
+        result.message,
+        type: ToastType.success,
+        category: 'season_watched_$seasonGuid',
+      );
+    } else {
+      _toastManager.showToast(
+        '操作失败，${result.message}',
+        type: ToastType.failed,
+        category: 'season_watched_$seasonGuid',
+      );
+    }
+    return result.success;
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.state.item;
     if (item == null) return const Center(child: Text('未找到剧集信息'));
 
     final windowHeight = MediaQuery.of(context).size.height;
-    final backdropPath = (item.backdrops?.isNotEmpty ?? false) ? item.backdrops! : item.posters;
+    final backdropPath =
+        (item.backdrops?.isNotEmpty ?? false) ? item.backdrops! : item.posters;
     final backdropUrl = _buildImageUrl(widget.baseUrl, backdropPath);
-    final logoUrl = item.logos != null ? _buildImageUrl(widget.baseUrl, item.logos!) : '';
+    final logoUrl =
+        item.logos != null ? _buildImageUrl(widget.baseUrl, item.logos!) : '';
 
     return Stack(
       children: [
@@ -156,7 +237,10 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                               item.title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: FluentTheme.of(context).typography.titleLarge?.copyWith(
+                              style: FluentTheme.of(context)
+                                  .typography
+                                  .titleLarge
+                                  ?.copyWith(
                                     fontSize: 60,
                                     fontWeight: FontWeight.w600,
                                     color: Colors.white,
@@ -188,26 +272,30 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                 ),
               ),
             ),
-            
+
             // Season List
             if (widget.state.seasonList.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 24),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 48.0, vertical: 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         '剧集列表',
-                        style: FluentTheme.of(context).typography.subtitle?.copyWith(fontWeight: FontWeight.bold),
+                        style: FluentTheme.of(context)
+                            .typography
+                            .subtitle
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 24),
                       _SeasonListGrid(
                         seasons: widget.state.seasonList,
                         itemTitle: item.title,
                         scaleFactor: 1.0,
-                        onWatchedToggle: (guid, isWatched, success) {
-                            ref.read(tvDetailNotifierProvider(widget.guid).notifier).toggleSeasonWatched(guid, isWatched);
+                        onWatchedToggle: (guid, isWatched) async {
+                          return _handleToggleSeasonWatched(guid, isWatched);
                         },
                       ),
                     ],
@@ -219,13 +307,17 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
             if (widget.state.personList.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 24),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 48.0, vertical: 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         '演职员',
-                        style: FluentTheme.of(context).typography.subtitle?.copyWith(fontWeight: FontWeight.bold),
+                        style: FluentTheme.of(context)
+                            .typography
+                            .subtitle
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 24),
                       SizedBox(
@@ -233,7 +325,8 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: widget.state.personList.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 24),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 24),
                           itemBuilder: (context, index) {
                             final person = widget.state.personList[index];
                             return _PersonCard(
@@ -249,53 +342,66 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                   ),
                 ),
               ),
-              
-             if (item.imdbId != null && item.imdbId!.isNotEmpty)
-               SliverToBoxAdapter(
-                 child: Padding(
-                   padding: const EdgeInsets.fromLTRB(48, 24, 48, 48),
-                   child: MouseRegion(
-                     cursor: SystemMouseCursors.click,
-                     child: HyperlinkButton(
-                      child: Row(
+
+            if (item.imdbId != null && item.imdbId!.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(48, 24, 48, 48),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: HyperlinkButton(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text('在 IMDb 上查看'),
-                          const SizedBox(width: 8),
-                          const Icon(FluentIcons.open_in_new_window, size: 12),
+                          Text('在 IMDb 上查看'),
+                          SizedBox(width: 8),
+                          Icon(FluentIcons.open_in_new_window, size: 12),
                         ],
                       ),
-                      onPressed: () => launchUrl(Uri.parse(FnDataConvertor.getImdbLink(item.imdbId))),
+                      onPressed: () => launchUrl(
+                          Uri.parse(FnDataConvertor.getImdbLink(item.imdbId))),
                     ),
-                   ),
-                 ),
-               ),
+                  ),
+                ),
+              ),
           ],
         ),
         Padding(
-            padding: const EdgeInsets.only(top: 24, left: 24),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: IconButton(
-                  icon: const Icon(FluentIcons.back, size: 24),
-                  onPressed: () => _handleBackNavigation(context),
-              ),
+          padding: const EdgeInsets.only(top: 24, left: 24),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: IconButton(
+              icon: const Icon(FluentIcons.back, size: 24),
+              onPressed: () => _handleBackNavigation(context),
             ),
+          ),
+        ),
+        Positioned.fill(
+          child: ToastHost(toastManager: _toastManager),
         ),
       ],
     );
   }
 
   void _showDescriptionDialog(BuildContext context, ItemResponse item) {
+    if (_descriptionScrollController.hasClients) {
+      _descriptionScrollController.jumpTo(0);
+    }
     showDialog(
       context: context,
       builder: (context) => ContentDialog(
         title: const Text('剧集简介'),
         content: Scrollbar(
+          controller: _descriptionScrollController,
           child: SingleChildScrollView(
+            controller: _descriptionScrollController,
+            primary: false,
             child: Text(
               item.overview ?? '暂无介绍',
-              style: FluentTheme.of(context).typography.body?.copyWith(height: 1.6),
+              style: FluentTheme.of(context)
+                  .typography
+                  .body
+                  ?.copyWith(height: 1.6),
             ),
           ),
         ),
@@ -318,7 +424,8 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
       meta.add(_MetadataItem(text: item.releaseDate!.substring(0, 4)));
     }
     if (item.voteAverage != "0") {
-      meta.add(_MetadataItem(text: '⭐ ${item.voteAverage}', color: Colors.orange));
+      meta.add(
+          _MetadataItem(text: '⭐ ${item.voteAverage}', color: Colors.orange));
     }
     if (item.genres != null && item.genres!.isNotEmpty) {
       meta.add(_MetadataItem(text: item.genres!.join(' / ')));
@@ -334,14 +441,15 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   Widget _buildActionRow(BuildContext context, ItemResponse item) {
     final playInfo = widget.state.playInfo;
     final seasonList = widget.state.seasonList;
-    
+
     String playButtonText = '播放';
     if (playInfo != null) {
-        if (seasonList.length == 1) {
-             playButtonText = '第 ${playInfo.episodeNumber} 集';
-        } else {
-             playButtonText = '第 ${playInfo.seasonNumber} 季 第 ${playInfo.episodeNumber} 集';
-        }
+      if (seasonList.length == 1) {
+        playButtonText = '第 ${playInfo.episodeNumber} 集';
+      } else {
+        playButtonText =
+            '第 ${playInfo.seasonNumber} 季 第 ${playInfo.episodeNumber} 集';
+      }
     }
 
     return Row(
@@ -352,7 +460,9 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
             onPressed: () async {
               // Navigate to player screen
               if (playInfo != null) {
-                final targetGuid = playInfo.playItemGuid.isNotEmpty ? playInfo.playItemGuid : widget.guid;
+                final targetGuid = playInfo.playItemGuid.isNotEmpty
+                    ? playInfo.playItemGuid
+                    : widget.guid;
                 ref.read(navigationStackProvider.notifier).pushPath('/home');
                 context.go('/player/$targetGuid');
               }
@@ -365,7 +475,8 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                   const SizedBox(width: 12),
                   Text(
                     playButtonText,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -374,17 +485,43 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         ),
         const SizedBox(width: 24),
         _CircleButton(
-          icon: item.isFavorite == 1 ? FluentIcons.heart_fill : FluentIcons.heart,
+          icon:
+              item.isFavorite == 1 ? FluentIcons.heart_fill : FluentIcons.heart,
           color: item.isFavorite == 1 ? Colors.red : null,
+          iconWidget: SvgPicture.asset(
+            item.isFavorite == 1
+                ? 'assets/images/favorite_fill.svg'
+                : 'assets/images/favorite.svg',
+            width: 20,
+            height: 20,
+            colorFilter: ColorFilter.mode(
+              item.isFavorite == 1 ? const Color(0xFFFF0420) : Colors.white,
+              BlendMode.srcIn,
+            ),
+          ),
           tooltip: item.isFavorite == 1 ? '取消收藏' : '加入收藏',
-          onPressed: () => ref.read(tvDetailNotifierProvider(widget.guid).notifier).toggleFavorite(),
+          onPressed: _handleToggleFavorite,
         ),
         const SizedBox(width: 12),
         _CircleButton(
-          icon: item.isWatched == 1 ? FluentIcons.check_mark : FluentIcons.check_mark,
-          color: item.isWatched == 1 ? FluentTheme.of(context).accentColor : null,
+          icon: FluentIcons.check_mark,
+          color:
+              item.isWatched == 1 ? FluentTheme.of(context).accentColor : null,
+          iconWidget: SvgPicture.asset(
+            item.isWatched == 1
+                ? 'assets/images/watched_fill.svg'
+                : 'assets/images/watched.svg',
+            width: 20,
+            height: 20,
+            colorFilter: ColorFilter.mode(
+              item.isWatched == 1
+                  ? FluentTheme.of(context).accentColor
+                  : Colors.white,
+              BlendMode.srcIn,
+            ),
+          ),
           tooltip: item.isWatched == 1 ? '标记为未看' : '标记为已看',
-          onPressed: () => ref.read(tvDetailNotifierProvider(widget.guid).notifier).toggleWatched(),
+          onPressed: _handleToggleWatched,
         ),
         const SizedBox(width: 12),
         _CircleButton(
@@ -403,7 +540,7 @@ class _SeasonListGrid extends ConsumerWidget {
   final List<SeasonListResponse> seasons;
   final String itemTitle;
   final double scaleFactor;
-  final Function(String guid, bool isWatched, bool success) onWatchedToggle;
+  final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
 
   const _SeasonListGrid({
     required this.seasons,
@@ -415,60 +552,66 @@ class _SeasonListGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return LayoutBuilder(builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth;
-        final posterMinWidth = 128.0 * scaleFactor;
-        final posterMaxWidth = 190.0 * scaleFactor;
-        final spacing = 16.0;
-        
-        final itemsPerRow = ((availableWidth + spacing) / (posterMinWidth + spacing)).floor().clamp(1, 10);
-        double itemWidth;
-        if (itemsPerRow >= 4) {
-          final totalSpacing = spacing * (itemsPerRow - 1);
-          itemWidth = ((availableWidth - totalSpacing) / itemsPerRow).clamp(posterMinWidth, posterMaxWidth);
-        } else {
-          itemWidth = posterMinWidth;
-        }
-        final itemHeight = itemWidth * 1.5;
+      final availableWidth = constraints.maxWidth;
+      final posterMinWidth = 128.0 * scaleFactor;
+      final posterMaxWidth = 190.0 * scaleFactor;
+      const spacing = 16.0;
 
-        return Wrap(
-           spacing: spacing,
-           runSpacing: spacing,
-           children: seasons.map((season) {
-              final episodeNumber = season.episodeNumber > 0 ? season.episodeNumber : season.localNumberOfEpisodes;
-              final subtitle = season.airDate != null 
-                  ? "共 $episodeNumber 集 · ${season.airDate!.length >= 4 ? season.airDate!.substring(0, 4) : season.airDate}"
-                  : "共 $episodeNumber 集";
-              
-              return SizedBox(
-                 width: itemWidth,
-                 height: itemHeight + 60,
-                 child: MoviePoster(
-                    posterPath: season.poster,
-                    title: season.title,
-                    subtitle: subtitle,
-                    score: season.voteAverage,
-                    isFavorite: season.isFavorite == 1,
-                    isWatched: season.watched == 1,
-                    width: itemWidth,
-                    height: itemHeight,
-                    scaleFactor: scaleFactor,
-                    type: season.type,
-                    guid: season.guid,
-                    mediaTitle: itemTitle,
-                    seasonNumber: season.seasonNumber,
-                    onWatchedToggle: (guid, currentState, callback) {
-                      onWatchedToggle(guid, currentState, true);
-                      callback(true);
-                    },
-                    resolutions: season.mediaStream.resolutions,
-                    onPlayTap: () {
-                       // For Season type, navigate to season detail page
-                       context.go('/tv/season/${season.guid}');
-                    },
-                 ),
-              );
-           }).toList(),
-        );
+      final itemsPerRow =
+          ((availableWidth + spacing) / (posterMinWidth + spacing))
+              .floor()
+              .clamp(1, 10);
+      double itemWidth;
+      if (itemsPerRow >= 4) {
+        final totalSpacing = spacing * (itemsPerRow - 1);
+        itemWidth = ((availableWidth - totalSpacing) / itemsPerRow)
+            .clamp(posterMinWidth, posterMaxWidth);
+      } else {
+        itemWidth = posterMinWidth;
+      }
+      final itemHeight = itemWidth * 1.5;
+
+      return Wrap(
+        spacing: spacing,
+        runSpacing: spacing,
+        children: seasons.map((season) {
+          final episodeNumber = season.episodeNumber > 0
+              ? season.episodeNumber
+              : season.localNumberOfEpisodes;
+          final subtitle = season.airDate != null
+              ? "共 $episodeNumber 集 · ${season.airDate!.length >= 4 ? season.airDate!.substring(0, 4) : season.airDate}"
+              : "共 $episodeNumber 集";
+
+          return SizedBox(
+            width: itemWidth,
+            height: itemHeight + 60,
+            child: MoviePoster(
+              posterPath: season.poster,
+              title: season.title,
+              subtitle: subtitle,
+              score: season.voteAverage,
+              isFavorite: season.isFavorite == 1,
+              isWatched: season.watched == 1,
+              width: itemWidth,
+              height: itemHeight,
+              scaleFactor: scaleFactor,
+              type: season.type,
+              guid: season.guid,
+              mediaTitle: itemTitle,
+              seasonNumber: season.seasonNumber,
+              onWatchedToggle: (guid, currentState, callback) async {
+                final success = await onWatchedToggle(guid, currentState);
+                callback(success);
+              },
+              resolutions: season.mediaStream.resolutions,
+              onPlayTap: () {
+                // For Season type, navigate to season detail page
+                context.go('/tv/season/${season.guid}');
+              },
+            ),
+          );
+        }).toList(),
+      );
     });
   }
 }
@@ -603,12 +746,14 @@ class _OverviewSection extends StatelessWidget {
 class _CircleButton extends StatelessWidget {
   final IconData icon;
   final Color? color;
+  final Widget? iconWidget;
   final String tooltip;
   final VoidCallback onPressed;
 
   const _CircleButton({
     required this.icon,
     this.color,
+    this.iconWidget,
     required this.tooltip,
     required this.onPressed,
   });
@@ -619,13 +764,13 @@ class _CircleButton extends StatelessWidget {
       message: tooltip,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           shape: BoxShape.circle,
         ),
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: IconButton(
-            icon: Icon(icon, color: color, size: 20),
+            icon: iconWidget ?? Icon(icon, color: color, size: 20),
             onPressed: onPressed,
           ),
         ),
@@ -645,7 +790,7 @@ class _MetadataItem extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -701,7 +846,10 @@ class _PersonCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             person.name,
-            style: FluentTheme.of(context).typography.bodyStrong?.copyWith(fontSize: 14),
+            style: FluentTheme.of(context)
+                .typography
+                .bodyStrong
+                ?.copyWith(fontSize: 14),
             maxLines: 1,
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
@@ -711,7 +859,11 @@ class _PersonCard extends StatelessWidget {
             person.job == 'Actor' ? '饰 ${person.role}' : person.job,
             style: FluentTheme.of(context).typography.caption?.copyWith(
                   fontSize: 12,
-                  color: FluentTheme.of(context).typography.caption?.color?.withOpacity(0.6),
+                  color: FluentTheme.of(context)
+                      .typography
+                      .caption
+                      ?.color
+                      ?.withValues(alpha: 0.6),
                 ),
             maxLines: 1,
             textAlign: TextAlign.center,

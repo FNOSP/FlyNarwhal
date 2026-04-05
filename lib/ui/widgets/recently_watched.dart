@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/models/home_models.dart';
 import '../../providers/providers.dart';
@@ -281,14 +282,18 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
                                 child: Row(
                                   children: [
                                     _PosterIconButton(
-                                      icon: FluentIcons.check_mark,
+                                      svgAssetPath: _isWatched
+                                          ? 'assets/images/watched_fill.svg'
+                                          : 'assets/images/watched.svg',
                                       isActive: _isWatched,
                                       activeColor: kAccentColorDefault,
                                       scaleFactor: scaleFactor,
                                       onPressed: _handleWatchedToggle,
                                     ),
                                     _PosterIconButton(
-                                      icon: FluentIcons.favorite_star,
+                                      svgAssetPath: _isFavorite
+                                          ? 'assets/images/favorite_fill.svg'
+                                          : 'assets/images/favorite.svg',
                                       isActive: _isFavorite,
                                       activeColor: kDangerDefaultColor,
                                       scaleFactor: scaleFactor,
@@ -354,14 +359,16 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
 
 // Poster icon button with hover effect
 class _PosterIconButton extends StatefulWidget {
-  final IconData icon;
+  final IconData? icon;
+  final String? svgAssetPath;
   final bool isActive;
   final Color activeColor;
   final double scaleFactor;
   final VoidCallback? onPressed;
 
   const _PosterIconButton({
-    required this.icon,
+    this.icon,
+    this.svgAssetPath,
     required this.isActive,
     required this.activeColor,
     required this.scaleFactor,
@@ -404,11 +411,22 @@ class _PosterIconButtonState extends State<_PosterIconButton> {
                 ),
               ),
               // Icon
-              Icon(
-                widget.icon,
-                size: iconSize,
-                color: widget.isActive ? widget.activeColor : Colors.white,
-              ),
+              if (widget.svgAssetPath != null)
+                SvgPicture.asset(
+                  widget.svgAssetPath!,
+                  width: iconSize,
+                  height: iconSize,
+                  colorFilter: ColorFilter.mode(
+                    widget.isActive ? widget.activeColor : Colors.white,
+                    BlendMode.srcIn,
+                  ),
+                )
+              else if (widget.icon != null)
+                Icon(
+                  widget.icon,
+                  size: iconSize,
+                  color: widget.isActive ? widget.activeColor : Colors.white,
+                ),
             ],
           ),
         ),
