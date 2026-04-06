@@ -1,24 +1,34 @@
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
+import 'package:flutter_cache_manager/flutter_cache_manager.dart'
+    as cache_manager;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
-import '../../../data/utils/fn_data_convertor.dart';
 import '../../../providers/providers.dart';
 import '../../widgets/cast_scroll_row.dart';
+import '../../widgets/scroll_row.dart';
 import '../../widgets/toast.dart';
 import '../movie_detail/detail_components.dart';
 import 'tv_season_detail_view_model.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   if (baseUrl.isEmpty || path.isEmpty) return '';
-  final normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+  final normalizedBaseUrl = baseUrl.endsWith('/')
+      ? baseUrl.substring(0, baseUrl.length - 1)
+      : baseUrl;
   return '$normalizedBaseUrl/v/api/v1/sys/img$path';
 }
+
+const double _episodePosterHeight = 140;
+const double _episodePosterWidth = _episodePosterHeight * 16 / 9;
+const double _episodeCardSpacing = 16;
+const double _episodeRowHeight = 244;
 
 class TvSeasonDetailScreen extends ConsumerWidget {
   final String guid;
@@ -61,7 +71,9 @@ class TvSeasonDetailScreen extends ConsumerWidget {
                 cursor: SystemMouseCursors.click,
                 child: Button(
                   child: const Text('重试'),
-                  onPressed: () => ref.read(tvSeasonDetailNotifierProvider(guid).notifier).refresh(),
+                  onPressed: () => ref
+                      .read(tvSeasonDetailNotifierProvider(guid).notifier)
+                      .refresh(),
                 ),
               ),
             ],
@@ -88,10 +100,12 @@ class _TvSeasonDetailContent extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_TvSeasonDetailContent> createState() => _TvSeasonDetailContentState();
+  ConsumerState<_TvSeasonDetailContent> createState() =>
+      _TvSeasonDetailContentState();
 }
 
-class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> {
+class _TvSeasonDetailContentState
+    extends ConsumerState<_TvSeasonDetailContent> {
   late final ToastManager _toastManager = ToastManager();
   late final ScrollController _descriptionScrollController = ScrollController();
 
@@ -111,12 +125,24 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
     context.go('/home');
   }
 
-  Future<void> _handleToggleFavorite() async {
-    await ref.read(tvSeasonDetailNotifierProvider(widget.guid).notifier).toggleFavorite();
-  }
-
   Future<void> _handleToggleWatched() async {
-    await ref.read(tvSeasonDetailNotifierProvider(widget.guid).notifier).toggleWatched();
+    final result = await ref
+        .read(tvSeasonDetailNotifierProvider(widget.guid).notifier)
+        .toggleWatched();
+    if (!mounted) return;
+    if (result.success) {
+      _toastManager.showToast(
+        result.message,
+        type: ToastType.success,
+        category: 'watched_${widget.guid}',
+      );
+    } else {
+      _toastManager.showToast(
+        '操作失败，${result.message}',
+        type: ToastType.failed,
+        category: 'watched_${widget.guid}',
+      );
+    }
   }
 
   void _showDescriptionDialog(BuildContext context, ItemResponse item) {
@@ -134,7 +160,10 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
             primary: false,
             child: Text(
               item.overview ?? '暂无介绍',
-              style: FluentTheme.of(context).typography.body?.copyWith(height: 1.6),
+              style: FluentTheme.of(context)
+                  .typography
+                  .body
+                  ?.copyWith(height: 1.6),
             ),
           ),
         ),
@@ -158,9 +187,13 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
 
     final windowHeight = MediaQuery.of(context).size.height;
     final posterUrl = _buildImageUrl(widget.baseUrl, item.posters);
-    final isFavorite = item.isFavorite == 1;
+    final backdropPath =
+        (item.backdrops?.isNotEmpty ?? false) ? item.backdrops! : item.posters;
+    final backdropUrl = _buildImageUrl(widget.baseUrl, backdropPath);
     final isWatched = item.isWatched == 1;
     final textColor = FluentTheme.of(context).typography.body?.color;
+    final resolvedTextColor = textColor ?? Colors.white;
+    final headerHeight = windowHeight * 0.5;
 
     return Stack(
       children: [
@@ -168,33 +201,42 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
           slivers: [
             SliverToBoxAdapter(
               child: SizedBox(
-                height: windowHeight * 0.5,
+                height: headerHeight,
                 child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    if (posterUrl.isNotEmpty)
-                      CachedNetworkImage(
-                        imageUrl: posterUrl,
-                        httpHeaders: widget.httpHeaders,
-                        cacheManager: widget.cacheManager,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey[40],
+                    if (backdropUrl.isNotEmpty)
+                      ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Image(
+                          image: CachedNetworkImageProvider(
+                            backdropUrl,
+                            headers: widget.httpHeaders,
+                            cacheManager: widget.cacheManager,
+                          ),
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
+                          filterQuality: FilterQuality.high,
                         ),
                       ),
-                    Container(
+                    DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.35),
+                            Colors.black.withValues(alpha: 0.06),
+                            Colors.black.withValues(alpha: 0.2),
+                            Colors.black.withValues(alpha: 0.4),
                             FluentTheme.of(context).scaffoldBackgroundColor,
                           ],
-                          stops: const [0.4, 0.72, 1.0],
+                          stops: const [0.0, 0.48, 0.72, 1.0],
                         ),
+                      ),
+                    ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.08),
                       ),
                     ),
                     Positioned(
@@ -205,25 +247,40 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           if (posterUrl.isNotEmpty)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                width: 180,
-                                height: 270,
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.2),
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.28),
+                                    blurRadius: 24,
+                                    offset: const Offset(0, 10),
                                   ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: CachedNetworkImage(
-                                  imageUrl: posterUrl,
-                                  httpHeaders: widget.httpHeaders,
-                                  cacheManager: widget.cacheManager,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (context, url, error) => Container(
-                                    color: Colors.grey[40],
-                                    child: const Icon(FluentIcons.photo2, size: 48),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  width: 180,
+                                  height: 270,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.2),
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: CachedNetworkImage(
+                                    imageUrl: posterUrl,
+                                    httpHeaders: widget.httpHeaders,
+                                    cacheManager: widget.cacheManager,
+                                    fit: BoxFit.cover,
+                                    errorWidget: (context, url, error) =>
+                                        Container(
+                                      color: Colors.grey[40],
+                                      child: const Icon(FluentIcons.photo2,
+                                          size: 48),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -237,7 +294,10 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
                                   item.tvTitle,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: FluentTheme.of(context).typography.titleLarge?.copyWith(
+                                  style: FluentTheme.of(context)
+                                      .typography
+                                      .titleLarge
+                                      ?.copyWith(
                                         fontSize: 48,
                                         fontWeight: FontWeight.w500,
                                         color: Colors.white,
@@ -247,21 +307,37 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
                                 const SizedBox(height: 8),
                                 Text(
                                   item.title,
-                                  style: FluentTheme.of(context).typography.subtitle?.copyWith(
+                                  style: FluentTheme.of(context)
+                                      .typography
+                                      .subtitle
+                                      ?.copyWith(
                                         fontSize: 24,
-                                        color: Colors.white.withValues(alpha: 0.8),
+                                        color:
+                                            Colors.white.withValues(alpha: 0.8),
                                       ),
                                 ),
                                 const SizedBox(height: 12),
                                 _buildTags(context, item),
                                 const SizedBox(height: 16),
-                                _buildActionButtons(context, item, isFavorite, isWatched, textColor),
-                                if (item.overview != null && item.overview!.isNotEmpty) ...[
-                                  const SizedBox(height: 16),
-                                  MediaDescription(
-                                    overview: item.overview!,
-                                    onMore: () => _showDescriptionDialog(context, item),
-                                    isSeason: true,
+                                _buildActionButtons(
+                                  context,
+                                  item,
+                                  isWatched,
+                                  textColor,
+                                  resolvedTextColor,
+                                ),
+                                if (item.overview != null &&
+                                    item.overview!.isNotEmpty) ...[
+                                  const SizedBox(height: 18),
+                                  ConstrainedBox(
+                                    constraints:
+                                        const BoxConstraints(maxWidth: 920),
+                                    child: MediaDescription(
+                                      overview: item.overview!,
+                                      onMore: () =>
+                                          _showDescriptionDialog(context, item),
+                                      isSeason: true,
+                                    ),
                                   ),
                                 ],
                               ],
@@ -276,7 +352,7 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(48, 24, 48, 24),
+                padding: const EdgeInsets.fromLTRB(32, 8, 32, 24),
                 child: _EpisodeListSection(
                   episodes: widget.state.episodeList,
                   playInfo: widget.state.playInfo,
@@ -285,11 +361,22 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
                   cacheManager: widget.cacheManager,
                   onEpisodeTap: (episode) {
                     // Navigate to player screen for this episode
-                    ref.read(navigationStackProvider.notifier).pushPath('/home');
+                    ref
+                        .read(navigationStackProvider.notifier)
+                        .pushPath('/home');
                     context.go('/player/${episode.guid}');
                   },
+                  onFavoriteToggle: (guid, isFavorite) {
+                    return ref
+                        .read(tvSeasonDetailNotifierProvider(widget.guid)
+                            .notifier)
+                        .toggleEpisodeFavorite(guid, isFavorite);
+                  },
                   onWatchedToggle: (guid, isWatched) {
-                    ref.read(tvSeasonDetailNotifierProvider(widget.guid).notifier).toggleEpisodeWatched(guid, isWatched);
+                    return ref
+                        .read(tvSeasonDetailNotifierProvider(widget.guid)
+                            .notifier)
+                        .toggleEpisodeWatched(guid, isWatched);
                   },
                 ),
               ),
@@ -310,19 +397,9 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(48, 24, 48, 48),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: HyperlinkButton(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('在 IMDb 上查看'),
-                          const SizedBox(width: 8),
-                          const Icon(FluentIcons.open_in_new_window, size: 12),
-                        ],
-                      ),
-                      onPressed: () => launchUrl(Uri.parse(FnDataConvertor.getImdbLink(item.imdbId))),
-                    ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: ImdbLink(imdbId: item.imdbId!),
                   ),
                 ),
               ),
@@ -400,9 +477,16 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
     );
   }
 
-  Widget _buildActionButtons(BuildContext context, ItemResponse item, bool isFavorite, bool isWatched, Color? textColor) {
+  Widget _buildActionButtons(
+    BuildContext context,
+    ItemResponse item,
+    bool isWatched,
+    Color? textColor,
+    Color resolvedTextColor,
+  ) {
     final playInfo = widget.state.playInfo;
-    final playButtonText = playInfo != null ? '第 ${playInfo.episodeNumber} 集' : '播放';
+    final playButtonText =
+        playInfo != null ? '第 ${playInfo.episodeNumber} 集' : '播放';
 
     return Row(
       children: [
@@ -410,7 +494,9 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
           text: playButtonText,
           onPressed: () async {
             if (playInfo != null) {
-              final targetGuid = playInfo.playItemGuid.isNotEmpty ? playInfo.playItemGuid : widget.guid;
+              final targetGuid = playInfo.playItemGuid.isNotEmpty
+                  ? playInfo.playItemGuid
+                  : widget.guid;
               ref.read(navigationStackProvider.notifier).pushPath('/home');
               context.go('/player/$targetGuid');
             }
@@ -418,15 +504,19 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
         ),
         const SizedBox(width: 16),
         CircleIconButton(
-          icon: item.isFavorite == 1 ? FluentIcons.heart : FluentIcons.heart,
-          iconColor: isFavorite ? const Color(0xFFFF0420) : textColor,
-          tooltip: item.isFavorite == 1 ? '取消收藏' : '加入收藏',
-          onPressed: _handleToggleFavorite,
-        ),
-        const SizedBox(width: 16),
-        CircleIconButton(
           icon: FluentIcons.check_mark,
-          iconColor: isWatched ? const Color(0xFF2173DF) : textColor,
+          iconColor: isWatched ? kAccentColor : textColor,
+          iconWidget: SvgPicture.asset(
+            item.isWatched == 1
+                ? 'assets/images/watched_fill.svg'
+                : 'assets/images/watched.svg',
+            width: 22,
+            height: 22,
+            colorFilter: ColorFilter.mode(
+              isWatched ? kAccentColor : resolvedTextColor,
+              BlendMode.srcIn,
+            ),
+          ),
           tooltip: item.isWatched == 1 ? '标记为未看' : '标记为已看',
           onPressed: _handleToggleWatched,
         ),
@@ -441,14 +531,15 @@ class _TvSeasonDetailContentState extends ConsumerState<_TvSeasonDetailContent> 
   }
 }
 
-class _EpisodeListSection extends StatelessWidget {
+class _EpisodeListSection extends StatefulWidget {
   final List<EpisodeListResponse> episodes;
   final PlayInfoResponse? playInfo;
   final String baseUrl;
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
   final ValueChanged<EpisodeListResponse> onEpisodeTap;
-  final Function(String guid, bool isWatched) onWatchedToggle;
+  final Future<bool> Function(String guid, bool isFavorite) onFavoriteToggle;
+  final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
 
   const _EpisodeListSection({
     required this.episodes,
@@ -457,18 +548,65 @@ class _EpisodeListSection extends StatelessWidget {
     required this.httpHeaders,
     required this.cacheManager,
     required this.onEpisodeTap,
+    required this.onFavoriteToggle,
     required this.onWatchedToggle,
   });
 
   @override
+  State<_EpisodeListSection> createState() => _EpisodeListSectionState();
+}
+
+class _EpisodeListSectionState extends State<_EpisodeListSection> {
+  late final ScrollController _scrollController = ScrollController();
+  int? _lastPositionedEpisodeNumber;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _positionToCurrentEpisode());
+  }
+
+  @override
+  void didUpdateWidget(covariant _EpisodeListSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.episodes != widget.episodes ||
+        oldWidget.playInfo != widget.playInfo) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _positionToCurrentEpisode());
+    }
+  }
+
+  void _positionToCurrentEpisode() {
+    if (!_scrollController.hasClients || widget.episodes.isEmpty) return;
+    final currentEpisodeNumber = widget.playInfo?.episodeNumber;
+    if (currentEpisodeNumber == null ||
+        _lastPositionedEpisodeNumber == currentEpisodeNumber) {
+      return;
+    }
+    final currentEpisodeIndex = widget.episodes.indexWhere(
+      (episode) => episode.episodeNumber == currentEpisodeNumber,
+    );
+    if (currentEpisodeIndex < 0) return;
+    final targetOffset =
+        currentEpisodeIndex * (_episodePosterWidth + _episodeCardSpacing);
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    _scrollController.jumpTo(targetOffset.clamp(0, maxExtent));
+    _lastPositionedEpisodeNumber = currentEpisodeNumber;
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (episodes.isEmpty) {
+    if (widget.episodes.isEmpty) {
       return const SizedBox.shrink();
     }
-
-    final currentEpisodeIndex = playInfo?.episodeNumber != null
-        ? episodes.indexWhere((e) => e.episodeNumber == playInfo!.episodeNumber)
-        : -1;
+    final currentEpisodeNumber = widget.playInfo?.episodeNumber;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -477,29 +615,31 @@ class _EpisodeListSection extends StatelessWidget {
           '剧集列表',
           style: FluentTheme.of(context).typography.subtitle?.copyWith(
                 fontWeight: FontWeight.bold,
+                fontSize: 26,
               ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 180,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: episodes.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 16),
-            itemBuilder: (context, index) {
-              final episode = episodes[index];
-              final isCurrent = index == currentEpisodeIndex;
-              return _EpisodeCard(
-                episode: episode,
-                baseUrl: baseUrl,
-                httpHeaders: httpHeaders,
-                cacheManager: cacheManager,
-                isCurrent: isCurrent,
-                onTap: () => onEpisodeTap(episode),
-                onWatchedToggle: () => onWatchedToggle(episode.guid, episode.watched == 1),
-              );
-            },
-          ),
+        ScrollRow(
+          controller: _scrollController,
+          height: _episodeRowHeight,
+          itemCount: widget.episodes.length,
+          itemSpacing: _episodeCardSpacing,
+          scrollFactor: 0.9,
+          itemBuilder: (context, index) {
+            final episode = widget.episodes[index];
+            return _EpisodeCard(
+              episode: episode,
+              baseUrl: widget.baseUrl,
+              httpHeaders: widget.httpHeaders,
+              cacheManager: widget.cacheManager,
+              isCurrent: episode.episodeNumber == currentEpisodeNumber,
+              onTap: () => widget.onEpisodeTap(episode),
+              onFavoriteToggle: (currentState) =>
+                  widget.onFavoriteToggle(episode.guid, currentState),
+              onWatchedToggle: (currentState) =>
+                  widget.onWatchedToggle(episode.guid, currentState),
+            );
+          },
         ),
       ],
     );
@@ -513,7 +653,8 @@ class _EpisodeCard extends StatefulWidget {
   final cache_manager.CacheManager cacheManager;
   final bool isCurrent;
   final VoidCallback onTap;
-  final VoidCallback onWatchedToggle;
+  final Future<bool> Function(bool currentState) onFavoriteToggle;
+  final Future<bool> Function(bool currentState) onWatchedToggle;
 
   const _EpisodeCard({
     required this.episode,
@@ -522,6 +663,7 @@ class _EpisodeCard extends StatefulWidget {
     required this.cacheManager,
     required this.isCurrent,
     required this.onTap,
+    required this.onFavoriteToggle,
     required this.onWatchedToggle,
   });
 
@@ -531,18 +673,99 @@ class _EpisodeCard extends StatefulWidget {
 
 class _EpisodeCardState extends State<_EpisodeCard> {
   bool _hovered = false;
+  bool _isPlayButtonHovered = false;
+  bool _isFavorite = false;
+  bool _isWatched = false;
+  final FlyoutController _moreController = FlyoutController();
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.episode.isFavorite == 1;
+    _isWatched = widget.episode.watched == 1;
+  }
+
+  @override
+  void didUpdateWidget(covariant _EpisodeCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.episode.isFavorite != widget.episode.isFavorite) {
+      _isFavorite = widget.episode.isFavorite == 1;
+    }
+    if (oldWidget.episode.watched != widget.episode.watched) {
+      _isWatched = widget.episode.watched == 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _moreController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleFavoriteToggle() async {
+    final previousValue = _isFavorite;
+    setState(() => _isFavorite = !previousValue);
+    final success = await widget.onFavoriteToggle(previousValue);
+    if (!mounted || success) return;
+    setState(() => _isFavorite = previousValue);
+  }
+
+  Future<void> _handleWatchedToggle() async {
+    final previousValue = _isWatched;
+    setState(() => _isWatched = !previousValue);
+    final success = await widget.onWatchedToggle(previousValue);
+    if (!mounted || success) return;
+    setState(() => _isWatched = previousValue);
+  }
+
+  void _showMoreFlyout() {
+    if (_moreController.isOpen) {
+      _moreController.close();
+      return;
+    }
+    _moreController.showFlyout<void>(
+      placementMode: FlyoutPlacementMode.bottomCenter,
+      builder: (context) => MenuFlyout(
+        items: [
+          MenuFlyoutItem(
+            text: const Text('播放本集'),
+            onPressed: () {
+              Flyout.of(context).close();
+              widget.onTap();
+            },
+          ),
+          MenuFlyoutItem(
+            text: Text(_isWatched ? '标记为未看' : '标记为已看'),
+            onPressed: () {
+              Flyout.of(context).close();
+              _handleWatchedToggle();
+            },
+          ),
+          MenuFlyoutItem(
+            text: Text(_isFavorite ? '取消收藏' : '加入收藏'),
+            onPressed: () {
+              Flyout.of(context).close();
+              _handleFavoriteToggle();
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
     final posterUrl = widget.episode.poster != null
         ? _buildImageUrl(widget.baseUrl, widget.episode.poster!)
         : '';
-    final isWatched = widget.episode.watched == 1;
     final borderColor = widget.isCurrent
         ? const Color(0xFF2173DF)
         : _hovered
             ? Colors.white.withValues(alpha: 0.3)
             : Colors.white.withValues(alpha: 0.1);
+    final playButtonSize = _isPlayButtonHovered ? 56.0 : 48.0;
+    final actionBottom = widget.isCurrent ? 34.0 : 8.0;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -550,128 +773,235 @@ class _EpisodeCardState extends State<_EpisodeCard> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 280,
-          decoration: BoxDecoration(
-            color: _hovered ? Colors.white.withValues(alpha: 0.02) : Colors.transparent,
-            border: Border.all(color: borderColor, width: widget.isCurrent ? 2 : 1),
-            borderRadius: BorderRadius.circular(8),
-          ),
+        child: SizedBox(
+          width: _episodePosterWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
-                    child: posterUrl.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: posterUrl,
-                            httpHeaders: widget.httpHeaders,
-                            cacheManager: widget.cacheManager,
-                            width: 280,
-                            height: 120,
-                            fit: BoxFit.cover,
-                            errorWidget: (context, url, error) => Container(
-                              width: 280,
-                              height: 120,
-                              color: Colors.grey[40],
-                              child: const Icon(FluentIcons.photo2, size: 32),
-                            ),
-                          )
-                        : Container(
-                            width: 280,
-                            height: 120,
-                            color: Colors.grey[40],
-                            child: const Icon(FluentIcons.photo2, size: 32),
-                          ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                height: _episodePosterHeight,
+                width: _episodePosterWidth,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: borderColor,
+                    width: widget.isCurrent ? 2 : 1,
                   ),
-                  if (isWatched)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2173DF),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          FluentIcons.check_mark,
-                          size: 12,
-                          color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(7),
+                        child: posterUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: posterUrl,
+                                httpHeaders: widget.httpHeaders,
+                                cacheManager: widget.cacheManager,
+                                fit: BoxFit.cover,
+                                errorWidget: (context, url, error) => Container(
+                                  color: Colors.grey[40],
+                                  child:
+                                      const Icon(FluentIcons.photo2, size: 32),
+                                ),
+                              )
+                            : Container(
+                                color: Colors.grey[40],
+                                child: const Icon(FluentIcons.photo2, size: 32),
+                              ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _hovered ? 0 : 1,
+                        child: Container(
+                          height: _episodePosterHeight / 2,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                const Color(0xFF1C1C1C).withValues(alpha: 0.8),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  if (widget.isCurrent)
+                    Positioned.fill(
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _hovered ? 1 : 0,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFF1C1C1C).withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _hovered ? 1 : 0,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) =>
+                              setState(() => _isPlayButtonHovered = true),
+                          onExit: (_) =>
+                              setState(() => _isPlayButtonHovered = false),
+                          child: GestureDetector(
+                            onTap: widget.onTap,
+                            behavior: HitTestBehavior.opaque,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: playButtonSize,
+                              height: playButtonSize,
+                              alignment: Alignment.center,
+                              child: SvgPicture.asset(
+                                'assets/images/play_circle.svg',
+                                width: playButtonSize,
+                                height: playButtonSize,
+                                colorFilter: const ColorFilter.mode(
+                                  Colors.white,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                     Positioned(
-                      bottom: 0,
+                      left: 8,
+                      bottom: actionBottom,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _hovered ? 1 : 0,
+                        child: _EpisodePosterActionButton(
+                          svgAssetPath: _isWatched
+                              ? 'assets/images/watched_fill.svg'
+                              : 'assets/images/watched.svg',
+                          isActive: _isWatched,
+                          activeColor: const Color(0xFF2173DF),
+                          onPressed: _handleWatchedToggle,
+                        ),
+                      ),
+                    ),
+                    Positioned(
                       left: 0,
                       right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2173DF),
-                          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(7)),
-                        ),
-                        child: const Text(
-                          '正在播放',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                      bottom: actionBottom,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _hovered ? 1 : 0,
+                        child: Center(
+                          child: _EpisodePosterActionButton(
+                            svgAssetPath: _isFavorite
+                                ? 'assets/images/favorite_fill.svg'
+                                : 'assets/images/favorite.svg',
+                            isActive: _isFavorite,
+                            activeColor: const Color(0xFFFF0420),
+                            onPressed: _handleFavoriteToggle,
                           ),
-                          textAlign: TextAlign.center,
                         ),
                       ),
                     ),
-                ],
+                    Positioned(
+                      right: 8,
+                      bottom: actionBottom,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _hovered ? 1 : 0,
+                        child: FlyoutTarget(
+                          controller: _moreController,
+                          child: _EpisodePosterActionButton(
+                            icon: FluentIcons.more,
+                            isActive: false,
+                            activeColor: Colors.white,
+                            onPressed: _showMoreFlyout,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (widget.isCurrent)
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2173DF),
+                            borderRadius: BorderRadius.vertical(
+                              bottom: Radius.circular(7),
+                            ),
+                          ),
+                          child: const Text(
+                            '正在播放',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
+              const SizedBox(height: 8),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '第 ${widget.episode.episodeNumber} 集',
-                        style: FluentTheme.of(context).typography.bodyStrong?.copyWith(
-                              fontSize: 14,
-                            ),
+                        '第 ${widget.episode.episodeNumber} 集 ${widget.episode.title}',
+                        style: theme.typography.bodyStrong?.copyWith(
+                          fontSize: 14,
+                          color: _hovered
+                              ? const Color(0xFF2173DF)
+                              : theme.typography.bodyStrong?.color,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
-                        widget.episode.title,
-                        style: FluentTheme.of(context).typography.caption?.copyWith(
-                              color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.8),
-                            ),
-                        maxLines: 1,
+                        widget.episode.overview?.trim().isNotEmpty == true
+                            ? widget.episode.overview!.trim()
+                            : '暂无剧集简介',
+                        style: theme.typography.caption?.copyWith(
+                          color: theme.typography.caption?.color
+                              ?.withValues(alpha: 0.78),
+                          fontSize: 14,
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 6),
                       const Spacer(),
                       Row(
                         children: [
-                          if (widget.episode.runtime != null && widget.episode.runtime! > 0)
-                            Text(
-                              '${widget.episode.runtime} 分钟',
-                              style: FluentTheme.of(context).typography.caption?.copyWith(
-                                    fontSize: 12,
-                                    color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.6),
-                                  ),
-                            ),
-                          const Spacer(),
-                          MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: GestureDetector(
-                              onTap: widget.onWatchedToggle,
-                              child: Icon(
-                                isWatched ? FluentIcons.check_mark : FluentIcons.circle_ring,
-                                size: 16,
-                                color: isWatched ? const Color(0xFF2173DF) : FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.6),
-                              ),
+                          Text(
+                            widget.episode.runtime != null &&
+                                    widget.episode.runtime! > 0
+                                ? '${widget.episode.runtime} 分钟'
+                                : '时长未知',
+                            style: theme.typography.caption?.copyWith(
+                              fontSize: 12,
+                              color: theme.typography.caption?.color
+                                  ?.withValues(alpha: 0.65),
                             ),
                           ),
                         ],
@@ -680,6 +1010,80 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EpisodePosterActionButton extends StatefulWidget {
+  final IconData? icon;
+  final String? svgAssetPath;
+  final bool isActive;
+  final Color activeColor;
+  final VoidCallback onPressed;
+
+  const _EpisodePosterActionButton({
+    this.icon,
+    this.svgAssetPath,
+    required this.isActive,
+    required this.activeColor,
+    required this.onPressed,
+  });
+
+  @override
+  State<_EpisodePosterActionButton> createState() =>
+      _EpisodePosterActionButtonState();
+}
+
+class _EpisodePosterActionButtonState
+    extends State<_EpisodePosterActionButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: _isHovered
+                      ? Colors.black.withValues(alpha: 0.5)
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              if (widget.svgAssetPath != null)
+                SvgPicture.asset(
+                  widget.svgAssetPath!,
+                  width: 16,
+                  height: 16,
+                  colorFilter: ColorFilter.mode(
+                    widget.isActive ? widget.activeColor : Colors.white,
+                    BlendMode.srcIn,
+                  ),
+                )
+              else if (widget.icon != null)
+                Icon(
+                  widget.icon,
+                  size: 16,
+                  color: widget.isActive ? widget.activeColor : Colors.white,
+                ),
             ],
           ),
         ),

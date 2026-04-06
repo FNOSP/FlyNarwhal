@@ -59,60 +59,103 @@ class TvSeasonDetailState {
 
 @riverpod
 class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
-  @override
-  FutureOr<TvSeasonDetailState> build(String guid) async {
-    state = const AsyncValue.loading();
-    final dioClient = ref.read(dioClientProvider);
-    final tagRepo = ref.read(tagRepositoryProvider);
-
-    Future<T?> safeRequest<T>(Future<T> Function() request) async {
-      try {
-        return await request();
-      } catch (_) {
-        return null;
-      }
+  Future<T?> _safeRequest<T>(Future<T> Function() request) async {
+    try {
+      return await request();
+    } catch (_) {
+      return null;
     }
+  }
 
-    final itemResult = await dioClient.dio.get('/v/api/v1/item/$guid');
-
-    final playInfoResult = await safeRequest(
-      () => dioClient.dio.post('/v/api/v1/play/info', data: {'guid': guid}),
-    );
-
-    final episodeListResult = await safeRequest(
-      () => dioClient.dio.get('/v/api/v1/episode/list/$guid'),
-    );
-
-    final personListResult = await safeRequest(
-      () => dioClient.dio.post('/v/api/v1/person/list/$guid', data: const {}),
-    );
-
-    final iso6391 = await safeRequest(() => tagRepo.getTag('iso6391')) ?? const <String, String>{};
-    final iso6392 = await safeRequest(() => tagRepo.getTag('iso6392')) ?? const <String, String>{};
-    final iso3166 = await safeRequest(() => tagRepo.getTag('iso3166')) ?? const <String, String>{};
-
-    final itemResponse = FnBaseResponse<ItemResponse>.fromJson(
-      itemResult.data as Map<String, dynamic>,
-      (json) => ItemResponse.fromJson(json as Map<String, dynamic>),
-    );
-    if (itemResponse.code != 0) {
-      throw Exception(itemResponse.msg);
-    }
-
-    final playInfoResponse = playInfoResult == null
-        ? null
-        : FnBaseResponse<PlayInfoResponse>.fromJson(
-            (playInfoResult as dynamic).data as Map<String, dynamic>,
-            (json) => PlayInfoResponse.fromJson(json as Map<String, dynamic>),
-          );
-
-    List<EpisodeListResponse> episodes = [];
-    if (episodeListResult != null && episodeListResult.data is List) {
-      episodes = (episodeListResult.data as List)
+  List<EpisodeListResponse> _parseEpisodeList(dynamic payload) {
+    if (payload is List) {
+      return payload
           .map((e) => EpisodeListResponse.fromJson(e as Map<String, dynamic>))
           .toList();
     }
+    if (payload is Map<String, dynamic>) {
+      final baseResponse = FnBaseResponse<List<EpisodeListResponse>>.fromJson(
+        payload,
+        (json) => ((json as List<dynamic>?) ?? const <dynamic>[])
+            .map((e) =>
+                EpisodeListResponse.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+      return baseResponse.data ?? const <EpisodeListResponse>[];
+    }
+    return const <EpisodeListResponse>[];
+  }
 
+  Future<PlayInfoResponse?> _fetchPlayInfo() async {
+    final dioClient = ref.read(dioClientProvider);
+    final response = await _safeRequest(
+      () => dioClient.dio.post('/v/api/v1/play/info', data: {'guid': guid}),
+    );
+    if (response == null) {
+      return null;
+    }
+    final playInfoResponse = FnBaseResponse<PlayInfoResponse>.fromJson(
+      (response as dynamic).data as Map<String, dynamic>,
+      (json) => PlayInfoResponse.fromJson(json as Map<String, dynamic>),
+    );
+    return playInfoResponse.data;
+  }
+
+  Future<List<EpisodeListResponse>> _fetchEpisodeList() async {
+    final dioClient = ref.read(dioClientProvider);
+    final response = await _safeRequest(
+      () => dioClient.dio.get('/v/api/v1/episode/list/$guid'),
+    );
+    if (response == null) {
+      return const <EpisodeListResponse>[];
+    }
+    return _parseEpisodeList((response as dynamic).data);
+  }
+
+  Future<void> _fetchStreamList() async {
+    final dioClient = ref.read(dioClientProvider);
+    final response = await _safeRequest(
+      () => dioClient.dio.get('/v/api/v1/stream/list/$guid'),
+    );
+    if (response == null) {
+      return;
+    }
+    FnBaseResponse<StreamListResponse>.fromJson(
+      (response as dynamic).data as Map<String, dynamic>,
+      (json) => StreamListResponse.fromJson(json as Map<String, dynamic>),
+    );
+  }
+
+  String _resolveMessage(dynamic data) {
+    if (data is Map) {
+      return data['message']?.toString() ?? data['msg']?.toString() ?? '操作失败';
+    }
+    return '操作失败';
+  }
+
+  @override
+  FutureOr<TvSeasonDetailState> build(String guid) async {
+    state = const AsyncValue.loading();
+    final tagRepo = ref.read(tagRepositoryProvider);
+
+    final item = await _fetchItemDetail(guid);
+    if (item == null) {
+      throw Exception('未找到分季信息');
+    }
+    final playInfo = await _fetchPlayInfo();
+    final episodes = await _fetchEpisodeList();
+    final personListResult = await _safeRequest(
+      () => ref.read(dioClientProvider).dio.post(
+            '/v/api/v1/person/list/$guid',
+            data: const {},
+          ),
+    );
+    final iso6391 = await _safeRequest(() => tagRepo.getTag('iso6391')) ??
+        const <String, String>{};
+    final iso6392 = await _safeRequest(() => tagRepo.getTag('iso6392')) ??
+        const <String, String>{};
+    final iso3166 = await _safeRequest(() => tagRepo.getTag('iso3166')) ??
+        const <String, String>{};
     final personListResponse = personListResult == null
         ? null
         : FnBaseResponse<PersonListResponse>.fromJson(
@@ -121,13 +164,48 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
           );
 
     return TvSeasonDetailState(
-      item: itemResponse.data,
-      playInfo: playInfoResponse?.data,
+      item: item,
+      playInfo: playInfo,
       episodeList: episodes,
       personList: personListResponse?.data?.list ?? [],
       iso6391: iso6391,
       iso6392: iso6392,
       iso3166: iso3166,
+    );
+  }
+
+  bool _isSuccessResponse(dynamic data) {
+    if (data is bool) {
+      return data;
+    }
+    if (data is Map && (data['success'] == true || data['code'] == 0)) {
+      return true;
+    }
+    return false;
+  }
+
+  Future<ItemResponse?> _fetchItemDetail(String itemGuid) async {
+    final response = await _safeRequest(
+      () => ref.read(dioClientProvider).dio.get('/v/api/v1/item/$itemGuid'),
+    );
+    if (response == null) {
+      return null;
+    }
+    final itemResponse = FnBaseResponse<ItemResponse>.fromJson(
+      (response as dynamic).data as Map<String, dynamic>,
+      (json) => ItemResponse.fromJson(json as Map<String, dynamic>),
+    );
+    if (itemResponse.code == 0) {
+      return itemResponse.data;
+    }
+    return null;
+  }
+
+  void _replaceItem(ItemResponse item) {
+    final currentState = state.value;
+    if (currentState == null) return;
+    state = AsyncValue.data(
+      currentState.copyWith(item: item),
     );
   }
 
@@ -160,43 +238,103 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
     }
   }
 
-  Future<void> toggleWatched() async {
+  Future<ActionResult> toggleWatched() async {
     final item = state.value?.item;
-    if (item == null) return;
+    if (item == null) {
+      return const ActionResult(success: false, message: '未找到分季信息');
+    }
 
     try {
       final dioClient = ref.read(dioClientProvider);
       final isWatched = item.isWatched == 1;
 
-      final response = await dioClient.dio.get(
-        isWatched ? '/v/api/v1/watched/delete' : '/v/api/v1/watched/add',
-        queryParameters: {'guid': guid},
-      );
+      final response = isWatched
+          ? await dioClient.dio.delete(
+              '/v/api/v1/item/watched',
+              data: {'item_guid': guid},
+            )
+          : await dioClient.dio.post(
+              '/v/api/v1/item/watched',
+              data: {'item_guid': guid},
+            );
 
-      if (response.data['success'] == true) {
+      if (_isSuccessResponse(response.data)) {
         final currentState = state.value!;
+        final results = await Future.wait<dynamic>([
+          _fetchStreamList(),
+          _fetchItemDetail(guid),
+          _fetchEpisodeList(),
+        ]);
+        final refreshedItem = results[1] as ItemResponse?;
+        final refreshedEpisodeList = results[2] as List<EpisodeListResponse>;
         state = AsyncValue.data(currentState.copyWith(
-          item: item.copyWith(isWatched: isWatched ? 0 : 1),
+          item: refreshedItem ?? currentState.item,
+          episodeList: refreshedEpisodeList,
         ));
+        return ActionResult(
+          success: true,
+          message: isWatched ? '标记为未观看' : '标记为已观看',
+        );
       }
+      return ActionResult(
+        success: false,
+        message: _resolveMessage(response.data),
+      );
     } catch (e) {
-      // Handle error
+      return ActionResult(success: false, message: e.toString());
     }
   }
 
-  Future<void> toggleEpisodeWatched(String episodeGuid, bool currentWatchedState) async {
+  Future<bool> toggleEpisodeFavorite(
+      String episodeGuid, bool currentFavoriteState) async {
     try {
       final dioClient = ref.read(dioClientProvider);
-      final response = await dioClient.dio.get(
-        currentWatchedState ? '/v/api/v1/watched/delete' : '/v/api/v1/watched/add',
-        queryParameters: {'guid': episodeGuid},
-      );
+      final response = currentFavoriteState
+          ? await dioClient.dio.delete(
+              '/v/api/v1/item/favorite',
+              data: {'item_guid': episodeGuid},
+            )
+          : await dioClient.dio.put(
+              '/v/api/v1/item/favorite',
+              data: {'item_guid': episodeGuid},
+            );
 
-      if (response.data['success'] == true) {
-        refresh();
+      if (_isSuccessResponse(response.data)) {
+        return true;
       }
-    } catch (e) {
-      // Handle error
-    }
+    } catch (_) {}
+    return false;
   }
+
+  Future<bool> toggleEpisodeWatched(
+      String episodeGuid, bool currentWatchedState) async {
+    try {
+      final dioClient = ref.read(dioClientProvider);
+      final response = currentWatchedState
+          ? await dioClient.dio.delete(
+              '/v/api/v1/item/watched',
+              data: {'item_guid': episodeGuid},
+            )
+          : await dioClient.dio.post(
+              '/v/api/v1/item/watched',
+              data: {'item_guid': episodeGuid},
+            );
+
+      if (_isSuccessResponse(response.data)) {
+        final item = await _fetchItemDetail(guid);
+        if (item != null) {
+          _replaceItem(item);
+        }
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+}
+
+class ActionResult {
+  final bool success;
+  final String message;
+
+  const ActionResult({required this.success, required this.message});
 }

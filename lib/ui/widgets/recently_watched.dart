@@ -20,8 +20,12 @@ class RecentlyWatched extends ConsumerWidget {
   final List<PlayDetailResponse> items;
   final double itemHeight;
   final EdgeInsetsGeometry padding;
-  final Function(String guid, bool currentState, Function(bool success) callback)? onFavoriteToggle;
-  final Function(String guid, bool currentState, Function(bool success) callback)? onWatchedToggle;
+  final Function(
+          String guid, bool currentState, Function(bool success) callback)?
+      onFavoriteToggle;
+  final Function(
+          String guid, bool currentState, Function(bool success) callback)?
+      onWatchedToggle;
   final Function(String guid)? onItemRemoved;
 
   const RecentlyWatched({
@@ -46,7 +50,8 @@ class RecentlyWatched extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 32, bottom: 12),
-          child: Text(title, style: FluentTheme.of(context).typography.subtitle),
+          child:
+              Text(title, style: FluentTheme.of(context).typography.subtitle),
         ),
         ScrollRow(
           height: itemHeight * scaleFactor,
@@ -70,8 +75,12 @@ class RecentlyWatched extends ConsumerWidget {
 
 class RecentlyWatchedItem extends ConsumerStatefulWidget {
   final PlayDetailResponse item;
-  final Function(String guid, bool currentState, Function(bool success) callback)? onFavoriteToggle;
-  final Function(String guid, bool currentState, Function(bool success) callback)? onWatchedToggle;
+  final Function(
+          String guid, bool currentState, Function(bool success) callback)?
+      onFavoriteToggle;
+  final Function(
+          String guid, bool currentState, Function(bool success) callback)?
+      onWatchedToggle;
   final Function(String guid)? onItemRemoved;
 
   const RecentlyWatchedItem({
@@ -83,10 +92,13 @@ class RecentlyWatchedItem extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<RecentlyWatchedItem> createState() => _RecentlyWatchedItemState();
+  ConsumerState<RecentlyWatchedItem> createState() =>
+      _RecentlyWatchedItemState();
 }
 
-class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with SingleTickerProviderStateMixin {
+class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
+    with SingleTickerProviderStateMixin {
+  bool _isPlayButtonHovered = false;
   bool _isFavorite = false;
   bool _isWatched = false;
   bool _isVisible = true;
@@ -171,7 +183,9 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
     final token = prefs.getToken();
     final cookie = prefs.getCookie();
     final resolvedPosterPath = widget.item.poster?.trim();
-    final imageUrl = resolvedPosterPath != null && resolvedPosterPath.isNotEmpty && baseUrl != null
+    final imageUrl = resolvedPosterPath != null &&
+            resolvedPosterPath.isNotEmpty &&
+            baseUrl != null
         ? '$baseUrl/v/api/v1/sys/img$resolvedPosterPath${resolvedPosterPath.contains('?') ? '' : '?w=400'}'
         : null;
     final httpHeaders = token != null || (cookie != null && cookie.isNotEmpty)
@@ -183,11 +197,16 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
     final cacheManager = ref.watch(imageCacheManagerProvider);
     final watchedTs = widget.item.ts ?? 0;
     final duration = widget.item.duration ?? 0;
-    final progress = duration > 0 ? (watchedTs / duration).clamp(0.0, 1.0) : 0.0;
+    final progress =
+        duration > 0 ? (watchedTs / duration).clamp(0.0, 1.0) : 0.0;
     final displayTitle = buildPlayDetailTitle(widget.item);
     final displaySubtitle = buildPlayDetailSubtitle(widget.item);
     final scaleFactor = resolveWindowScaleFactor(context);
     final posterWidth = 240 * scaleFactor;
+    final normalPlayButtonSize = 48.0 * scaleFactor;
+    final hoveredPlayButtonSize = 56.0 * scaleFactor;
+    final playButtonSize =
+        _isPlayButtonHovered ? hoveredPlayButtonSize : normalPlayButtonSize;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
@@ -211,7 +230,8 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(14 * scaleFactor),
-                          border: Border.all(color: Colors.grey[160].withValues(alpha: 0.6)),
+                          border: Border.all(
+                              color: Colors.grey[160].withValues(alpha: 0.6)),
                           color: Colors.grey[160],
                         ),
                         clipBehavior: Clip.antiAlias,
@@ -224,9 +244,13 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
                                 httpHeaders: httpHeaders,
                                 cacheManager: cacheManager,
                                 fit: BoxFit.cover,
-                                fadeOutDuration: const Duration(milliseconds: 120),
-                                errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
-                                placeholder: (context, url) => const ImgLoadingProgressRing(),
+                                fadeOutDuration:
+                                    const Duration(milliseconds: 120),
+                                errorWidget: (context, url, error) =>
+                                    const Center(
+                                        child: Icon(FluentIcons.error)),
+                                placeholder: (context, url) =>
+                                    const ImgLoadingProgressRing(),
                               )
                             else
                               const Center(child: Icon(FluentIcons.file_image)),
@@ -238,12 +262,15 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    Container(color: Colors.white.withValues(alpha: 0.05)),
+                                    Container(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.05)),
                                     if (progress > 0)
                                       FractionallySizedBox(
                                         widthFactor: progress,
                                         alignment: Alignment.centerLeft,
-                                        child: Container(color: const Color(0xFF2073DF)),
+                                        child: Container(
+                                            color: const Color(0xFF2073DF)),
                                       ),
                                   ],
                                 ),
@@ -253,7 +280,8 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
                               duration: const Duration(milliseconds: 200),
                               opacity: isHovered ? 1 : 0,
                               child: Container(
-                                color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
+                                color: const Color(0xFF1C1C1C)
+                                    .withValues(alpha: 0.5),
                               ),
                             ),
                             Center(
@@ -262,13 +290,33 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
                                 opacity: isHovered ? 1 : 0,
                                 child: MouseRegion(
                                   cursor: SystemMouseCursors.click,
+                                  onEnter: (_) => setState(
+                                      () => _isPlayButtonHovered = true),
+                                  onExit: (_) => setState(
+                                      () => _isPlayButtonHovered = false),
                                   child: GestureDetector(
                                     onTap: () {
-                                      // Navigate to player screen
-                                      ref.read(navigationStackProvider.notifier).pushPath('/home');
+                                      ref
+                                          .read(
+                                              navigationStackProvider.notifier)
+                                          .pushPath('/home');
                                       context.go('/player/${widget.item.guid}');
                                     },
-                                    child: const Icon(FluentIcons.play, size: 40, color: Colors.white),
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 200),
+                                      width: playButtonSize,
+                                      height: playButtonSize,
+                                      child: SvgPicture.asset(
+                                        'assets/images/play_circle.svg',
+                                        width: playButtonSize,
+                                        height: playButtonSize,
+                                        colorFilter: const ColorFilter.mode(
+                                          Colors.white,
+                                          BlendMode.srcIn,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -325,7 +373,9 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
                         style: theme.typography.caption?.copyWith(
                           fontWeight: FontWeight.normal,
                           fontSize: 12,
-                          color: isHovered ? const Color(0xFF2073DF) : theme.typography.body?.color,
+                          color: isHovered
+                              ? const Color(0xFF2073DF)
+                              : theme.typography.body?.color,
                         ),
                       ),
                     ),
@@ -341,7 +391,8 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem> with 
                           style: theme.typography.caption?.copyWith(
                             fontWeight: FontWeight.normal,
                             fontSize: 12,
-                            color: theme.typography.caption?.color?.withValues(alpha: 0.7),
+                            color: theme.typography.caption?.color
+                                ?.withValues(alpha: 0.7),
                           ),
                         ),
                       ),
@@ -406,7 +457,9 @@ class _PosterIconButtonState extends State<_PosterIconButton> {
                 width: buttonSize,
                 height: buttonSize,
                 decoration: BoxDecoration(
-                  color: _isHovered ? Colors.black.withValues(alpha: 0.5) : Colors.transparent,
+                  color: _isHovered
+                      ? Colors.black.withValues(alpha: 0.5)
+                      : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
               ),

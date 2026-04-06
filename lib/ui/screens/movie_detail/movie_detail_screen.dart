@@ -999,9 +999,24 @@ class _MediaInfoSection extends StatelessWidget {
           title: '视频/音频信息',
           child: Row(
             children: [
-              Expanded(child: _TrackItem(info: mediaDetails.videoTrack)),
-              Expanded(child: _TrackItem(info: mediaDetails.audioTrack)),
-              Expanded(child: _TrackItem(info: mediaDetails.subtitleTrack)),
+              Expanded(
+                child: _TrackItem(
+                  info: mediaDetails.videoTrack,
+                  iconAssetPath: 'assets/images/audio.svg',
+                ),
+              ),
+              Expanded(
+                child: _TrackItem(
+                  info: mediaDetails.audioTrack,
+                  iconAssetPath: 'assets/images/vedio.svg',
+                ),
+              ),
+              Expanded(
+                child: _TrackItem(
+                  info: mediaDetails.subtitleTrack,
+                  iconAssetPath: 'assets/images/vedio.svg',
+                ),
+              ),
             ],
           ),
         ),
@@ -1072,27 +1087,48 @@ class _InfoRow extends StatelessWidget {
 
 class _TrackItem extends StatelessWidget {
   final MediaTrackInfo info;
+  final String iconAssetPath;
 
-  const _TrackItem({required this.info});
+  const _TrackItem({required this.info, required this.iconAssetPath});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final theme = FluentTheme.of(context);
+    final primaryColor = theme.typography.body?.color ?? Colors.white;
+    final secondaryColor =
+        theme.typography.caption?.color?.withValues(alpha: 0.8) ??
+        primaryColor.withValues(alpha: 0.8);
+
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(info.icon, size: 24, color: FluentTheme.of(context).accentColor),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(info.type, style: FluentTheme.of(context).typography.bodyStrong),
-              const SizedBox(height: 4),
-              Text(
-                info.details.isNotEmpty ? info.details : '暂无信息',
-                style: FluentTheme.of(context).typography.caption,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SvgPicture.asset(
+              iconAssetPath,
+              width: 18,
+              height: 18,
+              colorFilter: ColorFilter.mode(secondaryColor, BlendMode.srcIn),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                info.type,
+                style: theme.typography.body?.copyWith(
+                  fontSize: 14,
+                  color: secondaryColor,
+                ),
               ),
-            ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          info.details.isNotEmpty ? info.details : '暂无信息',
+          style: theme.typography.body?.copyWith(
+            fontSize: 13,
+            color: primaryColor,
           ),
         ),
       ],
