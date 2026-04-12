@@ -146,6 +146,26 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
           ),
           if (_showPopup)
             Positioned(
+              bottom: 0,
+              left: -60,
+              child: MouseRegion(
+                opaque: false,
+                onEnter: (_) {
+                  setState(() => _popupHovered = true);
+                  _hideTimer?.cancel();
+                },
+                onExit: (_) {
+                  setState(() => _popupHovered = false);
+                  _hideFlyoutWithDelay();
+                },
+                child: SizedBox(
+                  width: _isCustomPage ? 360 : 240,
+                  height: widget.yOffset + 40,
+                ),
+              ),
+            ),
+          if (_showPopup)
+            Positioned(
               bottom: widget.yOffset + 40,
               left: -60,
               child: MouseRegion(
@@ -274,7 +294,8 @@ class _SimpleQualityPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final originalQuality = qualities.firstOrNull;
     final grouped = _groupQualitiesByResolution(qualities);
-    final distinctResolutions = qualities.map((q) => q.resolution).toSet().toList();
+    final distinctResolutions =
+        qualities.map((q) => q.resolution).toSet().toList();
 
     // Check if current selection is "Custom"
     final isCustomSelection = _isCustomSelection(
@@ -311,7 +332,8 @@ class _SimpleQualityPage extends StatelessWidget {
                       children: [
                         const Text(
                           '自定义',
-                          style: TextStyle(color: _defaultTextColor, fontSize: 14),
+                          style:
+                              TextStyle(color: _defaultTextColor, fontSize: 14),
                         ),
                         const Icon(
                           FluentIcons.chevron_right,
@@ -330,7 +352,8 @@ class _SimpleQualityPage extends StatelessWidget {
           if (isCustomSelection && currentBitrate != null)
             _QualityItem(
               label: '自定义',
-              rightText: '${_formatResolution(currentResolution)} ${_formatBitrateSimple(currentBitrate!)}',
+              rightText:
+                  '${_formatResolution(currentResolution)} ${_formatBitrateSimple(currentBitrate!)}',
               isSelected: true,
               showCheck: false,
               onClick: () {},
@@ -343,7 +366,9 @@ class _SimpleQualityPage extends StatelessWidget {
 
             final targetQuality = isOriginal
                 ? qualities.first
-                : (grouped[resolution]?.reduce((a, b) => a.bitrate > b.bitrate ? a : b) ?? qualities.first);
+                : (grouped[resolution]
+                        ?.reduce((a, b) => a.bitrate > b.bitrate ? a : b) ??
+                    qualities.first);
 
             final isSelected = !isCustomSelection &&
                 currentResolution == resolution &&
@@ -367,7 +392,8 @@ class _SimpleQualityPage extends StatelessWidget {
     );
   }
 
-  Map<String, List<QualityResponse>> _groupQualitiesByResolution(List<QualityResponse> qualities) {
+  Map<String, List<QualityResponse>> _groupQualitiesByResolution(
+      List<QualityResponse> qualities) {
     final map = <String, List<QualityResponse>>{};
     for (final q in qualities) {
       map.putIfAbsent(q.resolution, () => []).add(q);
@@ -386,7 +412,8 @@ class _SimpleQualityPage extends StatelessWidget {
         currentBitrate == originalQuality.bitrate) {
       return false;
     }
-    final highestForCurrentRes = grouped[currentResolution]?.reduce((a, b) => a.bitrate > b.bitrate ? a : b);
+    final highestForCurrentRes = grouped[currentResolution]
+        ?.reduce((a, b) => a.bitrate > b.bitrate ? a : b);
     return highestForCurrentRes?.bitrate != currentBitrate;
   }
 }
@@ -427,12 +454,16 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
     return map;
   }
 
-  List<String> get _resolutions => widget.qualities.map((q) => q.resolution).toSet().toList();
+  List<String> get _resolutions =>
+      widget.qualities.map((q) => q.resolution).toSet().toList();
 
   @override
   Widget build(BuildContext context) {
-    final currentQ = widget.qualities.where((q) =>
-        q.resolution == widget.currentResolution && q.bitrate == widget.currentBitrate).firstOrNull;
+    final currentQ = widget.qualities
+        .where((q) =>
+            q.resolution == widget.currentResolution &&
+            q.bitrate == widget.currentBitrate)
+        .firstOrNull;
 
     return SizedBox(
       height: 345,
@@ -473,7 +504,8 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                   if (currentQ != null)
                     Text(
                       '${_formatBitrateSimple(currentQ.bitrate)} - ${currentQ == widget.qualities.first ? '原画质' : _formatResolution(currentQ.resolution)}',
-                      style: const TextStyle(color: _selectedTextColor, fontSize: 14),
+                      style: const TextStyle(
+                          color: _selectedTextColor, fontSize: 14),
                     ),
                 ],
               ),
@@ -495,7 +527,8 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                           isSelected: isSelected,
                           showCheck: false,
                           showArrow: true,
-                          onClick: () => setState(() => _selectedResolution = res),
+                          onClick: () =>
+                              setState(() => _selectedResolution = res),
                         );
                       },
                     ),
@@ -584,7 +617,9 @@ class _QualityItemState extends State<_QualityItem> {
               Text(
                 widget.label,
                 style: TextStyle(
-                  color: widget.isSelected ? _selectedTextColor : _defaultTextColor,
+                  color: widget.isSelected
+                      ? _selectedTextColor
+                      : _defaultTextColor,
                   fontSize: 14,
                   fontWeight: FontWeight.normal,
                 ),
@@ -597,7 +632,9 @@ class _QualityItemState extends State<_QualityItem> {
                       child: Text(
                         widget.rightText!,
                         style: TextStyle(
-                          color: widget.isSelected ? _selectedTextColor : _defaultTextColor,
+                          color: widget.isSelected
+                              ? _selectedTextColor
+                              : _defaultTextColor,
                           fontSize: 14,
                         ),
                       ),
@@ -612,7 +649,9 @@ class _QualityItemState extends State<_QualityItem> {
                     Icon(
                       FluentIcons.chevron_right,
                       size: 20,
-                      color: widget.isSelected ? _selectedTextColor : _defaultTextColor,
+                      color: widget.isSelected
+                          ? _selectedTextColor
+                          : _defaultTextColor,
                     ),
                 ],
               ),

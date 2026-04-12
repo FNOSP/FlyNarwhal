@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
+import 'player_action_button.dart';
 
 const Color _flyoutBackgroundColor = Color(0xE6000000);
 const Color _flyoutBorderColor = Color(0x80808080);
@@ -15,6 +16,7 @@ class PlayerSettingsMenu extends StatefulWidget {
   final PlayingInfoCache? playingInfoCache;
   final int currentPositionMillis;
   final int totalDurationMillis;
+  final double popupBottomOffset;
   final void Function(AudioStream) onAudioSelected;
   final void Function(String) onWindowAspectRatioChanged;
   final void Function(int skipOpening, int skipEnding) onSkipConfigChanged;
@@ -30,6 +32,7 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.iso6391Map,
     required this.currentPositionMillis,
     required this.totalDurationMillis,
+    this.popupBottomOffset = 70,
     required this.onAudioSelected,
     required this.onWindowAspectRatioChanged,
     required this.onSkipConfigChanged,
@@ -120,14 +123,34 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          const Icon(
-            FluentIcons.settings,
-            size: 24,
-            color: Colors.white,
+          const PlayerActionButton.lottie(
+            lottieAssetPath: 'assets/lottie/settings_lottie.json',
+            size: 30,
+            iconSize: 22,
           ),
           if (_showPopup)
             Positioned(
-              bottom: 70,
+              bottom: 0,
+              right: -140,
+              child: MouseRegion(
+                opaque: false,
+                onEnter: (_) {
+                  setState(() => _popupHovered = true);
+                  _hideTimer?.cancel();
+                },
+                onExit: (_) {
+                  setState(() => _popupHovered = false);
+                  _hideFlyoutWithDelay();
+                },
+                child: SizedBox(
+                  width: 280,
+                  height: widget.popupBottomOffset,
+                ),
+              ),
+            ),
+          if (_showPopup)
+            Positioned(
+              bottom: widget.popupBottomOffset,
               right: -140,
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,
@@ -417,7 +440,8 @@ class _SettingsMenuItemState extends State<_SettingsMenuItem> {
                   if (widget.value != null)
                     Text(
                       widget.value!,
-                      style: const TextStyle(color: _defaultTextColor, fontSize: 14),
+                      style: const TextStyle(
+                          color: _defaultTextColor, fontSize: 14),
                     ),
                   const SizedBox(width: 4),
                   const Icon(
@@ -543,7 +567,9 @@ class _AudioItemState extends State<_AudioItem> {
               Text(
                 widget.label,
                 style: TextStyle(
-                  color: widget.isSelected ? _selectedTextColor : _defaultTextColor,
+                  color: widget.isSelected
+                      ? _selectedTextColor
+                      : _defaultTextColor,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
@@ -695,7 +721,8 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
   });
 
   @override
-  State<_SkipConfigSettingsScreen> createState() => _SkipConfigSettingsScreenState();
+  State<_SkipConfigSettingsScreen> createState() =>
+      _SkipConfigSettingsScreenState();
 }
 
 class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
@@ -711,7 +738,8 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final manualEnabled = !widget.isSmartAnalysisGloballyEnabled || !widget.smartSkipEnabled;
+    final manualEnabled =
+        !widget.isSmartAnalysisGloballyEnabled || !widget.smartSkipEnabled;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -757,17 +785,22 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                       }
                     : null,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: manualEnabled ? _defaultTextColor : _defaultTextColor.withValues(alpha: 0.5),
+                      color: manualEnabled
+                          ? _defaultTextColor
+                          : _defaultTextColor.withValues(alpha: 0.5),
                     ),
                     borderRadius: BorderRadius.circular(50),
                   ),
                   child: Text(
                     '重置',
                     style: TextStyle(
-                      color: manualEnabled ? _defaultTextColor : _defaultTextColor.withValues(alpha: 0.5),
+                      color: manualEnabled
+                          ? _defaultTextColor
+                          : _defaultTextColor.withValues(alpha: 0.5),
                       fontSize: 14,
                     ),
                   ),
@@ -786,7 +819,8 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('智能跳过片头/片尾', style: TextStyle(color: _defaultTextColor, fontSize: 14)),
+              const Text('智能跳过片头/片尾',
+                  style: TextStyle(color: _defaultTextColor, fontSize: 14)),
               ToggleSwitch(
                 checked: widget.smartSkipEnabled,
                 onChanged: widget.onSmartSkipEnabledChanged,
@@ -879,9 +913,13 @@ class _SkipSlider extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(label, style: const TextStyle(color: _defaultTextColor, fontSize: 14)),
+                  Text(label,
+                      style: const TextStyle(
+                          color: _defaultTextColor, fontSize: 14)),
                   const SizedBox(width: 4),
-                  Text(_formatDuration(value.round()), style: const TextStyle(color: _defaultTextColor, fontSize: 14)),
+                  Text(_formatDuration(value.round()),
+                      style: const TextStyle(
+                          color: _defaultTextColor, fontSize: 14)),
                 ],
               ),
               if (!isReverse && currentPositionSeconds <= maxValue.toInt())
@@ -896,14 +934,18 @@ class _SkipSlider extends StatelessWidget {
                         : null,
                     child: Text(
                       '将当前时间 ${_formatDuration(currentPositionSeconds)} 设为片头',
-                      style: const TextStyle(color: _selectedTextColor, fontSize: 12),
+                      style: const TextStyle(
+                          color: _selectedTextColor, fontSize: 12),
                     ),
                   ),
                 ),
-              if (isReverse && totalDurationSeconds > currentPositionSeconds) ...[
+              if (isReverse &&
+                  totalDurationSeconds > currentPositionSeconds) ...[
                 Builder(builder: (context) {
-                  final remaining = totalDurationSeconds - currentPositionSeconds;
-                  if (remaining > maxValue.toInt()) return const SizedBox.shrink();
+                  final remaining =
+                      totalDurationSeconds - currentPositionSeconds;
+                  if (remaining > maxValue.toInt())
+                    return const SizedBox.shrink();
                   return MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
@@ -915,7 +957,8 @@ class _SkipSlider extends StatelessWidget {
                           : null,
                       child: Text(
                         '将剩余时长 ${_formatDuration(remaining)} 设为片尾',
-                        style: const TextStyle(color: _selectedTextColor, fontSize: 12),
+                        style: const TextStyle(
+                            color: _selectedTextColor, fontSize: 12),
                       ),
                     ),
                   );

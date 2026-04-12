@@ -3,22 +3,30 @@ import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
+import '../../../data/models/base_response.dart';
+import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/providers.dart';
 import '../../player/mp4_parser.dart';
 import '../../player/player_service.dart';
+import '../../player/widgets/episode_selection_flyout.dart';
 import '../../player/widgets/video_player_progress_bar.dart';
 import '../../player/widgets/speed_control_flyout.dart';
 import '../../player/widgets/quality_control_flyout.dart';
 import '../../player/widgets/volume_control.dart';
 import '../../player/widgets/fullscreen_control.dart';
+import '../../player/widgets/next_episode_preview_flyout.dart';
+import '../../player/widgets/player_action_button.dart';
 import '../../player/widgets/player_settings_menu.dart';
+import '../../player/widgets/subtitle_control_flyout.dart';
 import '../../widgets/toast.dart';
+import '../../widgets/window_caption.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   final String guid;
@@ -39,6 +47,9 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+  static const int _controlFlyoutOffset = 15;
+  static const double _controlFlyoutSpacing = 12;
+
   late final ToastManager _toastManager;
   Player? _player;
   VideoController? _videoController;
@@ -70,6 +81,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _isVolumeControlHovered = false;
   bool _isQualityControlHovered = false;
   bool _isSettingsMenuHovered = false;
+  bool _isSubtitleControlHovered = false;
+  bool _isEpisodeControlHovered = false;
+  bool _isNextEpisodeHovered = false;
+  bool _isDanmakuControlHovered = false;
+  bool _isDanmakuSettingsHovered = false;
+  bool _isPipControlHovered = false;
+  bool _isDanmakuVisible = true;
+  bool _isAutoPlayEnabled = true;
+  String? _selectedAudioGuid;
+  String? _selectedSubtitleGuid;
+  List<EpisodeListResponse> _episodeList = [];
+  EpisodeListResponse? _currentEpisode;
+  EpisodeListResponse? _nextEpisode;
 
   @override
   void initState() {
@@ -376,6 +400,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final audioGuid =
           widget.audioGuid ?? currentAudioStream?.guid ?? playInfo.audioGuid;
       final subtitleGuid = widget.subtitleGuid ?? currentSubtitleStream?.guid;
+      final episodeList =
+          playInfo.item.type == 'Episode' && playInfo.parentGuid.isNotEmpty
+              ? await _fetchEpisodeList(playInfo.parentGuid)
+              : const <EpisodeListResponse>[];
+      final currentEpisode = episodeList
+          .where((episode) => episode.guid == widget.guid)
+          .firstOrNull;
+      final currentEpisodeIndex =
+          episodeList.indexWhere((episode) => episode.guid == widget.guid);
+      final nextEpisode = currentEpisodeIndex >= 0 &&
+              currentEpisodeIndex + 1 < episodeList.length
+          ? episodeList[currentEpisodeIndex + 1]
+          : null;
 
       final qualities = streamInfo.qualities ?? [];
       _qualities = qualities;
@@ -421,6 +458,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         playConfig: playInfo.playConfig,
         streamInfo: streamInfo,
         isEpisode: playInfo.item.type == 'Episode',
+        subhead: _buildDisplaySubhead(playInfo.item),
       );
 
       await _openMediaWithResume(
@@ -443,6 +481,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             : playInfo.item.duration * 1000;
         _currentResolution = _currentQuality?.resolution ?? '';
         _currentBitrate = _currentQuality?.bitrate;
+        _selectedAudioGuid = audioGuid;
+        _selectedSubtitleGuid = subtitleGuid;
+        _episodeList = episodeList;
+        _currentEpisode = currentEpisode;
+        _nextEpisode = nextEpisode;
       });
 
       await _ensureInitialResumeApplied();
@@ -487,6 +530,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           !_isSpeedControlHovered &&
           !_isVolumeControlHovered &&
           !_isQualityControlHovered &&
+          !_isSubtitleControlHovered &&
+          !_isEpisodeControlHovered &&
+          !_isNextEpisodeHovered &&
+          !_isDanmakuControlHovered &&
+          !_isDanmakuSettingsHovered &&
+          !_isPipControlHovered &&
           !_isSettingsMenuHovered &&
           mounted) {
         setState(() => _isUiVisible = false);
@@ -546,6 +595,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _onQualitySelected(QualityResponse quality) async {
+    await _reloadPlayback(
+      audioGuid:
+          _selectedAudioGuid ?? widget.audioGuid ?? _playInfo?.audioGuid ?? '',
+      subtitleGuid: _selectedSubtitleGuid ?? widget.subtitleGuid,
+      quality: quality,
+    );
+  }
+
+  Future<void> _onAudioSelected(AudioStream audio) async {
+    await _reloadPlayback(
+      audioGuid: audio.guid,
+      subtitleGuid: _selectedSubtitleGuid ?? widget.subtitleGuid,
+    );
+  }
+
+  Future<void> _onSubtitleSelected(String? subtitleGuid) async {
+    await _reloadPlayback(
+      audioGuid:
+          _selectedAudioGuid ?? widget.audioGuid ?? _playInfo?.audioGuid ?? '',
+      subtitleGuid: subtitleGuid,
+    );
+  }
+
+  Future<void> _reloadPlayback({
+    required String audioGuid,
+    required String? subtitleGuid,
+    QualityResponse? quality,
+  }) async {
     final playInfo = _playInfo;
     final streamInfo = _streamInfo;
     final videoStream = streamInfo?.videoStream;
@@ -567,32 +644,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final dio = ref.read(dioClientProvider).dio;
 
       final audioStreams = streamInfo.audioStreams ?? [];
-      final currentAudioStream = audioStreams
-              .where((s) => s.guid == (widget.audioGuid ?? playInfo.audioGuid))
-              .firstOrNull ??
-          audioStreams.where((s) => s.isDefault == 1).firstOrNull ??
-          audioStreams.firstOrNull;
-      final audioGuid =
-          widget.audioGuid ?? currentAudioStream?.guid ?? playInfo.audioGuid;
+      final currentAudioStream =
+          audioStreams.where((s) => s.guid == audioGuid).firstOrNull ??
+              audioStreams.where((s) => s.isDefault == 1).firstOrNull ??
+              audioStreams.firstOrNull;
 
       final subtitleStreams = streamInfo.subtitleStreams ?? [];
-      final currentSubtitleStream = widget.subtitleGuid != null
-          ? subtitleStreams
-              .where((s) => s.guid == widget.subtitleGuid)
-              .firstOrNull
+      final currentSubtitleStream = subtitleGuid != null
+          ? subtitleStreams.where((s) => s.guid == subtitleGuid).firstOrNull
           : subtitleStreams.where((s) => s.isDefault == 1).firstOrNull;
-      final subtitleGuid = widget.subtitleGuid ?? currentSubtitleStream?.guid;
+      final effectiveSubtitleGuid = subtitleGuid ?? currentSubtitleStream?.guid;
 
       final currentPosition = _player!.state.position.inMilliseconds;
-      _currentQuality = quality;
+      if (quality != null) {
+        _currentQuality = quality;
+      }
 
       final qualities = streamInfo.qualities ?? [];
       final resolved = await _resolvePlayLink(
         playInfo: playInfo,
         videoStream: videoStream,
         fileStream: fileStream,
-        audioGuid: audioGuid,
-        subtitleGuid: subtitleGuid,
+        audioGuid: currentAudioStream?.guid ?? audioGuid,
+        subtitleGuid: effectiveSubtitleGuid,
         qualities: qualities,
         startPositionMs: currentPosition,
         baseUrl: baseUrl,
@@ -609,8 +683,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
 
       _playingInfoCache = _playingInfoCache?.copyWith(
+        currentAudioStream: currentAudioStream,
+        currentSubtitleStream: currentSubtitleStream,
         playLink: resolved.playLinkRaw ?? resolved.playUri,
         isUseDirectLink: resolved.isDirectLink,
+        subhead: playInfo.item.type == 'Episode'
+            ? _buildDisplaySubhead(playInfo.item)
+            : '',
       );
 
       await _openMediaWithResume(
@@ -620,11 +699,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
       setState(() {
         _isLoading = false;
-        _currentResolution = quality.resolution;
-        _currentBitrate = quality.bitrate;
+        _selectedAudioGuid = currentAudioStream?.guid ?? audioGuid;
+        _selectedSubtitleGuid = effectiveSubtitleGuid;
+        _currentResolution = _currentQuality?.resolution ?? '';
+        _currentBitrate = _currentQuality?.bitrate;
       });
     } catch (e) {
-      _toastManager.showToast('切换画质失败: $e', type: ToastType.failed);
+      _toastManager.showToast('切换播放配置失败: $e', type: ToastType.failed);
       setState(() => _isLoading = false);
     }
   }
@@ -653,7 +734,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Main content
         MouseRegion(
           onHover: (_) => _showUi(),
           child: GestureDetector(
@@ -669,24 +749,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
         ),
-
-        // Loading overlay
         if (_isLoading) const Center(child: ProgressRing()),
-
-        // UI Overlay
         if (_isInitialized)
           AnimatedOpacity(
             opacity: _isUiVisible ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 200),
             child: Stack(
               children: [
-                // Top gradient
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
                   child: Container(
-                    height: 80,
+                    height: 112,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -699,100 +774,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 ),
-
-                // Top bar
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: GestureDetector(
-                              onTap: _handleBack,
-                              child: Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.black.withValues(alpha: 0.3),
-                                ),
-                                alignment: Alignment.center,
-                                child: const Icon(
-                                  FluentIcons.back,
-                                  size: 24,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _playingInfoCache?.item?.title ?? '',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                if (_playingInfoCache?.subhead.isNotEmpty ==
-                                    true)
-                                  Text(
-                                    _playingInfoCache!.subhead,
-                                    style: TextStyle(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.7),
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  child: _buildTopBar(),
                 ),
-
-                // Center play button
-                Center(
-                  child: GestureDetector(
-                    onTap: _togglePlayPause,
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.black.withValues(alpha: 0.5),
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        _player?.state.playing == true
-                            ? FluentIcons.pause
-                            : FluentIcons.play,
-                        size: 36,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Bottom gradient
+                Center(child: _buildCenterPlayButton()),
                 Positioned(
                   bottom: 0,
                   left: 0,
                   right: 0,
                   child: Container(
-                    height: 120,
+                    height: 168,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -805,22 +799,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 ),
-
-                // Bottom controls
                 Positioned(
                   bottom: 0,
                   left: 0,
                   right: 0,
                   child: SafeArea(
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Progress bar
                           _buildProgressBar(),
                           const SizedBox(height: 12),
-                          // Control buttons
                           _buildControlButtons(),
                         ],
                       ),
@@ -830,8 +820,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ],
             ),
           ),
-
-        // Toast overlay
         Positioned.fill(
           child: ToastHost(toastManager: _toastManager),
         ),
@@ -840,7 +828,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Widget _buildProgressBar() {
-    // Update current position from player stream
     return StreamBuilder<Duration>(
       stream: _player?.stream.position,
       builder: (context, snapshot) {
@@ -848,26 +835,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         return MouseRegion(
           onEnter: (_) => setState(() => _isProgressBarHovered = true),
           onExit: (_) => setState(() => _isProgressBarHovered = false),
-          child: Row(
-            children: [
-              Text(
-                formatDurationToDateTime(_currentPosition),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: VideoPlayerProgressBar(
-                  currentPosition: _currentPosition,
-                  totalDuration: _duration,
-                  onSeek: _seekTo,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                formatDurationToDateTime(_duration),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
-            ],
+          child: VideoPlayerProgressBar(
+            currentPosition: _currentPosition,
+            totalDuration: _duration,
+            onSeek: _seekTo,
           ),
         );
       },
@@ -876,98 +847,349 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Widget _buildControlButtons() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Play/Pause
-        GestureDetector(
-          onTap: _togglePlayPause,
-          child: Icon(
-            _player?.state.playing == true
-                ? FluentIcons.pause
-                : FluentIcons.play,
-            size: 32,
-            color: Colors.white,
-          ),
+        PlayerActionButton.svg(
+          svgAssetPath: _player?.state.playing == true
+              ? 'assets/images/pause.svg'
+              : 'assets/images/play.svg',
+          onPressed: _togglePlayPause,
+          tooltip: '播放/暂停',
+          size: 34,
+          iconSize: 22,
         ),
         const SizedBox(width: 16),
-        // Skip back 10s
-        GestureDetector(
-          onTap: () => _seekRelative(-10000),
-          child: const Icon(
-            FluentIcons.back,
-            size: 24,
-            color: Colors.white,
-          ),
+        PlayerActionButton.svg(
+          svgAssetPath: 'assets/images/back10s.svg',
+          onPressed: () => _seekRelative(-10000),
+          tooltip: '快退 10 秒',
+          size: 30,
+          iconSize: 20,
         ),
         const SizedBox(width: 16),
-        // Skip forward 10s
-        GestureDetector(
-          onTap: () => _seekRelative(10000),
-          child: const Icon(
-            FluentIcons.forward,
-            size: 24,
-            color: Colors.white,
-          ),
+        PlayerActionButton.svg(
+          svgAssetPath: 'assets/images/forward10s.svg',
+          onPressed: () => _seekRelative(10000),
+          tooltip: '快进 10 秒',
+          size: 30,
+          iconSize: 20,
         ),
-        const SizedBox(width: 24),
-        // Volume
-        MouseRegion(
-          onEnter: (_) => setState(() => _isVolumeControlHovered = true),
-          onExit: (_) => setState(() => _isVolumeControlHovered = false),
-          child: VolumeControl(
-            volume: _volume,
-            onVolumeChange: _setVolume,
+        if (_nextEpisode != null) ...[
+          const SizedBox(width: 12),
+          NextEpisodePreviewFlyout(
+            nextEpisode: _nextEpisode!,
+            onClick: () => _openEpisode(_nextEpisode!),
+            onHoverStateChanged: (hovered) =>
+                setState(() => _isNextEpisodeHovered = hovered),
+          ),
+        ],
+        const SizedBox(width: 16),
+        Text(
+          '${formatDurationToDateTime(_currentPosition)} / ${formatDurationToDateTime(_duration)}',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.92),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
           ),
         ),
         const Spacer(),
-        // Speed
-        MouseRegion(
-          onEnter: (_) => setState(() => _isSpeedControlHovered = true),
-          onExit: (_) => setState(() => _isSpeedControlHovered = false),
-          child: SpeedControlFlyout(
-            defaultSpeed: _speed,
-            onSpeedSelected: (speed) => _setSpeed(speed.value),
-          ),
+        SpeedControlFlyout(
+          defaultSpeed: _speed,
+          yOffset: _controlFlyoutOffset,
+          onHoverStateChanged: (hovered) =>
+              setState(() => _isSpeedControlHovered = hovered),
+          onSpeedSelected: (speed) => _setSpeed(speed.value),
         ),
-        const SizedBox(width: 16),
-        // Quality
+        const SizedBox(width: _controlFlyoutSpacing),
+        if (_episodeList.isNotEmpty && _displaySubhead.isNotEmpty) ...[
+          EpisodeSelectionFlyout(
+            episodes: _episodeList,
+            currentEpisodeGuid: widget.guid,
+            isAutoPlay: _isAutoPlayEnabled,
+            yOffset: _controlFlyoutOffset,
+            onHoverStateChanged: (hovered) =>
+                setState(() => _isEpisodeControlHovered = hovered),
+            onEpisodeSelected: _openEpisode,
+            onAutoPlayChanged: (value) =>
+                setState(() => _isAutoPlayEnabled = value),
+          ),
+          const SizedBox(width: _controlFlyoutSpacing),
+        ],
         if (_qualities.isNotEmpty)
-          MouseRegion(
-            onEnter: (_) => setState(() => _isQualityControlHovered = true),
-            onExit: (_) => setState(() => _isQualityControlHovered = false),
-            child: QualityControlFlyout(
-              qualities: _qualities,
-              currentResolution: _currentResolution,
-              currentBitrate: _currentBitrate,
-              onQualitySelected: _onQualitySelected,
-            ),
+          QualityControlFlyout(
+            qualities: _qualities,
+            currentResolution: _currentResolution,
+            currentBitrate: _currentBitrate,
+            yOffset: _controlFlyoutOffset,
+            onHoverStateChanged: (hovered) =>
+                setState(() => _isQualityControlHovered = hovered),
+            onQualitySelected: _onQualitySelected,
           ),
-        const SizedBox(width: 16),
-        // Settings
+        const SizedBox(width: _controlFlyoutSpacing),
         MouseRegion(
-          onEnter: (_) => setState(() => _isSettingsMenuHovered = true),
-          onExit: (_) => setState(() => _isSettingsMenuHovered = false),
-          child: PlayerSettingsMenu(
-            playingInfoCache: _playingInfoCache,
-            currentPositionMillis: _currentPosition,
-            totalDurationMillis: _duration,
-            onAudioSelected: (audio) {
-              // Handle audio selection
+          onEnter: (_) => setState(() => _isDanmakuControlHovered = true),
+          onExit: (_) => setState(() => _isDanmakuControlHovered = false),
+          child: PlayerActionButton.svg(
+            svgAssetPath: _isDanmakuVisible
+                ? 'assets/images/danmu_open.svg'
+                : 'assets/images/danmu_close.svg',
+            onPressed: () {
+              setState(() => _isDanmakuVisible = !_isDanmakuVisible);
+              _showFeatureComingSoon('弹幕');
             },
-            onWindowAspectRatioChanged: (ratio) {
-              // Handle window aspect ratio
-            },
-            onSkipConfigChanged: (opening, ending) {
-              // Handle skip config
-            },
+            tooltip: '弹幕',
+            size: 30,
+            iconSize: 20,
           ),
         ),
         const SizedBox(width: 16),
-        // Fullscreen
+        MouseRegion(
+          onEnter: (_) => setState(() => _isDanmakuSettingsHovered = true),
+          onExit: (_) => setState(() => _isDanmakuSettingsHovered = false),
+          child: PlayerActionButton.svg(
+            svgAssetPath: 'assets/images/danmu_setting.svg',
+            onPressed: () => _showFeatureComingSoon('弹幕设置'),
+            tooltip: '弹幕设置',
+            size: 30,
+            iconSize: 20,
+          ),
+        ),
+        const SizedBox(width: _controlFlyoutSpacing),
+        SubtitleControlFlyout(
+          subtitles: _playingInfoCache?.currentSubtitleStreamList ?? const [],
+          selectedSubtitleGuid: _selectedSubtitleGuid,
+          yOffset: _controlFlyoutOffset,
+          onHoverStateChanged: (hovered) =>
+              setState(() => _isSubtitleControlHovered = hovered),
+          onSubtitleSelected: _onSubtitleSelected,
+        ),
+        const SizedBox(width: _controlFlyoutSpacing),
+        PlayerSettingsMenu(
+          playingInfoCache: _playingInfoCache,
+          currentPositionMillis: _currentPosition,
+          totalDurationMillis: _duration,
+          popupBottomOffset: _controlFlyoutOffset.toDouble(),
+          onHoverStateChanged: (hovered) =>
+              setState(() => _isSettingsMenuHovered = hovered),
+          onAudioSelected: _onAudioSelected,
+          onWindowAspectRatioChanged: (_) {},
+          onSkipConfigChanged: (_, __) {},
+        ),
+        const SizedBox(width: _controlFlyoutSpacing),
+        VolumeControl(
+          volume: _volume,
+          popupBottomOffset: (_controlFlyoutOffset - 16).toDouble(),
+          onHoverStateChanged: (hovered) =>
+              setState(() => _isVolumeControlHovered = hovered),
+          onVolumeChange: _setVolume,
+        ),
+        const SizedBox(width: 16),
+        MouseRegion(
+          onEnter: (_) => setState(() => _isPipControlHovered = true),
+          onExit: (_) => setState(() => _isPipControlHovered = false),
+          child: PlayerActionButton.lottie(
+            lottieAssetPath: 'assets/lottie/to_pip.json',
+            onPressed: () => _showFeatureComingSoon('画中画'),
+            tooltip: '画中画',
+            size: 30,
+            iconSize: 22,
+          ),
+        ),
+        const SizedBox(width: 16),
         FullScreenControl(
           isFullScreen: _isFullscreen,
           onClick: _toggleFullscreen,
         ),
       ],
     );
+  }
+
+  Widget _buildTopBar() {
+    final leftInset = _isMacOS ? 72.0 : 0.0;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: SizedBox(
+          height: 36,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DragToMoveArea(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: RichText(
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        text: _buildTitleSpan(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (leftInset > 0) SizedBox(width: leftInset),
+                    _buildBackButton(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackButton() {
+    return PlayerActionButton.icon(
+      iconData: FluentIcons.back,
+      onPressed: _handleBack,
+      tooltip: '返回',
+      size: _isMacOS ? 30 : 34,
+      iconSize: _isMacOS ? 15 : 18,
+      borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
+    );
+  }
+
+  Widget _buildCenterPlayButton() {
+    final isPlaying = _player?.state.playing == true;
+    return GestureDetector(
+      onTap: _togglePlayPause,
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.black.withValues(alpha: 0.5),
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          isPlaying ? 'assets/images/pause.svg' : 'assets/images/play.svg',
+          width: 34,
+          height: 34,
+          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+        ),
+      ),
+    );
+  }
+
+  TextSpan _buildTitleSpan() {
+    final baseFontSize = _isMacOS ? 16.0 : 20.0;
+    final subhead = _displaySubhead;
+    if (subhead.isEmpty) {
+      return TextSpan(
+        text: _displayTitle,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: baseFontSize,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+    return TextSpan(
+      children: [
+        TextSpan(
+          text: _displayTitle,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: baseFontSize,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        TextSpan(
+          text: _isMacOS ? ' / ' : ' | ',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.84),
+            fontSize: baseFontSize,
+            fontWeight: FontWeight.w300,
+          ),
+        ),
+        TextSpan(
+          text: subhead,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.76),
+            fontSize: _isMacOS ? 16 : 14,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
+    );
+  }
+
+  bool get _isMacOS => defaultTargetPlatform == TargetPlatform.macOS;
+
+  String get _displayTitle {
+    final item = _playInfo?.item ?? _playingInfoCache?.item;
+    if (item == null) return '';
+    if (item.type == 'Episode' && item.tvTitle.isNotEmpty) {
+      return item.tvTitle;
+    }
+    return item.title;
+  }
+
+  String get _displaySubhead {
+    final item = _playInfo?.item ?? _playingInfoCache?.item;
+    if (item == null || item.type != 'Episode') {
+      return '';
+    }
+    return _buildDisplaySubhead(item);
+  }
+
+  String _buildDisplaySubhead(ItemResponse item) {
+    final season = item.parentTitle;
+    final episodeNumber =
+        _currentEpisode?.episodeNumber ?? _playInfo?.episodeNumber ?? 0;
+    final episodeLabel = episodeNumber > 0 ? '第$episodeNumber集' : '';
+    final episodeTitle = item.title;
+    final parts = <String>[
+      if (season.isNotEmpty) season,
+      if (episodeLabel.isNotEmpty) episodeLabel,
+      if (episodeTitle.isNotEmpty) episodeTitle,
+    ];
+    return parts.join(' · ');
+  }
+
+  Future<List<EpisodeListResponse>> _fetchEpisodeList(String guid) async {
+    final response = await ref
+        .read(dioClientProvider)
+        .dio
+        .get('/v/api/v1/episode/list/$guid');
+    return _parseEpisodeList(response.data);
+  }
+
+  List<EpisodeListResponse> _parseEpisodeList(dynamic payload) {
+    if (payload is List) {
+      return payload
+          .map((entry) =>
+              EpisodeListResponse.fromJson(entry as Map<String, dynamic>))
+          .toList();
+    }
+    if (payload is Map<String, dynamic>) {
+      final baseResponse = FnBaseResponse<List<EpisodeListResponse>>.fromJson(
+        payload,
+        (json) => ((json as List<dynamic>?) ?? const <dynamic>[])
+            .map((entry) =>
+                EpisodeListResponse.fromJson(entry as Map<String, dynamic>))
+            .toList(),
+      );
+      return baseResponse.data ?? const <EpisodeListResponse>[];
+    }
+    return const <EpisodeListResponse>[];
+  }
+
+  void _openEpisode(EpisodeListResponse episode) {
+    if (episode.guid == widget.guid) {
+      return;
+    }
+    context.go('/player/${episode.guid}');
+  }
+
+  void _showFeatureComingSoon(String feature) {
+    _toastManager.showToast('$feature 暂未接入', type: ToastType.info);
   }
 }

@@ -133,6 +133,26 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout>
           // Popup
           if (_showPopup)
             Positioned(
+               bottom: 0,
+              left: -30,
+              child: MouseRegion(
+                opaque: false,
+                onEnter: (_) {
+                  setState(() => _popupHovered = true);
+                  _hideTimer?.cancel();
+                },
+                onExit: (_) {
+                  setState(() => _popupHovered = false);
+                  _hideFlyoutWithDelay();
+                },
+                child: SizedBox(
+                  width: 120,
+                  height: widget.yOffset + 40,
+                ),
+              ),
+            ),
+          if (_showPopup)
+            Positioned(
               bottom: widget.yOffset + 40,
               left: -30,
               child: MouseRegion(
@@ -262,7 +282,9 @@ class _SpeedItemState extends State<_SpeedItem> {
               Text(
                 widget.speed.label,
                 style: TextStyle(
-                  color: widget.isSelected ? _selectedTextColor : _defaultTextColor,
+                  color: widget.isSelected
+                      ? _selectedTextColor
+                      : _defaultTextColor,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),

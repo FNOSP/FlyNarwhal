@@ -1,8 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:window_manager/window_manager.dart';
+import 'player_action_button.dart';
 
-class FullScreenControl extends StatefulWidget {
+class FullScreenControl extends StatelessWidget {
   final bool isFullScreen;
   final VoidCallback onClick;
 
@@ -13,30 +14,15 @@ class FullScreenControl extends StatefulWidget {
   });
 
   @override
-  State<FullScreenControl> createState() => _FullScreenControlState();
-}
-
-class _FullScreenControlState extends State<FullScreenControl> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onClick,
-        child: SizedBox(
-          width: 26,
-          height: 26,
-          child: Icon(
-            widget.isFullScreen ? FluentIcons.back_to_window : FluentIcons.full_screen,
-            size: 24,
-            color: Colors.white,
-          ),
-        ),
-      ),
+    return PlayerActionButton.lottie(
+      lottieAssetPath: isFullScreen
+          ? 'assets/lottie/quit_full_screen_lottie.json'
+          : 'assets/lottie/full_screen_lottie.json',
+      onPressed: onClick,
+      tooltip: isFullScreen ? '退出全屏' : '进入全屏',
+      size: 30,
+      iconSize: 22,
     );
   }
 }
@@ -95,7 +81,8 @@ class PseudoFullscreenWrapper extends StatefulWidget {
   });
 
   @override
-  State<PseudoFullscreenWrapper> createState() => _PseudoFullscreenWrapperState();
+  State<PseudoFullscreenWrapper> createState() =>
+      _PseudoFullscreenWrapperState();
 }
 
 class _PseudoFullscreenWrapperState extends State<PseudoFullscreenWrapper> {

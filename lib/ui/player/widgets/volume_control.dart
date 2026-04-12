@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'player_action_button.dart';
 
 const Color _flyoutBackgroundColor = Color(0xE6000000);
 const Color _flyoutBorderColor = Color(0x80808080);
@@ -8,12 +9,14 @@ const int _animationDurationMs = 200;
 
 class VolumeControl extends StatefulWidget {
   final double volume;
+  final double popupBottomOffset;
   final void Function(double volume) onVolumeChange;
   final void Function(bool isHovered)? onHoverStateChanged;
 
   const VolumeControl({
     super.key,
     required this.volume,
+    this.popupBottomOffset = 48,
     required this.onVolumeChange,
     this.onHoverStateChanged,
   });
@@ -106,7 +109,27 @@ class _VolumeControlState extends State<VolumeControl>
           _buildVolumeIcon(),
           if (_showPopup)
             Positioned(
-              bottom: 48,
+              bottom: 0,
+              left: -8,
+              child: MouseRegion(
+                opaque: false,
+                onEnter: (_) {
+                  setState(() => _popupHovered = true);
+                  _hideTimer?.cancel();
+                },
+                onExit: (_) {
+                  setState(() => _popupHovered = false);
+                  _hideFlyoutWithDelay();
+                },
+                child: SizedBox(
+                  width: 46,
+                  height: widget.popupBottomOffset,
+                ),
+              ),
+            ),
+          if (_showPopup)
+            Positioned(
+              bottom: widget.popupBottomOffset,
               left: -8,
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,
@@ -127,17 +150,17 @@ class _VolumeControlState extends State<VolumeControl>
   }
 
   Widget _buildVolumeIcon() {
-    // Use fluent icons as fallback if lottie is not available
-    final iconData = switch (_volumeLevel) {
-      2 => FluentIcons.volume2,
-      1 => FluentIcons.volume1,
-      _ => FluentIcons.volume0,
+    final assetPath = switch (_volumeLevel) {
+      2 => 'assets/lottie/volume_high_lottie.json',
+      1 => 'assets/lottie/volume_low_lottie.json',
+      _ => 'assets/lottie/volume_off_lottie.json',
     };
 
-    return Icon(
-      iconData,
-      size: 24,
-      color: Colors.white,
+    return PlayerActionButton.lottie(
+      key: ValueKey(assetPath),
+      lottieAssetPath: assetPath,
+      size: 30,
+      iconSize: 22,
     );
   }
 
@@ -235,7 +258,8 @@ class _VerticalVolumeSliderState extends State<_VerticalVolumeSlider> {
       onTapDown: (details) {
         final box = context.findRenderObject() as RenderBox;
         final localPosition = details.localPosition;
-        final newVolume = (1 - localPosition.dy / box.size.height).clamp(0.0, 1.0);
+        final newVolume =
+            (1 - localPosition.dy / box.size.height).clamp(0.0, 1.0);
         widget.onVolumeChange(newVolume);
       },
       onVerticalDragStart: (details) {
@@ -247,7 +271,8 @@ class _VerticalVolumeSliderState extends State<_VerticalVolumeSlider> {
       onVerticalDragUpdate: (details) {
         final box = context.findRenderObject() as RenderBox;
         final localPosition = details.localPosition;
-        final newVolume = (1 - localPosition.dy / box.size.height).clamp(0.0, 1.0);
+        final newVolume =
+            (1 - localPosition.dy / box.size.height).clamp(0.0, 1.0);
         setState(() => _dragVolume = newVolume);
         widget.onVolumeChange(newVolume);
       },
