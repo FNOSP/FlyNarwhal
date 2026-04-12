@@ -61,6 +61,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Timer? _hideUiTimer;
   Timer? _playRecordTimer;
   int _lastRecordedPosition = 0;
+  int _pendingInitialResumeMs = 0;
+  bool _initialResumeApplied = false;
 
   // Hover states
   bool _isProgressBarHovered = false;
@@ -83,6 +85,87 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await _loadAndPlayMedia();
   }
 
+  void _resetInitialResumeState(int positionMs) {
+    _pendingInitialResumeMs = positionMs;
+    _initialResumeApplied = positionMs <= 0;
+  }
+
+  Future<void> _openMediaWithResume({
+    required String playUri,
+    required int startPositionMs,
+    bool isInitialPlayback = false,
+  }) async {
+    final player = _player;
+    if (player == null) return;
+
+    final headers = _buildPlayerHeaders();
+    await player.open(
+      Media(
+        playUri,
+        httpHeaders: headers.isEmpty ? null : headers,
+      ),
+    );
+
+    if (isInitialPlayback) {
+      _resetInitialResumeState(startPositionMs);
+    }
+
+    await _applyResumePosition(startPositionMs,
+        isInitialPlayback: isInitialPlayback);
+  }
+
+  Future<void> _applyResumePosition(
+    int startPositionMs, {
+    bool isInitialPlayback = false,
+  }) async {
+    final player = _player;
+    if (player == null || startPositionMs <= 0) {
+      if (isInitialPlayback) {
+        _pendingInitialResumeMs = 0;
+        _initialResumeApplied = true;
+      }
+      return;
+    }
+
+    const attemptDelays = <Duration>[
+      Duration(milliseconds: 300),
+      Duration(milliseconds: 600),
+      Duration(milliseconds: 900),
+    ];
+    final target = Duration(milliseconds: startPositionMs);
+
+    for (final delay in attemptDelays) {
+      await Future<void>.delayed(delay);
+      await player.seek(target);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      final currentPosition = player.state.position.inMilliseconds;
+      final applied = currentPosition >= startPositionMs - 1500;
+      if (applied) {
+        if (isInitialPlayback) {
+          _pendingInitialResumeMs = 0;
+          _initialResumeApplied = true;
+        }
+        return;
+      }
+    }
+
+    if (isInitialPlayback) {
+      _pendingInitialResumeMs = startPositionMs;
+      _initialResumeApplied = false;
+    }
+  }
+
+  Future<void> _ensureInitialResumeApplied() async {
+    if (_initialResumeApplied || _pendingInitialResumeMs <= 0) {
+      return;
+    }
+    await _applyResumePosition(
+      _pendingInitialResumeMs,
+      isInitialPlayback: true,
+    );
+  }
+
   Map<String, String> _buildPlayerHeaders() {
     final prefs = ref.read(preferencesManagerProvider);
     final headers = <String, String>{};
@@ -101,8 +184,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (playLink.startsWith('http://') || playLink.startsWith('https://')) {
       return playLink;
     }
-    final base =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final base = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final path = playLink.startsWith('/') ? playLink : '/$playLink';
     return '$base$path';
   }
@@ -211,8 +295,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required String baseUrl,
     required Dio dio,
   }) async {
-    final base =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final base = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final fullUrl = '$base/v/api/v1/media/range/$mediaGuid';
     final ts = startPositionMs / 1000.0;
     try {
@@ -275,10 +360,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         currentAudioStream =
             audioStreams.where((s) => s.guid == widget.audioGuid).firstOrNull;
       } else {
-        currentAudioStream = audioStreams
-                .where((s) => s.isDefault == 1)
-                .firstOrNull ??
-            audioStreams.firstOrNull;
+        currentAudioStream =
+            audioStreams.where((s) => s.isDefault == 1).firstOrNull ??
+                audioStreams.firstOrNull;
       }
       if (widget.subtitleGuid != null) {
         currentSubtitleStream = subtitleStreams
@@ -289,17 +373,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             subtitleStreams.where((s) => s.isDefault == 1).firstOrNull;
       }
 
-      final audioGuid = widget.audioGuid ??
-          currentAudioStream?.guid ??
-          playInfo.audioGuid;
-      final subtitleGuid =
-          widget.subtitleGuid ?? currentSubtitleStream?.guid;
+      final audioGuid =
+          widget.audioGuid ?? currentAudioStream?.guid ?? playInfo.audioGuid;
+      final subtitleGuid = widget.subtitleGuid ?? currentSubtitleStream?.guid;
 
       final qualities = streamInfo.qualities ?? [];
       _qualities = qualities;
       _currentQuality = qualities.isNotEmpty ? qualities.first : null;
 
       final historyMs = playInfo.ts * 1000;
+      _resetInitialResumeState(historyMs);
       final resolved = await _resolvePlayLink(
         playInfo: playInfo,
         videoStream: currentVideoStream,
@@ -340,17 +423,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         isEpisode: playInfo.item.type == 'Episode',
       );
 
-      final headers = _buildPlayerHeaders();
-      await _player!.open(
-        Media(
-          resolved.playUri,
-          httpHeaders: headers.isEmpty ? null : headers,
-        ),
+      await _openMediaWithResume(
+        playUri: resolved.playUri,
+        startPositionMs: resolved.effectiveStartMs,
+        isInitialPlayback: true,
       );
-
-      if (resolved.effectiveStartMs > 0) {
-        await _player!.seek(Duration(milliseconds: resolved.effectiveStartMs));
-      }
 
       _volume = ref.read(playerSettingsManagerProvider).getVolume();
       await _player!.setVolume(_volume * 100);
@@ -368,6 +445,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _currentBitrate = _currentQuality?.bitrate;
       });
 
+      await _ensureInitialResumeApplied();
       _startPlayRecordTimer();
     } catch (e) {
       debugPrint('[Player] Error loading media: $e');
@@ -503,8 +581,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               .where((s) => s.guid == widget.subtitleGuid)
               .firstOrNull
           : subtitleStreams.where((s) => s.isDefault == 1).firstOrNull;
-      final subtitleGuid =
-          widget.subtitleGuid ?? currentSubtitleStream?.guid;
+      final subtitleGuid = widget.subtitleGuid ?? currentSubtitleStream?.guid;
 
       final currentPosition = _player!.state.position.inMilliseconds;
       _currentQuality = quality;
@@ -536,17 +613,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         isUseDirectLink: resolved.isDirectLink,
       );
 
-      final headers = _buildPlayerHeaders();
-      await _player!.open(
-        Media(
-          resolved.playUri,
-          httpHeaders: headers.isEmpty ? null : headers,
-        ),
+      await _openMediaWithResume(
+        playUri: resolved.playUri,
+        startPositionMs: resolved.effectiveStartMs,
       );
-
-      if (resolved.effectiveStartMs > 0) {
-        await _player!.seek(Duration(milliseconds: resolved.effectiveStartMs));
-      }
 
       setState(() {
         _isLoading = false;
@@ -601,8 +671,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ),
 
         // Loading overlay
-        if (_isLoading)
-          const Center(child: ProgressRing()),
+        if (_isLoading) const Center(child: ProgressRing()),
 
         // UI Overlay
         if (_isInitialized)
@@ -675,11 +744,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                if (_playingInfoCache?.subhead.isNotEmpty == true)
+                                if (_playingInfoCache?.subhead.isNotEmpty ==
+                                    true)
                                   Text(
                                     _playingInfoCache!.subhead,
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.7),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.7),
                                       fontSize: 14,
                                     ),
                                   ),
@@ -705,7 +776,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                       alignment: Alignment.center,
                       child: Icon(
-                        _player?.state.playing == true ? FluentIcons.pause : FluentIcons.play,
+                        _player?.state.playing == true
+                            ? FluentIcons.pause
+                            : FluentIcons.play,
                         size: 36,
                         color: Colors.white,
                       ),
@@ -808,7 +881,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         GestureDetector(
           onTap: _togglePlayPause,
           child: Icon(
-            _player?.state.playing == true ? FluentIcons.pause : FluentIcons.play,
+            _player?.state.playing == true
+                ? FluentIcons.pause
+                : FluentIcons.play,
             size: 32,
             color: Colors.white,
           ),
