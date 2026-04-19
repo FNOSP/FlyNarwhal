@@ -1,11 +1,16 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/scheduler.dart';
 import 'player_action_button.dart';
 
 const Color _flyoutBackgroundColor = Color(0xE6000000);
 const Color _flyoutBorderColor = Color(0x80808080);
 const int _hideDelayMs = 200;
 const int _animationDurationMs = 200;
+const double _flyoutLeftOffset = -8;
+const double _flyoutBridgeOffset = 40;
+const double _flyoutWidth = 46;
+const double _estimatedFlyoutHeight = 166;
 
 class VolumeControl extends StatefulWidget {
   final double volume;
@@ -28,10 +33,14 @@ class VolumeControl extends StatefulWidget {
 class _VolumeControlState extends State<VolumeControl>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
-  bool _showPopup = false;
   bool _isButtonHovered = false;
   bool _popupHovered = false;
+  final GlobalKey _buttonKey = GlobalKey();
+  final GlobalKey _flyoutKey = GlobalKey();
+  OverlayEntry? _overlayEntry;
+  Size? _flyoutSize;
   Timer? _hideTimer;
+  bool _overlayRebuildScheduled = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -57,13 +66,164 @@ class _VolumeControlState extends State<VolumeControl>
     );
   }
 
+  @override
+  void didUpdateWidget(VolumeControl oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.volume != widget.volume ||
+        oldWidget.popupBottomOffset != widget.popupBottomOffset) {
+      _requestOverlayRebuild();
+    }
+  }
+
+  double get _safePopupBottomOffset =>
+      widget.popupBottomOffset < 0 ? 0 : widget.popupBottomOffset;
+
+  void _requestOverlayRebuild() {
+    if (_overlayEntry == null) return;
+
+    final schedulerPhase = SchedulerBinding.instance.schedulerPhase;
+    final canRebuildNow = schedulerPhase == SchedulerPhase.idle ||
+        schedulerPhase == SchedulerPhase.postFrameCallbacks;
+    if (canRebuildNow) {
+      _overlayEntry?.markNeedsBuild();
+      return;
+    }
+
+    if (_overlayRebuildScheduled) return;
+    _overlayRebuildScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _overlayRebuildScheduled = false;
+      if (!mounted || _overlayEntry == null) return;
+      _overlayEntry?.markNeedsBuild();
+    });
+  }
+
+  void _updateFlyoutSizeAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final context = _flyoutKey.currentContext;
+      if (context == null) return;
+      final renderObject = context.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) return;
+      final nextSize = renderObject.size;
+      if (nextSize == _flyoutSize) return;
+      _flyoutSize = nextSize;
+      _requestOverlayRebuild();
+    });
+  }
+
+  void _setPopupHovered(bool value) {
+    if (_popupHovered == value || !mounted) return;
+    setState(() => _popupHovered = value);
+  }
+
+  OverlayEntry _buildOverlayEntry() {
+    return OverlayEntry(
+      builder: (overlayContext) {
+        final buttonContext = _buttonKey.currentContext;
+        if (buttonContext == null) {
+          return const SizedBox.shrink();
+        }
+
+        final renderObject = buttonContext.findRenderObject();
+        if (renderObject is! RenderBox || !renderObject.hasSize) {
+          return const SizedBox.shrink();
+        }
+
+        final buttonOffset = renderObject.localToGlobal(Offset.zero);
+        final buttonSize = renderObject.size;
+        final flyoutHeight = _flyoutSize?.height ?? _estimatedFlyoutHeight;
+        final bridgeHeight = _safePopupBottomOffset + _flyoutBridgeOffset;
+        final top =
+            buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight;
+
+        _updateFlyoutSizeAfterFrame();
+
+        return Stack(
+          children: [
+            Positioned(
+              left: buttonOffset.dx + _flyoutLeftOffset,
+              top: top,
+              child: MouseRegion(
+                opaque: false,
+                cursor: SystemMouseCursors.basic,
+                onEnter: (_) {
+                  _setPopupHovered(true);
+                  _hideTimer?.cancel();
+                },
+                onHover: (_) {
+                  if (!_popupHovered) {
+                    _setPopupHovered(true);
+                  }
+                },
+                onExit: (_) {
+                  _setPopupHovered(false);
+                  _hideFlyoutWithDelay();
+                },
+                child: SizedBox(
+                  width: _flyoutWidth,
+                  height: flyoutHeight + bridgeHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: KeyedSubtree(
+                            key: _flyoutKey,
+                            child: _buildAnimatedFlyout(),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 0,
+                        top: flyoutHeight,
+                        child: SizedBox(
+                          width: _flyoutWidth,
+                          height: bridgeHeight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) {
+      _requestOverlayRebuild();
+      return;
+    }
+    _overlayEntry = _buildOverlayEntry();
+    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
+  }
+
+  void _hideOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _flyoutSize = null;
+    _overlayRebuildScheduled = false;
+  }
+
   void _showFlyout() {
     _hideTimer?.cancel();
-    setState(() {
-      _isExpanded = true;
-      _showPopup = true;
-    });
-    _animationController.forward();
+    if (_isExpanded) {
+      if (_animationController.status == AnimationStatus.reverse) {
+        _animationController.forward();
+      }
+      _requestOverlayRebuild();
+      return;
+    }
+    setState(() => _isExpanded = true);
+    _showOverlay();
+    _animationController.forward(from: 0);
     widget.onHoverStateChanged?.call(true);
   }
 
@@ -71,22 +231,30 @@ class _VolumeControlState extends State<VolumeControl>
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(milliseconds: _hideDelayMs), () {
       if (!_isButtonHovered && !_popupHovered && mounted) {
-        _animationController.reverse().then((_) {
-          if (mounted) {
-            setState(() {
-              _isExpanded = false;
-              _showPopup = false;
-            });
-          }
-        });
-        widget.onHoverStateChanged?.call(false);
+        _closeFlyout();
       }
     });
+  }
+
+  Future<void> _closeFlyout() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
+    }
+
+    _hideOverlay();
+    if (!mounted) return;
+
+    setState(() => _isExpanded = false);
+    widget.onHoverStateChanged?.call(false);
   }
 
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _hideOverlay();
     _animationController.dispose();
     super.dispose();
   }
@@ -103,48 +271,14 @@ class _VolumeControlState extends State<VolumeControl>
         setState(() => _isButtonHovered = false);
         _hideFlyoutWithDelay();
       },
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          _buildVolumeIcon(),
-          if (_showPopup)
-            Positioned(
-              bottom: 0,
-              left: -8,
-              child: MouseRegion(
-                opaque: false,
-                onEnter: (_) {
-                  setState(() => _popupHovered = true);
-                  _hideTimer?.cancel();
-                },
-                onExit: (_) {
-                  setState(() => _popupHovered = false);
-                  _hideFlyoutWithDelay();
-                },
-                child: SizedBox(
-                  width: 46,
-                  height: widget.popupBottomOffset,
-                ),
-              ),
-            ),
-          if (_showPopup)
-            Positioned(
-              bottom: widget.popupBottomOffset,
-              left: -8,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                onEnter: (_) {
-                  setState(() => _popupHovered = true);
-                  _hideTimer?.cancel();
-                },
-                onExit: (_) {
-                  setState(() => _popupHovered = false);
-                  _hideFlyoutWithDelay();
-                },
-                child: _buildAnimatedFlyout(),
-              ),
-            ),
-        ],
+      child: KeyedSubtree(
+        key: _buttonKey,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _buildVolumeIcon(),
+          ],
+        ),
       ),
     );
   }
@@ -249,10 +383,24 @@ class _VerticalVolumeSlider extends StatefulWidget {
 class _VerticalVolumeSliderState extends State<_VerticalVolumeSlider> {
   double _dragVolume = 0;
   bool _isDragging = false;
+  bool _isWaitingForExternalSync = false;
+
+  @override
+  void didUpdateWidget(covariant _VerticalVolumeSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_isDragging && widget.volume != oldWidget.volume) {
+      _dragVolume = widget.volume;
+    }
+    if (_isWaitingForExternalSync &&
+        (widget.volume - _dragVolume).abs() < 0.0001) {
+      _isWaitingForExternalSync = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final displayVolume = _isDragging ? _dragVolume : widget.volume;
+    final displayVolume =
+        (_isDragging || _isWaitingForExternalSync) ? _dragVolume : widget.volume;
 
     return GestureDetector(
       onTapDown: (details) {
@@ -265,6 +413,7 @@ class _VerticalVolumeSliderState extends State<_VerticalVolumeSlider> {
       onVerticalDragStart: (details) {
         setState(() {
           _isDragging = true;
+          _isWaitingForExternalSync = false;
           _dragVolume = widget.volume;
         });
       },
@@ -277,7 +426,10 @@ class _VerticalVolumeSliderState extends State<_VerticalVolumeSlider> {
         widget.onVolumeChange(newVolume);
       },
       onVerticalDragEnd: (details) {
-        setState(() => _isDragging = false);
+        setState(() {
+          _isDragging = false;
+          _isWaitingForExternalSync = true;
+        });
       },
       child: CustomPaint(
         size: const Size(40, 120),
@@ -297,8 +449,8 @@ class _VerticalSliderPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final trackXCenter = size.width / 2;
-    final trackWidth = 4.0;
-    final thumbRadius = 6.0;
+    const trackWidth = 4.0;
+    const thumbRadius = 6.0;
 
     // Background track
     final bgPaint = Paint()

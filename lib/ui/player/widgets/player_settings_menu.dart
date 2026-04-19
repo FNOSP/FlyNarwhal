@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/scheduler.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import 'player_action_button.dart';
@@ -11,6 +12,12 @@ const Color _defaultTextColor = Color(0xC8FFFFFF);
 const Color _hoverBackgroundColor = Color(0x1AFFFFFF);
 const int _hideDelayMs = 200;
 const int _animationDurationMs = 200;
+const double _settingsFlyoutLeftOffset = -145;
+const double _settingsFlyoutBridgeOffset = 40;
+const double _settingsFlyoutWidth = 320;
+const double _settingsFlyoutMinBridgeWidth = 56;
+const double _settingsFlyoutBridgeHorizontalPadding = 12;
+const double _estimatedSettingsFlyoutHeight = 300;
 
 class PlayerSettingsMenu extends StatefulWidget {
   final PlayingInfoCache? playingInfoCache;
@@ -49,11 +56,15 @@ class PlayerSettingsMenu extends StatefulWidget {
 class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
-  bool _showPopup = false;
   bool _isButtonHovered = false;
   bool _popupHovered = false;
+  final GlobalKey _buttonKey = GlobalKey();
+  final GlobalKey _flyoutKey = GlobalKey();
+  OverlayEntry? _overlayEntry;
+  Size? _flyoutSize;
   Timer? _hideTimer;
   String _currentScreen = 'Main';
+  bool _overlayRebuildScheduled = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -75,11 +86,17 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
 
   void _showFlyout() {
     _hideTimer?.cancel();
-    setState(() {
-      _isExpanded = true;
-      _showPopup = true;
-    });
-    _animationController.forward();
+    if (_isExpanded) {
+      if (_animationController.status == AnimationStatus.reverse) {
+        _animationController.forward();
+      }
+      _requestOverlayRebuild();
+      return;
+    }
+
+    setState(() => _isExpanded = true);
+    _showOverlay();
+    _animationController.forward(from: 0);
     widget.onHoverStateChanged?.call(true);
   }
 
@@ -87,23 +104,191 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(milliseconds: _hideDelayMs), () {
       if (!_isButtonHovered && !_popupHovered && mounted) {
-        _animationController.reverse().then((_) {
-          if (mounted) {
-            setState(() {
-              _isExpanded = false;
-              _showPopup = false;
-              _currentScreen = 'Main';
-            });
-          }
-        });
-        widget.onHoverStateChanged?.call(false);
+        _closeMenu();
       }
     });
   }
 
   @override
+  void didUpdateWidget(covariant PlayerSettingsMenu oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.popupBottomOffset != widget.popupBottomOffset) {
+      _requestOverlayRebuild();
+    }
+  }
+
+  double get _safePopupBottomOffset =>
+      widget.popupBottomOffset < 0 ? 0 : widget.popupBottomOffset;
+
+  void _requestOverlayRebuild() {
+    if (_overlayEntry == null) return;
+
+    final schedulerPhase = SchedulerBinding.instance.schedulerPhase;
+    final canRebuildNow = schedulerPhase == SchedulerPhase.idle ||
+        schedulerPhase == SchedulerPhase.postFrameCallbacks;
+    if (canRebuildNow) {
+      _overlayEntry?.markNeedsBuild();
+      return;
+    }
+
+    if (_overlayRebuildScheduled) return;
+    _overlayRebuildScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _overlayRebuildScheduled = false;
+      if (!mounted || _overlayEntry == null) return;
+      _overlayEntry?.markNeedsBuild();
+    });
+  }
+
+  void _updateFlyoutSizeAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final context = _flyoutKey.currentContext;
+      if (context == null) return;
+      final renderObject = context.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) return;
+      final nextSize = renderObject.size;
+      if (nextSize == _flyoutSize) return;
+      _flyoutSize = nextSize;
+      _requestOverlayRebuild();
+    });
+  }
+
+  void _setPopupHovered(bool value) {
+    if (_popupHovered == value || !mounted) return;
+    setState(() => _popupHovered = value);
+  }
+
+  double _calculateBridgeWidth(Size buttonSize) {
+    final preferredWidth =
+        buttonSize.width + (_settingsFlyoutBridgeHorizontalPadding * 2);
+    return preferredWidth.clamp(
+      _settingsFlyoutMinBridgeWidth,
+      _settingsFlyoutWidth,
+    );
+  }
+
+  double _calculateBridgeLeft(Size buttonSize) {
+    final bridgeWidth = _calculateBridgeWidth(buttonSize);
+    final buttonCenterX =
+        (-_settingsFlyoutLeftOffset) + (buttonSize.width / 2);
+    final desiredLeft = buttonCenterX - (bridgeWidth / 2);
+    return desiredLeft.clamp(0.0, _settingsFlyoutWidth - bridgeWidth);
+  }
+
+  OverlayEntry _buildOverlayEntry() {
+    return OverlayEntry(
+      builder: (overlayContext) {
+        final buttonContext = _buttonKey.currentContext;
+        if (buttonContext == null) {
+          return const SizedBox.shrink();
+        }
+
+        final renderObject = buttonContext.findRenderObject();
+        if (renderObject is! RenderBox || !renderObject.hasSize) {
+          return const SizedBox.shrink();
+        }
+
+        final buttonOffset = renderObject.localToGlobal(Offset.zero);
+        final buttonSize = renderObject.size;
+        final flyoutHeight = _flyoutSize?.height ?? _estimatedSettingsFlyoutHeight;
+        final bridgeHeight = _safePopupBottomOffset + _settingsFlyoutBridgeOffset;
+        final bridgeWidth = _calculateBridgeWidth(buttonSize);
+        final bridgeLeft = _calculateBridgeLeft(buttonSize);
+        final top =
+            buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight;
+
+        _updateFlyoutSizeAfterFrame();
+
+        return Stack(
+          children: [
+            Positioned(
+              left: buttonOffset.dx + _settingsFlyoutLeftOffset,
+              top: top,
+              child: SizedBox(
+                width: _settingsFlyoutWidth,
+                height: flyoutHeight + bridgeHeight,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      child: MouseRegion(
+                        opaque: false,
+                        cursor: SystemMouseCursors.basic,
+                        onEnter: (_) {
+                          _setPopupHovered(true);
+                          _hideTimer?.cancel();
+                        },
+                        onHover: (_) {
+                          if (!_popupHovered) {
+                            _setPopupHovered(true);
+                          }
+                        },
+                        onExit: (_) {
+                          _setPopupHovered(false);
+                          _hideFlyoutWithDelay();
+                        },
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: KeyedSubtree(
+                            key: _flyoutKey,
+                            child: _buildAnimatedFlyout(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: bridgeLeft,
+                      top: flyoutHeight,
+                      child: MouseRegion(
+                        opaque: false,
+                        cursor: SystemMouseCursors.basic,
+                        onEnter: (_) {
+                          _setPopupHovered(true);
+                          _hideTimer?.cancel();
+                        },
+                        onExit: (_) {
+                          _setPopupHovered(false);
+                          _hideFlyoutWithDelay();
+                        },
+                        child: SizedBox(
+                          width: bridgeWidth,
+                          height: bridgeHeight,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) {
+      _requestOverlayRebuild();
+      return;
+    }
+    _overlayEntry = _buildOverlayEntry();
+    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
+  }
+
+  void _hideOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _flyoutSize = null;
+    _overlayRebuildScheduled = false;
+  }
+
+  @override
   void dispose() {
     _hideTimer?.cancel();
+    _hideOverlay();
     _animationController.dispose();
     super.dispose();
   }
@@ -120,52 +305,13 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         setState(() => _isButtonHovered = false);
         _hideFlyoutWithDelay();
       },
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          const PlayerActionButton.lottie(
-            lottieAssetPath: 'assets/lottie/settings_lottie.json',
-            size: 30,
-            iconSize: 22,
-          ),
-          if (_showPopup)
-            Positioned(
-              bottom: 0,
-              right: -140,
-              child: MouseRegion(
-                opaque: false,
-                onEnter: (_) {
-                  setState(() => _popupHovered = true);
-                  _hideTimer?.cancel();
-                },
-                onExit: (_) {
-                  setState(() => _popupHovered = false);
-                  _hideFlyoutWithDelay();
-                },
-                child: SizedBox(
-                  width: 280,
-                  height: widget.popupBottomOffset,
-                ),
-              ),
-            ),
-          if (_showPopup)
-            Positioned(
-              bottom: widget.popupBottomOffset,
-              right: -140,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                onEnter: (_) {
-                  setState(() => _popupHovered = true);
-                  _hideTimer?.cancel();
-                },
-                onExit: (_) {
-                  setState(() => _popupHovered = false);
-                  _hideFlyoutWithDelay();
-                },
-                child: _buildAnimatedFlyout(),
-              ),
-            ),
-        ],
+      child: KeyedSubtree(
+        key: _buttonKey,
+        child: const PlayerActionButton.lottie(
+          lottieAssetPath: 'assets/lottie/settings_lottie.json',
+          size: 30,
+          iconSize: 22,
+        ),
       ),
     );
   }
@@ -184,17 +330,23 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         );
       },
       child: _SettingsFlyoutContent(
+        key: ValueKey(_currentScreen),
         playingInfoCache: widget.playingInfoCache,
         iso6391Map: widget.iso6391Map,
         currentPositionMillis: widget.currentPositionMillis,
         totalDurationMillis: widget.totalDurationMillis,
         currentScreen: _currentScreen,
-        onNavigate: (screen) => setState(() => _currentScreen = screen),
+        onNavigate: (screen) {
+          setState(() => _currentScreen = screen);
+          _requestOverlayRebuild();
+        },
         onAudioSelected: (audio) {
+          _setPopupHovered(false);
           widget.onAudioSelected(audio);
           _closeMenu();
         },
         onWindowAspectRatioChanged: (ratio) {
+          _setPopupHovered(false);
           widget.onWindowAspectRatioChanged(ratio);
           _closeMenu();
         },
@@ -206,19 +358,26 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
     );
   }
 
-  void _closeMenu() {
-    _animationController.reverse().then((_) {
-      if (mounted) {
-        setState(() {
-          _isExpanded = false;
-          _showPopup = false;
-          _currentScreen = 'Main';
-        });
-      }
-    });
-    if (!_isButtonHovered) {
-      widget.onHoverStateChanged?.call(false);
+  Future<void> _closeMenu() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
     }
+
+    if (!mounted) return;
+    if (_isButtonHovered || _popupHovered) {
+      _animationController.forward();
+      return;
+    }
+
+    _hideOverlay();
+    setState(() {
+      _isExpanded = false;
+      _currentScreen = 'Main';
+    });
+    widget.onHoverStateChanged?.call(false);
   }
 }
 
@@ -237,6 +396,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool isSmartAnalysisGloballyEnabled;
 
   const _SettingsFlyoutContent({
+    super.key,
     required this.playingInfoCache,
     required this.iso6391Map,
     required this.currentPositionMillis,
@@ -254,7 +414,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 320,
+      width: _settingsFlyoutWidth,
       decoration: BoxDecoration(
         color: _flyoutBackgroundColor,
         borderRadius: BorderRadius.circular(8),

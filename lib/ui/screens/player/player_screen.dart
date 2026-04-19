@@ -28,6 +28,8 @@ import '../../player/widgets/subtitle_control_flyout.dart';
 import '../../widgets/toast.dart';
 import '../../widgets/window_caption.dart';
 
+enum _PlayerFlyoutType { speed, episode, quality, subtitle }
+
 class PlayerScreen extends ConsumerStatefulWidget {
   final String guid;
   final String? mediaGuid;
@@ -77,6 +79,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   // Hover states
   bool _isProgressBarHovered = false;
+  bool _isBottomControlAreaHovered = false;
   bool _isSpeedControlHovered = false;
   bool _isVolumeControlHovered = false;
   bool _isQualityControlHovered = false;
@@ -87,6 +90,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _isDanmakuControlHovered = false;
   bool _isDanmakuSettingsHovered = false;
   bool _isPipControlHovered = false;
+  _PlayerFlyoutType? _activeFlyout;
   bool _isDanmakuVisible = true;
   bool _isAutoPlayEnabled = true;
   String? _selectedAudioGuid;
@@ -527,6 +531,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _hideUiTimer?.cancel();
     _hideUiTimer = Timer(const Duration(seconds: 3), () {
       if (!_isProgressBarHovered &&
+          !_isBottomControlAreaHovered &&
           !_isSpeedControlHovered &&
           !_isVolumeControlHovered &&
           !_isQualityControlHovered &&
@@ -539,6 +544,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           !_isSettingsMenuHovered &&
           mounted) {
         setState(() => _isUiVisible = false);
+      }
+    });
+  }
+
+  void _handleFlyoutHoverStateChanged(
+      _PlayerFlyoutType type, bool hovered) {
+    setState(() {
+      switch (type) {
+        case _PlayerFlyoutType.speed:
+          _isSpeedControlHovered = hovered;
+          break;
+        case _PlayerFlyoutType.episode:
+          _isEpisodeControlHovered = hovered;
+          break;
+        case _PlayerFlyoutType.quality:
+          _isQualityControlHovered = hovered;
+          break;
+        case _PlayerFlyoutType.subtitle:
+          _isSubtitleControlHovered = hovered;
+          break;
+      }
+
+      if (hovered) {
+        _activeFlyout = type;
+      } else if (_activeFlyout == type) {
+        _activeFlyout = null;
       }
     });
   }
@@ -567,7 +598,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _setVolume(double volume) {
     if (_player == null) return;
-    _volume = volume;
+    setState(() => _volume = volume);
     _player!.setVolume(volume * 100);
     ref.read(playerSettingsManagerProvider).setVolume(volume);
   }
@@ -711,14 +742,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _handleBack() {
+    _leavePlayerRoute(() {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/home');
+      }
+    });
+  }
+
+  // Dismiss transient overlays before leaving the player route.
+  void _dismissTransientPlayerUiBeforeExit() {
     _playRecordTimer?.cancel();
     _hideUiTimer?.cancel();
-    // Check if there's a route to pop, otherwise navigate to home
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go('/home');
-    }
+    Tooltip.dismissAllToolTips();
+
+    _isProgressBarHovered = false;
+    _isBottomControlAreaHovered = false;
+    _isSpeedControlHovered = false;
+    _isVolumeControlHovered = false;
+    _isQualityControlHovered = false;
+    _isSettingsMenuHovered = false;
+    _isSubtitleControlHovered = false;
+    _isEpisodeControlHovered = false;
+    _isNextEpisodeHovered = false;
+    _isDanmakuControlHovered = false;
+    _isDanmakuSettingsHovered = false;
+    _isPipControlHovered = false;
+    _activeFlyout = null;
+  }
+
+  void _leavePlayerRoute(VoidCallback onLeave) {
+    _dismissTransientPlayerUiBeforeExit();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      onLeave();
+    });
   }
 
   @override
@@ -803,16 +862,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   bottom: 0,
                   left: 0,
                   right: 0,
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildProgressBar(),
-                          const SizedBox(height: 12),
-                          _buildControlButtons(),
-                        ],
+                  child: MouseRegion(
+                    onEnter: (_) {
+                      setState(() => _isBottomControlAreaHovered = true);
+                      _showUi();
+                    },
+                    onExit: (_) {
+                      setState(() => _isBottomControlAreaHovered = false);
+                    },
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildProgressBar(),
+                            const SizedBox(height: 12),
+                            _buildControlButtons(),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -896,8 +964,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         SpeedControlFlyout(
           defaultSpeed: _speed,
           yOffset: _controlFlyoutOffset,
+          isActiveControl: _activeFlyout == _PlayerFlyoutType.speed,
           onHoverStateChanged: (hovered) =>
-              setState(() => _isSpeedControlHovered = hovered),
+              _handleFlyoutHoverStateChanged(_PlayerFlyoutType.speed, hovered),
           onSpeedSelected: (speed) => _setSpeed(speed.value),
         ),
         const SizedBox(width: _controlFlyoutSpacing),
@@ -907,8 +976,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             currentEpisodeGuid: widget.guid,
             isAutoPlay: _isAutoPlayEnabled,
             yOffset: _controlFlyoutOffset,
+            isActiveControl: _activeFlyout == _PlayerFlyoutType.episode,
             onHoverStateChanged: (hovered) =>
-                setState(() => _isEpisodeControlHovered = hovered),
+                _handleFlyoutHoverStateChanged(_PlayerFlyoutType.episode, hovered),
             onEpisodeSelected: _openEpisode,
             onAutoPlayChanged: (value) =>
                 setState(() => _isAutoPlayEnabled = value),
@@ -921,8 +991,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             currentResolution: _currentResolution,
             currentBitrate: _currentBitrate,
             yOffset: _controlFlyoutOffset,
+            isActiveControl: _activeFlyout == _PlayerFlyoutType.quality,
             onHoverStateChanged: (hovered) =>
-                setState(() => _isQualityControlHovered = hovered),
+                _handleFlyoutHoverStateChanged(_PlayerFlyoutType.quality, hovered),
             onQualitySelected: _onQualitySelected,
           ),
         const SizedBox(width: _controlFlyoutSpacing),
@@ -959,8 +1030,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           subtitles: _playingInfoCache?.currentSubtitleStreamList ?? const [],
           selectedSubtitleGuid: _selectedSubtitleGuid,
           yOffset: _controlFlyoutOffset,
+          isActiveControl: _activeFlyout == _PlayerFlyoutType.subtitle,
           onHoverStateChanged: (hovered) =>
-              setState(() => _isSubtitleControlHovered = hovered),
+              _handleFlyoutHoverStateChanged(_PlayerFlyoutType.subtitle, hovered),
           onSubtitleSelected: _onSubtitleSelected,
         ),
         const SizedBox(width: _controlFlyoutSpacing),
@@ -978,7 +1050,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         const SizedBox(width: _controlFlyoutSpacing),
         VolumeControl(
           volume: _volume,
-          popupBottomOffset: (_controlFlyoutOffset - 16).toDouble(),
+          popupBottomOffset: _controlFlyoutOffset.toDouble(),
           onHoverStateChanged: (hovered) =>
               setState(() => _isVolumeControlHovered = hovered),
           onVolumeChange: _setVolume,
@@ -1186,7 +1258,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (episode.guid == widget.guid) {
       return;
     }
-    context.go('/player/${episode.guid}');
+    _leavePlayerRoute(() => context.go('/player/${episode.guid}'));
   }
 
   void _showFeatureComingSoon(String feature) {

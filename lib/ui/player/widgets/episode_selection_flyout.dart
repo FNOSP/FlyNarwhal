@@ -9,12 +9,17 @@ const Color _episodeDefaultTextColor = Color(0xC8FFFFFF);
 const Color _episodeHoverBackgroundColor = Color(0x1AFFFFFF);
 const int _episodeHideDelayMs = 200;
 const int _episodeAnimationDurationMs = 200;
+const double _episodeFlyoutWidth = 280;
+const double _episodeFlyoutLeftOffset = -220;
+const double _episodeFlyoutBridgeOffset = 40;
+const double _estimatedEpisodeFlyoutHeight = 380;
 
 class EpisodeSelectionFlyout extends StatefulWidget {
   final List<EpisodeListResponse> episodes;
   final String currentEpisodeGuid;
   final bool isAutoPlay;
   final int yOffset;
+  final bool isActiveControl;
   final void Function(EpisodeListResponse) onEpisodeSelected;
   final void Function(bool)? onHoverStateChanged;
   final void Function(bool)? onAutoPlayChanged;
@@ -25,6 +30,7 @@ class EpisodeSelectionFlyout extends StatefulWidget {
     required this.currentEpisodeGuid,
     this.isAutoPlay = true,
     this.yOffset = 0,
+    this.isActiveControl = false,
     required this.onEpisodeSelected,
     this.onHoverStateChanged,
     this.onAutoPlayChanged,
@@ -36,9 +42,13 @@ class EpisodeSelectionFlyout extends StatefulWidget {
 
 class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
     with SingleTickerProviderStateMixin {
-  bool _showPopup = false;
+  bool _isExpanded = false;
   bool _isButtonHovered = false;
   bool _popupHovered = false;
+  final GlobalKey _buttonKey = GlobalKey();
+  final GlobalKey _flyoutKey = GlobalKey();
+  OverlayEntry? _overlayEntry;
+  Size? _flyoutSize;
   Timer? _hideTimer;
   late final AnimationController _animationController;
   late final Animation<double> _fadeAnimation;
@@ -60,15 +70,146 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
   }
 
   @override
+  void didUpdateWidget(EpisodeSelectionFlyout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActiveControl && !widget.isActiveControl) {
+      _forceCloseFlyout();
+    }
+  }
+
+  @override
   void dispose() {
     _hideTimer?.cancel();
+    _hideOverlay();
     _animationController.dispose();
     super.dispose();
   }
 
+  void _updateFlyoutSizeAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final context = _flyoutKey.currentContext;
+      if (context == null) return;
+      final renderObject = context.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) return;
+      final nextSize = renderObject.size;
+      if (nextSize == _flyoutSize) return;
+      _flyoutSize = nextSize;
+      _overlayEntry?.markNeedsBuild();
+    });
+  }
+
+  void _setPopupHovered(bool value) {
+    if (_popupHovered == value || !mounted) return;
+    setState(() => _popupHovered = value);
+  }
+
+  OverlayEntry _buildOverlayEntry() {
+    return OverlayEntry(
+      builder: (context) {
+        final buttonContext = _buttonKey.currentContext;
+        if (buttonContext == null) {
+          return const SizedBox.shrink();
+        }
+
+        final renderObject = buttonContext.findRenderObject();
+        if (renderObject is! RenderBox || !renderObject.hasSize) {
+          return const SizedBox.shrink();
+        }
+
+        final buttonOffset = renderObject.localToGlobal(Offset.zero);
+        final buttonSize = renderObject.size;
+        final flyoutHeight = _flyoutSize?.height ?? _estimatedEpisodeFlyoutHeight;
+        final bridgeHeight = widget.yOffset + _episodeFlyoutBridgeOffset;
+        final top =
+            buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight;
+
+        _updateFlyoutSizeAfterFrame();
+
+        return Stack(
+          children: [
+            Positioned(
+              left: buttonOffset.dx + _episodeFlyoutLeftOffset,
+              top: top,
+              child: MouseRegion(
+                opaque: false,
+                cursor: SystemMouseCursors.basic,
+                onEnter: (_) {
+                  _setPopupHovered(true);
+                  _hideTimer?.cancel();
+                },
+                onHover: (_) {
+                  if (!_popupHovered) {
+                    _setPopupHovered(true);
+                  }
+                },
+                onExit: (_) {
+                  _setPopupHovered(false);
+                  _hideFlyoutWithDelay();
+                },
+                child: SizedBox(
+                  width: _episodeFlyoutWidth,
+                  height: flyoutHeight + bridgeHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: KeyedSubtree(
+                            key: _flyoutKey,
+                            child: _buildAnimatedFlyout(),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 0,
+                        top: flyoutHeight,
+                        child: SizedBox(
+                          width: _episodeFlyoutWidth,
+                          height: bridgeHeight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) {
+      _overlayEntry?.markNeedsBuild();
+      return;
+    }
+    _overlayEntry = _buildOverlayEntry();
+    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
+  }
+
+  void _hideOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _flyoutSize = null;
+  }
+
   void _showFlyout() {
     _hideTimer?.cancel();
-    setState(() => _showPopup = true);
+    if (_isExpanded) {
+      if (_animationController.status == AnimationStatus.reverse) {
+        _animationController.forward();
+      }
+      _overlayEntry?.markNeedsBuild();
+      return;
+    }
+
+    setState(() => _isExpanded = true);
+    _showOverlay();
     _animationController.forward(from: 0);
     widget.onHoverStateChanged?.call(true);
   }
@@ -77,14 +218,45 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(milliseconds: _episodeHideDelayMs), () {
       if (!_isButtonHovered && !_popupHovered && mounted) {
-        _animationController.reverse().then((_) {
-          if (mounted) {
-            setState(() => _showPopup = false);
-          }
-        });
-        widget.onHoverStateChanged?.call(false);
+        _closeFlyout();
       }
     });
+  }
+
+  Future<void> _closeFlyout() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
+    }
+
+    if (!mounted) return;
+    if (_isButtonHovered || _popupHovered) {
+      _animationController.forward();
+      return;
+    }
+
+    _hideOverlay();
+    setState(() => _isExpanded = false);
+    widget.onHoverStateChanged?.call(false);
+  }
+
+  Future<void> _forceCloseFlyout() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    _isButtonHovered = false;
+    _popupHovered = false;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
+    }
+
+    if (!mounted) return;
+    _hideOverlay();
+    setState(() => _isExpanded = false);
+    widget.onHoverStateChanged?.call(false);
   }
 
   @override
@@ -99,76 +271,42 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
         setState(() => _isButtonHovered = false);
         _hideFlyoutWithDelay();
       },
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Text(
-            '选集',
-            style: TextStyle(
-              color: _isButtonHovered ? Colors.white : _episodeDefaultTextColor,
-              fontSize: 17,
-            ),
+      child: KeyedSubtree(
+        key: _buttonKey,
+        child: Text(
+          '选集',
+          style: TextStyle(
+            color: _isButtonHovered ? Colors.white : _episodeDefaultTextColor,
+            fontSize: 17,
           ),
-          if (_showPopup)
-            Positioned(
-              bottom: 0,
-              left: -220,
-              child: MouseRegion(
-                opaque: false,
-                onEnter: (_) {
-                  setState(() => _popupHovered = true);
-                  _hideTimer?.cancel();
-                },
-                onExit: (_) {
-                  setState(() => _popupHovered = false);
-                  _hideFlyoutWithDelay();
-                },
-                child: SizedBox(
-                  width: 280,
-                  height: widget.yOffset + 40,
-                ),
-              ),
-            ),
-          if (_showPopup)
-            Positioned(
-              bottom: widget.yOffset + 40,
-              left: -220,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                onEnter: (_) {
-                  setState(() => _popupHovered = true);
-                  _hideTimer?.cancel();
-                },
-                onExit: (_) {
-                  setState(() => _popupHovered = false);
-                  _hideFlyoutWithDelay();
-                },
-                child: AnimatedBuilder(
-                  animation: _animationController,
-                  builder: (context, child) {
-                    return FadeTransition(
-                      opacity: _fadeAnimation,
-                      child: Transform.scale(
-                        scale: _scaleAnimation.value,
-                        alignment: Alignment.bottomCenter,
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: _EpisodeFlyoutContent(
-                    episodes: widget.episodes,
-                    currentEpisodeGuid: widget.currentEpisodeGuid,
-                    isAutoPlay: widget.isAutoPlay,
-                    onEpisodeSelected: (episode) {
-                      widget.onEpisodeSelected(episode);
-                      _hideFlyoutWithDelay();
-                    },
-                    onAutoPlayChanged: widget.onAutoPlayChanged,
-                  ),
-                ),
-              ),
-            ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedFlyout() {
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: Transform.scale(
+            scale: _scaleAnimation.value,
+            alignment: Alignment.bottomCenter,
+            child: child,
+          ),
+        );
+      },
+      child: _EpisodeFlyoutContent(
+        episodes: widget.episodes,
+        currentEpisodeGuid: widget.currentEpisodeGuid,
+        isAutoPlay: widget.isAutoPlay,
+        onEpisodeSelected: (episode) {
+          widget.onEpisodeSelected(episode);
+          _setPopupHovered(false);
+          _closeFlyout();
+        },
+        onAutoPlayChanged: widget.onAutoPlayChanged,
       ),
     );
   }

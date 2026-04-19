@@ -18,6 +18,7 @@ const double _estimatedFlyoutHeight = 244;
 class SpeedControlFlyout extends StatefulWidget {
   final double defaultSpeed;
   final int yOffset;
+  final bool isActiveControl;
   final void Function(bool isHovered)? onHoverStateChanged;
   final void Function(SpeedItem speed) onSpeedSelected;
 
@@ -25,6 +26,7 @@ class SpeedControlFlyout extends StatefulWidget {
     super.key,
     this.defaultSpeed = 1.0,
     this.yOffset = 0,
+    this.isActiveControl = false,
     this.onHoverStateChanged,
     required this.onSpeedSelected,
   });
@@ -69,6 +71,9 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.defaultSpeed != widget.defaultSpeed) {
       _selectedSpeed = _findSpeedItem(widget.defaultSpeed);
+    }
+    if (oldWidget.isActiveControl && !widget.isActiveControl) {
+      _forceCloseFlyout();
     }
   }
 
@@ -232,6 +237,25 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout>
       return;
     }
 
+    _hideOverlay();
+    setState(() {
+      _isExpanded = false;
+    });
+    widget.onHoverStateChanged?.call(false);
+  }
+
+  Future<void> _forceCloseFlyout() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    _isButtonHovered = false;
+    _popupHovered = false;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
+    }
+
+    if (!mounted) return;
     _hideOverlay();
     setState(() {
       _isExpanded = false;

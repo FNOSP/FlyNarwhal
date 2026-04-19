@@ -9,6 +9,12 @@ const Color _defaultTextColor = Color(0xC8FFFFFF);
 const Color _hoverBackgroundColor = Color(0x1AFFFFFF);
 const int _hideDelayMs = 200;
 const int _animationDurationMs = 200;
+const double _qualityFlyoutLeftOffset = -60;
+const double _qualityFlyoutBridgeOffset = 40;
+const double _qualityFlyoutMinBridgeWidth = 56;
+const double _qualityFlyoutBridgeHorizontalPadding = 12;
+const double _estimatedSimpleQualityFlyoutHeight = 220;
+const double _estimatedCustomQualityFlyoutHeight = 365;
 
 // Format bitrate to readable string
 String _formatBitrateSimple(int bps) {
@@ -38,6 +44,7 @@ class QualityControlFlyout extends StatefulWidget {
   final String currentResolution;
   final int? currentBitrate;
   final int yOffset;
+  final bool isActiveControl;
   final void Function(bool isHovered)? onHoverStateChanged;
   final void Function(QualityResponse quality) onQualitySelected;
 
@@ -47,6 +54,7 @@ class QualityControlFlyout extends StatefulWidget {
     required this.currentResolution,
     this.currentBitrate,
     this.yOffset = 0,
+    this.isActiveControl = false,
     this.onHoverStateChanged,
     required this.onQualitySelected,
   });
@@ -58,9 +66,12 @@ class QualityControlFlyout extends StatefulWidget {
 class _QualityControlFlyoutState extends State<QualityControlFlyout>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
-  bool _showPopup = false;
   bool _isButtonHovered = false;
   bool _popupHovered = false;
+  final GlobalKey _buttonKey = GlobalKey();
+  final GlobalKey _flyoutKey = GlobalKey();
+  OverlayEntry? _overlayEntry;
+  Size? _flyoutSize;
   Timer? _hideTimer;
   bool _isCustomPage = false;
   late AnimationController _animationController;
@@ -82,13 +93,178 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
     );
   }
 
+  @override
+  void didUpdateWidget(QualityControlFlyout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActiveControl && !widget.isActiveControl) {
+      _forceCloseFlyout();
+    }
+  }
+
+  double get _currentFlyoutWidth => _isCustomPage ? 360 : 240;
+
+  double get _estimatedFlyoutHeight =>
+      _isCustomPage
+          ? _estimatedCustomQualityFlyoutHeight
+          : _estimatedSimpleQualityFlyoutHeight;
+
+  void _updateFlyoutSizeAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final context = _flyoutKey.currentContext;
+      if (context == null) return;
+      final renderObject = context.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) return;
+      final nextSize = renderObject.size;
+      if (nextSize == _flyoutSize) return;
+      _flyoutSize = nextSize;
+      _overlayEntry?.markNeedsBuild();
+    });
+  }
+
+  void _setPopupHovered(bool value) {
+    if (_popupHovered == value || !mounted) return;
+    setState(() => _popupHovered = value);
+  }
+
+  double _calculateBridgeWidth(Size buttonSize, double flyoutWidth) {
+    final preferredWidth =
+        buttonSize.width + (_qualityFlyoutBridgeHorizontalPadding * 2);
+    return preferredWidth.clamp(_qualityFlyoutMinBridgeWidth, flyoutWidth);
+  }
+
+  double _calculateBridgeLeft(Size buttonSize, double flyoutWidth) {
+    final bridgeWidth = _calculateBridgeWidth(buttonSize, flyoutWidth);
+    final buttonCenterX =
+        (-_qualityFlyoutLeftOffset) + (buttonSize.width / 2);
+    final desiredLeft = buttonCenterX - (bridgeWidth / 2);
+    return desiredLeft.clamp(0.0, flyoutWidth - bridgeWidth);
+  }
+
+  OverlayEntry _buildOverlayEntry() {
+    return OverlayEntry(
+      builder: (context) {
+        final buttonContext = _buttonKey.currentContext;
+        if (buttonContext == null) {
+          return const SizedBox.shrink();
+        }
+
+        final renderObject = buttonContext.findRenderObject();
+        if (renderObject is! RenderBox || !renderObject.hasSize) {
+          return const SizedBox.shrink();
+        }
+
+        final buttonOffset = renderObject.localToGlobal(Offset.zero);
+        final buttonSize = renderObject.size;
+        final flyoutWidth = _currentFlyoutWidth;
+        final flyoutHeight = _flyoutSize?.height ?? _estimatedFlyoutHeight;
+        final bridgeHeight = widget.yOffset + _qualityFlyoutBridgeOffset;
+        final bridgeWidth = _calculateBridgeWidth(buttonSize, flyoutWidth);
+        final bridgeLeft = _calculateBridgeLeft(buttonSize, flyoutWidth);
+        final top =
+            buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight;
+
+        _updateFlyoutSizeAfterFrame();
+
+        return Stack(
+          children: [
+            Positioned(
+              left: buttonOffset.dx + _qualityFlyoutLeftOffset,
+              top: top,
+              child: SizedBox(
+                width: flyoutWidth,
+                height: flyoutHeight + bridgeHeight,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      child: MouseRegion(
+                        opaque: false,
+                        cursor: SystemMouseCursors.basic,
+                        onEnter: (_) {
+                          _setPopupHovered(true);
+                          _hideTimer?.cancel();
+                        },
+                        onHover: (_) {
+                          if (!_popupHovered) {
+                            _setPopupHovered(true);
+                          }
+                        },
+                        onExit: (_) {
+                          _setPopupHovered(false);
+                          _hideFlyoutWithDelay();
+                        },
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: KeyedSubtree(
+                            key: _flyoutKey,
+                            child: _buildAnimatedFlyout(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: bridgeLeft,
+                      top: flyoutHeight,
+                      child: MouseRegion(
+                        opaque: false,
+                        cursor: SystemMouseCursors.basic,
+                        onEnter: (_) {
+                          // Keep the flyout open only while the cursor is near
+                          // the button-to-popup travel path.
+                          _setPopupHovered(true);
+                          _hideTimer?.cancel();
+                        },
+                        onExit: (_) {
+                          _setPopupHovered(false);
+                          _hideFlyoutWithDelay();
+                        },
+                        child: SizedBox(
+                          width: bridgeWidth,
+                          height: bridgeHeight,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) {
+      _overlayEntry?.markNeedsBuild();
+      return;
+    }
+    _overlayEntry = _buildOverlayEntry();
+    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
+  }
+
+  void _hideOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _flyoutSize = null;
+  }
+
   void _showFlyout() {
     _hideTimer?.cancel();
-    setState(() {
-      _isExpanded = true;
-      _showPopup = true;
-    });
-    _animationController.forward();
+    if (_isExpanded) {
+      if (_animationController.status == AnimationStatus.reverse) {
+        _animationController.forward();
+      }
+      _overlayEntry?.markNeedsBuild();
+      return;
+    }
+
+    setState(() => _isExpanded = true);
+    _showOverlay();
+    _animationController.forward(from: 0);
     widget.onHoverStateChanged?.call(true);
   }
 
@@ -96,23 +272,57 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(milliseconds: _hideDelayMs), () {
       if (!_isButtonHovered && !_popupHovered && mounted) {
-        _animationController.reverse().then((_) {
-          if (mounted) {
-            setState(() {
-              _isExpanded = false;
-              _showPopup = false;
-              _isCustomPage = false;
-            });
-          }
-        });
-        widget.onHoverStateChanged?.call(false);
+        _closeFlyout();
       }
     });
+  }
+
+  Future<void> _closeFlyout() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
+    }
+
+    if (!mounted) return;
+    if (_isButtonHovered || _popupHovered) {
+      _animationController.forward();
+      return;
+    }
+
+    _hideOverlay();
+    setState(() {
+      _isExpanded = false;
+      _isCustomPage = false;
+    });
+    widget.onHoverStateChanged?.call(false);
+  }
+
+  Future<void> _forceCloseFlyout() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    _isButtonHovered = false;
+    _popupHovered = false;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
+    }
+
+    if (!mounted) return;
+    _hideOverlay();
+    setState(() {
+      _isExpanded = false;
+      _isCustomPage = false;
+    });
+    widget.onHoverStateChanged?.call(false);
   }
 
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _hideOverlay();
     _animationController.dispose();
     super.dispose();
   }
@@ -133,55 +343,16 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
         setState(() => _isButtonHovered = false);
         _hideFlyoutWithDelay();
       },
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Text(
-            isOriginal ? '原画质' : _formatResolution(widget.currentResolution),
-            style: TextStyle(
-              color: _isButtonHovered ? Colors.white : _defaultTextColor,
-              fontSize: 17,
-              fontWeight: FontWeight.normal,
-            ),
+      child: KeyedSubtree(
+        key: _buttonKey,
+        child: Text(
+          isOriginal ? '原画质' : _formatResolution(widget.currentResolution),
+          style: TextStyle(
+            color: _isButtonHovered ? Colors.white : _defaultTextColor,
+            fontSize: 17,
+            fontWeight: FontWeight.normal,
           ),
-          if (_showPopup)
-            Positioned(
-              bottom: 0,
-              left: -60,
-              child: MouseRegion(
-                opaque: false,
-                onEnter: (_) {
-                  setState(() => _popupHovered = true);
-                  _hideTimer?.cancel();
-                },
-                onExit: (_) {
-                  setState(() => _popupHovered = false);
-                  _hideFlyoutWithDelay();
-                },
-                child: SizedBox(
-                  width: _isCustomPage ? 360 : 240,
-                  height: widget.yOffset + 40,
-                ),
-              ),
-            ),
-          if (_showPopup)
-            Positioned(
-              bottom: widget.yOffset + 40,
-              left: -60,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                onEnter: (_) {
-                  setState(() => _popupHovered = true);
-                  _hideTimer?.cancel();
-                },
-                onExit: (_) {
-                  setState(() => _popupHovered = false);
-                  _hideFlyoutWithDelay();
-                },
-                child: _buildAnimatedFlyout(),
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -206,24 +377,15 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
         isCustomPage: _isCustomPage,
         onSwitchPage: (isCustom) {
           setState(() => _isCustomPage = isCustom);
+          _overlayEntry?.markNeedsBuild();
         },
         onQualitySelected: (quality) {
           if (quality.resolution != widget.currentResolution ||
               quality.bitrate != widget.currentBitrate) {
             widget.onQualitySelected(quality);
           }
-          _animationController.reverse().then((_) {
-            if (mounted) {
-              setState(() {
-                _isExpanded = false;
-                _showPopup = false;
-                _isCustomPage = false;
-              });
-            }
-          });
-          if (!_isButtonHovered) {
-            widget.onHoverStateChanged?.call(false);
-          }
+          _setPopupHovered(false);
+          _closeFlyout();
         },
       ),
     );

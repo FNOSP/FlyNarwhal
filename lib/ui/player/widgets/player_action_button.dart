@@ -160,24 +160,28 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
       );
     }
     if (widget.lottieAssetPath != null) {
-      return Lottie.asset(
-        widget.lottieAssetPath!,
-        controller: _animationController,
-        repeat: false,
-        delegates: LottieDelegates(
-          values: [
-            ValueDelegate.color(
-              const ['**'],
-              value: widget.color,
-            ),
-          ],
+      return SizedBox.square(
+        dimension: widget.iconSize,
+        child: Lottie.asset(
+          widget.lottieAssetPath!,
+          controller: _animationController,
+          repeat: false,
+          fit: BoxFit.contain,
+          delegates: LottieDelegates(
+            values: [
+              ValueDelegate.color(
+                const ['**'],
+                value: widget.color,
+              ),
+            ],
+          ),
+          onLoaded: (composition) {
+            _animationController.duration = composition.duration;
+            if (!widget.animateLottieOnHover) {
+              _animationController.value = 1;
+            }
+          },
         ),
-        onLoaded: (composition) {
-          _animationController.duration = composition.duration;
-          if (!widget.animateLottieOnHover) {
-            _animationController.value = 1;
-          }
-        },
       );
     }
     return Icon(
