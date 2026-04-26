@@ -7,7 +7,7 @@ part of 'media_library_view_model.dart';
 // **************************************************************************
 
 String _$mediaLibraryNotifierHash() =>
-    r'5ab7bd5be43c3aa3000dcd58e1c3e6130f982bbf';
+    r'4007be519eeaa8c3936b4fd32d4565cf34b5220a';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -31,10 +31,10 @@ class _SystemHash {
 }
 
 abstract class _$MediaLibraryNotifier
-    extends BuildlessAutoDisposeAsyncNotifier<ItemListQueryResponse> {
+    extends BuildlessAutoDisposeAsyncNotifier<MediaLibraryState> {
   late final String guid;
 
-  FutureOr<ItemListQueryResponse> build(
+  FutureOr<MediaLibraryState> build(
     String guid,
   );
 }
@@ -44,8 +44,7 @@ abstract class _$MediaLibraryNotifier
 const mediaLibraryNotifierProvider = MediaLibraryNotifierFamily();
 
 /// See also [MediaLibraryNotifier].
-class MediaLibraryNotifierFamily
-    extends Family<AsyncValue<ItemListQueryResponse>> {
+class MediaLibraryNotifierFamily extends Family<AsyncValue<MediaLibraryState>> {
   /// See also [MediaLibraryNotifier].
   const MediaLibraryNotifierFamily();
 
@@ -84,7 +83,7 @@ class MediaLibraryNotifierFamily
 
 /// See also [MediaLibraryNotifier].
 class MediaLibraryNotifierProvider extends AutoDisposeAsyncNotifierProviderImpl<
-    MediaLibraryNotifier, ItemListQueryResponse> {
+    MediaLibraryNotifier, MediaLibraryState> {
   /// See also [MediaLibraryNotifier].
   MediaLibraryNotifierProvider(
     String guid,
@@ -115,7 +114,7 @@ class MediaLibraryNotifierProvider extends AutoDisposeAsyncNotifierProviderImpl<
   final String guid;
 
   @override
-  FutureOr<ItemListQueryResponse> runNotifierBuild(
+  FutureOr<MediaLibraryState> runNotifierBuild(
     covariant MediaLibraryNotifier notifier,
   ) {
     return notifier.build(
@@ -141,7 +140,7 @@ class MediaLibraryNotifierProvider extends AutoDisposeAsyncNotifierProviderImpl<
 
   @override
   AutoDisposeAsyncNotifierProviderElement<MediaLibraryNotifier,
-      ItemListQueryResponse> createElement() {
+      MediaLibraryState> createElement() {
     return _MediaLibraryNotifierProviderElement(this);
   }
 
@@ -162,14 +161,14 @@ class MediaLibraryNotifierProvider extends AutoDisposeAsyncNotifierProviderImpl<
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 mixin MediaLibraryNotifierRef
-    on AutoDisposeAsyncNotifierProviderRef<ItemListQueryResponse> {
+    on AutoDisposeAsyncNotifierProviderRef<MediaLibraryState> {
   /// The parameter `guid` of this provider.
   String get guid;
 }
 
 class _MediaLibraryNotifierProviderElement
     extends AutoDisposeAsyncNotifierProviderElement<MediaLibraryNotifier,
-        ItemListQueryResponse> with MediaLibraryNotifierRef {
+        MediaLibraryState> with MediaLibraryNotifierRef {
   _MediaLibraryNotifierProviderElement(super.provider);
 
   @override

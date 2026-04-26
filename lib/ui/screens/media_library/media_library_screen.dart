@@ -4,7 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/home_models.dart';
-import '../../../data/models/base_response.dart';
+import '../../../data/models/media_request_models.dart';
 import '../../../data/models/tag_models.dart';
 import '../../../providers/providers.dart';
 import '../../widgets/movie_poster.dart';
@@ -12,6 +12,7 @@ import '../../widgets/filter_box.dart';
 import '../../widgets/sort_flyout.dart';
 import '../../widgets/toast.dart';
 import '../home/home_view_model.dart';
+import 'media_library_view_model.dart';
 
 class MediaLibraryScreen extends ConsumerStatefulWidget {
   final String? id;
@@ -27,24 +28,19 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   Map<String, FilterItem> _selectedFilters = {};
   String _sortColumn = 'create_time';
   String _sortOrder = 'DESC';
-  int _page = 1;
-  bool _isLoadingMore = false;
-  List<MediaItem> _items = [];
-  String? _mdbName;
 
   TagListResponse? _tagList;
   List<GenresResponse>? _genres;
   Map<String, String>? _iso3166;
 
   late final ToastManager _toastManager = ToastManager();
-  Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
-  Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
+  final Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
+  final Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
 
   @override
   void initState() {
     super.initState();
     _loadStaticTags();
-    _refresh(force: true);
   }
 
   @override
@@ -56,18 +52,15 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         _selectedFilters = {};
         _sortColumn = 'create_time';
         _sortOrder = 'DESC';
-        _page = 1;
-        _isLoadingMore = false;
-        _items = [];
-        _mdbName = null;
         _tagList = null;
         _genres = null;
         _iso3166 = null;
       });
       _loadStaticTags();
-      _refresh(force: true);
     }
   }
+
+  String get _providerGuid => widget.id ?? 'category:${widget.categoryType!}';
 
   String _resolveTitle() {
     switch (widget.categoryType) {
@@ -203,53 +196,22 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     );
   }
 
-  Future<void> _refresh({bool force = false}) async {
-    setState(() {
-      _page = 1;
-      _items = [];
-    });
-    await _loadData(page: 1);
-  }
-
-  Future<void> _loadData({required int page}) async {
-    if (_isLoadingMore) return;
-    _isLoadingMore = true;
-    final dioClient = ref.read(dioClientProvider);
-    final tags = _buildTags(_selectedFilters);
-    final request = ItemListQueryRequest(
+  MediaLibraryBrowseRequest _buildBrowseRequest() {
+    return MediaLibraryBrowseRequest(
       ancestorGuid: widget.id,
-      tags: tags,
-      page: page,
+      categoryType: widget.categoryType,
+      page: 1,
       pageSize: 50,
       sortColumn: _sortColumn,
       sortType: _sortOrder,
+      tags: _buildTags(_selectedFilters),
     );
-    final response = await dioClient.dio.post(
-      '/v/api/v1/item/list',
-      data: request.toJson(),
-    );
-    final baseResponse = FnBaseResponse<ItemListQueryResponse>.fromJson(
-      response.data,
-      (json) => ItemListQueryResponse.fromJson(json as Map<String, dynamic>),
-    );
-    if (baseResponse.code != 0) {
-      _isLoadingMore = false;
-      return;
-    }
-    final data = baseResponse.data ?? ItemListQueryResponse();
-    final resolvedMdbName = (data.mdbName != null && data.mdbName!.trim().isNotEmpty)
-        ? data.mdbName
-        : null;
-    setState(() {
-      _mdbName = widget.id != null ? resolvedMdbName : null;
-      if (page == 1) {
-        _items = data.list;
-      } else {
-        _items = [..._items, ...data.list];
-      }
-      _page = page;
-      _isLoadingMore = false;
-    });
+  }
+
+  Future<void> _refresh() async {
+    await ref
+        .read(mediaLibraryNotifierProvider(_providerGuid).notifier)
+        .refreshWithQuery(_buildBrowseRequest());
   }
 
   void _onClearFilter(String title) {
@@ -264,7 +226,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         };
       });
     }
-    _refresh(force: true);
+    _refresh();
   }
 
   // Handle favorite toggle
@@ -335,10 +297,14 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
 
     final scaleFactor = resolveWindowScaleFactor(context);
     final mediaDbList = ref.watch(mediaDbListNotifierProvider).asData?.value ?? const [];
+    final mediaLibraryState = ref.watch(mediaLibraryNotifierProvider(_providerGuid));
+    final libraryData = mediaLibraryState.asData?.value;
+    final items = libraryData?.items ?? const <MediaItem>[];
     const posterHeight = 200.0;
     const posterWidth = posterHeight * 2 / 3;
     final mediaDbTitle = _resolveMediaDbTitle(mediaDbList);
-    final title = widget.id != null ? (_mdbName ?? mediaDbTitle ?? '媒体库') : _resolveTitle();
+    final title =
+        widget.id != null ? (libraryData?.mdbName ?? mediaDbTitle ?? '媒体库') : _resolveTitle();
 
     return ScaffoldPage(
       header: PageHeader(title: Text(title)),
@@ -347,7 +313,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
           NotificationListener<ScrollNotification>(
             onNotification: (scrollInfo) {
               if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
-                _loadData(page: _page + 1);
+                ref.read(mediaLibraryNotifierProvider(_providerGuid).notifier).loadMore();
               }
               return false;
             },
@@ -368,11 +334,11 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                       SortFlyout(
                         onSortTypeSelected: (type) {
                           setState(() => _sortColumn = type);
-                          _refresh(force: true);
+                          _refresh();
                         },
                         onSortOrderSelected: (order) {
                           setState(() => _sortOrder = order);
-                          _refresh(force: true);
+                          _refresh();
                         },
                       ),
                     ],
@@ -402,7 +368,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                             initialSelectedFilters: _selectedFilters,
                             onFilterChanged: (filters) {
                               _selectedFilters = Map<String, FilterItem>.from(filters);
-                              _refresh(force: true);
+                              _refresh();
                             },
                             onCollapse: () => setState(() => _isFilterOpen = false),
                           ),
@@ -412,7 +378,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                         ),
                 ),
                 Expanded(
-                  child: _items.isEmpty
+                  child: mediaLibraryState.isLoading && items.isEmpty
                       ? const Center(child: ProgressRing())
                       : GridView.builder(
                           padding: EdgeInsets.all(16 * scaleFactor),
@@ -422,9 +388,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                             crossAxisSpacing: 0,
                             childAspectRatio: 0.6,
                           ),
-                          itemCount: _items.length,
+                          itemCount: items.length,
                           itemBuilder: (context, index) {
-                            final item = _items[index];
+                            final item = items[index];
                             return MoviePoster(
                               title: item.title,
                               subtitle: buildPosterSubtitle(item),

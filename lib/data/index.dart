@@ -5,6 +5,7 @@ export 'models/tag_models.dart';
 export 'models/user_info.dart';
 export 'models/file_models.dart';
 export 'models/movie_detail_models.dart';
+export 'models/media_request_models.dart';
 export 'models/login_request.dart';
 export 'models/login_response.dart';
 export 'models/login_history.dart';

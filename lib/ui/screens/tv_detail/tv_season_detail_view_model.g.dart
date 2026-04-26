@@ -7,7 +7,7 @@ part of 'tv_season_detail_view_model.dart';
 // **************************************************************************
 
 String _$tvSeasonDetailNotifierHash() =>
-    r'06157d965c0f5b744aad416e7531e8fc337a68ab';
+    r'3d474c4be13dc701c0d80a048f5613059525b11f';
 
 /// Copied from Dart SDK
 class _SystemHash {

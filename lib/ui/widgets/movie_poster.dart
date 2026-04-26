@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/providers.dart';
 import 'img_loading_progress_ring.dart';
+import 'poster_resolution_tags.dart';
 
 enum FnMediaType {
   movie('Movie'),
@@ -132,7 +133,6 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
     final scaleFactor = widget.scaleFactor;
     final scaledWidth = widget.width * scaleFactor;
     final scaledHeight = widget.height * scaleFactor;
-    final displayResolutions = normalizeResolutions(widget.resolutions);
     final mediaType = FnMediaType.fromString(widget.type);
     final showFavoriteButton = mediaType != FnMediaType.season;
     final actionInset = 8.0 * scaleFactor;
@@ -223,67 +223,14 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                           ),
                         ),
                       ),
-                      if (displayResolutions.isNotEmpty)
-                        Positioned(
-                          right: 6,
-                          bottom: 6,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: displayResolutions.map((resolution) {
-                              final lowerResolution = resolution.toLowerCase();
-                              final isK = lowerResolution.endsWith('k');
-                              final isP = lowerResolution.endsWith('p');
-                              final label = isK
-                                  ? resolution.toUpperCase()
-                                  : (isP
-                                      ? resolution.substring(
-                                          0, resolution.length - 1)
-                                      : resolution);
-                              return Padding(
-                                padding: EdgeInsets.only(left: 4 * scaleFactor),
-                                child: Container(
-                                  padding: EdgeInsets.fromLTRB(
-                                    (isK ? 6 : 2) * scaleFactor,
-                                    0.2 * scaleFactor,
-                                    (isK ? 6 : 2) * scaleFactor,
-                                    0.2 * scaleFactor,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isK
-                                        ? Colors.white.withValues(alpha: 0.8)
-                                        : Colors.transparent,
-                                    border: isK
-                                        ? null
-                                        : Border.all(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.6),
-                                            width: 2 * scaleFactor,
-                                          ),
-                                    borderRadius:
-                                        BorderRadius.circular(4 * scaleFactor),
-                                  ),
-                                  child: Transform.translate(
-                                    offset: Offset(0, -0.6 * scaleFactor),
-                                    child: Text(
-                                      label,
-                                      style: TextStyle(
-                                        color: isK
-                                            ? Colors.black
-                                                .withValues(alpha: 0.6)
-                                            : Colors.white
-                                                .withValues(alpha: 0.6),
-                                        fontSize: (isK ? 12 : 10) * scaleFactor,
-                                        fontWeight: isK
-                                            ? FontWeight.w800
-                                            : FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
+                      Positioned(
+                        right: 6,
+                        bottom: 6,
+                        child: PosterResolutionTags(
+                          resolutions: widget.resolutions,
+                          scaleFactor: scaleFactor,
                         ),
+                      ),
                       AnimatedOpacity(
                         duration: const Duration(milliseconds: 200),
                         opacity: isHovered ? 1 : 0,
@@ -592,21 +539,4 @@ double resolveWindowScaleFactor(BuildContext context) {
   }
   final scaled = 1 + (windowScaleFactor - 1) * 0.3;
   return scaled.clamp(1.0, 1.1);
-}
-
-List<String> normalizeResolutions(List<String>? input) {
-  if (input == null || input.isEmpty) {
-    return [];
-  }
-  final seen = <String>{};
-  final result = <String>[];
-  for (final resolution in input) {
-    if (resolution == 'Others') {
-      continue;
-    }
-    if (seen.add(resolution)) {
-      result.add(resolution);
-    }
-  }
-  return result;
 }

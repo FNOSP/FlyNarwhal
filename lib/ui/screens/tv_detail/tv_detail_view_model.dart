@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../data/models/base_response.dart';
+import '../../../core/network/api_result.dart';
+import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/season_list_response.dart';
 import '../../../providers/providers.dart';
@@ -61,75 +61,21 @@ class TvDetailState {
 @riverpod
 class TvDetailNotifier extends _$TvDetailNotifier {
   Future<ItemResponse> _fetchItem() async {
-    final dioClient = ref.read(dioClientProvider);
-    final itemResult = await dioClient.dio.get('/v/api/v1/item/$guid');
-    final itemResponse = FnBaseResponse<ItemResponse>.fromJson(
-      itemResult.data as Map<String, dynamic>,
-      (json) => ItemResponse.fromJson(json as Map<String, dynamic>),
-    );
-    if (itemResponse.code != 0 || itemResponse.data == null) {
-      throw Exception(itemResponse.msg);
-    }
-    return itemResponse.data!;
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    return (await remote.getItemDetail(guid)).getOrThrow();
   }
 
   Future<PlayInfoResponse?> _fetchPlayInfo() async {
-    final dioClient = ref.read(dioClientProvider);
-    try {
-      final playInfoResult =
-          await dioClient.dio.post('/v/api/v1/play/info', data: {'item_guid': guid});
-      debugPrint(
-        '[TvDetail] play/info raw response guid=$guid data=${playInfoResult.data}',
-      );
-      final playInfoResponse = FnBaseResponse<PlayInfoResponse>.fromJson(
-        playInfoResult.data as Map<String, dynamic>,
-        (json) => PlayInfoResponse.fromJson(json as Map<String, dynamic>),
-      );
-      final playInfoItem = playInfoResponse.data?.item;
-      debugPrint(
-        '[TvDetail] play/info parsed guid=$guid code=${playInfoResponse.code} msg=${playInfoResponse.msg} hasData=${playInfoResponse.data != null} season=${playInfoItem?.seasonNumber} episode=${playInfoItem?.episodeNumber} playItemGuid=${playInfoItem?.playItemGuid}',
-      );
-      return playInfoResponse.data;
-    } catch (e, st) {
-      debugPrint('[TvDetail] play/info request failed guid=$guid error=$e');
-      debugPrint('[TvDetail] play/info stack guid=$guid stack=$st');
-      return null;
-    }
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    final result =
+        await remote.getPlayInfo(ItemGuidRequest(itemGuid: guid));
+    return result.dataOrNull;
   }
 
   Future<List<SeasonListResponse>> _fetchSeasonList() async {
-    final dioClient = ref.read(dioClientProvider);
-    try {
-      final seasonListResult =
-          await dioClient.dio.get('/v/api/v1/season/list/$guid');
-      final seasonListResponse =
-          FnBaseResponse<List<SeasonListResponse>>.fromJson(
-        seasonListResult.data as Map<String, dynamic>,
-        (json) => ((json as List<dynamic>?) ?? const <dynamic>[])
-            .map((e) => SeasonListResponse.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
-      return seasonListResponse.data ?? const <SeasonListResponse>[];
-    } catch (_) {
-      return const <SeasonListResponse>[];
-    }
-  }
-
-  bool _isSuccessResponse(dynamic data) {
-    if (data is bool) {
-      return data;
-    }
-    if (data is Map && (data['success'] == true || data['code'] == 0)) {
-      return true;
-    }
-    return false;
-  }
-
-  String _resolveMessage(dynamic data) {
-    if (data is Map) {
-      return data['message']?.toString() ?? data['msg']?.toString() ?? '操作失败';
-    }
-    return '操作失败';
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    final result = await remote.getSeasonList(guid);
+    return result.dataOrNull ?? const <SeasonListResponse>[];
   }
 
   Future<void> _refreshState({
@@ -156,9 +102,15 @@ class TvDetailNotifier extends _$TvDetailNotifier {
   @override
   FutureOr<TvDetailState> build(String guid) async {
     state = const AsyncValue.loading();
+    final remote = ref.read(mediaRemoteDataSourceProvider);
     final tagRepo = ref.read(tagRepositoryProvider);
 
-    Future<T?> safeRequest<T>(Future<T> Function() request) async {
+    Future<T?> safeApiRequest<T>(Future<ApiResult<T>> Function() request) async {
+      final result = await request();
+      return result.dataOrNull;
+    }
+
+    Future<T?> safeValueRequest<T>(Future<T> Function() request) async {
       try {
         return await request();
       } catch (_) {
@@ -170,32 +122,22 @@ class TvDetailNotifier extends _$TvDetailNotifier {
     final playInfo = await _fetchPlayInfo();
     final seasons = await _fetchSeasonList();
 
-    final personListResult = await safeRequest(
-      () => ref
-          .read(dioClientProvider)
-          .dio
-          .post('/v/api/v1/person/list/$guid', data: const {}),
+    final personList = await safeApiRequest(
+      () => remote.getPersonList(guid),
     );
 
-    final iso6391 = await safeRequest(() => tagRepo.getTag('iso6391')) ??
+    final iso6391 = await safeValueRequest(() => tagRepo.getTag('iso6391')) ??
         const <String, String>{};
-    final iso6392 = await safeRequest(() => tagRepo.getTag('iso6392')) ??
+    final iso6392 = await safeValueRequest(() => tagRepo.getTag('iso6392')) ??
         const <String, String>{};
-    final iso3166 = await safeRequest(() => tagRepo.getTag('iso3166')) ??
+    final iso3166 = await safeValueRequest(() => tagRepo.getTag('iso3166')) ??
         const <String, String>{};
-
-    final personListResponse = personListResult == null
-        ? null
-        : FnBaseResponse<PersonListResponse>.fromJson(
-            (personListResult as dynamic).data as Map<String, dynamic>,
-            (json) => PersonListResponse.fromJson(json as Map<String, dynamic>),
-          );
 
     return TvDetailState(
       item: item,
       playInfo: playInfo,
       seasonList: seasons,
-      personList: personListResponse?.data?.list ?? [],
+      personList: personList ?? const [],
       iso6391: iso6391,
       iso6392: iso6392,
       iso3166: iso3166,
@@ -214,26 +156,22 @@ class TvDetailNotifier extends _$TvDetailNotifier {
     }
 
     try {
-      final dioClient = ref.read(dioClientProvider);
+      final remote = ref.read(mediaRemoteDataSourceProvider);
       final isFavorite = item.isFavorite == 1;
+      final response = await remote.toggleFavorite(
+        ItemGuidRequest(itemGuid: guid),
+        isFavorite: isFavorite,
+      );
 
-      final response = isFavorite
-          ? await dioClient.dio.delete(
-              '/v/api/v1/item/favorite',
-              data: {'item_guid': guid},
-            )
-          : await dioClient.dio.put(
-              '/v/api/v1/item/favorite',
-              data: {'item_guid': guid},
-            );
-
-      if (_isSuccessResponse(response.data)) {
+      if (response.getOrElse(false)) {
         await _refreshState();
         return ActionResult(
             success: true, message: isFavorite ? '已取消收藏' : '已收藏');
       }
       return ActionResult(
-          success: false, message: _resolveMessage(response.data));
+        success: false,
+        message: response.failureOrNull?.displayMessage ?? '操作失败',
+      );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());
     }
@@ -246,26 +184,22 @@ class TvDetailNotifier extends _$TvDetailNotifier {
     }
 
     try {
-      final dioClient = ref.read(dioClientProvider);
+      final remote = ref.read(mediaRemoteDataSourceProvider);
       final isWatched = item.isWatched == 1;
+      final response = await remote.toggleWatched(
+        ItemGuidRequest(itemGuid: guid),
+        isWatched: isWatched,
+      );
 
-      final response = isWatched
-          ? await dioClient.dio.delete(
-              '/v/api/v1/item/watched',
-              data: {'item_guid': guid},
-            )
-          : await dioClient.dio.post(
-              '/v/api/v1/item/watched',
-              data: {'item_guid': guid},
-            );
-
-      if (_isSuccessResponse(response.data)) {
+      if (response.getOrElse(false)) {
         await _refreshState(refreshPlayInfo: true, refreshSeasonList: true);
         return ActionResult(
             success: true, message: isWatched ? '标记为未观看' : '标记为已观看');
       }
       return ActionResult(
-          success: false, message: _resolveMessage(response.data));
+        success: false,
+        message: response.failureOrNull?.displayMessage ?? '操作失败',
+      );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());
     }
@@ -274,24 +208,21 @@ class TvDetailNotifier extends _$TvDetailNotifier {
   Future<ActionResult> toggleSeasonWatched(
       String seasonGuid, bool currentWatchedState) async {
     try {
-      final dioClient = ref.read(dioClientProvider);
-      final response = currentWatchedState
-          ? await dioClient.dio.delete(
-              '/v/api/v1/item/watched',
-              data: {'item_guid': seasonGuid},
-            )
-          : await dioClient.dio.post(
-              '/v/api/v1/item/watched',
-              data: {'item_guid': seasonGuid},
-            );
+      final remote = ref.read(mediaRemoteDataSourceProvider);
+      final response = await remote.toggleWatched(
+        ItemGuidRequest(itemGuid: seasonGuid),
+        isWatched: currentWatchedState,
+      );
 
-      if (_isSuccessResponse(response.data)) {
+      if (response.getOrElse(false)) {
         await _refreshState(refreshPlayInfo: true, refreshSeasonList: true);
         return ActionResult(
             success: true, message: currentWatchedState ? '标记为未观看' : '标记为已观看');
       }
       return ActionResult(
-          success: false, message: _resolveMessage(response.data));
+        success: false,
+        message: response.failureOrNull?.displayMessage ?? '操作失败',
+      );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());
     }

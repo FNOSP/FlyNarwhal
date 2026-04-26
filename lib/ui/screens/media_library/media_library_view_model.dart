@@ -1,72 +1,126 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../../data/models/base_response.dart';
 import '../../../data/models/home_models.dart';
+import '../../../data/models/media_request_models.dart';
 import '../../../providers/providers.dart';
 
 part 'media_library_view_model.g.dart';
 
+class MediaLibraryState {
+  final List<MediaItem> items;
+  final int total;
+  final String? mdbName;
+  final bool hasMore;
+  final bool isLoadingMore;
+
+  const MediaLibraryState({
+    this.items = const [],
+    this.total = 0,
+    this.mdbName,
+    this.hasMore = true,
+    this.isLoadingMore = false,
+  });
+
+  MediaLibraryState copyWith({
+    List<MediaItem>? items,
+    int? total,
+    String? mdbName,
+    bool? hasMore,
+    bool? isLoadingMore,
+  }) {
+    return MediaLibraryState(
+      items: items ?? this.items,
+      total: total ?? this.total,
+      mdbName: mdbName ?? this.mdbName,
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+    );
+  }
+}
+
 @riverpod
 class MediaLibraryNotifier extends _$MediaLibraryNotifier {
-  int _page = 1;
-  bool _hasMore = true;
-  bool _isLoadingMore = false;
+  MediaLibraryBrowseRequest? _currentRequest;
 
   @override
-  FutureOr<ItemListQueryResponse> build(String guid) async {
-    _page = 1;
-    _hasMore = true;
-    return _fetch(guid, page: 1);
+  FutureOr<MediaLibraryState> build(String guid) async {
+    final request = _initialRequestFromGuid(guid);
+    _currentRequest = request;
+    return _fetch(request);
   }
 
-  Future<ItemListQueryResponse> _fetch(String guid, {required int page}) async {
-    final dioClient = ref.read(dioClientProvider);
-    final query = _buildQuery(guid, page);
-    final endpoint = _resolveEndpoint(guid);
-
-    final response = await dioClient.dio.post(
-      endpoint,
-      data: query.toJson(),
-    );
-    
-    final baseResponse = FnBaseResponse<ItemListQueryResponse>.fromJson(
-        response.data,
-        (json) => ItemListQueryResponse.fromJson(json as Map<String, dynamic>)
-    );
-    
-    if (baseResponse.code != 0) throw Exception(baseResponse.msg);
-    return baseResponse.data ?? ItemListQueryResponse();
+  Future<void> refreshWithQuery(MediaLibraryBrowseRequest request) async {
+    _currentRequest = request.copyWith(page: 1);
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _fetch(_currentRequest!));
   }
 
-  ItemListQueryRequest _buildQuery(String guid, int page) {
+  Future<void> loadMore() async {
+    final currentState = state.value;
+    final currentRequest = _currentRequest;
+    if (currentState == null ||
+        currentRequest == null ||
+        currentState.isLoadingMore ||
+        !currentState.hasMore) {
+      return;
+    }
+
+    state = AsyncValue.data(currentState.copyWith(isLoadingMore: true));
+    try {
+      final nextRequest = currentRequest.copyWith(page: currentRequest.page + 1);
+      final nextState = await _fetch(nextRequest);
+      _currentRequest = nextRequest;
+      state = AsyncValue.data(MediaLibraryState(
+        items: [...currentState.items, ...nextState.items],
+        total: nextState.total,
+        mdbName: nextState.mdbName ?? currentState.mdbName,
+        hasMore: nextState.hasMore,
+        isLoadingMore: false,
+      ));
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      state = AsyncValue.data(currentState.copyWith(isLoadingMore: false));
+    }
+  }
+
+  MediaLibraryBrowseRequest _initialRequestFromGuid(String guid) {
     if (guid.startsWith('category:')) {
       final category = guid.substring('category:'.length);
-      final types = _categoryTypes(category);
-      return ItemListQueryRequest(
-        tags: Tags(type: types),
-        page: page,
-        pageSize: 50,
+      return MediaLibraryBrowseRequest(
+        categoryType: category,
+        tags: Tags(type: _categoryTypes(category)),
       );
     }
+
     if (guid == 'favorite') {
-      return ItemListQueryRequest(
+      return MediaLibraryBrowseRequest(
+        favoriteOnly: true,
         tags: Tags(type: ["Movie", "TV", "Directory", "Video"]),
-        page: page,
-        pageSize: 50,
       );
     }
-    return ItemListQueryRequest(
+
+    return MediaLibraryBrowseRequest(
       ancestorGuid: guid,
       tags: Tags(type: ["Movie", "TV", "Directory", "Video"]),
-      page: page,
-      pageSize: 50,
     );
   }
 
-  String _resolveEndpoint(String guid) {
-    if (guid == 'favorite') {
-      return '/v/api/v1/favorite/list';
-    }
-    return '/v/api/v1/item/list';
+  Future<MediaLibraryState> _fetch(MediaLibraryBrowseRequest request) async {
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    final query = request.toItemListQueryRequest();
+    final result = request.favoriteOnly
+        ? await remote.getFavoriteList(query)
+        : await remote.getItemList(query);
+    final data = result.getOrThrow();
+    final resolvedMdbName =
+        data.mdbName != null && data.mdbName!.trim().isNotEmpty ? data.mdbName : null;
+
+    return MediaLibraryState(
+      items: data.list,
+      total: data.total,
+      mdbName: request.ancestorGuid != null ? resolvedMdbName : null,
+      hasMore: data.list.length >= query.pageSize,
+      isLoadingMore: false,
+    );
   }
 
   List<String> _categoryTypes(String category) {
@@ -80,32 +134,6 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
       case 'total':
       default:
         return ["Movie", "TV", "Directory", "Video"];
-    }
-  }
-
-  Future<void> loadMore() async {
-    if (_isLoadingMore || !_hasMore || state.value == null) return;
-    
-    _isLoadingMore = true;
-    try {
-      final nextPage = _page + 1;
-      final newData = await _fetch(guid, page: nextPage);
-      
-      if (newData.list.isEmpty) {
-        _hasMore = false;
-      } else {
-        _page = nextPage;
-        final currentData = state.value!;
-        state = AsyncValue.data(ItemListQueryResponse(
-          list: [...currentData.list, ...newData.list],
-          total: newData.total,
-          mdbName: newData.mdbName,
-        ));
-      }
-    } catch (e) {
-      // Handle error (maybe show toast)
-    } finally {
-      _isLoadingMore = false;
     }
   }
 }

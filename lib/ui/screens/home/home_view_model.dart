@@ -1,6 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../../data/models/base_response.dart';
 import '../../../data/models/home_models.dart';
+import '../../../data/models/media_request_models.dart';
 import '../../../providers/providers.dart';
 
 part 'home_view_model.g.dart';
@@ -9,14 +9,8 @@ part 'home_view_model.g.dart';
 class MediaDbListNotifier extends _$MediaDbListNotifier {
   @override
   FutureOr<List<MediaDbListResponse>> build() async {
-    final dioClient = ref.read(dioClientProvider);
-    final response = await dioClient.dio.get('/v/api/v1/mediadb/list');
-    final baseResponse = FnBaseResponse<List<MediaDbListResponse>>.fromJson(
-        response.data,
-        (json) => (json as List).map((e) => MediaDbListResponse.fromJson(e as Map<String, dynamic>)).toList()
-    );
-    if (baseResponse.code != 0) throw Exception(baseResponse.msg);
-    return baseResponse.data ?? [];
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    return (await remote.getMediaDbList()).getOrThrow();
   }
 }
 
@@ -24,15 +18,8 @@ class MediaDbListNotifier extends _$MediaDbListNotifier {
 class MediaSumNotifier extends _$MediaSumNotifier {
   @override
   FutureOr<Map<String, int>> build() async {
-    final dioClient = ref.read(dioClientProvider);
-    final response = await dioClient.dio.get('/v/api/v1/mediadb/sum');
-    final baseResponse = FnBaseResponse<Map<String, int>>.fromJson(
-      response.data,
-      (json) => (json as Map<String, dynamic>)
-          .map((key, value) => MapEntry(key, value as int)),
-    );
-    if (baseResponse.code != 0) throw Exception(baseResponse.msg);
-    return baseResponse.data ?? {};
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    return (await remote.getMediaSum()).getOrThrow();
   }
 }
 
@@ -40,14 +27,8 @@ class MediaSumNotifier extends _$MediaSumNotifier {
 class PlayListNotifier extends _$PlayListNotifier {
   @override
   FutureOr<List<PlayDetailResponse>> build() async {
-    final dioClient = ref.read(dioClientProvider);
-    final response = await dioClient.dio.get('/v/api/v1/play/list');
-    final baseResponse = FnBaseResponse<List<PlayDetailResponse>>.fromJson(
-        response.data,
-        (json) => (json as List).map((e) => PlayDetailResponse.fromJson(e as Map<String, dynamic>)).toList()
-    );
-    if (baseResponse.code != 0) throw Exception(baseResponse.msg);
-    return baseResponse.data ?? [];
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    return (await remote.getPlayList()).getOrThrow();
   }
 
   Future<void> refresh() async {
@@ -60,24 +41,12 @@ class PlayListNotifier extends _$PlayListNotifier {
 class ItemListNotifier extends _$ItemListNotifier {
   @override
   FutureOr<ItemListQueryResponse> build(String guid) async {
-    final dioClient = ref.read(dioClientProvider);
-    
     final request = ItemListQueryRequest(
       ancestorGuid: guid,
       tags: Tags(type: ["Movie", "TV", "Directory", "Video"]),
     );
-
-    final response = await dioClient.dio.post(
-      '/v/api/v1/item/list',
-      data: request.toJson(),
-    );
-    
-    final baseResponse = FnBaseResponse<ItemListQueryResponse>.fromJson(
-        response.data,
-        (json) => ItemListQueryResponse.fromJson(json as Map<String, dynamic>)
-    );
-    if (baseResponse.code != 0) throw Exception(baseResponse.msg);
-    return baseResponse.data ?? ItemListQueryResponse();
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    return (await remote.getItemList(request)).getOrThrow();
   }
 }
 
@@ -122,25 +91,20 @@ class FavoriteNotifier extends _$FavoriteNotifier {
 
   Future<FavoriteActionResult> toggleFavorite(String guid, bool currentFavoriteState) async {
     try {
-      final dioClient = ref.read(dioClientProvider);
-      
-      final response = currentFavoriteState
-          ? await dioClient.dio.delete(
-              '/v/api/v1/item/favorite',
-              data: {'item_guid': guid},
-            )
-          : await dioClient.dio.put(
-              '/v/api/v1/item/favorite',
-              data: {'item_guid': guid},
-            );
-
-      final isSuccess = _isSuccessResponse(response.data);
+      final remote = ref.read(mediaRemoteDataSourceProvider);
+      final response = await remote.toggleFavorite(
+        ItemGuidRequest(itemGuid: guid),
+        isFavorite: currentFavoriteState,
+      );
+      final isSuccess = response.getOrElse(false);
       
       final result = FavoriteActionResult(
         guid: guid,
         isFavorite: !currentFavoriteState,
         success: isSuccess,
-        message: currentFavoriteState ? '已取消收藏' : '已收藏',
+        message: isSuccess
+            ? (currentFavoriteState ? '已取消收藏' : '已收藏')
+            : (response.failureOrNull?.displayMessage ?? '操作失败'),
         previousState: currentFavoriteState,
       );
       
@@ -162,17 +126,6 @@ class FavoriteNotifier extends _$FavoriteNotifier {
   void clear() {
     state = null;
   }
-
-  bool _isSuccessResponse(dynamic data) {
-    if (data is bool) return data;
-    if (data is Map) {
-      // Check for code == 0 (API returns {code: 0, data: true/false})
-      if (data['code'] == 0) return true;
-      // Also check for success field for backward compatibility
-      if (data['success'] == true) return true;
-    }
-    return false;
-  }
 }
 
 @riverpod
@@ -182,24 +135,19 @@ class WatchedNotifier extends _$WatchedNotifier {
 
   Future<WatchedActionResult> toggleWatched(String guid, bool currentWatchedState) async {
     try {
-      final dioClient = ref.read(dioClientProvider);
-      
-      final response = currentWatchedState
-          ? await dioClient.dio.delete(
-              '/v/api/v1/item/watched',
-              data: {'item_guid': guid},
-            )
-          : await dioClient.dio.post(
-              '/v/api/v1/item/watched',
-              data: {'item_guid': guid},
-            );
-
-      final isSuccess = _isSuccessResponse(response.data);
+      final remote = ref.read(mediaRemoteDataSourceProvider);
+      final response = await remote.toggleWatched(
+        ItemGuidRequest(itemGuid: guid),
+        isWatched: currentWatchedState,
+      );
+      final isSuccess = response.getOrElse(false);
       final result = WatchedActionResult(
         guid: guid,
         isWatched: !currentWatchedState,
         success: isSuccess,
-        message: currentWatchedState ? '标记为未观看' : '标记为已观看',
+        message: isSuccess
+            ? (currentWatchedState ? '标记为未观看' : '标记为已观看')
+            : (response.failureOrNull?.displayMessage ?? '操作失败'),
         previousState: currentWatchedState,
       );
       
@@ -220,16 +168,5 @@ class WatchedNotifier extends _$WatchedNotifier {
 
   void clear() {
     state = null;
-  }
-
-  bool _isSuccessResponse(dynamic data) {
-    if (data is bool) return data;
-    if (data is Map) {
-      // Check for code == 0 (API returns {code: 0, data: true/false})
-      if (data['code'] == 0) return true;
-      // Also check for success field for backward compatibility
-      if (data['success'] == true) return true;
-    }
-    return false;
   }
 }

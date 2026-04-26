@@ -7,7 +7,7 @@ part of 'home_view_model.dart';
 // **************************************************************************
 
 String _$mediaDbListNotifierHash() =>
-    r'745acb94941427efb9d1ea1bfa86302aae401fe7';
+    r'5d89fee0cd72aaf9b3ece7f2c1e8df174639aeaf';
 
 /// See also [MediaDbListNotifier].
 @ProviderFor(MediaDbListNotifier)
@@ -24,7 +24,7 @@ final mediaDbListNotifierProvider = AutoDisposeAsyncNotifierProvider<
 
 typedef _$MediaDbListNotifier
     = AutoDisposeAsyncNotifier<List<MediaDbListResponse>>;
-String _$mediaSumNotifierHash() => r'2f7e0cfd2e842062142c84f0c33477b14314c42e';
+String _$mediaSumNotifierHash() => r'b63e3266e27a47fe408255c39aaa310a07a03b2a';
 
 /// See also [MediaSumNotifier].
 @ProviderFor(MediaSumNotifier)
@@ -40,7 +40,7 @@ final mediaSumNotifierProvider = AutoDisposeAsyncNotifierProvider<
 );
 
 typedef _$MediaSumNotifier = AutoDisposeAsyncNotifier<Map<String, int>>;
-String _$playListNotifierHash() => r'1c0b3400e10a29636b1d598c2bc90ef6c054de3e';
+String _$playListNotifierHash() => r'73632ffa35c5845d91fa72364c45361806d5530a';
 
 /// See also [PlayListNotifier].
 @ProviderFor(PlayListNotifier)
@@ -56,7 +56,7 @@ final playListNotifierProvider = AutoDisposeAsyncNotifierProvider<
 );
 
 typedef _$PlayListNotifier = AutoDisposeAsyncNotifier<List<PlayDetailResponse>>;
-String _$itemListNotifierHash() => r'fa9e8bf4500c00be2bbd7d9a3376b8614ce2f169';
+String _$itemListNotifierHash() => r'b9a0795fae04ceee491b0883de2dfe04ffc796ac';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -224,7 +224,7 @@ class _ItemListNotifierProviderElement
   String get guid => (origin as ItemListNotifierProvider).guid;
 }
 
-String _$favoriteNotifierHash() => r'6d96a9ec8fe59801071775acaf30011e2bd188be';
+String _$favoriteNotifierHash() => r'b8537f29afe723a8b47b64ce9ef646cb434bf77f';
 
 /// See also [FavoriteNotifier].
 @ProviderFor(FavoriteNotifier)
@@ -240,7 +240,7 @@ final favoriteNotifierProvider = AutoDisposeNotifierProvider<FavoriteNotifier,
 );
 
 typedef _$FavoriteNotifier = AutoDisposeNotifier<FavoriteActionResult?>;
-String _$watchedNotifierHash() => r'78b1728da635cfffc47067562bd89a5c446be42b';
+String _$watchedNotifierHash() => r'722ff8ff070ff2bb7e1e9d21d8065e83c9489ca4';
 
 /// See also [WatchedNotifier].
 @ProviderFor(WatchedNotifier)

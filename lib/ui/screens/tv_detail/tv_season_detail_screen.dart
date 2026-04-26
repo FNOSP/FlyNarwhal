@@ -12,6 +12,7 @@ import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../providers/providers.dart';
 import '../../widgets/cast_scroll_row.dart';
+import '../../widgets/poster_resolution_tags.dart';
 import '../../widgets/scroll_row.dart';
 import '../../widgets/toast.dart';
 import '../movie_detail/detail_components.dart';
@@ -500,9 +501,8 @@ class _TvSeasonDetailContentState
           onPressed: () async {
             if (playInfo != null) {
               final playItemGuid = playInfo.item.playItemGuid;
-              final targetGuid = playItemGuid.isNotEmpty
-                  ? playItemGuid
-                  : widget.guid;
+              final targetGuid =
+                  playItemGuid.isNotEmpty ? playItemGuid : widget.guid;
               ref.read(navigationStackProvider.notifier).pushPath('/home');
               context.go('/player/$targetGuid');
             }
@@ -765,13 +765,14 @@ class _EpisodeCardState extends State<_EpisodeCard> {
     final posterUrl = widget.episode.poster != null
         ? _buildImageUrl(widget.baseUrl, widget.episode.poster!)
         : '';
-    final borderColor = widget.isCurrent
-        ? const Color(0xFF2173DF)
-        : _hovered
-            ? Colors.white.withValues(alpha: 0.3)
-            : Colors.white.withValues(alpha: 0.1);
+    final borderColor = _hovered
+        ? Colors.white.withValues(alpha: 0.3)
+        : Colors.white.withValues(alpha: 0.1);
     final playButtonSize = _isPlayButtonHovered ? 56.0 : 48.0;
-    final actionBottom = widget.isCurrent ? 34.0 : 8.0;
+    const actionBottom = 14.0;
+    final progress = widget.episode.duration > 0
+        ? (widget.episode.ts / widget.episode.duration).clamp(0.0, 1.0)
+        : 0.0;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -791,7 +792,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                 decoration: BoxDecoration(
                   border: Border.all(
                     color: borderColor,
-                    width: widget.isCurrent ? 2 : 1,
+                    width: 1,
                   ),
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -838,6 +839,17 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                         ),
                       ),
                     ),
+                    Positioned(
+                      right: 6,
+                      bottom: 11,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _hovered ? 0 : 1,
+                        child: PosterResolutionTags(
+                          resolutions: widget.episode.mediaStream.resolutions,
+                        ),
+                      ),
+                    ),
                     Positioned.fill(
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 200),
@@ -848,6 +860,30 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                                 const Color(0xFF1C1C1C).withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(7),
                           ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: SizedBox(
+                        height: 5,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Container(
+                              color: Colors.white.withValues(alpha: 0.05),
+                            ),
+                            if (progress > 0)
+                              FractionallySizedBox(
+                                widthFactor: progress,
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  color: const Color(0xFF2073DF),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -884,22 +920,6 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                       ),
                     ),
                     Positioned(
-                      left: 8,
-                      bottom: actionBottom,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 200),
-                        opacity: _hovered ? 1 : 0,
-                        child: _EpisodePosterActionButton(
-                          svgAssetPath: _isWatched
-                              ? 'assets/images/watched_fill.svg'
-                              : 'assets/images/watched.svg',
-                          isActive: _isWatched,
-                          activeColor: const Color(0xFF2173DF),
-                          onPressed: _handleWatchedToggle,
-                        ),
-                      ),
-                    ),
-                    Positioned(
                       left: 0,
                       right: 0,
                       bottom: actionBottom,
@@ -907,59 +927,41 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                         duration: const Duration(milliseconds: 200),
                         opacity: _hovered ? 1 : 0,
                         child: Center(
-                          child: _EpisodePosterActionButton(
-                            svgAssetPath: _isFavorite
-                                ? 'assets/images/favorite_fill.svg'
-                                : 'assets/images/favorite.svg',
-                            isActive: _isFavorite,
-                            activeColor: const Color(0xFFFF0420),
-                            onPressed: _handleFavoriteToggle,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _EpisodePosterActionButton(
+                                svgAssetPath: _isWatched
+                                    ? 'assets/images/watched_fill.svg'
+                                    : 'assets/images/watched.svg',
+                                isActive: _isWatched,
+                                activeColor: const Color(0xFF2173DF),
+                                onPressed: _handleWatchedToggle,
+                              ),
+                              const SizedBox(width: 14),
+                              _EpisodePosterActionButton(
+                                svgAssetPath: _isFavorite
+                                    ? 'assets/images/favorite_fill.svg'
+                                    : 'assets/images/favorite.svg',
+                                isActive: _isFavorite,
+                                activeColor: const Color(0xFFFF0420),
+                                onPressed: _handleFavoriteToggle,
+                              ),
+                              const SizedBox(width: 14),
+                              FlyoutTarget(
+                                controller: _moreController,
+                                child: _EpisodePosterActionButton(
+                                  icon: FluentIcons.more,
+                                  isActive: false,
+                                  activeColor: Colors.white,
+                                  onPressed: _showMoreFlyout,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
-                    Positioned(
-                      right: 8,
-                      bottom: actionBottom,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 200),
-                        opacity: _hovered ? 1 : 0,
-                        child: FlyoutTarget(
-                          controller: _moreController,
-                          child: _EpisodePosterActionButton(
-                            icon: FluentIcons.more,
-                            isActive: false,
-                            activeColor: Colors.white,
-                            onPressed: _showMoreFlyout,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (widget.isCurrent)
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF2173DF),
-                            borderRadius: BorderRadius.vertical(
-                              bottom: Radius.circular(7),
-                            ),
-                          ),
-                          child: const Text(
-                            '正在播放',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -974,9 +976,6 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                         '第 ${widget.episode.episodeNumber} 集 ${widget.episode.title}',
                         style: theme.typography.bodyStrong?.copyWith(
                           fontSize: 14,
-                          color: _hovered
-                              ? const Color(0xFF2173DF)
-                              : theme.typography.bodyStrong?.color,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

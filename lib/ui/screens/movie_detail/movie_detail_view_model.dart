@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../../data/models/base_response.dart';
+import '../../../core/network/api_result.dart';
+import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/tag_models.dart';
 import '../../../providers/providers.dart';
@@ -62,40 +62,28 @@ class MovieDetailState {
 @riverpod
 class MovieDetailNotifier extends _$MovieDetailNotifier {
   Future<ItemResponse> _fetchItem() async {
-    final dioClient = ref.read(dioClientProvider);
-    final itemResult = await dioClient.dio.get('/v/api/v1/item/$guid');
-    final itemResponse = FnBaseResponse<ItemResponse>.fromJson(
-      itemResult.data as Map<String, dynamic>,
-      (json) => ItemResponse.fromJson(json as Map<String, dynamic>),
-    );
-    if (itemResponse.code != 0 || itemResponse.data == null) {
-      throw Exception(itemResponse.msg);
-    }
-    return itemResponse.data!;
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    return (await remote.getItemDetail(guid)).getOrThrow();
   }
 
   Future<StreamListResponse?> _fetchStreamList() async {
-    final dioClient = ref.read(dioClientProvider);
-    try {
-      final streamResult =
-          await dioClient.dio.get('/v/api/v1/stream/list/$guid');
-      final streamResponse = FnBaseResponse<StreamListResponse>.fromJson(
-        streamResult.data as Map<String, dynamic>,
-        (json) => StreamListResponse.fromJson(json as Map<String, dynamic>),
-      );
-      return streamResponse.data;
-    } catch (_) {
-      return null;
-    }
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    final result = await remote.getStreamList(guid);
+    return result.dataOrNull;
   }
 
   @override
   FutureOr<MovieDetailState> build(String guid) async {
     state = const AsyncValue.loading();
-    final dioClient = ref.read(dioClientProvider);
+    final remote = ref.read(mediaRemoteDataSourceProvider);
     final tagRepo = ref.read(tagRepositoryProvider);
 
-    Future<T?> safeRequest<T>(Future<T> Function() request) async {
+    Future<T?> safeApiRequest<T>(Future<ApiResult<T>> Function() request) async {
+      final result = await request();
+      return result.dataOrNull;
+    }
+
+    Future<T?> safeValueRequest<T>(Future<T> Function() request) async {
       try {
         return await request();
       } catch (_) {
@@ -105,42 +93,28 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
 
     final item = await _fetchItem();
     final streamList = await _fetchStreamList();
-    final playInfoResult = await safeRequest(
-      () => dioClient.dio.post('/v/api/v1/play/info', data: {'item_guid': guid}),
+    final playInfo = await safeApiRequest(
+      () => remote.getPlayInfo(ItemGuidRequest(itemGuid: guid)),
     );
-    final personListResult = await safeRequest(
-      () => dioClient.dio.post('/v/api/v1/person/list/$guid', data: const {}),
+    final personList = await safeApiRequest(
+      () => remote.getPersonList(guid),
     );
-    final iso6391 = await safeRequest(() => tagRepo.getTag('iso6391')) ??
+    final iso6391 = await safeValueRequest(() => tagRepo.getTag('iso6391')) ??
         const <String, String>{};
-    final iso6392 = await safeRequest(() => tagRepo.getTag('iso6392')) ??
+    final iso6392 = await safeValueRequest(() => tagRepo.getTag('iso6392')) ??
         const <String, String>{};
-    final iso3166 = await safeRequest(() => tagRepo.getTag('iso3166')) ??
+    final iso3166 = await safeValueRequest(() => tagRepo.getTag('iso3166')) ??
         const <String, String>{};
-    final genresList = await safeRequest(() => tagRepo.getGenres()) ??
+    final genresList = await safeValueRequest(() => tagRepo.getGenres()) ??
         const <GenresResponse>[];
 
-    final playInfoResponse = playInfoResult == null
-        ? null
-        : FnBaseResponse<PlayInfoResponse>.fromJson(
-            (playInfoResult as dynamic).data as Map<String, dynamic>,
-            (json) => PlayInfoResponse.fromJson(json as Map<String, dynamic>),
-          );
-
-    final personListResponse = personListResult == null
-        ? null
-        : FnBaseResponse<PersonListResponse>.fromJson(
-            (personListResult as dynamic).data as Map<String, dynamic>,
-            (json) => PersonListResponse.fromJson(json as Map<String, dynamic>),
-          );
-
-    final genresMap = {for (var g in genresList) g.id: g.value};
+    final genresMap = <int, String>{for (final g in genresList) g.id: g.value};
 
     return MovieDetailState(
       item: item,
       streamList: streamList,
-      playInfo: playInfoResponse?.data,
-      personList: personListResponse?.data?.list ?? [],
+      playInfo: playInfo,
+      personList: personList ?? const [],
       iso6391: iso6391,
       iso6392: iso6392,
       iso3166: iso3166,
@@ -153,23 +127,6 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
     await future;
   }
 
-  bool _isSuccessResponse(dynamic data) {
-    if (data is bool) {
-      return data;
-    }
-    if (data is Map && (data['success'] == true || data['code'] == 0)) {
-      return true;
-    }
-    return false;
-  }
-
-  String _resolveMessage(dynamic data) {
-    if (data is Map) {
-      return data['message']?.toString() ?? data['msg']?.toString() ?? '操作失败';
-    }
-    return '操作失败';
-  }
-
   Future<ActionResult> toggleFavorite() async {
     final item = state.value?.item;
     if (item == null) {
@@ -177,22 +134,14 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
     }
 
     try {
-      final dioClient = ref.read(dioClientProvider);
+      final remote = ref.read(mediaRemoteDataSourceProvider);
       final isFavorite = item.isFavorite == 1;
+      final response = await remote.toggleFavorite(
+        ItemGuidRequest(itemGuid: guid),
+        isFavorite: isFavorite,
+      );
 
-      debugPrint(
-          'favorite request: item_guid=$guid action=${isFavorite ? 'cancel' : 'add'}');
-      final response = isFavorite
-          ? await dioClient.dio.delete(
-              '/v/api/v1/item/favorite',
-              data: {'item_guid': guid},
-            )
-          : await dioClient.dio.put(
-              '/v/api/v1/item/favorite',
-              data: {'item_guid': guid},
-            );
-
-      if (_isSuccessResponse(response.data)) {
+      if (response.getOrElse(false)) {
         final currentState = state.value!;
         state = AsyncValue.data(currentState.copyWith(
           item: item.copyWith(isFavorite: isFavorite ? 0 : 1),
@@ -201,7 +150,9 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
             success: true, message: isFavorite ? '已取消收藏' : '已收藏');
       }
       return ActionResult(
-          success: false, message: _resolveMessage(response.data));
+        success: false,
+        message: response.failureOrNull?.displayMessage ?? '操作失败',
+      );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());
     }
@@ -214,22 +165,14 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
     }
 
     try {
-      final dioClient = ref.read(dioClientProvider);
+      final remote = ref.read(mediaRemoteDataSourceProvider);
       final isWatched = item.isWatched == 1;
+      final response = await remote.toggleWatched(
+        ItemGuidRequest(itemGuid: guid),
+        isWatched: isWatched,
+      );
 
-      debugPrint(
-          'watched request: item_guid=$guid action=${isWatched ? 'cancel' : 'add'}');
-      final response = isWatched
-          ? await dioClient.dio.delete(
-              '/v/api/v1/item/watched',
-              data: {'item_guid': guid},
-            )
-          : await dioClient.dio.post(
-              '/v/api/v1/item/watched',
-              data: {'item_guid': guid},
-            );
-
-      if (_isSuccessResponse(response.data)) {
+      if (response.getOrElse(false)) {
         final currentState = state.value!;
         final refreshedItem = await _fetchItem();
         final refreshedStreamList = await _fetchStreamList();
@@ -241,7 +184,9 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
             success: true, message: isWatched ? '标记为未观看' : '标记为已观看');
       }
       return ActionResult(
-          success: false, message: _resolveMessage(response.data));
+        success: false,
+        message: response.failureOrNull?.displayMessage ?? '操作失败',
+      );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());
     }

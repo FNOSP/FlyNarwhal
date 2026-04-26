@@ -38,8 +38,15 @@ class ApiEndpoints {
   static const String mediaDbList = '/v/api/v1/mediadb/list';
   static const String mediaDbSum = '/v/api/v1/mediadb/sum';
   static const String playList = '/v/api/v1/play/list';
+  static const String playInfo = '/v/api/v1/play/info';
   static const String itemList = '/v/api/v1/item/list';
+  static const String favoriteList = '/v/api/v1/favorite/list';
   static const String itemDetail = '/v/api/v1/item/detail';
+  static const String itemPrefix = '/v/api/v1/item';
+  static const String streamListPrefix = '/v/api/v1/stream/list';
+  static const String personListPrefix = '/v/api/v1/person/list';
+  static const String seasonListPrefix = '/v/api/v1/season/list';
+  static const String episodeListPrefix = '/v/api/v1/episode/list';
 
   // Favorite & Watched
   static const String favorite = '/v/api/v1/item/favorite';
@@ -51,6 +58,16 @@ class ApiEndpoints {
 
   // App
   static const String authorizedDir = '/v/api/v1/app/authorized/dir';
+
+  static String itemByGuid(String guid) => '$itemPrefix/$guid';
+
+  static String streamListByGuid(String guid) => '$streamListPrefix/$guid';
+
+  static String personListByGuid(String guid) => '$personListPrefix/$guid';
+
+  static String seasonListByGuid(String guid) => '$seasonListPrefix/$guid';
+
+  static String episodeListByGuid(String guid) => '$episodeListPrefix/$guid';
 }
 
 /// Response code constants
