@@ -8,6 +8,7 @@ class PlayerActionButton extends StatefulWidget {
   final String? svgAssetPath;
   final IconData? iconData;
   final String? lottieAssetPath;
+  final double? lottieIdleProgress;
   final double size;
   final double iconSize;
   final Color color;
@@ -22,6 +23,7 @@ class PlayerActionButton extends StatefulWidget {
     this.svgAssetPath,
     this.iconData,
     this.lottieAssetPath,
+    this.lottieIdleProgress,
     this.size = 30,
     this.iconSize = 22,
     this.color = Colors.white,
@@ -48,6 +50,7 @@ class PlayerActionButton extends StatefulWidget {
     this.padding = const EdgeInsets.all(4),
     this.animateLottieOnHover = true,
   })  : iconData = null,
+        lottieIdleProgress = null,
         lottieAssetPath = null;
 
   const PlayerActionButton.icon({
@@ -62,6 +65,7 @@ class PlayerActionButton extends StatefulWidget {
     this.padding = const EdgeInsets.all(4),
     this.animateLottieOnHover = true,
   })  : svgAssetPath = null,
+        lottieIdleProgress = null,
         lottieAssetPath = null;
 
   const PlayerActionButton.lottie({
@@ -69,6 +73,7 @@ class PlayerActionButton extends StatefulWidget {
     required String this.lottieAssetPath,
     this.onPressed,
     this.tooltip,
+    this.lottieIdleProgress,
     this.size = 30,
     this.iconSize = 22,
     this.color = Colors.white,
@@ -87,21 +92,48 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
   bool _isHovered = false;
   late final AnimationController _animationController;
 
+  double get _idleLottieProgress {
+    final configuredProgress = widget.lottieIdleProgress;
+    if (configuredProgress != null) {
+      return configuredProgress.clamp(0.0, 1.0);
+    }
+    return widget.animateLottieOnHover ? 0.0 : 1.0;
+  }
+
+  void _showIdleLottieFrame() {
+    _animationController
+      ..stop()
+      ..value = _idleLottieProgress;
+  }
+
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(vsync: this);
+    _showIdleLottieFrame();
   }
 
   @override
   void didUpdateWidget(covariant PlayerActionButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.lottieAssetPath != oldWidget.lottieAssetPath &&
-        widget.lottieAssetPath != null) {
+    if (widget.lottieAssetPath == null) return;
+
+    final lottieSourceChanged =
+        widget.lottieAssetPath != oldWidget.lottieAssetPath;
+    final idleFrameChanged =
+        widget.lottieIdleProgress != oldWidget.lottieIdleProgress ||
+            widget.animateLottieOnHover != oldWidget.animateLottieOnHover;
+
+    if (!lottieSourceChanged && !idleFrameChanged) return;
+
+    if (_isHovered && widget.animateLottieOnHover && lottieSourceChanged) {
       _animationController
         ..reset()
         ..forward();
+      return;
     }
+
+    _showIdleLottieFrame();
   }
 
   @override
@@ -124,7 +156,12 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
             ..forward();
         }
       },
-      onExit: (_) => setState(() => _isHovered = false),
+      onExit: (_) {
+        setState(() => _isHovered = false);
+        if (widget.lottieAssetPath != null) {
+          _showIdleLottieFrame();
+        }
+      },
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onPressed,
@@ -177,8 +214,8 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
           ),
           onLoaded: (composition) {
             _animationController.duration = composition.duration;
-            if (!widget.animateLottieOnHover) {
-              _animationController.value = 1;
+            if (!_isHovered) {
+              _showIdleLottieFrame();
             }
           },
         ),

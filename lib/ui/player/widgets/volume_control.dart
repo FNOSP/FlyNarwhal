@@ -293,6 +293,7 @@ class _VolumeControlState extends State<VolumeControl>
     return PlayerActionButton.lottie(
       key: ValueKey(assetPath),
       lottieAssetPath: assetPath,
+      lottieIdleProgress: 0.5,
       size: 30,
       iconSize: 22,
     );
@@ -399,8 +400,9 @@ class _VerticalVolumeSliderState extends State<_VerticalVolumeSlider> {
 
   @override
   Widget build(BuildContext context) {
-    final displayVolume =
-        (_isDragging || _isWaitingForExternalSync) ? _dragVolume : widget.volume;
+    final displayVolume = (_isDragging || _isWaitingForExternalSync)
+        ? _dragVolume
+        : widget.volume;
 
     return GestureDetector(
       onTapDown: (details) {
