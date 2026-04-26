@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/models/base_response.dart';
@@ -88,17 +89,26 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
 
   Future<PlayInfoResponse?> _fetchPlayInfo() async {
     final dioClient = ref.read(dioClientProvider);
-    final response = await _safeRequest(
-      () => dioClient.dio.post('/v/api/v1/play/info', data: {'guid': guid}),
-    );
-    if (response == null) {
+    try {
+      final response =
+          await dioClient.dio.post('/v/api/v1/play/info', data: {'item_guid': guid});
+      debugPrint(
+        '[TvSeasonDetail] play/info raw response guid=$guid data=${response.data}',
+      );
+      final playInfoResponse = FnBaseResponse<PlayInfoResponse>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => PlayInfoResponse.fromJson(json as Map<String, dynamic>),
+      );
+      final playInfoItem = playInfoResponse.data?.item;
+      debugPrint(
+        '[TvSeasonDetail] play/info parsed guid=$guid code=${playInfoResponse.code} msg=${playInfoResponse.msg} hasData=${playInfoResponse.data != null} season=${playInfoItem?.seasonNumber} episode=${playInfoItem?.episodeNumber} playItemGuid=${playInfoItem?.playItemGuid}',
+      );
+      return playInfoResponse.data;
+    } catch (e, st) {
+      debugPrint('[TvSeasonDetail] play/info request failed guid=$guid error=$e');
+      debugPrint('[TvSeasonDetail] play/info stack guid=$guid stack=$st');
       return null;
     }
-    final playInfoResponse = FnBaseResponse<PlayInfoResponse>.fromJson(
-      (response as dynamic).data as Map<String, dynamic>,
-      (json) => PlayInfoResponse.fromJson(json as Map<String, dynamic>),
-    );
-    return playInfoResponse.data;
   }
 
   Future<List<EpisodeListResponse>> _fetchEpisodeList() async {

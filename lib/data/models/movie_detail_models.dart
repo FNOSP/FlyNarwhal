@@ -63,6 +63,8 @@ class ItemResponse {
   final int duration;
   @JsonKey(name: 'logic_type', defaultValue: 0)
   final int logicType;
+  @JsonKey(name: 'episode_number', defaultValue: 0)
+  final int episodeNumber;
   final String? logos;
   @JsonKey(name: 'air_date')
   final String? airDate;
@@ -101,6 +103,7 @@ class ItemResponse {
     required this.playItemGuid,
     required this.duration,
     required this.logicType,
+    required this.episodeNumber,
     this.logos,
     this.airDate,
   });
@@ -142,6 +145,7 @@ class ItemResponse {
     String? playItemGuid,
     int? duration,
     int? logicType,
+    int? episodeNumber,
     String? logos,
     String? airDate,
   }) {
@@ -179,6 +183,7 @@ class ItemResponse {
       playItemGuid: playItemGuid ?? this.playItemGuid,
       duration: duration ?? this.duration,
       logicType: logicType ?? this.logicType,
+      episodeNumber: episodeNumber ?? this.episodeNumber,
       logos: logos ?? this.logos,
       airDate: airDate ?? this.airDate,
     );
@@ -516,12 +521,6 @@ class PlayInfoResponse {
   final ItemResponse item;
   @JsonKey(name: 'direct_link_audio_index')
   final int directLinkAudioIndex;
-  @JsonKey(name: 'episode_number')
-  final int episodeNumber;
-  @JsonKey(name: 'season_number')
-  final int seasonNumber;
-  @JsonKey(name: 'play_item_guid')
-  final String playItemGuid;
 
   PlayInfoResponse({
     required this.grandGuid,
@@ -536,9 +535,6 @@ class PlayInfoResponse {
     required this.mediaGuid,
     required this.item,
     required this.directLinkAudioIndex,
-    this.episodeNumber = 0,
-    this.seasonNumber = 0,
-    this.playItemGuid = '',
   });
 
   factory PlayInfoResponse.fromJson(Map<String, dynamic> json) => _$PlayInfoResponseFromJson(json);

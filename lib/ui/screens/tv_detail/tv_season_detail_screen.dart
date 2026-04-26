@@ -180,6 +180,12 @@ class _TvSeasonDetailContentState
     );
   }
 
+  String _buildPlayButtonText() {
+    final playInfo = widget.state.playInfo;
+    if (playInfo == null) return '播放';
+    return '第 ${playInfo.item.episodeNumber} 集';
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.state.item;
@@ -485,8 +491,7 @@ class _TvSeasonDetailContentState
     Color resolvedTextColor,
   ) {
     final playInfo = widget.state.playInfo;
-    final playButtonText =
-        playInfo != null ? '第 ${playInfo.episodeNumber} 集' : '播放';
+    final playButtonText = _buildPlayButtonText();
 
     return Row(
       children: [
@@ -494,8 +499,9 @@ class _TvSeasonDetailContentState
           text: playButtonText,
           onPressed: () async {
             if (playInfo != null) {
-              final targetGuid = playInfo.playItemGuid.isNotEmpty
-                  ? playInfo.playItemGuid
+              final playItemGuid = playInfo.item.playItemGuid;
+              final targetGuid = playItemGuid.isNotEmpty
+                  ? playItemGuid
                   : widget.guid;
               ref.read(navigationStackProvider.notifier).pushPath('/home');
               context.go('/player/$targetGuid');
@@ -579,7 +585,7 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
 
   void _positionToCurrentEpisode() {
     if (!_scrollController.hasClients || widget.episodes.isEmpty) return;
-    final currentEpisodeNumber = widget.playInfo?.episodeNumber;
+    final currentEpisodeNumber = widget.playInfo?.item.episodeNumber;
     if (currentEpisodeNumber == null ||
         _lastPositionedEpisodeNumber == currentEpisodeNumber) {
       return;
@@ -606,7 +612,7 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
     if (widget.episodes.isEmpty) {
       return const SizedBox.shrink();
     }
-    final currentEpisodeNumber = widget.playInfo?.episodeNumber;
+    final currentEpisodeNumber = widget.playInfo?.item.episodeNumber;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

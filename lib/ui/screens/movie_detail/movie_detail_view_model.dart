@@ -106,7 +106,7 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
     final item = await _fetchItem();
     final streamList = await _fetchStreamList();
     final playInfoResult = await safeRequest(
-      () => dioClient.dio.post('/v/api/v1/play/info', data: {'guid': guid}),
+      () => dioClient.dio.post('/v/api/v1/play/info', data: {'item_guid': guid}),
     );
     final personListResult = await safeRequest(
       () => dioClient.dio.post('/v/api/v1/person/list/$guid', data: const {}),

@@ -1215,7 +1215,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   String _buildDisplaySubhead(ItemResponse item) {
     final season = item.parentTitle;
     final episodeNumber =
-        _currentEpisode?.episodeNumber ?? _playInfo?.episodeNumber ?? 0;
+        _currentEpisode?.episodeNumber ?? _playInfo?.item.episodeNumber ?? 0;
     final episodeLabel = episodeNumber > 0 ? '第$episodeNumber集' : '';
     final episodeTitle = item.title;
     final parts = <String>[
