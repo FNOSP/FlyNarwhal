@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+
 class CardExpanderItem extends StatelessWidget {
   final Widget heading;
 
@@ -26,25 +27,36 @@ class CardExpanderItem extends StatelessWidget {
     this.trailing,
     this.dropdown,
     this.onPressed,
-    this.minHeaderHeight = 44,
-    this.margin = const EdgeInsets.only(bottom: 12),
-    this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    this.minHeaderHeight = 32,
+    this.margin = const EdgeInsets.only(bottom: 8),
+    this.padding = const EdgeInsetsDirectional.only(end: 2, top: 2, bottom: 2),
   });
+
+  static const EdgeInsetsDirectional _cardPadding =
+      EdgeInsetsDirectional.all(12);
 
   @override
   Widget build(BuildContext context) {
+    final isClickable = onPressed != null;
     final cardChild = ConstrainedBox(
       constraints: BoxConstraints(minHeight: minHeaderHeight),
       child: _buildBody(context),
     );
 
     return Card(
+      padding: isClickable ? EdgeInsets.zero : _cardPadding,
       margin: margin,
       child: cardChild,
     );
   }
 
   Widget _buildBody(BuildContext context) {
+    final resolvedPadding = padding.resolve(Directionality.of(context));
+    final effectivePadding = onPressed == null
+        ? resolvedPadding
+        // Merge the card inset into the tile so hover can cover the full card.
+        : resolvedPadding.add(_cardPadding.resolve(Directionality.of(context)));
+
     final trailingWidgets = <Widget>[
       if (trailing != null) trailing!,
       if (dropdown != null) ...[
@@ -63,14 +75,19 @@ class CardExpanderItem extends StatelessWidget {
     return ListTile(
       leading: icon == null
           ? null
-          : IconTheme.merge(
-              data: const IconThemeData(size: 18),
-              child: icon!,
+          : Transform.translate(
+              offset: const Offset(-8, 0),
+              // Shift the icon visually without using negative padding.
+              child: IconTheme.merge(
+                data: const IconThemeData(size: 16),
+                child: icon!,
+              ),
             ),
       title: heading,
       subtitle: caption,
       trailing: trailingWidget,
-      contentPadding: padding,
+      contentPadding: effectivePadding,
+      margin: EdgeInsets.zero,
       onPressed: onPressed,
     );
   }
