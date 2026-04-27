@@ -625,6 +625,7 @@ class _LogoTitle extends StatefulWidget {
 }
 
 class _LogoTitleState extends State<_LogoTitle> {
+  double _width = 280.0;
   double _height = 90.0;
   ImageStream? _stream;
   ImageStreamListener? _listener;
@@ -662,12 +663,18 @@ class _LogoTitleState extends State<_LogoTitle> {
     );
     final stream = provider.resolve(ImageConfiguration.empty);
     final listener = ImageStreamListener((info, _) {
-      final width = info.image.width.toDouble();
-      final height = info.image.height.toDouble();
-      final actualWidth = height > 0 ? width / height * 90 : 0;
-      final nextHeight = actualWidth > 0 && actualWidth < 280 ? 150.0 : 90.0;
+      final imgWidth = info.image.width.toDouble();
+      final imgHeight = info.image.height.toDouble();
+      // Keep the title box stable before the logo finishes loading.
+      final aspectRatio = imgHeight > 0 ? imgWidth / imgHeight : 1.0;
+      final nextHeight =
+          aspectRatio > 0 && aspectRatio < 280.0 / 90.0 ? 150.0 : 90.0;
+      final nextWidth = aspectRatio * nextHeight;
       if (mounted) {
-        setState(() => _height = nextHeight);
+        setState(() {
+          _height = nextHeight;
+          _width = nextWidth;
+        });
       }
     });
     stream.addListener(listener);
@@ -678,6 +685,7 @@ class _LogoTitleState extends State<_LogoTitle> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
+      width: _width,
       height: _height,
       child: CachedNetworkImage(
         imageUrl: widget.url,
