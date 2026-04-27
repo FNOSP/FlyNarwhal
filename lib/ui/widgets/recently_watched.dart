@@ -171,6 +171,30 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
     );
   }
 
+  void _handleItemNavigation(BuildContext context) {
+    final itemGuid = widget.item.guid.trim();
+    if (itemGuid.isEmpty) {
+      return;
+    }
+
+    switch (widget.item.type?.trim()) {
+      case 'Movie':
+      case 'Video':
+        ref.read(navigationStackProvider.notifier).pushPath('/home');
+        context.go('/movie/$itemGuid');
+        return;
+      case 'Episode':
+        final parentGuid = widget.item.parentGuid?.trim();
+        if (parentGuid == null || parentGuid.isEmpty) {
+          return;
+        }
+        context.go('/tv/season/$parentGuid');
+        return;
+      default:
+        return;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isRemoved) {
@@ -217,7 +241,7 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: HoverButton(
-            onPressed: () {},
+            onPressed: () => _handleItemNavigation(context),
             builder: (context, states) {
               final isHovered = states.isHovered;
               return SizedBox(
