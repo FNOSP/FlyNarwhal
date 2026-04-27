@@ -9,9 +9,8 @@ import '../../providers/providers.dart';
 
 class PlayerService {
   final DioClient _dioClient;
-  final Ref _ref;
 
-  PlayerService(this._dioClient, this._ref);
+  PlayerService(this._dioClient);
 
   // Get play info for a media item
   Future<PlayInfoResponse> getPlayInfo(String guid, {String? mediaGuid}) async {
@@ -78,33 +77,6 @@ class PlayerService {
     return baseResponse.data!;
   }
 
-  // Quit media playback
-  Future<void> quitMedia(String playLink) async {
-    final request = MediaPRequest(playLink: playLink);
-    await _dioClient.dio.post(
-      '/v/api/v1/mediap/quit',
-      data: request.toJson(),
-    );
-  }
-
-  // Reset quality for current playback
-  Future<MediaResetQualityResponse> resetQuality(String playLink) async {
-    final request = MediaPRequest(playLink: playLink);
-    final response = await _dioClient.dio.post(
-      '/v/api/v1/mediap/reset-quality',
-      data: request.toJson(),
-    );
-    final baseResponse = FnBaseResponse<MediaResetQualityResponse>.fromJson(
-      response.data,
-      (json) =>
-          MediaResetQualityResponse.fromJson(json as Map<String, dynamic>),
-    );
-    if (baseResponse.code != 0) {
-      throw Exception(baseResponse.msg);
-    }
-    return baseResponse.data!;
-  }
-
   // Get available qualities
   Future<List<QualityResponse>> getQualities(String playLink) async {
     final request = MediaPRequest(playLink: playLink);
@@ -124,29 +96,6 @@ class PlayerService {
     return baseResponse.data ?? [];
   }
 
-  // Set quality for playback
-  Future<String> setQuality({
-    required String playLink,
-    required String resolution,
-    required int bitrate,
-  }) async {
-    final response = await _dioClient.dio.post(
-      '/v/api/v1/mediap/set-quality',
-      data: {
-        'play_link': playLink,
-        'resolution': resolution,
-        'bitrate': bitrate,
-      },
-    );
-    final baseResponse = FnBaseResponse<String>.fromJson(
-      response.data,
-      (json) => json as String,
-    );
-    if (baseResponse.code != 0) {
-      throw Exception(baseResponse.msg);
-    }
-    return baseResponse.data!;
-  }
 
   // Update play record (progress)
   Future<void> updatePlayRecord({
@@ -194,5 +143,5 @@ class PlayerService {
 
 final playerServiceProvider = Provider<PlayerService>((ref) {
   final dioClient = ref.watch(dioClientProvider);
-  return PlayerService(dioClient, ref);
+  return PlayerService(dioClient);
 });

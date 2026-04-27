@@ -6,6 +6,7 @@ import '../../models/episode_list_response.dart';
 import '../../models/home_models.dart';
 import '../../models/media_request_models.dart';
 import '../../models/movie_detail_models.dart';
+import '../../models/player_models.dart';
 import '../../models/season_list_response.dart';
 
 /// Remote data source for media-related API calls
@@ -84,7 +85,8 @@ class MediaRemoteDataSource {
   }
 
   /// Get play info by item guid
-  Future<ApiResult<PlayInfoResponse?>> getPlayInfo(ItemGuidRequest request) async {
+  Future<ApiResult<PlayInfoResponse?>> getPlayInfo(
+      ItemGuidRequest request) async {
     final result = await _dioClient.post<PlayInfoResponse?>(
       ApiEndpoints.playInfo,
       data: request.toJson(),
@@ -113,10 +115,70 @@ class MediaRemoteDataSource {
   }
 
   /// Get episode list by guid
-  Future<ApiResult<List<EpisodeListResponse>>> getEpisodeList(String guid) async {
+  Future<ApiResult<List<EpisodeListResponse>>> getEpisodeList(
+      String guid) async {
     final result = await _dioClient.get<List<EpisodeListResponse>>(
       ApiEndpoints.episodeListByGuid(guid),
       converter: (data) => _parseEpisodeListResponse(data),
+    );
+    return result;
+  }
+
+  /// Fetch media transcode status from unified media/p endpoint.
+  Future<ApiResult<MediaTranscodeResponse>> fetchTranscodeStatus(
+    MediaPRequest request,
+  ) async {
+    final result = await _dioClient.post<MediaTranscodeResponse>(
+      ApiEndpoints.mediaP,
+      data: request.toJson(),
+      converter: (data) => _parseMediaTranscodeResponse(data),
+    );
+    return result;
+  }
+
+  /// Reset media quality from unified media/p endpoint.
+  Future<ApiResult<MediaResetQualityResponse>> resetQuality(
+    MediaPRequest request,
+  ) async {
+    final result = await _dioClient.post<MediaResetQualityResponse>(
+      ApiEndpoints.mediaP,
+      data: request.toJson(),
+      converter: (data) => _parseMediaResetQualityResponse(data),
+    );
+    return result;
+  }
+
+  /// Reset media audio from unified media/p endpoint.
+  Future<ApiResult<MediaResetQualityResponse>> resetAudio(
+    MediaPRequest request,
+  ) async {
+    final result = await _dioClient.post<MediaResetQualityResponse>(
+      ApiEndpoints.mediaP,
+      data: request.toJson(),
+      converter: (data) => _parseMediaResetQualityResponse(data),
+    );
+    return result;
+  }
+
+  /// Reset media subtitle from unified media/p endpoint.
+  Future<ApiResult<MediaResetQualityResponse>> resetSubtitle(
+    MediaPRequest request,
+  ) async {
+    final result = await _dioClient.post<MediaResetQualityResponse>(
+      ApiEndpoints.mediaP,
+      data: request.toJson(),
+      converter: (data) => _parseMediaResetQualityResponse(data),
+    );
+    return result;
+  }
+
+  /// Quit media session from unified media/p endpoint.
+  Future<ApiResult<MediaResetQualityResponse>> quit(
+      MediaPRequest request) async {
+    final result = await _dioClient.post<MediaResetQualityResponse>(
+      ApiEndpoints.mediaP,
+      data: request.toJson(),
+      converter: (data) => _parseMediaResetQualityResponse(data),
     );
     return result;
   }
@@ -254,7 +316,8 @@ class MediaRemoteDataSource {
       data,
       (json) => ItemResponse.fromJson(json as Map<String, dynamic>),
     );
-    if (baseResponse.code != ResponseCodes.success || baseResponse.data == null) {
+    if (baseResponse.code != ResponseCodes.success ||
+        baseResponse.data == null) {
       throw Exception(baseResponse.msg);
     }
     return baseResponse.data!;
@@ -317,6 +380,31 @@ class MediaRemoteDataSource {
       throw Exception(baseResponse.msg);
     }
     return baseResponse.data ?? const <EpisodeListResponse>[];
+  }
+
+  MediaTranscodeResponse _parseMediaTranscodeResponse(dynamic data) {
+    final baseResponse = FnBaseResponse<MediaTranscodeResponse>.fromJson(
+      data,
+      (json) => MediaTranscodeResponse.fromJson(json as Map<String, dynamic>),
+    );
+    if (baseResponse.code != ResponseCodes.success ||
+        baseResponse.data == null) {
+      throw Exception(baseResponse.msg);
+    }
+    return baseResponse.data!;
+  }
+
+  MediaResetQualityResponse _parseMediaResetQualityResponse(dynamic data) {
+    final baseResponse = FnBaseResponse<MediaResetQualityResponse>.fromJson(
+      data,
+      (json) =>
+          MediaResetQualityResponse.fromJson(json as Map<String, dynamic>),
+    );
+    if (baseResponse.code != ResponseCodes.success ||
+        baseResponse.data == null) {
+      throw Exception(baseResponse.msg);
+    }
+    return baseResponse.data!;
   }
 
   bool _parseSuccessResponse(dynamic data) {

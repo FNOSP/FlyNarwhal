@@ -157,14 +157,98 @@ class PlayPlayResponse {
 }
 
 @JsonSerializable()
+class MediaTranscodeAudio {
+  final int channels;
+  final String encoder;
+
+  MediaTranscodeAudio({
+    required this.channels,
+    required this.encoder,
+  });
+
+  factory MediaTranscodeAudio.fromJson(Map<String, dynamic> json) =>
+      _$MediaTranscodeAudioFromJson(json);
+  Map<String, dynamic> toJson() => _$MediaTranscodeAudioToJson(this);
+}
+
+@JsonSerializable()
+class MediaTranscodeVideo {
+  @JsonKey(name: 'corruptedFrames')
+  final int corruptedFrames;
+  @JsonKey(name: 'decodeMethod')
+  final int decodeMethod;
+  @JsonKey(name: 'droppedFrames')
+  final int droppedFrames;
+  @JsonKey(name: 'dynamicRange')
+  final String dynamicRange;
+  @JsonKey(name: 'encodeMethod')
+  final int encodeMethod;
+  final String encoder;
+  @JsonKey(name: 'selectedGpu')
+  final String selectedGpu;
+  @JsonKey(name: 'transcodingRate')
+  final String transcodingRate;
+
+  MediaTranscodeVideo({
+    required this.corruptedFrames,
+    required this.decodeMethod,
+    required this.droppedFrames,
+    required this.dynamicRange,
+    required this.encodeMethod,
+    required this.encoder,
+    required this.selectedGpu,
+    required this.transcodingRate,
+  });
+
+  factory MediaTranscodeVideo.fromJson(Map<String, dynamic> json) =>
+      _$MediaTranscodeVideoFromJson(json);
+  Map<String, dynamic> toJson() => _$MediaTranscodeVideoToJson(this);
+}
+
+@JsonSerializable()
+class MediaTranscodeResponse {
+  final MediaTranscodeAudio audio;
+  final int bitrate;
+  @JsonKey(name: 'reqid')
+  final String reqId;
+  final String resolution;
+  final String result;
+  final bool transcoded;
+  @JsonKey(name: 'transcodingReason')
+  final List<int> transcodingReason;
+  final MediaTranscodeVideo video;
+
+  MediaTranscodeResponse({
+    required this.audio,
+    required this.bitrate,
+    required this.reqId,
+    required this.resolution,
+    required this.result,
+    required this.transcoded,
+    required this.transcodingReason,
+    required this.video,
+  });
+
+  factory MediaTranscodeResponse.fromJson(Map<String, dynamic> json) =>
+      _$MediaTranscodeResponseFromJson(json);
+  Map<String, dynamic> toJson() => _$MediaTranscodeResponseToJson(this);
+}
+
+@JsonSerializable()
 class MediaResetQualityResponse {
-  @JsonKey(name: 'play_link')
-  final String playLink;
-  final int position;
+  @JsonKey(name: 'hlsTime')
+  final int hlsTime;
+  @JsonKey(name: 'reqid')
+  final String reqId;
+  final String result;
+  @JsonKey(name: 'updateM3u8')
+  final bool updateM3u8;
 
   MediaResetQualityResponse({
-    required this.playLink,
-    required this.position,
+    required this.hlsTime,
+    required this.reqId,
+    required this.result,
+    required this.updateM3u8,
   });
 
   factory MediaResetQualityResponse.fromJson(Map<String, dynamic> json) =>
@@ -340,10 +424,78 @@ class Header {
 }
 
 @JsonSerializable()
-class MediaPRequest {
-  final String playLink;
+class MediaPQuality {
+  final String resolution;
+  final int bitrate;
 
-  MediaPRequest({required this.playLink});
+  MediaPQuality({
+    required this.resolution,
+    required this.bitrate,
+  });
+
+  factory MediaPQuality.fromJson(Map<String, dynamic> json) =>
+      _$MediaPQualityFromJson(json);
+  Map<String, dynamic> toJson() => _$MediaPQualityToJson(this);
+}
+
+@JsonSerializable()
+class MediaPRequest {
+  final String? req;
+  @JsonKey(name: 'reqid')
+  final String? reqId;
+  @JsonKey(name: 'playLink')
+  final String playLink;
+  final MediaPQuality? quality;
+  @JsonKey(name: 'startTimestamp')
+  final int? startTimestamp;
+  @JsonKey(name: 'clearCache')
+  final bool? clearCache;
+  @JsonKey(name: 'audioEncoder')
+  final String? audioEncoder;
+  final int? channels;
+  @JsonKey(name: 'audioIndex')
+  final int? audioIndex;
+  @JsonKey(name: 'subtitleIndex')
+  final int? subtitleIndex;
+
+  MediaPRequest({
+    this.req,
+    this.reqId,
+    required this.playLink,
+    this.quality,
+    this.startTimestamp,
+    this.clearCache,
+    this.audioEncoder,
+    this.channels,
+    this.audioIndex,
+    this.subtitleIndex,
+  });
+
+  MediaPRequest copyWith({
+    String? req,
+    String? reqId,
+    String? playLink,
+    MediaPQuality? quality,
+    int? startTimestamp,
+    bool? clearCache,
+    String? audioEncoder,
+    int? channels,
+    int? audioIndex,
+    int? subtitleIndex,
+  }) {
+    return MediaPRequest(
+      req: req ?? this.req,
+      reqId: reqId ?? this.reqId,
+      playLink: playLink ?? this.playLink,
+      quality: quality ?? this.quality,
+      startTimestamp: startTimestamp ?? this.startTimestamp,
+      clearCache: clearCache ?? this.clearCache,
+      audioEncoder: audioEncoder ?? this.audioEncoder,
+      channels: channels ?? this.channels,
+      audioIndex: audioIndex ?? this.audioIndex,
+      subtitleIndex: subtitleIndex ?? this.subtitleIndex,
+    );
+  }
 
   factory MediaPRequest.fromJson(Map<String, dynamic> json) =>
       _$MediaPRequestFromJson(json);

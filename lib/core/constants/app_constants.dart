@@ -39,6 +39,7 @@ class ApiEndpoints {
   static const String mediaDbSum = '/v/api/v1/mediadb/sum';
   static const String playList = '/v/api/v1/play/list';
   static const String playInfo = '/v/api/v1/play/info';
+  static const String mediaP = '/v/api/v1/media/p';
   static const String itemList = '/v/api/v1/item/list';
   static const String favoriteList = '/v/api/v1/favorite/list';
   static const String itemDetail = '/v/api/v1/item/detail';

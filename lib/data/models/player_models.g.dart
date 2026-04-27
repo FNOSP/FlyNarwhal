@@ -113,18 +113,90 @@ Map<String, dynamic> _$PlayPlayResponseToJson(PlayPlayResponse instance) =>
       'play_link': instance.playLink,
     };
 
+MediaTranscodeAudio _$MediaTranscodeAudioFromJson(Map<String, dynamic> json) =>
+    MediaTranscodeAudio(
+      channels: (json['channels'] as num).toInt(),
+      encoder: json['encoder'] as String,
+    );
+
+Map<String, dynamic> _$MediaTranscodeAudioToJson(
+        MediaTranscodeAudio instance) =>
+    <String, dynamic>{
+      'channels': instance.channels,
+      'encoder': instance.encoder,
+    };
+
+MediaTranscodeVideo _$MediaTranscodeVideoFromJson(Map<String, dynamic> json) =>
+    MediaTranscodeVideo(
+      corruptedFrames: (json['corruptedFrames'] as num).toInt(),
+      decodeMethod: (json['decodeMethod'] as num).toInt(),
+      droppedFrames: (json['droppedFrames'] as num).toInt(),
+      dynamicRange: json['dynamicRange'] as String,
+      encodeMethod: (json['encodeMethod'] as num).toInt(),
+      encoder: json['encoder'] as String,
+      selectedGpu: json['selectedGpu'] as String,
+      transcodingRate: json['transcodingRate'] as String,
+    );
+
+Map<String, dynamic> _$MediaTranscodeVideoToJson(
+        MediaTranscodeVideo instance) =>
+    <String, dynamic>{
+      'corruptedFrames': instance.corruptedFrames,
+      'decodeMethod': instance.decodeMethod,
+      'droppedFrames': instance.droppedFrames,
+      'dynamicRange': instance.dynamicRange,
+      'encodeMethod': instance.encodeMethod,
+      'encoder': instance.encoder,
+      'selectedGpu': instance.selectedGpu,
+      'transcodingRate': instance.transcodingRate,
+    };
+
+MediaTranscodeResponse _$MediaTranscodeResponseFromJson(
+        Map<String, dynamic> json) =>
+    MediaTranscodeResponse(
+      audio:
+          MediaTranscodeAudio.fromJson(json['audio'] as Map<String, dynamic>),
+      bitrate: (json['bitrate'] as num).toInt(),
+      reqId: json['reqid'] as String,
+      resolution: json['resolution'] as String,
+      result: json['result'] as String,
+      transcoded: json['transcoded'] as bool,
+      transcodingReason: (json['transcodingReason'] as List<dynamic>)
+          .map((e) => (e as num).toInt())
+          .toList(),
+      video:
+          MediaTranscodeVideo.fromJson(json['video'] as Map<String, dynamic>),
+    );
+
+Map<String, dynamic> _$MediaTranscodeResponseToJson(
+        MediaTranscodeResponse instance) =>
+    <String, dynamic>{
+      'audio': instance.audio,
+      'bitrate': instance.bitrate,
+      'reqid': instance.reqId,
+      'resolution': instance.resolution,
+      'result': instance.result,
+      'transcoded': instance.transcoded,
+      'transcodingReason': instance.transcodingReason,
+      'video': instance.video,
+    };
+
 MediaResetQualityResponse _$MediaResetQualityResponseFromJson(
         Map<String, dynamic> json) =>
     MediaResetQualityResponse(
-      playLink: json['play_link'] as String,
-      position: (json['position'] as num).toInt(),
+      hlsTime: (json['hlsTime'] as num).toInt(),
+      reqId: json['reqid'] as String,
+      result: json['result'] as String,
+      updateM3u8: json['updateM3u8'] as bool,
     );
 
 Map<String, dynamic> _$MediaResetQualityResponseToJson(
         MediaResetQualityResponse instance) =>
     <String, dynamic>{
-      'play_link': instance.playLink,
-      'position': instance.position,
+      'hlsTime': instance.hlsTime,
+      'reqid': instance.reqId,
+      'result': instance.result,
+      'updateM3u8': instance.updateM3u8,
     };
 
 SetConfigByItemRequest _$SetConfigByItemRequestFromJson(
@@ -171,14 +243,46 @@ Map<String, dynamic> _$HeaderToJson(Header instance) => <String, dynamic>{
       'User-Agent': instance.userAgent,
     };
 
+MediaPQuality _$MediaPQualityFromJson(Map<String, dynamic> json) =>
+    MediaPQuality(
+      resolution: json['resolution'] as String,
+      bitrate: (json['bitrate'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$MediaPQualityToJson(MediaPQuality instance) =>
+    <String, dynamic>{
+      'resolution': instance.resolution,
+      'bitrate': instance.bitrate,
+    };
+
 MediaPRequest _$MediaPRequestFromJson(Map<String, dynamic> json) =>
     MediaPRequest(
+      req: json['req'] as String?,
+      reqId: json['reqid'] as String?,
       playLink: json['playLink'] as String,
+      quality: json['quality'] == null
+          ? null
+          : MediaPQuality.fromJson(json['quality'] as Map<String, dynamic>),
+      startTimestamp: (json['startTimestamp'] as num?)?.toInt(),
+      clearCache: json['clearCache'] as bool?,
+      audioEncoder: json['audioEncoder'] as String?,
+      channels: (json['channels'] as num?)?.toInt(),
+      audioIndex: (json['audioIndex'] as num?)?.toInt(),
+      subtitleIndex: (json['subtitleIndex'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$MediaPRequestToJson(MediaPRequest instance) =>
     <String, dynamic>{
+      'req': instance.req,
+      'reqid': instance.reqId,
       'playLink': instance.playLink,
+      'quality': instance.quality,
+      'startTimestamp': instance.startTimestamp,
+      'clearCache': instance.clearCache,
+      'audioEncoder': instance.audioEncoder,
+      'channels': instance.channels,
+      'audioIndex': instance.audioIndex,
+      'subtitleIndex': instance.subtitleIndex,
     };
 
 PlayPlayRequest _$PlayPlayRequestFromJson(Map<String, dynamic> json) =>

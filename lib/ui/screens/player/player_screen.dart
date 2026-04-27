@@ -14,6 +14,7 @@ import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/providers.dart';
 import '../../player/mp4_parser.dart';
+import '../../player/media_p_view_model.dart';
 import '../../player/player_service.dart';
 import '../../player/widgets/episode_selection_flyout.dart';
 import '../../player/widgets/video_player_progress_bar.dart';
@@ -59,7 +60,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _isLoading = true;
   bool _isUiVisible = true;
   bool _isFullscreen = false;
-  bool _isSeeking = false;
   int _currentPosition = 0;
   int _duration = 0;
   double _volume = 1.0;
@@ -93,6 +93,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   _PlayerFlyoutType? _activeFlyout;
   bool _isDanmakuVisible = true;
   bool _isAutoPlayEnabled = true;
+  late String _currentItemGuid;
+  String? _currentMediaGuid;
+  String? _requestedAudioGuid;
+  String? _requestedSubtitleGuid;
   String? _selectedAudioGuid;
   String? _selectedSubtitleGuid;
   List<EpisodeListResponse> _episodeList = [];
@@ -103,12 +107,112 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void initState() {
     super.initState();
     _toastManager = ToastManager();
+    _syncPlaybackTargetsFromWidget();
     _initializePlayer();
+  }
+
+  @override
+  void didUpdateWidget(covariant PlayerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final routeArgsChanged = oldWidget.guid != widget.guid ||
+        oldWidget.mediaGuid != widget.mediaGuid ||
+        oldWidget.audioGuid != widget.audioGuid ||
+        oldWidget.subtitleGuid != widget.subtitleGuid;
+    if (!routeArgsChanged) return;
+
+    final shouldReload = widget.guid != _currentItemGuid ||
+        widget.mediaGuid != _currentMediaGuid ||
+        widget.audioGuid != _requestedAudioGuid ||
+        widget.subtitleGuid != _requestedSubtitleGuid;
+    if (!shouldReload) return;
+
+    unawaited(_switchPlaybackTarget(
+      guid: widget.guid,
+      mediaGuid: widget.mediaGuid,
+      audioGuid: widget.audioGuid,
+      subtitleGuid: widget.subtitleGuid,
+    ));
   }
 
   Future<void> _initializePlayer() async {
     _player = Player();
     _videoController = VideoController(_player!);
+
+    await _loadAndPlayMedia();
+  }
+
+  void _syncPlaybackTargetsFromWidget() {
+    _currentItemGuid = widget.guid;
+    _currentMediaGuid = widget.mediaGuid;
+    _requestedAudioGuid = widget.audioGuid;
+    _requestedSubtitleGuid = widget.subtitleGuid;
+  }
+
+  void _resetPlaybackStateForTargetChange() {
+    _playRecordTimer?.cancel();
+    _lastRecordedPosition = 0;
+    _currentPosition = 0;
+    _duration = 0;
+    _pendingInitialResumeMs = 0;
+    _initialResumeApplied = false;
+    _selectedAudioGuid = null;
+    _selectedSubtitleGuid = null;
+    _qualities = [];
+    _currentQuality = null;
+    _currentResolution = '';
+    _currentBitrate = null;
+    _playInfo = null;
+    _streamInfo = null;
+    _playingInfoCache = null;
+    _episodeList = [];
+    _currentEpisode = null;
+    _nextEpisode = null;
+    _isNextEpisodeHovered = false;
+  }
+
+  Future<void> _quitCurrentPlaybackIfNeeded() async {
+    final cache = _playingInfoCache;
+    final playLink = cache?.playLink;
+    if (cache == null ||
+        cache.isUseDirectLink ||
+        playLink == null ||
+        playLink.isEmpty) {
+      return;
+    }
+
+    try {
+      await ref.read(mediaPViewModelProvider.notifier).quit(
+            MediaPRequest(playLink: playLink),
+            updateState: false,
+          );
+    } catch (e) {
+      debugPrint('[Player] quit media failed: $e');
+    }
+  }
+
+  Future<void> _switchPlaybackTarget({
+    required String guid,
+    String? mediaGuid,
+    String? audioGuid,
+    String? subtitleGuid,
+  }) async {
+    final isSameTarget = guid == _currentItemGuid &&
+        mediaGuid == _currentMediaGuid &&
+        audioGuid == _requestedAudioGuid &&
+        subtitleGuid == _requestedSubtitleGuid;
+    if (isSameTarget) return;
+
+    await _quitCurrentPlaybackIfNeeded();
+    if (!mounted) return;
+
+    setState(() {
+      _currentItemGuid = guid;
+      _currentMediaGuid = mediaGuid;
+      _requestedAudioGuid = audioGuid;
+      _requestedSubtitleGuid = subtitleGuid;
+      _resetPlaybackStateForTargetChange();
+      _isLoading = true;
+    });
 
     await _loadAndPlayMedia();
   }
@@ -352,8 +456,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final baseUrl = prefs.getBaseUrl() ?? '';
 
       final playInfo = await playerService.getPlayInfo(
-        widget.guid,
-        mediaGuid: widget.mediaGuid,
+        _currentItemGuid,
+        mediaGuid: _currentMediaGuid,
       );
       _playInfo = playInfo;
       debugPrint(
@@ -384,17 +488,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       AudioStream? currentAudioStream;
       SubtitleStream? currentSubtitleStream;
 
-      if (widget.audioGuid != null) {
-        currentAudioStream =
-            audioStreams.where((s) => s.guid == widget.audioGuid).firstOrNull;
+      if (_requestedAudioGuid != null) {
+        currentAudioStream = audioStreams
+            .where((s) => s.guid == _requestedAudioGuid)
+            .firstOrNull;
       } else {
         currentAudioStream =
             audioStreams.where((s) => s.isDefault == 1).firstOrNull ??
                 audioStreams.firstOrNull;
       }
-      if (widget.subtitleGuid != null) {
+      if (_requestedSubtitleGuid != null) {
         currentSubtitleStream = subtitleStreams
-            .where((s) => s.guid == widget.subtitleGuid)
+            .where((s) => s.guid == _requestedSubtitleGuid)
             .firstOrNull;
       } else {
         currentSubtitleStream =
@@ -402,17 +507,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
 
       final audioGuid =
-          widget.audioGuid ?? currentAudioStream?.guid ?? playInfo.audioGuid;
-      final subtitleGuid = widget.subtitleGuid ?? currentSubtitleStream?.guid;
+          _requestedAudioGuid ?? currentAudioStream?.guid ?? playInfo.audioGuid;
+      final subtitleGuid =
+          _requestedSubtitleGuid ?? currentSubtitleStream?.guid;
       final episodeList =
           playInfo.item.type == 'Episode' && playInfo.parentGuid.isNotEmpty
               ? await _fetchEpisodeList(playInfo.parentGuid)
               : const <EpisodeListResponse>[];
       final currentEpisode = episodeList
-          .where((episode) => episode.guid == widget.guid)
+          .where((episode) => episode.guid == _currentItemGuid)
           .firstOrNull;
       final currentEpisodeIndex =
-          episodeList.indexWhere((episode) => episode.guid == widget.guid);
+          episodeList.indexWhere((episode) => episode.guid == _currentItemGuid);
       final nextEpisode = currentEpisodeIndex >= 0 &&
               currentEpisodeIndex + 1 < episodeList.length
           ? episodeList[currentEpisodeIndex + 1]
@@ -449,7 +555,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
 
       _playingInfoCache = PlayingInfoCache(
-        itemGuid: widget.guid,
+        itemGuid: _currentItemGuid,
         parentGuid: playInfo.parentGuid,
         item: playInfo.item,
         currentVideoStream: currentVideoStream,
@@ -515,7 +621,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         try {
           final playerService = ref.read(playerServiceProvider);
           await playerService.updatePlayRecord(
-            guid: widget.guid,
+            guid: _currentItemGuid,
             ts: position ~/ 1000,
             duration: _duration > 0 ? _duration ~/ 1000 : null,
           );
@@ -548,8 +654,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
-  void _handleFlyoutHoverStateChanged(
-      _PlayerFlyoutType type, bool hovered) {
+  void _handleFlyoutHoverStateChanged(_PlayerFlyoutType type, bool hovered) {
     setState(() {
       switch (type) {
         case _PlayerFlyoutType.speed:
@@ -627,9 +732,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _onQualitySelected(QualityResponse quality) async {
     await _reloadPlayback(
-      audioGuid:
-          _selectedAudioGuid ?? widget.audioGuid ?? _playInfo?.audioGuid ?? '',
-      subtitleGuid: _selectedSubtitleGuid ?? widget.subtitleGuid,
+      audioGuid: _selectedAudioGuid ??
+          _requestedAudioGuid ??
+          _playInfo?.audioGuid ??
+          '',
+      subtitleGuid: _selectedSubtitleGuid ?? _requestedSubtitleGuid,
       quality: quality,
     );
   }
@@ -637,14 +744,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _onAudioSelected(AudioStream audio) async {
     await _reloadPlayback(
       audioGuid: audio.guid,
-      subtitleGuid: _selectedSubtitleGuid ?? widget.subtitleGuid,
+      subtitleGuid: _selectedSubtitleGuid ?? _requestedSubtitleGuid,
     );
   }
 
   Future<void> _onSubtitleSelected(String? subtitleGuid) async {
     await _reloadPlayback(
-      audioGuid:
-          _selectedAudioGuid ?? widget.audioGuid ?? _playInfo?.audioGuid ?? '',
+      audioGuid: _selectedAudioGuid ??
+          _requestedAudioGuid ??
+          _playInfo?.audioGuid ??
+          '',
       subtitleGuid: subtitleGuid,
     );
   }
@@ -668,6 +777,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     try {
       setState(() => _isLoading = true);
+      _requestedAudioGuid = audioGuid;
+      _requestedSubtitleGuid = subtitleGuid;
 
       final prefs = ref.read(preferencesManagerProvider);
       final baseUrl = prefs.getBaseUrl() ?? '';
@@ -914,6 +1025,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Widget _buildControlButtons() {
+    final prefs = ref.watch(preferencesManagerProvider);
+    final baseUrl = prefs.getBaseUrl() ?? '';
+    final token = prefs.getToken();
+    final cookie = prefs.getCookie();
+    final httpHeaders = token != null || (cookie != null && cookie.isNotEmpty)
+        ? {
+            if (token != null) 'Authorization': token,
+            if (cookie != null && cookie.isNotEmpty) 'Cookie': cookie,
+          }
+        : null;
+    final cacheManager = ref.watch(imageCacheManagerProvider);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -946,6 +1069,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           const SizedBox(width: 12),
           NextEpisodePreviewFlyout(
             nextEpisode: _nextEpisode!,
+            baseUrl: baseUrl,
+            httpHeaders: httpHeaders,
+            cacheManager: cacheManager,
             onClick: () => _openEpisode(_nextEpisode!),
             onHoverStateChanged: (hovered) =>
                 setState(() => _isNextEpisodeHovered = hovered),
@@ -973,12 +1099,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (_episodeList.isNotEmpty && _displaySubhead.isNotEmpty) ...[
           EpisodeSelectionFlyout(
             episodes: _episodeList,
-            currentEpisodeGuid: widget.guid,
+            currentEpisodeGuid: _currentItemGuid,
             isAutoPlay: _isAutoPlayEnabled,
             yOffset: _controlFlyoutOffset,
             isActiveControl: _activeFlyout == _PlayerFlyoutType.episode,
-            onHoverStateChanged: (hovered) =>
-                _handleFlyoutHoverStateChanged(_PlayerFlyoutType.episode, hovered),
+            onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
+                _PlayerFlyoutType.episode, hovered),
             onEpisodeSelected: _openEpisode,
             onAutoPlayChanged: (value) =>
                 setState(() => _isAutoPlayEnabled = value),
@@ -992,8 +1118,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             currentBitrate: _currentBitrate,
             yOffset: _controlFlyoutOffset,
             isActiveControl: _activeFlyout == _PlayerFlyoutType.quality,
-            onHoverStateChanged: (hovered) =>
-                _handleFlyoutHoverStateChanged(_PlayerFlyoutType.quality, hovered),
+            onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
+                _PlayerFlyoutType.quality, hovered),
             onQualitySelected: _onQualitySelected,
           ),
         const SizedBox(width: _controlFlyoutSpacing),
@@ -1031,8 +1157,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           selectedSubtitleGuid: _selectedSubtitleGuid,
           yOffset: _controlFlyoutOffset,
           isActiveControl: _activeFlyout == _PlayerFlyoutType.subtitle,
-          onHoverStateChanged: (hovered) =>
-              _handleFlyoutHoverStateChanged(_PlayerFlyoutType.subtitle, hovered),
+          onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
+              _PlayerFlyoutType.subtitle, hovered),
           onSubtitleSelected: _onSubtitleSelected,
         ),
         const SizedBox(width: _controlFlyoutSpacing),
@@ -1255,10 +1381,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _openEpisode(EpisodeListResponse episode) {
-    if (episode.guid == widget.guid) {
+    if (episode.guid == _currentItemGuid) {
       return;
     }
-    _leavePlayerRoute(() => context.go('/player/${episode.guid}'));
+    unawaited(_switchPlaybackTarget(guid: episode.guid));
   }
 
   void _showFeatureComingSoon(String feature) {
