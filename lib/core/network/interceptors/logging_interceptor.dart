@@ -44,7 +44,7 @@ class LoggingInterceptor extends Interceptor {
       if (printResponseBody && response.data != null) {
         final data = response.data.toString();
         // Limit response body output
-        final truncated = data.length > 500 ? '${data.substring(0, 500)}...' : data;
+        final truncated = data.length > 500 ? '${data.substring(0, 1000)}...' : data;
         debugPrint('[Dio] Response: $truncated');
       }
     }

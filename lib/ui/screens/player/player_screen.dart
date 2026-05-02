@@ -13,10 +13,13 @@ import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/providers.dart';
 import '../../player/mp4_parser.dart';
+import '../../player/hls_playlist_resolver.dart';
+import '../../player/hls_subtitle_repository.dart';
 import '../../player/media_p_view_model.dart';
 import '../../player/player_service.dart';
 import '../../player/player_view_model.dart';
 import '../../player/widgets/episode_selection_flyout.dart';
+import '../../player/widgets/player_subtitle_overlay.dart';
 import '../../player/widgets/video_player_progress_bar.dart';
 import '../../player/widgets/speed_control_flyout.dart';
 import '../../player/widgets/quality_control_flyout.dart';
@@ -30,6 +33,18 @@ import '../../widgets/toast.dart';
 import '../../widgets/window_caption.dart';
 
 enum _PlayerFlyoutType { speed, episode, quality, subtitle }
+
+class _PreparedPlaySource {
+  final String playUri;
+  final bool useHlsSubtitleOverlay;
+  final String? subtitlePlaylistUrl;
+
+  const _PreparedPlaySource({
+    required this.playUri,
+    required this.useHlsSubtitleOverlay,
+    this.subtitlePlaylistUrl,
+  });
+}
 
 class PlayerScreen extends ConsumerStatefulWidget {
   final String guid;
@@ -71,6 +86,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   PlayingInfoCache? _playingInfoCache;
   PlayInfoResponse? _playInfo;
   StreamResponse? _streamInfo;
+  StreamSubscription<Duration>? _positionSubscription;
   Timer? _hideUiTimer;
   Timer? _playRecordTimer;
   int _lastRecordedPosition = 0;
@@ -103,6 +119,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   List<EpisodeListResponse> _episodeList = [];
   EpisodeListResponse? _currentEpisode;
   EpisodeListResponse? _nextEpisode;
+  HlsSubtitleRepository? _hlsSubtitleRepository;
+  VoidCallback? _hlsSubtitleTextsListener;
+  final ValueNotifier<List<String>> _hlsSubtitleTexts =
+      ValueNotifier<List<String>>(const []);
+  bool _useHlsSubtitleOverlay = false;
 
   @override
   void initState() {
@@ -138,9 +159,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _initializePlayer() async {
     _player = Player();
     _videoController = VideoController(_player!);
+    _setupPlayerPositionListener();
     _setupProviderListeners();
 
     await _loadAndPlayMedia();
+  }
+
+  void _setupPlayerPositionListener() {
+    _positionSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+    _positionSubscription = player.stream.position.listen((position) {
+      _hlsSubtitleRepository?.onPlaybackPosition(position.inMilliseconds);
+    });
   }
 
   void _setupProviderListeners() {
@@ -200,6 +231,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _resetPlaybackStateForTargetChange() {
+    _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
     _lastRecordedPosition = 0;
     _currentPosition = 0;
@@ -339,10 +371,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (baseUrl.isEmpty || cache == null) return;
 
     final playUri = _absolutePlayUrl(baseUrl, playLink);
-    await _openMediaWithResume(
+    final dio = ref.read(dioClientProvider).dio;
+    final prepared = await _preparePlaySourceForMediaKit(
       playUri: playUri,
+      currentSubtitleStream: cache.currentSubtitleStream,
+      dio: dio,
+    );
+    _prepareHlsSubtitleOverlayMode(
+      subtitleStream: cache.currentSubtitleStream,
+      subtitlePlaylistUrl: prepared.subtitlePlaylistUrl,
+    );
+    await _openMediaWithResume(
+      playUri: prepared.playUri,
       startPositionMs: startPositionMs,
       currentSubtitleStream: cache.currentSubtitleStream,
+    );
+    _startHlsSubtitleSessionAsync(
+      dio: dio,
+      subtitleStream: cache.currentSubtitleStream,
+      subtitlePlaylistUrl: prepared.subtitlePlaylistUrl,
+      startPositionMs: startPositionMs,
     );
   }
 
@@ -369,6 +417,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ref
         .read(playerViewModelProvider.notifier)
         .updatePlayingInfo(_playingInfoCache);
+    _disposeHlsSubtitleSession();
     await _openMediaWithResume(
       playUri: directLink.url,
       startPositionMs: directLink.effectiveStartMs,
@@ -459,7 +508,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final cache = _playingInfoCache;
     if (cache == null) return;
     try {
+      final dio = ref.read(dioClientProvider).dio;
+      final baseUrl = ref.read(preferencesManagerProvider).getBaseUrl() ?? '';
+      final subtitlePlaylistUrl = cache.playLink != null &&
+              baseUrl.isNotEmpty &&
+              _looksLikeM3u8(cache.playLink!)
+          ? (await _preparePlaySourceForMediaKit(
+              playUri: _absolutePlayUrl(baseUrl, cache.playLink!),
+              currentSubtitleStream: cache.currentSubtitleStream,
+              dio: dio,
+            ))
+              .subtitlePlaylistUrl
+          : null;
+      final startPositionMs = _player?.state.position.inMilliseconds ?? 0;
+      _prepareHlsSubtitleOverlayMode(
+        subtitleStream: cache.currentSubtitleStream,
+        subtitlePlaylistUrl: subtitlePlaylistUrl,
+      );
       await _applyCurrentSubtitleTrack(cache.currentSubtitleStream);
+      _startHlsSubtitleSessionAsync(
+        dio: dio,
+        subtitleStream: cache.currentSubtitleStream,
+        subtitlePlaylistUrl: subtitlePlaylistUrl,
+        startPositionMs: startPositionMs,
+      );
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -560,6 +632,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
 
+    if (_useHlsSubtitleOverlay && subtitleStream.isExternal != 1) {
+      await player.setSubtitleTrack(SubtitleTrack.no());
+      return;
+    }
+
     if (!_isSupportedExternalSubtitle(subtitleStream)) {
       return;
     }
@@ -605,6 +682,139 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         : baseUrl;
     final path = playLink.startsWith('/') ? playLink : '/$playLink';
     return '$base$path';
+  }
+
+  bool _looksLikeM3u8(String playUri) {
+    final uri = Uri.tryParse(playUri);
+    if (uri == null) {
+      return playUri.contains('.m3u8');
+    }
+    return uri.path.toLowerCase().contains('.m3u8');
+  }
+
+  Future<_PreparedPlaySource> _preparePlaySourceForMediaKit({
+    required String playUri,
+    required SubtitleStream? currentSubtitleStream,
+    required Dio dio,
+  }) async {
+    if (!_looksLikeM3u8(playUri) ||
+        currentSubtitleStream == null ||
+        currentSubtitleStream.isExternal == 1) {
+      return _PreparedPlaySource(
+        playUri: playUri,
+        useHlsSubtitleOverlay: false,
+      );
+    }
+
+    final resolver = HlsPlaylistResolver(
+      dio: dio,
+      headers: _buildPlayerHeaders(),
+    );
+    final result = await resolver.resolve(
+      playUri,
+      subtitleStream: currentSubtitleStream,
+    );
+
+    debugPrint(
+      '[Player] hls resolve: original=${result.originalUrl}, '
+      'play=${result.playUrl}, hasSubtitleMedia=${result.hasSubtitleMedia}, '
+      'subtitlePlaylist=${result.subtitlePlaylistUrl}',
+    );
+
+    return _PreparedPlaySource(
+      playUri: result.playUrl,
+      useHlsSubtitleOverlay: result.subtitlePlaylistUrl != null,
+      subtitlePlaylistUrl: result.subtitlePlaylistUrl,
+    );
+  }
+
+  void _disposeHlsSubtitleSession() {
+    final repository = _hlsSubtitleRepository;
+    final listener = _hlsSubtitleTextsListener;
+    if (repository != null && listener != null) {
+      repository.visibleTexts.removeListener(listener);
+    }
+    repository?.dispose();
+    _hlsSubtitleRepository = null;
+    _hlsSubtitleTextsListener = null;
+    _hlsSubtitleTexts.value = const [];
+    _useHlsSubtitleOverlay = false;
+  }
+
+  void _prepareHlsSubtitleOverlayMode({
+    required SubtitleStream? subtitleStream,
+    required String? subtitlePlaylistUrl,
+  }) {
+    _disposeHlsSubtitleSession();
+    final shouldUseOverlay = subtitleStream != null &&
+        subtitleStream.isExternal != 1 &&
+        subtitlePlaylistUrl != null &&
+        subtitlePlaylistUrl.isNotEmpty;
+    _useHlsSubtitleOverlay = shouldUseOverlay;
+    if (shouldUseOverlay) {
+      debugPrint(
+        '[Player] hls subtitle overlay prepared: playlist=$subtitlePlaylistUrl',
+      );
+    } else {
+      debugPrint('[Player] hls subtitle overlay disabled');
+    }
+  }
+
+  void _startHlsSubtitleSessionAsync({
+    required Dio dio,
+    required SubtitleStream? subtitleStream,
+    required String? subtitlePlaylistUrl,
+    required int startPositionMs,
+  }) {
+    if (!_useHlsSubtitleOverlay) {
+      return;
+    }
+    unawaited(_configureHlsSubtitleSession(
+      dio: dio,
+      subtitleStream: subtitleStream,
+      subtitlePlaylistUrl: subtitlePlaylistUrl,
+      startPositionMs: startPositionMs,
+    ));
+  }
+
+  Future<void> _configureHlsSubtitleSession({
+    required Dio dio,
+    required SubtitleStream? subtitleStream,
+    required String? subtitlePlaylistUrl,
+    required int startPositionMs,
+  }) async {
+    if (subtitleStream == null ||
+        subtitleStream.isExternal == 1 ||
+        subtitlePlaylistUrl == null ||
+        subtitlePlaylistUrl.isEmpty) {
+      _disposeHlsSubtitleSession();
+      return;
+    }
+
+    final repository = HlsSubtitleRepository(
+      dio: dio,
+      headers: _buildPlayerHeaders(),
+      subtitlePlaylistUrl: subtitlePlaylistUrl,
+    );
+    void listener() {
+      _hlsSubtitleTexts.value = repository.visibleTexts.value;
+    }
+
+    repository.visibleTexts.addListener(listener);
+    _hlsSubtitleRepository = repository;
+    _hlsSubtitleTextsListener = listener;
+    _useHlsSubtitleOverlay = true;
+    try {
+      await repository.initialize(startPositionMs: startPositionMs);
+      debugPrint(
+        '[Player] hls subtitle overlay enabled: playlist=$subtitlePlaylistUrl',
+      );
+    } catch (e) {
+      debugPrint('[Player] hls subtitle overlay init failed: $e');
+      if (_hlsSubtitleRepository == repository) {
+        _disposeHlsSubtitleSession();
+      }
+    }
   }
 
   PlayPlayRequest _createPlayRequest({
@@ -826,6 +1036,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         playerService: playerService,
         dio: dio,
       );
+      final preparedPlaySource = await _preparePlaySourceForMediaKit(
+        playUri: resolved.playUri,
+        currentSubtitleStream: currentSubtitleStream,
+        dio: dio,
+      );
 
       _playingInfoCache = PlayingInfoCache(
         itemGuid: _currentItemGuid,
@@ -849,12 +1064,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ref
           .read(playerViewModelProvider.notifier)
           .updatePlayingInfo(_playingInfoCache);
+      _prepareHlsSubtitleOverlayMode(
+        subtitleStream: currentSubtitleStream,
+        subtitlePlaylistUrl: preparedPlaySource.subtitlePlaylistUrl,
+      );
 
       await _openMediaWithResume(
-        playUri: resolved.playUri,
+        playUri: preparedPlaySource.playUri,
         startPositionMs: resolved.effectiveStartMs,
         currentSubtitleStream: currentSubtitleStream,
         isInitialPlayback: true,
+      );
+      _startHlsSubtitleSessionAsync(
+        dio: dio,
+        subtitleStream: currentSubtitleStream,
+        subtitlePlaylistUrl: preparedPlaySource.subtitlePlaylistUrl,
+        startPositionMs: resolved.effectiveStartMs,
       );
 
       _volume = ref.read(playerSettingsManagerProvider).getVolume();
@@ -1266,9 +1491,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    _positionSubscription?.cancel();
+    _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
     _hideUiTimer?.cancel();
     _player?.dispose();
+    _hlsSubtitleTexts.dispose();
     _toastManager.dispose();
     super.dispose();
   }
@@ -1290,6 +1518,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     )
                   : const Center(child: ProgressRing()),
             ),
+          ),
+        ),
+        Positioned.fill(
+          child: ValueListenableBuilder<List<String>>(
+            valueListenable: _hlsSubtitleTexts,
+            builder: (context, lines, _) {
+              return PlayerSubtitleOverlay(
+                lines: lines,
+                visible: _useHlsSubtitleOverlay,
+              );
+            },
           ),
         ),
         if (_isLoading) const Center(child: ProgressRing()),
