@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/network/api_result.dart';
 import '../../data/models/player_models.dart';
 import '../../providers/providers.dart';
 
@@ -67,10 +68,19 @@ class MediaPViewModel extends StateNotifier<MediaPState> {
     state = state.copyWith(isLoading: value, error: null);
   }
 
+  String _describeError(Object error) {
+    if (error is FailureInfo) {
+      return error.displayMessage.isNotEmpty
+          ? error.displayMessage
+          : error.message;
+    }
+    return error.toString();
+  }
+
   void _setError(Object error) {
     state = state.copyWith(
       isLoading: false,
-      error: error.toString(),
+      error: _describeError(error),
     );
   }
 
@@ -203,7 +213,7 @@ class MediaPViewModel extends StateNotifier<MediaPState> {
       if (updateState) {
         _setError(e);
       } else {
-        state = state.copyWith(error: e.toString());
+        state = state.copyWith(error: _describeError(e));
       }
       rethrow;
     }

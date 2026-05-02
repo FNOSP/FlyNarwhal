@@ -509,7 +509,11 @@ class MediaRemoteDataSource {
         baseResponse.data == null) {
       throw Exception(baseResponse.msg);
     }
-    return baseResponse.data!;
+    final response = baseResponse.data!;
+    if (!response.isSuccess) {
+      throw Exception(response.describeFailure('media/p'));
+    }
+    return response;
   }
 
   bool _parseSuccessResponse(dynamic data) {

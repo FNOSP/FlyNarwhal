@@ -411,7 +411,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       dio: dio,
     );
     _playingInfoCache = cache.copyWith(
-      playLink: null,
+      playLink: directLink.playLinkRaw,
       isUseDirectLink: true,
     );
     ref
@@ -419,7 +419,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         .updatePlayingInfo(_playingInfoCache);
     _disposeHlsSubtitleSession();
     await _openMediaWithResume(
-      playUri: directLink.url,
+      playUri: directLink.playUri,
       startPositionMs: directLink.effectiveStartMs,
       currentSubtitleStream: _playingInfoCache?.currentSubtitleStream,
     );
@@ -841,7 +841,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<
       ({
         String playUri,
-        String? playLinkRaw,
+        String playLinkRaw,
         int effectiveStartMs,
         bool isDirectLink,
       })> _resolvePlayLink({
@@ -872,8 +872,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         dio: dio,
       );
       return (
-        playUri: r.url,
-        playLinkRaw: null,
+        playUri: r.playUri,
+        playLinkRaw: r.playLinkRaw,
         effectiveStartMs: r.effectiveStartMs,
         isDirectLink: true,
       );
@@ -905,8 +905,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           dio: dio,
         );
         return (
-          playUri: r.url,
-          playLinkRaw: null,
+          playUri: r.playUri,
+          playLinkRaw: r.playLinkRaw,
           effectiveStartMs: r.effectiveStartMs,
           isDirectLink: false,
         );
@@ -915,7 +915,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  Future<({String url, int effectiveStartMs})> _getDirectPlayLink({
+  Future<
+      ({
+        String playUri,
+        String playLinkRaw,
+        int effectiveStartMs,
+      })> _getDirectPlayLink({
     required String mediaGuid,
     required int startPositionMs,
     required String baseUrl,
@@ -924,19 +929,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final base = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
-    final fullUrl = '$base/v/api/v1/media/range/$mediaGuid';
+    final controlPlayLink = '/v/api/v1/media/range/$mediaGuid';
+    final fullUrl = '$base$controlPlayLink';
     final ts = startPositionMs / 1000.0;
     try {
       final parser = Mp4Parser(dio);
       final offset = await parser.getOffset(fullUrl, ts);
       if (offset > 0) {
-        final uri = '$fullUrl?range=bytes=$offset-';
-        return (url: uri, effectiveStartMs: 0);
+        final rangedPlayLink = '$controlPlayLink?range=bytes=$offset-';
+        return (
+          playUri: '$base$rangedPlayLink',
+          playLinkRaw: rangedPlayLink,
+          effectiveStartMs: 0,
+        );
       }
-      return (url: fullUrl, effectiveStartMs: startPositionMs);
+      return (
+        playUri: fullUrl,
+        playLinkRaw: controlPlayLink,
+        effectiveStartMs: startPositionMs,
+      );
     } catch (e) {
       debugPrint('[Player] getDirectPlayLink fallback: $e');
-      return (url: fullUrl, effectiveStartMs: startPositionMs);
+      return (
+        playUri: fullUrl,
+        playLinkRaw: controlPlayLink,
+        effectiveStartMs: startPositionMs,
+      );
     }
   }
 
@@ -1054,7 +1072,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         currentQuality: _currentQuality,
         currentAudioStreamList: audioStreams,
         currentSubtitleStreamList: subtitleStreams,
-        playLink: resolved.playLinkRaw ?? resolved.playUri,
+        playLink: resolved.playLinkRaw,
         isUseDirectLink: resolved.isDirectLink,
         playConfig: playInfo.playConfig,
         streamInfo: streamInfo,

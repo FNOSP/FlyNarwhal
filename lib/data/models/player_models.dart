@@ -234,26 +234,57 @@ class MediaTranscodeResponse {
   Map<String, dynamic> toJson() => _$MediaTranscodeResponseToJson(this);
 }
 
-@JsonSerializable()
 class MediaResetQualityResponse {
   @JsonKey(name: 'hlsTime')
-  final int hlsTime;
+  final int? hlsTime;
   @JsonKey(name: 'reqid')
   final String reqId;
   final String result;
   @JsonKey(name: 'updateM3u8')
-  final bool updateM3u8;
+  final bool? updateM3u8;
+  final int? errno;
 
   MediaResetQualityResponse({
-    required this.hlsTime,
+    this.hlsTime,
     required this.reqId,
     required this.result,
-    required this.updateM3u8,
+    this.updateM3u8,
+    this.errno,
   });
 
-  factory MediaResetQualityResponse.fromJson(Map<String, dynamic> json) =>
-      _$MediaResetQualityResponseFromJson(json);
-  Map<String, dynamic> toJson() => _$MediaResetQualityResponseToJson(this);
+  bool get isSuccess => result == 'succ';
+
+  String describeFailure(String action) {
+    final details = <String>[
+      if (errno != null) 'errno=$errno',
+      if (reqId.isNotEmpty) 'reqid=$reqId',
+      if (result.isNotEmpty) 'result=$result',
+    ];
+    if (details.isEmpty) {
+      return '$action failed';
+    }
+    return '$action failed: ${details.join(', ')}';
+  }
+
+  factory MediaResetQualityResponse.fromJson(Map<String, dynamic> json) {
+    return MediaResetQualityResponse(
+      hlsTime: json['hlsTime'] as int?,
+      reqId: json['reqid'] as String? ?? '',
+      result: json['result'] as String? ?? '',
+      updateM3u8: json['updateM3u8'] as bool?,
+      errno: json['errno'] as int?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'hlsTime': hlsTime,
+      'reqid': reqId,
+      'result': result,
+      'updateM3u8': updateM3u8,
+      'errno': errno,
+    };
+  }
 }
 
 // Playing info cache to store current playback state
@@ -272,6 +303,7 @@ class PlayingInfoCache {
   final QualityResponse? currentQuality;
   final List<AudioStream> currentAudioStreamList;
   final List<SubtitleStream> currentSubtitleStreamList;
+  // Control link reused by media/p requests. It may differ from playUri.
   final String? playLink;
   final bool isUseDirectLink;
   final PlayConfig? playConfig;

@@ -16,6 +16,8 @@ const double _subtitleFlyoutBridgeOffset = 40;
 const double _subtitleFlyoutMinBridgeWidth = 56;
 const double _subtitleFlyoutBridgeHorizontalPadding = 12;
 const double _estimatedSubtitleFlyoutHeight = 220;
+const double _subtitleFlyoutMaxListHeight = 300;
+const double _subtitleFlyoutItemExtent = 66;
 
 class SubtitleControlFlyout extends StatefulWidget {
   final List<SubtitleStream> subtitles;
@@ -114,8 +116,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
 
   double _calculateBridgeLeft(Size buttonSize) {
     final bridgeWidth = _calculateBridgeWidth(buttonSize);
-    final buttonCenterX =
-        (-_subtitleFlyoutLeftOffset) + (buttonSize.width / 2);
+    final buttonCenterX = (-_subtitleFlyoutLeftOffset) + (buttonSize.width / 2);
     final desiredLeft = buttonCenterX - (bridgeWidth / 2);
     return desiredLeft.clamp(0.0, _subtitleFlyoutWidth - bridgeWidth);
   }
@@ -135,7 +136,8 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
 
         final buttonOffset = renderObject.localToGlobal(Offset.zero);
         final buttonSize = renderObject.size;
-        final flyoutHeight = _flyoutSize?.height ?? _estimatedSubtitleFlyoutHeight;
+        final flyoutHeight =
+            _flyoutSize?.height ?? _estimatedSubtitleFlyoutHeight;
         final bridgeHeight = widget.yOffset + _subtitleFlyoutBridgeOffset;
         final bridgeWidth = _calculateBridgeWidth(buttonSize);
         final bridgeLeft = _calculateBridgeLeft(buttonSize);
@@ -341,7 +343,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
   }
 }
 
-class _SubtitleFlyoutContent extends StatelessWidget {
+class _SubtitleFlyoutContent extends StatefulWidget {
   final List<SubtitleStream> subtitles;
   final String? selectedSubtitleGuid;
   final void Function(String?) onSubtitleSelected;
@@ -351,6 +353,51 @@ class _SubtitleFlyoutContent extends StatelessWidget {
     required this.selectedSubtitleGuid,
     required this.onSubtitleSelected,
   });
+
+  @override
+  State<_SubtitleFlyoutContent> createState() => _SubtitleFlyoutContentState();
+}
+
+class _SubtitleFlyoutContentState extends State<_SubtitleFlyoutContent> {
+  late final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleScrollToSelection();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SubtitleFlyoutContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedSubtitleGuid != widget.selectedSubtitleGuid ||
+        oldWidget.subtitles != widget.subtitles) {
+      _scheduleScrollToSelection();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scheduleScrollToSelection() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final selectedIndex = widget.selectedSubtitleGuid == null ||
+              widget.selectedSubtitleGuid!.isEmpty
+          ? 0
+          : widget.subtitles.indexWhere(
+                (subtitle) => subtitle.guid == widget.selectedSubtitleGuid,
+              ) +
+              1;
+      final safeIndex = selectedIndex < 0 ? 0 : selectedIndex;
+      final targetOffset = safeIndex * _subtitleFlyoutItemExtent;
+      final maxOffset = _scrollController.position.maxScrollExtent;
+      _scrollController.jumpTo(targetOffset.clamp(0.0, maxOffset));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -363,26 +410,39 @@ class _SubtitleFlyoutContent extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _SubtitleItem(
-              title: '无字幕',
-              subtitle: '关闭当前字幕',
-              isSelected:
-                  selectedSubtitleGuid == null || selectedSubtitleGuid!.isEmpty,
-              onTap: () => onSubtitleSelected(null),
+        child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(maxHeight: _subtitleFlyoutMaxListHeight),
+          child: Scrollbar(
+            controller: _scrollController,
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              itemExtent: _subtitleFlyoutItemExtent,
+              itemCount: widget.subtitles.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return _SubtitleItem(
+                    title: '无字幕',
+                    subtitle: '关闭当前字幕',
+                    isSelected: widget.selectedSubtitleGuid == null ||
+                        widget.selectedSubtitleGuid!.isEmpty,
+                    onTap: () => widget.onSubtitleSelected(null),
+                  );
+                }
+
+                final subtitle = widget.subtitles[index - 1];
+                final label = _buildLabel(subtitle);
+                return _SubtitleItem(
+                  title: label,
+                  subtitle: subtitle.codecName.toUpperCase(),
+                  isSelected: widget.selectedSubtitleGuid == subtitle.guid,
+                  onTap: () => widget.onSubtitleSelected(subtitle.guid),
+                );
+              },
             ),
-            ...subtitles.map((subtitle) {
-              final label = _buildLabel(subtitle);
-              return _SubtitleItem(
-                title: label,
-                subtitle: subtitle.codecName.toUpperCase(),
-                isSelected: selectedSubtitleGuid == subtitle.guid,
-                onTap: () => onSubtitleSelected(subtitle.guid),
-              );
-            }),
-          ],
+          ),
         ),
       ),
     );
