@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
-import '../../../data/models/base_response.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
@@ -16,6 +15,7 @@ import '../../../providers/providers.dart';
 import '../../player/mp4_parser.dart';
 import '../../player/media_p_view_model.dart';
 import '../../player/player_service.dart';
+import '../../player/player_view_model.dart';
 import '../../player/widgets/episode_selection_flyout.dart';
 import '../../player/widgets/video_player_progress_bar.dart';
 import '../../player/widgets/speed_control_flyout.dart';
@@ -76,6 +76,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _lastRecordedPosition = 0;
   int _pendingInitialResumeMs = 0;
   bool _initialResumeApplied = false;
+  bool _hasSetupProviderListeners = false;
 
   // Hover states
   bool _isProgressBarHovered = false;
@@ -137,8 +138,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _initializePlayer() async {
     _player = Player();
     _videoController = VideoController(_player!);
+    _setupProviderListeners();
 
     await _loadAndPlayMedia();
+  }
+
+  void _setupProviderListeners() {
+    if (_hasSetupProviderListeners) return;
+    _hasSetupProviderListeners = true;
+
+    ref.listenManual<MediaPState>(
+      mediaPViewModelProvider,
+      (previous, next) {
+        if (!mounted) return;
+
+        final previousError = previous?.error;
+        final nextError = next.error;
+        if (nextError != null &&
+            nextError.isNotEmpty &&
+            nextError != previousError) {
+          debugPrint('[Player] mediaP state error: $nextError');
+        }
+
+        final previousQuitReqId = previous?.quitResponse?.reqId;
+        final nextQuitResponse = next.quitResponse;
+        if (nextQuitResponse != null &&
+            nextQuitResponse.reqId != previousQuitReqId) {
+          unawaited(_handleQuitSuccess(nextQuitResponse));
+        }
+
+        final previousResetQualityReqId = previous?.resetQualityResponse?.reqId;
+        final nextResetQualityResponse = next.resetQualityResponse;
+        if (nextResetQualityResponse != null &&
+            nextResetQualityResponse.reqId != previousResetQualityReqId) {
+          _handleResetQualitySuccess(nextResetQualityResponse);
+        }
+
+        final previousResetAudioReqId = previous?.resetAudioResponse?.reqId;
+        final nextResetAudioResponse = next.resetAudioResponse;
+        if (nextResetAudioResponse != null &&
+            nextResetAudioResponse.reqId != previousResetAudioReqId) {
+          _handleResetAudioSuccess(nextResetAudioResponse);
+        }
+
+        final previousResetSubtitleReqId =
+            previous?.resetSubtitleResponse?.reqId;
+        final nextResetSubtitleResponse = next.resetSubtitleResponse;
+        if (nextResetSubtitleResponse != null &&
+            nextResetSubtitleResponse.reqId != previousResetSubtitleReqId) {
+          unawaited(_handleResetSubtitleSuccess(nextResetSubtitleResponse));
+        }
+      },
+    );
   }
 
   void _syncPlaybackTargetsFromWidget() {
@@ -225,6 +276,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _openMediaWithResume({
     required String playUri,
     required int startPositionMs,
+    required SubtitleStream? currentSubtitleStream,
     bool isInitialPlayback = false,
   }) async {
     final player = _player;
@@ -237,6 +289,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         httpHeaders: headers.isEmpty ? null : headers,
       ),
     );
+    await _applyCurrentSubtitleTrack(currentSubtitleStream);
 
     if (isInitialPlayback) {
       _resetInitialResumeState(startPositionMs);
@@ -244,6 +297,182 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     await _applyResumePosition(startPositionMs,
         isInitialPlayback: isInitialPlayback);
+  }
+
+  bool _supportsDirectLink(
+    VideoStream videoStream,
+    QualityResponse? quality,
+    List<QualityResponse> qualities,
+  ) {
+    final originalQuality = qualities.firstOrNull;
+    final isOriginalQuality = quality != null &&
+        originalQuality != null &&
+        quality.resolution == originalQuality.resolution &&
+        quality.bitrate == originalQuality.bitrate;
+    return videoStream.wrapper == 'MP4' && isOriginalQuality;
+  }
+
+  Future<void> _callPlayRecordAtCurrentPosition() async {
+    final player = _player;
+    if (player == null) return;
+    final position = player.state.position.inMilliseconds;
+    if (position < 0) return;
+
+    try {
+      await ref.read(playerServiceProvider).updatePlayRecord(
+            guid: _currentItemGuid,
+            ts: position ~/ 1000,
+            duration: _duration > 0 ? _duration ~/ 1000 : null,
+          );
+    } catch (e) {
+      debugPrint('[Player] play record update during switch failed: $e');
+    }
+  }
+
+  Future<void> _reopenPlaybackFromPlayLink({
+    required String playLink,
+    required int startPositionMs,
+  }) async {
+    final prefs = ref.read(preferencesManagerProvider);
+    final baseUrl = prefs.getBaseUrl() ?? '';
+    final cache = _playingInfoCache;
+    if (baseUrl.isEmpty || cache == null) return;
+
+    final playUri = _absolutePlayUrl(baseUrl, playLink);
+    await _openMediaWithResume(
+      playUri: playUri,
+      startPositionMs: startPositionMs,
+      currentSubtitleStream: cache.currentSubtitleStream,
+    );
+  }
+
+  Future<void> _reopenPlaybackWithDirectLink({
+    required int startPositionMs,
+  }) async {
+    final cache = _playingInfoCache;
+    final videoStream = cache?.currentVideoStream;
+    if (cache == null || videoStream == null) return;
+
+    final prefs = ref.read(preferencesManagerProvider);
+    final baseUrl = prefs.getBaseUrl() ?? '';
+    final dio = ref.read(dioClientProvider).dio;
+    final directLink = await _getDirectPlayLink(
+      mediaGuid: videoStream.mediaGuid,
+      startPositionMs: startPositionMs,
+      baseUrl: baseUrl,
+      dio: dio,
+    );
+    _playingInfoCache = cache.copyWith(
+      playLink: null,
+      isUseDirectLink: true,
+    );
+    ref
+        .read(playerViewModelProvider.notifier)
+        .updatePlayingInfo(_playingInfoCache);
+    await _openMediaWithResume(
+      playUri: directLink.url,
+      startPositionMs: directLink.effectiveStartMs,
+      currentSubtitleStream: _playingInfoCache?.currentSubtitleStream,
+    );
+  }
+
+  Future<void> _handlePlayPlaySuccess(
+    PlayPlayResponse response, {
+    required int startPositionMs,
+  }) async {
+    final cache = _playingInfoCache;
+    if (cache == null) return;
+
+    _playingInfoCache = cache.copyWith(
+      playLink: response.playLink,
+      isUseDirectLink: false,
+    );
+    ref
+        .read(playerViewModelProvider.notifier)
+        .updatePlayingInfo(_playingInfoCache);
+    await _reopenPlaybackFromPlayLink(
+      playLink: response.playLink,
+      startPositionMs: startPositionMs,
+    );
+  }
+
+  Future<void> _handleQuitSuccess(
+    MediaResetQualityResponse response,
+  ) async {
+    ref.read(mediaPViewModelProvider.notifier).clearQuitResponse();
+    if (response.result != 'succ' || _player == null) {
+      return;
+    }
+
+    try {
+      final startPositionMs = _player!.state.position.inMilliseconds;
+      await _reopenPlaybackWithDirectLink(startPositionMs: startPositionMs);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _currentQuality = _playingInfoCache?.currentQuality;
+          _currentResolution = _currentQuality?.resolution ?? '';
+          _currentBitrate = _currentQuality?.bitrate;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Player] handle quit success failed: $e');
+      if (mounted) {
+        _toastManager.showToast('切换原画失败: $e', type: ToastType.failed);
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _handleResetQualitySuccess(MediaResetQualityResponse response) {
+    ref.read(mediaPViewModelProvider.notifier).clearResetQualityResponse();
+    if (response.result != 'succ' || !mounted) {
+      return;
+    }
+    setState(() {
+      _isLoading = false;
+      _currentQuality = _playingInfoCache?.currentQuality;
+      _currentResolution = _currentQuality?.resolution ?? '';
+      _currentBitrate = _currentQuality?.bitrate;
+    });
+  }
+
+  void _handleResetAudioSuccess(MediaResetQualityResponse response) {
+    ref.read(mediaPViewModelProvider.notifier).clearResetAudioResponse();
+    if (response.result != 'succ' || !mounted) {
+      return;
+    }
+    setState(() {
+      _isLoading = false;
+      _selectedAudioGuid = _playingInfoCache?.currentAudioStream?.guid;
+    });
+  }
+
+  Future<void> _handleResetSubtitleSuccess(
+    MediaResetQualityResponse response,
+  ) async {
+    ref.read(mediaPViewModelProvider.notifier).clearResetSubtitleResponse();
+    if (response.result != 'succ') {
+      return;
+    }
+
+    final cache = _playingInfoCache;
+    if (cache == null) return;
+    try {
+      await _applyCurrentSubtitleTrack(cache.currentSubtitleStream);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _selectedSubtitleGuid = cache.currentSubtitleStream?.guid;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Player] handle reset subtitle success failed: $e');
+      if (mounted) {
+        _toastManager.showToast('切换字幕失败: $e', type: ToastType.failed);
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _applyResumePosition(
@@ -310,6 +539,61 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       headers['Authorization'] = token;
     }
     return headers;
+  }
+
+  bool _isSupportedExternalSubtitle(SubtitleStream? subtitleStream) {
+    if (subtitleStream == null || subtitleStream.isExternal != 1) {
+      return false;
+    }
+    const supportedFormats = {'srt', 'ass', 'ssa', 'vtt'};
+    return supportedFormats.contains(subtitleStream.format.toLowerCase());
+  }
+
+  Future<void> _applyCurrentSubtitleTrack(
+    SubtitleStream? subtitleStream,
+  ) async {
+    final player = _player;
+    if (player == null) return;
+
+    if (subtitleStream == null) {
+      await player.setSubtitleTrack(SubtitleTrack.no());
+      return;
+    }
+
+    if (!_isSupportedExternalSubtitle(subtitleStream)) {
+      return;
+    }
+
+    try {
+      final content = await ref
+          .read(playerServiceProvider)
+          .downloadExternalSubtitle(subtitleStream.guid);
+      if (!mounted || player != _player) {
+        return;
+      }
+
+      final expectedSubtitleGuid =
+          _requestedSubtitleGuid ?? _selectedSubtitleGuid;
+      if (expectedSubtitleGuid != null &&
+          expectedSubtitleGuid != subtitleStream.guid) {
+        return;
+      }
+
+      await player.setSubtitleTrack(
+        SubtitleTrack.data(
+          content,
+          title: subtitleStream.title.isNotEmpty ? subtitleStream.title : null,
+          language: subtitleStream.language.isNotEmpty
+              ? subtitleStream.language
+              : null,
+        ),
+      );
+    } catch (e) {
+      debugPrint('[Player] apply external subtitle failed: $e');
+      if (player == _player) {
+        await player.setSubtitleTrack(SubtitleTrack.no());
+      }
+    }
   }
 
   String _absolutePlayUrl(String baseUrl, String playLink) {
@@ -543,24 +827,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         dio: dio,
       );
 
-      if (!resolved.isDirectLink && resolved.playLinkRaw != null) {
-        try {
-          _qualities = await playerService.getQualities(resolved.playLinkRaw!);
-          if (_qualities.isNotEmpty) {
-            _currentQuality = _qualities.first;
-          }
-        } catch (_) {
-          // Ignore quality list errors
-        }
-      }
-
       _playingInfoCache = PlayingInfoCache(
         itemGuid: _currentItemGuid,
         parentGuid: playInfo.parentGuid,
         item: playInfo.item,
+        currentFileStream: fileStream,
         currentVideoStream: currentVideoStream,
         currentAudioStream: currentAudioStream,
         currentSubtitleStream: currentSubtitleStream,
+        currentQualities: qualities,
+        currentQuality: _currentQuality,
         currentAudioStreamList: audioStreams,
         currentSubtitleStreamList: subtitleStreams,
         playLink: resolved.playLinkRaw ?? resolved.playUri,
@@ -570,10 +846,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         isEpisode: playInfo.item.type == 'Episode',
         subhead: _buildDisplaySubhead(playInfo.item),
       );
+      ref
+          .read(playerViewModelProvider.notifier)
+          .updatePlayingInfo(_playingInfoCache);
 
       await _openMediaWithResume(
         playUri: resolved.playUri,
         startPositionMs: resolved.effectiveStartMs,
+        currentSubtitleStream: currentSubtitleStream,
         isInitialPlayback: true,
       );
 
@@ -731,124 +1011,217 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _onQualitySelected(QualityResponse quality) async {
-    await _reloadPlayback(
-      audioGuid: _selectedAudioGuid ??
-          _requestedAudioGuid ??
-          _playInfo?.audioGuid ??
-          '',
-      subtitleGuid: _selectedSubtitleGuid ?? _requestedSubtitleGuid,
-      quality: quality,
-    );
+    await _switchQualityWithSessionFlow(quality);
   }
 
   Future<void> _onAudioSelected(AudioStream audio) async {
-    await _reloadPlayback(
-      audioGuid: audio.guid,
-      subtitleGuid: _selectedSubtitleGuid ?? _requestedSubtitleGuid,
-    );
+    await _switchAudioWithSessionFlow(audio);
   }
 
   Future<void> _onSubtitleSelected(String? subtitleGuid) async {
-    await _reloadPlayback(
-      audioGuid: _selectedAudioGuid ??
-          _requestedAudioGuid ??
-          _playInfo?.audioGuid ??
-          '',
-      subtitleGuid: subtitleGuid,
-    );
+    final stream = _streamInfo?.subtitleStreams
+        ?.where((item) => item.guid == subtitleGuid)
+        .firstOrNull;
+    await _switchSubtitleWithSessionFlow(stream);
   }
 
-  Future<void> _reloadPlayback({
-    required String audioGuid,
-    required String? subtitleGuid,
-    QualityResponse? quality,
-  }) async {
-    final playInfo = _playInfo;
-    final streamInfo = _streamInfo;
-    final videoStream = streamInfo?.videoStream;
-    final fileStream = streamInfo?.fileStream;
-    if (playInfo == null ||
-        streamInfo == null ||
-        videoStream == null ||
-        fileStream == null ||
-        _player == null) {
+  Future<void> _switchQualityWithSessionFlow(QualityResponse quality) async {
+    final cache = _playingInfoCache;
+    final player = _player;
+    if (cache == null || player == null) {
       return;
     }
 
+    final videoStream = cache.currentVideoStream;
+    final fileStream = cache.currentFileStream;
+    final currentAudio = cache.currentAudioStream;
+    if (videoStream == null || fileStream == null) return;
+
     try {
       setState(() => _isLoading = true);
-      _requestedAudioGuid = audioGuid;
-      _requestedSubtitleGuid = subtitleGuid;
+      final currentPosition = player.state.position.inMilliseconds;
+      final currentPlayLink = cache.playLink;
+      final isTargetDirectLink = _supportsDirectLink(
+        videoStream,
+        quality,
+        cache.currentQualities,
+      );
+      _playingInfoCache = cache.copyWith(
+        currentQuality: quality,
+        isUseDirectLink: isTargetDirectLink,
+        playLink: isTargetDirectLink ? null : cache.playLink,
+      );
+      ref
+          .read(playerViewModelProvider.notifier)
+          .updatePlayingInfo(_playingInfoCache);
 
-      final prefs = ref.read(preferencesManagerProvider);
-      final baseUrl = prefs.getBaseUrl() ?? '';
-      final playerService = ref.read(playerServiceProvider);
-      final dio = ref.read(dioClientProvider).dio;
-
-      final audioStreams = streamInfo.audioStreams ?? [];
-      final currentAudioStream =
-          audioStreams.where((s) => s.guid == audioGuid).firstOrNull ??
-              audioStreams.where((s) => s.isDefault == 1).firstOrNull ??
-              audioStreams.firstOrNull;
-
-      final subtitleStreams = streamInfo.subtitleStreams ?? [];
-      final currentSubtitleStream = subtitleGuid != null
-          ? subtitleStreams.where((s) => s.guid == subtitleGuid).firstOrNull
-          : subtitleStreams.where((s) => s.isDefault == 1).firstOrNull;
-      final effectiveSubtitleGuid = subtitleGuid ?? currentSubtitleStream?.guid;
-
-      final currentPosition = _player!.state.position.inMilliseconds;
-      if (quality != null) {
-        _currentQuality = quality;
+      if (isTargetDirectLink &&
+          !cache.isUseDirectLink &&
+          currentPlayLink != null) {
+        await ref.read(mediaPViewModelProvider.notifier).quit(
+              MediaPRequest(playLink: currentPlayLink),
+            );
+      } else if (!cache.isUseDirectLink && currentPlayLink != null) {
+        await ref.read(mediaPViewModelProvider.notifier).resetQuality(
+              MediaPRequest(
+                playLink: currentPlayLink,
+                quality: MediaPQuality(
+                  resolution: quality.resolution,
+                  bitrate: quality.bitrate,
+                ),
+                startTimestamp: currentPosition ~/ 1000,
+                clearCache: true,
+              ),
+            );
+      } else {
+        final audioGuid = currentAudio?.guid ??
+            _selectedAudioGuid ??
+            _requestedAudioGuid ??
+            _playInfo?.audioGuid ??
+            '';
+        final playRequest = _createPlayRequest(
+          videoStream: videoStream,
+          fileStream: fileStream,
+          audioGuid: audioGuid,
+          subtitleGuid: cache.currentSubtitleStream?.guid,
+        );
+        final playerService = ref.read(playerServiceProvider);
+        final response = await playerService.playVideo(
+          PlayPlayRequest(
+            mediaGuid: playRequest.mediaGuid,
+            videoGuid: playRequest.videoGuid,
+            videoEncoder: playRequest.videoEncoder,
+            resolution: quality.resolution,
+            bitrate: quality.bitrate,
+            startTimestamp: currentPosition ~/ 1000,
+            audioEncoder: playRequest.audioEncoder,
+            audioGuid: playRequest.audioGuid,
+            subtitleGuid: playRequest.subtitleGuid,
+            channels: playRequest.channels,
+            forcedSdr: playRequest.forcedSdr,
+          ),
+        );
+        await _handlePlayPlaySuccess(response,
+            startPositionMs: currentPosition);
       }
-
-      final qualities = streamInfo.qualities ?? [];
-      final resolved = await _resolvePlayLink(
-        playInfo: playInfo,
-        videoStream: videoStream,
-        fileStream: fileStream,
-        audioGuid: currentAudioStream?.guid ?? audioGuid,
-        subtitleGuid: effectiveSubtitleGuid,
-        qualities: qualities,
-        startPositionMs: currentPosition,
-        baseUrl: baseUrl,
-        playerService: playerService,
-        dio: dio,
-      );
-
-      if (!resolved.isDirectLink && resolved.playLinkRaw != null) {
-        try {
-          _qualities = await playerService.getQualities(resolved.playLinkRaw!);
-        } catch (_) {
-          // Ignore quality list errors
-        }
-      }
-
-      _playingInfoCache = _playingInfoCache?.copyWith(
-        currentAudioStream: currentAudioStream,
-        currentSubtitleStream: currentSubtitleStream,
-        playLink: resolved.playLinkRaw ?? resolved.playUri,
-        isUseDirectLink: resolved.isDirectLink,
-        subhead: playInfo.item.type == 'Episode'
-            ? _buildDisplaySubhead(playInfo.item)
-            : '',
-      );
-
-      await _openMediaWithResume(
-        playUri: resolved.playUri,
-        startPositionMs: resolved.effectiveStartMs,
-      );
 
       setState(() {
         _isLoading = false;
-        _selectedAudioGuid = currentAudioStream?.guid ?? audioGuid;
-        _selectedSubtitleGuid = effectiveSubtitleGuid;
-        _currentResolution = _currentQuality?.resolution ?? '';
-        _currentBitrate = _currentQuality?.bitrate;
+        _currentQuality = quality;
+        _currentResolution = quality.resolution;
+        _currentBitrate = quality.bitrate;
       });
     } catch (e) {
-      _toastManager.showToast('切换播放配置失败: $e', type: ToastType.failed);
+      debugPrint('[Player] switch quality failed: $e');
+      _toastManager.showToast('切换画质失败: $e', type: ToastType.failed);
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _switchAudioWithSessionFlow(AudioStream audio) async {
+    final cache = _playingInfoCache;
+    final currentPlayLink = cache?.playLink;
+    final player = _player;
+    if (cache == null || currentPlayLink == null || player == null) {
+      return;
+    }
+
+    final previousAudio = cache.currentAudioStream;
+    try {
+      setState(() => _isLoading = true);
+      _requestedAudioGuid = audio.guid;
+      _playingInfoCache = cache.copyWith(currentAudioStream: audio);
+      ref
+          .read(playerViewModelProvider.notifier)
+          .updatePlayingInfo(_playingInfoCache);
+      await _callPlayRecordAtCurrentPosition();
+      await ref.read(mediaPViewModelProvider.notifier).resetAudio(
+            MediaPRequest(
+              playLink: currentPlayLink,
+              startTimestamp: player.state.position.inMilliseconds ~/ 1000,
+              clearCache: true,
+              audioEncoder: 'aac',
+              channels: 2,
+              audioIndex: audio.index,
+            ),
+          );
+      if (mounted) {
+        setState(() {
+          _selectedAudioGuid = audio.guid;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      _playingInfoCache = cache.copyWith(currentAudioStream: previousAudio);
+      ref
+          .read(playerViewModelProvider.notifier)
+          .updatePlayingInfo(_playingInfoCache);
+      debugPrint('[Player] switch audio failed: $e');
+      _toastManager.showToast('切换音频失败: $e', type: ToastType.failed);
+      if (mounted) {
+        setState(() {
+          _selectedAudioGuid = previousAudio?.guid;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _switchSubtitleWithSessionFlow(SubtitleStream? subtitle) async {
+    final cache = _playingInfoCache;
+    final currentPlayLink = cache?.playLink;
+    final player = _player;
+    if (cache == null || currentPlayLink == null || player == null) {
+      return;
+    }
+
+    final previousSubtitle = cache.currentSubtitleStream;
+    final subtitleIndex = subtitle == null
+        ? null
+        : subtitle.isExternal == 1
+            ? -1
+            : subtitle.index;
+
+    try {
+      setState(() => _isLoading = true);
+      _requestedSubtitleGuid = subtitle?.guid;
+      _playingInfoCache = cache.copyWith(
+        previousSubtitle: previousSubtitle,
+        currentSubtitleStream: subtitle,
+      );
+      ref
+          .read(playerViewModelProvider.notifier)
+          .updatePlayingInfo(_playingInfoCache);
+      await _callPlayRecordAtCurrentPosition();
+      await ref.read(mediaPViewModelProvider.notifier).resetSubtitle(
+            MediaPRequest(
+              playLink: currentPlayLink,
+              subtitleIndex: subtitleIndex,
+              startTimestamp: player.state.position.inMilliseconds ~/ 1000,
+            ),
+          );
+      if (mounted) {
+        setState(() {
+          _selectedSubtitleGuid = subtitle?.guid;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      _playingInfoCache = cache.copyWith(
+        currentSubtitleStream: previousSubtitle,
+        previousSubtitle: previousSubtitle,
+      );
+      ref
+          .read(playerViewModelProvider.notifier)
+          .updatePlayingInfo(_playingInfoCache);
+      debugPrint('[Player] switch subtitle failed: $e');
+      _toastManager.showToast('切换字幕失败: $e', type: ToastType.failed);
+      if (mounted) {
+        setState(() {
+          _selectedSubtitleGuid = previousSubtitle?.guid;
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -1353,31 +1726,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<List<EpisodeListResponse>> _fetchEpisodeList(String guid) async {
-    final response = await ref
-        .read(dioClientProvider)
-        .dio
-        .get('/v/api/v1/episode/list/$guid');
-    return _parseEpisodeList(response.data);
-  }
-
-  List<EpisodeListResponse> _parseEpisodeList(dynamic payload) {
-    if (payload is List) {
-      return payload
-          .map((entry) =>
-              EpisodeListResponse.fromJson(entry as Map<String, dynamic>))
-          .toList();
-    }
-    if (payload is Map<String, dynamic>) {
-      final baseResponse = FnBaseResponse<List<EpisodeListResponse>>.fromJson(
-        payload,
-        (json) => ((json as List<dynamic>?) ?? const <dynamic>[])
-            .map((entry) =>
-                EpisodeListResponse.fromJson(entry as Map<String, dynamic>))
-            .toList(),
-      );
-      return baseResponse.data ?? const <EpisodeListResponse>[];
-    }
-    return const <EpisodeListResponse>[];
+    return ref.read(playerServiceProvider).getEpisodeList(guid);
   }
 
   void _openEpisode(EpisodeListResponse episode) {

@@ -87,7 +87,7 @@ class DioClient {
     if (_config.enableLogging) {
       _dio.interceptors.add(LoggingInterceptor(
         printRequestBody: kDebugMode,
-        printResponseBody: false,
+        printResponseBody: kDebugMode,
         printError: true,
       ));
     }

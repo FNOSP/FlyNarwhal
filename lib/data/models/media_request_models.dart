@@ -17,6 +17,23 @@ class ItemGuidRequest {
   Map<String, dynamic> toJson() => _$ItemGuidRequestToJson(this);
 }
 
+class PlayInfoRequest {
+  final String itemGuid;
+  final String? mediaGuid;
+
+  const PlayInfoRequest({
+    required this.itemGuid,
+    this.mediaGuid,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'item_guid': itemGuid,
+      if (mediaGuid != null && mediaGuid!.isNotEmpty) 'media_guid': mediaGuid,
+    };
+  }
+}
+
 @JsonSerializable(createFactory: false)
 class MediaLibraryBrowseRequest {
   @JsonKey(name: 'ancestor_guid')

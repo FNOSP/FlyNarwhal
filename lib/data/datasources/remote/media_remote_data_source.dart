@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../../../core/network/api_result.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/constants/app_constants.dart';
@@ -95,6 +97,57 @@ class MediaRemoteDataSource {
     return result;
   }
 
+  /// Get play info with an optional media override for player startup.
+  Future<ApiResult<PlayInfoResponse?>> getPlayerPlayInfo(
+    PlayInfoRequest request,
+  ) async {
+    final result = await _dioClient.post<PlayInfoResponse?>(
+      ApiEndpoints.playInfo,
+      data: request.toJson(),
+      converter: (data) => _parseOptionalPlayInfoResponse(data),
+    );
+    return result;
+  }
+
+  /// Get stream info for the selected media source.
+  Future<ApiResult<StreamResponse>> getStreamInfo(StreamRequest request) async {
+    final result = await _dioClient.post<StreamResponse>(
+      ApiEndpoints.stream,
+      data: request.toJson(),
+      converter: (data) => _parseStreamResponse(data),
+    );
+    return result;
+  }
+
+  /// Resolve the playable link for current stream parameters.
+  Future<ApiResult<PlayPlayResponse>> playVideo(PlayPlayRequest request) async {
+    final result = await _dioClient.post<PlayPlayResponse>(
+      ApiEndpoints.playPlay,
+      data: request.toJson(),
+      converter: (data) => _parsePlayPlayResponse(data),
+    );
+    return result;
+  }
+
+  /// Download external subtitle content for media_kit rendering.
+  Future<ApiResult<String>> downloadExternalSubtitle(String guid) async {
+    try {
+      final response = await _dioClient.dio.get<String>(
+        ApiEndpoints.subtitleDownloadByGuid(guid),
+        options: Options(responseType: ResponseType.plain),
+      );
+      return Success(response.data ?? '');
+    } on DioException catch (e) {
+      if (e.error is FailureInfo) {
+        return ResultFailure(e.error as FailureInfo);
+      }
+      final message = e.message ?? 'Failed to download subtitle';
+      return ResultFailure(FailureInfo.fromMessage(message));
+    } catch (e) {
+      return ResultFailure(FailureInfo.fromMessage(e.toString()));
+    }
+  }
+
   /// Get person list by guid
   Future<ApiResult<List<PersonList>>> getPersonList(String guid) async {
     final result = await _dioClient.post<List<PersonList>>(
@@ -179,6 +232,34 @@ class MediaRemoteDataSource {
       ApiEndpoints.mediaP,
       data: request.toJson(),
       converter: (data) => _parseMediaResetQualityResponse(data),
+    );
+    return result;
+  }
+
+  /// Persist the current playback progress.
+  Future<ApiResult<bool>> updatePlayRecord({
+    required String guid,
+    required int ts,
+    int? duration,
+  }) async {
+    final result = await _dioClient.post<bool>(
+      ApiEndpoints.playRecord,
+      data: {
+        'guid': guid,
+        'ts': ts,
+        if (duration != null) 'duration': duration,
+      },
+      converter: (data) => _parseSuccessResponse(data),
+    );
+    return result;
+  }
+
+  /// Save intro and outro skip settings for an item.
+  Future<ApiResult<bool>> setSkipConfig(SetConfigByItemRequest request) async {
+    final result = await _dioClient.post<bool>(
+      ApiEndpoints.configSetByItem,
+      data: request.toJson(),
+      converter: (data) => _parseSuccessResponse(data),
     );
     return result;
   }
@@ -337,6 +418,30 @@ class MediaRemoteDataSource {
       (json) => PlayInfoResponse.fromJson(json as Map<String, dynamic>),
     );
     return baseResponse.data;
+  }
+
+  StreamResponse _parseStreamResponse(dynamic data) {
+    final baseResponse = FnBaseResponse<StreamResponse>.fromJson(
+      data,
+      (json) => StreamResponse.fromJson(json as Map<String, dynamic>),
+    );
+    if (baseResponse.code != ResponseCodes.success ||
+        baseResponse.data == null) {
+      throw Exception(baseResponse.msg);
+    }
+    return baseResponse.data!;
+  }
+
+  PlayPlayResponse _parsePlayPlayResponse(dynamic data) {
+    final baseResponse = FnBaseResponse<PlayPlayResponse>.fromJson(
+      data,
+      (json) => PlayPlayResponse.fromJson(json as Map<String, dynamic>),
+    );
+    if (baseResponse.code != ResponseCodes.success ||
+        baseResponse.data == null) {
+      throw Exception(baseResponse.msg);
+    }
+    return baseResponse.data!;
   }
 
   List<PersonList> _parsePersonListResponse(dynamic data) {

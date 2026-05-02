@@ -1,37 +1,32 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/models/base_response.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/network/api_result.dart';
+import '../../data/datasources/remote/media_remote_data_source.dart';
+import '../../data/models/episode_list_response.dart';
+import '../../data/models/media_request_models.dart';
 import '../../data/models/movie_detail_models.dart';
 import '../../data/models/player_models.dart';
-import '../../data/network/dio_client.dart';
 import '../../providers/providers.dart';
 
 class PlayerService {
-  final DioClient _dioClient;
+  final MediaRemoteDataSource _mediaRemoteDataSource;
 
-  PlayerService(this._dioClient);
+  PlayerService(this._mediaRemoteDataSource);
 
-  // Get play info for a media item
+  // Get play info for a media item.
   Future<PlayInfoResponse> getPlayInfo(String guid, {String? mediaGuid}) async {
-    final response = await _dioClient.dio.post(
-      '/v/api/v1/play/info',
-      data: {
-        'item_guid': guid,
-        if (mediaGuid != null) 'media_guid': mediaGuid,
-      },
+    final result = await _mediaRemoteDataSource.getPlayerPlayInfo(
+      PlayInfoRequest(itemGuid: guid, mediaGuid: mediaGuid),
     );
-    final baseResponse = FnBaseResponse<PlayInfoResponse>.fromJson(
-      response.data,
-      (json) => PlayInfoResponse.fromJson(json as Map<String, dynamic>),
+    return _unwrapNullableResult(
+      result,
+      fallbackMessage: 'Missing play info response',
     );
-    if (baseResponse.code != 0) {
-      throw Exception(baseResponse.msg);
-    }
-    return baseResponse.data!;
   }
 
-  // Get stream info for a media guid
+  // Get stream info for a media guid.
   Future<StreamResponse> getStreamInfo(
     String mediaGuid, {
     String? ip,
@@ -42,78 +37,46 @@ class PlayerService {
       ip: ip,
       level: level,
       header: Header(
-        userAgent: [
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
-        ],
+        userAgent: [AppConstants.userAgent],
       ),
     );
-    final response = await _dioClient.dio.post(
-      '/v/api/v1/stream',
-      data: request.toJson(),
-    );
-    final baseResponse = FnBaseResponse<StreamResponse>.fromJson(
-      response.data,
-      (json) => StreamResponse.fromJson(json as Map<String, dynamic>),
-    );
-    if (baseResponse.code != 0) {
-      throw Exception(baseResponse.msg);
-    }
-    return baseResponse.data!;
+    final result = await _mediaRemoteDataSource.getStreamInfo(request);
+    return _unwrapResult(result);
   }
 
-  // Play video with specified parameters (aligned with KMP PlayPlayRequest)
+  // Play video with specified parameters.
   Future<PlayPlayResponse> playVideo(PlayPlayRequest request) async {
-    final response = await _dioClient.dio.post(
-      '/v/api/v1/play/play',
-      data: request.toJson(),
-    );
-    final baseResponse = FnBaseResponse<PlayPlayResponse>.fromJson(
-      response.data,
-      (json) => PlayPlayResponse.fromJson(json as Map<String, dynamic>),
-    );
-    if (baseResponse.code != 0) {
-      throw Exception(baseResponse.msg);
-    }
-    return baseResponse.data!;
+    final result = await _mediaRemoteDataSource.playVideo(request);
+    return _unwrapResult(result);
   }
 
-  // Get available qualities
-  Future<List<QualityResponse>> getQualities(String playLink) async {
-    final request = MediaPRequest(playLink: playLink);
-    final response = await _dioClient.dio.post(
-      '/v/api/v1/mediap/quality',
-      data: request.toJson(),
-    );
-    final baseResponse = FnBaseResponse<List<QualityResponse>>.fromJson(
-      response.data,
-      (json) => (json as List)
-          .map((e) => QualityResponse.fromJson(e as Map<String, dynamic>))
-          .toList(),
-    );
-    if (baseResponse.code != 0) {
-      throw Exception(baseResponse.msg);
-    }
-    return baseResponse.data ?? [];
+  // Download external subtitle content for media_kit rendering.
+  Future<String> downloadExternalSubtitle(String guid) async {
+    final result = await _mediaRemoteDataSource.downloadExternalSubtitle(guid);
+    return _unwrapResult(result);
   }
 
+  // Get episode list for the current season or series parent.
+  Future<List<EpisodeListResponse>> getEpisodeList(String guid) async {
+    final result = await _mediaRemoteDataSource.getEpisodeList(guid);
+    return _unwrapResult(result);
+  }
 
-  // Update play record (progress)
+  // Update play record (progress).
   Future<void> updatePlayRecord({
     required String guid,
     required int ts,
     int? duration,
   }) async {
-    await _dioClient.dio.post(
-      '/v/api/v1/play/record',
-      data: {
-        'guid': guid,
-        'ts': ts,
-        if (duration != null) 'duration': duration,
-      },
+    final result = await _mediaRemoteDataSource.updatePlayRecord(
+      guid: guid,
+      ts: ts,
+      duration: duration,
     );
+    _unwrapResult(result);
   }
 
-  // Set skip config for intro/outro
+  // Set skip config for intro and outro.
   Future<void> setSkipConfig({
     required String guid,
     required int skipOpening,
@@ -124,24 +87,56 @@ class PlayerService {
       skipOpening: skipOpening,
       skipEnding: skipEnding,
     );
-    await _dioClient.dio.post(
-      '/v/api/v1/config/set-by-item',
-      data: request.toJson(),
-    );
+    final result = await _mediaRemoteDataSource.setSkipConfig(request);
+    _unwrapResult(result);
   }
 
-  // Build HLS play URL
+  // Build HLS play URL.
   String buildHlsPlayUrl(String playLink) {
     return playLink;
   }
 
-  // Get IP hash from source name
+  // Get IP hash from source name.
   String getIpHash(String sourceName) {
     return md5.convert(utf8.encode(sourceName)).toString();
+  }
+
+  T _unwrapResult<T>(
+    ApiResult<T> result, {
+    String? fallbackMessage,
+  }) {
+    return result.when(
+      success: (data) {
+        if (data == null) {
+          throw Exception(fallbackMessage ?? 'Empty response data');
+        }
+        return data;
+      },
+      failure: (failure) => throw Exception(failure.displayMessage.isNotEmpty
+          ? failure.displayMessage
+          : failure.message),
+    );
+  }
+
+  T _unwrapNullableResult<T>(
+    ApiResult<T?> result, {
+    String? fallbackMessage,
+  }) {
+    return result.when(
+      success: (data) {
+        if (data == null) {
+          throw Exception(fallbackMessage ?? 'Empty response data');
+        }
+        return data;
+      },
+      failure: (failure) => throw Exception(failure.displayMessage.isNotEmpty
+          ? failure.displayMessage
+          : failure.message),
+    );
   }
 }
 
 final playerServiceProvider = Provider<PlayerService>((ref) {
-  final dioClient = ref.watch(dioClientProvider);
-  return PlayerService(dioClient);
+  final remoteDataSource = ref.watch(mediaRemoteDataSourceProvider);
+  return PlayerService(remoteDataSource);
 });

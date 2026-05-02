@@ -258,12 +258,18 @@ class MediaResetQualityResponse {
 
 // Playing info cache to store current playback state
 class PlayingInfoCache {
+  static const Object _unset = Object();
+
   final String? itemGuid;
   final String? parentGuid;
   final ItemResponse? item;
+  final FileInfo? currentFileStream;
   final VideoStream? currentVideoStream;
   final AudioStream? currentAudioStream;
   final SubtitleStream? currentSubtitleStream;
+  final SubtitleStream? previousSubtitle;
+  final List<QualityResponse> currentQualities;
+  final QualityResponse? currentQuality;
   final List<AudioStream> currentAudioStreamList;
   final List<SubtitleStream> currentSubtitleStreamList;
   final String? playLink;
@@ -277,9 +283,13 @@ class PlayingInfoCache {
     this.itemGuid,
     this.parentGuid,
     this.item,
+    this.currentFileStream,
     this.currentVideoStream,
     this.currentAudioStream,
     this.currentSubtitleStream,
+    this.previousSubtitle,
+    this.currentQualities = const [],
+    this.currentQuality,
     this.currentAudioStreamList = const [],
     this.currentSubtitleStreamList = const [],
     this.playLink,
@@ -294,14 +304,18 @@ class PlayingInfoCache {
     String? itemGuid,
     String? parentGuid,
     ItemResponse? item,
+    FileInfo? currentFileStream,
     VideoStream? currentVideoStream,
-    AudioStream? currentAudioStream,
-    SubtitleStream? currentSubtitleStream,
+    Object? currentAudioStream = _unset,
+    Object? currentSubtitleStream = _unset,
+    Object? previousSubtitle = _unset,
+    List<QualityResponse>? currentQualities,
+    Object? currentQuality = _unset,
     List<AudioStream>? currentAudioStreamList,
     List<SubtitleStream>? currentSubtitleStreamList,
-    String? playLink,
+    Object? playLink = _unset,
     bool? isUseDirectLink,
-    PlayConfig? playConfig,
+    Object? playConfig = _unset,
     StreamResponse? streamInfo,
     bool? isEpisode,
     String? subhead,
@@ -310,17 +324,31 @@ class PlayingInfoCache {
       itemGuid: itemGuid ?? this.itemGuid,
       parentGuid: parentGuid ?? this.parentGuid,
       item: item ?? this.item,
+      currentFileStream: currentFileStream ?? this.currentFileStream,
       currentVideoStream: currentVideoStream ?? this.currentVideoStream,
-      currentAudioStream: currentAudioStream ?? this.currentAudioStream,
-      currentSubtitleStream:
-          currentSubtitleStream ?? this.currentSubtitleStream,
+      currentAudioStream: identical(currentAudioStream, _unset)
+          ? this.currentAudioStream
+          : currentAudioStream as AudioStream?,
+      currentSubtitleStream: identical(currentSubtitleStream, _unset)
+          ? this.currentSubtitleStream
+          : currentSubtitleStream as SubtitleStream?,
+      previousSubtitle: identical(previousSubtitle, _unset)
+          ? this.previousSubtitle
+          : previousSubtitle as SubtitleStream?,
+      currentQualities: currentQualities ?? this.currentQualities,
+      currentQuality: identical(currentQuality, _unset)
+          ? this.currentQuality
+          : currentQuality as QualityResponse?,
       currentAudioStreamList:
           currentAudioStreamList ?? this.currentAudioStreamList,
       currentSubtitleStreamList:
           currentSubtitleStreamList ?? this.currentSubtitleStreamList,
-      playLink: playLink ?? this.playLink,
+      playLink:
+          identical(playLink, _unset) ? this.playLink : playLink as String?,
       isUseDirectLink: isUseDirectLink ?? this.isUseDirectLink,
-      playConfig: playConfig ?? this.playConfig,
+      playConfig: identical(playConfig, _unset)
+          ? this.playConfig
+          : playConfig as PlayConfig?,
       streamInfo: streamInfo ?? this.streamInfo,
       isEpisode: isEpisode ?? this.isEpisode,
       subhead: subhead ?? this.subhead,
