@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,10 +12,12 @@ import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
+import '../../../providers/file_providers.dart';
 import '../../../providers/providers.dart';
 import '../../player/mp4_parser.dart';
 import '../../player/hls_playlist_resolver.dart';
 import '../../player/hls_subtitle_repository.dart';
+import '../../player/player_manager.dart';
 import '../../player/media_p_view_model.dart';
 import '../../player/player_service.dart';
 import '../../player/player_view_model.dart';
@@ -29,6 +32,8 @@ import '../../player/widgets/next_episode_preview_flyout.dart';
 import '../../player/widgets/player_action_button.dart';
 import '../../player/widgets/player_settings_menu.dart';
 import '../../player/widgets/subtitle_control_flyout.dart';
+import '../../player/widgets/subtitle_search_dialog.dart';
+import '../../widgets/nas/add_nas_subtitle_dialog.dart';
 import '../../widgets/toast.dart';
 import '../../widgets/window_caption.dart';
 
@@ -124,12 +129,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final ValueNotifier<List<String>> _hlsSubtitleTexts =
       ValueNotifier<List<String>>(const []);
   bool _useHlsSubtitleOverlay = false;
+  Map<String, String> _iso6391Map = const {};
+  Map<String, String> _iso6392Map = const {};
+  bool _showSubtitleSearchDialog = false;
+  bool _showAddNasSubtitleDialog = false;
+  bool _isUploadingLocalSubtitle = false;
 
   @override
   void initState() {
     super.initState();
     _toastManager = ToastManager();
     _syncPlaybackTargetsFromWidget();
+    unawaited(_ensureSubtitleLanguageMapsLoaded());
     _initializePlayer();
   }
 
@@ -221,6 +232,197 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }
       },
     );
+  }
+
+  Future<void> _ensureSubtitleLanguageMapsLoaded() async {
+    if (_iso6391Map.isNotEmpty && _iso6392Map.isNotEmpty) {
+      return;
+    }
+    try {
+      final tagRepository = ref.read(tagRepositoryProvider);
+      final results = await Future.wait([
+        tagRepository.getTag('iso6391'),
+        tagRepository.getTag('iso6392'),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _iso6391Map = results[0];
+        _iso6392Map = results[1];
+      });
+    } catch (error) {
+      debugPrint('[Player] load subtitle language tags failed: $error');
+    }
+  }
+
+  String _resolveCurrentFilePath() {
+    return _playingInfoCache?.currentFileStream?.path ?? '';
+  }
+
+  Future<void> _refreshSubtitleStreams({String? targetTrimId}) async {
+    final cache = _playingInfoCache;
+    final videoStream = cache?.currentVideoStream;
+    if (cache == null || videoStream == null) return;
+
+    final prefs = ref.read(preferencesManagerProvider);
+    final playerService = ref.read(playerServiceProvider);
+    final nextStreamInfo = await playerService.getStreamInfo(
+      videoStream.mediaGuid,
+      ip: playerService.getIpHash(prefs.getToken() ?? ''),
+    );
+    final subtitleStreams = nextStreamInfo.subtitleStreams ?? const <SubtitleStream>[];
+    final currentGuid = _selectedSubtitleGuid ?? cache.currentSubtitleStream?.guid;
+
+    SubtitleStream? nextSelectedSubtitle;
+    if (targetTrimId != null && targetTrimId.isNotEmpty) {
+      nextSelectedSubtitle = subtitleStreams
+          .where((subtitle) => subtitle.trimId == targetTrimId)
+          .firstOrNull;
+    }
+    nextSelectedSubtitle ??= subtitleStreams
+        .where((subtitle) => subtitle.guid == currentGuid)
+        .firstOrNull;
+
+    final nextCache = cache.copyWith(
+      currentSubtitleStreamList: subtitleStreams,
+      currentSubtitleStream: nextSelectedSubtitle,
+      streamInfo: nextStreamInfo,
+    );
+    _playingInfoCache = nextCache;
+    ref.read(playerViewModelProvider.notifier).updatePlayingInfo(nextCache);
+
+    if (!mounted) return;
+    setState(() {
+      _streamInfo = nextStreamInfo;
+      _selectedSubtitleGuid = nextSelectedSubtitle?.guid;
+      _requestedSubtitleGuid = nextSelectedSubtitle?.guid;
+    });
+  }
+
+  Future<void> _openSubtitleSearchDialog() async {
+    if (_showSubtitleSearchDialog) return;
+    final currentFile = _playingInfoCache?.currentFileStream;
+    if (currentFile == null || currentFile.guid.isEmpty) {
+      _toastManager.showToast('当前文件信息缺失，无法搜索字幕', type: ToastType.info);
+      return;
+    }
+
+    setState(() => _showSubtitleSearchDialog = true);
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => SubtitleSearchDialog(
+          mediaFileName: currentFile.fileName,
+          initialTrimIds: (_playingInfoCache?.currentSubtitleStreamList ?? const [])
+              .map((subtitle) => subtitle.trimId)
+              .where((trimId) => trimId.isNotEmpty)
+              .toList(),
+          onSearch: (language) {
+            return ref.read(fileRepositoryProvider).searchSubtitles(
+                  mediaGuid: currentFile.guid,
+                  language: language,
+                );
+          },
+          onDownload: (item) async {
+            try {
+              await ref.read(fileRepositoryProvider).downloadSubtitle(
+                    mediaGuid: currentFile.guid,
+                    trimId: item.trimId,
+                  );
+              await _refreshSubtitleStreams(targetTrimId: item.trimId);
+              if (!mounted) return;
+              _toastManager.showToast('字幕下载成功', type: ToastType.success);
+            } catch (error) {
+              if (mounted) {
+                _toastManager.showToast('下载字幕失败: $error',
+                    type: ToastType.failed);
+              }
+              rethrow;
+            }
+          },
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _showSubtitleSearchDialog = false);
+      }
+    }
+  }
+
+  Future<void> _openAddNasSubtitleDialog() async {
+    if (_showAddNasSubtitleDialog) return;
+    final mediaGuid = _playingInfoCache?.currentFileStream?.guid ?? '';
+    if (mediaGuid.isEmpty) {
+      _toastManager.showToast('当前文件信息缺失，无法添加 NAS 字幕', type: ToastType.info);
+      return;
+    }
+
+    setState(() => _showAddNasSubtitleDialog = true);
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AddNasSubtitleDialog(
+          title: '添加 NAS 字幕文件',
+          currentPath: _resolveCurrentFilePath(),
+          onConfirm: (paths) async {
+            try {
+              await ref.read(fileRepositoryProvider).markSubtitle(mediaGuid, paths);
+              await _refreshSubtitleStreams();
+              if (!mounted) return;
+              _toastManager.showToast('NAS 字幕添加成功', type: ToastType.success);
+            } catch (error) {
+              if (!mounted) return;
+              _toastManager.showToast('添加 NAS 字幕失败: $error',
+                  type: ToastType.failed);
+            }
+          },
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _showAddNasSubtitleDialog = false);
+      }
+    }
+  }
+
+  Future<void> _pickAndUploadLocalSubtitle() async {
+    final currentFile = _playingInfoCache?.currentFileStream;
+    if (_isUploadingLocalSubtitle) return;
+    if (currentFile == null || currentFile.guid.isEmpty) {
+      _toastManager.showToast('当前文件信息缺失，无法上传字幕', type: ToastType.info);
+      return;
+    }
+
+    const subtitleTypeGroup = XTypeGroup(
+      label: '字幕文件',
+      extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa'],
+    );
+
+    try {
+      final file = await openFile(
+        acceptedTypeGroups: [subtitleTypeGroup],
+        confirmButtonText: '选择',
+      );
+      if (file == null) return;
+
+      setState(() => _isUploadingLocalSubtitle = true);
+      final bytes = await file.readAsBytes();
+      await ref.read(fileRepositoryProvider).uploadSubtitle(
+            guid: currentFile.guid,
+            bytes: bytes,
+            fileName: file.name,
+          );
+      await _refreshSubtitleStreams();
+      if (!mounted) return;
+      _toastManager.showToast('电脑字幕文件上传成功', type: ToastType.success);
+    } catch (error) {
+      if (mounted) {
+        _toastManager.showToast('上传字幕失败: $error', type: ToastType.failed);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingLocalSubtitle = false);
+      }
+    }
   }
 
   void _syncPlaybackTargetsFromWidget() {
@@ -1521,6 +1723,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final subtitleSettings = ref.watch(subtitleSettingsProvider);
     return Stack(
       children: [
         MouseRegion(
@@ -1545,6 +1748,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               return PlayerSubtitleOverlay(
                 lines: lines,
                 visible: _useHlsSubtitleOverlay,
+                settings: subtitleSettings,
               );
             },
           ),
@@ -1656,6 +1860,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Widget _buildControlButtons() {
     final prefs = ref.watch(preferencesManagerProvider);
+    final subtitleSettings = ref.watch(subtitleSettingsProvider);
     final baseUrl = prefs.getBaseUrl() ?? '';
     final token = prefs.getToken();
     final cookie = prefs.getCookie();
@@ -1785,15 +1990,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         SubtitleControlFlyout(
           subtitles: _playingInfoCache?.currentSubtitleStreamList ?? const [],
           selectedSubtitleGuid: _selectedSubtitleGuid,
+          iso6391Map: _iso6391Map,
+          iso6392Map: _iso6392Map,
+          subtitleSettings: subtitleSettings,
+          canAdjustSubtitle: _canAdjustSubtitle,
           yOffset: _controlFlyoutOffset,
           isActiveControl: _activeFlyout == _PlayerFlyoutType.subtitle,
           onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
               _PlayerFlyoutType.subtitle, hovered),
+          onSubtitleSettingsChanged: (settings) =>
+              ref.read(subtitleSettingsProvider.notifier).state = settings,
           onSubtitleSelected: _onSubtitleSelected,
+          onOpenSubtitleSearch: _openSubtitleSearchDialog,
+          onOpenAddNasSubtitle: _openAddNasSubtitleDialog,
+          onOpenAddLocalSubtitle: _pickAndUploadLocalSubtitle,
         ),
         const SizedBox(width: _controlFlyoutSpacing),
         PlayerSettingsMenu(
           playingInfoCache: _playingInfoCache,
+          iso6391Map: _iso6391Map,
           currentPositionMillis: _currentPosition,
           totalDurationMillis: _duration,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
@@ -1950,6 +2165,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   bool get _isMacOS => defaultTargetPlatform == TargetPlatform.macOS;
+
+  bool get _canAdjustSubtitle {
+    return _useHlsSubtitleOverlay &&
+        (_playingInfoCache?.currentSubtitleStream != null ||
+            _hlsSubtitleTexts.value.isNotEmpty);
+  }
 
   String get _displayTitle {
     final item = _playInfo?.item ?? _playingInfoCache?.item;

@@ -113,13 +113,17 @@ class QualityResponse {
 
 @JsonSerializable()
 class SubtitleSettings {
-  final int offsetSeconds;
+  final double offsetSeconds;
+  final double verticalPosition;
+  final double fontScale;
   final double fontSize;
   final String fontColor;
   final String backgroundColor;
 
   const SubtitleSettings({
     this.offsetSeconds = 0,
+    this.verticalPosition = 0.1,
+    this.fontScale = 1.0,
     this.fontSize = 24.0,
     this.fontColor = '#FFFFFF',
     this.backgroundColor = '#000000',
@@ -130,13 +134,17 @@ class SubtitleSettings {
   Map<String, dynamic> toJson() => _$SubtitleSettingsToJson(this);
 
   SubtitleSettings copyWith({
-    int? offsetSeconds,
+    double? offsetSeconds,
+    double? verticalPosition,
+    double? fontScale,
     double? fontSize,
     String? fontColor,
     String? backgroundColor,
   }) {
     return SubtitleSettings(
       offsetSeconds: offsetSeconds ?? this.offsetSeconds,
+      verticalPosition: verticalPosition ?? this.verticalPosition,
+      fontScale: fontScale ?? this.fontScale,
       fontSize: fontSize ?? this.fontSize,
       fontColor: fontColor ?? this.fontColor,
       backgroundColor: backgroundColor ?? this.backgroundColor,

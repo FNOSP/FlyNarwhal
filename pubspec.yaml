@@ -38,6 +38,7 @@ dependencies:
   flutter_svg: ^2.2.3
   path_provider: ^2.1.2
   path: ^1.8.3
+  file_selector: ^1.0.3
   crypto: ^3.0.7
   cryptography: ^2.7.0
   flutter_inappwebview: ^5.7.2

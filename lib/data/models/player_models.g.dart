@@ -89,7 +89,9 @@ Map<String, dynamic> _$QualityResponseToJson(QualityResponse instance) =>
 
 SubtitleSettings _$SubtitleSettingsFromJson(Map<String, dynamic> json) =>
     SubtitleSettings(
-      offsetSeconds: (json['offsetSeconds'] as num?)?.toInt() ?? 0,
+      offsetSeconds: (json['offsetSeconds'] as num?)?.toDouble() ?? 0,
+      verticalPosition: (json['verticalPosition'] as num?)?.toDouble() ?? 0.1,
+      fontScale: (json['fontScale'] as num?)?.toDouble() ?? 1.0,
       fontSize: (json['fontSize'] as num?)?.toDouble() ?? 24.0,
       fontColor: json['fontColor'] as String? ?? '#FFFFFF',
       backgroundColor: json['backgroundColor'] as String? ?? '#000000',
@@ -98,6 +100,8 @@ SubtitleSettings _$SubtitleSettingsFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$SubtitleSettingsToJson(SubtitleSettings instance) =>
     <String, dynamic>{
       'offsetSeconds': instance.offsetSeconds,
+      'verticalPosition': instance.verticalPosition,
+      'fontScale': instance.fontScale,
       'fontSize': instance.fontSize,
       'fontColor': instance.fontColor,
       'backgroundColor': instance.backgroundColor,

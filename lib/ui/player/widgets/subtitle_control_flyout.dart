@@ -1,7 +1,11 @@
 import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
 import '../../../data/models/movie_detail_models.dart';
+import '../../../data/models/player_models.dart';
+import '../../../data/utils/fn_data_convertor.dart';
 
 const Color _subtitleFlyoutBackgroundColor = Color(0xE6000000);
 const Color _subtitleFlyoutBorderColor = Color(0x80808080);
@@ -10,31 +14,49 @@ const Color _subtitleDefaultTextColor = Color(0xC8FFFFFF);
 const Color _subtitleHoverBackgroundColor = Color(0x1AFFFFFF);
 const int _subtitleHideDelayMs = 200;
 const int _subtitleAnimationDurationMs = 200;
-const double _subtitleFlyoutWidth = 250;
-const double _subtitleFlyoutLeftOffset = -190;
+const double _subtitleFlyoutWidth = 320;
+const double _subtitleFlyoutLeftOffset = -248;
 const double _subtitleFlyoutBridgeOffset = 40;
 const double _subtitleFlyoutMinBridgeWidth = 56;
 const double _subtitleFlyoutBridgeHorizontalPadding = 12;
-const double _estimatedSubtitleFlyoutHeight = 220;
-const double _subtitleFlyoutMaxListHeight = 300;
-const double _subtitleFlyoutItemExtent = 66;
+const double _subtitleFlyoutPanelHeight = 390;
+const double _estimatedSubtitleFlyoutHeight = _subtitleFlyoutPanelHeight;
+const double _subtitleFlyoutItemExtent = 72;
 
 class SubtitleControlFlyout extends StatefulWidget {
   final List<SubtitleStream> subtitles;
   final String? selectedSubtitleGuid;
+  final Map<String, String> iso6391Map;
+  final Map<String, String> iso6392Map;
+  final SubtitleSettings subtitleSettings;
+  final bool canAdjustSubtitle;
   final int yOffset;
   final bool isActiveControl;
+  final void Function(SubtitleSettings) onSubtitleSettingsChanged;
   final void Function(String?) onSubtitleSelected;
+  final VoidCallback onOpenSubtitleSearch;
+  final VoidCallback onOpenAddNasSubtitle;
+  final VoidCallback onOpenAddLocalSubtitle;
   final void Function(bool)? onHoverStateChanged;
+  final void Function(SubtitleStream)? onRequestDelete;
 
   const SubtitleControlFlyout({
     super.key,
     required this.subtitles,
     required this.selectedSubtitleGuid,
+    required this.iso6391Map,
+    required this.iso6392Map,
+    required this.subtitleSettings,
+    required this.canAdjustSubtitle,
     this.yOffset = 0,
     this.isActiveControl = false,
+    required this.onSubtitleSettingsChanged,
     required this.onSubtitleSelected,
+    required this.onOpenSubtitleSearch,
+    required this.onOpenAddNasSubtitle,
+    required this.onOpenAddLocalSubtitle,
     this.onHoverStateChanged,
+    this.onRequestDelete,
   });
 
   @override
@@ -46,6 +68,8 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
   bool _isExpanded = false;
   bool _isButtonHovered = false;
   bool _popupHovered = false;
+  bool _isAdjustmentMode = false;
+  bool _isAddMenuExpanded = false;
   final GlobalKey _buttonKey = GlobalKey();
   final GlobalKey _flyoutKey = GlobalKey();
   OverlayEntry? _overlayEntry;
@@ -71,10 +95,10 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
   }
 
   @override
-  void didUpdateWidget(SubtitleControlFlyout oldWidget) {
+  void didUpdateWidget(covariant SubtitleControlFlyout oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isActiveControl && !widget.isActiveControl) {
-      _forceCloseFlyout();
+      unawaited(_forceCloseFlyout());
     }
   }
 
@@ -103,6 +127,12 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
   void _setPopupHovered(bool value) {
     if (_popupHovered == value || !mounted) return;
     setState(() => _popupHovered = value);
+  }
+
+  void _updateOverlayState(VoidCallback updater) {
+    if (!mounted) return;
+    setState(updater);
+    _overlayEntry?.markNeedsBuild();
   }
 
   double _calculateBridgeWidth(Size buttonSize) {
@@ -176,12 +206,9 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
                           _setPopupHovered(false);
                           _hideFlyoutWithDelay();
                         },
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: KeyedSubtree(
-                            key: _flyoutKey,
-                            child: _buildAnimatedFlyout(),
-                          ),
+                        child: KeyedSubtree(
+                          key: _flyoutKey,
+                          child: _buildAnimatedFlyout(),
                         ),
                       ),
                     ),
@@ -192,8 +219,6 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
                         opaque: false,
                         cursor: SystemMouseCursors.basic,
                         onEnter: (_) {
-                          // Keep the flyout open only along the necessary path
-                          // between the trigger button and the popup body.
                           _setPopupHovered(true);
                           _hideTimer?.cancel();
                         },
@@ -252,7 +277,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(milliseconds: _subtitleHideDelayMs), () {
       if (!_isButtonHovered && !_popupHovered && mounted) {
-        _closeFlyout();
+        unawaited(_closeFlyout());
       }
     });
   }
@@ -272,7 +297,11 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
     }
 
     _hideOverlay();
-    setState(() => _isExpanded = false);
+    setState(() {
+      _isExpanded = false;
+      _isAdjustmentMode = false;
+      _isAddMenuExpanded = false;
+    });
     widget.onHoverStateChanged?.call(false);
   }
 
@@ -289,8 +318,17 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
 
     if (!mounted) return;
     _hideOverlay();
-    setState(() => _isExpanded = false);
+    setState(() {
+      _isExpanded = false;
+      _isAdjustmentMode = false;
+      _isAddMenuExpanded = false;
+    });
     widget.onHoverStateChanged?.call(false);
+  }
+
+  void _closeAfterAction() {
+    _setPopupHovered(false);
+    unawaited(_closeFlyout());
   }
 
   @override
@@ -330,15 +368,43 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
           ),
         );
       },
-      child: _SubtitleFlyoutContent(
-        subtitles: widget.subtitles,
-        selectedSubtitleGuid: widget.selectedSubtitleGuid,
-        onSubtitleSelected: (guid) {
-          widget.onSubtitleSelected(guid);
-          _setPopupHovered(false);
-          _closeFlyout();
-        },
-      ),
+      child: _isAdjustmentMode
+          ? _SubtitleAdjustmentPanel(
+              settings: widget.subtitleSettings,
+              onBack: () => _updateOverlayState(() => _isAdjustmentMode = false),
+              onSettingsChanged: widget.onSubtitleSettingsChanged,
+            )
+          : _SubtitleFlyoutContent(
+              subtitles: widget.subtitles,
+              selectedSubtitleGuid: widget.selectedSubtitleGuid,
+              iso6391Map: widget.iso6391Map,
+              iso6392Map: widget.iso6392Map,
+              canAdjustSubtitle: widget.canAdjustSubtitle,
+              isAddMenuExpanded: _isAddMenuExpanded,
+              onAddMenuExpandedChanged: (expanded) =>
+                  _updateOverlayState(() => _isAddMenuExpanded = expanded),
+              onAdjustmentClicked: () => _updateOverlayState(() {
+                _isAdjustmentMode = true;
+                _isAddMenuExpanded = false;
+              }),
+              onSubtitleSelected: (guid) {
+                widget.onSubtitleSelected(guid);
+                _closeAfterAction();
+              },
+              onOpenSubtitleSearch: () {
+                widget.onOpenSubtitleSearch();
+                _closeAfterAction();
+              },
+              onOpenAddNasSubtitle: () {
+                widget.onOpenAddNasSubtitle();
+                _closeAfterAction();
+              },
+              onOpenAddLocalSubtitle: () {
+                widget.onOpenAddLocalSubtitle();
+                _closeAfterAction();
+              },
+              onRequestDelete: widget.onRequestDelete,
+            ),
     );
   }
 }
@@ -346,12 +412,32 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
 class _SubtitleFlyoutContent extends StatefulWidget {
   final List<SubtitleStream> subtitles;
   final String? selectedSubtitleGuid;
-  final void Function(String?) onSubtitleSelected;
+  final Map<String, String> iso6391Map;
+  final Map<String, String> iso6392Map;
+  final bool canAdjustSubtitle;
+  final bool isAddMenuExpanded;
+  final ValueChanged<bool> onAddMenuExpandedChanged;
+  final VoidCallback onAdjustmentClicked;
+  final ValueChanged<String?> onSubtitleSelected;
+  final VoidCallback onOpenSubtitleSearch;
+  final VoidCallback onOpenAddNasSubtitle;
+  final VoidCallback onOpenAddLocalSubtitle;
+  final ValueChanged<SubtitleStream>? onRequestDelete;
 
   const _SubtitleFlyoutContent({
     required this.subtitles,
     required this.selectedSubtitleGuid,
+    required this.iso6391Map,
+    required this.iso6392Map,
+    required this.canAdjustSubtitle,
+    required this.isAddMenuExpanded,
+    required this.onAddMenuExpandedChanged,
+    required this.onAdjustmentClicked,
     required this.onSubtitleSelected,
+    required this.onOpenSubtitleSearch,
+    required this.onOpenAddNasSubtitle,
+    required this.onOpenAddLocalSubtitle,
+    required this.onRequestDelete,
   });
 
   @override
@@ -402,80 +488,280 @@ class _SubtitleFlyoutContentState extends State<_SubtitleFlyoutContent> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 250,
+      width: _subtitleFlyoutWidth,
+      height: _subtitleFlyoutPanelHeight,
       decoration: BoxDecoration(
         color: _subtitleFlyoutBackgroundColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _subtitleFlyoutBorderColor),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: ConstrainedBox(
-          constraints:
-              const BoxConstraints(maxHeight: _subtitleFlyoutMaxListHeight),
-          child: Scrollbar(
-            controller: _scrollController,
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              itemExtent: _subtitleFlyoutItemExtent,
-              itemCount: widget.subtitles.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _SubtitleItem(
-                    title: '无字幕',
-                    subtitle: '关闭当前字幕',
-                    isSelected: widget.selectedSubtitleGuid == null ||
-                        widget.selectedSubtitleGuid!.isEmpty,
-                    onTap: () => widget.onSubtitleSelected(null),
-                  );
-                }
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                _SubtitleFlyoutHeader(
+                  canAdjustSubtitle: widget.canAdjustSubtitle,
+                  isAddMenuExpanded: widget.isAddMenuExpanded,
+                  onAdjustmentClicked: widget.onAdjustmentClicked,
+                  onAddMenuExpandedChanged: widget.onAddMenuExpandedChanged,
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(size: 1),
+                ),
+                Expanded(
+                  child: Scrollbar(
+                    controller: _scrollController,
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      padding: EdgeInsets.zero,
+                      itemExtent: _subtitleFlyoutItemExtent,
+                      itemCount: widget.subtitles.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return _SubtitleItem(
+                            title: '关闭',
+                            subtitle: '',
+                            isSelected: widget.selectedSubtitleGuid == null ||
+                                widget.selectedSubtitleGuid!.isEmpty,
+                            onTap: () => widget.onSubtitleSelected(null),
+                          );
+                        }
 
-                final subtitle = widget.subtitles[index - 1];
-                final label = _buildLabel(subtitle);
-                return _SubtitleItem(
-                  title: label,
-                  subtitle: subtitle.codecName.toUpperCase(),
-                  isSelected: widget.selectedSubtitleGuid == subtitle.guid,
-                  onTap: () => widget.onSubtitleSelected(subtitle.guid),
-                );
-              },
+                        final subtitle = widget.subtitles[index - 1];
+                        return _SubtitleItem(
+                          title: _buildTitle(subtitle),
+                          subtitle: _buildSubtitle(subtitle),
+                          isSelected: widget.selectedSubtitleGuid == subtitle.guid,
+                          isExternal: subtitle.isExternal == 1,
+                          onDelete: widget.onRequestDelete == null
+                              ? null
+                              : () => widget.onRequestDelete!.call(subtitle),
+                          onTap: () => widget.onSubtitleSelected(subtitle.guid),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (widget.isAddMenuExpanded)
+            Positioned(
+              top: 48,
+              right: 12,
+              child: _SubtitleAddMenu(
+                onSearch: widget.onOpenSubtitleSearch,
+                onAddNas: widget.onOpenAddNasSubtitle,
+                onAddLocal: widget.onOpenAddLocalSubtitle,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _buildTitle(SubtitleStream subtitle) {
+    final languageName = FnDataConvertor.getLanguageName(
+      subtitle.language,
+      widget.iso6391Map,
+      widget.iso6392Map,
+    );
+    final buffer = StringBuffer(languageName);
+    if (subtitle.isExternal == 1) {
+      buffer.write(' - 外挂');
+    }
+    if (subtitle.isDefault == 1) {
+      buffer.write(' - 默认');
+    }
+    return buffer.toString();
+  }
+
+  String _buildSubtitle(SubtitleStream subtitle) {
+    final parts = <String>[
+      subtitle.format.toUpperCase(),
+      if (subtitle.title.isNotEmpty) subtitle.title,
+    ];
+    return parts.join('  ');
+  }
+}
+
+class _SubtitleFlyoutHeader extends StatelessWidget {
+  final bool canAdjustSubtitle;
+  final bool isAddMenuExpanded;
+  final VoidCallback onAdjustmentClicked;
+  final ValueChanged<bool> onAddMenuExpandedChanged;
+
+  const _SubtitleFlyoutHeader({
+    required this.canAdjustSubtitle,
+    required this.isAddMenuExpanded,
+    required this.onAdjustmentClicked,
+    required this.onAddMenuExpandedChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(
+          child: Text(
+            '字幕',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        _HeaderPillButton(
+          label: '调整',
+          enabled: canAdjustSubtitle,
+          onPressed: onAdjustmentClicked,
+        ),
+        const SizedBox(width: 8),
+        _HeaderPillButton(
+          label: '添加',
+          trailing: Icon(
+            isAddMenuExpanded
+                ? FluentIcons.chevron_up_small
+                : FluentIcons.chevron_down_small,
+            size: 12,
+            color: _subtitleDefaultTextColor,
+          ),
+          onPressed: () => onAddMenuExpandedChanged(!isAddMenuExpanded),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeaderPillButton extends StatefulWidget {
+  final String label;
+  final bool enabled;
+  final Widget? trailing;
+  final VoidCallback onPressed;
+
+  const _HeaderPillButton({
+    required this.label,
+    required this.onPressed,
+    this.enabled = true,
+    this.trailing,
+  });
+
+  @override
+  State<_HeaderPillButton> createState() => _HeaderPillButtonState();
+}
+
+class _HeaderPillButtonState extends State<_HeaderPillButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: widget.enabled ? 1 : 0.4,
+      child: MouseRegion(
+        cursor: widget.enabled
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.enabled ? widget.onPressed : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: _isHovered ? _subtitleHoverBackgroundColor : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _subtitleFlyoutBorderColor),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.label,
+                  style: const TextStyle(
+                    color: _subtitleDefaultTextColor,
+                    fontSize: 12,
+                  ),
+                ),
+                if (widget.trailing != null) ...[
+                  const SizedBox(width: 4),
+                  widget.trailing!,
+                ],
+              ],
             ),
           ),
         ),
       ),
     );
   }
+}
 
-  String _buildLabel(SubtitleStream subtitle) {
-    final language =
-        subtitle.language.isNotEmpty ? subtitle.language.toUpperCase() : 'SUB';
-    if (subtitle.isExternal == 1) {
-      return '$language 外挂';
-    }
-    return subtitle.title.isNotEmpty ? subtitle.title : language;
+class _SubtitleAddMenu extends StatelessWidget {
+  final VoidCallback onSearch;
+  final VoidCallback onAddNas;
+  final VoidCallback onAddLocal;
+
+  const _SubtitleAddMenu({
+    required this.onSearch,
+    required this.onAddNas,
+    required this.onAddLocal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 210,
+      decoration: BoxDecoration(
+        color: _subtitleFlyoutBackgroundColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _subtitleFlyoutBorderColor),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SubtitleAddMenuItem(
+            label: '搜索字幕',
+            icon: FluentIcons.search,
+            onTap: onSearch,
+          ),
+          _SubtitleAddMenuItem(
+            label: '添加 NAS 字幕文件',
+            icon: FluentIcons.storage_optical,
+            onTap: onAddNas,
+          ),
+          _SubtitleAddMenuItem(
+            label: '添加电脑字幕文件',
+            icon: FluentIcons.devices3,
+            onTap: onAddLocal,
+          ),
+        ],
+      ),
+    );
   }
 }
 
-class _SubtitleItem extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final bool isSelected;
+class _SubtitleAddMenuItem extends StatefulWidget {
+  final String label;
+  final IconData icon;
   final VoidCallback onTap;
 
-  const _SubtitleItem({
-    required this.title,
-    required this.subtitle,
-    required this.isSelected,
+  const _SubtitleAddMenuItem({
+    required this.label,
+    required this.icon,
     required this.onTap,
   });
 
   @override
-  State<_SubtitleItem> createState() => _SubtitleItemState();
+  State<_SubtitleAddMenuItem> createState() => _SubtitleAddMenuItemState();
 }
 
-class _SubtitleItemState extends State<_SubtitleItem> {
+class _SubtitleAddMenuItemState extends State<_SubtitleAddMenuItem> {
   bool _isHovered = false;
 
   @override
@@ -488,10 +774,316 @@ class _SubtitleItemState extends State<_SubtitleItem> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
+            color: _isHovered ? _subtitleHoverBackgroundColor : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(widget.icon, size: 16, color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SubtitleAdjustmentPanel extends StatelessWidget {
+  final SubtitleSettings settings;
+  final ValueChanged<SubtitleSettings> onSettingsChanged;
+  final VoidCallback onBack;
+
+  const _SubtitleAdjustmentPanel({
+    required this.settings,
+    required this.onSettingsChanged,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: _subtitleFlyoutWidth,
+      height: _subtitleFlyoutPanelHeight,
+      decoration: BoxDecoration(
+        color: _subtitleFlyoutBackgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _subtitleFlyoutBorderColor),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(FluentIcons.back, size: 12),
+                  onPressed: onBack,
+                ),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    '调整字幕',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                _HeaderPillButton(
+                  label: '重置',
+                  onPressed: () => onSettingsChanged(const SubtitleSettings()),
+                ),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(size: 1),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _AdjustmentSliderSection(
+                    title: '偏移',
+                    value: settings.offsetSeconds,
+                    min: -5,
+                    max: 5,
+                    leftLabel: '-5秒',
+                    rightLabel: '+5秒',
+                    suffix: '秒',
+                    onChanged: (value) =>
+                        onSettingsChanged(settings.copyWith(offsetSeconds: value)),
+                  ),
+                  const SizedBox(height: 18),
+                  _AdjustmentSliderSection(
+                    title: '位置',
+                    value: settings.verticalPosition,
+                    min: 0,
+                    max: 1,
+                    leftLabel: '底部',
+                    rightLabel: '顶部',
+                    onChanged: (value) => onSettingsChanged(
+                      settings.copyWith(verticalPosition: value),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _AdjustmentSliderSection(
+                    title: '字号',
+                    value: settings.fontScale,
+                    min: 0.5,
+                    max: 1.5,
+                    leftLabel: '最小',
+                    rightLabel: '最大',
+                    onChanged: (value) => onSettingsChanged(
+                      settings.copyWith(
+                        fontScale: value,
+                        fontSize: 24.0 * value,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdjustmentSliderSection extends StatefulWidget {
+  final String title;
+  final double value;
+  final double min;
+  final double max;
+  final String leftLabel;
+  final String rightLabel;
+  final String? suffix;
+  final ValueChanged<double> onChanged;
+
+  const _AdjustmentSliderSection({
+    required this.title,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.leftLabel,
+    required this.rightLabel,
+    required this.onChanged,
+    this.suffix,
+  });
+
+  @override
+  State<_AdjustmentSliderSection> createState() =>
+      _AdjustmentSliderSectionState();
+}
+
+class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: _format(widget.value));
+  }
+
+  @override
+  void didUpdateWidget(covariant _AdjustmentSliderSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextText = _format(widget.value);
+    if (_controller.text != nextText) {
+      _controller.text = nextText;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _format(double value) {
+    if (value == value.roundToDouble()) {
+      return value.round().toString();
+    }
+    return value.toStringAsFixed(1);
+  }
+
+  double _normalize(double value) {
+    final clamped = value.clamp(widget.min, widget.max);
+    return (clamped * 10).round() / 10;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: Slider(
+                min: widget.min,
+                max: widget.max,
+                divisions: ((widget.max - widget.min) * 10).round(),
+                value: widget.value.clamp(widget.min, widget.max),
+                onChanged: (value) => widget.onChanged(_normalize(value)),
+              ),
+            ),
+            if (widget.suffix != null) ...[
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 72,
+                child: TextBox(
+                  controller: _controller,
+                  textAlign: TextAlign.center,
+                  onSubmitted: (text) {
+                    final value = double.tryParse(text);
+                    if (value == null) {
+                      _controller.text = _format(widget.value);
+                      return;
+                    }
+                    widget.onChanged(_normalize(value));
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.suffix!,
+                style: const TextStyle(
+                  color: _subtitleDefaultTextColor,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ],
+        ),
+        Row(
+          children: [
+            Text(
+              widget.leftLabel,
+              style: const TextStyle(
+                color: _subtitleDefaultTextColor,
+                fontSize: 12,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              widget.rightLabel,
+              style: const TextStyle(
+                color: _subtitleDefaultTextColor,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SubtitleItem extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final bool isSelected;
+  final bool isExternal;
+  final VoidCallback onTap;
+  final VoidCallback? onDelete;
+
+  const _SubtitleItem({
+    required this.title,
+    required this.subtitle,
+    required this.isSelected,
+    required this.onTap,
+    this.isExternal = false,
+    this.onDelete,
+  });
+
+  @override
+  State<_SubtitleItem> createState() => _SubtitleItemState();
+}
+
+class _SubtitleItemState extends State<_SubtitleItem> {
+  bool _isHovered = false;
+  bool _isDeleteHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() {
+        _isHovered = false;
+        _isDeleteHovered = false;
+      }),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
             color: _isHovered || widget.isSelected
                 ? _subtitleHoverBackgroundColor
                 : Colors.transparent,
@@ -501,6 +1093,7 @@ class _SubtitleItemState extends State<_SubtitleItem> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       widget.title,
@@ -510,18 +1103,24 @@ class _SubtitleItemState extends State<_SubtitleItem> {
                         color: widget.isSelected
                             ? _subtitleSelectedTextColor
                             : Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.subtitle,
-                      style: const TextStyle(
-                        color: _subtitleDefaultTextColor,
-                        fontSize: 11,
+                    if (widget.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: widget.isSelected
+                              ? _subtitleSelectedTextColor.withValues(alpha: 0.8)
+                              : _subtitleDefaultTextColor.withValues(alpha: 0.8),
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -532,6 +1131,31 @@ class _SubtitleItemState extends State<_SubtitleItem> {
                     FluentIcons.check_mark,
                     size: 14,
                     color: _subtitleSelectedTextColor,
+                  ),
+                )
+              else if (widget.isExternal && widget.onDelete != null && _isHovered)
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  onEnter: (_) => setState(() => _isDeleteHovered = true),
+                  onExit: (_) => setState(() => _isDeleteHovered = false),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: widget.onDelete,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: _isDeleteHovered
+                            ? _subtitleHoverBackgroundColor
+                            : Colors.transparent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        FluentIcons.delete,
+                        size: 12,
+                        color: _subtitleDefaultTextColor,
+                      ),
+                    ),
                   ),
                 ),
             ],
