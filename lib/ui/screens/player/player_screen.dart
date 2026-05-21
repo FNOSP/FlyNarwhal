@@ -10,6 +10,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 import '../../../data/models/episode_list_response.dart';
+import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/file_providers.dart';
@@ -562,18 +563,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return videoStream.wrapper == 'MP4' && isOriginalQuality;
   }
 
+  PlayRecordRequest? _buildPlayRecordRequest({
+    required int positionSeconds,
+  }) {
+    final cache = _playingInfoCache;
+    final fileStream = cache?.currentFileStream;
+    final videoStream = cache?.currentVideoStream;
+    if (cache == null || fileStream == null || videoStream == null) {
+      return null;
+    }
+
+    final quality = cache.currentQuality;
+    return PlayRecordRequest(
+      itemGuid: cache.itemGuid ?? _currentItemGuid,
+      mediaGuid: fileStream.guid,
+      videoGuid: videoStream.guid,
+      audioGuid: cache.currentAudioStream?.guid ?? '',
+      subtitleGuid: cache.currentSubtitleStream?.guid,
+      resolution: quality?.resolution ?? videoStream.resolutionType,
+      bitrate: quality?.bitrate ?? videoStream.bps,
+      ts: positionSeconds,
+      duration: videoStream.duration,
+      playLink: cache.playLink,
+    );
+  }
+
   Future<void> _callPlayRecordAtCurrentPosition() async {
     final player = _player;
     if (player == null) return;
     final position = player.state.position.inMilliseconds;
     if (position < 0) return;
+    final request = _buildPlayRecordRequest(positionSeconds: position ~/ 1000);
+    if (request == null) return;
 
     try {
-      await ref.read(playerServiceProvider).updatePlayRecord(
-            guid: _currentItemGuid,
-            ts: position ~/ 1000,
-            duration: _duration > 0 ? _duration ~/ 1000 : null,
-          );
+      await ref.read(playerServiceProvider).updatePlayRecord(request);
     } catch (e) {
       debugPrint('[Player] play record update during switch failed: $e');
     }
@@ -1366,13 +1390,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final position = _player!.state.position.inMilliseconds;
       if (position != _lastRecordedPosition && position > 0) {
         _lastRecordedPosition = position;
+        final request =
+            _buildPlayRecordRequest(positionSeconds: position ~/ 1000);
+        if (request == null) return;
         try {
           final playerService = ref.read(playerServiceProvider);
-          await playerService.updatePlayRecord(
-            guid: _currentItemGuid,
-            ts: position ~/ 1000,
-            duration: _duration > 0 ? _duration ~/ 1000 : null,
-          );
+          await playerService.updatePlayRecord(request);
         } catch (_) {
           // Ignore record errors
         }

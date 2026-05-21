@@ -35,6 +35,41 @@ class PlayInfoRequest {
 }
 
 @JsonSerializable(createFactory: false)
+class PlayRecordRequest {
+  @JsonKey(name: 'item_guid')
+  final String itemGuid;
+  @JsonKey(name: 'media_guid')
+  final String mediaGuid;
+  @JsonKey(name: 'video_guid')
+  final String videoGuid;
+  @JsonKey(name: 'audio_guid')
+  final String audioGuid;
+  @JsonKey(name: 'subtitle_guid')
+  final String? subtitleGuid;
+  final String resolution;
+  final int bitrate;
+  final int ts;
+  final int duration;
+  @JsonKey(name: 'play_link')
+  final String? playLink;
+
+  const PlayRecordRequest({
+    required this.itemGuid,
+    required this.mediaGuid,
+    required this.videoGuid,
+    required this.audioGuid,
+    this.subtitleGuid,
+    required this.resolution,
+    required this.bitrate,
+    required this.ts,
+    required this.duration,
+    this.playLink,
+  });
+
+  Map<String, dynamic> toJson() => _$PlayRecordRequestToJson(this);
+}
+
+@JsonSerializable(createFactory: false)
 class MediaLibraryBrowseRequest {
   @JsonKey(name: 'ancestor_guid')
   final String? ancestorGuid;

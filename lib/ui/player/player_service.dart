@@ -63,16 +63,8 @@ class PlayerService {
   }
 
   // Update play record (progress).
-  Future<void> updatePlayRecord({
-    required String guid,
-    required int ts,
-    int? duration,
-  }) async {
-    final result = await _mediaRemoteDataSource.updatePlayRecord(
-      guid: guid,
-      ts: ts,
-      duration: duration,
-    );
+  Future<void> updatePlayRecord(PlayRecordRequest request) async {
+    final result = await _mediaRemoteDataSource.updatePlayRecord(request);
     _unwrapResult(result);
   }
 

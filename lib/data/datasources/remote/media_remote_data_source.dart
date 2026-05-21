@@ -237,18 +237,10 @@ class MediaRemoteDataSource {
   }
 
   /// Persist the current playback progress.
-  Future<ApiResult<bool>> updatePlayRecord({
-    required String guid,
-    required int ts,
-    int? duration,
-  }) async {
+  Future<ApiResult<bool>> updatePlayRecord(PlayRecordRequest request) async {
     final result = await _dioClient.post<bool>(
       ApiEndpoints.playRecord,
-      data: {
-        'guid': guid,
-        'ts': ts,
-        if (duration != null) 'duration': duration,
-      },
+      data: request.toJson(),
       converter: (data) => _parseSuccessResponse(data),
     );
     return result;

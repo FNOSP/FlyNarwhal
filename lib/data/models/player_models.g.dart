@@ -185,24 +185,6 @@ Map<String, dynamic> _$MediaTranscodeResponseToJson(
       'video': instance.video,
     };
 
-MediaResetQualityResponse _$MediaResetQualityResponseFromJson(
-        Map<String, dynamic> json) =>
-    MediaResetQualityResponse(
-      hlsTime: (json['hlsTime'] as num).toInt(),
-      reqId: json['reqid'] as String,
-      result: json['result'] as String,
-      updateM3u8: json['updateM3u8'] as bool,
-    );
-
-Map<String, dynamic> _$MediaResetQualityResponseToJson(
-        MediaResetQualityResponse instance) =>
-    <String, dynamic>{
-      'hlsTime': instance.hlsTime,
-      'reqid': instance.reqId,
-      'result': instance.result,
-      'updateM3u8': instance.updateM3u8,
-    };
-
 SetConfigByItemRequest _$SetConfigByItemRequestFromJson(
         Map<String, dynamic> json) =>
     SetConfigByItemRequest(
