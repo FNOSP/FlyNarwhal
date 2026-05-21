@@ -70,6 +70,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
   bool _popupHovered = false;
   bool _isAdjustmentMode = false;
   bool _isAddMenuExpanded = false;
+  late SubtitleSettings _liveSubtitleSettings;
   final GlobalKey _buttonKey = GlobalKey();
   final GlobalKey _flyoutKey = GlobalKey();
   OverlayEntry? _overlayEntry;
@@ -82,6 +83,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
   @override
   void initState() {
     super.initState();
+    _liveSubtitleSettings = widget.subtitleSettings;
     _animationController = AnimationController(
       duration: const Duration(milliseconds: _subtitleAnimationDurationMs),
       vsync: this,
@@ -99,6 +101,36 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isActiveControl && !widget.isActiveControl) {
       unawaited(_forceCloseFlyout());
+      return;
+    }
+
+    final shouldSyncLiveSubtitleSettings = _areSubtitleSettingsEqual(
+      _liveSubtitleSettings,
+      oldWidget.subtitleSettings,
+    );
+    if (shouldSyncLiveSubtitleSettings &&
+        !_areSubtitleSettingsEqual(
+          oldWidget.subtitleSettings,
+          widget.subtitleSettings,
+        )) {
+      _liveSubtitleSettings = widget.subtitleSettings;
+    }
+
+    final shouldRefreshOverlay = _overlayEntry != null &&
+        _isExpanded &&
+        (shouldSyncLiveSubtitleSettings &&
+                !_areSubtitleSettingsEqual(
+                  oldWidget.subtitleSettings,
+                  widget.subtitleSettings,
+                ) ||
+            oldWidget.subtitles != widget.subtitles ||
+            oldWidget.selectedSubtitleGuid != widget.selectedSubtitleGuid ||
+            oldWidget.canAdjustSubtitle != widget.canAdjustSubtitle ||
+            oldWidget.iso6391Map != widget.iso6391Map ||
+            oldWidget.iso6392Map != widget.iso6392Map);
+
+    if (shouldRefreshOverlay) {
+      _scheduleOverlayRebuild();
     }
   }
 
@@ -133,6 +165,32 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
     if (!mounted) return;
     setState(updater);
     _overlayEntry?.markNeedsBuild();
+  }
+
+  void _scheduleOverlayRebuild() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _overlayEntry == null) return;
+      _overlayEntry?.markNeedsBuild();
+    });
+  }
+
+  bool _areSubtitleSettingsEqual(
+    SubtitleSettings left,
+    SubtitleSettings right,
+  ) {
+    return left.offsetSeconds == right.offsetSeconds &&
+        left.verticalPosition == right.verticalPosition &&
+        left.fontScale == right.fontScale &&
+        left.fontSize == right.fontSize &&
+        left.fontColor == right.fontColor &&
+        left.backgroundColor == right.backgroundColor;
+  }
+
+  void _handleSubtitleSettingsChanged(SubtitleSettings settings) {
+    _updateOverlayState(() {
+      _liveSubtitleSettings = settings;
+    });
+    widget.onSubtitleSettingsChanged(settings);
   }
 
   double _calculateBridgeWidth(Size buttonSize) {
@@ -267,7 +325,10 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
       return;
     }
 
-    setState(() => _isExpanded = true);
+    setState(() {
+      _isExpanded = true;
+      _liveSubtitleSettings = widget.subtitleSettings;
+    });
     _showOverlay();
     _animationController.forward(from: 0);
     widget.onHoverStateChanged?.call(true);
@@ -370,9 +431,10 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
       },
       child: _isAdjustmentMode
           ? _SubtitleAdjustmentPanel(
-              settings: widget.subtitleSettings,
-              onBack: () => _updateOverlayState(() => _isAdjustmentMode = false),
-              onSettingsChanged: widget.onSubtitleSettingsChanged,
+              settings: _liveSubtitleSettings,
+              onBack: () =>
+                  _updateOverlayState(() => _isAdjustmentMode = false),
+              onSettingsChanged: _handleSubtitleSettingsChanged,
             )
           : _SubtitleFlyoutContent(
               subtitles: widget.subtitles,
@@ -384,6 +446,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
               onAddMenuExpandedChanged: (expanded) =>
                   _updateOverlayState(() => _isAddMenuExpanded = expanded),
               onAdjustmentClicked: () => _updateOverlayState(() {
+                _liveSubtitleSettings = widget.subtitleSettings;
                 _isAdjustmentMode = true;
                 _isAddMenuExpanded = false;
               }),
@@ -536,7 +599,8 @@ class _SubtitleFlyoutContentState extends State<_SubtitleFlyoutContent> {
                         return _SubtitleItem(
                           title: _buildTitle(subtitle),
                           subtitle: _buildSubtitle(subtitle),
-                          isSelected: widget.selectedSubtitleGuid == subtitle.guid,
+                          isSelected:
+                              widget.selectedSubtitleGuid == subtitle.guid,
                           isExternal: subtitle.isExternal == 1,
                           onDelete: widget.onRequestDelete == null
                               ? null
@@ -675,7 +739,9 @@ class _HeaderPillButtonState extends State<_HeaderPillButton> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: _isHovered ? _subtitleHoverBackgroundColor : Colors.transparent,
+              color: _isHovered
+                  ? _subtitleHoverBackgroundColor
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: _subtitleFlyoutBorderColor),
             ),
@@ -776,7 +842,8 @@ class _SubtitleAddMenuItemState extends State<_SubtitleAddMenuItem> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: _isHovered ? _subtitleHoverBackgroundColor : Colors.transparent,
+            color:
+                _isHovered ? _subtitleHoverBackgroundColor : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -862,8 +929,8 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                     leftLabel: '-5秒',
                     rightLabel: '+5秒',
                     suffix: '秒',
-                    onChanged: (value) =>
-                        onSettingsChanged(settings.copyWith(offsetSeconds: value)),
+                    onChanged: (value) => onSettingsChanged(
+                        settings.copyWith(offsetSeconds: value)),
                   ),
                   const SizedBox(height: 18),
                   _AdjustmentSliderSection(
@@ -960,9 +1027,8 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
     return value.toStringAsFixed(1);
   }
 
-  double _normalize(double value) {
-    final clamped = value.clamp(widget.min, widget.max);
-    return (clamped * 10).round() / 10;
+  double _clampValue(double value) {
+    return value.clamp(widget.min, widget.max);
   }
 
   @override
@@ -985,9 +1051,8 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
               child: Slider(
                 min: widget.min,
                 max: widget.max,
-                divisions: ((widget.max - widget.min) * 10).round(),
                 value: widget.value.clamp(widget.min, widget.max),
-                onChanged: (value) => widget.onChanged(_normalize(value)),
+                onChanged: (value) => widget.onChanged(_clampValue(value)),
               ),
             ),
             if (widget.suffix != null) ...[
@@ -1003,7 +1068,7 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
                       _controller.text = _format(widget.value);
                       return;
                     }
-                    widget.onChanged(_normalize(value));
+                    widget.onChanged(_clampValue(value));
                   },
                 ),
               ),
@@ -1115,8 +1180,10 @@ class _SubtitleItemState extends State<_SubtitleItem> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: widget.isSelected
-                              ? _subtitleSelectedTextColor.withValues(alpha: 0.8)
-                              : _subtitleDefaultTextColor.withValues(alpha: 0.8),
+                              ? _subtitleSelectedTextColor.withValues(
+                                  alpha: 0.8)
+                              : _subtitleDefaultTextColor.withValues(
+                                  alpha: 0.8),
                           fontSize: 12,
                         ),
                       ),
@@ -1133,7 +1200,9 @@ class _SubtitleItemState extends State<_SubtitleItem> {
                     color: _subtitleSelectedTextColor,
                   ),
                 )
-              else if (widget.isExternal && widget.onDelete != null && _isHovered)
+              else if (widget.isExternal &&
+                  widget.onDelete != null &&
+                  _isHovered)
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   onEnter: (_) => setState(() => _isDeleteHovered = true),

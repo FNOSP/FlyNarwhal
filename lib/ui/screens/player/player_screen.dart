@@ -232,6 +232,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }
       },
     );
+
+    ref.listenManual<SubtitleSettings>(
+      subtitleSettingsProvider,
+      (previous, next) {
+        if (!mounted) return;
+        if (previous?.offsetSeconds == next.offsetSeconds) {
+          return;
+        }
+        _syncSubtitleOffsetToHlsRepository(next);
+      },
+    );
   }
 
   Future<void> _ensureSubtitleLanguageMapsLoaded() async {
@@ -269,8 +280,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       videoStream.mediaGuid,
       ip: playerService.getIpHash(prefs.getToken() ?? ''),
     );
-    final subtitleStreams = nextStreamInfo.subtitleStreams ?? const <SubtitleStream>[];
-    final currentGuid = _selectedSubtitleGuid ?? cache.currentSubtitleStream?.guid;
+    final subtitleStreams =
+        nextStreamInfo.subtitleStreams ?? const <SubtitleStream>[];
+    final currentGuid =
+        _selectedSubtitleGuid ?? cache.currentSubtitleStream?.guid;
 
     SubtitleStream? nextSelectedSubtitle;
     if (targetTrimId != null && targetTrimId.isNotEmpty) {
@@ -312,10 +325,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         context: context,
         builder: (_) => SubtitleSearchDialog(
           mediaFileName: currentFile.fileName,
-          initialTrimIds: (_playingInfoCache?.currentSubtitleStreamList ?? const [])
-              .map((subtitle) => subtitle.trimId)
-              .where((trimId) => trimId.isNotEmpty)
-              .toList(),
+          initialTrimIds:
+              (_playingInfoCache?.currentSubtitleStreamList ?? const [])
+                  .map((subtitle) => subtitle.trimId)
+                  .where((trimId) => trimId.isNotEmpty)
+                  .toList(),
           onSearch: (language) {
             return ref.read(fileRepositoryProvider).searchSubtitles(
                   mediaGuid: currentFile.guid,
@@ -365,7 +379,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           currentPath: _resolveCurrentFilePath(),
           onConfirm: (paths) async {
             try {
-              await ref.read(fileRepositoryProvider).markSubtitle(mediaGuid, paths);
+              await ref
+                  .read(fileRepositoryProvider)
+                  .markSubtitle(mediaGuid, paths);
               await _refreshSubtitleStreams();
               if (!mounted) return;
               _toastManager.showToast('NAS 字幕添加成功', type: ToastType.success);
@@ -962,6 +978,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  void _syncSubtitleOffsetToHlsRepository(SubtitleSettings settings) {
+    _hlsSubtitleRepository?.updateSubtitleOffsetSeconds(settings.offsetSeconds);
+  }
+
   void _startHlsSubtitleSessionAsync({
     required Dio dio,
     required SubtitleStream? subtitleStream,
@@ -997,6 +1017,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       dio: dio,
       headers: _buildPlayerHeaders(),
       subtitlePlaylistUrl: subtitlePlaylistUrl,
+    );
+    repository.updateSubtitleOffsetSeconds(
+      ref.read(subtitleSettingsProvider).offsetSeconds,
     );
     void listener() {
       _hlsSubtitleTexts.value = repository.visibleTexts.value;

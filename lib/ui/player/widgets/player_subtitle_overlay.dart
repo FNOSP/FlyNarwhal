@@ -1,3 +1,5 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../../data/models/player_models.dart';
 
@@ -19,10 +21,23 @@ class PlayerSubtitleOverlay extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    const minBottomPadding = 40.0;
+    const topSafeInset = 40.0;
     final screenHeight = MediaQuery.sizeOf(context).height;
-    final bottomPadding =
-        (screenHeight * settings.verticalPosition).clamp(40.0, screenHeight * 0.5);
+    final joinedLines = lines.join('\n');
     final fontSize = settings.fontSize * settings.fontScale;
+    final lineCount =
+        joinedLines.split('\n').where((line) => line.isNotEmpty).length;
+    final estimatedTextHeight =
+        ((lineCount <= 0 ? 1 : lineCount) * fontSize * 1.35) + 16.0;
+    final maxBottomPadding = (screenHeight - topSafeInset - estimatedTextHeight)
+        .clamp(minBottomPadding, screenHeight - topSafeInset);
+    final bottomPadding = lerpDouble(
+          minBottomPadding,
+          maxBottomPadding,
+          settings.verticalPosition.clamp(0.0, 1.0),
+        ) ??
+        minBottomPadding;
 
     return IgnorePointer(
       child: Align(
@@ -30,7 +45,7 @@ class PlayerSubtitleOverlay extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.fromLTRB(24, 0, 24, bottomPadding),
           child: Text(
-            lines.join('\n'),
+            joinedLines,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: fontSize,

@@ -28,6 +28,7 @@ class HlsSubtitleRepository {
   bool _initialized = false;
   int _lastObservedPositionMs = -1;
   int _lastFetchCheckEpochMs = 0;
+  int _subtitleOffsetMs = 0;
   Future<void>? _pendingFetch;
 
   HlsSubtitleRepository({
@@ -45,8 +46,9 @@ class HlsSubtitleRepository {
       ..clear()
       ..addAll(_parseSegments(playlistContent));
     _initialized = true;
-    await _fetchSegmentsAround(startPositionMs);
-    _updateVisibleTexts(startPositionMs);
+    final effectivePositionMs = _effectivePositionMs(startPositionMs);
+    await _fetchSegmentsAround(effectivePositionMs);
+    _updateVisibleTexts(effectivePositionMs);
   }
 
   void onPlaybackPosition(int positionMs) {
@@ -57,10 +59,32 @@ class HlsSubtitleRepository {
     final isSeek = _lastObservedPositionMs >= 0 &&
         (positionMs - _lastObservedPositionMs).abs() > _seekThresholdMs;
     _lastObservedPositionMs = positionMs;
-    _updateVisibleTexts(positionMs);
+    final effectivePositionMs = _effectivePositionMs(positionMs);
+    _updateVisibleTexts(effectivePositionMs);
 
-    if (_shouldFetch(positionMs, force: isSeek)) {
-      _pendingFetch ??= _fetchSegmentsAround(positionMs)
+    if (_shouldFetch(effectivePositionMs, force: isSeek)) {
+      _pendingFetch ??= _fetchSegmentsAround(effectivePositionMs)
+          .whenComplete(() => _pendingFetch = null);
+    }
+  }
+
+  void updateSubtitleOffsetSeconds(double offsetSeconds) {
+    updateSubtitleOffsetMs((offsetSeconds * 1000).round());
+  }
+
+  void updateSubtitleOffsetMs(int offsetMs) {
+    if (_subtitleOffsetMs == offsetMs) {
+      return;
+    }
+    _subtitleOffsetMs = offsetMs;
+    if (_disposed || !_initialized) {
+      return;
+    }
+
+    final effectivePositionMs = _effectivePositionMs(_lastObservedPositionMs);
+    _updateVisibleTexts(effectivePositionMs);
+    if (_shouldFetch(effectivePositionMs, force: true)) {
+      _pendingFetch ??= _fetchSegmentsAround(effectivePositionMs)
           .whenComplete(() => _pendingFetch = null);
     }
   }
@@ -232,6 +256,13 @@ class HlsSubtitleRepository {
       return;
     }
     visibleTexts.value = List<String>.unmodifiable(next);
+  }
+
+  int _effectivePositionMs(int positionMs) {
+    if (positionMs < 0) {
+      return positionMs;
+    }
+    return positionMs - _subtitleOffsetMs;
   }
 
   List<HlsSubtitleSegment> _parseSegments(String content) {
