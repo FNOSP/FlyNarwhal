@@ -1,5 +1,3 @@
-import 'package:dio/dio.dart';
-
 import '../../../core/network/api_result.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/constants/app_constants.dart';
@@ -131,21 +129,10 @@ class MediaRemoteDataSource {
 
   /// Download external subtitle content for media_kit rendering.
   Future<ApiResult<String>> downloadExternalSubtitle(String guid) async {
-    try {
-      final response = await _dioClient.dio.get<String>(
-        ApiEndpoints.subtitleDownloadByGuid(guid),
-        options: Options(responseType: ResponseType.plain),
-      );
-      return Success(response.data ?? '');
-    } on DioException catch (e) {
-      if (e.error is FailureInfo) {
-        return ResultFailure(e.error as FailureInfo);
-      }
-      final message = e.message ?? 'Failed to download subtitle';
-      return ResultFailure(FailureInfo.fromMessage(message));
-    } catch (e) {
-      return ResultFailure(FailureInfo.fromMessage(e.toString()));
-    }
+    final result = await _dioClient.get<String>(
+      ApiEndpoints.subtitleDownloadByGuid(guid),
+    );
+    return result;
   }
 
   /// Get person list by guid
@@ -385,15 +372,41 @@ class MediaRemoteDataSource {
   }
 
   ItemResponse _parseItemDetailResponse(dynamic data) {
-    final baseResponse = FnBaseResponse<ItemResponse>.fromJson(
-      data,
-      (json) => ItemResponse.fromJson(json as Map<String, dynamic>),
-    );
-    if (baseResponse.code != ResponseCodes.success ||
-        baseResponse.data == null) {
-      throw Exception(baseResponse.msg);
+    try {
+      final baseResponse = FnBaseResponse<ItemResponse>.fromJson(
+        data,
+        (json) => ItemResponse.fromJson(json as Map<String, dynamic>),
+      );
+      if (baseResponse.code != ResponseCodes.success ||
+          baseResponse.data == null) {
+        throw Exception(
+          'Item detail response invalid: '
+          'code=${baseResponse.code}, msg=${baseResponse.msg}, '
+          '${_describeItemDetailData(data)}',
+        );
+      }
+      return baseResponse.data!;
+    } catch (e) {
+      throw Exception(
+        'Item detail parse failed: ${_describeItemDetailData(data)}; error=$e',
+      );
     }
-    return baseResponse.data!;
+  }
+
+  String _describeItemDetailData(dynamic data) {
+    final buffer = StringBuffer('type=${data.runtimeType}');
+    if (data is Map) {
+      final keys = data.keys.take(10).map((key) => key.toString()).join(', ');
+      buffer.write(', keys=[$keys]');
+      final payload = data['data'];
+      buffer.write(', dataType=${payload.runtimeType}');
+      if (payload is Map) {
+        final payloadKeys =
+            payload.keys.take(10).map((key) => key.toString()).join(', ');
+        buffer.write(', dataKeys=[$payloadKeys]');
+      }
+    }
+    return buffer.toString();
   }
 
   StreamListResponse? _parseOptionalStreamListResponse(dynamic data) {

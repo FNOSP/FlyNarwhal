@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../response_decoder.dart' as response_decoder;
+
 /// Logging interceptor for request/response debugging
 class LoggingInterceptor extends Interceptor {
   final bool printRequestBody;
@@ -42,9 +44,9 @@ class LoggingInterceptor extends Interceptor {
       debugPrint('[Dio] <-- $method $uri [$statusCode]');
 
       if (printResponseBody && response.data != null) {
-        final data = response.data.toString();
-        // Limit response body output
-        final truncated = data.length > 500 ? '${data.substring(0, 1000)}...' : data;
+        final truncated = response_decoder.ResponseDecoder.formatForLogging(
+          response.data,
+        );
         debugPrint('[Dio] Response: $truncated');
       }
     }
@@ -64,7 +66,11 @@ class LoggingInterceptor extends Interceptor {
       debugPrint('[Dio] Type: ${err.type}');
 
       if (err.response?.data != null) {
-        debugPrint('[Dio] Response: ${err.response?.data}');
+        final responsePreview =
+            response_decoder.ResponseDecoder.formatForLogging(
+          err.response?.data,
+        );
+        debugPrint('[Dio] Response: $responsePreview');
       }
     }
 

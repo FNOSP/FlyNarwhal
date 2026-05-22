@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../error/error_handler.dart';
 import '../network/api_result.dart';
+import 'response_decoder.dart' as response_decoder;
 import 'interceptors/index.dart';
 
 /// Configuration for DioClient
@@ -40,12 +43,13 @@ class DioClient {
     required String Function()? getBaseUrl,
     DioClientConfig config = const DioClientConfig(),
     Dio? dio,
-  })  : _dio = dio ?? Dio(BaseOptions(
-          connectTimeout: config.connectTimeout,
-          receiveTimeout: config.receiveTimeout,
-          sendTimeout: config.sendTimeout,
-          responseType: ResponseType.json,
-        )),
+  })  : _dio = dio ??
+            Dio(BaseOptions(
+              connectTimeout: config.connectTimeout,
+              receiveTimeout: config.receiveTimeout,
+              sendTimeout: config.sendTimeout,
+              responseType: ResponseType.json,
+            )),
         _config = config {
     _setupInterceptorsWithCallbacks(
       getToken: getToken,
@@ -109,7 +113,11 @@ class DioClient {
     T Function(dynamic data)? converter,
   }) async {
     return _safeRequest(
-      () => _dio.get(path, queryParameters: queryParameters, options: options),
+      () => _dio.get(
+        path,
+        queryParameters: queryParameters,
+        options: _withBytesResponseType(options),
+      ),
       converter: converter,
     );
   }
@@ -123,7 +131,12 @@ class DioClient {
     T Function(dynamic data)? converter,
   }) async {
     return _safeRequest(
-      () => _dio.post(path, data: data, queryParameters: queryParameters, options: options),
+      () => _dio.post(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: _withBytesResponseType(options),
+      ),
       converter: converter,
     );
   }
@@ -137,7 +150,12 @@ class DioClient {
     T Function(dynamic data)? converter,
   }) async {
     return _safeRequest(
-      () => _dio.put(path, data: data, queryParameters: queryParameters, options: options),
+      () => _dio.put(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: _withBytesResponseType(options),
+      ),
       converter: converter,
     );
   }
@@ -151,7 +169,12 @@ class DioClient {
     T Function(dynamic data)? converter,
   }) async {
     return _safeRequest(
-      () => _dio.delete(path, data: data, queryParameters: queryParameters, options: options),
+      () => _dio.delete(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: _withBytesResponseType(options),
+      ),
       converter: converter,
     );
   }
@@ -163,9 +186,13 @@ class DioClient {
   }) async {
     try {
       final response = await request();
+      final normalizedData =
+          response_decoder.ResponseDecoder.normalizeResponseData(response.data);
 
       // Convert response data if converter is provided
-      final data = converter != null ? converter(response.data) : response.data as T;
+      final data = converter != null
+          ? converter(normalizedData)
+          : _castResponseData<T>(normalizedData);
       return Success(data);
     } on DioException catch (e) {
       // Error was already converted by ErrorInterceptor
@@ -178,6 +205,8 @@ class DioClient {
         code: failure.code,
         displayMessage: failure.displayMessage,
       ));
+    } on FailureInfo catch (e) {
+      return ResultFailure(e);
     } catch (e) {
       final failure = ErrorHandler.handle(e);
       return ResultFailure(FailureInfo(
@@ -186,5 +215,24 @@ class DioClient {
         displayMessage: failure.displayMessage,
       ));
     }
+  }
+
+  Options _withBytesResponseType(Options? options) {
+    return (options ?? Options()).copyWith(responseType: ResponseType.bytes);
+  }
+
+  T _castResponseData<T>(dynamic data) {
+    if (data is T) {
+      return data;
+    }
+    if (T == String) {
+      if (data is String) {
+        return data as T;
+      }
+      return jsonEncode(data) as T;
+    }
+    throw FailureInfo.fromMessage(
+      'Unexpected response type: expected=$T, actual=${data.runtimeType}',
+    );
   }
 }

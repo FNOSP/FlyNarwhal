@@ -75,8 +75,7 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
 
   Future<PlayInfoResponse?> _fetchPlayInfo() async {
     final remote = ref.read(mediaRemoteDataSourceProvider);
-    final result =
-        await remote.getPlayInfo(ItemGuidRequest(itemGuid: guid));
+    final result = await remote.getPlayInfo(ItemGuidRequest(itemGuid: guid));
     return result.dataOrNull;
   }
 
@@ -97,9 +96,10 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
     final remote = ref.read(mediaRemoteDataSourceProvider);
     final tagRepo = ref.read(tagRepositoryProvider);
 
-    final item = await _fetchItemDetail(guid);
+    final itemResult = await _fetchItemDetailResult(guid);
+    final item = itemResult.dataOrNull;
     if (item == null) {
-      throw Exception('未找到分季信息');
+      throw Exception(itemResult.failureOrNull?.displayMessage ?? '未找到分季信息');
     }
     final playInfo = await _fetchPlayInfo();
     final episodes = await _fetchEpisodeList();
@@ -125,9 +125,14 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
   }
 
   Future<ItemResponse?> _fetchItemDetail(String itemGuid) async {
-    final remote = ref.read(mediaRemoteDataSourceProvider);
-    final result = await remote.getItemDetail(itemGuid);
+    final result = await _fetchItemDetailResult(itemGuid);
     return result.dataOrNull;
+  }
+
+  Future<ApiResult<ItemResponse>> _fetchItemDetailResult(
+      String itemGuid) async {
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    return remote.getItemDetail(itemGuid);
   }
 
   void _replaceItem(ItemResponse item) {

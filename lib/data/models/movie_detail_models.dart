@@ -8,7 +8,7 @@ class ItemResponse {
   @JsonKey(name: 'imdb_id')
   final String? imdbId;
   @JsonKey(name: 'trim_id')
-  final String trimId;
+  final String? trimId;
   @JsonKey(name: 'tv_title')
   final String tvTitle;
   @JsonKey(name: 'parent_title')
