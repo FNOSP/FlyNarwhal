@@ -38,7 +38,7 @@ import '../../widgets/nas/add_nas_subtitle_dialog.dart';
 import '../../widgets/toast.dart';
 import '../../widgets/window_caption.dart';
 
-enum _PlayerFlyoutType { speed, episode, quality, subtitle }
+enum _PlayerFlyoutType { nextEpisode, speed, episode, quality, subtitle }
 
 enum _PlaybackIndicatorType { play, pause }
 
@@ -1528,6 +1528,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _handleFlyoutHoverStateChanged(_PlayerFlyoutType type, bool hovered) {
     setState(() {
       switch (type) {
+        case _PlayerFlyoutType.nextEpisode:
+          _isNextEpisodeHovered = hovered;
+          break;
         case _PlayerFlyoutType.speed:
           _isSpeedControlHovered = hovered;
           break;
@@ -1548,6 +1551,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _activeFlyout = null;
       }
     });
+  }
+
+  void _handleNextEpisodeHoverStateChanged(bool hovered) {
+    _handleFlyoutHoverStateChanged(_PlayerFlyoutType.nextEpisode, hovered);
   }
 
   void _togglePlayPause() {
@@ -2066,9 +2073,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             baseUrl: baseUrl,
             httpHeaders: httpHeaders,
             cacheManager: cacheManager,
+            isActiveControl: _activeFlyout == _PlayerFlyoutType.nextEpisode,
             onClick: () => _openEpisode(_nextEpisode!),
-            onHoverStateChanged: (hovered) =>
-                setState(() => _isNextEpisodeHovered = hovered),
+            onHoverStateChanged: _handleNextEpisodeHoverStateChanged,
           ),
         ],
         const SizedBox(width: 16),

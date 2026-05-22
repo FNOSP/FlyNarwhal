@@ -24,6 +24,7 @@ class NextEpisodePreviewFlyout extends StatefulWidget {
   final String baseUrl;
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
+  final bool isActiveControl;
   final VoidCallback onClick;
   final void Function(bool)? onHoverStateChanged;
 
@@ -33,6 +34,7 @@ class NextEpisodePreviewFlyout extends StatefulWidget {
     required this.baseUrl,
     required this.httpHeaders,
     required this.cacheManager,
+    this.isActiveControl = false,
     required this.onClick,
     this.onHoverStateChanged,
   });
@@ -46,7 +48,6 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   bool _isButtonHovered = false;
-  bool _popupHovered = false;
   final GlobalKey _buttonKey = GlobalKey();
   final GlobalKey _flyoutKey = GlobalKey();
   OverlayEntry? _overlayEntry;
@@ -69,6 +70,14 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
     _scaleAnimation = Tween<double>(begin: 0.4, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
+  }
+
+  @override
+  void didUpdateWidget(NextEpisodePreviewFlyout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActiveControl && !widget.isActiveControl) {
+      _forceCloseFlyout();
+    }
   }
 
   @override
@@ -108,11 +117,6 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
     _flyoutSize = null;
   }
 
-  void _setPopupHovered(bool value) {
-    if (!mounted || _popupHovered == value) return;
-    setState(() => _popupHovered = value);
-  }
-
   void _showFlyout() {
     _hideTimer?.cancel();
     if (_isExpanded) {
@@ -132,7 +136,7 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
   void _hideFlyoutWithDelay() {
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(milliseconds: _hideDelayMs), () {
-      if (!_isButtonHovered && !_popupHovered && mounted) {
+      if (!_isButtonHovered && mounted) {
         _closeFlyout();
       }
     });
@@ -147,11 +151,27 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
     }
 
     if (!mounted) return;
-    if (_isButtonHovered || _popupHovered) {
+    if (_isButtonHovered) {
       _animationController.forward();
       return;
     }
 
+    _hideOverlay();
+    setState(() => _isExpanded = false);
+    widget.onHoverStateChanged?.call(false);
+  }
+
+  Future<void> _forceCloseFlyout() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    _isButtonHovered = false;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
+    }
+
+    if (!mounted) return;
     _hideOverlay();
     setState(() => _isExpanded = false);
     widget.onHoverStateChanged?.call(false);
@@ -185,22 +205,7 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
             Positioned(
               left: left,
               top: top,
-              child: MouseRegion(
-                opaque: false,
-                cursor: SystemMouseCursors.basic,
-                onEnter: (_) {
-                  _setPopupHovered(true);
-                  _hideTimer?.cancel();
-                },
-                onHover: (_) {
-                  if (!_popupHovered) {
-                    _setPopupHovered(true);
-                  }
-                },
-                onExit: (_) {
-                  _setPopupHovered(false);
-                  _hideFlyoutWithDelay();
-                },
+              child: IgnorePointer(
                 child: SizedBox(
                   width: _flyoutWidth,
                   height: flyoutHeight + bridgeHeight,
@@ -210,20 +215,9 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
                       Positioned(
                         left: 0,
                         top: 0,
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {
-                              widget.onClick();
-                              _setPopupHovered(false);
-                              _closeFlyout();
-                            },
-                            child: KeyedSubtree(
-                              key: _flyoutKey,
-                              child: _buildAnimatedFlyout(),
-                            ),
-                          ),
+                        child: KeyedSubtree(
+                          key: _flyoutKey,
+                          child: _buildAnimatedFlyout(),
                         ),
                       ),
                       Positioned(
@@ -259,8 +253,8 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
       },
       child: KeyedSubtree(
         key: _buttonKey,
-        child: PlayerActionButton.icon(
-          iconData: FluentIcons.next,
+        child: PlayerActionButton.svg(
+          svgAssetPath: 'assets/images/next_episode.svg',
           onPressed: widget.onClick,
           tooltip: '下一个视频',
           size: 30,
