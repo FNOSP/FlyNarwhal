@@ -40,6 +40,8 @@ import '../../widgets/window_caption.dart';
 
 enum _PlayerFlyoutType { speed, episode, quality, subtitle }
 
+enum _PlaybackIndicatorType { play, pause }
+
 class _PreparedPlaySource {
   final String playUri;
   final bool useHlsSubtitleOverlay;
@@ -70,15 +72,22 @@ class PlayerScreen extends ConsumerStatefulWidget {
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+class _PlayerScreenState extends ConsumerState<PlayerScreen>
+    with SingleTickerProviderStateMixin {
   static const int _controlFlyoutOffset = 15;
   static const double _controlFlyoutSpacing = 12;
+  static const Duration _uiAutoHideDuration = Duration(seconds: 3);
+  static const Duration _playbackIndicatorVisibleDuration =
+      Duration(milliseconds: 200);
+  static const Duration _playbackIndicatorExitDuration =
+      Duration(milliseconds: 300);
 
   late final ToastManager _toastManager;
   Player? _player;
   VideoController? _videoController;
   bool _isInitialized = false;
   bool _isLoading = true;
+  bool _isPlaying = false;
   bool _isUiVisible = true;
   bool _isFullscreen = false;
   int _currentPosition = 0;
@@ -93,12 +102,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   PlayInfoResponse? _playInfo;
   StreamResponse? _streamInfo;
   StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<bool>? _playingSubscription;
   Timer? _hideUiTimer;
   Timer? _playRecordTimer;
+  Timer? _playbackIndicatorTimer;
+  late final AnimationController _playbackIndicatorExitController;
   int _lastRecordedPosition = 0;
   int _pendingInitialResumeMs = 0;
   bool _initialResumeApplied = false;
   bool _hasSetupProviderListeners = false;
+  bool _suspendPlaybackTransitionFeedback = true;
+  bool _isPlaybackIndicatorVisible = false;
+  _PlaybackIndicatorType? _playbackIndicatorType;
 
   // Hover states
   bool _isProgressBarHovered = false;
@@ -140,6 +155,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void initState() {
     super.initState();
     _toastManager = ToastManager();
+    _playbackIndicatorExitController = AnimationController(
+      vsync: this,
+      duration: _playbackIndicatorExitDuration,
+    )..addStatusListener((status) {
+        if (status != AnimationStatus.completed || !mounted) {
+          return;
+        }
+        setState(() => _isPlaybackIndicatorVisible = false);
+        _playbackIndicatorExitController.value = 0;
+      });
     _syncPlaybackTargetsFromWidget();
     unawaited(_ensureSubtitleLanguageMapsLoaded());
     _initializePlayer();
@@ -171,6 +196,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _initializePlayer() async {
     _player = Player();
     _videoController = VideoController(_player!);
+    _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
     _setupProviderListeners();
 
@@ -183,6 +209,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (player == null) return;
     _positionSubscription = player.stream.position.listen((position) {
       _hlsSubtitleRepository?.onPlaybackPosition(position.inMilliseconds);
+    });
+  }
+
+  void _setupPlayerPlaybackListener() {
+    _playingSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+
+    _isPlaying = player.state.playing;
+    _playingSubscription = player.stream.playing.listen((isPlaying) {
+      _handlePlaybackStateChanged(isPlaying);
     });
   }
 
@@ -1209,6 +1246,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _loadAndPlayMedia() async {
     try {
+      _suspendPlaybackTransitionFeedback = true;
+      _hidePlaybackIndicator();
       setState(() => _isLoading = true);
 
       final playerService = ref.read(playerServiceProvider);
@@ -1358,6 +1397,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       setState(() {
         _isLoading = false;
         _isInitialized = true;
+        _isPlaying = _player?.state.playing ?? false;
         _duration = currentVideoStream.duration > 0
             ? currentVideoStream.duration * 1000
             : playInfo.item.duration * 1000;
@@ -1372,12 +1412,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
       await _ensureInitialResumeApplied();
       _startPlayRecordTimer();
+      _suspendPlaybackTransitionFeedback = false;
     } catch (e) {
       debugPrint('[Player] Error loading media: $e');
       _toastManager.showToast(
         '加载失败: $e',
         type: ToastType.failed,
       );
+      _suspendPlaybackTransitionFeedback = false;
       setState(() => _isLoading = false);
     }
   }
@@ -1404,25 +1446,83 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _showUi() {
-    setState(() => _isUiVisible = true);
+    if (mounted && !_isUiVisible) {
+      setState(() => _isUiVisible = true);
+    }
     _hideUiTimer?.cancel();
-    _hideUiTimer = Timer(const Duration(seconds: 3), () {
-      if (!_isProgressBarHovered &&
-          !_isBottomControlAreaHovered &&
-          !_isSpeedControlHovered &&
-          !_isVolumeControlHovered &&
-          !_isQualityControlHovered &&
-          !_isSubtitleControlHovered &&
-          !_isEpisodeControlHovered &&
-          !_isNextEpisodeHovered &&
-          !_isDanmakuControlHovered &&
-          !_isDanmakuSettingsHovered &&
-          !_isPipControlHovered &&
-          !_isSettingsMenuHovered &&
-          mounted) {
-        setState(() => _isUiVisible = false);
+    if (!_isPlaying) return;
+
+    _hideUiTimer = Timer(_uiAutoHideDuration, () {
+      if (_shouldKeepUiVisible() || !mounted) {
+        return;
       }
+      setState(() => _isUiVisible = false);
     });
+  }
+
+  bool _shouldKeepUiVisible() {
+    return !_isPlaying ||
+        _isProgressBarHovered ||
+        _isBottomControlAreaHovered ||
+        _isSpeedControlHovered ||
+        _isVolumeControlHovered ||
+        _isQualityControlHovered ||
+        _isSubtitleControlHovered ||
+        _isEpisodeControlHovered ||
+        _isNextEpisodeHovered ||
+        _isDanmakuControlHovered ||
+        _isDanmakuSettingsHovered ||
+        _isPipControlHovered ||
+        _isSettingsMenuHovered;
+  }
+
+  void _handlePlaybackStateChanged(bool isPlaying) {
+    final wasPlaying = _isPlaying;
+    if (mounted && wasPlaying != isPlaying) {
+      setState(() => _isPlaying = isPlaying);
+    } else {
+      _isPlaying = isPlaying;
+    }
+
+    if (_suspendPlaybackTransitionFeedback || wasPlaying == isPlaying) {
+      return;
+    }
+
+    if (!isPlaying) {
+      _showPlaybackIndicator(_PlaybackIndicatorType.pause);
+    } else {
+      _showPlaybackIndicator(_PlaybackIndicatorType.play);
+    }
+    _showUi();
+  }
+
+  void _showPlaybackIndicator(_PlaybackIndicatorType type) {
+    _playbackIndicatorTimer?.cancel();
+    _playbackIndicatorExitController.stop();
+    _playbackIndicatorExitController.value = 0;
+
+    if (mounted) {
+      setState(() {
+        _playbackIndicatorType = type;
+        _isPlaybackIndicatorVisible = true;
+      });
+    } else {
+      _playbackIndicatorType = type;
+      _isPlaybackIndicatorVisible = true;
+    }
+
+    _playbackIndicatorTimer = Timer(_playbackIndicatorVisibleDuration, () {
+      if (!mounted || !_isPlaybackIndicatorVisible) return;
+      _playbackIndicatorExitController.forward(from: 0);
+    });
+  }
+
+  void _hidePlaybackIndicator() {
+    _playbackIndicatorTimer?.cancel();
+    _playbackIndicatorExitController.stop();
+    _playbackIndicatorExitController.value = 0;
+    _playbackIndicatorType = null;
+    _isPlaybackIndicatorVisible = false;
   }
 
   void _handleFlyoutHoverStateChanged(_PlayerFlyoutType type, bool hovered) {
@@ -1730,6 +1830,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _dismissTransientPlayerUiBeforeExit() {
     _playRecordTimer?.cancel();
     _hideUiTimer?.cancel();
+    _playbackIndicatorTimer?.cancel();
+    _hidePlaybackIndicator();
     Tooltip.dismissAllToolTips();
 
     _isProgressBarHovered = false;
@@ -1758,9 +1860,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _positionSubscription?.cancel();
+    _playingSubscription?.cancel();
     _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
     _hideUiTimer?.cancel();
+    _playbackIndicatorTimer?.cancel();
+    _playbackIndicatorExitController.dispose();
     _player?.dispose();
     _hlsSubtitleTexts.dispose();
     _toastManager.dispose();
@@ -1773,9 +1878,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return Stack(
       children: [
         MouseRegion(
+          cursor: SystemMouseCursors.click,
           onHover: (_) => _showUi(),
           child: GestureDetector(
-            onTap: () => _showUi(),
+            onTap: _togglePlayPause,
             child: Container(
               color: Colors.black,
               child: _isInitialized && _videoController != null
@@ -1800,6 +1906,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ),
         ),
         if (_isLoading) const Center(child: ProgressRing()),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Center(
+              child: _buildPlaybackIndicator(),
+            ),
+          ),
+        ),
         if (_isInitialized)
           AnimatedOpacity(
             opacity: _isUiVisible ? 1.0 : 0.0,
@@ -1830,7 +1943,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   right: 0,
                   child: _buildTopBar(),
                 ),
-                Center(child: _buildCenterPlayButton()),
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -1892,6 +2004,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       builder: (context, snapshot) {
         _currentPosition = snapshot.data?.inMilliseconds ?? _currentPosition;
         return MouseRegion(
+          cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => _isProgressBarHovered = true),
           onExit: (_) => setState(() => _isProgressBarHovered = false),
           child: VideoPlayerProgressBar(
@@ -1922,7 +2035,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         PlayerActionButton.svg(
-          svgAssetPath: _player?.state.playing == true
+          svgAssetPath: _isPlaying
               ? 'assets/images/pause.svg'
               : 'assets/images/play.svg',
           onPressed: _togglePlayPause,
@@ -2145,23 +2258,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildCenterPlayButton() {
-    final isPlaying = _player?.state.playing == true;
-    return GestureDetector(
-      onTap: _togglePlayPause,
-      child: Container(
-        width: 72,
-        height: 72,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.black.withValues(alpha: 0.5),
-        ),
-        alignment: Alignment.center,
-        child: SvgPicture.asset(
-          isPlaying ? 'assets/images/pause.svg' : 'assets/images/play.svg',
-          width: 34,
-          height: 34,
-          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+  Widget _buildPlaybackIndicator() {
+    if (!_isPlaybackIndicatorVisible || _playbackIndicatorType == null) {
+      return const SizedBox.shrink();
+    }
+
+    final animation = CurvedAnimation(
+      parent: _playbackIndicatorExitController,
+      curve: Curves.easeOutCubic,
+    );
+
+    return FadeTransition(
+      opacity: Tween<double>(begin: 1, end: 0).animate(animation),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 1, end: 1.18).animate(animation),
+        child: Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.black.withValues(alpha: 0.5),
+          ),
+          alignment: Alignment.center,
+          child: SvgPicture.asset(
+            _playbackIndicatorType == _PlaybackIndicatorType.pause
+                ? 'assets/images/pause.svg'
+                : 'assets/images/play.svg',
+            width: 34,
+            height: 34,
+            colorFilter:
+                const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+          ),
         ),
       ),
     );
