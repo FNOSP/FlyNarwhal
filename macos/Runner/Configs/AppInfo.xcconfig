@@ -8,7 +8,7 @@
 PRODUCT_NAME = fly_narwhal
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.flyNarwhal
+PRODUCT_BUNDLE_IDENTIFIER = com.jankinwu.flyNarwhal
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.jankinwu. All rights reserved.
