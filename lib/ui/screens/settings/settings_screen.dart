@@ -110,6 +110,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             heading: const Text('退出登录'),
                             caption: const Text('退出当前账号'),
                             onPressed: () async {
+                              // Invalidate the cached user info so the next signed-in user does not
+                              // briefly see the previous user's profile on the home page.
+                              // Mirrors LoginStateManager.updateLoginStatus(false) which calls
+                              // UserInfoMemoryCache.clear() in the Kotlin client.
+                              ref.invalidate(userInfoProvider);
                               final prefs = ref.read(preferencesManagerProvider);
                               await prefs.clear();
                               if (context.mounted) context.go('/login');

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/network/dio_client.dart' as core_network;
 import '../data/datasources/remote/media_remote_data_source.dart';
-import '../data/models/base_response.dart';
+import '../data/datasources/remote/user_remote_data_source.dart';
 import '../data/models/user_info.dart';
 import '../data/storage/preferences_manager.dart';
 import '../data/storage/player_settings_store.dart';
@@ -68,6 +68,18 @@ final mediaRemoteDataSourceProvider = Provider<MediaRemoteDataSource>((ref) {
   return MediaRemoteDataSource(dioClient);
 });
 
+// User remote data source provider
+final userRemoteDataSourceProvider = Provider<UserRemoteDataSource>((ref) {
+  final prefsManager = ref.watch(preferencesManagerProvider);
+  final dioClient = core_network.DioClient.withCallbacks(
+    getToken: () => prefsManager.getToken() ?? '',
+    getCookie: () => prefsManager.getCookie() ?? '',
+    getAuthCode: () => prefsManager.getAuthCode() ?? '',
+    getBaseUrl: () => prefsManager.getBaseUrl() ?? '',
+  );
+  return UserRemoteDataSource(dioClient);
+});
+
 class SettingsState {
   final bool followSystemTheme;
   final bool darkMode;
@@ -124,21 +136,9 @@ final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(
 });
 
 final userInfoProvider = FutureProvider<UserInfo>((ref) async {
-  final dioClient = ref.read(dioClientProvider);
-  final response = await dioClient.dio.get('/v/api/v1/user/info');
-  final baseResponse = FnBaseResponse<UserInfo>.fromJson(
-    response.data,
-    (json) {
-      if (json is Map<String, dynamic>) {
-        return UserInfo.fromJson(json);
-      }
-      return UserInfo.fromJson(Map<String, dynamic>.from(json as Map));
-    },
-  );
-  if (baseResponse.code != 0) {
-    throw Exception(baseResponse.msg);
-  }
-  return baseResponse.data ?? UserInfo(guid: '', username: '', isAdmin: 0);
+  final dataSource = ref.read(userRemoteDataSourceProvider);
+  final result = await dataSource.getUserInfo();
+  return result.getOrThrow();
 });
 
 final imageCacheManagerProvider = Provider<CacheManager>((ref) {

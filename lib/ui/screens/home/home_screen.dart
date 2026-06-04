@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'home_view_model.dart';
+import '../../../providers/providers.dart';
 import '../../widgets/media_lib_card_row.dart';
 import '../../widgets/media_lib_gallery.dart';
 import '../../widgets/recently_watched.dart';
@@ -37,12 +38,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final mediaDbListAsync = ref.watch(mediaDbListNotifierProvider);
     final playListAsync = ref.watch(playListNotifierProvider);
-    
+
+    // Trigger userInfo fetch as soon as the home page mounts so the rest of the
+    // main pages (favorites, library, settings) can perform permission checks
+    // based on UserInfo.isAdmin. The FutureProvider caches the result, so this
+    // only triggers one network call until the provider is invalidated.
+    ref.watch(userInfoProvider);
+
     // Listen to favorite result changes
     ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (previous, next) {
       _handleFavoriteResult(next);
     });
-    
+
     // Listen to watched result changes
     ref.listen<WatchedActionResult?>(watchedNotifierProvider, (previous, next) {
       _handleWatchedResult(next);
