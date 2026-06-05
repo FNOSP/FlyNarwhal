@@ -354,6 +354,7 @@ class _VolumeSliderFlyout extends StatelessWidget {
             const SizedBox(height: 8),
             // Vertical slider
             SizedBox(
+              key: const ValueKey('player-volume-slider'),
               width: 40,
               height: 120,
               child: _VerticalVolumeSlider(

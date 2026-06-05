@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_driver:
+    sdk: flutter
   cupertino_icons: ^1.0.8
   
   # UI

@@ -420,6 +420,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                         Row(
                           children: [
                             DetailPlayButton(
+                              key: const ValueKey('movie-detail-play'),
                               text: item.watchedTs > 0 ? '继续播放' : '播放',
                               onPressed: _playMedia,
                             ),

@@ -623,7 +623,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 _isNasLogin = v;
                                 _autoLoginFromHistory = false;
                               }),
-                              activeColor: _primaryBlue,
+                              activeThumbColor: _primaryBlue,
                             ),
                           ],
                         ),
@@ -636,7 +636,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             material.Switch(
                               value: _isHttps,
                               onChanged: (v) => setState(() => _isHttps = v),
-                              activeColor: _primaryBlue,
+                              activeThumbColor: _primaryBlue,
                             ),
                           ],
                         ),
@@ -644,6 +644,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         SizedBox(
                           height: 48,
                           child: material.FilledButton(
+                            key: const ValueKey('login-submit'),
                             onPressed: loginState.isLoading ? null : _onLogin,
                             style: material.FilledButton.styleFrom(
                               backgroundColor: _primaryBlue,

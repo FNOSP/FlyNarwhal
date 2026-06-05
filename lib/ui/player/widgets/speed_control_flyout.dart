@@ -347,6 +347,7 @@ class _SpeedFlyoutContent extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: SpeedItem.defaults.map((speed) {
             return _SpeedItem(
+              key: ValueKey('player-speed-${speed.label}'),
               speed: speed,
               isSelected: speed.value == selectedSpeed.value,
               onClick: () => onSpeedSelected(speed),
@@ -364,6 +365,7 @@ class _SpeedItem extends StatefulWidget {
   final VoidCallback onClick;
 
   const _SpeedItem({
+    super.key,
     required this.speed,
     required this.isSelected,
     required this.onClick,

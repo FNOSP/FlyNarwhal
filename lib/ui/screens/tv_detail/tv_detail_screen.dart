@@ -457,6 +457,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         Row(
           children: [
             DetailPlayButton(
+              key: ValueKey('tv-detail-play'),
               text: playButtonText,
               onPressed: _playMedia,
             ),

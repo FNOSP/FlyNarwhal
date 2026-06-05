@@ -10,7 +10,7 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:fly_narwhal/main.dart';
+import 'package:fly_narwhal/app.dart';
 import 'package:fly_narwhal/providers/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

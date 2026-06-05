@@ -113,6 +113,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             ),
                           ),
                           CardExpanderItem(
+                            key: const ValueKey('settings-logout'),
                             icon: const Icon(FluentIcons.sign_out),
                             heading: const Text('退出登录'),
                             caption: const Text('退出当前账号'),

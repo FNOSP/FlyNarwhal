@@ -2042,6 +2042,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         PlayerActionButton.svg(
+          key: ValueKey('player-play-pause'),
           svgAssetPath: _isPlaying
               ? 'assets/images/pause.svg'
               : 'assets/images/play.svg',
@@ -2089,6 +2090,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
         const Spacer(),
         SpeedControlFlyout(
+          key: const ValueKey('player-speed-control'),
           defaultSpeed: _speed,
           yOffset: _controlFlyoutOffset,
           isActiveControl: _activeFlyout == _PlayerFlyoutType.speed,
@@ -2186,6 +2188,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
         const SizedBox(width: _controlFlyoutSpacing),
         VolumeControl(
+          key: const ValueKey('player-volume-control'),
           volume: _volume,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
           onHoverStateChanged: (hovered) =>
