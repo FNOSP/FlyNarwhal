@@ -1,6 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../../providers/providers.dart';
 import '../../widgets/card_expander_item.dart';
 
@@ -59,6 +58,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           const _Header(title: '账号'),
                           userInfoAsync.when(
                             data: (user) {
+                              if (user == null) {
+                                return const CardExpanderItem(
+                                  icon: Icon(FluentIcons.contact),
+                                  heading: Text('未加载用户信息'),
+                                  caption: Text('登录后将在首页自动完成用户信息校验'),
+                                );
+                              }
+
                               return CardExpanderItem(
                                 icon: const Icon(FluentIcons.contact),
                                 heading: Row(
@@ -110,14 +117,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             heading: const Text('退出登录'),
                             caption: const Text('退出当前账号'),
                             onPressed: () async {
-                              // Invalidate the cached user info so the next signed-in user does not
-                              // briefly see the previous user's profile on the home page.
-                              // Mirrors LoginStateManager.updateLoginStatus(false) which calls
-                              // UserInfoMemoryCache.clear() in the Kotlin client.
-                              ref.invalidate(userInfoProvider);
-                              final prefs = ref.read(preferencesManagerProvider);
-                              await prefs.clear();
-                              if (context.mounted) context.go('/login');
+                              // Best-effort server-side logout while credentials are still valid.
+                              // Mirrors KMP LoginStateManager.logout(): fire logout API, do not block on result.
+                              try {
+                                final dataSource =
+                                    ref.read(userRemoteDataSourceProvider);
+                                await dataSource.logout();
+                              } catch (_) {
+                                // Ignore logout API failure; local logout must still proceed.
+                              }
+
+                              // Reuse the shared session invalidation flow.
+                              await ref.read(sessionStateControllerProvider).invalidateSession();
                             },
                           ),
                           const SizedBox(height: 4),

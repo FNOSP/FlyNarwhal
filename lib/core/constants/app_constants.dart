@@ -33,6 +33,7 @@ class ApiEndpoints {
 
   // User
   static const String userInfo = '/v/api/v1/user/info';
+  static const String userLogout = '/v/api/v1/user/logout';
 
   // Media
   static const String mediaDbList = '/v/api/v1/mediadb/list';

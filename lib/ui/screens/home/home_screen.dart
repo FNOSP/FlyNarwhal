@@ -29,6 +29,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Set<String> _itemsToBeRemoved = {};
 
   @override
+  void initState() {
+    super.initState();
+
+    // Load user info once when the home page enters, mirroring the KMP home screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(userInfoProvider.notifier).loadUserInfo();
+    });
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
@@ -38,12 +49,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final mediaDbListAsync = ref.watch(mediaDbListNotifierProvider);
     final playListAsync = ref.watch(playListNotifierProvider);
-
-    // Trigger userInfo fetch as soon as the home page mounts so the rest of the
-    // main pages (favorites, library, settings) can perform permission checks
-    // based on UserInfo.isAdmin. The FutureProvider caches the result, so this
-    // only triggers one network call until the provider is invalidated.
-    ref.watch(userInfoProvider);
 
     // Listen to favorite result changes
     ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (previous, next) {

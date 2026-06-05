@@ -135,6 +135,11 @@ class LoginViewModel extends _$LoginViewModel {
       
       await prefs.saveLoginHistory(updatedHistory);
       ref.invalidate(loginHistoryNotifierProvider);
+
+      // Clear cached user info so the next home entry always performs
+      // a fresh user info validation for the new session.
+      ref.read(userInfoProvider.notifier).clear();
+
       final refreshNotifier = ref.read(authRefreshProvider.notifier);
       refreshNotifier.state = refreshNotifier.state + 1;
       debugPrint('[Login] auth refresh state=${refreshNotifier.state}');

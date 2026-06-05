@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/constants/app_constants.dart';
+import '../core/network/api_result.dart';
 import '../core/network/dio_client.dart' as core_network;
 import '../data/datasources/remote/media_remote_data_source.dart';
 import '../data/datasources/remote/user_remote_data_source.dart';
@@ -21,6 +23,25 @@ final preferencesManagerProvider = Provider<PreferencesManager>((ref) {
 });
 
 final authRefreshProvider = StateProvider<int>((ref) => 0);
+
+class SessionStateController {
+  SessionStateController(this._ref);
+
+  final Ref _ref;
+
+  // Clear all persisted auth state and force router re-evaluation.
+  Future<void> invalidateSession() async {
+    _ref.read(userInfoProvider.notifier).clear();
+    final prefs = _ref.read(preferencesManagerProvider);
+    await prefs.clear();
+    _ref.read(authRefreshProvider.notifier).state++;
+  }
+}
+
+final sessionStateControllerProvider = Provider<SessionStateController>((ref) {
+  return SessionStateController(ref);
+});
+
 final lastNavigationKeyProvider = StateProvider<String?>((ref) => null);
 final navigationStackProvider = StateNotifierProvider<NavigationStackNotifier, List<String>>(
   (ref) => NavigationStackNotifier(),
@@ -135,11 +156,70 @@ final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(
   return SettingsNotifier(prefs);
 });
 
-final userInfoProvider = FutureProvider<UserInfo>((ref) async {
-  final dataSource = ref.read(userRemoteDataSourceProvider);
-  final result = await dataSource.getUserInfo();
-  return result.getOrThrow();
-});
+class UserInfoNotifier extends StateNotifier<AsyncValue<UserInfo?>> {
+  UserInfoNotifier(this._prefs, this._dataSource, this._invalidateSession)
+      : super(const AsyncValue.data(null));
+
+  final PreferencesManager _prefs;
+  final UserRemoteDataSource _dataSource;
+  final Future<void> Function() _invalidateSession;
+
+  // Load user info only when the current session is authenticated.
+  Future<void> loadUserInfo({bool force = false}) async {
+    final token = _prefs.getToken();
+    final baseUrl = _prefs.getBaseUrl();
+    final isLoggedIn =
+        token != null && token.isNotEmpty && baseUrl != null && baseUrl.isNotEmpty;
+    if (!isLoggedIn) {
+      state = const AsyncValue.data(null);
+      return;
+    }
+
+    if (!force) {
+      if (state is AsyncLoading<UserInfo?>) {
+        return;
+      }
+      if (state.valueOrNull != null) {
+        return;
+      }
+    }
+
+    state = const AsyncValue.loading();
+    try {
+      final result = await _dataSource.getUserInfo();
+      state = AsyncValue.data(result.getOrThrow());
+    } catch (error, stackTrace) {
+      // Treat explicit unauthorized responses as a local logout signal.
+      if (_isUnauthorizedFailure(error)) {
+        await _invalidateSession();
+        state = const AsyncValue.data(null);
+        return;
+      }
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  // Clear cached user info without triggering a new request.
+  void clear() {
+    state = const AsyncValue.data(null);
+  }
+
+  // Only explicit auth failures should invalidate the local session.
+  bool _isUnauthorizedFailure(Object error) {
+    return error is FailureInfo && error.code == ResponseCodes.unauthorized;
+  }
+}
+
+final userInfoProvider =
+    StateNotifierProvider<UserInfoNotifier, AsyncValue<UserInfo?>>((ref) {
+      final prefs = ref.watch(preferencesManagerProvider);
+      final dataSource = ref.watch(userRemoteDataSourceProvider);
+      return UserInfoNotifier(
+        prefs,
+        dataSource,
+        ref.read(sessionStateControllerProvider).invalidateSession,
+      );
+    });
 
 final imageCacheManagerProvider = Provider<CacheManager>((ref) {
   const maxCacheBytes = 300 * 1024 * 1024;

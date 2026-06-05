@@ -19,6 +19,15 @@ class UserRemoteDataSource {
     return result;
   }
 
+  /// Logout current user (best-effort server-side logout)
+  Future<ApiResult<bool>> logout() async {
+    final result = await _dioClient.post<bool>(
+      ApiEndpoints.userLogout,
+      converter: (data) => _parseLogoutResponse(data),
+    );
+    return result;
+  }
+
   // Private parsing methods
   UserInfo _parseUserInfoResponse(dynamic data) {
     final baseResponse = FnBaseResponse<UserInfo>.fromJson(
@@ -31,8 +40,28 @@ class UserRemoteDataSource {
       },
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo(
+        message: baseResponse.msg,
+        code: baseResponse.code,
+        displayMessage: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? UserInfo(guid: '', username: '', isAdmin: 0);
+  }
+
+  // Parse logout response, returns true on success
+  bool _parseLogoutResponse(dynamic data) {
+    final baseResponse = FnBaseResponse<bool>.fromJson(
+      data,
+      (json) => json is bool ? json : true,
+    );
+    if (baseResponse.code != ResponseCodes.success) {
+      throw FailureInfo(
+        message: baseResponse.msg,
+        code: baseResponse.code,
+        displayMessage: baseResponse.msg,
+      );
+    }
+    return baseResponse.data ?? true;
   }
 }

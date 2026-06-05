@@ -462,6 +462,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     await prefs.saveBaseUrl(result.baseUrl);
     await prefs.saveLoginHistory(result.history);
     ref.invalidate(loginHistoryNotifierProvider);
+
+    // Clear cached user info so the next home entry validates
+    // permissions for the newly authenticated NAS session.
+    ref.read(userInfoProvider.notifier).clear();
+
     final refreshNotifier = ref.read(authRefreshProvider.notifier);
     refreshNotifier.state = refreshNotifier.state + 1;
     if (!mounted) return;
