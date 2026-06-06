@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../providers/global_refresh.dart';
 import '../../widgets/filter_box.dart';
 import '../../widgets/sort_flyout.dart';
 import '../../widgets/toast.dart';
@@ -24,6 +25,7 @@ class FavoritesScreen extends ConsumerStatefulWidget {
 }
 
 class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
+  static const String _globalRefreshConsumerId = 'favorites-screen';
   String _selectedTab = _tabs.first;
   int _selectedTabIndex = 0;
   int _tabSwitchDirection = 1;
@@ -47,14 +49,21 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   Map<String, String>? _iso3166;
 
   late final ToastManager _toastManager = ToastManager();
-  Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
-  Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
+  late final ScrollController _scrollController = ScrollController();
+  final Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
+  final Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
 
   @override
   void initState() {
     super.initState();
     _loadStaticTags();
     _loadAllTabs(force: true);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadStaticTags() async {
@@ -68,6 +77,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       final genres = await repo.getGenres();
       final iso3166 = await repo.getTag('iso3166');
       await repo.getTag('iso6391');
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _tagList = tagList;
         _genres = genres;
@@ -101,6 +113,44 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     _tabLastPageCache.clear();
     _tabMdbNameCache.clear();
     _loadingKeys.clear();
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Future<void> _handleGlobalRefresh(GlobalRefreshRequest request) async {
+    // Run the shared media-library refresh before updating favorites data.
+    await request.runBaseMediaLibraryRefresh();
+    if (!mounted) {
+      return;
+    }
+
+    // Reset the current browsing state so refresh uses the default filters.
+    setState(() {
+      _isFilterOpen = false;
+      _selectedFilters = {};
+    });
+    _clearCaches();
+    await _scrollToTop();
+
+    // Reload the current tab and related metadata after the shared refresh.
+    await Future.wait([
+      _loadStaticTags(),
+      _loadData(
+        tab: _selectedTab,
+        page: 1,
+        filters: const {},
+        force: true,
+      ),
+    ]);
   }
 
   List<String>? _getTypesForTab(String tab) {
@@ -400,6 +450,22 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final globalRefreshManager = ref.read(globalRefreshManagerProvider);
+
+    // Consume each global refresh event once for the favorites page.
+    ref.listen<GlobalRefreshRequest?>(currentGlobalRefreshRequestProvider, (
+      previous,
+      next,
+    ) {
+      if (!globalRefreshManager.consumeOnce(
+        consumerId: _globalRefreshConsumerId,
+        request: next,
+      )) {
+        return;
+      }
+      unawaited(_handleGlobalRefresh(next!));
+    });
+
     // Listen to favorite result changes
     ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (previous, next) {
       _handleFavoriteResult(next);
@@ -600,6 +666,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                           )
                         : GridView.builder(
                             key: ValueKey('favorites-grid-$_selectedTab'),
+                            controller: _scrollController,
                             padding: EdgeInsets.all(16 * scaleFactor),
                             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                               maxCrossAxisExtent: 160 * scaleFactor,

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../data/models/home_models.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/tag_models.dart';
+import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../widgets/movie_poster.dart';
 import '../../widgets/filter_box.dart';
@@ -24,6 +25,7 @@ class MediaLibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
+  static const String _globalRefreshConsumerId = 'media-library-screen';
   bool _isFilterOpen = false;
   Map<String, FilterItem> _selectedFilters = {};
   String _sortColumn = 'create_time';
@@ -34,6 +36,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   Map<String, String>? _iso3166;
 
   late final ToastManager _toastManager = ToastManager();
+  late final ScrollController _scrollController = ScrollController();
   final Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
   final Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
 
@@ -58,6 +61,12 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       });
       _loadStaticTags();
     }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   String get _providerGuid => widget.id ?? 'category:${widget.categoryType!}';
@@ -127,6 +136,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       final genres = await repo.getGenres();
       final iso3166 = await repo.getTag('iso3166');
       await repo.getTag('iso6391');
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _tagList = tagList;
         _genres = genres;
@@ -214,6 +226,40 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         .refreshWithQuery(_buildBrowseRequest());
   }
 
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Future<void> _handleGlobalRefresh(GlobalRefreshRequest request) async {
+    // Run the shared media-library refresh before updating this page.
+    await request.runBaseMediaLibraryRefresh();
+    if (!mounted) {
+      return;
+    }
+
+    // Reset local browse state so the refreshed query matches the default filters.
+    setState(() {
+      _isFilterOpen = false;
+      _selectedFilters = {};
+    });
+    await _scrollToTop();
+
+    // Reload page-specific data after the shared metadata has completed.
+    await Future.wait([
+      _loadStaticTags(),
+      ref
+          .read(mediaLibraryNotifierProvider(_providerGuid).notifier)
+          .refreshWithQuery(_buildBrowseRequest()),
+    ]);
+  }
+
   void _onClearFilter(String title) {
     if (_selectedFilters.containsKey(title)) {
       setState(() {
@@ -284,6 +330,22 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     if (widget.id == null && widget.categoryType == null) {
       return const Center(child: Text("Invalid Library ID"));
     }
+
+    final globalRefreshManager = ref.read(globalRefreshManagerProvider);
+
+    // Consume each global refresh event once for the current media-library page.
+    ref.listen<GlobalRefreshRequest?>(currentGlobalRefreshRequestProvider, (
+      previous,
+      next,
+    ) {
+      if (!globalRefreshManager.consumeOnce(
+        consumerId: _globalRefreshConsumerId,
+        request: next,
+      )) {
+        return;
+      }
+      unawaited(_handleGlobalRefresh(next!));
+    });
 
     // Listen to favorite result changes
     ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (previous, next) {
@@ -381,6 +443,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                   child: mediaLibraryState.isLoading && items.isEmpty
                       ? const Center(child: ProgressRing())
                       : GridView.builder(
+                          controller: _scrollController,
                           padding: EdgeInsets.all(16 * scaleFactor),
                           gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: 180 * scaleFactor,

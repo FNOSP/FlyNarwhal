@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:window_manager/window_manager.dart' hide WindowCaption, DragToMoveArea;
+import 'package:window_manager/window_manager.dart'
+    hide WindowCaption, DragToMoveArea;
 import '../home/home_view_model.dart';
 import '../../../providers/providers.dart';
+import '../../../providers/global_refresh.dart';
 import '../../widgets/window_caption.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
@@ -27,14 +29,16 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    if (!kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
       windowManager.addListener(this);
     }
   }
 
   @override
   void dispose() {
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    if (!kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
       windowManager.removeListener(this);
     }
     super.dispose();
@@ -53,8 +57,19 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
     final mediaSum = mediaSumAsync.asData?.value ?? const <String, int>{};
     final settings = ref.watch(settingsProvider);
     final currentPath = widget.state.uri.toString();
+    final currentRoutePath = widget.state.uri.path;
+    final globalRefreshManager = ref.read(globalRefreshManagerProvider);
+    final titleBarRefreshVisibility =
+        ref.watch(titleBarRefreshVisibilityProvider);
+
+    // Dispatch a single window-level refresh event to the active page.
+    Future<void> triggerWindowRefresh() async {
+      await globalRefreshManager.requestRefresh();
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(navigationStackProvider.notifier).pushPath(currentPath);
+      globalRefreshManager.updateCurrentRoutePath(currentRoutePath);
     });
 
     Widget? buildCountText(int? count) {
@@ -67,7 +82,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
 
     Widget buildCategoryIcon(String category) {
       final theme = FluentTheme.of(context);
-      final iconColor = IconTheme.of(context).color ?? theme.iconTheme.color ?? Colors.white;
+      final iconColor =
+          IconTheme.of(context).color ?? theme.iconTheme.color ?? Colors.white;
       String assetPath;
       switch (category) {
         case 'Movie':
@@ -170,7 +186,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
 
     Widget buildFavoriteIcon() {
       final theme = FluentTheme.of(context);
-      final iconColor = IconTheme.of(context).color ?? theme.iconTheme.color ?? Colors.white;
+      final iconColor =
+          IconTheme.of(context).color ?? theme.iconTheme.color ?? Colors.white;
       return SvgPicture.asset(
         'assets/images/favorite.svg',
         width: 16,
@@ -315,7 +332,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
       if (path.startsWith('/movie/')) return null;
       if (path == '/home') return 'nav-home';
       if (path == '/favorites') return 'nav-favorites';
-      if (path == '/settings' || path.startsWith('/settings/')) return 'nav-settings';
+      if (path == '/settings' || path.startsWith('/settings/')) {
+        return 'nav-settings';
+      }
       if (path.startsWith('/library/')) {
         return 'media-${path.substring('/library/'.length)}';
       }
@@ -343,7 +362,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
     final isMovieDetail = widget.state.uri.path.startsWith('/movie/');
     final lastSelectedKey = ref.watch(lastNavigationKeyProvider);
     final selectedKey = resolveSelectedKey(widget.state.uri.path);
-    if (!isMovieDetail && selectedKey != null && selectedKey != lastSelectedKey) {
+    if (!isMovieDetail &&
+        selectedKey != null &&
+        selectedKey != lastSelectedKey) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(lastNavigationKeyProvider.notifier).state = selectedKey;
       });
@@ -381,7 +402,15 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(width: kTrafficLightLeftPadding + kTrafficLightAreaWidth),
+                  const SizedBox(
+                      width: kTrafficLightLeftPadding + kTrafficLightAreaWidth),
+                  if (titleBarRefreshVisibility.shouldShowRefreshAction)
+                    WindowCaptionRefreshButton.compact(
+                      key:
+                          const ValueKey('macos-window-caption-refresh-button'),
+                      brightness: isDark ? Brightness.dark : Brightness.light,
+                      onPressed: triggerWindowRefresh,
+                    ),
                   Expanded(
                     child: DragToMoveArea(
                       child: Container(
@@ -406,6 +435,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
             title: const Text('飞鲸影视'),
             brightness: isDark ? Brightness.dark : Brightness.light,
             backgroundColor: theme.resources.solidBackgroundFillColorBase,
+            showRefreshAction:
+                titleBarRefreshVisibility.shouldShowRefreshAction,
+            onRefreshPressed: triggerWindowRefresh,
           ),
         Expanded(
           child: NavigationView(

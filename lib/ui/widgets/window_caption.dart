@@ -1,7 +1,9 @@
 import 'dart:io' show Platform;
+import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:window_manager/window_manager.dart' hide WindowCaption, DragToMoveArea;
+import 'package:window_manager/window_manager.dart'
+    hide WindowCaption, DragToMoveArea;
 
 const double kWindowTitleBarHeight = 48.0;
 
@@ -9,12 +11,16 @@ class WindowCaption extends StatefulWidget {
   final Widget? title;
   final Color? backgroundColor;
   final Brightness? brightness;
+  final bool showRefreshAction;
+  final Future<void> Function()? onRefreshPressed;
 
   const WindowCaption({
     super.key,
     this.title,
     this.backgroundColor,
     this.brightness,
+    this.showRefreshAction = false,
+    this.onRefreshPressed,
   });
 
   @override
@@ -53,7 +59,9 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
                 alignment: Alignment.centerLeft,
                 child: DefaultTextStyle(
                   style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black.withValues(alpha: 0.8956),
+                    color: isDark
+                        ? Colors.white
+                        : Colors.black.withValues(alpha: 0.8956),
                     fontSize: 14,
                   ),
                   child: widget.title ?? const SizedBox.shrink(),
@@ -61,8 +69,15 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
               ),
             ),
           ),
+          if (widget.showRefreshAction)
+            WindowCaptionRefreshButton(
+              key: const ValueKey('window-caption-refresh-button'),
+              brightness: widget.brightness,
+              onPressed: widget.onRefreshPressed,
+            ),
           if (_shouldShowWindowButtons()) ...[
             WindowCaptionButton.minimize(
+              key: const ValueKey('window-caption-minimize-button'),
               brightness: widget.brightness,
               onPressed: () async {
                 final isMinimized = await windowManager.isMinimized();
@@ -78,17 +93,20 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
               builder: (context, snapshot) {
                 if (snapshot.data == true) {
                   return WindowCaptionButton.unmaximize(
+                    key: const ValueKey('window-caption-unmaximize-button'),
                     brightness: widget.brightness,
                     onPressed: () => windowManager.unmaximize(),
                   );
                 }
                 return WindowCaptionButton.maximize(
+                  key: const ValueKey('window-caption-maximize-button'),
                   brightness: widget.brightness,
                   onPressed: () => windowManager.maximize(),
                 );
               },
             ),
             WindowCaptionButton.close(
+              key: const ValueKey('window-caption-close-button'),
               brightness: widget.brightness,
               onPressed: () => windowManager.close(),
             ),
@@ -111,6 +129,138 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
   void onWindowUnmaximize() => setState(() {});
 }
 
+class WindowCaptionRefreshButton extends StatefulWidget {
+  final Future<void> Function()? onPressed;
+  final Brightness? brightness;
+  final bool compact;
+  final String semanticLabel;
+
+  const WindowCaptionRefreshButton({
+    super.key,
+    required this.onPressed,
+    this.brightness,
+    this.compact = false,
+    this.semanticLabel = '刷新',
+  });
+
+  const WindowCaptionRefreshButton.compact({
+    super.key,
+    required this.onPressed,
+    this.brightness,
+    this.semanticLabel = '刷新',
+  }) : compact = true;
+
+  @override
+  State<WindowCaptionRefreshButton> createState() =>
+      _WindowCaptionRefreshButtonState();
+}
+
+class _WindowCaptionRefreshButtonState extends State<WindowCaptionRefreshButton>
+    with SingleTickerProviderStateMixin {
+  static const Duration _rotationDuration = Duration(milliseconds: 800);
+
+  late final AnimationController _rotationController;
+  bool _isHovered = false;
+  bool _isRefreshing = false;
+
+  bool get _canPress => !_isRefreshing && widget.onPressed != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: _rotationDuration,
+    );
+  }
+
+  @override
+  void dispose() {
+    _rotationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handlePressed() async {
+    if (!_canPress) {
+      return;
+    }
+
+    // Keep the button locked during the same refresh animation round.
+    setState(() => _isRefreshing = true);
+    try {
+      await Future.wait<void>([
+        _rotationController.forward(from: 0),
+        widget.onPressed!.call(),
+      ]);
+    } finally {
+      _rotationController.reset();
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white : Colors.black;
+    final buttonSize = widget.compact ? 28.0 : 46.0;
+    final iconSize = widget.compact ? 16.0 : 12.0;
+    final hoverBackground = widget.compact
+        ? (isDark
+            ? Colors.white.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.06))
+        : (isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.black.withValues(alpha: 0.05));
+    final backgroundColor =
+        _isHovered || _isRefreshing ? hoverBackground : Colors.transparent;
+    final borderRadius = BorderRadius.circular(widget.compact ? 14 : 0);
+
+    return Semantics(
+      button: true,
+      enabled: _canPress,
+      label: widget.semanticLabel,
+      child: Tooltip(
+        message: widget.semanticLabel,
+        child: MouseRegion(
+          cursor:
+              _canPress ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _canPress ? _handlePressed : null,
+            child: Container(
+              width: buttonSize,
+              height: widget.compact ? buttonSize : kWindowTitleBarHeight,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: borderRadius,
+              ),
+              child: AnimatedBuilder(
+                animation: _rotationController,
+                builder: (context, child) {
+                  return Transform.rotate(
+                    angle: _rotationController.value * math.pi * 2,
+                    child: child,
+                  );
+                },
+                child: Icon(
+                  FluentIcons.refresh,
+                  size: iconSize,
+                  color: iconColor,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class DragToMoveArea extends StatelessWidget {
   final Widget child;
 
@@ -124,7 +274,8 @@ class DragToMoveArea extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onPanStart: (_) {
-        if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+        if (!kIsWeb &&
+            (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
           windowManager.startDragging();
         }
       },

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,7 +8,9 @@ import 'movie_detail_view_model.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
+import 'package:flutter_cache_manager/flutter_cache_manager.dart'
+    as cache_manager;
+import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/file_providers.dart';
 import 'detail_components.dart';
@@ -17,7 +21,9 @@ import '../../widgets/toast.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   if (baseUrl.isEmpty || path.isEmpty) return '';
-  final normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+  final normalizedBaseUrl = baseUrl.endsWith('/')
+      ? baseUrl.substring(0, baseUrl.length - 1)
+      : baseUrl;
   return '$normalizedBaseUrl/v/api/v1/sys/img$path';
 }
 
@@ -28,6 +34,21 @@ class MovieDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Consume each global refresh request once for the current detail page.
+    ref.listen<GlobalRefreshRequest?>(
+      currentGlobalRefreshRequestProvider,
+      (_, next) {
+        unawaited(
+          ref.read(globalRefreshManagerProvider).handleRefresh(
+                consumerId: 'movie-detail:$guid',
+                request: next,
+                onRefresh: () => ref
+                    .read(movieDetailNotifierProvider(guid).notifier)
+                    .refresh(),
+              ),
+        );
+      },
+    );
     final detailState = ref.watch(movieDetailNotifierProvider(guid));
     final prefsManager = ref.watch(preferencesManagerProvider);
     final baseUrl = prefsManager.getBaseUrl() ?? '';
@@ -47,36 +68,38 @@ class MovieDetailScreen extends ConsumerWidget {
         : theme.scaffoldBackgroundColor;
 
     return FluentTheme(
-      data: theme.copyWith(scaffoldBackgroundColor: scaffoldBackgroundColor),
-      child: ScaffoldPage(
-        padding: EdgeInsets.zero,
-        content: detailState.when(
-        data: (state) => _MovieDetailContent(
-          state: state,
-          baseUrl: baseUrl,
-          guid: guid,
-          httpHeaders: httpHeaders,
-          cacheManager: cacheManager,
-        ),
-        loading: () => const Center(child: ProgressRing()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('加载失败: $error'),
-              const SizedBox(height: 16),
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: Button(
-                  child: const Text('重试'),
-                  onPressed: () => ref.read(movieDetailNotifierProvider(guid).notifier).refresh(),
-                ),
+        data: theme.copyWith(scaffoldBackgroundColor: scaffoldBackgroundColor),
+        child: ScaffoldPage(
+          padding: EdgeInsets.zero,
+          content: detailState.when(
+            data: (state) => _MovieDetailContent(
+              state: state,
+              baseUrl: baseUrl,
+              guid: guid,
+              httpHeaders: httpHeaders,
+              cacheManager: cacheManager,
+            ),
+            loading: () => const Center(child: ProgressRing()),
+            error: (error, stack) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('加载失败: $error'),
+                  const SizedBox(height: 16),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: Button(
+                      child: const Text('重试'),
+                      onPressed: () => ref
+                          .read(movieDetailNotifierProvider(guid).notifier)
+                          .refresh(),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
-    ));
+        ));
   }
 }
 
@@ -96,16 +119,17 @@ class _MovieDetailContent extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_MovieDetailContent> createState() => _MovieDetailContentState();
+  ConsumerState<_MovieDetailContent> createState() =>
+      _MovieDetailContentState();
 }
 
 class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   int _selectedVideoStreamIndex = 0;
   String _currentMediaGuid = '';
-  
+
   String? _selectedAudioGuid;
   String? _selectedSubtitleGuid;
-  
+
   // Maps to track selection per media guid
   final Map<String, String> _mediaGuidAudioGuidMap = {};
   final Map<String, String> _mediaGuidSubtitleGuidMap = {};
@@ -144,9 +168,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final playInfoSubtitleGuid = playInfo?.subtitleGuid;
 
     for (var audio in streamList.audioStreams) {
-      if (playInfoAudioGuid != null && playInfoAudioGuid.isNotEmpty && audio.guid == playInfoAudioGuid) {
+      if (playInfoAudioGuid != null &&
+          playInfoAudioGuid.isNotEmpty &&
+          audio.guid == playInfoAudioGuid) {
         _mediaGuidAudioGuidMap[audio.mediaGuid] = audio.guid;
-      } else if (audio.isDefault == 1 && !_mediaGuidAudioGuidMap.containsKey(audio.mediaGuid)) {
+      } else if (audio.isDefault == 1 &&
+          !_mediaGuidAudioGuidMap.containsKey(audio.mediaGuid)) {
         _mediaGuidAudioGuidMap[audio.mediaGuid] = audio.guid;
       }
     }
@@ -158,7 +185,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           playInfoSubtitleGuid.isNotEmpty &&
           subtitle.guid == playInfoSubtitleGuid) {
         _mediaGuidSubtitleGuidMap[subtitle.mediaGuid] = subtitle.guid;
-      } else if (subtitle.isDefault == 1 && !_mediaGuidSubtitleGuidMap.containsKey(subtitle.mediaGuid)) {
+      } else if (subtitle.isDefault == 1 &&
+          !_mediaGuidSubtitleGuidMap.containsKey(subtitle.mediaGuid)) {
         _mediaGuidSubtitleGuidMap[subtitle.mediaGuid] = subtitle.guid;
       }
     }
@@ -169,7 +197,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
       _currentMediaGuid = streamList.videoStreams[0].mediaGuid;
     }
 
-    final index = streamList.videoStreams.indexWhere((s) => s.mediaGuid == _currentMediaGuid);
+    final index = streamList.videoStreams
+        .indexWhere((s) => s.mediaGuid == _currentMediaGuid);
     if (index != -1) {
       _selectedVideoStreamIndex = index;
     } else if (streamList.videoStreams.isNotEmpty) {
@@ -185,17 +214,26 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     _selectedSubtitleGuid = _mediaGuidSubtitleGuidMap[_currentMediaGuid];
 
     if (_selectedAudioGuid == null) {
-      final audios = widget.state.streamList?.audioStreams.where((s) => s.mediaGuid == _currentMediaGuid).toList() ?? [];
+      final audios = widget.state.streamList?.audioStreams
+              .where((s) => s.mediaGuid == _currentMediaGuid)
+              .toList() ??
+          [];
       if (audios.isNotEmpty) {
-        _selectedAudioGuid = audios.firstWhere((s) => s.isDefault == 1, orElse: () => audios.first).guid;
+        _selectedAudioGuid = audios
+            .firstWhere((s) => s.isDefault == 1, orElse: () => audios.first)
+            .guid;
         _mediaGuidAudioGuidMap[_currentMediaGuid] = _selectedAudioGuid!;
       }
     }
 
     if (_selectedSubtitleGuid == null) {
-      final subtitles = widget.state.streamList?.subtitleStreams.where((s) => s.mediaGuid == _currentMediaGuid).toList() ?? [];
+      final subtitles = widget.state.streamList?.subtitleStreams
+              .where((s) => s.mediaGuid == _currentMediaGuid)
+              .toList() ??
+          [];
       if (subtitles.isNotEmpty) {
-        final defaultSub = subtitles.firstWhere((s) => s.isDefault == 1, orElse: () => subtitles.first);
+        final defaultSub = subtitles.firstWhere((s) => s.isDefault == 1,
+            orElse: () => subtitles.first);
         _selectedSubtitleGuid = defaultSub.guid;
         _mediaGuidSubtitleGuidMap[_currentMediaGuid] = _selectedSubtitleGuid!;
       } else {
@@ -226,9 +264,13 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         currentPath: _resolveCurrentFilePath(),
         onConfirm: (paths) async {
           try {
-            await ref.read(fileRepositoryProvider).markSubtitle(mediaGuid, paths);
+            await ref
+                .read(fileRepositoryProvider)
+                .markSubtitle(mediaGuid, paths);
             if (mounted) {
-              ref.read(movieDetailNotifierProvider(widget.guid).notifier).refresh();
+              ref
+                  .read(movieDetailNotifierProvider(widget.guid).notifier)
+                  .refresh();
             }
           } catch (error) {
             if (!mounted) return;
@@ -254,8 +296,10 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   void _onVideoStreamSelected(int index) {
     setState(() {
       _selectedVideoStreamIndex = index;
-      if (widget.state.streamList != null && widget.state.streamList!.videoStreams.length > index) {
-        _currentMediaGuid = widget.state.streamList!.videoStreams[index].mediaGuid;
+      if (widget.state.streamList != null &&
+          widget.state.streamList!.videoStreams.length > index) {
+        _currentMediaGuid =
+            widget.state.streamList!.videoStreams[index].mediaGuid;
         _updateCurrentStreamSelections();
       }
     });
@@ -271,7 +315,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   }
 
   Future<void> _handleToggleFavorite() async {
-    final result = await ref.read(movieDetailNotifierProvider(widget.guid).notifier).toggleFavorite();
+    final result = await ref
+        .read(movieDetailNotifierProvider(widget.guid).notifier)
+        .toggleFavorite();
     if (!mounted) return;
     if (result.success) {
       _toastManager.showToast(
@@ -289,7 +335,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   }
 
   Future<void> _handleToggleWatched() async {
-    final result = await ref.read(movieDetailNotifierProvider(widget.guid).notifier).toggleWatched();
+    final result = await ref
+        .read(movieDetailNotifierProvider(widget.guid).notifier)
+        .toggleWatched();
     if (!mounted) return;
     if (result.success) {
       _toastManager.showToast(
@@ -316,11 +364,14 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     // Align backdrop height to an integer number of physical pixels to prevent
     // a 1px seam caused by drawRect (gradient) and drawImageRect (image) using
     // different sub-pixel rounding rules at fractional DPI boundaries.
-    final backdropHeight = (windowHeight * 0.5 * pixelRatio).roundToDouble() / pixelRatio;
+    final backdropHeight =
+        (windowHeight * 0.5 * pixelRatio).roundToDouble() / pixelRatio;
 
-    final backdropPath = (item.backdrops?.isNotEmpty ?? false) ? item.backdrops! : item.posters;
+    final backdropPath =
+        (item.backdrops?.isNotEmpty ?? false) ? item.backdrops! : item.posters;
     final backdropUrl = _buildImageUrl(widget.baseUrl, backdropPath);
-    final logoUrl = item.logos != null ? _buildImageUrl(widget.baseUrl, item.logos!) : '';
+    final logoUrl =
+        item.logos != null ? _buildImageUrl(widget.baseUrl, item.logos!) : '';
 
     final iso3166Map = widget.state.iso3166;
     final textColor = FluentTheme.of(context).typography.body?.color;
@@ -329,8 +380,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final isWatched = item.isWatched == 1;
 
     // Calculate total duration for progress bar
-    final totalDuration = widget.state.streamList?.videoStreams.elementAtOrNull(_selectedVideoStreamIndex)?.duration ?? 0;
-    final formatedTotalDuration = FnDataConvertor.formatSecondsToCNDateTime(totalDuration);
+    final totalDuration = widget.state.streamList?.videoStreams
+            .elementAtOrNull(_selectedVideoStreamIndex)
+            ?.duration ??
+        0;
+    final formatedTotalDuration =
+        FnDataConvertor.formatSecondsToCNDateTime(totalDuration);
 
     return Stack(
       children: [
@@ -385,7 +440,10 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                 item.title,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: FluentTheme.of(context).typography.titleLarge?.copyWith(
+                                style: FluentTheme.of(context)
+                                    .typography
+                                    .titleLarge
+                                    ?.copyWith(
                                       fontSize: 60,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.white,
@@ -400,11 +458,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                     // Progress Bar
+                    // Progress Bar
                     if (item.watchedTs > 0)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
@@ -426,7 +485,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                             ),
                             const SizedBox(width: 16),
                             CircleIconButton(
-                              icon: item.isFavorite == 1 ? FluentIcons.heart_fill : FluentIcons.heart,
+                              icon: item.isFavorite == 1
+                                  ? FluentIcons.heart_fill
+                                  : FluentIcons.heart,
                               iconColor: textColor,
                               iconWidget: SvgPicture.asset(
                                 isFavorite
@@ -489,11 +550,17 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                 children: [
                                   if (widget.state.streamList != null) ...[
                                     Builder(builder: (context) {
-                                      final subtitleStreams = widget.state.streamList!.subtitleStreams
-                                          .where((s) => s.mediaGuid == _currentMediaGuid)
+                                      final subtitleStreams = widget
+                                          .state.streamList!.subtitleStreams
+                                          .where((s) =>
+                                              s.mediaGuid == _currentMediaGuid)
                                           .toList();
-                                      final currentSubtitle = subtitleStreams.where((s) => s.guid == _selectedSubtitleGuid).firstOrNull;
-                                      final subtitleLabel = _selectedSubtitleGuid == '_no_display_'
+                                      final currentSubtitle = subtitleStreams
+                                          .where((s) =>
+                                              s.guid == _selectedSubtitleGuid)
+                                          .firstOrNull;
+                                      final subtitleLabel = _selectedSubtitleGuid ==
+                                              '_no_display_'
                                           ? '无字幕'
                                           : '${FnDataConvertor.getLanguageName(currentSubtitle?.language ?? '', widget.state.iso6391, widget.state.iso6392)}字幕';
                                       final subtitleItems = [
@@ -503,8 +570,14 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                           isNoDisplay: true,
                                         ),
                                         ...subtitleStreams.map((s) {
-                                          final lang = FnDataConvertor.getLanguageName(s.language, widget.state.iso6391, widget.state.iso6392);
-                                          final title = s.isExternal == 1 ? '$lang - 外挂' : lang;
+                                          final lang =
+                                              FnDataConvertor.getLanguageName(
+                                                  s.language,
+                                                  widget.state.iso6391,
+                                                  widget.state.iso6392);
+                                          final title = s.isExternal == 1
+                                              ? '$lang - 外挂'
+                                              : lang;
                                           return StreamOptionItem<String>(
                                             title: title,
                                             value: s.guid,
@@ -521,26 +594,38 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                         selectedValue: _selectedSubtitleGuid,
                                         items: subtitleItems,
                                         isSubtitle: true,
-                                        onAddNasSubtitle: () => _showAddNasSubtitleDialog(_currentMediaGuid),
+                                        onAddNasSubtitle: () =>
+                                            _showAddNasSubtitleDialog(
+                                                _currentMediaGuid),
                                         onChanged: (val) {
                                           setState(() {
                                             _selectedSubtitleGuid = val;
-                                            _mediaGuidSubtitleGuidMap[_currentMediaGuid] = val;
+                                            _mediaGuidSubtitleGuidMap[
+                                                _currentMediaGuid] = val;
                                           });
                                         },
                                       );
                                     }),
                                     const SizedBox(width: 12),
                                     Builder(builder: (context) {
-                                      final audioStreams = widget.state.streamList!.audioStreams
-                                          .where((s) => s.mediaGuid == _currentMediaGuid)
+                                      final audioStreams = widget
+                                          .state.streamList!.audioStreams
+                                          .where((s) =>
+                                              s.mediaGuid == _currentMediaGuid)
                                           .toList();
-                                      final currentAudio = audioStreams.where((s) => s.guid == _selectedAudioGuid).firstOrNull;
+                                      final currentAudio = audioStreams
+                                          .where((s) =>
+                                              s.guid == _selectedAudioGuid)
+                                          .firstOrNull;
                                       final audioLabel = currentAudio == null
                                           ? '音频'
                                           : '${FnDataConvertor.getLanguageName(currentAudio.language, widget.state.iso6391, widget.state.iso6392)}音频';
                                       final audioItems = audioStreams.map((s) {
-                                        final lang = FnDataConvertor.getLanguageName(s.language, widget.state.iso6391, widget.state.iso6392);
+                                        final lang =
+                                            FnDataConvertor.getLanguageName(
+                                                s.language,
+                                                widget.state.iso6391,
+                                                widget.state.iso6392);
                                         return StreamOptionItem<String>(
                                           title: lang,
                                           value: s.guid,
@@ -558,23 +643,46 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                         onChanged: (val) {
                                           setState(() {
                                             _selectedAudioGuid = val;
-                                            _mediaGuidAudioGuidMap[_currentMediaGuid] = val;
+                                            _mediaGuidAudioGuidMap[
+                                                _currentMediaGuid] = val;
                                           });
                                         },
                                       );
                                     }),
                                     const SizedBox(width: 12),
                                     // Quality Tags
-                                    if (widget.state.streamList!.videoStreams.isNotEmpty && _selectedVideoStreamIndex < widget.state.streamList!.videoStreams.length) ...[
-                                      MediaQualityTag(text: widget.state.streamList!.videoStreams[_selectedVideoStreamIndex].resolutionType.toUpperCase()),
+                                    if (widget.state.streamList!.videoStreams
+                                            .isNotEmpty &&
+                                        _selectedVideoStreamIndex <
+                                            widget.state.streamList!
+                                                .videoStreams.length) ...[
+                                      MediaQualityTag(
+                                          text: widget
+                                              .state
+                                              .streamList!
+                                              .videoStreams[
+                                                  _selectedVideoStreamIndex]
+                                              .resolutionType
+                                              .toUpperCase()),
                                       const SizedBox(width: 8),
-                                      MediaQualityTag(text: widget.state.streamList!.videoStreams[_selectedVideoStreamIndex].colorRangeType),
+                                      MediaQualityTag(
+                                          text: widget
+                                              .state
+                                              .streamList!
+                                              .videoStreams[
+                                                  _selectedVideoStreamIndex]
+                                              .colorRangeType),
                                     ],
                                     const SizedBox(width: 8),
                                     // Audio Type Tag
                                     Builder(builder: (context) {
-                                      final audio = widget.state.streamList!.audioStreams.where((s) => s.guid == _selectedAudioGuid).firstOrNull;
-                                      return MediaQualityTag(text: audio?.audioType ?? '');
+                                      final audio = widget
+                                          .state.streamList!.audioStreams
+                                          .where((s) =>
+                                              s.guid == _selectedAudioGuid)
+                                          .firstOrNull;
+                                      return MediaQualityTag(
+                                          text: audio?.audioType ?? '');
                                     }),
                                   ],
                                 ],
@@ -586,7 +694,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                     ),
 
                     // Video Stream Source Boxes
-                    if (widget.state.streamList != null && widget.state.streamList!.videoStreams.length > 1) ...[
+                    if (widget.state.streamList != null &&
+                        widget.state.streamList!.videoStreams.length > 1) ...[
                       const SizedBox(height: 16),
                       _MediaSourceBoxes(
                         videoStreams: widget.state.streamList!.videoStreams,
@@ -602,7 +711,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                         overview: item.overview!,
                         onMore: () => showDialog(
                           context: context,
-                          builder: (_) => MediaDescriptionDialog(title: '电影简介', content: item.overview!),
+                          builder: (_) => MediaDescriptionDialog(
+                              title: '电影简介', content: item.overview!),
                         ),
                       ),
                     ],
@@ -610,7 +720,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                 ),
               ),
             ),
-            
+
             // Cast List
             if (widget.state.personList.isNotEmpty)
               SliverToBoxAdapter(
@@ -625,7 +735,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                 ),
               ),
 
-             // Media Info
+            // Media Info
             if (widget.state.streamList != null)
               SliverToBoxAdapter(
                 child: Padding(
@@ -641,7 +751,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
               ),
           ],
         ),
-        
+
         // Back Button
         Positioned(
           top: 12,
@@ -667,7 +777,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                   ),
                 ),
                 alignment: Alignment.center,
-                child: const Icon(FluentIcons.back, size: 24, color: Colors.white),
+                child:
+                    const Icon(FluentIcons.back, size: 24, color: Colors.white),
               ),
             ),
           ),
@@ -751,7 +862,8 @@ class _LogoTitleState extends State<_LogoTitle> {
       final imgHeight = info.image.height.toDouble();
       // Determine height based on aspect ratio
       final aspectRatio = imgHeight > 0 ? imgWidth / imgHeight : 1.0;
-      final nextHeight = aspectRatio > 0 && aspectRatio < 280.0 / 90.0 ? 150.0 : 90.0;
+      final nextHeight =
+          aspectRatio > 0 && aspectRatio < 280.0 / 90.0 ? 150.0 : 90.0;
       // Calculate width based on aspect ratio and height
       final nextWidth = aspectRatio * nextHeight;
       if (mounted) {
@@ -782,11 +894,11 @@ class _LogoTitleState extends State<_LogoTitle> {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: FluentTheme.of(context).typography.titleLarge?.copyWith(
-            fontSize: 60,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            height: 1.1,
-          ),
+                fontSize: 60,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                height: 1.1,
+              ),
         ),
         placeholder: (context, url) => const Align(
           alignment: Alignment.centerLeft,
@@ -823,8 +935,12 @@ class _ProgressBar extends StatelessWidget {
         Text(
           '剩余 ${FnDataConvertor.formatSecondsToCNDateTime(remaining)}',
           style: FluentTheme.of(context).typography.caption?.copyWith(
-            color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.6),
-          ),
+                color: FluentTheme.of(context)
+                    .typography
+                    .caption
+                    ?.color
+                    ?.withValues(alpha: 0.6),
+              ),
         ),
       ],
     );
@@ -850,9 +966,11 @@ class _MediaSourceBoxes extends StatelessWidget {
       children: List.generate(videoStreams.length, (index) {
         final stream = videoStreams[index];
         final isSelected = index == selectedIndex;
-        final colorRangeType = stream.colorRangeType == 'DolbyVision' ? '杜比视界' : stream.colorRangeType;
+        final colorRangeType = stream.colorRangeType == 'DolbyVision'
+            ? '杜比视界'
+            : stream.colorRangeType;
         final label = '${stream.resolutionType.toUpperCase()} $colorRangeType';
-        
+
         return VideoSelectionBox(
           text: label,
           isSelected: isSelected,
@@ -881,11 +999,12 @@ class _MediaInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final videoStreams = state.streamList?.videoStreams ?? [];
-    
-    final videoStream = videoStreams.isNotEmpty && selectedVideoStreamIndex < videoStreams.length
+
+    final videoStream = videoStreams.isNotEmpty &&
+            selectedVideoStreamIndex < videoStreams.length
         ? videoStreams[selectedVideoStreamIndex]
         : null;
-        
+
     final fileInfo = (state.streamList?.files ?? []).firstWhere(
       (f) => f.guid == currentMediaGuid,
       orElse: () => FileInfo(
@@ -903,59 +1022,59 @@ class _MediaInfoSection extends StatelessWidget {
         progressThumbHashDir: '',
       ),
     );
-    
+
     final audioStream = (state.streamList?.audioStreams ?? []).firstWhere(
       (s) => s.guid == currentAudioGuid,
       orElse: () => AudioStream(
-          guid: '',
-          mediaGuid: '',
-          title: '',
-          audioType: '',
-          codecName: '',
-          codecType: '',
-          language: '',
-          channels: 0,
-          profile: '',
-          sampleRate: '',
-          isDefault: 0,
-          channelLayout: '',
-          duration: 0,
-          index: 0,
-          bitsPerRawSample: '',
-          bps: 0,
-          createTime: 0,
-          updateTime: 0,
-          isFake: false,
+        guid: '',
+        mediaGuid: '',
+        title: '',
+        audioType: '',
+        codecName: '',
+        codecType: '',
+        language: '',
+        channels: 0,
+        profile: '',
+        sampleRate: '',
+        isDefault: 0,
+        channelLayout: '',
+        duration: 0,
+        index: 0,
+        bitsPerRawSample: '',
+        bps: 0,
+        createTime: 0,
+        updateTime: 0,
+        isFake: false,
       ),
     );
-    
+
     final subtitleStream = (state.streamList?.subtitleStreams ?? []).firstWhere(
       (s) => s.guid == currentSubtitleGuid,
       orElse: () => SubtitleStream(
-          guid: '',
-          mediaGuid: '',
-          title: '',
-          codecName: '',
-          codecType: '',
-          language: '',
-          forced: 0,
-          index: 0,
-          isDefault: 0,
-          isExternal: 0,
-          format: '',
-          trimId: '',
-          sourceId: '',
-          source: '',
-          createTime: 0,
-          updateTime: 0,
-          extraFile: 0,
-          isBitmap: 0,
-          fileSize: 0,
+        guid: '',
+        mediaGuid: '',
+        title: '',
+        codecName: '',
+        codecType: '',
+        language: '',
+        forced: 0,
+        index: 0,
+        isDefault: 0,
+        isExternal: 0,
+        format: '',
+        trimId: '',
+        sourceId: '',
+        source: '',
+        createTime: 0,
+        updateTime: 0,
+        extraFile: 0,
+        isBitmap: 0,
+        fileSize: 0,
       ),
     );
 
     final iso6391Map = state.iso6391;
-    
+
     final mediaDetails = FnDataConvertor.convertToMediaDetails(
       fileInfo: fileInfo.guid.isNotEmpty ? fileInfo : null,
       videoStream: videoStream,
@@ -970,10 +1089,13 @@ class _MediaInfoSection extends StatelessWidget {
       children: [
         Text(
           '媒体信息',
-          style: FluentTheme.of(context).typography.subtitle?.copyWith(fontWeight: FontWeight.bold),
+          style: FluentTheme.of(context)
+              .typography
+              .subtitle
+              ?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 24),
-        
+
         // File Info Section
         _InfoSection(
           title: '文件信息',
@@ -984,17 +1106,25 @@ class _MediaInfoSection extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: _InfoRow(label: '文件大小', value: mediaDetails.fileInfo.size)),
-                  Expanded(child: _InfoRow(label: '创建日期', value: mediaDetails.fileInfo.createdDate)),
-                  Expanded(child: _InfoRow(label: '添加日期', value: mediaDetails.fileInfo.addedDate)),
+                  Expanded(
+                      child: _InfoRow(
+                          label: '文件大小', value: mediaDetails.fileInfo.size)),
+                  Expanded(
+                      child: _InfoRow(
+                          label: '创建日期',
+                          value: mediaDetails.fileInfo.createdDate)),
+                  Expanded(
+                      child: _InfoRow(
+                          label: '添加日期',
+                          value: mediaDetails.fileInfo.addedDate)),
                 ],
               ),
             ],
           ),
         ),
-        
+
         const SizedBox(height: 24),
-        
+
         // Video/Audio Info Section
         _InfoSection(
           title: '视频/音频信息',
@@ -1021,7 +1151,7 @@ class _MediaInfoSection extends StatelessWidget {
             ],
           ),
         ),
-        
+
         if (mediaDetails.imdbLink.isNotEmpty) ...[
           const SizedBox(height: 24),
           ImdbLink(imdbId: state.item?.imdbId ?? ''),
@@ -1044,7 +1174,10 @@ class _InfoSection extends StatelessWidget {
       children: [
         Text(
           title,
-          style: FluentTheme.of(context).typography.bodyStrong?.copyWith(fontSize: 14),
+          style: FluentTheme.of(context)
+              .typography
+              .bodyStrong
+              ?.copyWith(fontSize: 14),
         ),
         const SizedBox(height: 12),
         Container(
@@ -1076,8 +1209,12 @@ class _InfoRow extends StatelessWidget {
         Text(
           label,
           style: FluentTheme.of(context).typography.caption?.copyWith(
-            color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.5),
-          ),
+                color: FluentTheme.of(context)
+                    .typography
+                    .caption
+                    ?.color
+                    ?.withValues(alpha: 0.5),
+              ),
         ),
         const SizedBox(height: 4),
         Text(value, style: FluentTheme.of(context).typography.body),
@@ -1098,7 +1235,7 @@ class _TrackItem extends StatelessWidget {
     final primaryColor = theme.typography.body?.color ?? Colors.white;
     final secondaryColor =
         theme.typography.caption?.color?.withValues(alpha: 0.8) ??
-        primaryColor.withValues(alpha: 0.8);
+            primaryColor.withValues(alpha: 0.8);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

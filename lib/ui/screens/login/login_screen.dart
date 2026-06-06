@@ -15,6 +15,7 @@ import 'package:webview_windows/webview_windows.dart';
 import '../../../data/models/login_history.dart';
 import '../../../data/network/dio_client.dart';
 import '../../../data/storage/preferences_manager.dart';
+import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../../utils/fn_api_helper.dart';
 import '../../widgets/history_sidebar.dart';
@@ -116,7 +117,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final username = _usernameController.text;
     final password = _passwordController.text;
     final fnId = _fnIdController.text;
-    debugPrint('[Login] start: isNasLogin=$_isNasLogin host="$host" port=$port fnId="$fnId" isHttps=$_isHttps');
+    debugPrint(
+        '[Login] start: isNasLogin=$_isNasLogin host="$host" port=$port fnId="$fnId" isHttps=$_isHttps');
 
     if (_isNasLogin) {
       _displayHost = fnId.trim();
@@ -128,7 +130,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showErrorDialog('请输入 FN ID');
         return;
       }
-      final shouldAutoLogin = _autoLoginFromHistory && _rememberPassword && password.isNotEmpty;
+      final shouldAutoLogin =
+          _autoLoginFromHistory && _rememberPassword && password.isNotEmpty;
       _openFnConnectWebView(
         url: url,
         isProbe: false,
@@ -230,7 +233,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ),
       inputDecorationTheme: material.InputDecorationTheme(
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         filled: false,
         labelStyle: const TextStyle(color: _hintColor, fontSize: 15),
         floatingLabelStyle: const TextStyle(color: _primaryBlue, fontSize: 15),
@@ -369,7 +373,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       decodedParams = Uri.decodeComponent(params);
     } catch (e) {
-      debugPrint('[Login][Bridge] decode failed method="$method" paramsLength=${params.length} error=$e');
+      debugPrint(
+          '[Login][Bridge] decode failed method="$method" paramsLength=${params.length} error=$e');
       decodedParams = params;
     }
     debugPrint(
@@ -425,12 +430,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Future<void> _setWebViewCookie(String baseUrl, String name, String value) async {
+  Future<void> _setWebViewCookie(
+      String baseUrl, String name, String value) async {
     if (baseUrl.isEmpty || name.isEmpty) return;
     if (Platform.isWindows) {
       final controller = _winWebviewController;
       if (controller == null) return;
-      await controller.executeScript('document.cookie = "$name=$value; path=/";');
+      await controller
+          .executeScript('document.cookie = "$name=$value; path=/";');
       return;
     }
     final uri = Uri.tryParse(baseUrl);
@@ -453,6 +460,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     await _inAppWebViewController?.loadUrl(urlRequest: URLRequest(url: uri));
+  }
+
+  Future<void> _reloadLoginWebView() async {
+    if (!_showFnConnectWebView) {
+      return;
+    }
+
+    // Reload the active login WebView directly without running page data fetches.
+    if (Platform.isWindows) {
+      final controller = _winWebviewController;
+      if (controller != null && _winWebviewReady) {
+        await controller.reload();
+      }
+      return;
+    }
+
+    await _inAppWebViewController?.reload();
   }
 
   Future<void> _onNasLoginSuccess(_NasLoginResult result) async {
@@ -481,11 +505,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final history = ref.watch(loginHistoryNotifierProvider);
     final loginState = ref.watch(loginViewModelProvider);
-    
+    final globalRefreshManager = ref.read(globalRefreshManagerProvider);
+    final titleBarRefreshVisibility =
+        ref.watch(titleBarRefreshVisibilityProvider);
+
+    // Consume the global refresh only when the login WebView overlay is active.
+    ref.listen<GlobalRefreshRequest?>(
+      currentGlobalRefreshRequestProvider,
+      (_, next) {
+        if (!_showFnConnectWebView) {
+          return;
+        }
+        unawaited(
+          globalRefreshManager.handleRefresh(
+            consumerId: 'login-webview',
+            request: next,
+            refreshBaseMediaLibrary: false,
+            onRefresh: _reloadLoginWebView,
+          ),
+        );
+      },
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      globalRefreshManager.updateCurrentRoutePath('/login');
+    });
+
     final isWindows = !kIsWeb && Platform.isWindows;
     final isLinux = !kIsWeb && Platform.isLinux;
     final showWindowCaption = isWindows || isLinux;
-    
+
     return ScaffoldPage(
       padding: EdgeInsets.zero,
       content: Stack(
@@ -504,6 +556,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: WindowCaption(
                 brightness: Brightness.dark,
                 backgroundColor: Colors.transparent,
+                showRefreshAction:
+                    titleBarRefreshVisibility.shouldShowRefreshAction,
+                onRefreshPressed: () => globalRefreshManager.requestRefresh(),
               ),
             ),
           Positioned.fill(
@@ -512,10 +567,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Acrylic(
                 tint: Colors.black.withValues(alpha: 0.6),
                 blurAmount: 20,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
                 child: Container(
                   width: 420,
-                  padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 40),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 36, vertical: 40),
                   child: material.Theme(
                     data: _buildMaterialTheme(),
                     child: Column(
@@ -527,7 +584,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           width: 174,
                         ),
                         const SizedBox(height: 8),
-                        const Text('Fly Narwhal', style: TextStyle(color: _hintColor, fontSize: 16)),
+                        const Text('Fly Narwhal',
+                            style: TextStyle(color: _hintColor, fontSize: 16)),
                         const SizedBox(height: 28),
                         if (_isNasLogin)
                           _buildOutlinedField(
@@ -536,8 +594,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             hint: '请输入 IP:Port、域名或 FN ID',
                             onChanged: (_) => _autoLoginFromHistory = false,
                             suffix: material.IconButton(
-                              icon: const material.Icon(material.Icons.history, color: _hintColor),
-                              onPressed: () => setState(() => _showHistorySidebar = true),
+                              icon: const material.Icon(material.Icons.history,
+                                  color: _hintColor),
+                              onPressed: () =>
+                                  setState(() => _showHistorySidebar = true),
                             ),
                           )
                         else
@@ -549,10 +609,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   label: 'IP、域名或 FN ID',
                                   controller: _hostController,
                                   hint: '请输入 IP、域名或 FN ID',
-                                  onChanged: (_) => _autoLoginFromHistory = false,
+                                  onChanged: (_) =>
+                                      _autoLoginFromHistory = false,
                                   suffix: material.IconButton(
-                                    icon: const material.Icon(material.Icons.history, color: _hintColor),
-                                    onPressed: () => setState(() => _showHistorySidebar = true),
+                                    icon: const material.Icon(
+                                        material.Icons.history,
+                                        color: _hintColor),
+                                    onPressed: () => setState(
+                                        () => _showHistorySidebar = true),
                                   ),
                                 ),
                               ),
@@ -564,7 +628,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   controller: _portController,
                                   hint: '端口',
                                   keyboardType: TextInputType.number,
-                                  onChanged: (_) => _autoLoginFromHistory = false,
+                                  onChanged: (_) =>
+                                      _autoLoginFromHistory = false,
                                 ),
                               ),
                             ],
@@ -584,10 +649,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             onChanged: (_) => _autoLoginFromHistory = false,
                             suffix: material.IconButton(
                               icon: material.Icon(
-                                _passwordVisible ? material.Icons.visibility : material.Icons.visibility_off,
+                                _passwordVisible
+                                    ? material.Icons.visibility
+                                    : material.Icons.visibility_off,
                                 color: _hintColor,
                               ),
-                              onPressed: () => setState(() => _passwordVisible = !_passwordVisible),
+                              onPressed: () => setState(
+                                  () => _passwordVisible = !_passwordVisible),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -602,7 +670,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 activeColor: _primaryBlue,
                               ),
                               const Expanded(
-                                child: Text('记住密码', style: TextStyle(color: _textColor)),
+                                child: Text('记住密码',
+                                    style: TextStyle(color: _textColor)),
                               ),
                               material.TextButton(
                                 onPressed: () {},
@@ -615,7 +684,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Row(
                           children: [
                             const Expanded(
-                              child: Text('使用 NAS 登录', style: TextStyle(color: _hintColor)),
+                              child: Text('使用 NAS 登录',
+                                  style: TextStyle(color: _hintColor)),
                             ),
                             material.Switch(
                               value: _isNasLogin,
@@ -631,7 +701,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Row(
                           children: [
                             const Expanded(
-                              child: Text('HTTPS 安全访问', style: TextStyle(color: _hintColor)),
+                              child: Text('HTTPS 安全访问',
+                                  style: TextStyle(color: _hintColor)),
                             ),
                             material.Switch(
                               value: _isHttps,
@@ -648,16 +719,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             onPressed: loginState.isLoading ? null : _onLogin,
                             style: material.FilledButton.styleFrom(
                               backgroundColor: _primaryBlue,
-                              disabledBackgroundColor: _primaryBlue.withValues(alpha: 0.5),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              disabledBackgroundColor:
+                                  _primaryBlue.withValues(alpha: 0.5),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
                             ),
                             child: loginState.isLoading
                                 ? const SizedBox(
                                     width: 22,
                                     height: 22,
-                                    child: material.CircularProgressIndicator(strokeWidth: 2),
+                                    child: material.CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   )
-                                : Text(_isNasLogin ? '下一步' : '登录', style: const TextStyle(fontSize: 16)),
+                                : Text(_isNasLogin ? '下一步' : '登录',
+                                    style: const TextStyle(fontSize: 16)),
                           ),
                         ),
                       ],
@@ -676,10 +751,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 historyList: history,
                 onDismiss: () => setState(() => _showHistorySidebar = false),
                 onDelete: (item) {
-                   ref.read(loginHistoryNotifierProvider.notifier).delete(item);
+                  ref.read(loginHistoryNotifierProvider.notifier).delete(item);
                 },
                 onSelect: (item) {
-                  final canAutoLogin = item.rememberPassword && (item.password ?? '').isNotEmpty;
+                  final canAutoLogin =
+                      item.rememberPassword && (item.password ?? '').isNotEmpty;
                   _populateFields(
                     item,
                     allowAutoLogin: item.isNasLogin && canAutoLogin,
@@ -688,8 +764,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 },
               ),
             ),
-          
-          if (_showFnConnectWebView) 
+          if (_showFnConnectWebView)
             Positioned.fill(
               child: Acrylic(
                 tint: Colors.black.withValues(alpha: 0.7),
@@ -716,7 +791,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          const Text('正在验证服务器...', style: TextStyle(color: Colors.grey)),
+                          const Text('正在验证服务器...',
+                              style: TextStyle(color: Colors.grey)),
                         ],
                       ),
                     ),
@@ -725,11 +801,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ? (_winWebviewController != null && _winWebviewReady
                               ? Webview(
                                   _winWebviewController!,
-                                  permissionRequested: _onWinPermissionRequested,
+                                  permissionRequested:
+                                      _onWinPermissionRequested,
                                 )
                               : const Center(child: ProgressRing()))
                           : InAppWebView(
-                              initialUrlRequest: URLRequest(url: Uri.parse(_fnConnectUrl)),
+                              initialUrlRequest:
+                                  URLRequest(url: Uri.parse(_fnConnectUrl)),
                               initialOptions: InAppWebViewGroupOptions(
                                 crossPlatform: InAppWebViewOptions(
                                   javaScriptEnabled: true,
@@ -743,7 +821,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 _handlePageUrl(url.toString());
                                 await _injectInAppWebViewScript(history);
                               },
-                              onUpdateVisitedHistory: (controller, url, _) async {
+                              onUpdateVisitedHistory:
+                                  (controller, url, _) async {
                                 if (url == null) return;
                                 _handlePageUrl(url.toString());
                               },
@@ -780,19 +859,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             userDataPath: userDataPath,
           );
           _winEnvInitialized = true;
-          debugPrint('[Login][WinWebView] environment initialized userDataPath="$userDataPath"');
+          debugPrint(
+              '[Login][WinWebView] environment initialized userDataPath="$userDataPath"');
         } catch (_) {}
       }
       final controller = WebviewController();
       _winWebviewController = controller;
       await controller.initialize();
-      debugPrint('[Login][WinWebView] controller initialized, loadUrl="$_fnConnectUrl"');
+      debugPrint(
+          '[Login][WinWebView] controller initialized, loadUrl="$_fnConnectUrl"');
       _winUrlSub = controller.url.listen((url) {
         debugPrint('[Login][WinWebView] url event: $url');
         _handlePageUrl(url);
       });
       await controller.setBackgroundColor(const Color(0x00000000));
-      await controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.sameWindow);
+      await controller
+          .setPopupWindowPolicy(WebviewPopupWindowPolicy.sameWindow);
       _winLoadingSub = controller.loadingState.listen((state) async {
         debugPrint('[Login][WinWebView] loadingState=$state');
         if (state == LoadingState.navigationCompleted) {
@@ -850,7 +932,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final host = slashIndex == -1 ? raw : raw.substring(0, slashIndex);
     final path = slashIndex == -1 ? '' : raw.substring(slashIndex);
     final normalizedHost = host.contains('.') ? host : '5ddd.com/$host';
-    final protocolPrefix = normalizedHost.contains('5ddd.com') || normalizedHost.contains('fnos.net')
+    final protocolPrefix = normalizedHost.contains('5ddd.com') ||
+            normalizedHost.contains('fnos.net')
         ? 'https://'
         : (https ? 'https://' : 'http://');
     return '$protocolPrefix$normalizedHost$path';
@@ -866,7 +949,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   String _stripQuotes(String url) {
     final trimmed = url.trim();
-    if (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length > 1) {
+    if (trimmed.startsWith('"') &&
+        trimmed.endsWith('"') &&
+        trimmed.length > 1) {
       return trimmed.substring(1, trimmed.length - 1);
     }
     return trimmed;
@@ -878,13 +963,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (index == -1) return null;
     return normalized.substring(0, index);
   }
+
   Future<void> _finalizeLogin({String? displayHost, int? displayPort}) async {
     final host = _hostController.text.trim();
     final port = int.tryParse(_portController.text) ?? 0;
     final username = _usernameController.text;
     final password = _passwordController.text;
     try {
-      debugPrint('[Login] finalize login start: host="$host" port=$port isHttps=$_isHttps');
+      debugPrint(
+          '[Login] finalize login start: host="$host" port=$port isHttps=$_isHttps');
       await ref.read(loginViewModelProvider.notifier).login(
             host: host,
             port: port,
@@ -900,7 +987,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final prefs = ref.read(preferencesManagerProvider);
       final token = prefs.getToken();
       final baseUrl = prefs.getBaseUrl();
-      debugPrint('[Login] prefs after login: token=${token != null} tokenLength=${token?.length ?? 0} baseUrl=${baseUrl != null}');
+      debugPrint(
+          '[Login] prefs after login: token=${token != null} tokenLength=${token?.length ?? 0} baseUrl=${baseUrl != null}');
       final refreshNotifier = ref.read(authRefreshProvider.notifier);
       refreshNotifier.state = refreshNotifier.state + 1;
       debugPrint('[Login] auth refresh from screen=${refreshNotifier.state}');
@@ -959,7 +1047,8 @@ class _NetworkMessageProcessor {
   final DioClient dioClient;
   final PreferencesManager preferencesManager;
   final void Function(String message) onError;
-  final Future<void> Function(String baseUrl, String name, String value) setCookie;
+  final Future<void> Function(String baseUrl, String name, String value)
+      setCookie;
   final Future<void> Function(String url) loadUrl;
   final Future<void> Function(_NasLoginResult result) onLoginSuccess;
   final void Function(String baseUrl) onBaseUrlChange;
@@ -994,7 +1083,8 @@ class _NetworkMessageProcessor {
     var currentBaseUrl = baseUrl;
     final derivedBaseUrl = _originFromUrl(url);
     if (derivedBaseUrl.isNotEmpty && derivedBaseUrl != currentBaseUrl) {
-      debugPrint('[Login][Bridge] baseUrl updated from url="$url" baseUrl="$derivedBaseUrl"');
+      debugPrint(
+          '[Login][Bridge] baseUrl updated from url="$url" baseUrl="$derivedBaseUrl"');
       onBaseUrlChange(derivedBaseUrl);
       currentBaseUrl = derivedBaseUrl;
     }
@@ -1021,7 +1111,8 @@ class _NetworkMessageProcessor {
     }
   }
 
-  Future<void> _handleStatusMessage(Map<String, dynamic> payload, String baseUrl) async {
+  Future<void> _handleStatusMessage(
+      Map<String, dynamic> payload, String baseUrl) async {
     if (_isSysConfigLoaded || _isSysConfigInFlight) return;
     final cookie = _extractCookie(payload);
     if (cookie == null || cookie.isEmpty) return;
@@ -1029,7 +1120,8 @@ class _NetworkMessageProcessor {
     await _fetchSysConfig(baseUrl, normalizedCookie);
   }
 
-  Future<void> _handleSysConfigMessage(Map<String, dynamic> payload, String baseUrl) async {
+  Future<void> _handleSysConfigMessage(
+      Map<String, dynamic> payload, String baseUrl) async {
     if (_isSysConfigLoaded) return;
     final body = (payload['body'] ?? '').toString();
     if (body.isEmpty) return;
@@ -1061,7 +1153,8 @@ class _NetworkMessageProcessor {
     }
   }
 
-  Future<void> _handleSysConfigBody(String baseUrl, String body, String? cookie) async {
+  Future<void> _handleSysConfigBody(
+      String baseUrl, String body, String? cookie) async {
     Map<String, dynamic> jsonBody;
     try {
       final decoded = jsonDecode(body);
@@ -1077,13 +1170,16 @@ class _NetworkMessageProcessor {
     final appId = (oauth['app_id'] ?? '').toString();
     if (appId.isEmpty) return;
     final oauthUrl = (oauth['url'] ?? '').toString();
-    final targetBaseUrl = (oauthUrl.isNotEmpty && oauthUrl != '://') ? oauthUrl : baseUrl;
+    final targetBaseUrl =
+        (oauthUrl.isNotEmpty && oauthUrl != '://') ? oauthUrl : baseUrl;
     if (targetBaseUrl.isEmpty) return;
     // Build OAuth URL from sys config
-    debugPrint('[Login][Bridge] sys config resolved oauthBase="$targetBaseUrl"');
+    debugPrint(
+        '[Login][Bridge] sys config resolved oauthBase="$targetBaseUrl"');
     onBaseUrlChange(targetBaseUrl);
     final redirectUri = '$targetBaseUrl/v/oauth/result';
-    final targetUrl = '$targetBaseUrl/signin?client_id=$appId&redirect_uri=$redirectUri';
+    final targetUrl =
+        '$targetBaseUrl/signin?client_id=$appId&redirect_uri=$redirectUri';
     if (cookie != null && cookie.isNotEmpty) {
       await _applyCookieToDomain(targetBaseUrl, cookie);
     }
@@ -1105,9 +1201,11 @@ class _NetworkMessageProcessor {
     if (_isAuthRequested) return;
     final payloadUrl = payload['url']?.toString() ?? '';
     final derivedBaseUrl = _originFromUrl(payloadUrl);
-    final resolvedBaseUrl = derivedBaseUrl.isNotEmpty ? derivedBaseUrl : baseUrl;
+    final resolvedBaseUrl =
+        derivedBaseUrl.isNotEmpty ? derivedBaseUrl : baseUrl;
     if (resolvedBaseUrl.isNotEmpty && resolvedBaseUrl != baseUrl) {
-      debugPrint('[Login][Bridge] oauth baseUrl sync="$resolvedBaseUrl" from url="$payloadUrl"');
+      debugPrint(
+          '[Login][Bridge] oauth baseUrl sync="$resolvedBaseUrl" from url="$payloadUrl"');
       onBaseUrlChange(resolvedBaseUrl);
     }
     debugPrint(
@@ -1145,11 +1243,13 @@ class _NetworkMessageProcessor {
         onError('登录失败: Token 为空');
         return;
       }
-      final relayCookie = _normalizeRelayCookie('Trim-MC-token=$token', resolvedBaseUrl);
+      final relayCookie =
+          _normalizeRelayCookie('Trim-MC-token=$token', resolvedBaseUrl);
       final username = capturedUsername.trim().isNotEmpty
           ? capturedUsername.trim()
           : autoLoginUsername.trim();
-      final shouldRemember = capturedRememberPassword && capturedPassword.isNotEmpty;
+      final shouldRemember =
+          capturedRememberPassword && capturedPassword.isNotEmpty;
       final historyItem = LoginHistory(
         host: '',
         port: 0,
@@ -1164,9 +1264,11 @@ class _NetworkMessageProcessor {
         displayPort: displayPort == 0 ? null : displayPort,
       );
       final currentHistory = preferencesManager.getLoginHistory();
-      final updatedHistory = currentHistory.where((element) => element != historyItem).toList();
+      final updatedHistory =
+          currentHistory.where((element) => element != historyItem).toList();
       updatedHistory.insert(0, historyItem);
-      debugPrint('[Login][Bridge] oauth success, history=${updatedHistory.length}');
+      debugPrint(
+          '[Login][Bridge] oauth success, history=${updatedHistory.length}');
       await onLoginSuccess(
         _NasLoginResult(
           token: token,
@@ -1196,7 +1298,8 @@ class _NetworkMessageProcessor {
       options: Options(
         headers: {'Authx': authx},
         followRedirects: true,
-        validateStatus: (status) => status != null && status >= 200 && status <= 302,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status <= 302,
       ),
     );
     debugPrint(
@@ -1215,7 +1318,8 @@ class _NetworkMessageProcessor {
       final body = data['data'];
       if (body is Map && body['token'] != null) {
         final tokenValue = body['token'].toString();
-        debugPrint('[Login][Bridge] exchange token success tokenLength=${tokenValue.length}');
+        debugPrint(
+            '[Login][Bridge] exchange token success tokenLength=${tokenValue.length}');
         return tokenValue;
       }
       debugPrint(
@@ -1223,7 +1327,8 @@ class _NetworkMessageProcessor {
       );
       return '';
     }
-    debugPrint('[Login][Bridge] exchange token unexpected responseType=${data.runtimeType}');
+    debugPrint(
+        '[Login][Bridge] exchange token unexpected responseType=${data.runtimeType}');
     return '';
   }
 
@@ -1240,7 +1345,8 @@ class _NetworkMessageProcessor {
     if (direct != null && direct.isNotEmpty) return direct;
     final headers = payload['headers'];
     if (headers is Map) {
-      final lowered = headers.map((key, value) => MapEntry(key.toString().toLowerCase(), value.toString()));
+      final lowered = headers.map((key, value) =>
+          MapEntry(key.toString().toLowerCase(), value.toString()));
       final cookie = lowered['set-cookie'] ?? lowered['cookie'];
       if (cookie != null && cookie.isNotEmpty) return cookie;
     }

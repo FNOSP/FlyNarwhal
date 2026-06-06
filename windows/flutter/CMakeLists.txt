@@ -8,7 +8,16 @@ include(${EPHEMERAL_DIR}/generated_config.cmake)
 
 # TODO: Move the rest of this into files in ephemeral. See
 # https://github.com/flutter/flutter/issues/57146.
+set(FLUTTER_ENGINE_FALLBACK_ROOT "${FLUTTER_ROOT}/bin/cache/artifacts/engine/windows-x64")
 set(WRAPPER_ROOT "${EPHEMERAL_DIR}/cpp_client_wrapper")
+set(WRAPPER_FALLBACK_ROOT "${FLUTTER_ENGINE_FALLBACK_ROOT}/cpp_client_wrapper")
+
+# Sync the SDK wrapper sources into the ephemeral directory when Flutter only
+# generates headers there. This keeps launch_app aligned with the template paths.
+if (NOT EXISTS "${WRAPPER_ROOT}/core_implementations.cc")
+  file(MAKE_DIRECTORY "${WRAPPER_ROOT}")
+  file(COPY "${WRAPPER_FALLBACK_ROOT}/" DESTINATION "${WRAPPER_ROOT}")
+endif()
 
 # Set fallback configurations for older versions of the flutter tool.
 if (NOT DEFINED FLUTTER_TARGET_PLATFORM)
@@ -68,6 +77,7 @@ set_target_properties(flutter_wrapper_plugin PROPERTIES
 target_link_libraries(flutter_wrapper_plugin PUBLIC flutter)
 target_include_directories(flutter_wrapper_plugin PUBLIC
   "${WRAPPER_ROOT}/include"
+  "${EPHEMERAL_DIR}"
 )
 add_dependencies(flutter_wrapper_plugin flutter_assemble)
 
@@ -80,6 +90,7 @@ apply_standard_settings(flutter_wrapper_app)
 target_link_libraries(flutter_wrapper_app PUBLIC flutter)
 target_include_directories(flutter_wrapper_app PUBLIC
   "${WRAPPER_ROOT}/include"
+  "${EPHEMERAL_DIR}"
 )
 add_dependencies(flutter_wrapper_app flutter_assemble)
 
@@ -107,3 +118,40 @@ add_custom_target(flutter_assemble DEPENDS
   ${CPP_WRAPPER_SOURCES_PLUGIN}
   ${CPP_WRAPPER_SOURCES_APP}
 )
+
+# Re-sync wrapper sources after flutter_assemble because some tool invocations
+# recreate the ephemeral wrapper directory with headers only.
+add_custom_target(flutter_sync_wrapper_sources
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${WRAPPER_ROOT}"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${WRAPPER_FALLBACK_ROOT}/include" "${WRAPPER_ROOT}/include"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WRAPPER_FALLBACK_ROOT}/binary_messenger_impl.h" "${WRAPPER_ROOT}/binary_messenger_impl.h"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WRAPPER_FALLBACK_ROOT}/byte_buffer_streams.h" "${WRAPPER_ROOT}/byte_buffer_streams.h"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WRAPPER_FALLBACK_ROOT}/core_implementations.cc" "${WRAPPER_ROOT}/core_implementations.cc"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WRAPPER_FALLBACK_ROOT}/engine_method_result.cc" "${WRAPPER_ROOT}/engine_method_result.cc"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WRAPPER_FALLBACK_ROOT}/flutter_engine.cc" "${WRAPPER_ROOT}/flutter_engine.cc"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WRAPPER_FALLBACK_ROOT}/flutter_view_controller.cc" "${WRAPPER_ROOT}/flutter_view_controller.cc"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WRAPPER_FALLBACK_ROOT}/plugin_registrar.cc" "${WRAPPER_ROOT}/plugin_registrar.cc"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WRAPPER_FALLBACK_ROOT}/standard_codec.cc" "${WRAPPER_ROOT}/standard_codec.cc"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WRAPPER_FALLBACK_ROOT}/texture_registrar_impl.h" "${WRAPPER_ROOT}/texture_registrar_impl.h"
+  DEPENDS flutter_assemble
+  VERBATIM
+)
+
+# Re-sync the core Flutter engine headers and libraries when tool_backend
+# leaves the ephemeral directory incomplete during launch_app builds.
+add_custom_target(flutter_sync_ephemeral_runtime
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${EPHEMERAL_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FLUTTER_ENGINE_FALLBACK_ROOT}/flutter_export.h" "${EPHEMERAL_DIR}/flutter_export.h"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FLUTTER_ENGINE_FALLBACK_ROOT}/flutter_windows.h" "${EPHEMERAL_DIR}/flutter_windows.h"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FLUTTER_ENGINE_FALLBACK_ROOT}/flutter_messenger.h" "${EPHEMERAL_DIR}/flutter_messenger.h"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FLUTTER_ENGINE_FALLBACK_ROOT}/flutter_plugin_registrar.h" "${EPHEMERAL_DIR}/flutter_plugin_registrar.h"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FLUTTER_ENGINE_FALLBACK_ROOT}/flutter_texture_registrar.h" "${EPHEMERAL_DIR}/flutter_texture_registrar.h"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FLUTTER_ENGINE_FALLBACK_ROOT}/flutter_windows.dll" "${EPHEMERAL_DIR}/flutter_windows.dll"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FLUTTER_ENGINE_FALLBACK_ROOT}/flutter_windows.dll.lib" "${EPHEMERAL_DIR}/flutter_windows.dll.lib"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FLUTTER_ENGINE_FALLBACK_ROOT}/icudtl.dat" "${EPHEMERAL_DIR}/icudtl.dat"
+  DEPENDS flutter_assemble
+  VERBATIM
+)
+
+add_dependencies(flutter_wrapper_plugin flutter_sync_wrapper_sources flutter_sync_ephemeral_runtime)
+add_dependencies(flutter_wrapper_app flutter_sync_wrapper_sources flutter_sync_ephemeral_runtime)

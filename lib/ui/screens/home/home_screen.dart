@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../data/models/home_models.dart';
 import 'home_view_model.dart';
+import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../widgets/media_lib_card_row.dart';
 import '../../widgets/media_lib_gallery.dart';
@@ -18,12 +20,13 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  static const String _globalRefreshConsumerId = 'home-screen';
   late final ToastManager _toastManager = ToastManager();
   late final ScrollController _scrollController = ScrollController();
   
   // Pending callbacks for favorite/watched operations
-  Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
-  Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
+  final Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
+  final Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
   
   // Track items to be removed from recently watched
   Set<String> _itemsToBeRemoved = {};
@@ -49,6 +52,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final mediaDbListAsync = ref.watch(mediaDbListNotifierProvider);
     final playListAsync = ref.watch(playListNotifierProvider);
+    final globalRefreshManager = ref.read(globalRefreshManagerProvider);
+
+    // Consume each global refresh event once and keep the home data in sync.
+    ref.listen<GlobalRefreshRequest?>(currentGlobalRefreshRequestProvider, (
+      previous,
+      next,
+    ) {
+      if (!globalRefreshManager.consumeOnce(
+        consumerId: _globalRefreshConsumerId,
+        request: next,
+      )) {
+        return;
+      }
+      unawaited(_handleGlobalRefresh(next!));
+    });
 
     // Listen to favorite result changes
     ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (previous, next) {
@@ -140,6 +158,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleGlobalRefresh(GlobalRefreshRequest request) async {
+    // Run the shared media-library refresh before page-specific refresh work.
+    await request.runBaseMediaLibraryRefresh();
+    if (!mounted) {
+      return;
+    }
+    final libraries = await ref.read(mediaDbListNotifierProvider.future);
+    if (!mounted) {
+      return;
+    }
+
+    // Clear local removal state so refreshed data reflects the source of truth.
+    setState(() {
+      _itemsToBeRemoved = {};
+    });
+
+    // Refresh home-specific sections after the shared metadata is ready.
+    final galleryRefreshes = <Future<ItemListQueryResponse>>[];
+    for (final library in libraries) {
+      ref.invalidate(itemListNotifierProvider(library.guid));
+      galleryRefreshes.add(ref.read(itemListNotifierProvider(library.guid).future));
+    }
+    await Future.wait([
+      ref.read(playListNotifierProvider.notifier).refresh(),
+      ref.read(userInfoProvider.notifier).loadUserInfo(force: true),
+      ...galleryRefreshes,
+    ]);
   }
 
   // Handle favorite toggle

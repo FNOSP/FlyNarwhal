@@ -40,6 +40,8 @@ add_definitions(-DUNICODE -D_UNICODE)
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_17)
   target_compile_options(${TARGET} PRIVATE /W4 /WX /wd"4100")
+  # Serialize PDB writes to avoid MSVC C1041 during parallel wrapper builds.
+  target_compile_options(${TARGET} PRIVATE /FS)
   target_compile_options(${TARGET} PRIVATE /EHsc)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
@@ -47,6 +49,25 @@ endfunction()
 
 # Flutter library and tool build rules.
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
+
+# Normalize Windows plugin links before including generated plugin rules.
+if (WIN32)
+  set(FLUTTER_PLUGIN_DEPENDENCIES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../.flutter-plugins-dependencies")
+  if (EXISTS "${FLUTTER_PLUGIN_DEPENDENCIES_FILE}")
+    file(TO_NATIVE_PATH "${FLUTTER_PLUGIN_DEPENDENCIES_FILE}" FLUTTER_PLUGIN_DEPENDENCIES_NATIVE)
+    file(TO_NATIVE_PATH "${FLUTTER_MANAGED_DIR}/ephemeral/.plugin_symlinks" FLUTTER_PLUGIN_LINKS_NATIVE)
+    execute_process(
+      COMMAND powershell -NoProfile -ExecutionPolicy Bypass -Command
+        "$deps = Get-Content '${FLUTTER_PLUGIN_DEPENDENCIES_NATIVE}' -Raw | ConvertFrom-Json; $base = '${FLUTTER_PLUGIN_LINKS_NATIVE}'; New-Item -ItemType Directory -Force -Path $base | Out-Null; foreach ($plugin in $deps.plugins.windows) { $name = $plugin.name; $target = $plugin.path.TrimEnd('\\'); $targetWindows = Join-Path $target 'windows'; if (-not (Test-Path $targetWindows)) { continue }; $link = Join-Path $base $name; $windowsLink = Join-Path $link 'windows'; if (Test-Path $windowsLink) { continue }; if (Test-Path $link) { Remove-Item $link -Force -Recurse }; New-Item -ItemType Junction -Path $link -Target $target | Out-Null }"
+      RESULT_VARIABLE FLUTTER_PLUGIN_LINK_RESULT
+      ERROR_VARIABLE FLUTTER_PLUGIN_LINK_ERROR
+    )
+    if (NOT FLUTTER_PLUGIN_LINK_RESULT EQUAL 0)
+      message(FATAL_ERROR "Failed to normalize Windows plugin links: ${FLUTTER_PLUGIN_LINK_ERROR}")
+    endif()
+  endif()
+endif()
+
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
 # Application build; see runner/CMakeLists.txt.

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
@@ -10,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/season_list_response.dart';
 import '../../../data/utils/fn_data_convertor.dart';
+import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../movie_detail/detail_components.dart';
 import '../../widgets/img_loading_progress_ring.dart';
@@ -32,6 +35,20 @@ class TvDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Consume each global refresh request once for the current TV detail page.
+    ref.listen<GlobalRefreshRequest?>(
+      currentGlobalRefreshRequestProvider,
+      (_, next) {
+        unawaited(
+          ref.read(globalRefreshManagerProvider).handleRefresh(
+                consumerId: 'tv-detail:$guid',
+                request: next,
+                onRefresh: () =>
+                    ref.read(tvDetailNotifierProvider(guid).notifier).refresh(),
+              ),
+        );
+      },
+    );
     final detailState = ref.watch(tvDetailNotifierProvider(guid));
     final prefsManager = ref.watch(preferencesManagerProvider);
     final baseUrl = prefsManager.getBaseUrl() ?? '';
@@ -457,7 +474,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         Row(
           children: [
             DetailPlayButton(
-              key: ValueKey('tv-detail-play'),
+              key: const ValueKey('tv-detail-play'),
               text: playButtonText,
               onPressed: _playMedia,
             ),

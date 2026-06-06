@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -10,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
+import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../widgets/cast_scroll_row.dart';
 import '../../widgets/poster_resolution_tags.dart';
@@ -38,6 +40,21 @@ class TvSeasonDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Consume each global refresh request once for the current season page.
+    ref.listen<GlobalRefreshRequest?>(
+      currentGlobalRefreshRequestProvider,
+      (_, next) {
+        unawaited(
+          ref.read(globalRefreshManagerProvider).handleRefresh(
+                consumerId: 'tv-season-detail:$guid',
+                request: next,
+                onRefresh: () => ref
+                    .read(tvSeasonDetailNotifierProvider(guid).notifier)
+                    .refresh(),
+              ),
+        );
+      },
+    );
     final detailState = ref.watch(tvSeasonDetailNotifierProvider(guid));
     final prefsManager = ref.watch(preferencesManagerProvider);
     final baseUrl = prefsManager.getBaseUrl() ?? '';
