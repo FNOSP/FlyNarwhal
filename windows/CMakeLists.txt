@@ -50,8 +50,69 @@ endfunction()
 # Flutter library and tool build rules.
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 
+function(ENSURE_VERIFIED_WINDOWS_ARCHIVE ARCHIVE_NAME ARCHIVE_URL ARCHIVE_MD5)
+  set(ARCHIVE_PATH "${CMAKE_BINARY_DIR}/${ARCHIVE_NAME}")
+  set(ARCHIVE_NEEDS_DOWNLOAD TRUE)
+
+  # Drop stale or empty archives so plugin CMake files don't fail on corrupt
+  # cached downloads left behind by previous configure attempts.
+  if (EXISTS "${ARCHIVE_PATH}")
+    file(SIZE "${ARCHIVE_PATH}" ARCHIVE_SIZE)
+    file(MD5 "${ARCHIVE_PATH}" ARCHIVE_HASH)
+    if (ARCHIVE_SIZE GREATER 0 AND ARCHIVE_HASH STREQUAL ARCHIVE_MD5)
+      set(ARCHIVE_NEEDS_DOWNLOAD FALSE)
+    else()
+      file(REMOVE "${ARCHIVE_PATH}")
+    endif()
+  endif()
+
+  # Pre-download large third-party archives with PowerShell because CMake's
+  # file(DOWNLOAD) has intermittently produced zero-byte files in this setup.
+  if (ARCHIVE_NEEDS_DOWNLOAD)
+    file(TO_NATIVE_PATH "${ARCHIVE_PATH}" ARCHIVE_PATH_NATIVE)
+    execute_process(
+      COMMAND powershell -NoProfile -ExecutionPolicy Bypass -Command
+        "$ProgressPreference = 'SilentlyContinue'; $url = '${ARCHIVE_URL}'; $out = '${ARCHIVE_PATH_NATIVE}'; for ($i = 1; $i -le 3; $i++) { try { Invoke-WebRequest -Uri $url -OutFile $out -MaximumRedirection 10 -UseBasicParsing; if ((Test-Path $out) -and ((Get-Item $out).Length -gt 0)) { exit 0 } } catch { if (Test-Path $out) { Remove-Item $out -Force }; if ($i -eq 3) { throw }; Start-Sleep -Seconds 1 }; if (Test-Path $out) { Remove-Item $out -Force }; Start-Sleep -Seconds 1 }; exit 1"
+      RESULT_VARIABLE ARCHIVE_DOWNLOAD_RESULT
+      ERROR_VARIABLE ARCHIVE_DOWNLOAD_ERROR
+    )
+    if (NOT ARCHIVE_DOWNLOAD_RESULT EQUAL 0)
+      message(FATAL_ERROR "Failed to pre-download ${ARCHIVE_NAME}: ${ARCHIVE_DOWNLOAD_ERROR}")
+    endif()
+  endif()
+
+  if (NOT EXISTS "${ARCHIVE_PATH}")
+    message(FATAL_ERROR "Verified archive is missing after download: ${ARCHIVE_PATH}")
+  endif()
+
+  file(SIZE "${ARCHIVE_PATH}" ARCHIVE_SIZE)
+  if (ARCHIVE_SIZE EQUAL 0)
+    message(FATAL_ERROR "Verified archive is empty after download: ${ARCHIVE_PATH}")
+  endif()
+
+  file(MD5 "${ARCHIVE_PATH}" ARCHIVE_HASH)
+  if (NOT ARCHIVE_HASH STREQUAL ARCHIVE_MD5)
+    message(FATAL_ERROR
+      "Verified archive checksum mismatch for ${ARCHIVE_NAME}: expected ${ARCHIVE_MD5}, got ${ARCHIVE_HASH}"
+    )
+  endif()
+endfunction()
+
 # Normalize Windows plugin links before including generated plugin rules.
 if (WIN32)
+  # Pre-seed archives downloaded by media_kit so plugin configure steps do not
+  # get stuck on zero-byte caches produced by file(DOWNLOAD).
+  ensure_verified_windows_archive(
+    "mpv-dev-x86_64-20230924-git-652a1dd.7z"
+    "https://github.com/media-kit/libmpv-win32-video-build/releases/download/2023-09-24/mpv-dev-x86_64-20230924-git-652a1dd.7z"
+    "a832ef24b3a6ff97cd2560b5b9d04cd8"
+  )
+  ensure_verified_windows_archive(
+    "ANGLE.7z"
+    "https://github.com/alexmercerind/flutter-windows-ANGLE-OpenGL-ES/releases/download/v1.0.1/ANGLE.7z"
+    "e866f13e8d552348058afaafe869b1ed"
+  )
+
   set(FLUTTER_PLUGIN_DEPENDENCIES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../.flutter-plugins-dependencies")
   set(FLUTTER_PLUGIN_LINKS_DIR "${FLUTTER_MANAGED_DIR}/ephemeral/.plugin_symlinks")
   set(FLUTTER_PLUGIN_LINKS_STAMP "${FLUTTER_MANAGED_DIR}/ephemeral/.plugin_symlinks.stamp")
@@ -59,12 +120,29 @@ if (WIN32)
     file(SHA256 "${FLUTTER_PLUGIN_DEPENDENCIES_FILE}" FLUTTER_PLUGIN_DEPENDENCIES_HASH)
     set(FLUTTER_PLUGIN_LINKS_NEED_SYNC TRUE)
 
-    # Skip the plugin junction repair when the dependency graph is unchanged.
+    # Skip the plugin junction repair only when both the dependency hash and
+    # the generated junction tree are still intact.
     if (EXISTS "${FLUTTER_PLUGIN_LINKS_DIR}" AND EXISTS "${FLUTTER_PLUGIN_LINKS_STAMP}")
       file(READ "${FLUTTER_PLUGIN_LINKS_STAMP}" FLUTTER_PLUGIN_LINKS_STAMP_VALUE)
       string(STRIP "${FLUTTER_PLUGIN_LINKS_STAMP_VALUE}" FLUTTER_PLUGIN_LINKS_STAMP_VALUE)
       if (FLUTTER_PLUGIN_LINKS_STAMP_VALUE STREQUAL FLUTTER_PLUGIN_DEPENDENCIES_HASH)
         set(FLUTTER_PLUGIN_LINKS_NEED_SYNC FALSE)
+      endif()
+    endif()
+
+    # Rebuild the junction tree when the stamp is stale or any plugin link is
+    # missing, even if the dependency hash has not changed.
+    if (NOT FLUTTER_PLUGIN_LINKS_NEED_SYNC)
+      file(TO_NATIVE_PATH "${FLUTTER_PLUGIN_DEPENDENCIES_FILE}" FLUTTER_PLUGIN_DEPENDENCIES_NATIVE)
+      file(TO_NATIVE_PATH "${FLUTTER_PLUGIN_LINKS_DIR}" FLUTTER_PLUGIN_LINKS_NATIVE)
+      execute_process(
+        COMMAND powershell -NoProfile -ExecutionPolicy Bypass -Command
+          "$deps = Get-Content '${FLUTTER_PLUGIN_DEPENDENCIES_NATIVE}' -Raw | ConvertFrom-Json; $base = '${FLUTTER_PLUGIN_LINKS_NATIVE}'; if (-not (Test-Path $base)) { exit 3 }; foreach ($plugin in $deps.plugins.windows) { $target = $plugin.path.TrimEnd('\\'); $targetWindows = Join-Path $target 'windows'; if (-not (Test-Path $targetWindows)) { continue }; $windowsLink = Join-Path (Join-Path $base $plugin.name) 'windows'; if (-not (Test-Path $windowsLink)) { exit 4 } }"
+        RESULT_VARIABLE FLUTTER_PLUGIN_LINK_INTEGRITY_RESULT
+        ERROR_VARIABLE FLUTTER_PLUGIN_LINK_INTEGRITY_ERROR
+      )
+      if (NOT FLUTTER_PLUGIN_LINK_INTEGRITY_RESULT EQUAL 0)
+        set(FLUTTER_PLUGIN_LINKS_NEED_SYNC TRUE)
       endif()
     endif()
 

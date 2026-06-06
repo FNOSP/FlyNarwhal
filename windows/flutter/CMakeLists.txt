@@ -11,6 +11,7 @@ include(${EPHEMERAL_DIR}/generated_config.cmake)
 set(FLUTTER_ENGINE_FALLBACK_ROOT "${FLUTTER_ROOT}/bin/cache/artifacts/engine/windows-x64")
 set(WRAPPER_ROOT "${EPHEMERAL_DIR}/cpp_client_wrapper")
 set(WRAPPER_FALLBACK_ROOT "${FLUTTER_ENGINE_FALLBACK_ROOT}/cpp_client_wrapper")
+set(WRAPPER_BUILD_ROOT "${WRAPPER_FALLBACK_ROOT}")
 
 # Sync the SDK wrapper sources into the ephemeral directory when Flutter only
 # generates headers there. This keeps launch_app aligned with the template paths.
@@ -30,6 +31,7 @@ set(FLUTTER_EPHEMERAL_REPAIR_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ensure_ep
 
 # === Flutter Library ===
 set(FLUTTER_LIBRARY "${EPHEMERAL_DIR}/flutter_windows.dll")
+set(FLUTTER_LIBRARY_IMPORT "${FLUTTER_ENGINE_FALLBACK_ROOT}/flutter_windows.dll.lib")
 
 # Published to parent scope for install step.
 set(FLUTTER_LIBRARY ${FLUTTER_LIBRARY} PARENT_SCOPE)
@@ -47,26 +49,38 @@ list(APPEND FLUTTER_LIBRARY_HEADERS
 list(TRANSFORM FLUTTER_LIBRARY_HEADERS PREPEND "${EPHEMERAL_DIR}/")
 add_library(flutter INTERFACE)
 target_include_directories(flutter INTERFACE
+  "${FLUTTER_ENGINE_FALLBACK_ROOT}"
   "${EPHEMERAL_DIR}"
 )
-target_link_libraries(flutter INTERFACE "${FLUTTER_LIBRARY}.lib")
+target_link_libraries(flutter INTERFACE "${FLUTTER_LIBRARY_IMPORT}")
 add_dependencies(flutter flutter_assemble)
 
 # === Wrapper ===
-list(APPEND CPP_WRAPPER_SOURCES_CORE
+# Compile wrapper sources from the Flutter SDK cache so builds remain stable
+# even if the ephemeral tree is regenerated or partially cleaned mid-build.
+list(APPEND CPP_WRAPPER_SOURCE_NAMES_CORE
   "core_implementations.cc"
   "standard_codec.cc"
 )
-list(TRANSFORM CPP_WRAPPER_SOURCES_CORE PREPEND "${WRAPPER_ROOT}/")
-list(APPEND CPP_WRAPPER_SOURCES_PLUGIN
+set(CPP_WRAPPER_SOURCES_CORE ${CPP_WRAPPER_SOURCE_NAMES_CORE})
+list(TRANSFORM CPP_WRAPPER_SOURCES_CORE PREPEND "${WRAPPER_BUILD_ROOT}/")
+set(CPP_WRAPPER_OUTPUTS_CORE ${CPP_WRAPPER_SOURCE_NAMES_CORE})
+list(TRANSFORM CPP_WRAPPER_OUTPUTS_CORE PREPEND "${WRAPPER_ROOT}/")
+list(APPEND CPP_WRAPPER_SOURCE_NAMES_PLUGIN
   "plugin_registrar.cc"
 )
-list(TRANSFORM CPP_WRAPPER_SOURCES_PLUGIN PREPEND "${WRAPPER_ROOT}/")
-list(APPEND CPP_WRAPPER_SOURCES_APP
+set(CPP_WRAPPER_SOURCES_PLUGIN ${CPP_WRAPPER_SOURCE_NAMES_PLUGIN})
+list(TRANSFORM CPP_WRAPPER_SOURCES_PLUGIN PREPEND "${WRAPPER_BUILD_ROOT}/")
+set(CPP_WRAPPER_OUTPUTS_PLUGIN ${CPP_WRAPPER_SOURCE_NAMES_PLUGIN})
+list(TRANSFORM CPP_WRAPPER_OUTPUTS_PLUGIN PREPEND "${WRAPPER_ROOT}/")
+list(APPEND CPP_WRAPPER_SOURCE_NAMES_APP
   "flutter_engine.cc"
   "flutter_view_controller.cc"
 )
-list(TRANSFORM CPP_WRAPPER_SOURCES_APP PREPEND "${WRAPPER_ROOT}/")
+set(CPP_WRAPPER_SOURCES_APP ${CPP_WRAPPER_SOURCE_NAMES_APP})
+list(TRANSFORM CPP_WRAPPER_SOURCES_APP PREPEND "${WRAPPER_BUILD_ROOT}/")
+set(CPP_WRAPPER_OUTPUTS_APP ${CPP_WRAPPER_SOURCE_NAMES_APP})
+list(TRANSFORM CPP_WRAPPER_OUTPUTS_APP PREPEND "${WRAPPER_ROOT}/")
 
 # Wrapper sources needed for a plugin.
 add_library(flutter_wrapper_plugin STATIC
@@ -80,6 +94,7 @@ set_target_properties(flutter_wrapper_plugin PROPERTIES
   CXX_VISIBILITY_PRESET hidden)
 target_link_libraries(flutter_wrapper_plugin PUBLIC flutter)
 target_include_directories(flutter_wrapper_plugin PUBLIC
+  "${WRAPPER_BUILD_ROOT}/include"
   "${WRAPPER_ROOT}/include"
   "${EPHEMERAL_DIR}"
 )
@@ -93,6 +108,7 @@ add_library(flutter_wrapper_app STATIC
 apply_standard_settings(flutter_wrapper_app)
 target_link_libraries(flutter_wrapper_app PUBLIC flutter)
 target_include_directories(flutter_wrapper_app PUBLIC
+  "${WRAPPER_BUILD_ROOT}/include"
   "${WRAPPER_ROOT}/include"
   "${EPHEMERAL_DIR}"
 )
@@ -106,8 +122,8 @@ set(PHONY_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/_phony_")
 set_source_files_properties("${PHONY_OUTPUT}" PROPERTIES SYMBOLIC TRUE)
 add_custom_command(
   OUTPUT ${FLUTTER_LIBRARY} ${FLUTTER_LIBRARY_HEADERS}
-    ${CPP_WRAPPER_SOURCES_CORE} ${CPP_WRAPPER_SOURCES_PLUGIN}
-    ${CPP_WRAPPER_SOURCES_APP}
+    ${CPP_WRAPPER_OUTPUTS_CORE} ${CPP_WRAPPER_OUTPUTS_PLUGIN}
+    ${CPP_WRAPPER_OUTPUTS_APP}
     ${PHONY_OUTPUT}
   COMMAND ${CMAKE_COMMAND} -E env
     ${FLUTTER_TOOL_ENVIRONMENT}
@@ -118,9 +134,9 @@ add_custom_command(
 add_custom_target(flutter_assemble DEPENDS
   "${FLUTTER_LIBRARY}"
   ${FLUTTER_LIBRARY_HEADERS}
-  ${CPP_WRAPPER_SOURCES_CORE}
-  ${CPP_WRAPPER_SOURCES_PLUGIN}
-  ${CPP_WRAPPER_SOURCES_APP}
+  ${CPP_WRAPPER_OUTPUTS_CORE}
+  ${CPP_WRAPPER_OUTPUTS_PLUGIN}
+  ${CPP_WRAPPER_OUTPUTS_APP}
 )
 
 # Re-check the ephemeral directory after flutter_assemble, but only repair
@@ -131,6 +147,7 @@ add_custom_target(flutter_ensure_ephemeral_artifacts
     -DWRAPPER_FALLBACK_ROOT=${WRAPPER_FALLBACK_ROOT}
     -DEPHEMERAL_DIR=${EPHEMERAL_DIR}
     -DFLUTTER_ENGINE_FALLBACK_ROOT=${FLUTTER_ENGINE_FALLBACK_ROOT}
+    -DPLUGIN_LINKS_DIR=${EPHEMERAL_DIR}/.plugin_symlinks
     -P ${FLUTTER_EPHEMERAL_REPAIR_SCRIPT}
   COMMAND ${CMAKE_COMMAND} -E touch "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/flutter_ensure_ephemeral_artifacts"
   DEPENDS flutter_assemble
