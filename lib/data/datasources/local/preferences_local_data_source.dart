@@ -112,7 +112,7 @@ class PreferencesLocalDataSource {
       _storage.setBool(StorageKeys.darkMode, value);
 
   String getNavigationDisplayMode() =>
-      _storage.getString(StorageKeys.navigationDisplayMode) ?? 'auto';
+      _storage.getString(StorageKeys.navigationDisplayMode) ?? 'LeftCompact';
 
   Future<void> saveNavigationDisplayMode(String value) =>
       _storage.setString(StorageKeys.navigationDisplayMode, value);

@@ -81,7 +81,7 @@ class PreferencesManager {
   }
 
   String getNavigationDisplayMode() {
-    return _prefs.getString(_keyNavigationDisplayMode) ?? 'Left';
+    return _prefs.getString(_keyNavigationDisplayMode) ?? 'LeftCompact';
   }
 
   Future<void> saveNavigationDisplayMode(String value) async {
