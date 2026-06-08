@@ -79,18 +79,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
     
     return ScaffoldPage(
+      header: const PageHeader(title: Text('首页')),
       content: Stack(
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 36, left: 32, bottom: 32),
-                child: Text(
-                  "首页",
-                  style: FluentTheme.of(context).typography.subtitle,
-                ),
-              ),
               Expanded(
                 child: Scrollbar(
                   controller: _scrollController,
