@@ -16,11 +16,11 @@ import '../../../data/models/movie_detail_models.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/providers.dart';
-import '../../player/mp4_parser.dart';
-import '../../player/hls_playlist_resolver.dart';
 import '../../player/hls_subtitle_repository.dart';
 import '../../player/player_manager.dart';
 import '../../player/media_p_view_model.dart';
+import '../../player/player_overlay_controller.dart';
+import '../../player/player_session_coordinator.dart';
 import '../../player/player_service.dart';
 import '../../player/player_view_model.dart';
 import '../../player/widgets/episode_selection_flyout.dart';
@@ -39,21 +39,7 @@ import '../../widgets/nas/add_nas_subtitle_dialog.dart';
 import '../../widgets/toast.dart';
 import '../../widgets/window_caption.dart';
 
-enum _PlayerFlyoutType { nextEpisode, speed, episode, quality, subtitle }
-
 enum _PlaybackIndicatorType { play, pause }
-
-class _PreparedPlaySource {
-  final String playUri;
-  final bool useHlsSubtitleOverlay;
-  final String? subtitlePlaylistUrl;
-
-  const _PreparedPlaySource({
-    required this.playUri,
-    required this.useHlsSubtitleOverlay,
-    this.subtitlePlaylistUrl,
-  });
-}
 
 class PlayerScreen extends ConsumerStatefulWidget {
   final String guid;
@@ -77,7 +63,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with SingleTickerProviderStateMixin {
   static const int _controlFlyoutOffset = 15;
   static const double _controlFlyoutSpacing = 12;
-  static const Duration _uiAutoHideDuration = Duration(seconds: 3);
   static const Duration _playbackIndicatorVisibleDuration =
       Duration(milliseconds: 200);
   static const Duration _playbackIndicatorExitDuration =
@@ -89,7 +74,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isInitialized = false;
   bool _isLoading = true;
   bool _isPlaying = false;
-  bool _isUiVisible = true;
   bool _isFullscreen = false;
   int _currentPosition = 0;
   int _duration = 0;
@@ -104,7 +88,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   StreamResponse? _streamInfo;
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<bool>? _playingSubscription;
-  Timer? _hideUiTimer;
   Timer? _playRecordTimer;
   Timer? _playbackIndicatorTimer;
   late final AnimationController _playbackIndicatorExitController;
@@ -115,23 +98,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _suspendPlaybackTransitionFeedback = true;
   bool _isPlaybackIndicatorVisible = false;
   _PlaybackIndicatorType? _playbackIndicatorType;
-
-  // Hover states
-  bool _isProgressBarHovered = false;
-  bool _isBottomControlAreaHovered = false;
-  bool _isSpeedControlHovered = false;
-  bool _isVolumeControlHovered = false;
-  bool _isQualityControlHovered = false;
-  bool _isSettingsMenuHovered = false;
-  bool _isSubtitleControlHovered = false;
-  bool _isEpisodeControlHovered = false;
-  bool _isNextEpisodeHovered = false;
-  bool _isDanmakuControlHovered = false;
-  bool _isDanmakuSettingsHovered = false;
-  bool _isPipControlHovered = false;
-  _PlayerFlyoutType? _activeFlyout;
-  bool _isDanmakuVisible = true;
-  bool _isAutoPlayEnabled = true;
+  int _loadRequestToken = 0;
   late String _currentItemGuid;
   String? _currentMediaGuid;
   String? _requestedAudioGuid;
@@ -151,6 +118,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showSubtitleSearchDialog = false;
   bool _showAddNasSubtitleDialog = false;
   bool _isUploadingLocalSubtitle = false;
+
+  PlayerOverlayController get _overlayController =>
+      ref.read(playerOverlayControllerProvider.notifier);
+
+  PlayerSessionCoordinator get _sessionCoordinator =>
+      ref.read(playerSessionCoordinatorProvider);
 
   @override
   void initState() {
@@ -310,43 +283,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _refreshSubtitleStreams({String? targetTrimId}) async {
     final cache = _playingInfoCache;
-    final videoStream = cache?.currentVideoStream;
-    if (cache == null || videoStream == null) return;
+    if (cache == null) return;
 
-    final prefs = ref.read(preferencesManagerProvider);
-    final playerService = ref.read(playerServiceProvider);
-    final nextStreamInfo = await playerService.getStreamInfo(
-      videoStream.mediaGuid,
-      ip: playerService.getIpHash(prefs.getToken() ?? ''),
+    final result = await _sessionCoordinator.refreshSubtitleStreams(
+      cache: cache,
+      selectedSubtitleGuid: _selectedSubtitleGuid,
+      targetTrimId: targetTrimId,
     );
-    final subtitleStreams =
-        nextStreamInfo.subtitleStreams ?? const <SubtitleStream>[];
-    final currentGuid =
-        _selectedSubtitleGuid ?? cache.currentSubtitleStream?.guid;
-
-    SubtitleStream? nextSelectedSubtitle;
-    if (targetTrimId != null && targetTrimId.isNotEmpty) {
-      nextSelectedSubtitle = subtitleStreams
-          .where((subtitle) => subtitle.trimId == targetTrimId)
-          .firstOrNull;
-    }
-    nextSelectedSubtitle ??= subtitleStreams
-        .where((subtitle) => subtitle.guid == currentGuid)
-        .firstOrNull;
-
-    final nextCache = cache.copyWith(
-      currentSubtitleStreamList: subtitleStreams,
-      currentSubtitleStream: nextSelectedSubtitle,
-      streamInfo: nextStreamInfo,
-    );
-    _playingInfoCache = nextCache;
-    ref.read(playerViewModelProvider.notifier).updatePlayingInfo(nextCache);
+    _playingInfoCache = result.playingInfoCache;
+    ref
+        .read(playerViewModelProvider.notifier)
+        .updatePlayingInfo(result.playingInfoCache);
 
     if (!mounted) return;
     setState(() {
-      _streamInfo = nextStreamInfo;
-      _selectedSubtitleGuid = nextSelectedSubtitle?.guid;
-      _requestedSubtitleGuid = nextSelectedSubtitle?.guid;
+      _streamInfo = result.streamInfo;
+      _selectedSubtitleGuid = result.selectedSubtitle?.guid;
+      _requestedSubtitleGuid = result.selectedSubtitle?.guid;
     });
   }
 
@@ -507,7 +460,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _episodeList = [];
     _currentEpisode = null;
     _nextEpisode = null;
-    _isNextEpisodeHovered = false;
   }
 
   Future<void> _quitCurrentPlaybackIfNeeded() async {
@@ -571,7 +523,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player == null) return;
 
-    final headers = _buildPlayerHeaders();
+    final headers = _sessionCoordinator.buildPlayerHeaders();
     await player.open(
       Media(
         playUri,
@@ -586,19 +538,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     await _applyResumePosition(startPositionMs,
         isInitialPlayback: isInitialPlayback);
-  }
-
-  bool _supportsDirectLink(
-    VideoStream videoStream,
-    QualityResponse? quality,
-    List<QualityResponse> qualities,
-  ) {
-    final originalQuality = qualities.firstOrNull;
-    final isOriginalQuality = quality != null &&
-        originalQuality != null &&
-        quality.resolution == originalQuality.resolution &&
-        quality.bitrate == originalQuality.bitrate;
-    return videoStream.wrapper == 'MP4' && isOriginalQuality;
   }
 
   PlayRecordRequest? _buildPlayRecordRequest({
@@ -653,12 +592,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final cache = _playingInfoCache;
     if (baseUrl.isEmpty || cache == null) return;
 
-    final playUri = _absolutePlayUrl(baseUrl, playLink);
+    final playUri = _sessionCoordinator.absolutePlayUrl(baseUrl, playLink);
     final dio = ref.read(dioClientProvider).dio;
-    final prepared = await _preparePlaySourceForMediaKit(
+    final prepared = await _sessionCoordinator.preparePlaySourceForMediaKit(
       playUri: playUri,
       currentSubtitleStream: cache.currentSubtitleStream,
-      dio: dio,
     );
     _prepareHlsSubtitleOverlayMode(
       subtitleStream: cache.currentSubtitleStream,
@@ -684,14 +622,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final videoStream = cache?.currentVideoStream;
     if (cache == null || videoStream == null) return;
 
-    final prefs = ref.read(preferencesManagerProvider);
-    final baseUrl = prefs.getBaseUrl() ?? '';
-    final dio = ref.read(dioClientProvider).dio;
-    final directLink = await _getDirectPlayLink(
+    final directLink = await _sessionCoordinator.getDirectPlayLink(
       mediaGuid: videoStream.mediaGuid,
       startPositionMs: startPositionMs,
-      baseUrl: baseUrl,
-      dio: dio,
     );
     _playingInfoCache = cache.copyWith(
       playLink: directLink.playLinkRaw,
@@ -795,11 +728,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final baseUrl = ref.read(preferencesManagerProvider).getBaseUrl() ?? '';
       final subtitlePlaylistUrl = cache.playLink != null &&
               baseUrl.isNotEmpty &&
-              _looksLikeM3u8(cache.playLink!)
-          ? (await _preparePlaySourceForMediaKit(
-              playUri: _absolutePlayUrl(baseUrl, cache.playLink!),
+              _sessionCoordinator.looksLikeM3u8(cache.playLink!)
+          ? (await _sessionCoordinator.preparePlaySourceForMediaKit(
+              playUri:
+                  _sessionCoordinator.absolutePlayUrl(baseUrl, cache.playLink!),
               currentSubtitleStream: cache.currentSubtitleStream,
-              dio: dio,
             ))
               .subtitlePlaylistUrl
           : null;
@@ -885,20 +818,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  Map<String, String> _buildPlayerHeaders() {
-    final prefs = ref.read(preferencesManagerProvider);
-    final headers = <String, String>{};
-    final cookie = prefs.getCookie();
-    if (cookie != null && cookie.isNotEmpty) {
-      headers['Cookie'] = cookie;
-    }
-    final token = prefs.getToken();
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = token;
-    }
-    return headers;
-  }
-
   bool _isSupportedExternalSubtitle(SubtitleStream? subtitleStream) {
     if (subtitleStream == null || subtitleStream.isExternal != 1) {
       return false;
@@ -957,62 +876,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         await player.setSubtitleTrack(SubtitleTrack.no());
       }
     }
-  }
-
-  String _absolutePlayUrl(String baseUrl, String playLink) {
-    if (playLink.startsWith('http://') || playLink.startsWith('https://')) {
-      return playLink;
-    }
-    final base = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final path = playLink.startsWith('/') ? playLink : '/$playLink';
-    return '$base$path';
-  }
-
-  bool _looksLikeM3u8(String playUri) {
-    final uri = Uri.tryParse(playUri);
-    if (uri == null) {
-      return playUri.contains('.m3u8');
-    }
-    return uri.path.toLowerCase().contains('.m3u8');
-  }
-
-  Future<_PreparedPlaySource> _preparePlaySourceForMediaKit({
-    required String playUri,
-    required SubtitleStream? currentSubtitleStream,
-    required Dio dio,
-  }) async {
-    if (!_looksLikeM3u8(playUri) ||
-        currentSubtitleStream == null ||
-        currentSubtitleStream.isExternal == 1) {
-      return _PreparedPlaySource(
-        playUri: playUri,
-        useHlsSubtitleOverlay: false,
-      );
-    }
-
-    final resolver = HlsPlaylistResolver(
-      dio: dio,
-      headers: _buildPlayerHeaders(),
-    );
-    final result = await resolver.resolve(
-      playUri,
-      subtitleStream: currentSubtitleStream,
-    );
-
-    AppTalker.info(
-      'Player',
-      'hls resolve: original=${result.originalUrl}, '
-      'play=${result.playUrl}, hasSubtitleMedia=${result.hasSubtitleMedia}, '
-      'subtitlePlaylist=${result.subtitlePlaylistUrl}',
-    );
-
-    return _PreparedPlaySource(
-      playUri: result.playUrl,
-      useHlsSubtitleOverlay: result.subtitlePlaylistUrl != null,
-      subtitlePlaylistUrl: result.subtitlePlaylistUrl,
-    );
   }
 
   void _disposeHlsSubtitleSession() {
@@ -1085,7 +948,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     final repository = HlsSubtitleRepository(
       dio: dio,
-      headers: _buildPlayerHeaders(),
+      headers: _sessionCoordinator.buildPlayerHeaders(),
       subtitlePlaylistUrl: subtitlePlaylistUrl,
     );
     repository.updateSubtitleOffsetSeconds(
@@ -1116,291 +979,54 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  PlayPlayRequest _createPlayRequest({
-    required VideoStream videoStream,
-    required FileInfo fileStream,
-    required String audioGuid,
-    required String? subtitleGuid,
-  }) {
-    return PlayPlayRequest(
-      mediaGuid: fileStream.guid,
-      videoGuid: videoStream.guid,
-      videoEncoder: videoStream.codecName,
-      resolution: videoStream.resolutionType,
-      bitrate: videoStream.bps,
-      startTimestamp: 0,
-      audioEncoder: 'aac',
-      audioGuid: audioGuid,
-      subtitleGuid: subtitleGuid ?? '',
-      channels: 2,
-      forcedSdr: 0,
-    );
-  }
-
-  Future<
-      ({
-        String playUri,
-        String playLinkRaw,
-        int effectiveStartMs,
-        bool isDirectLink,
-      })> _resolvePlayLink({
-    required PlayInfoResponse playInfo,
-    required VideoStream videoStream,
-    required FileInfo fileStream,
-    required String audioGuid,
-    required String? subtitleGuid,
-    required List<QualityResponse> qualities,
-    required int startPositionMs,
-    required String baseUrl,
-    required PlayerService playerService,
-    required Dio dio,
-  }) async {
-    final originalQuality = qualities.isNotEmpty ? qualities.first : null;
-    final isOriginalQuality = _currentQuality != null &&
-        originalQuality != null &&
-        _currentQuality!.resolution == originalQuality.resolution &&
-        _currentQuality!.bitrate == originalQuality.bitrate;
-
-    final useDirectLink = videoStream.wrapper == 'MP4' && isOriginalQuality;
-
-    if (useDirectLink) {
-      final r = await _getDirectPlayLink(
-        mediaGuid: videoStream.mediaGuid,
-        startPositionMs: startPositionMs,
-        baseUrl: baseUrl,
-        dio: dio,
-      );
-      return (
-        playUri: r.playUri,
-        playLinkRaw: r.playLinkRaw,
-        effectiveStartMs: r.effectiveStartMs,
-        isDirectLink: true,
-      );
-    }
-
-    try {
-      final request = _createPlayRequest(
-        videoStream: videoStream,
-        fileStream: fileStream,
-        audioGuid: audioGuid,
-        subtitleGuid: subtitleGuid,
-      );
-      final resp = await playerService.playVideo(request);
-      final raw = resp.playLink;
-      final uri = _absolutePlayUrl(baseUrl, raw);
-      return (
-        playUri: uri,
-        playLinkRaw: raw,
-        effectiveStartMs: startPositionMs,
-        isDirectLink: false,
-      );
-    } catch (e) {
-      final msg = e.toString();
-      if (msg.contains('8192')) {
-        final r = await _getDirectPlayLink(
-          mediaGuid: playInfo.mediaGuid,
-          startPositionMs: startPositionMs,
-          baseUrl: baseUrl,
-          dio: dio,
-        );
-        return (
-          playUri: r.playUri,
-          playLinkRaw: r.playLinkRaw,
-          effectiveStartMs: r.effectiveStartMs,
-          isDirectLink: false,
-        );
-      }
-      rethrow;
-    }
-  }
-
-  Future<
-      ({
-        String playUri,
-        String playLinkRaw,
-        int effectiveStartMs,
-      })> _getDirectPlayLink({
-    required String mediaGuid,
-    required int startPositionMs,
-    required String baseUrl,
-    required Dio dio,
-  }) async {
-    final base = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    final controlPlayLink = '/v/api/v1/media/range/$mediaGuid';
-    final fullUrl = '$base$controlPlayLink';
-    final ts = startPositionMs / 1000.0;
-    try {
-      final parser = Mp4Parser(dio);
-      final offset = await parser.getOffset(fullUrl, ts);
-      if (offset > 0) {
-        final rangedPlayLink = '$controlPlayLink?range=bytes=$offset-';
-        return (
-          playUri: '$base$rangedPlayLink',
-          playLinkRaw: rangedPlayLink,
-          effectiveStartMs: 0,
-        );
-      }
-      return (
-        playUri: fullUrl,
-        playLinkRaw: controlPlayLink,
-        effectiveStartMs: startPositionMs,
-      );
-    } catch (e) {
-      AppTalker.warning('Player', 'getDirectPlayLink fallback: $e');
-      return (
-        playUri: fullUrl,
-        playLinkRaw: controlPlayLink,
-        effectiveStartMs: startPositionMs,
-      );
-    }
-  }
-
   Future<void> _loadAndPlayMedia() async {
+    final requestToken = ++_loadRequestToken;
     try {
       _suspendPlaybackTransitionFeedback = true;
       _hidePlaybackIndicator();
       setState(() => _isLoading = true);
 
-      final playerService = ref.read(playerServiceProvider);
-      final prefs = ref.read(preferencesManagerProvider);
       final dio = ref.read(dioClientProvider).dio;
-      final baseUrl = prefs.getBaseUrl() ?? '';
-
-      final playInfo = await playerService.getPlayInfo(
-        _currentItemGuid,
-        mediaGuid: _currentMediaGuid,
+      final result = await _sessionCoordinator.loadSession(
+        PlayerRouteTarget(
+          guid: _currentItemGuid,
+          mediaGuid: _currentMediaGuid,
+          audioGuid: _requestedAudioGuid,
+          subtitleGuid: _requestedSubtitleGuid,
+        ),
       );
-      _playInfo = playInfo;
-      AppTalker.info(
-        'Player',
-        'playInfo: guid=${playInfo.guid}, mediaGuid=${playInfo.mediaGuid}, videoGuid=${playInfo.videoGuid}, type=${playInfo.item.type}',
-      );
-
-      final targetMediaGuid = playInfo.mediaGuid;
-      AppTalker.info('Player', 'targetMediaGuid: $targetMediaGuid');
-
-      final streamInfo = await playerService.getStreamInfo(
-        targetMediaGuid,
-        ip: playerService.getIpHash(prefs.getToken() ?? ''),
-      );
-      _streamInfo = streamInfo;
-      AppTalker.info(
-        'Player',
-        'streamInfo: videoStream=${streamInfo.videoStream?.mediaGuid}, audioStreams=${streamInfo.audioStreams?.length ?? 0}',
-      );
-
-      final currentVideoStream = streamInfo.videoStream;
-      final fileStream = streamInfo.fileStream;
-      if (currentVideoStream == null || fileStream == null) {
-        throw Exception('Missing video_stream or file_stream');
+      if (!mounted || requestToken != _loadRequestToken) {
+        return;
       }
 
-      final audioStreams = streamInfo.audioStreams ?? [];
-      final subtitleStreams = streamInfo.subtitleStreams ?? [];
-
-      AudioStream? currentAudioStream;
-      SubtitleStream? currentSubtitleStream;
-
-      if (_requestedAudioGuid != null) {
-        currentAudioStream = audioStreams
-            .where((s) => s.guid == _requestedAudioGuid)
-            .firstOrNull;
-      } else {
-        currentAudioStream =
-            audioStreams.where((s) => s.isDefault == 1).firstOrNull ??
-                audioStreams.firstOrNull;
-      }
-      if (_requestedSubtitleGuid != null) {
-        currentSubtitleStream = subtitleStreams
-            .where((s) => s.guid == _requestedSubtitleGuid)
-            .firstOrNull;
-      } else {
-        currentSubtitleStream =
-            subtitleStreams.where((s) => s.isDefault == 1).firstOrNull;
-      }
-
-      final audioGuid =
-          _requestedAudioGuid ?? currentAudioStream?.guid ?? playInfo.audioGuid;
-      final subtitleGuid =
-          _requestedSubtitleGuid ?? currentSubtitleStream?.guid;
-      final episodeList =
-          playInfo.item.type == 'Episode' && playInfo.parentGuid.isNotEmpty
-              ? await _fetchEpisodeList(playInfo.parentGuid)
-              : const <EpisodeListResponse>[];
-      final currentEpisode = episodeList
-          .where((episode) => episode.guid == _currentItemGuid)
-          .firstOrNull;
-      final currentEpisodeIndex =
-          episodeList.indexWhere((episode) => episode.guid == _currentItemGuid);
-      final nextEpisode = currentEpisodeIndex >= 0 &&
-              currentEpisodeIndex + 1 < episodeList.length
-          ? episodeList[currentEpisodeIndex + 1]
-          : null;
-
-      final qualities = streamInfo.qualities ?? [];
-      _qualities = qualities;
-      _currentQuality = qualities.isNotEmpty ? qualities.first : null;
-
-      final historyMs = playInfo.ts * 1000;
-      _resetInitialResumeState(historyMs);
-      final resolved = await _resolvePlayLink(
-        playInfo: playInfo,
-        videoStream: currentVideoStream,
-        fileStream: fileStream,
-        audioGuid: audioGuid,
-        subtitleGuid: subtitleGuid,
-        qualities: qualities,
-        startPositionMs: historyMs,
-        baseUrl: baseUrl,
-        playerService: playerService,
-        dio: dio,
-      );
-      final preparedPlaySource = await _preparePlaySourceForMediaKit(
-        playUri: resolved.playUri,
-        currentSubtitleStream: currentSubtitleStream,
-        dio: dio,
-      );
-
-      _playingInfoCache = PlayingInfoCache(
-        itemGuid: _currentItemGuid,
-        parentGuid: playInfo.parentGuid,
-        item: playInfo.item,
-        currentFileStream: fileStream,
-        currentVideoStream: currentVideoStream,
-        currentAudioStream: currentAudioStream,
-        currentSubtitleStream: currentSubtitleStream,
-        currentQualities: qualities,
-        currentQuality: _currentQuality,
-        currentAudioStreamList: audioStreams,
-        currentSubtitleStreamList: subtitleStreams,
-        playLink: resolved.playLinkRaw,
-        isUseDirectLink: resolved.isDirectLink,
-        playConfig: playInfo.playConfig,
-        streamInfo: streamInfo,
-        isEpisode: playInfo.item.type == 'Episode',
-        subhead: _buildDisplaySubhead(playInfo.item),
-      );
+      _playInfo = result.playInfo;
+      _streamInfo = result.streamInfo;
+      _playingInfoCache = result.playingInfoCache;
+      _qualities = result.qualities;
+      _currentQuality = result.currentQuality;
+      _resetInitialResumeState(result.playInfo.ts * 1000);
       ref
           .read(playerViewModelProvider.notifier)
-          .updatePlayingInfo(_playingInfoCache);
+          .updatePlayingInfo(result.playingInfoCache);
       _prepareHlsSubtitleOverlayMode(
-        subtitleStream: currentSubtitleStream,
-        subtitlePlaylistUrl: preparedPlaySource.subtitlePlaylistUrl,
+        subtitleStream: result.playingInfoCache.currentSubtitleStream,
+        subtitlePlaylistUrl: result.preparedPlaySource.subtitlePlaylistUrl,
       );
 
       await _openMediaWithResume(
-        playUri: preparedPlaySource.playUri,
-        startPositionMs: resolved.effectiveStartMs,
-        currentSubtitleStream: currentSubtitleStream,
+        playUri: result.preparedPlaySource.playUri,
+        startPositionMs: result.effectiveStartPositionMs,
+        currentSubtitleStream: result.playingInfoCache.currentSubtitleStream,
         isInitialPlayback: true,
       );
+      if (!mounted || requestToken != _loadRequestToken) {
+        return;
+      }
       _startHlsSubtitleSessionAsync(
         dio: dio,
-        subtitleStream: currentSubtitleStream,
-        subtitlePlaylistUrl: preparedPlaySource.subtitlePlaylistUrl,
-        startPositionMs: resolved.effectiveStartMs,
+        subtitleStream: result.playingInfoCache.currentSubtitleStream,
+        subtitlePlaylistUrl: result.preparedPlaySource.subtitlePlaylistUrl,
+        startPositionMs: result.effectiveStartPositionMs,
       );
 
       _volume = ref.read(playerSettingsManagerProvider).getVolume();
@@ -1413,16 +1039,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isLoading = false;
         _isInitialized = true;
         _isPlaying = _player?.state.playing ?? false;
-        _duration = currentVideoStream.duration > 0
-            ? currentVideoStream.duration * 1000
-            : playInfo.item.duration * 1000;
+        _duration = result.playingInfoCache.currentVideoStream!.duration > 0
+            ? result.playingInfoCache.currentVideoStream!.duration * 1000
+            : result.playInfo.item.duration * 1000;
         _currentResolution = _currentQuality?.resolution ?? '';
         _currentBitrate = _currentQuality?.bitrate;
-        _selectedAudioGuid = audioGuid;
-        _selectedSubtitleGuid = subtitleGuid;
-        _episodeList = episodeList;
-        _currentEpisode = currentEpisode;
-        _nextEpisode = nextEpisode;
+        _selectedAudioGuid = result.audioGuid;
+        _selectedSubtitleGuid = result.subtitleGuid;
+        _episodeList = result.episodeList;
+        _currentEpisode = result.currentEpisode;
+        _nextEpisode = result.nextEpisode;
       });
 
       await _ensureInitialResumeApplied();
@@ -1440,7 +1066,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         type: ToastType.failed,
       );
       _suspendPlaybackTransitionFeedback = false;
-      setState(() => _isLoading = false);
+      if (mounted && requestToken == _loadRequestToken) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -1466,34 +1094,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _showUi() {
-    if (mounted && !_isUiVisible) {
-      setState(() => _isUiVisible = true);
-    }
-    _hideUiTimer?.cancel();
-    if (!_isPlaying) return;
-
-    _hideUiTimer = Timer(_uiAutoHideDuration, () {
-      if (_shouldKeepUiVisible() || !mounted) {
-        return;
-      }
-      setState(() => _isUiVisible = false);
-    });
-  }
-
-  bool _shouldKeepUiVisible() {
-    return !_isPlaying ||
-        _isProgressBarHovered ||
-        _isBottomControlAreaHovered ||
-        _isSpeedControlHovered ||
-        _isVolumeControlHovered ||
-        _isQualityControlHovered ||
-        _isSubtitleControlHovered ||
-        _isEpisodeControlHovered ||
-        _isNextEpisodeHovered ||
-        _isDanmakuControlHovered ||
-        _isDanmakuSettingsHovered ||
-        _isPipControlHovered ||
-        _isSettingsMenuHovered;
+    _overlayController.showUi(isPlaying: _isPlaying);
   }
 
   void _handlePlaybackStateChanged(bool isPlaying) {
@@ -1545,36 +1146,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _isPlaybackIndicatorVisible = false;
   }
 
-  void _handleFlyoutHoverStateChanged(_PlayerFlyoutType type, bool hovered) {
-    setState(() {
-      switch (type) {
-        case _PlayerFlyoutType.nextEpisode:
-          _isNextEpisodeHovered = hovered;
-          break;
-        case _PlayerFlyoutType.speed:
-          _isSpeedControlHovered = hovered;
-          break;
-        case _PlayerFlyoutType.episode:
-          _isEpisodeControlHovered = hovered;
-          break;
-        case _PlayerFlyoutType.quality:
-          _isQualityControlHovered = hovered;
-          break;
-        case _PlayerFlyoutType.subtitle:
-          _isSubtitleControlHovered = hovered;
-          break;
-      }
-
-      if (hovered) {
-        _activeFlyout = type;
-      } else if (_activeFlyout == type) {
-        _activeFlyout = null;
-      }
-    });
+  void _handleFlyoutHoverStateChanged(PlayerFlyoutType type, bool hovered) {
+    _overlayController.setFlyoutHovered(type, hovered);
   }
 
   void _handleNextEpisodeHoverStateChanged(bool hovered) {
-    _handleFlyoutHoverStateChanged(_PlayerFlyoutType.nextEpisode, hovered);
+    _handleFlyoutHoverStateChanged(PlayerFlyoutType.nextEpisode, hovered);
   }
 
   void _togglePlayPause() {
@@ -1659,7 +1236,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() => _isLoading = true);
       final currentPosition = player.state.position.inMilliseconds;
       final currentPlayLink = cache.playLink;
-      final isTargetDirectLink = _supportsDirectLink(
+      final isTargetDirectLink = _sessionCoordinator.supportsDirectLink(
         videoStream,
         quality,
         cache.currentQualities,
@@ -1697,7 +1274,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             _requestedAudioGuid ??
             _playInfo?.audioGuid ??
             '';
-        final playRequest = _createPlayRequest(
+        final playRequest = _sessionCoordinator.createPlayRequest(
           videoStream: videoStream,
           fileStream: fileStream,
           audioGuid: audioGuid,
@@ -1856,24 +1433,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Dismiss transient overlays before leaving the player route.
   void _dismissTransientPlayerUiBeforeExit() {
     _playRecordTimer?.cancel();
-    _hideUiTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
     _hidePlaybackIndicator();
     Tooltip.dismissAllToolTips();
-
-    _isProgressBarHovered = false;
-    _isBottomControlAreaHovered = false;
-    _isSpeedControlHovered = false;
-    _isVolumeControlHovered = false;
-    _isQualityControlHovered = false;
-    _isSettingsMenuHovered = false;
-    _isSubtitleControlHovered = false;
-    _isEpisodeControlHovered = false;
-    _isNextEpisodeHovered = false;
-    _isDanmakuControlHovered = false;
-    _isDanmakuSettingsHovered = false;
-    _isPipControlHovered = false;
-    _activeFlyout = null;
+    _overlayController.dismissTransientUi();
   }
 
   void _leavePlayerRoute(VoidCallback onLeave) {
@@ -1890,7 +1453,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playingSubscription?.cancel();
     _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
-    _hideUiTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
     _playbackIndicatorExitController.dispose();
     _player?.dispose();
@@ -1902,6 +1464,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   Widget build(BuildContext context) {
     final subtitleSettings = ref.watch(subtitleSettingsProvider);
+    final overlayState = ref.watch(playerOverlayControllerProvider);
     return Stack(
       children: [
         MouseRegion(
@@ -1942,7 +1505,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
         if (_isInitialized)
           AnimatedOpacity(
-            opacity: _isUiVisible ? 1.0 : 0.0,
+            opacity: overlayState.isUiVisible ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 200),
             child: Stack(
               children: [
@@ -1994,12 +1557,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   right: 0,
                   child: MouseRegion(
                     onEnter: (_) {
-                      setState(() => _isBottomControlAreaHovered = true);
+                      _overlayController.setHovered(
+                        PlayerHoverZone.bottomControls,
+                        true,
+                      );
                       _showUi();
                     },
-                    onExit: (_) {
-                      setState(() => _isBottomControlAreaHovered = false);
-                    },
+                    onExit: (_) => _overlayController.setHovered(
+                      PlayerHoverZone.bottomControls,
+                      false,
+                    ),
                     child: SafeArea(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -2008,7 +1575,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           children: [
                             _buildProgressBar(),
                             const SizedBox(height: 12),
-                            _buildControlButtons(),
+                            _buildControlButtons(
+                              overlayState: overlayState,
+                              subtitleSettings: subtitleSettings,
+                            ),
                           ],
                         ),
                       ),
@@ -2032,8 +1602,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _currentPosition = snapshot.data?.inMilliseconds ?? _currentPosition;
         return MouseRegion(
           cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _isProgressBarHovered = true),
-          onExit: (_) => setState(() => _isProgressBarHovered = false),
+          onEnter: (_) =>
+              _overlayController.setHovered(PlayerHoverZone.progressBar, true),
+          onExit: (_) =>
+              _overlayController.setHovered(PlayerHoverZone.progressBar, false),
           child: VideoPlayerProgressBar(
             currentPosition: _currentPosition,
             totalDuration: _duration,
@@ -2044,9 +1616,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  Widget _buildControlButtons() {
+  Widget _buildControlButtons({
+    required PlayerOverlayState overlayState,
+    required SubtitleSettings subtitleSettings,
+  }) {
     final prefs = ref.watch(preferencesManagerProvider);
-    final subtitleSettings = ref.watch(subtitleSettingsProvider);
     final baseUrl = prefs.getBaseUrl() ?? '';
     final token = prefs.getToken();
     final cookie = prefs.getCookie();
@@ -2094,7 +1668,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             baseUrl: baseUrl,
             httpHeaders: httpHeaders,
             cacheManager: cacheManager,
-            isActiveControl: _activeFlyout == _PlayerFlyoutType.nextEpisode,
+            isActiveControl:
+                overlayState.activeFlyout == PlayerFlyoutType.nextEpisode,
             onClick: () => _openEpisode(_nextEpisode!),
             onHoverStateChanged: _handleNextEpisodeHoverStateChanged,
           ),
@@ -2113,9 +1688,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           key: const ValueKey('player-speed-control'),
           defaultSpeed: _speed,
           yOffset: _controlFlyoutOffset,
-          isActiveControl: _activeFlyout == _PlayerFlyoutType.speed,
+          isActiveControl: overlayState.activeFlyout == PlayerFlyoutType.speed,
           onHoverStateChanged: (hovered) =>
-              _handleFlyoutHoverStateChanged(_PlayerFlyoutType.speed, hovered),
+              _handleFlyoutHoverStateChanged(PlayerFlyoutType.speed, hovered),
           onSpeedSelected: (speed) => _setSpeed(speed.value),
         ),
         const SizedBox(width: _controlFlyoutSpacing),
@@ -2123,14 +1698,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           EpisodeSelectionFlyout(
             episodes: _episodeList,
             currentEpisodeGuid: _currentItemGuid,
-            isAutoPlay: _isAutoPlayEnabled,
+            isAutoPlay: overlayState.isAutoPlayEnabled,
             yOffset: _controlFlyoutOffset,
-            isActiveControl: _activeFlyout == _PlayerFlyoutType.episode,
+            isActiveControl:
+                overlayState.activeFlyout == PlayerFlyoutType.episode,
             onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
-                _PlayerFlyoutType.episode, hovered),
+                PlayerFlyoutType.episode, hovered),
             onEpisodeSelected: _openEpisode,
-            onAutoPlayChanged: (value) =>
-                setState(() => _isAutoPlayEnabled = value),
+            onAutoPlayChanged: _overlayController.setAutoPlayEnabled,
           ),
           const SizedBox(width: _controlFlyoutSpacing),
         ],
@@ -2140,21 +1715,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             currentResolution: _currentResolution,
             currentBitrate: _currentBitrate,
             yOffset: _controlFlyoutOffset,
-            isActiveControl: _activeFlyout == _PlayerFlyoutType.quality,
+            isActiveControl:
+                overlayState.activeFlyout == PlayerFlyoutType.quality,
             onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
-                _PlayerFlyoutType.quality, hovered),
+                PlayerFlyoutType.quality, hovered),
             onQualitySelected: _onQualitySelected,
           ),
         const SizedBox(width: _controlFlyoutSpacing),
         MouseRegion(
-          onEnter: (_) => setState(() => _isDanmakuControlHovered = true),
-          onExit: (_) => setState(() => _isDanmakuControlHovered = false),
+          onEnter: (_) =>
+              _overlayController.setHovered(PlayerHoverZone.danmakuControl, true),
+          onExit: (_) => _overlayController.setHovered(
+            PlayerHoverZone.danmakuControl,
+            false,
+          ),
           child: PlayerActionButton.svg(
-            svgAssetPath: _isDanmakuVisible
+            svgAssetPath: overlayState.isDanmakuVisible
                 ? 'assets/images/danmu_open.svg'
                 : 'assets/images/danmu_close.svg',
             onPressed: () {
-              setState(() => _isDanmakuVisible = !_isDanmakuVisible);
+              _overlayController.toggleDanmakuVisibility();
               _showFeatureComingSoon('弹幕');
             },
             tooltip: '弹幕',
@@ -2164,8 +1744,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
         const SizedBox(width: 16),
         MouseRegion(
-          onEnter: (_) => setState(() => _isDanmakuSettingsHovered = true),
-          onExit: (_) => setState(() => _isDanmakuSettingsHovered = false),
+          onEnter: (_) => _overlayController.setHovered(
+            PlayerHoverZone.danmakuSettings,
+            true,
+          ),
+          onExit: (_) => _overlayController.setHovered(
+            PlayerHoverZone.danmakuSettings,
+            false,
+          ),
           child: PlayerActionButton.svg(
             svgAssetPath: 'assets/images/danmu_setting.svg',
             onPressed: () => _showFeatureComingSoon('弹幕设置'),
@@ -2183,9 +1769,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           subtitleSettings: subtitleSettings,
           canAdjustSubtitle: _canAdjustSubtitle,
           yOffset: _controlFlyoutOffset,
-          isActiveControl: _activeFlyout == _PlayerFlyoutType.subtitle,
+          isActiveControl:
+              overlayState.activeFlyout == PlayerFlyoutType.subtitle,
           onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
-              _PlayerFlyoutType.subtitle, hovered),
+              PlayerFlyoutType.subtitle, hovered),
           onSubtitleSettingsChanged: (settings) =>
               ref.read(subtitleSettingsProvider.notifier).state = settings,
           onSubtitleSelected: _onSubtitleSelected,
@@ -2200,8 +1787,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           currentPositionMillis: _currentPosition,
           totalDurationMillis: _duration,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
-          onHoverStateChanged: (hovered) =>
-              setState(() => _isSettingsMenuHovered = hovered),
+          onHoverStateChanged: (hovered) => _overlayController.setHovered(
+            PlayerHoverZone.settingsMenu,
+            hovered,
+          ),
           onAudioSelected: _onAudioSelected,
           onWindowAspectRatioChanged: (_) {},
           onSkipConfigChanged: (_, __) {},
@@ -2211,14 +1800,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           key: const ValueKey('player-volume-control'),
           volume: _volume,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
-          onHoverStateChanged: (hovered) =>
-              setState(() => _isVolumeControlHovered = hovered),
+          onHoverStateChanged: (hovered) => _overlayController.setHovered(
+            PlayerHoverZone.volumeControl,
+            hovered,
+          ),
           onVolumeChange: _setVolume,
         ),
         const SizedBox(width: 16),
         MouseRegion(
-          onEnter: (_) => setState(() => _isPipControlHovered = true),
-          onExit: (_) => setState(() => _isPipControlHovered = false),
+          onEnter: (_) =>
+              _overlayController.setHovered(PlayerHoverZone.pipControl, true),
+          onExit: (_) =>
+              _overlayController.setHovered(PlayerHoverZone.pipControl, false),
           child: PlayerActionButton.lottie(
             lottieAssetPath: 'assets/lottie/to_pip.json',
             onPressed: () => _showFeatureComingSoon('画中画'),
@@ -2389,25 +1982,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (item == null || item.type != 'Episode') {
       return '';
     }
-    return _buildDisplaySubhead(item);
-  }
-
-  String _buildDisplaySubhead(ItemResponse item) {
-    final season = item.parentTitle;
-    final episodeNumber =
-        _currentEpisode?.episodeNumber ?? _playInfo?.item.episodeNumber ?? 0;
-    final episodeLabel = episodeNumber > 0 ? '第 $episodeNumber 集' : '';
-    final episodeTitle = item.title;
-    final parts = <String>[
-      if (season.isNotEmpty) season,
-      if (episodeLabel.isNotEmpty) episodeLabel,
-      if (episodeTitle.isNotEmpty) episodeTitle,
-    ];
-    return parts.join(' · ');
-  }
-
-  Future<List<EpisodeListResponse>> _fetchEpisodeList(String guid) async {
-    return ref.read(playerServiceProvider).getEpisodeList(guid);
+    return _sessionCoordinator.buildDisplaySubhead(
+      item,
+      episodeNumber:
+          _currentEpisode?.episodeNumber ?? _playInfo?.item.episodeNumber ?? 0,
+    );
   }
 
   void _openEpisode(EpisodeListResponse episode) {
