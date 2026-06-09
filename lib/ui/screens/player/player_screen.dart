@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -13,6 +13,7 @@ import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
+import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/providers.dart';
 import '../../player/mp4_parser.dart';
@@ -237,7 +238,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (nextError != null &&
             nextError.isNotEmpty &&
             nextError != previousError) {
-          debugPrint('[Player] mediaP state error: $nextError');
+          AppTalker.warning('Player', 'mediaP state error: $nextError');
         }
 
         final previousQuitReqId = previous?.quitResponse?.reqId;
@@ -299,7 +300,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _iso6392Map = results[1];
       });
     } catch (error) {
-      debugPrint('[Player] load subtitle language tags failed: $error');
+      AppTalker.warning('Player', 'load subtitle language tags failed: $error');
     }
   }
 
@@ -525,7 +526,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             updateState: false,
           );
     } catch (e) {
-      debugPrint('[Player] quit media failed: $e');
+      AppTalker.warning('Player', 'quit media failed: $e');
     }
   }
 
@@ -636,7 +637,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       await ref.read(playerServiceProvider).updatePlayRecord(request);
     } catch (e) {
-      debugPrint('[Player] play record update during switch failed: $e');
+      AppTalker.warning(
+        'Player',
+        'play record update during switch failed: $e',
+      );
     }
   }
 
@@ -744,7 +748,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         });
       }
     } catch (e) {
-      debugPrint('[Player] handle quit success failed: $e');
+      AppTalker.warning('Player', 'handle quit success failed: $e');
       if (mounted) {
         _toastManager.showToast('切换原画失败: $e', type: ToastType.failed);
         setState(() => _isLoading = false);
@@ -818,7 +822,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         });
       }
     } catch (e) {
-      debugPrint('[Player] handle reset subtitle success failed: $e');
+      AppTalker.warning(
+        'Player',
+        'handle reset subtitle success failed: $e',
+      );
       if (mounted) {
         _toastManager.showToast('切换字幕失败: $e', type: ToastType.failed);
         setState(() => _isLoading = false);
@@ -945,7 +952,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
       );
     } catch (e) {
-      debugPrint('[Player] apply external subtitle failed: $e');
+      AppTalker.warning('Player', 'apply external subtitle failed: $e');
       if (player == _player) {
         await player.setSubtitleTrack(SubtitleTrack.no());
       }
@@ -994,8 +1001,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       subtitleStream: currentSubtitleStream,
     );
 
-    debugPrint(
-      '[Player] hls resolve: original=${result.originalUrl}, '
+    AppTalker.info(
+      'Player',
+      'hls resolve: original=${result.originalUrl}, '
       'play=${result.playUrl}, hasSubtitleMedia=${result.hasSubtitleMedia}, '
       'subtitlePlaylist=${result.subtitlePlaylistUrl}',
     );
@@ -1031,11 +1039,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         subtitlePlaylistUrl.isNotEmpty;
     _useHlsSubtitleOverlay = shouldUseOverlay;
     if (shouldUseOverlay) {
-      debugPrint(
-        '[Player] hls subtitle overlay prepared: playlist=$subtitlePlaylistUrl',
+      AppTalker.info(
+        'Player',
+        'hls subtitle overlay prepared: playlist=$subtitlePlaylistUrl',
       );
     } else {
-      debugPrint('[Player] hls subtitle overlay disabled');
+      AppTalker.info('Player', 'hls subtitle overlay disabled');
     }
   }
 
@@ -1092,11 +1101,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _useHlsSubtitleOverlay = true;
     try {
       await repository.initialize(startPositionMs: startPositionMs);
-      debugPrint(
-        '[Player] hls subtitle overlay enabled: playlist=$subtitlePlaylistUrl',
+      AppTalker.info(
+        'Player',
+        'hls subtitle overlay enabled: playlist=$subtitlePlaylistUrl',
       );
     } catch (e) {
-      debugPrint('[Player] hls subtitle overlay init failed: $e');
+      AppTalker.warning(
+        'Player',
+        'hls subtitle overlay init failed: $e',
+      );
       if (_hlsSubtitleRepository == repository) {
         _disposeHlsSubtitleSession();
       }
@@ -1235,7 +1248,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         effectiveStartMs: startPositionMs,
       );
     } catch (e) {
-      debugPrint('[Player] getDirectPlayLink fallback: $e');
+      AppTalker.warning('Player', 'getDirectPlayLink fallback: $e');
       return (
         playUri: fullUrl,
         playLinkRaw: controlPlayLink,
@@ -1260,20 +1273,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         mediaGuid: _currentMediaGuid,
       );
       _playInfo = playInfo;
-      debugPrint(
-        '[Player] playInfo: guid=${playInfo.guid}, mediaGuid=${playInfo.mediaGuid}, videoGuid=${playInfo.videoGuid}, type=${playInfo.item.type}',
+      AppTalker.info(
+        'Player',
+        'playInfo: guid=${playInfo.guid}, mediaGuid=${playInfo.mediaGuid}, videoGuid=${playInfo.videoGuid}, type=${playInfo.item.type}',
       );
 
       final targetMediaGuid = playInfo.mediaGuid;
-      debugPrint('[Player] targetMediaGuid: $targetMediaGuid');
+      AppTalker.info('Player', 'targetMediaGuid: $targetMediaGuid');
 
       final streamInfo = await playerService.getStreamInfo(
         targetMediaGuid,
         ip: playerService.getIpHash(prefs.getToken() ?? ''),
       );
       _streamInfo = streamInfo;
-      debugPrint(
-        '[Player] streamInfo: videoStream=${streamInfo.videoStream?.mediaGuid}, audioStreams=${streamInfo.audioStreams?.length ?? 0}',
+      AppTalker.info(
+        'Player',
+        'streamInfo: videoStream=${streamInfo.videoStream?.mediaGuid}, audioStreams=${streamInfo.audioStreams?.length ?? 0}',
       );
 
       final currentVideoStream = streamInfo.videoStream;
@@ -1413,8 +1428,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await _ensureInitialResumeApplied();
       _startPlayRecordTimer();
       _suspendPlaybackTransitionFeedback = false;
-    } catch (e) {
-      debugPrint('[Player] Error loading media: $e');
+    } catch (e, st) {
+      AppTalker.error(
+        'Player',
+        error: e,
+        stackTrace: st,
+        message: 'Error loading media',
+      );
       _toastManager.showToast(
         '加载失败: $e',
         type: ToastType.failed,
@@ -1710,7 +1730,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _currentBitrate = quality.bitrate;
       });
     } catch (e) {
-      debugPrint('[Player] switch quality failed: $e');
+      AppTalker.warning('Player', 'switch quality failed: $e');
       _toastManager.showToast('切换画质失败: $e', type: ToastType.failed);
       setState(() => _isLoading = false);
     }
@@ -1754,7 +1774,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref
           .read(playerViewModelProvider.notifier)
           .updatePlayingInfo(_playingInfoCache);
-      debugPrint('[Player] switch audio failed: $e');
+      AppTalker.warning('Player', 'switch audio failed: $e');
       _toastManager.showToast('切换音频失败: $e', type: ToastType.failed);
       if (mounted) {
         setState(() {
@@ -1812,7 +1832,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref
           .read(playerViewModelProvider.notifier)
           .updatePlayingInfo(_playingInfoCache);
-      debugPrint('[Player] switch subtitle failed: $e');
+      AppTalker.warning('Player', 'switch subtitle failed: $e');
       _toastManager.showToast('切换字幕失败: $e', type: ToastType.failed);
       if (mounted) {
         setState(() {
@@ -2042,7 +2062,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         PlayerActionButton.svg(
-          key: ValueKey('player-play-pause'),
+          key: const ValueKey('player-play-pause'),
           svgAssetPath: _isPlaying
               ? 'assets/images/pause.svg'
               : 'assets/images/play.svg',
@@ -2376,7 +2396,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final season = item.parentTitle;
     final episodeNumber =
         _currentEpisode?.episodeNumber ?? _playInfo?.item.episodeNumber ?? 0;
-    final episodeLabel = episodeNumber > 0 ? '第$episodeNumber集' : '';
+    final episodeLabel = episodeNumber > 0 ? '第 $episodeNumber 集' : '';
     final episodeTitle = item.title;
     final parts = <String>[
       if (season.isNotEmpty) season,

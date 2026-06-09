@@ -1,7 +1,7 @@
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+﻿import 'package:dio/dio.dart';
 import '../storage/preferences_manager.dart';
 import '../../core/network/auth_signer.dart';
+import '../../core/utils/log/app_talker.dart';
 
 /// Legacy DioClient for backward compatibility
 /// Consider migrating to core/network/dio_client.dart
@@ -59,12 +59,16 @@ class DioClient {
           }
         }
         if (authCode != null && authCode.isNotEmpty && (hasAuthx || hasSignx)) {
-          debugPrint('[Dio] skip fly-narwhal auth headers: custom headers provided');
+          AppTalker.info(
+            'Dio',
+            'skip fly-narwhal auth headers: custom headers provided',
+          );
         }
 
         final resolvedBaseUrl = options.baseUrl.isEmpty ? (baseUrl ?? '') : options.baseUrl;
-        debugPrint(
-          '[Dio] request: method=${options.method} path=${options.path} baseUrl="$resolvedBaseUrl" token=${token != null && token.isNotEmpty} tokenLength=${token?.length ?? 0} cookie=${cookie != null && cookie.isNotEmpty} authCode=${authCode != null && authCode.isNotEmpty}',
+        AppTalker.info(
+          'Dio',
+          'request: method=${options.method} path=${options.path} baseUrl="$resolvedBaseUrl" token=${token != null && token.isNotEmpty} tokenLength=${token?.length ?? 0} cookie=${cookie != null && cookie.isNotEmpty} authCode=${authCode != null && authCode.isNotEmpty}',
         );
 
         return handler.next(options);
@@ -90,3 +94,4 @@ class DioClient {
     return rawPath;
   }
 }
+

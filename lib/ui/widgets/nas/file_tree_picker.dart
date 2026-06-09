@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/file_models.dart';
 import '../../../providers/file_providers.dart';
 
@@ -65,7 +66,7 @@ class _FileTreePickerState extends ConsumerState<FileTreePicker> {
           }
         }
       } catch (e) {
-        debugPrint('Error loading root $path: $e');
+        AppTalker.warning('FileTreePicker', 'Error loading root $path: $e');
       }
     }
     if (mounted) {
@@ -105,7 +106,10 @@ class _FileTreePickerState extends ConsumerState<FileTreePicker> {
             item.children.addAll(children);
             if (mounted) setState(() {});
           } catch (e) {
-            debugPrint('Error loading children for $path: $e');
+            AppTalker.warning(
+              'FileTreePicker',
+              'Error loading children for $path: $e',
+            );
           }
         }
       },

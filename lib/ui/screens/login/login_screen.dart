@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Directory, Platform;
 import 'package:dio/dio.dart';
@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:webview_windows/webview_windows.dart';
+import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/login_history.dart';
 import '../../../data/network/dio_client.dart';
 import '../../../data/storage/preferences_manager.dart';
@@ -117,16 +118,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final username = _usernameController.text;
     final password = _passwordController.text;
     final fnId = _fnIdController.text;
-    debugPrint(
-        '[Login] start: isNasLogin=$_isNasLogin host="$host" port=$port fnId="$fnId" isHttps=$_isHttps');
+    AppTalker.info(
+      'Login',
+      'start: isNasLogin=$_isNasLogin host="$host" port=$port fnId="$fnId" isHttps=$_isHttps',
+    );
 
     if (_isNasLogin) {
       _displayHost = fnId.trim();
       _displayPort = 0;
       final url = _normalizeFnConnectUrl(fnId, true);
-      debugPrint('[Login] nas login: normalizedUrl="$url"');
+      AppTalker.info('Login', 'nas login: normalizedUrl="$url"');
       if (url.isEmpty) {
-        debugPrint('[Login] nas login: empty url, abort');
+        AppTalker.warning('Login', 'nas login: empty url, abort');
         _showErrorDialog('请输入 FN ID');
         return;
       }
@@ -143,15 +146,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     final needsProbe = _needsProbe(host);
-    debugPrint('[Login] needsProbe=$needsProbe');
+    AppTalker.info('Login', 'needsProbe=$needsProbe');
     if (needsProbe) {
       _displayHost = host.trim();
       _displayPort = port;
       final probeUrl = _normalizeFnConnectUrl(host, true);
-      debugPrint('[Login] probe: normalizedUrl="$probeUrl"');
+      AppTalker.info('Login', 'probe: normalizedUrl="$probeUrl"');
       if (probeUrl.isEmpty) {
-        debugPrint('[Login] probe: empty url, abort');
-        _showErrorDialog('请填写正确的 IP、域名或 FN ID');
+        AppTalker.warning('Login', 'probe: empty url, abort');
+        _showErrorDialog('请输入正确的 IP、域名或 FN ID');
         return;
       }
       _openFnConnectWebView(url: probeUrl, isProbe: true);
@@ -161,7 +164,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       _displayHost = host.trim();
       _displayPort = port;
-      debugPrint('[Login] direct login start');
+      AppTalker.info('Login', 'direct login start');
       await ref.read(loginViewModelProvider.notifier).login(
             host: host,
             port: port,
@@ -174,10 +177,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             displayHost: _displayHost,
             displayPort: _displayPort,
           );
-      debugPrint('[Login] direct login success, navigate');
+      AppTalker.info('Login', 'direct login success, navigate');
       if (mounted) context.go('/home');
     } catch (e) {
-      debugPrint('[Login] direct login error: $e');
+      AppTalker.warning('Login', 'direct login error: $e');
       _showErrorDialog(e.toString());
     }
   }
@@ -209,7 +212,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final prefs = ref.read(preferencesManagerProvider);
     final dioClient = ref.read(dioClientProvider);
     // Initialize network processor for NAS auth flow
-    debugPrint('[Login][Bridge] prepare network processor');
+    AppTalker.info('LoginBridge', 'prepare network processor');
     _networkMessageProcessor = _NetworkMessageProcessor(
       dioClient: dioClient,
       preferencesManager: prefs,
@@ -300,7 +303,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final controller = _inAppWebViewController;
     if (controller == null) return;
     // Inject login helper script for mobile/web WebView
-    debugPrint('[Login][Bridge] inject script for InAppWebView');
+    AppTalker.info('LoginBridge', 'inject script for InAppWebView');
     final script = LoginJsInjectionBuilder(
       autoLoginUsernameLiteral: jsonEncode(_autoLoginUsername),
       autoLoginPasswordLiteral: jsonEncode(_autoLoginPassword),
@@ -314,7 +317,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final controller = _winWebviewController;
     if (controller == null) return;
     // Inject login helper script for Windows WebView
-    debugPrint('[Login][Bridge] inject script for WinWebView');
+    AppTalker.info('LoginBridge', 'inject script for WinWebView');
     final script = LoginJsInjectionBuilder(
       autoLoginUsernameLiteral: jsonEncode(_autoLoginUsername),
       autoLoginPasswordLiteral: jsonEncode(_autoLoginPassword),
@@ -327,7 +330,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _handlePageUrl(String url) {
     final normalized = _stripQuotes(url);
     if (_handleBridgeMessageFromUrl(normalized)) {
-      debugPrint('[Login][Bridge] handled bridge url');
+      AppTalker.info('LoginBridge', 'handled bridge url');
       return;
     }
     _updateBaseUrlFromUrl(normalized);
@@ -354,31 +357,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final fragment = url.substring(hashIndex + 1);
     final queryIndex = fragment.indexOf('?');
     if (queryIndex == -1) {
-      debugPrint('[Login][Bridge] invalid fragment="$fragment"');
+      AppTalker.warning('LoginBridge', 'invalid fragment="$fragment"');
       return false;
     }
     final query = fragment.substring(queryIndex + 1);
     final uri = Uri.tryParse('scheme://bridge?$query');
     if (uri == null) {
-      debugPrint('[Login][Bridge] parse failed queryLength=${query.length}');
+      AppTalker.warning(
+        'LoginBridge',
+        'parse failed queryLength=${query.length}',
+      );
       return false;
     }
     final method = uri.queryParameters['method'] ?? '';
     final params = uri.queryParameters['params'] ?? '';
     if (method.isEmpty) {
-      debugPrint('[Login][Bridge] empty method queryLength=${query.length}');
+      AppTalker.warning(
+        'LoginBridge',
+        'empty method queryLength=${query.length}',
+      );
       return false;
     }
     String decodedParams;
     try {
       decodedParams = Uri.decodeComponent(params);
     } catch (e) {
-      debugPrint(
-          '[Login][Bridge] decode failed method="$method" paramsLength=${params.length} error=$e');
+      AppTalker.warning(
+        'LoginBridge',
+        'decode failed method="$method" paramsLength=${params.length} error=$e',
+      );
       decodedParams = params;
     }
-    debugPrint(
-      '[Login][Bridge] receive message method="$method" paramsLength=${params.length} decodedLength=${decodedParams.length}',
+    AppTalker.info(
+      'LoginBridge',
+      'receive message method="$method" paramsLength=${params.length} decodedLength=${decodedParams.length}',
     );
     _handleJsBridgeMessage(method, decodedParams);
     return true;
@@ -404,7 +416,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
     if (method == 'LogNetwork') {
-      debugPrint('[Login][Bridge] receive network log payload');
+      AppTalker.info('LoginBridge', 'receive network log payload');
       _handleNetworkLog(params);
     }
   }
@@ -412,11 +424,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _handleNetworkLog(String params) async {
     final processor = _networkMessageProcessor;
     if (processor == null) {
-      debugPrint('[Login][Bridge] skip network log: processor=null');
+      AppTalker.warning('LoginBridge', 'skip network log: processor=null');
       return;
     }
-    debugPrint(
-      '[Login][Bridge] process network log baseUrl="$_baseUrl" capturedUser="${_capturedUsername.isNotEmpty}" remember=$_capturedRememberPassword',
+    AppTalker.info(
+      'LoginBridge',
+      'process network log baseUrl="$_baseUrl" capturedUser="${_capturedUsername.isNotEmpty}" remember=$_capturedRememberPassword',
     );
     await processor.process(
       params: params,
@@ -850,7 +863,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             await dir.create(recursive: true);
           }
         } catch (e) {
-          debugPrint('Failed to initialize webview data folder: $e');
+          AppTalker.warning(
+            'LoginWinWebView',
+            'Failed to initialize webview data folder: $e',
+          );
         }
       }
       if (!_winEnvInitialized) {
@@ -859,27 +875,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             userDataPath: userDataPath,
           );
           _winEnvInitialized = true;
-          debugPrint(
-              '[Login][WinWebView] environment initialized userDataPath="$userDataPath"');
+          AppTalker.info(
+            'LoginWinWebView',
+            'environment initialized userDataPath="$userDataPath"',
+          );
         } catch (_) {}
       }
       final controller = WebviewController();
       _winWebviewController = controller;
       await controller.initialize();
-      debugPrint(
-          '[Login][WinWebView] controller initialized, loadUrl="$_fnConnectUrl"');
+      AppTalker.info(
+        'LoginWinWebView',
+        'controller initialized, loadUrl="$_fnConnectUrl"',
+      );
       _winUrlSub = controller.url.listen((url) {
-        debugPrint('[Login][WinWebView] url event: $url');
+        AppTalker.info('LoginWinWebView', 'url event: $url');
         _handlePageUrl(url);
       });
       await controller.setBackgroundColor(const Color(0x00000000));
       await controller
           .setPopupWindowPolicy(WebviewPopupWindowPolicy.sameWindow);
       _winLoadingSub = controller.loadingState.listen((state) async {
-        debugPrint('[Login][WinWebView] loadingState=$state');
+        AppTalker.info('LoginWinWebView', 'loadingState=$state');
         if (state == LoadingState.navigationCompleted) {
           final value = await controller.executeScript('window.location.href');
-          debugPrint('[Login][WinWebView] navigationCompleted href="$value"');
+          AppTalker.info(
+            'LoginWinWebView',
+            'navigationCompleted href="$value"',
+          );
           if (value is String) {
             _handlePageUrl(value);
           }
@@ -891,14 +914,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _winWebviewReady = true;
       });
-      debugPrint('[Login][WinWebView] ready');
+      AppTalker.info('LoginWinWebView', 'ready');
     } catch (_) {
       // Fallback: close overlay on error
       setState(() {
         _showFnConnectWebView = false;
         _winWebviewReady = false;
       });
-      debugPrint('[Login][WinWebView] init failed');
+      AppTalker.warning('LoginWinWebView', 'init failed');
     }
   }
 
@@ -970,8 +993,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final username = _usernameController.text;
     final password = _passwordController.text;
     try {
-      debugPrint(
-          '[Login] finalize login start: host="$host" port=$port isHttps=$_isHttps');
+      AppTalker.info(
+        'Login',
+        'finalize login start: host="$host" port=$port isHttps=$_isHttps',
+      );
       await ref.read(loginViewModelProvider.notifier).login(
             host: host,
             port: port,
@@ -983,18 +1008,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             displayHost: displayHost ?? _displayHost,
             displayPort: displayPort ?? _displayPort,
           );
-      debugPrint('[Login] finalize login success, navigate');
+      AppTalker.info('Login', 'finalize login success, navigate');
       final prefs = ref.read(preferencesManagerProvider);
       final token = prefs.getToken();
       final baseUrl = prefs.getBaseUrl();
-      debugPrint(
-          '[Login] prefs after login: token=${token != null} tokenLength=${token?.length ?? 0} baseUrl=${baseUrl != null}');
+      AppTalker.info(
+        'Login',
+        'prefs after login: token=${token != null} tokenLength=${token?.length ?? 0} baseUrl=${baseUrl != null}',
+      );
       final refreshNotifier = ref.read(authRefreshProvider.notifier);
       refreshNotifier.state = refreshNotifier.state + 1;
-      debugPrint('[Login] auth refresh from screen=${refreshNotifier.state}');
+      AppTalker.info(
+        'Login',
+        'auth refresh from screen=${refreshNotifier.state}',
+      );
       if (mounted) context.go('/home');
     } catch (e) {
-      debugPrint('[Login] finalize login error: $e');
+      AppTalker.warning('Login', 'finalize login error: $e');
       _showErrorDialog(e.toString());
     }
   }
@@ -1083,12 +1113,17 @@ class _NetworkMessageProcessor {
     var currentBaseUrl = baseUrl;
     final derivedBaseUrl = _originFromUrl(url);
     if (derivedBaseUrl.isNotEmpty && derivedBaseUrl != currentBaseUrl) {
-      debugPrint(
-          '[Login][Bridge] baseUrl updated from url="$url" baseUrl="$derivedBaseUrl"');
+      AppTalker.info(
+        'LoginBridge',
+        'baseUrl updated from url="$url" baseUrl="$derivedBaseUrl"',
+      );
       onBaseUrlChange(derivedBaseUrl);
       currentBaseUrl = derivedBaseUrl;
     }
-    debugPrint('[Login][Bridge] network url="$url" baseUrl="$currentBaseUrl"');
+    AppTalker.info(
+      'LoginBridge',
+      'network url="$url" baseUrl="$currentBaseUrl"',
+    );
     if (url.contains('/sac/rpcproxy/v1/new-user-guide/status')) {
       await _handleStatusMessage(payload, currentBaseUrl);
       return;
@@ -1149,7 +1184,7 @@ class _NetworkMessageProcessor {
       }
     } catch (e) {
       _isSysConfigInFlight = false;
-      onError('获取系统配置失败: $e');
+      onError('鑾峰彇绯荤粺閰嶇疆澶辫触: $e');
     }
   }
 
@@ -1174,8 +1209,10 @@ class _NetworkMessageProcessor {
         (oauthUrl.isNotEmpty && oauthUrl != '://') ? oauthUrl : baseUrl;
     if (targetBaseUrl.isEmpty) return;
     // Build OAuth URL from sys config
-    debugPrint(
-        '[Login][Bridge] sys config resolved oauthBase="$targetBaseUrl"');
+    AppTalker.info(
+      'LoginBridge',
+      'sys config resolved oauthBase="$targetBaseUrl"',
+    );
     onBaseUrlChange(targetBaseUrl);
     final redirectUri = '$targetBaseUrl/v/oauth/result';
     final targetUrl =
@@ -1204,12 +1241,15 @@ class _NetworkMessageProcessor {
     final resolvedBaseUrl =
         derivedBaseUrl.isNotEmpty ? derivedBaseUrl : baseUrl;
     if (resolvedBaseUrl.isNotEmpty && resolvedBaseUrl != baseUrl) {
-      debugPrint(
-          '[Login][Bridge] oauth baseUrl sync="$resolvedBaseUrl" from url="$payloadUrl"');
+      AppTalker.info(
+        'LoginBridge',
+        'oauth baseUrl sync="$resolvedBaseUrl" from url="$payloadUrl"',
+      );
       onBaseUrlChange(resolvedBaseUrl);
     }
-    debugPrint(
-      '[Login][Bridge] oauth authorize received baseUrl="$resolvedBaseUrl" payloadKeys=${payload.keys.join(',')}',
+    AppTalker.info(
+      'LoginBridge',
+      'oauth authorize received baseUrl="$resolvedBaseUrl" payloadKeys=${payload.keys.join(',')}',
     );
     final directCode = payload['code']?.toString();
     var code = directCode ?? '';
@@ -1228,12 +1268,16 @@ class _NetworkMessageProcessor {
       }
     }
     if (code.isEmpty) {
-      debugPrint('[Login][Bridge] oauth code empty, skip token exchange');
+      AppTalker.warning(
+        'LoginBridge',
+        'oauth code empty, skip token exchange',
+      );
       return;
     }
     // Exchange OAuth code for token
-    debugPrint(
-      '[Login][Bridge] oauth code captured, exchange token codeLength=${code.length}',
+    AppTalker.info(
+      'LoginBridge',
+      'oauth code captured, exchange token codeLength=${code.length}',
     );
     _isAuthRequested = true;
     try {
@@ -1267,8 +1311,10 @@ class _NetworkMessageProcessor {
       final updatedHistory =
           currentHistory.where((element) => element != historyItem).toList();
       updatedHistory.insert(0, historyItem);
-      debugPrint(
-          '[Login][Bridge] oauth success, history=${updatedHistory.length}');
+      AppTalker.info(
+        'LoginBridge',
+        'oauth success, history=${updatedHistory.length}',
+      );
       await onLoginSuccess(
         _NasLoginResult(
           token: token,
@@ -1285,12 +1331,16 @@ class _NetworkMessageProcessor {
 
   Future<String> _exchangeCodeForToken(String baseUrl, String code) async {
     if (baseUrl.isEmpty) {
-      debugPrint('[Login][Bridge] exchange token aborted: baseUrl empty');
+      AppTalker.warning(
+        'LoginBridge',
+        'exchange token aborted: baseUrl empty',
+      );
       return '';
     }
     final authx = FnApiHelper.genAuthxForOfficial('/v/api/v1/auth');
-    debugPrint(
-      '[Login][Bridge] exchange token request baseUrl="$baseUrl" codeLength=${code.length}',
+    AppTalker.info(
+      'LoginBridge',
+      'exchange token request baseUrl="$baseUrl" codeLength=${code.length}',
     );
     final response = await dioClient.dio.post(
       '$baseUrl/v/api/v1/auth',
@@ -1302,13 +1352,15 @@ class _NetworkMessageProcessor {
             status != null && status >= 200 && status <= 302,
       ),
     );
-    debugPrint(
-      '[Login][Bridge] exchange token response status=${response.statusCode} contentType=${response.headers.value('content-type')}',
+    AppTalker.info(
+      'LoginBridge',
+      'exchange token response status=${response.statusCode} contentType=${response.headers.value('content-type')}',
     );
     final data = response.data;
     if (data is Map) {
-      debugPrint(
-        '[Login][Bridge] exchange token payload keys=${data.keys.join(',')}',
+      AppTalker.info(
+        'LoginBridge',
+        'exchange token payload keys=${data.keys.join(',')}',
       );
       final codeValue = data['code'];
       if (codeValue is int && codeValue != 0) {
@@ -1318,17 +1370,22 @@ class _NetworkMessageProcessor {
       final body = data['data'];
       if (body is Map && body['token'] != null) {
         final tokenValue = body['token'].toString();
-        debugPrint(
-            '[Login][Bridge] exchange token success tokenLength=${tokenValue.length}');
+        AppTalker.info(
+          'LoginBridge',
+          'exchange token success tokenLength=${tokenValue.length}',
+        );
         return tokenValue;
       }
-      debugPrint(
-        '[Login][Bridge] exchange token body missing token bodyKeys=${body is Map ? body.keys.join(',') : body.runtimeType}',
+      AppTalker.warning(
+        'LoginBridge',
+        'exchange token body missing token bodyKeys=${body is Map ? body.keys.join(',') : body.runtimeType}',
       );
       return '';
     }
-    debugPrint(
-        '[Login][Bridge] exchange token unexpected responseType=${data.runtimeType}');
+    AppTalker.warning(
+      'LoginBridge',
+      'exchange token unexpected responseType=${data.runtimeType}',
+    );
     return '';
   }
 

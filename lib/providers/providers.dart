@@ -1,9 +1,9 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+﻿import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/app_constants.dart';
 import '../core/network/api_result.dart';
+import '../core/utils/log/app_talker.dart';
 import '../core/network/dio_client.dart' as core_network;
 import '../data/datasources/remote/media_remote_data_source.dart';
 import '../data/datasources/remote/user_remote_data_source.dart';
@@ -273,8 +273,9 @@ class LoggingCacheManager extends CacheManager {
   ) {
     final size = cacheFile?.file.lengthSync();
     final validTill = cacheFile?.validTill.toIso8601String();
-    debugPrint(
-      'ImageCache source=$source url=$url key=$key size=${size ?? '-'} validTill=${validTill ?? '-'}',
+    AppTalker.info(
+      'ImageCache',
+      'source=$source url=$url key=$key size=${size ?? '-'} validTill=${validTill ?? '-'}',
     );
   }
 }
@@ -428,3 +429,4 @@ final playerSettingsManagerProvider = Provider<PlayerSettingsManager>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return PlayerSettingsManager(prefs);
 });
+

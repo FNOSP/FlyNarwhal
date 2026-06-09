@@ -1,5 +1,7 @@
+﻿import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import '../../core/utils/log/app_talker.dart';
 
 /// Parses MP4 moov/stbl to map playback time to byte offset (KMP [Mp4Parser] port).
 class Mp4Parser {
@@ -29,17 +31,25 @@ class Mp4Parser {
       final atoms = _parseAtoms(bytes, bytes.length);
       final moov = _atomByType(atoms, 'moov');
       if (moov == null) {
-        debugPrint('[Mp4Parser] moov atom not found in first ${_rangeHeaderBytes}B');
+        AppTalker.warning(
+          'Mp4Parser',
+          'moov atom not found in first ${_rangeHeaderBytes}B',
+        );
         return 0;
       }
       final offset = _findOffsetInMoov(moov.data, time);
-      debugPrint('[Mp4Parser] Calculated offset for time $time: $offset');
+      AppTalker.info('Mp4Parser', 'Calculated offset for time $time: $offset');
       return offset;
     } on DioException catch (e) {
-      debugPrint('[Mp4Parser] DioException: ${e.message}');
+      AppTalker.warning('Mp4Parser', 'DioException: ${e.message}');
       return 0;
     } catch (e, st) {
-      debugPrint('[Mp4Parser] Failed to parse MP4: $e\n$st');
+      AppTalker.error(
+        'Mp4Parser',
+        error: e,
+        stackTrace: st,
+        message: 'Failed to parse MP4',
+      );
       return 0;
     }
   }
@@ -323,3 +333,4 @@ _Atom? _atomByType(List<_Atom> atoms, String type) {
   }
   return null;
 }
+

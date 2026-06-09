@@ -1,5 +1,4 @@
-import 'package:flutter/foundation.dart';
-import 'package:go_router/go_router.dart';
+﻿import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/layout/main_layout.dart';
@@ -11,6 +10,7 @@ import '../screens/movie_detail/movie_detail_screen.dart';
 import '../screens/tv_detail/tv_detail_screen.dart';
 import '../screens/tv_detail/tv_season_detail_screen.dart';
 import '../screens/player/player_screen.dart';
+import '../../core/utils/log/app_talker.dart';
 import '../../providers/providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -24,7 +24,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       final baseUrl = prefs.getBaseUrl();
       final isLoggedIn = token != null && baseUrl != null;
       final isOnLogin = state.matchedLocation == '/login';
-      debugPrint('[Router] location="${state.matchedLocation}" token=${token != null} tokenLength=${token?.length ?? 0} baseUrl=${baseUrl != null} isLoggedIn=$isLoggedIn');
+      AppTalker.info(
+        'Router',
+        'location="${state.matchedLocation}" token=${token != null} tokenLength=${token?.length ?? 0} baseUrl=${baseUrl != null} isLoggedIn=$isLoggedIn',
+      );
 
       if (!isLoggedIn) {
         return isOnLogin ? null : '/login';
@@ -89,3 +92,4 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+

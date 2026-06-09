@@ -27,6 +27,9 @@ dependencies:
   
   # Networking
   dio: ^5.4.3
+  talker: ^5.1.17
+  talker_dio_logger: ^5.1.17
+  talker_flutter: ^5.1.17
   
   # Navigation
   go_router: ^14.2.0
