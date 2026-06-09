@@ -1,4 +1,3 @@
-import '../../domain/entities/index.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../datasources/local/preferences_local_data_source.dart';
 
@@ -21,9 +20,6 @@ class AuthRepositoryImpl implements IAuthRepository {
   String? get baseUrl => _localDataSource.getBaseUrl();
 
   @override
-  String? get authCode => _localDataSource.getAuthCode();
-
-  @override
   Future<void> saveToken(String token) => _localDataSource.saveToken(token);
 
   @override
@@ -31,9 +27,6 @@ class AuthRepositoryImpl implements IAuthRepository {
 
   @override
   Future<void> saveBaseUrl(String url) => _localDataSource.saveBaseUrl(url);
-
-  @override
-  Future<void> saveAuthCode(String code) => _localDataSource.saveAuthCode(code);
 
   @override
   Future<void> clearAuth() => _localDataSource.clearAuth();

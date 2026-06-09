@@ -1,22 +1,31 @@
-import 'package:dio/dio.dart';
-import '../auth_signer.dart';
+import 'dart:convert';
+import 'dart:math';
 
-/// Authentication interceptor for adding Authx/Signx/Keyx headers
+import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
+
+/// Authentication interceptor for FnOfficial API requests.
+/// Injects Authorization, Cookie, User-Agent and Authx (single layer sign).
 class AuthInterceptor extends Interceptor {
+  // Shared secret used to compute Authx. Mirrors KMP FnOfficialApiImpl.
+  static const String _apiKey = "NDzZTVxnRKP8Z0jXg1VAMonaG8akvh";
+  static const String _apiSecret = "16CCEB3D-AB42-077D-36A1-F355324E4237";
+  static const String _userAgent =
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
+
   final String Function()? getToken;
   final String Function()? getCookie;
-  final String Function()? getAuthCode;
   final String Function()? getBaseUrl;
 
   AuthInterceptor({
     this.getToken,
     this.getCookie,
-    this.getAuthCode,
     this.getBaseUrl,
   });
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     // Add Authorization header
     final token = getToken?.call();
     if (token != null && token.isNotEmpty) {
@@ -33,10 +42,7 @@ class AuthInterceptor extends Interceptor {
     options.headers.putIfAbsent('Accept', () => 'application/json');
 
     // Add User-Agent
-    options.headers.putIfAbsent(
-      'User-Agent',
-      () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
-    );
+    options.headers.putIfAbsent('User-Agent', () => _userAgent);
 
     // Set base URL if not already set
     final baseUrl = getBaseUrl?.call();
@@ -44,37 +50,20 @@ class AuthInterceptor extends Interceptor {
       options.baseUrl = baseUrl;
     }
 
-    // Add Authx/Signx/Keyx headers if authCode is available
-    final authCode = getAuthCode?.call();
-    final hasAuthx = options.headers.containsKey('Authx');
-    final hasSignx = options.headers.containsKey('Signx');
-
-    if (authCode != null && authCode.isNotEmpty && !hasAuthx && !hasSignx) {
+    // Add Authx header for FnOfficial (single-layer sign, matches KMP).
+    if (!options.headers.containsKey('Authx')) {
       final path = _resolvePath(options.path);
-      final authx = AuthSigner.genAuthx(
+      final authx = _genAuthx(
         path,
-        parameters: options.queryParameters,
+        parameters: options.queryParameters.isEmpty
+            ? null
+            : options.queryParameters,
         data: options.data is Map<String, dynamic> ? options.data : null,
       );
       options.headers['Authx'] = authx;
-
-      final signx = AuthSigner.genSignx(
-        url: path,
-        authx: authx,
-        parameters: options.queryParameters,
-        data: options.data is Map<String, dynamic> ? options.data : null,
-        publicKeyBase64: authCode,
-      );
-      options.headers['Signx'] = signx;
-
-      // Add Keyx for FN1_ prefix auth codes
-      if (authCode.startsWith('FN1_')) {
-        final keyx = await AuthSigner.clientKeyxBase64Url();
-        options.headers['Keyx'] = keyx;
-      }
     }
 
-    super.onRequest(options, handler);
+    handler.next(options);
   }
 
   String _resolvePath(String rawPath) {
@@ -83,5 +72,55 @@ class AuthInterceptor extends Interceptor {
       return uri.path;
     }
     return rawPath;
+  }
+
+  // Compute the FnOfficial Authx header value.
+  // Equivalent to KMP FnApiHelper.genAuthxForOfficial.
+  String _genAuthx(
+    String url, {
+    Map<String, dynamic>? parameters,
+    dynamic data,
+  }) {
+    final nonce = _generateRandomDigits();
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final dataJsonMd5 = _buildDataJsonMd5(parameters, data);
+
+    final signList = [
+      _apiKey,
+      url,
+      nonce,
+      timestamp,
+      dataJsonMd5,
+      _apiSecret,
+    ];
+
+    final signStr = signList.join("_");
+    final sign = _md5(signStr);
+    return "nonce=$nonce&timestamp=$timestamp&sign=$sign";
+  }
+
+  String _generateRandomDigits({int start = 100000, int end = 1000000}) {
+    final random = Random();
+    return (start + random.nextInt(end - start)).toString();
+  }
+
+  String _buildDataJsonMd5(Map<String, dynamic>? parameters, dynamic data) {
+    if (data != null) {
+      final dataJson = jsonEncode(data);
+      return _md5(dataJson);
+    } else if (parameters != null) {
+      final sortedKeys = parameters.keys.toList()..sort();
+      final sortedParams = sortedKeys
+          .where((key) => parameters[key] != null)
+          .map((key) => "$key=${parameters[key]}")
+          .join("&");
+      return _md5(sortedParams);
+    } else {
+      return _md5("");
+    }
+  }
+
+  String _md5(String input) {
+    return md5.convert(utf8.encode(input)).toString();
   }
 }

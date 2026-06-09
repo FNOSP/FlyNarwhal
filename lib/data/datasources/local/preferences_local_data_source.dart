@@ -34,16 +34,10 @@ class PreferencesLocalDataSource {
   Future<void> saveBaseUrl(String url) =>
       _storage.setString(StorageKeys.baseUrl, url);
 
-  String? getAuthCode() => _storage.getString(StorageKeys.authCode);
-
-  Future<void> saveAuthCode(String code) =>
-      _storage.setString(StorageKeys.authCode, code);
-
   Future<void> clearAuth() async {
     await Future.wait([
       _storage.remove(StorageKeys.authToken),
       _storage.remove(StorageKeys.cookieState),
-      _storage.remove(StorageKeys.authCode),
     ]);
   }
 

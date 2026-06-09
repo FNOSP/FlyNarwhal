@@ -3,14 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/app_constants.dart';
 import '../core/network/api_result.dart';
+import '../core/network/dio_client.dart';
 import '../core/utils/log/app_talker.dart';
-import '../core/network/dio_client.dart' as core_network;
 import '../data/datasources/remote/media_remote_data_source.dart';
 import '../data/datasources/remote/user_remote_data_source.dart';
 import '../data/models/user_info.dart';
 import '../data/storage/preferences_manager.dart';
 import '../data/storage/player_settings_store.dart';
-import '../data/network/dio_client.dart';
 import '../data/network/tag_repository.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
@@ -70,7 +69,11 @@ class NavigationStackNotifier extends StateNotifier<List<String>> {
 
 final dioClientProvider = Provider<DioClient>((ref) {
   final prefsManager = ref.watch(preferencesManagerProvider);
-  return DioClient(prefsManager);
+  return DioClient.withCallbacks(
+    getToken: () => prefsManager.getToken() ?? '',
+    getCookie: () => prefsManager.getCookie() ?? '',
+    getBaseUrl: () => prefsManager.getBaseUrl() ?? '',
+  );
 });
 
 final tagRepositoryProvider = Provider<TagRepository>((ref) {
@@ -79,25 +82,13 @@ final tagRepositoryProvider = Provider<TagRepository>((ref) {
 });
 
 final mediaRemoteDataSourceProvider = Provider<MediaRemoteDataSource>((ref) {
-  final prefsManager = ref.watch(preferencesManagerProvider);
-  final dioClient = core_network.DioClient.withCallbacks(
-    getToken: () => prefsManager.getToken() ?? '',
-    getCookie: () => prefsManager.getCookie() ?? '',
-    getAuthCode: () => prefsManager.getAuthCode() ?? '',
-    getBaseUrl: () => prefsManager.getBaseUrl() ?? '',
-  );
+  final dioClient = ref.watch(dioClientProvider);
   return MediaRemoteDataSource(dioClient);
 });
 
 // User remote data source provider
 final userRemoteDataSourceProvider = Provider<UserRemoteDataSource>((ref) {
-  final prefsManager = ref.watch(preferencesManagerProvider);
-  final dioClient = core_network.DioClient.withCallbacks(
-    getToken: () => prefsManager.getToken() ?? '',
-    getCookie: () => prefsManager.getCookie() ?? '',
-    getAuthCode: () => prefsManager.getAuthCode() ?? '',
-    getBaseUrl: () => prefsManager.getBaseUrl() ?? '',
-  );
+  final dioClient = ref.watch(dioClientProvider);
   return UserRemoteDataSource(dioClient);
 });
 

@@ -1,9 +1,10 @@
+import 'package:dio/dio.dart';
+
+import '../../core/network/dio_client.dart';
 import '../models/base_response.dart';
 import '../models/file_models.dart';
 import '../models/movie_detail_models.dart';
 import '../models/subtitle_models.dart';
-import '../network/dio_client.dart';
-import 'package:dio/dio.dart';
 
 class FileRepository {
   final DioClient _dioClient;

@@ -13,9 +13,6 @@ abstract class IAuthRepository {
   /// Get base URL
   String? get baseUrl;
 
-  /// Get auth code
-  String? get authCode;
-
   /// Save token
   Future<void> saveToken(String token);
 
@@ -24,9 +21,6 @@ abstract class IAuthRepository {
 
   /// Save base URL
   Future<void> saveBaseUrl(String url);
-
-  /// Save auth code
-  Future<void> saveAuthCode(String code);
 
   /// Clear all auth data
   Future<void> clearAuth();

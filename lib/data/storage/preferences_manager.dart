@@ -7,7 +7,6 @@ class PreferencesManager {
   static const String _keyToken = 'auth_token';
   static const String _keyBaseUrl = 'base_url';
   static const String _keyCookie = 'cookie_state';
-  static const String _keyAuthCode = 'auth_code';
   static const String _keyFollowSystemTheme = 'follow_system_theme';
   static const String _keyDarkMode = 'dark_mode';
   static const String _keyNavigationDisplayMode = 'navigation_display_mode';
@@ -48,14 +47,6 @@ class PreferencesManager {
     await _prefs.setString(_keyCookie, cookie);
   }
 
-  String? getAuthCode() {
-    return _prefs.getString(_keyAuthCode);
-  }
-
-  Future<void> saveAuthCode(String authCode) async {
-    await _prefs.setString(_keyAuthCode, authCode);
-  }
-  
   String? getBaseUrl() {
     return _prefs.getString(_keyBaseUrl);
   }
@@ -92,6 +83,5 @@ class PreferencesManager {
     await _prefs.remove(_keyToken);
     await _prefs.remove(_keyBaseUrl);
     await _prefs.remove(_keyCookie);
-    await _prefs.remove(_keyAuthCode);
   }
 }

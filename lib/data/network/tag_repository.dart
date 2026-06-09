@@ -1,7 +1,7 @@
 
+import '../../core/network/dio_client.dart';
 import '../models/base_response.dart';
 import '../models/tag_models.dart';
-import 'dio_client.dart';
 
 class TagRepository {
   final DioClient _dioClient;
@@ -46,7 +46,7 @@ class TagRepository {
       '/v/api/v1/tag/$tag',
       queryParameters: lan == null ? null : {'lan': lan},
     );
-    
+
     final baseResponse = FnBaseResponse<List<QueryTagResponse>>.fromJson(
       response.data,
       (json) => (json as List)

@@ -12,13 +12,12 @@ import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:webview_windows/webview_windows.dart';
+import '../../../core/network/dio_client.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/login_history.dart';
-import '../../../data/network/dio_client.dart';
 import '../../../data/storage/preferences_manager.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
-import '../../../utils/fn_api_helper.dart';
 import '../../widgets/history_sidebar.dart';
 import '../../widgets/window_caption.dart';
 import 'login_js_injection.dart';
@@ -1168,12 +1167,11 @@ class _NetworkMessageProcessor {
     if (baseUrl.isEmpty) return;
     _isSysConfigInFlight = true;
     try {
-      final authx = FnApiHelper.genAuthxForOfficial('/v/api/v1/sys/config');
+      // Authx is injected by the AuthInterceptor.
       final response = await dioClient.dio.get(
         '$baseUrl/v/api/v1/sys/config',
         options: Options(
           headers: {
-            'Authx': authx,
             'Cookie': cookie,
           },
         ),
@@ -1337,16 +1335,15 @@ class _NetworkMessageProcessor {
       );
       return '';
     }
-    final authx = FnApiHelper.genAuthxForOfficial('/v/api/v1/auth');
     AppTalker.info(
       'LoginBridge',
       'exchange token request baseUrl="$baseUrl" codeLength=${code.length}',
     );
+    // Authx is injected by the AuthInterceptor.
     final response = await dioClient.dio.post(
       '$baseUrl/v/api/v1/auth',
       data: {'source': 'Trim-NAS', 'code': code},
       options: Options(
-        headers: {'Authx': authx},
         followRedirects: true,
         validateStatus: (status) =>
             status != null && status >= 200 && status <= 302,

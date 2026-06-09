@@ -39,7 +39,6 @@ class DioClient {
   DioClient.withCallbacks({
     required String Function()? getToken,
     required String Function()? getCookie,
-    required String Function()? getAuthCode,
     required String Function()? getBaseUrl,
     DioClientConfig config = const DioClientConfig(),
     Dio? dio,
@@ -49,12 +48,12 @@ class DioClient {
               receiveTimeout: config.receiveTimeout,
               sendTimeout: config.sendTimeout,
               responseType: ResponseType.json,
+              followRedirects: true,
             )),
         _config = config {
     _setupInterceptorsWithCallbacks(
       getToken: getToken,
       getCookie: getCookie,
-      getAuthCode: getAuthCode,
       getBaseUrl: getBaseUrl,
     );
   }
@@ -62,7 +61,6 @@ class DioClient {
   void _setupInterceptorsWithCallbacks({
     String Function()? getToken,
     String Function()? getCookie,
-    String Function()? getAuthCode,
     String Function()? getBaseUrl,
   }) {
     // Add interceptors in order
@@ -70,7 +68,6 @@ class DioClient {
     _dio.interceptors.add(AuthInterceptor(
       getToken: getToken,
       getCookie: getCookie,
-      getAuthCode: getAuthCode,
       getBaseUrl: getBaseUrl,
     ));
 

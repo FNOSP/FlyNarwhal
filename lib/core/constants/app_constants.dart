@@ -97,7 +97,6 @@ class StorageKeys {
   static const String authToken = 'auth_token';
   static const String baseUrl = 'base_url';
   static const String cookieState = 'cookie_state';
-  static const String authCode = 'auth_code';
   static const String loginHistory = 'login_history';
   static const String followSystemTheme = 'follow_system_theme';
   static const String darkMode = 'dark_mode';
