@@ -5,6 +5,15 @@ class FilterItem {
   final String label;
   final dynamic value;
   const FilterItem(this.label, this.value);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is FilterItem && other.label == label && other.value == value;
+  }
+
+  @override
+  int get hashCode => Object.hash(label, value);
 }
 
 class FilterGroup {
@@ -235,7 +244,11 @@ class _FilterBoxState extends State<FilterBox> {
   @override
   void didUpdateWidget(covariant FilterBox oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialSelectedFilters != widget.initialSelectedFilters) {
+    // Rebuild local selections when KMP-equivalent filter metadata changes.
+    if (oldWidget.initialSelectedFilters != widget.initialSelectedFilters ||
+        oldWidget.tagList != widget.tagList ||
+        oldWidget.genres != widget.genres ||
+        oldWidget.iso3166 != widget.iso3166) {
       _selectedOptions = Map<String, FilterItem>.from(widget.initialSelectedFilters);
     }
   }
@@ -347,7 +360,7 @@ class FilterRow extends StatelessWidget {
             spacing: 24,
             runSpacing: 8,
             children: options.map((option) {
-              final isSelected = option.label == selected.label && option.value == selected.value;
+              final isSelected = option == selected;
               return MouseRegion(
                 cursor: SystemMouseCursors.click,
                 child: HoverButton(

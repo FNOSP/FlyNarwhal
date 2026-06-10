@@ -44,7 +44,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   final Map<String, String?> _tabMdbNameCache = {};
   final Set<String> _loadingKeys = {};
 
-  TagListEntity? _tagList;
+  final Map<String, TagListEntity> _tagListsByTab = {};
   List<GenreEntity>? _genres;
   Map<String, String>? _iso3166;
 
@@ -57,7 +57,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   void initState() {
     super.initState();
     _loadStaticTags();
-    _loadAllTabs(force: true);
+    _loadAllTabs();
   }
 
   @override
@@ -66,33 +66,65 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     super.dispose();
   }
 
-  Future<void> _loadStaticTags() async {
+  TagListEntity? get _selectedTagList => _tagListsByTab[_selectedTab];
+
+  Iterable<String> get _filterTabs => _tabs.where((tab) => tab != '人物');
+
+  Future<void> _loadBaseMetadata({bool force = false}) async {
     final repo = ref.read(iTagRepositoryProvider);
     try {
-      TagListEntity? tagList;
-      if (_selectedTab != '人物') {
-        final type = _getTypeForTagApi(_selectedTab);
-        final tagListResult = await repo.getTagList(
-          ancestorGuid: null,
-          isFavorite: 1,
-          type: type,
-        );
-        tagList = tagListResult.dataOrNull;
-      }
-      // Load static tag dictionaries through the shared repository abstraction.
-      final genresResult = await repo.getGenres();
-      final iso3166Result = await repo.getTag('iso3166');
-      await repo.getTag('iso6391');
+      // Load shared dictionaries with the same default language semantics as KMP.
+      final genresFuture = repo.getGenres(force: force);
+      final iso3166Future = repo.getTag('iso3166', force: force);
+      final iso6391Future = repo.getTag('iso6391', force: force);
+      final genresResult = await genresFuture;
+      final iso3166Result = await iso3166Future;
+      await iso6391Future;
       if (!mounted) {
         return;
       }
       setState(() {
-        _tagList = tagList;
         _genres = genresResult.dataOrNull;
         _iso3166 = iso3166Result.dataOrNull;
       });
     } catch (_) {
     }
+  }
+
+  Future<void> _loadTagListForTab(String tab, {bool force = false}) async {
+    if (tab == '人物') {
+      return;
+    }
+    final repo = ref.read(iTagRepositoryProvider);
+    try {
+      // Load each tab metadata with the same favorite tag-list key as KMP.
+      final result = await repo.getTagList(
+        ancestorGuid: null,
+        isFavorite: 1,
+        type: _getTypeForTagApi(tab),
+      );
+      final tagList = result.dataOrNull;
+      if (!mounted || tagList == null) {
+        return;
+      }
+      setState(() {
+        _tagListsByTab[tab] = tagList;
+      });
+    } catch (_) {
+    }
+  }
+
+  Future<void> _loadAllTagLists({bool force = false}) async {
+    await Future.wait(
+      _filterTabs.map((tab) => _loadTagListForTab(tab, force: force)),
+    );
+  }
+
+  Future<void> _loadStaticTags({bool force = false}) async {
+    await Future.wait([
+      _loadBaseMetadata(force: force),
+      _loadAllTagLists(force: force),
+    ]);
   }
 
   String _buildCacheKey(String tab, Map<String, FilterItem> filters) {
@@ -147,15 +179,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     _clearCaches();
     await _scrollToTop();
 
-    // Reload the current tab and related metadata after the shared refresh.
+    // Reload all favorite tabs and their metadata with the same KMP refresh semantics.
     await Future.wait([
-      _loadStaticTags(),
-      _loadData(
-        tab: _selectedTab,
-        page: 1,
-        filters: const {},
-        force: true,
-      ),
+      _loadStaticTags(force: true),
+      _loadAllTabs(force: true),
     ]);
   }
 
@@ -369,17 +396,16 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     _pendingFavoriteCallbacks[result.guid]?.call(result.success);
     _pendingFavoriteCallbacks.remove(result.guid);
 
-    // Remove item from list if unfavorited successfully
-    if (result.success && !result.isFavorite) {
-      setState(() {
-        _items = _items.where((item) => item.guid != result.guid).toList();
-      });
-      // Update cache
-      final cacheKey = _buildCacheKey(_selectedTab, _selectedFilters);
-      if (_tabItemsCache.containsKey(cacheKey)) {
-        _tabItemsCache[cacheKey] = _tabItemsCache[cacheKey]!
-            .where((item) => item.guid != result.guid)
-            .toList();
+    // Refresh the current tab and its tag metadata after favorite changes.
+    if (result.success) {
+      unawaited(_loadData(
+        tab: _selectedTab,
+        page: 1,
+        filters: _selectedFilters,
+        force: true,
+      ));
+      if (_selectedTab != '人物') {
+        unawaited(_loadTagListForTab(_selectedTab, force: true));
       }
     }
 
@@ -530,7 +556,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                     _isFilterOpen = false;
                                     _selectedFilters = {};
                                   });
-                                  _loadStaticTags();
                                   _applyCacheToSelected(const {});
                                   _loadData(
                                     tab: _selectedTab,
@@ -611,7 +636,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                           key: const ValueKey('filter-box'),
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: FilterBox(
-                            tagList: _tagList,
+                            tagList: _selectedTagList,
                             genres: _genres,
                             iso3166: _iso3166,
                             initialSelectedFilters: _selectedFilters,

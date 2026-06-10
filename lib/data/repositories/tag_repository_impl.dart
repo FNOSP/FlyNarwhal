@@ -6,6 +6,7 @@ import '../mappers/tag_mapper.dart';
 
 /// Implementation of ITagRepository
 class TagRepositoryImpl implements ITagRepository {
+  static const String _defaultLanguage = 'zh-CN';
   final TagRemoteDataSource _remoteDataSource;
 
   TagRepositoryImpl(this._remoteDataSource);
@@ -15,9 +16,9 @@ class TagRepositoryImpl implements ITagRepository {
     String? language,
     bool force = false,
   }) async {
-    // Map remote models into domain entities for UI consumption.
+    // Keep the KMP default language behavior when callers omit lan.
     final result = await _remoteDataSource.getGenres(
-      language: language,
+      language: language ?? _defaultLanguage,
       force: force,
     );
     return result.map((data) => TagMapper.toGenreEntityList(data));
@@ -29,10 +30,10 @@ class TagRepositoryImpl implements ITagRepository {
     String? language,
     bool force = false,
   }) async {
-    // Keep tag maps unchanged because the domain shape matches the remote shape.
+    // Keep the KMP default language behavior when callers omit lan.
     final result = await _remoteDataSource.getTag(
       tag,
-      language: language,
+      language: language ?? _defaultLanguage,
       force: force,
     );
     return result;

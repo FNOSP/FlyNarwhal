@@ -96,21 +96,6 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     return null;
   }
 
-  String? _categoryTagType(String? category) {
-    switch (category) {
-      case 'movie':
-        return 'Movie';
-      case 'tv':
-        return 'TV';
-      case 'video':
-        return 'Video';
-      case 'total':
-        return null;
-      default:
-        return null;
-    }
-  }
-
   List<String> _categoryTypes(String? category) {
     switch (category) {
       case 'movie':
@@ -128,11 +113,11 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   Future<void> _loadStaticTags() async {
     final repo = ref.read(iTagRepositoryProvider);
     try {
-      // Load filter metadata through the new repository abstraction.
+      // Match the KMP metadata request and keep tag list type unset here.
       final tagListResult = await repo.getTagList(
         ancestorGuid: widget.id,
         isFavorite: 0,
-        type: widget.id == null ? _categoryTagType(widget.categoryType) : null,
+        type: null,
       );
       final genresResult = await repo.getGenres();
       final iso3166Result = await repo.getTag('iso3166');
