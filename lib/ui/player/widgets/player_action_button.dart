@@ -197,6 +197,8 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
       );
     }
     if (widget.lottieAssetPath != null) {
+      // Recolor both fill and stroke channels for mixed Lottie assets.
+      const lottieKeyPath = ['**'];
       return SizedBox.square(
         dimension: widget.iconSize,
         child: Lottie.asset(
@@ -207,7 +209,11 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
           delegates: LottieDelegates(
             values: [
               ValueDelegate.color(
-                const ['**'],
+                lottieKeyPath,
+                value: widget.color,
+              ),
+              ValueDelegate.strokeColor(
+                lottieKeyPath,
                 value: widget.color,
               ),
             ],

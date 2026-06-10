@@ -64,6 +64,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with SingleTickerProviderStateMixin {
   static const int _controlFlyoutOffset = 15;
   static const double _controlFlyoutSpacing = 12;
+  static const double _trailingControlSpacing = 12;
   static const Duration _playbackIndicatorVisibleDuration =
       Duration(milliseconds: 200);
   static const Duration _playbackIndicatorExitDuration =
@@ -1685,6 +1686,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
         ),
         const Spacer(),
+        // Keep the trailing control cluster visually consistent.
         SpeedControlFlyout(
           key: const ValueKey('player-speed-control'),
           defaultSpeed: _speed,
@@ -1694,7 +1696,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               _handleFlyoutHoverStateChanged(PlayerFlyoutType.speed, hovered),
           onSpeedSelected: (speed) => _setSpeed(speed.value),
         ),
-        const SizedBox(width: _controlFlyoutSpacing),
+        const SizedBox(width: _trailingControlSpacing),
         if (_episodeList.isNotEmpty && _displaySubhead.isNotEmpty) ...[
           EpisodeSelectionFlyout(
             episodes: _episodeList,
@@ -1708,7 +1710,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             onEpisodeSelected: _openEpisode,
             onAutoPlayChanged: _overlayController.setAutoPlayEnabled,
           ),
-          const SizedBox(width: _controlFlyoutSpacing),
+          const SizedBox(width: _trailingControlSpacing),
         ],
         if (_qualities.isNotEmpty)
           QualityControlFlyout(
@@ -1722,7 +1724,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 PlayerFlyoutType.quality, hovered),
             onQualitySelected: _onQualitySelected,
           ),
-        const SizedBox(width: _controlFlyoutSpacing),
+        const SizedBox(width: _trailingControlSpacing),
         MouseRegion(
           onEnter: (_) =>
               _overlayController.setHovered(PlayerHoverZone.danmakuControl, true),
@@ -1743,7 +1745,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             iconSize: 20,
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: _trailingControlSpacing),
         MouseRegion(
           onEnter: (_) => _overlayController.setHovered(
             PlayerHoverZone.danmakuSettings,
@@ -1761,7 +1763,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             iconSize: 20,
           ),
         ),
-        const SizedBox(width: _controlFlyoutSpacing),
+        const SizedBox(width: _trailingControlSpacing),
         SubtitleControlFlyout(
           subtitles: _playingInfoCache?.currentSubtitleStreamList ?? const [],
           selectedSubtitleGuid: _selectedSubtitleGuid,
@@ -1781,7 +1783,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onOpenAddNasSubtitle: _openAddNasSubtitleDialog,
           onOpenAddLocalSubtitle: _pickAndUploadLocalSubtitle,
         ),
-        const SizedBox(width: _controlFlyoutSpacing),
+        const SizedBox(width: _trailingControlSpacing),
         PlayerSettingsMenu(
           playingInfoCache: _playingInfoCache,
           iso6391Map: _iso6391Map,
@@ -1796,7 +1798,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onWindowAspectRatioChanged: (_) {},
           onSkipConfigChanged: (_, __) {},
         ),
-        const SizedBox(width: _controlFlyoutSpacing),
+        const SizedBox(width: _trailingControlSpacing),
         VolumeControl(
           key: const ValueKey('player-volume-control'),
           volume: _volume,
@@ -1807,7 +1809,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
           onVolumeChange: _setVolume,
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: _trailingControlSpacing),
         MouseRegion(
           onEnter: (_) =>
               _overlayController.setHovered(PlayerHoverZone.pipControl, true),
@@ -1821,7 +1823,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             iconSize: 22,
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: _trailingControlSpacing),
         FullScreenControl(
           isFullScreen: _isFullscreen,
           onClick: _toggleFullscreen,
