@@ -1,5 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import '../../data/models/tag_models.dart';
+import '../../domain/entities/tag_entity.dart';
 
 class FilterItem {
   final String label;
@@ -202,8 +202,8 @@ class _FilterChipState extends State<FilterChip> {
 }
 
 class FilterBox extends StatefulWidget {
-  final TagListResponse? tagList;
-  final List<GenresResponse>? genres;
+  final TagListEntity? tagList;
+  final List<GenreEntity>? genres;
   final Map<String, String>? iso3166;
   final Map<String, FilterItem> initialSelectedFilters;
   final ValueChanged<Map<String, FilterItem>> onFilterChanged;
@@ -378,8 +378,8 @@ class FilterRow extends StatelessWidget {
 }
 
 List<FilterGroup> _buildFilterGroups({
-  TagListResponse? tagList,
-  List<GenresResponse>? genres,
+  TagListEntity? tagList,
+  List<GenreEntity>? genres,
   Map<String, String>? iso3166,
 }) {
   final groups = <FilterGroup>[];
@@ -400,7 +400,7 @@ List<FilterGroup> _buildFilterGroups({
     for (final id in tagList.genres) {
       final genre = genreMap[id];
       if (genre != null) {
-        options.add(FilterItem(genre.value, id));
+        options.add(FilterItem(genre.name, id));
       }
     }
     groups.add(FilterGroup('类型', options));
@@ -423,7 +423,7 @@ List<FilterGroup> _buildFilterGroups({
         '视频动态范围',
         [
           const FilterItem('全部', null),
-          ...tagList.colorRange.map((r) {
+          ...tagList.colorRanges.map((r) {
             final label = r == 'DolbyVision' ? '杜比视界' : r;
             return FilterItem(label, r);
           }),
@@ -435,7 +435,7 @@ List<FilterGroup> _buildFilterGroups({
         '音频规格',
         [
           const FilterItem('全部', null),
-          ...tagList.audioType.map((r) {
+          ...tagList.audioTypes.map((r) {
             final label = switch (r) {
               'DolbySurround' => '杜比环绕',
               'DolbyAtmos' => '杜比全景声',
@@ -457,7 +457,7 @@ List<FilterGroup> _buildFilterGroups({
   if (tagList != null && iso3166 != null) {
     final isoMap = iso3166;
     final options = <FilterItem>[const FilterItem('全部', null)];
-    for (final code in tagList.locate) {
+    for (final code in tagList.locations) {
       options.add(FilterItem(isoMap[code] ?? code, code));
     }
     groups.add(FilterGroup('国家和地区', options));
@@ -483,7 +483,7 @@ List<FilterGroup> _buildFilterGroups({
 
   if (tagList != null) {
     final options = <FilterItem>[const FilterItem('全部', null)];
-    for (final status in tagList.recognitionStatus) {
+    for (final status in tagList.recognitionStatuses) {
       final label = switch (status) {
         1 => '未匹配',
         2 => '已匹配',

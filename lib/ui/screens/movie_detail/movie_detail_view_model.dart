@@ -2,7 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/network/api_result.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
-import '../../../data/models/tag_models.dart';
+import '../../../domain/entities/tag_entity.dart';
 import '../../../providers/providers.dart';
 
 part 'movie_detail_view_model.g.dart';
@@ -76,19 +76,11 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
   FutureOr<MovieDetailState> build(String guid) async {
     state = const AsyncValue.loading();
     final remote = ref.read(mediaRemoteDataSourceProvider);
-    final tagRepo = ref.read(tagRepositoryProvider);
+    final tagRepo = ref.read(iTagRepositoryProvider);
 
     Future<T?> safeApiRequest<T>(Future<ApiResult<T>> Function() request) async {
       final result = await request();
       return result.dataOrNull;
-    }
-
-    Future<T?> safeValueRequest<T>(Future<T> Function() request) async {
-      try {
-        return await request();
-      } catch (_) {
-        return null;
-      }
     }
 
     final item = await _fetchItem();
@@ -99,16 +91,17 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
     final personList = await safeApiRequest(
       () => remote.getPersonList(guid),
     );
-    final iso6391 = await safeValueRequest(() => tagRepo.getTag('iso6391')) ??
+    // Reuse ApiResult helpers so tag loading follows the same failure handling path.
+    final iso6391 = await safeApiRequest(() => tagRepo.getTag('iso6391')) ??
         const <String, String>{};
-    final iso6392 = await safeValueRequest(() => tagRepo.getTag('iso6392')) ??
+    final iso6392 = await safeApiRequest(() => tagRepo.getTag('iso6392')) ??
         const <String, String>{};
-    final iso3166 = await safeValueRequest(() => tagRepo.getTag('iso3166')) ??
+    final iso3166 = await safeApiRequest(() => tagRepo.getTag('iso3166')) ??
         const <String, String>{};
-    final genresList = await safeValueRequest(() => tagRepo.getGenres()) ??
-        const <GenresResponse>[];
+    final genresList = await safeApiRequest(() => tagRepo.getGenres()) ??
+        const <GenreEntity>[];
 
-    final genresMap = <int, String>{for (final g in genresList) g.id: g.value};
+    final genresMap = <int, String>{for (final g in genresList) g.id: g.name};
 
     return MovieDetailState(
       item: item,

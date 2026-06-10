@@ -4,12 +4,12 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../domain/entities/tag_entity.dart';
 import '../../../providers/global_refresh.dart';
 import '../../widgets/filter_box.dart';
 import '../../widgets/sort_flyout.dart';
 import '../../widgets/toast.dart';
 import '../../../data/models/home_models.dart';
-import '../../../data/models/tag_models.dart';
 import '../../../providers/providers.dart';
 import '../../../data/models/base_response.dart';
 import '../../widgets/movie_poster.dart';
@@ -44,8 +44,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   final Map<String, String?> _tabMdbNameCache = {};
   final Set<String> _loadingKeys = {};
 
-  TagListResponse? _tagList;
-  List<GenresResponse>? _genres;
+  TagListEntity? _tagList;
+  List<GenreEntity>? _genres;
   Map<String, String>? _iso3166;
 
   late final ToastManager _toastManager = ToastManager();
@@ -67,23 +67,29 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   }
 
   Future<void> _loadStaticTags() async {
-    final repo = ref.read(tagRepositoryProvider);
+    final repo = ref.read(iTagRepositoryProvider);
     try {
-      TagListResponse? tagList;
+      TagListEntity? tagList;
       if (_selectedTab != '人物') {
         final type = _getTypeForTagApi(_selectedTab);
-        tagList = await repo.getTagList(ancestorGuid: null, isFavorite: 1, type: type);
+        final tagListResult = await repo.getTagList(
+          ancestorGuid: null,
+          isFavorite: 1,
+          type: type,
+        );
+        tagList = tagListResult.dataOrNull;
       }
-      final genres = await repo.getGenres();
-      final iso3166 = await repo.getTag('iso3166');
+      // Load static tag dictionaries through the shared repository abstraction.
+      final genresResult = await repo.getGenres();
+      final iso3166Result = await repo.getTag('iso3166');
       await repo.getTag('iso6391');
       if (!mounted) {
         return;
       }
       setState(() {
         _tagList = tagList;
-        _genres = genres;
-        _iso3166 = iso3166;
+        _genres = genresResult.dataOrNull;
+        _iso3166 = iso3166Result.dataOrNull;
       });
     } catch (_) {
     }

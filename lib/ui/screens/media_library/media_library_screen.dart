@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../domain/entities/tag_entity.dart';
 import '../../../data/models/home_models.dart';
 import '../../../data/models/media_request_models.dart';
-import '../../../data/models/tag_models.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../widgets/movie_poster.dart';
@@ -31,8 +31,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   String _sortColumn = 'create_time';
   String _sortOrder = 'DESC';
 
-  TagListResponse? _tagList;
-  List<GenresResponse>? _genres;
+  TagListEntity? _tagList;
+  List<GenreEntity>? _genres;
   Map<String, String>? _iso3166;
 
   late final ToastManager _toastManager = ToastManager();
@@ -126,23 +126,24 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   }
 
   Future<void> _loadStaticTags() async {
-    final repo = ref.read(tagRepositoryProvider);
+    final repo = ref.read(iTagRepositoryProvider);
     try {
-      final tagList = await repo.getTagList(
+      // Load filter metadata through the new repository abstraction.
+      final tagListResult = await repo.getTagList(
         ancestorGuid: widget.id,
         isFavorite: 0,
         type: widget.id == null ? _categoryTagType(widget.categoryType) : null,
       );
-      final genres = await repo.getGenres();
-      final iso3166 = await repo.getTag('iso3166');
+      final genresResult = await repo.getGenres();
+      final iso3166Result = await repo.getTag('iso3166');
       await repo.getTag('iso6391');
       if (!mounted) {
         return;
       }
       setState(() {
-        _tagList = tagList;
-        _genres = genres;
-        _iso3166 = iso3166;
+        _tagList = tagListResult.dataOrNull;
+        _genres = genresResult.dataOrNull;
+        _iso3166 = iso3166Result.dataOrNull;
       });
     } catch (_) {}
   }

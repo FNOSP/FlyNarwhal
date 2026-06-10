@@ -53,8 +53,9 @@ class TagRemoteDataSource {
       return Success(cached);
     }
 
+    // Use the same tag detail URL as the verified Kotlin client implementation.
     final result = await _dioClient.get<List<QueryTagResponse>>(
-      '${ApiEndpoints.tagGenres}/$tag',
+      ApiEndpoints.tagByName(tag),
       queryParameters: language != null ? {'lan': language} : null,
       converter: (data) => _parseTagResponse(data),
     );

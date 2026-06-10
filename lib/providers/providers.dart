@@ -6,11 +6,13 @@ import '../core/network/api_result.dart';
 import '../core/network/dio_client.dart';
 import '../core/utils/log/app_talker.dart';
 import '../data/datasources/remote/media_remote_data_source.dart';
+import '../data/datasources/remote/tag_remote_data_source.dart';
 import '../data/datasources/remote/user_remote_data_source.dart';
 import '../data/models/user_info.dart';
-import '../data/storage/preferences_manager.dart';
+import '../data/repositories/tag_repository_impl.dart';
 import '../data/storage/player_settings_store.dart';
-import '../data/network/tag_repository.dart';
+import '../data/storage/preferences_manager.dart';
+import '../domain/repositories/i_tag_repository.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences not initialized');
@@ -76,9 +78,14 @@ final dioClientProvider = Provider<DioClient>((ref) {
   );
 });
 
-final tagRepositoryProvider = Provider<TagRepository>((ref) {
+final tagRemoteDataSourceProvider = Provider<TagRemoteDataSource>((ref) {
   final dioClient = ref.watch(dioClientProvider);
-  return TagRepository(dioClient);
+  return TagRemoteDataSource(dioClient);
+});
+
+final iTagRepositoryProvider = Provider<ITagRepository>((ref) {
+  final remoteDataSource = ref.watch(tagRemoteDataSourceProvider);
+  return TagRepositoryImpl(remoteDataSource);
 });
 
 final mediaRemoteDataSourceProvider = Provider<MediaRemoteDataSource>((ref) {
@@ -420,4 +427,3 @@ final playerSettingsManagerProvider = Provider<PlayerSettingsManager>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return PlayerSettingsManager(prefs);
 });
-

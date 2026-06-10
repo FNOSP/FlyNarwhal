@@ -103,19 +103,11 @@ class TvDetailNotifier extends _$TvDetailNotifier {
   FutureOr<TvDetailState> build(String guid) async {
     state = const AsyncValue.loading();
     final remote = ref.read(mediaRemoteDataSourceProvider);
-    final tagRepo = ref.read(tagRepositoryProvider);
+    final tagRepo = ref.read(iTagRepositoryProvider);
 
     Future<T?> safeApiRequest<T>(Future<ApiResult<T>> Function() request) async {
       final result = await request();
       return result.dataOrNull;
-    }
-
-    Future<T?> safeValueRequest<T>(Future<T> Function() request) async {
-      try {
-        return await request();
-      } catch (_) {
-        return null;
-      }
     }
 
     final item = await _fetchItem();
@@ -126,11 +118,12 @@ class TvDetailNotifier extends _$TvDetailNotifier {
       () => remote.getPersonList(guid),
     );
 
-    final iso6391 = await safeValueRequest(() => tagRepo.getTag('iso6391')) ??
+    // Reuse ApiResult helpers so tag failures degrade to empty maps consistently.
+    final iso6391 = await safeApiRequest(() => tagRepo.getTag('iso6391')) ??
         const <String, String>{};
-    final iso6392 = await safeValueRequest(() => tagRepo.getTag('iso6392')) ??
+    final iso6392 = await safeApiRequest(() => tagRepo.getTag('iso6392')) ??
         const <String, String>{};
-    final iso3166 = await safeValueRequest(() => tagRepo.getTag('iso3166')) ??
+    final iso3166 = await safeApiRequest(() => tagRepo.getTag('iso3166')) ??
         const <String, String>{};
 
     return TvDetailState(

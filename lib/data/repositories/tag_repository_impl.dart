@@ -15,6 +15,7 @@ class TagRepositoryImpl implements ITagRepository {
     String? language,
     bool force = false,
   }) async {
+    // Map remote models into domain entities for UI consumption.
     final result = await _remoteDataSource.getGenres(
       language: language,
       force: force,
@@ -28,6 +29,7 @@ class TagRepositoryImpl implements ITagRepository {
     String? language,
     bool force = false,
   }) async {
+    // Keep tag maps unchanged because the domain shape matches the remote shape.
     final result = await _remoteDataSource.getTag(
       tag,
       language: language,
@@ -42,6 +44,7 @@ class TagRepositoryImpl implements ITagRepository {
     required int isFavorite,
     String? type,
   }) async {
+    // Convert filter metadata into the domain entity used by the screens.
     final result = await _remoteDataSource.getTagList(
       ancestorGuid: ancestorGuid,
       isFavorite: isFavorite,

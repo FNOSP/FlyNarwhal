@@ -60,14 +60,6 @@ class TvSeasonDetailState {
 
 @riverpod
 class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
-  Future<T?> _safeValueRequest<T>(Future<T> Function() request) async {
-    try {
-      return await request();
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<T?> _safeApiRequest<T>(Future<ApiResult<T>> Function() request) async {
     final result = await request();
     return result.dataOrNull;
@@ -94,7 +86,7 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
   FutureOr<TvSeasonDetailState> build(String guid) async {
     state = const AsyncValue.loading();
     final remote = ref.read(mediaRemoteDataSourceProvider);
-    final tagRepo = ref.read(tagRepositoryProvider);
+    final tagRepo = ref.read(iTagRepositoryProvider);
 
     final itemResult = await _fetchItemDetailResult(guid);
     final item = itemResult.dataOrNull;
@@ -106,11 +98,12 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
     final personList = await _safeApiRequest(
       () => remote.getPersonList(guid),
     );
-    final iso6391 = await _safeValueRequest(() => tagRepo.getTag('iso6391')) ??
+    // Reuse ApiResult helpers so tag loading matches the rest of the data flow.
+    final iso6391 = await _safeApiRequest(() => tagRepo.getTag('iso6391')) ??
         const <String, String>{};
-    final iso6392 = await _safeValueRequest(() => tagRepo.getTag('iso6392')) ??
+    final iso6392 = await _safeApiRequest(() => tagRepo.getTag('iso6392')) ??
         const <String, String>{};
-    final iso3166 = await _safeValueRequest(() => tagRepo.getTag('iso3166')) ??
+    final iso3166 = await _safeApiRequest(() => tagRepo.getTag('iso3166')) ??
         const <String, String>{};
 
     return TvSeasonDetailState(

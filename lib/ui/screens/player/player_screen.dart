@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
+import '../../../core/network/api_result.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
@@ -262,15 +263,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     try {
-      final tagRepository = ref.read(tagRepositoryProvider);
-      final results = await Future.wait([
+      final tagRepository = ref.read(iTagRepositoryProvider);
+      final results = await Future.wait<ApiResult<Map<String, String>>>([
         tagRepository.getTag('iso6391'),
         tagRepository.getTag('iso6392'),
       ]);
       if (!mounted) return;
       setState(() {
-        _iso6391Map = results[0];
-        _iso6392Map = results[1];
+        _iso6391Map = results[0].dataOrNull ?? const <String, String>{};
+        _iso6392Map = results[1].dataOrNull ?? const <String, String>{};
       });
     } catch (error) {
       AppTalker.warning('Player', 'load subtitle language tags failed: $error');
