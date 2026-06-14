@@ -48,9 +48,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           mediaGuid: state.uri.queryParameters['media_guid'],
           audioGuid: state.uri.queryParameters['audio_guid'],
           subtitleGuid: state.uri.queryParameters['subtitle_guid'],
-          initialPositionMs: int.tryParse(
-            state.uri.queryParameters['start_ms'] ?? '',
-          ),
         ),
       ),
       ShellRoute(

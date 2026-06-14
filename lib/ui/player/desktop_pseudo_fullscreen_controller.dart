@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../core/utils/log/app_talker.dart';
+
 class DesktopPseudoFullscreenController {
   static const MethodChannel _displayFrameChannel =
       MethodChannel('fly_narwhal/window_display_frame');
@@ -64,7 +66,11 @@ class DesktopPseudoFullscreenController {
       await Future<void>.delayed(_windowStateTransitionDelay);
     }
 
-    // Resize the window to the full monitor frame without turning it topmost.
+    // Remove window borders so the pseudo-fullscreen-window completely fills
+    // the display without any visible frame.
+    await _setWindowBorderless(true);
+
+    // Resize the window to the full monitor frame.
     final targetFrame = await _getCurrentDisplayFrame();
     await windowManager.setBounds(targetFrame);
     _isPseudoFullscreen = true;
@@ -81,6 +87,9 @@ class DesktopPseudoFullscreenController {
     if (snapshot == null) {
       return;
     }
+
+    // Restore window borders before shrinking back to the saved geometry.
+    await _setWindowBorderless(false);
 
     // Restore the original geometry before re-applying maximized state.
     await windowManager.setBounds(snapshot.bounds);
@@ -116,6 +125,49 @@ class DesktopPseudoFullscreenController {
     }
 
     return false;
+  }
+
+  Future<void> _setWindowBorderless(bool borderless) async {
+    // Borderless toggling is only meaningful on Windows/Linux pseudo-fullscreen
+    // paths; macOS uses the system fullscreen API which already hides borders.
+    if (_isMacOS) {
+      return;
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      try {
+        await _displayFrameChannel.invokeMethod(
+          'setWindowBorderless',
+          <String, dynamic>{'borderless': borderless},
+        );
+      } catch (error, stackTrace) {
+        AppTalker.error(
+          'Fullscreen',
+          error: error,
+          stackTrace: stackTrace,
+          message: 'setWindowBorderless($borderless) failed on Windows',
+        );
+        // Non-fatal: pseudo-fullscreen still works, just with visible borders.
+      }
+      return;
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.linux) {
+      try {
+        if (borderless) {
+          await windowManager.setAsFrameless();
+        } else {
+          await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+        }
+      } catch (error, stackTrace) {
+        AppTalker.error(
+          'Fullscreen',
+          error: error,
+          stackTrace: stackTrace,
+          message: 'Linux borderless toggle failed',
+        );
+      }
+    }
   }
 
   Future<Rect> _getCurrentDisplayFrame() async {

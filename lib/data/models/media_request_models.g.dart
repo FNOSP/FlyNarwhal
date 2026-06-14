@@ -24,13 +24,3 @@ Map<String, dynamic> _$PlayRecordRequestToJson(PlayRecordRequest instance) =>
       'duration': instance.duration,
       'play_link': instance.playLink,
     };
-
-Map<String, dynamic> _$MediaLibraryBrowseRequestToJson(
-        MediaLibraryBrowseRequest instance) =>
-    <String, dynamic>{
-      'ancestor_guid': instance.ancestorGuid,
-      'page_size': instance.pageSize,
-      'page': instance.page,
-      'sort_column': instance.sortColumn,
-      'sort_type': instance.sortType,
-    };

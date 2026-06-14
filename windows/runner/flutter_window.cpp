@@ -15,6 +15,8 @@ constexpr const char kWindowDisplayFrameChannelName[] =
     "fly_narwhal/window_display_frame";
 constexpr const char kGetCurrentDisplayFrameMethod[] =
     "getCurrentDisplayFrame";
+constexpr const char kSetWindowBorderlessMethod[] =
+    "setWindowBorderless";
 
 flutter::EncodableMap BuildDisplayFrameResponse(HWND window) {
   HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
@@ -44,6 +46,20 @@ flutter::EncodableMap BuildDisplayFrameResponse(HWND window) {
   return response;
 }
 
+void SetWindowBorderless(HWND hwnd, bool borderless) {
+  LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
+  if (borderless) {
+    style &= ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX |
+               WS_MAXIMIZEBOX);
+  } else {
+    style |= WS_OVERLAPPEDWINDOW;
+  }
+  SetWindowLongPtr(hwnd, GWL_STYLE, style);
+  SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+               SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                   SWP_NOACTIVATE);
+}
+
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -58,17 +74,13 @@ bool FlutterWindow::OnCreate() {
 
   RECT frame = GetClientArea();
 
-  // The size here must match the window dimensions to avoid unnecessary surface
-  // creation / destruction in the startup path.
   flutter_controller_ = std::make_unique<flutter::FlutterViewController>(
       frame.right - frame.left, frame.bottom - frame.top, project_);
-  // Ensure that basic setup of the controller was successful.
   if (!flutter_controller_->engine() || !flutter_controller_->view()) {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
 
-  // Expose the full monitor frame so Dart can build non-exclusive fullscreen.
   flutter::MethodChannel<> channel(
       flutter_controller_->engine()->messenger(),
       kWindowDisplayFrameChannelName,
@@ -76,16 +88,44 @@ bool FlutterWindow::OnCreate() {
   channel.SetMethodCallHandler(
       [this](const flutter::MethodCall<>& call,
              std::unique_ptr<flutter::MethodResult<>> result) {
-        if (call.method_name() != kGetCurrentDisplayFrameMethod) {
-          result->NotImplemented();
+        if (call.method_name() == kGetCurrentDisplayFrameMethod) {
+          try {
+            result->Success(BuildDisplayFrameResponse(GetHandle()));
+          } catch (const std::exception& exception) {
+            result->Error("display-frame-error", exception.what());
+          }
           return;
         }
 
-        try {
-          result->Success(BuildDisplayFrameResponse(GetHandle()));
-        } catch (const std::exception& exception) {
-          result->Error("display-frame-error", exception.what());
+        if (call.method_name() == kSetWindowBorderlessMethod) {
+          const auto args =
+              std::get_if<flutter::EncodableMap>(call.arguments());
+          if (args == nullptr) {
+            result->Error("INVALID_ARGS", "Expected a map argument.");
+            return;
+          }
+          const auto it =
+              args->find(flutter::EncodableValue("borderless"));
+          if (it == args->end()) {
+            result->Error("INVALID_ARGS", "Missing 'borderless' key.");
+            return;
+          }
+          const auto value = std::get_if<bool>(&it->second);
+          if (value == nullptr) {
+            result->Error("INVALID_ARGS", "'borderless' must be a bool.");
+            return;
+          }
+
+          try {
+            SetWindowBorderless(GetHandle(), *value);
+            result->Success();
+          } catch (const std::exception& exception) {
+            result->Error("borderless-error", exception.what());
+          }
+          return;
         }
+
+        result->NotImplemented();
       });
 
   DesktopMultiWindowSetWindowCreatedCallback([](void* controller) {
@@ -100,9 +140,6 @@ bool FlutterWindow::OnCreate() {
     this->Show();
   });
 
-  // Flutter can complete the first frame before the "show window" callback is
-  // registered. The following call ensures a frame is pending to ensure the
-  // window is shown. It is a no-op if the first frame hasn't completed yet.
   flutter_controller_->ForceRedraw();
 
   return true;
@@ -120,7 +157,6 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
-  // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
         flutter_controller_->HandleTopLevelWindowProc(hwnd, message, wparam,

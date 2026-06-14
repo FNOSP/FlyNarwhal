@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -21,9 +20,8 @@ import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/providers.dart';
 import '../../player/hls_subtitle_repository.dart';
-import '../../player/pip/pip_playback_handoff.dart';
-import '../../player/pip/pip_window_payload.dart';
 import '../../player/desktop_pseudo_fullscreen_controller.dart';
+import '../../player/pip_window_mode_controller.dart';
 import '../../player/player_manager.dart';
 import '../../player/media_p_view_model.dart';
 import '../../player/player_overlay_controller.dart';
@@ -69,10 +67,9 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
-    with SingleTickerProviderStateMixin, WindowListener {
+    with TickerProviderStateMixin, WindowListener {
   static const int _controlFlyoutOffset = 15;
   static const double _trailingControlSpacing = 12;
-  static const Duration _pipReadyTimeout = Duration(seconds: 12);
   static const Duration _playbackIndicatorVisibleDuration =
       Duration(milliseconds: 200);
   static const Duration _playbackIndicatorExitDuration =
@@ -132,6 +129,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isUploadingLocalSubtitle = false;
   final DesktopPseudoFullscreenController _fullscreenController =
       DesktopPseudoFullscreenController();
+  final PipWindowModeController _pipController = PipWindowModeController();
+  bool _isPipMode = false;
+  bool _isPipHovered = false;
+  bool _isPipTransitioning = false;
+  Timer? _pipBoundsSaveTimer;
+  AnimationController? _pipTransitionController;
 
   PlayerOverlayController get _overlayController =>
       ref.read(playerOverlayControllerProvider.notifier);
@@ -157,8 +160,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         setState(() => _isPlaybackIndicatorVisible = false);
         _playbackIndicatorExitController.value = 0;
       });
+    _pipTransitionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+    );
     _syncPlaybackTargetsFromWidget();
-    ref.read(playerManagerProvider.notifier).clearPendingRestorePayload();
     unawaited(_ensureSubtitleLanguageMapsLoaded());
     _initializePlayer();
   }
@@ -458,7 +464,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _currentMediaGuid = widget.mediaGuid;
     _requestedAudioGuid = widget.audioGuid;
     _requestedSubtitleGuid = widget.subtitleGuid;
-    ref.read(playerManagerProvider.notifier).clearPendingRestorePayload();
   }
 
   void _resetPlaybackStateForTargetChange() {
@@ -1122,7 +1127,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         type: ToastType.failed,
       );
       _suspendPlaybackTransitionFeedback = false;
-      if (mounted && requestToken == _loadRequestToken) {
+    } finally {
+      // Always clear the loading flag for the active request, covering the
+      // early-return paths above where the request stays current but never
+      // reached the success branch (e.g. a superseded or aborted load).
+      if (mounted && requestToken == _loadRequestToken && _isLoading) {
         setState(() => _isLoading = false);
       }
     }
@@ -1281,79 +1290,84 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     try {
-      final playerManager = ref.read(playerManagerProvider.notifier);
+      _isPipTransitioning = true;
+      _dismissTransientPlayerUiBeforeExit();
 
-      // Persist playback progress before handing off the session to PiP.
+      // Persist playback progress before shrinking the window.
       await _callPlayRecordAtCurrentPosition();
-      final windowController = await WindowController.fromCurrentEngine();
-      final savedBounds =
-          ref.read(playerSettingsManagerProvider).getPipWindowBounds();
-      final payload = PipPlaybackHandoff.createPayload(
-        mainWindowId: windowController.windowId,
-        guid: _currentItemGuid,
-        mediaGuid: _currentMediaGuid,
-        audioGuid: _selectedAudioGuid ?? _requestedAudioGuid,
-        subtitleGuid: _selectedSubtitleGuid ?? _requestedSubtitleGuid,
-        startPositionMs: player.state.position.inMilliseconds,
-        volume: _volume,
-        speed: _speed,
-        title: _displayTitle,
-        subhead: _displaySubhead,
-        bounds:
-            savedBounds != null ? PipWindowBounds.fromRect(savedBounds) : null,
-      );
-      // Wait for the PiP engine to confirm playback takeover before leaving.
-      playerManager.requestEnterPip();
-      await WindowController.create(
-        WindowConfiguration(
-          arguments: PipPlaybackHandoff.createBootstrapArgs(payload).encode(),
-          hiddenAtLaunch: true,
-        ),
-      );
-      await playerManager.waitForPipWindowReady(timeout: _pipReadyTimeout);
+
+      // Reuse the same window and the same player by switching the window into
+      // a compact, borderless, always-on-top form.
+      await _pipController.enter();
       if (!mounted) {
         return;
       }
-
-      // Mirror KMP behavior by hiding the main window while PiP is active.
-      await windowManager.hide();
-
-      // Leave the fullscreen player after the PiP engine has been created.
-      await _leavePlayerRoute(() {
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go('/home');
-        }
+      setState(() {
+        _isPipMode = true;
+        _isPipHovered = false;
       });
-    } on TimeoutException catch (error, stackTrace) {
-      ref.read(playerManagerProvider.notifier).clearPipState();
-      AppTalker.error(
-        'Player',
-        error: error,
-        stackTrace: stackTrace,
-        message: 'enter PiP timed out while waiting for child window ack',
-      );
-      if (!mounted) {
-        return;
-      }
-      _toastManager.showToast(
-        '进入画中画超时，主播放器已保留',
-        type: ToastType.failed,
-      );
+      _pipTransitionController?.forward(from: 0);
     } catch (error, stackTrace) {
-      ref.read(playerManagerProvider.notifier).clearPipState();
       AppTalker.error(
         'Player',
         error: error,
         stackTrace: stackTrace,
         message: 'enter PiP failed',
       );
+      // Roll back to the normal window form on any failure.
+      try {
+        await _pipController.exit();
+      } catch (_) {}
+      if (mounted) {
+        setState(() => _isPipMode = false);
+        _toastManager.showToast('进入画中画失败: $error', type: ToastType.failed);
+      }
+    } finally {
+      _isPipTransitioning = false;
+    }
+  }
+
+  Future<void> _exitPipMode() async {
+    if (!_isPipMode || _isPipTransitioning) {
+      return;
+    }
+    try {
+      _isPipTransitioning = true;
+      _pipBoundsSaveTimer?.cancel();
+      await _pipController.persistCurrentBounds();
+      await _pipController.exit();
       if (!mounted) {
         return;
       }
-      _toastManager.showToast('进入画中画失败: $error', type: ToastType.failed);
+      setState(() {
+        _isPipMode = false;
+        _isPipHovered = false;
+      });
+      _pipTransitionController?.reverse(from: 1);
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'exit PiP failed',
+      );
+      if (mounted) {
+        _toastManager.showToast('退出画中画失败: $error', type: ToastType.failed);
+      }
+    } finally {
+      _isPipTransitioning = false;
     }
+  }
+
+  void _schedulePipBoundsSave() {
+    if (!_isPipMode) {
+      return;
+    }
+    _pipBoundsSaveTimer?.cancel();
+    _pipBoundsSaveTimer = Timer(
+      const Duration(milliseconds: 400),
+      () => unawaited(_pipController.persistCurrentBounds()),
+    );
   }
 
   Future<void> _onQualitySelected(QualityResponse quality) async {
@@ -1581,6 +1595,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
+  Future<void> _closeFromPip() async {
+    await _exitPipMode();
+    if (!mounted) return;
+    await _handleBack();
+  }
+
   // Dismiss transient overlays before leaving the player route.
   void _dismissTransientPlayerUiBeforeExit() {
     _playRecordTimer?.cancel();
@@ -1607,13 +1627,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_isDesktopPlatform()) {
       windowManager.removeListener(this);
       unawaited(_fullscreenController.exitForRouteLeave());
+      // Ensure the window is restored to its normal form when leaving while in
+      // PiP mode so the next route is not stuck in a tiny borderless window.
+      if (_pipController.isPipMode) {
+        unawaited(_pipController.exit());
+      }
     }
+    _pipBoundsSaveTimer?.cancel();
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
     _playbackIndicatorExitController.dispose();
+    _pipTransitionController?.dispose();
     _player?.dispose();
     _hlsSubtitleTexts.dispose();
     _toastManager.dispose();
@@ -1624,7 +1651,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Widget build(BuildContext context) {
     final subtitleSettings = ref.watch(subtitleSettingsProvider);
     final overlayState = ref.watch(playerOverlayControllerProvider);
-    return Stack(
+    final pipTransition = _pipTransitionController;
+    final playerStack = Stack(
       children: [
         MouseRegion(
           cursor: SystemMouseCursors.click,
@@ -1662,7 +1690,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
         ),
-        if (_isInitialized)
+        if (_isInitialized && !_isPipMode)
           AnimatedOpacity(
             opacity: overlayState.isUiVisible ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 200),
@@ -1747,10 +1775,159 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ],
             ),
           ),
+        if (_isInitialized && _isPipMode) _buildPipOverlay(),
         Positioned.fill(
           child: ToastHost(toastManager: _toastManager),
         ),
       ],
+    );
+
+    if (pipTransition == null) {
+      return playerStack;
+    }
+    return AnimatedBuilder(
+      animation: pipTransition,
+      builder: (context, child) {
+        final t = Curves.easeInOutCubic.transform(pipTransition.value);
+        return Transform.scale(
+          scale: 1.0 - t * 0.08,
+          child: child,
+        );
+      },
+      child: playerStack,
+    );
+  }
+
+  Widget _buildPipDragLayer() {
+    // DragToMoveArea lets the user drag the borderless PiP window by its body.
+    return Positioned.fill(
+      child: DragToMoveArea(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _togglePlayPause,
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPipOverlay() {
+    return Positioned.fill(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isPipHovered = true),
+        onExit: (_) => setState(() => _isPipHovered = false),
+        child: Stack(
+          children: [
+            _buildPipDragLayer(),
+            if (_isPipHovered) ...[
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.24),
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.38),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: PlayerActionButton.icon(
+                  key: const ValueKey('pip-close'),
+                  iconData: FluentIcons.chrome_close,
+                  tooltip: '关闭',
+                  onPressed: () => unawaited(_closeFromPip()),
+                  size: 28,
+                  iconSize: 14,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              Positioned(
+                left: 16,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: PlayerActionButton.svg(
+                    key: const ValueKey('pip-seek-backward'),
+                    svgAssetPath: 'assets/images/back10s.svg',
+                    tooltip: '快退 10 秒',
+                    onPressed: () => _seekRelative(-10000),
+                    size: 38,
+                    iconSize: 24,
+                    borderRadius: BorderRadius.circular(19),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 16,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: PlayerActionButton.svg(
+                    key: const ValueKey('pip-seek-forward'),
+                    svgAssetPath: 'assets/images/forward10s.svg',
+                    tooltip: '快进 10 秒',
+                    onPressed: () => _seekRelative(10000),
+                    size: 38,
+                    iconSize: 24,
+                    borderRadius: BorderRadius.circular(19),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 44,
+                child: _buildPipProgressBar(),
+              ),
+              Positioned(
+                left: 8,
+                bottom: 6,
+                child: VolumeControl(
+                  volume: _volume,
+                  popupBottomOffset: 36,
+                  onVolumeChange: _setVolume,
+                ),
+              ),
+              Positioned(
+                right: 10,
+                bottom: 8,
+                child: PlayerActionButton.lottie(
+                  key: const ValueKey('pip-exit'),
+                  lottieAssetPath: 'assets/lottie/quit_pip.json',
+                  tooltip: '退出画中画',
+                  onPressed: () => unawaited(_exitPipMode()),
+                  size: 30,
+                  iconSize: 22,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPipProgressBar() {
+    return StreamBuilder<Duration>(
+      stream: _player?.stream.position,
+      builder: (context, snapshot) {
+        _currentPosition = snapshot.data?.inMilliseconds ?? _currentPosition;
+        return VideoPlayerProgressBar(
+          currentPosition: _currentPosition,
+          totalDuration: _duration,
+          onSeek: _seekTo,
+        );
+      },
     );
   }
 
@@ -2165,6 +2342,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     setState(() => _isFullscreen = false);
   }
+
+  @override
+  void onWindowMoved() => _schedulePipBoundsSave();
+
+  @override
+  void onWindowResized() => _schedulePipBoundsSave();
 
   bool get _canAdjustSubtitle {
     return _useHlsSubtitleOverlay &&

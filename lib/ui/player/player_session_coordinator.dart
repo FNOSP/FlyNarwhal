@@ -117,16 +117,24 @@ class PlayerSessionCoordinator {
   final PreferencesManager _preferencesManager;
   final Dio _dio;
 
+  static const Duration _sessionRequestTimeout = Duration(seconds: 15);
+
   Future<PlayerSessionLoadResult> loadSession(PlayerRouteTarget target) async {
     final baseUrl = _preferencesManager.getBaseUrl() ?? '';
-    final playInfo = await _playerService.getPlayInfo(
-      target.guid,
-      mediaGuid: target.mediaGuid,
-    );
-    final streamInfo = await _playerService.getStreamInfo(
-      playInfo.mediaGuid,
-      ip: _playerService.getIpHash(_preferencesManager.getToken() ?? ''),
-    );
+    // Guard each negotiation request so a stalled backend session never leaves
+    // the player stuck on the loading indicator forever.
+    final playInfo = await _playerService
+        .getPlayInfo(
+          target.guid,
+          mediaGuid: target.mediaGuid,
+        )
+        .timeout(_sessionRequestTimeout);
+    final streamInfo = await _playerService
+        .getStreamInfo(
+          playInfo.mediaGuid,
+          ip: _playerService.getIpHash(_preferencesManager.getToken() ?? ''),
+        )
+        .timeout(_sessionRequestTimeout);
 
     final currentVideoStream = streamInfo.videoStream;
     final fileStream = streamInfo.fileStream;

@@ -45,6 +45,8 @@ function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_options(${TARGET} PRIVATE /EHsc)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
+  # Suppress deprecated experimental coroutine warnings in MSVC
+  target_compile_definitions(${TARGET} PRIVATE "_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS")
 endfunction()
 
 # Flutter library and tool build rules.
@@ -102,16 +104,16 @@ endfunction()
 if (WIN32)
   # Pre-seed archives downloaded by media_kit so plugin configure steps do not
   # get stuck on zero-byte caches produced by file(DOWNLOAD).
-  ensure_verified_windows_archive(
-    "mpv-dev-x86_64-20230924-git-652a1dd.7z"
-    "https://github.com/media-kit/libmpv-win32-video-build/releases/download/2023-09-24/mpv-dev-x86_64-20230924-git-652a1dd.7z"
-    "a832ef24b3a6ff97cd2560b5b9d04cd8"
-  )
-  ensure_verified_windows_archive(
-    "ANGLE.7z"
-    "https://github.com/alexmercerind/flutter-windows-ANGLE-OpenGL-ES/releases/download/v1.0.1/ANGLE.7z"
-    "e866f13e8d552348058afaafe869b1ed"
-  )
+#   ensure_verified_windows_archive(
+#     "mpv-dev-x86_64-20230924-git-652a1dd.7z"
+#     "https://github.com/media-kit/libmpv-win32-video-build/releases/download/2023-09-24/mpv-dev-x86_64-20230924-git-652a1dd.7z"
+#     "a832ef24b3a6ff97cd2560b5b9d04cd8"
+#   )
+#   ensure_verified_windows_archive(
+#     "ANGLE.7z"
+#     "https://github.com/alexmercerind/flutter-windows-ANGLE-OpenGL-ES/releases/download/v1.0.1/ANGLE.7z"
+#     "e866f13e8d552348058afaafe869b1ed"
+#   )
 
   set(FLUTTER_PLUGIN_DEPENDENCIES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../.flutter-plugins-dependencies")
   set(FLUTTER_PLUGIN_LINKS_DIR "${FLUTTER_MANAGED_DIR}/ephemeral/.plugin_symlinks")
