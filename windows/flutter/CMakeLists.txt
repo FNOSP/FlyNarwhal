@@ -13,6 +13,33 @@ set(WRAPPER_ROOT "${EPHEMERAL_DIR}/cpp_client_wrapper")
 set(WRAPPER_FALLBACK_ROOT "${FLUTTER_ENGINE_FALLBACK_ROOT}/cpp_client_wrapper")
 set(WRAPPER_BUILD_ROOT "${WRAPPER_FALLBACK_ROOT}")
 
+# Pre-seed runtime artifacts when flutter run recreates the ephemeral tree
+# without restoring the engine payload before Visual Studio starts building.
+set(FLUTTER_RUNTIME_FALLBACK_FILES
+  "flutter_export.h"
+  "flutter_windows.h"
+  "flutter_messenger.h"
+  "flutter_plugin_registrar.h"
+  "flutter_texture_registrar.h"
+  "flutter_windows.dll"
+  "flutter_windows.dll.exp"
+  "flutter_windows.dll.lib"
+  "flutter_windows.dll.pdb"
+  "icudtl.dat"
+)
+file(MAKE_DIRECTORY "${EPHEMERAL_DIR}")
+foreach(FLUTTER_RUNTIME_FILE ${FLUTTER_RUNTIME_FALLBACK_FILES})
+  if (NOT EXISTS "${FLUTTER_ENGINE_FALLBACK_ROOT}/${FLUTTER_RUNTIME_FILE}")
+    message(FATAL_ERROR "Flutter runtime fallback file is missing: ${FLUTTER_ENGINE_FALLBACK_ROOT}/${FLUTTER_RUNTIME_FILE}")
+  endif()
+  if (NOT EXISTS "${EPHEMERAL_DIR}/${FLUTTER_RUNTIME_FILE}")
+    #region debug-point flutter-runtime-preseed
+    message(STATUS "Pre-seeding Flutter runtime artifact: ${FLUTTER_RUNTIME_FILE}")
+    #endregion
+    file(COPY "${FLUTTER_ENGINE_FALLBACK_ROOT}/${FLUTTER_RUNTIME_FILE}" DESTINATION "${EPHEMERAL_DIR}")
+  endif()
+endforeach()
+
 # Sync the SDK wrapper sources into the ephemeral directory when Flutter only
 # generates headers there. This keeps launch_app aligned with the template paths.
 if (NOT EXISTS "${WRAPPER_ROOT}/core_implementations.cc")
@@ -30,12 +57,29 @@ endif()
 set(FLUTTER_EPHEMERAL_REPAIR_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ensure_ephemeral_artifacts.cmake")
 
 # === Flutter Library ===
+# Use the stable engine cache for runtime headers and library references because
+# flutter run may prune them from the ephemeral directory between build phases.
 set(FLUTTER_LIBRARY "${EPHEMERAL_DIR}/flutter_windows.dll")
 set(FLUTTER_LIBRARY_IMPORT "${FLUTTER_ENGINE_FALLBACK_ROOT}/flutter_windows.dll.lib")
+set(FLUTTER_RUNTIME_LIBRARY "${FLUTTER_ENGINE_FALLBACK_ROOT}/flutter_windows.dll")
+
+# Prefer a stable runtime source for install because flutter run may recreate
+# the ephemeral directory without repopulating runtime files before INSTALL.
+set(FLUTTER_INSTALL_RUNTIME_ROOT "${EPHEMERAL_DIR}")
+if (NOT EXISTS "${EPHEMERAL_DIR}/flutter_windows.dll" OR NOT EXISTS "${EPHEMERAL_DIR}/icudtl.dat")
+  #region debug-point flutter-install-runtime-fallback
+  message(STATUS "Flutter install runtime fallback enabled: ${FLUTTER_ENGINE_FALLBACK_ROOT}")
+  #endregion
+  set(FLUTTER_INSTALL_RUNTIME_ROOT "${FLUTTER_ENGINE_FALLBACK_ROOT}")
+endif()
+set(FLUTTER_INSTALL_LIBRARY "${FLUTTER_INSTALL_RUNTIME_ROOT}/flutter_windows.dll")
+set(FLUTTER_INSTALL_ICU_DATA_FILE "${FLUTTER_INSTALL_RUNTIME_ROOT}/icudtl.dat")
 
 # Published to parent scope for install step.
 set(FLUTTER_LIBRARY ${FLUTTER_LIBRARY} PARENT_SCOPE)
 set(FLUTTER_ICU_DATA_FILE "${EPHEMERAL_DIR}/icudtl.dat" PARENT_SCOPE)
+set(FLUTTER_INSTALL_LIBRARY "${FLUTTER_INSTALL_LIBRARY}" PARENT_SCOPE)
+set(FLUTTER_INSTALL_ICU_DATA_FILE "${FLUTTER_INSTALL_ICU_DATA_FILE}" PARENT_SCOPE)
 set(PROJECT_BUILD_DIR "${PROJECT_DIR}/build/" PARENT_SCOPE)
 set(AOT_LIBRARY "${PROJECT_DIR}/build/windows/app.so" PARENT_SCOPE)
 
@@ -46,7 +90,9 @@ list(APPEND FLUTTER_LIBRARY_HEADERS
   "flutter_plugin_registrar.h"
   "flutter_texture_registrar.h"
 )
+set(FLUTTER_RUNTIME_HEADERS ${FLUTTER_LIBRARY_HEADERS})
 list(TRANSFORM FLUTTER_LIBRARY_HEADERS PREPEND "${EPHEMERAL_DIR}/")
+list(TRANSFORM FLUTTER_RUNTIME_HEADERS PREPEND "${FLUTTER_ENGINE_FALLBACK_ROOT}/")
 add_library(flutter INTERFACE)
 target_include_directories(flutter INTERFACE
   "${FLUTTER_ENGINE_FALLBACK_ROOT}"
@@ -115,28 +161,14 @@ target_include_directories(flutter_wrapper_app PUBLIC
 add_dependencies(flutter_wrapper_app flutter_assemble)
 
 # === Flutter tool backend ===
-# _phony_ is a non-existent file to force this command to run every time,
-# since currently there's no way to get a full input/output list from the
-# flutter tool.
-set(PHONY_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/_phony_")
-set_source_files_properties("${PHONY_OUTPUT}" PROPERTIES SYMBOLIC TRUE)
-add_custom_command(
-  OUTPUT ${FLUTTER_LIBRARY} ${FLUTTER_LIBRARY_HEADERS}
-    ${CPP_WRAPPER_OUTPUTS_CORE} ${CPP_WRAPPER_OUTPUTS_PLUGIN}
-    ${CPP_WRAPPER_OUTPUTS_APP}
-    ${PHONY_OUTPUT}
+# Invoke the Flutter tool backend directly as a target because Visual Studio's
+# output-based custom command graph can deadlock on synthetic file rules.
+add_custom_target(flutter_assemble
   COMMAND ${CMAKE_COMMAND} -E env
     ${FLUTTER_TOOL_ENVIRONMENT}
     "${FLUTTER_ROOT}/packages/flutter_tools/bin/tool_backend.bat"
       ${FLUTTER_TARGET_PLATFORM} $<CONFIG>
   VERBATIM
-)
-add_custom_target(flutter_assemble DEPENDS
-  "${FLUTTER_LIBRARY}"
-  ${FLUTTER_LIBRARY_HEADERS}
-  ${CPP_WRAPPER_OUTPUTS_CORE}
-  ${CPP_WRAPPER_OUTPUTS_PLUGIN}
-  ${CPP_WRAPPER_OUTPUTS_APP}
 )
 
 # Re-check the ephemeral directory after flutter_assemble, but only repair

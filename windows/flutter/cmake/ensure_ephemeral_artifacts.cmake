@@ -76,7 +76,9 @@ set(RUNTIME_FILES
   "flutter_plugin_registrar.h"
   "flutter_texture_registrar.h"
   "flutter_windows.dll"
+  "flutter_windows.dll.exp"
   "flutter_windows.dll.lib"
+  "flutter_windows.dll.pdb"
   "icudtl.dat"
 )
 

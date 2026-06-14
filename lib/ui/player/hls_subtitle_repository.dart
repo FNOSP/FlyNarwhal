@@ -42,10 +42,20 @@ class HlsSubtitleRepository {
       return;
     }
     final playlistContent = await _resolver.fetchContent(subtitlePlaylistUrl);
+    // Treat empty playlists as a best-effort no-op instead of a hard failure.
+    if (playlistContent.trim().isEmpty) {
+      _initialized = true;
+      _setVisibleTexts(const []);
+      return;
+    }
     _segments
       ..clear()
       ..addAll(_parseSegments(playlistContent));
     _initialized = true;
+    if (_segments.isEmpty) {
+      _setVisibleTexts(const []);
+      return;
+    }
     final effectivePositionMs = _effectivePositionMs(startPositionMs);
     await _fetchSegmentsAround(effectivePositionMs);
     _updateVisibleTexts(effectivePositionMs);

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PlayerSettingsStore {
@@ -5,6 +7,10 @@ class PlayerSettingsStore {
   static const String _keySpeed = 'player_speed';
   static const String _keyAutoPlay = 'player_auto_play';
   static const String _keyWindowAspectRatio = 'player_window_aspect_ratio';
+  static const String _keyPipWindowLeft = 'pip_window_left';
+  static const String _keyPipWindowTop = 'pip_window_top';
+  static const String _keyPipWindowWidth = 'pip_window_width';
+  static const String _keyPipWindowHeight = 'pip_window_height';
 
   static double getVolume() {
     return SharedPreferences.getInstance().then((prefs) {
@@ -49,6 +55,26 @@ class PlayerSettingsStore {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyWindowAspectRatio, ratio);
   }
+
+  static Future<Rect?> getPipWindowBounds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final left = prefs.getDouble(_keyPipWindowLeft);
+    final top = prefs.getDouble(_keyPipWindowTop);
+    final width = prefs.getDouble(_keyPipWindowWidth);
+    final height = prefs.getDouble(_keyPipWindowHeight);
+    if (left == null || top == null || width == null || height == null) {
+      return null;
+    }
+    return Rect.fromLTWH(left, top, width, height);
+  }
+
+  static Future<void> setPipWindowBounds(Rect bounds) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyPipWindowLeft, bounds.left);
+    await prefs.setDouble(_keyPipWindowTop, bounds.top);
+    await prefs.setDouble(_keyPipWindowWidth, bounds.width);
+    await prefs.setDouble(_keyPipWindowHeight, bounds.height);
+  }
 }
 
 // Async version for use with providers
@@ -74,4 +100,25 @@ class PlayerSettingsManager {
       _prefs.getString(PlayerSettingsStore._keyWindowAspectRatio) ?? 'AUTO';
   Future<void> setWindowAspectRatio(String ratio) =>
       _prefs.setString(PlayerSettingsStore._keyWindowAspectRatio, ratio);
+
+  Rect? getPipWindowBounds() {
+    final left = _prefs.getDouble(PlayerSettingsStore._keyPipWindowLeft);
+    final top = _prefs.getDouble(PlayerSettingsStore._keyPipWindowTop);
+    final width = _prefs.getDouble(PlayerSettingsStore._keyPipWindowWidth);
+    final height = _prefs.getDouble(PlayerSettingsStore._keyPipWindowHeight);
+    if (left == null || top == null || width == null || height == null) {
+      return null;
+    }
+    return Rect.fromLTWH(left, top, width, height);
+  }
+
+  Future<void> setPipWindowBounds(Rect bounds) async {
+    await _prefs.setDouble(PlayerSettingsStore._keyPipWindowLeft, bounds.left);
+    await _prefs.setDouble(PlayerSettingsStore._keyPipWindowTop, bounds.top);
+    await _prefs.setDouble(PlayerSettingsStore._keyPipWindowWidth, bounds.width);
+    await _prefs.setDouble(
+      PlayerSettingsStore._keyPipWindowHeight,
+      bounds.height,
+    );
+  }
 }

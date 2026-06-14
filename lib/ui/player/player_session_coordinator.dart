@@ -201,7 +201,8 @@ class PlayerSessionCoordinator {
       isEpisode: playInfo.item.type == 'Episode',
       subhead: buildDisplaySubhead(
         playInfo.item,
-        episodeNumber: currentEpisode?.episodeNumber ?? playInfo.item.episodeNumber,
+        episodeNumber:
+            currentEpisode?.episodeNumber ?? playInfo.item.episodeNumber,
       ),
     );
 
@@ -237,7 +238,8 @@ class PlayerSessionCoordinator {
     );
     final subtitleStreams =
         nextStreamInfo.subtitleStreams ?? const <SubtitleStream>[];
-    final currentGuid = selectedSubtitleGuid ?? cache.currentSubtitleStream?.guid;
+    final currentGuid =
+        selectedSubtitleGuid ?? cache.currentSubtitleStream?.guid;
 
     SubtitleStream? nextSelectedSubtitle;
     if (targetTrimId != null && targetTrimId.isNotEmpty) {
@@ -332,9 +334,7 @@ class PlayerSessionCoordinator {
     required String playUri,
     required SubtitleStream? currentSubtitleStream,
   }) async {
-    if (!looksLikeM3u8(playUri) ||
-        currentSubtitleStream == null ||
-        currentSubtitleStream.isExternal == 1) {
+    if (!looksLikeM3u8(playUri)) {
       return PreparedPlaySource(
         playUri: playUri,
         useHlsSubtitleOverlay: false,
@@ -350,10 +350,18 @@ class PlayerSessionCoordinator {
       subtitleStream: currentSubtitleStream,
     );
 
+    // Always resolve HLS masters to the concrete video playlist because
+    // media_kit can stall on subtitle-bearing master playlists.
+    final useSubtitleOverlay = currentSubtitleStream != null &&
+        currentSubtitleStream.isExternal != 1 &&
+        result.subtitlePlaylistUrl != null &&
+        result.subtitlePlaylistUrl!.isNotEmpty;
+
     return PreparedPlaySource(
       playUri: result.playUrl,
-      useHlsSubtitleOverlay: result.subtitlePlaylistUrl != null,
-      subtitlePlaylistUrl: result.subtitlePlaylistUrl,
+      useHlsSubtitleOverlay: useSubtitleOverlay,
+      subtitlePlaylistUrl:
+          useSubtitleOverlay ? result.subtitlePlaylistUrl : null,
     );
   }
 
@@ -413,7 +421,9 @@ class PlayerSessionCoordinator {
     required String? requestedAudioGuid,
   }) {
     if (requestedAudioGuid != null) {
-      return audioStreams.where((stream) => stream.guid == requestedAudioGuid).firstOrNull;
+      return audioStreams
+          .where((stream) => stream.guid == requestedAudioGuid)
+          .firstOrNull;
     }
     return audioStreams.where((stream) => stream.isDefault == 1).firstOrNull ??
         audioStreams.firstOrNull;
@@ -489,7 +499,8 @@ class PlayerSessionCoordinator {
   }
 }
 
-final playerSessionCoordinatorProvider = Provider<PlayerSessionCoordinator>((ref) {
+final playerSessionCoordinatorProvider =
+    Provider<PlayerSessionCoordinator>((ref) {
   return PlayerSessionCoordinator(
     playerService: ref.watch(playerServiceProvider),
     preferencesManager: ref.watch(preferencesManagerProvider),

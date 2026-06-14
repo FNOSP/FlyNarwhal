@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -18,6 +21,8 @@ import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/providers.dart';
 import '../../player/hls_subtitle_repository.dart';
+import '../../player/pip/pip_playback_handoff.dart';
+import '../../player/pip/pip_window_payload.dart';
 import '../../player/player_manager.dart';
 import '../../player/media_p_view_model.dart';
 import '../../player/player_overlay_controller.dart';
@@ -47,6 +52,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
   final String? mediaGuid;
   final String? audioGuid;
   final String? subtitleGuid;
+  final int? initialPositionMs;
 
   const PlayerScreen({
     super.key,
@@ -54,6 +60,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
     this.mediaGuid,
     this.audioGuid,
     this.subtitleGuid,
+    this.initialPositionMs,
   });
 
   @override
@@ -63,12 +70,13 @@ class PlayerScreen extends ConsumerStatefulWidget {
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with SingleTickerProviderStateMixin {
   static const int _controlFlyoutOffset = 15;
-  static const double _controlFlyoutSpacing = 12;
   static const double _trailingControlSpacing = 12;
+  static const Duration _pipReadyTimeout = Duration(seconds: 12);
   static const Duration _playbackIndicatorVisibleDuration =
       Duration(milliseconds: 200);
   static const Duration _playbackIndicatorExitDuration =
       Duration(milliseconds: 300);
+  static const Duration _hlsSubtitleInitTimeout = Duration(seconds: 5);
 
   late final ToastManager _toastManager;
   Player? _player;
@@ -101,6 +109,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isPlaybackIndicatorVisible = false;
   _PlaybackIndicatorType? _playbackIndicatorType;
   int _loadRequestToken = 0;
+  int _hlsSessionToken = 0;
   late String _currentItemGuid;
   String? _currentMediaGuid;
   String? _requestedAudioGuid;
@@ -142,6 +151,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _playbackIndicatorExitController.value = 0;
       });
     _syncPlaybackTargetsFromWidget();
+    ref.read(playerManagerProvider.notifier).clearPendingRestorePayload();
     unawaited(_ensureSubtitleLanguageMapsLoaded());
     _initializePlayer();
   }
@@ -152,7 +162,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final routeArgsChanged = oldWidget.guid != widget.guid ||
         oldWidget.mediaGuid != widget.mediaGuid ||
         oldWidget.audioGuid != widget.audioGuid ||
-        oldWidget.subtitleGuid != widget.subtitleGuid;
+        oldWidget.subtitleGuid != widget.subtitleGuid ||
+        oldWidget.initialPositionMs != widget.initialPositionMs;
     if (!routeArgsChanged) return;
 
     final shouldReload = widget.guid != _currentItemGuid ||
@@ -440,6 +451,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _currentMediaGuid = widget.mediaGuid;
     _requestedAudioGuid = widget.audioGuid;
     _requestedSubtitleGuid = widget.subtitleGuid;
+    ref.read(playerManagerProvider.notifier).clearPendingRestorePayload();
   }
 
   void _resetPlaybackStateForTargetChange() {
@@ -614,6 +626,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       subtitleStream: cache.currentSubtitleStream,
       subtitlePlaylistUrl: prepared.subtitlePlaylistUrl,
       startPositionMs: startPositionMs,
+      loadToken: _loadRequestToken,
     );
   }
 
@@ -744,11 +757,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         subtitlePlaylistUrl: subtitlePlaylistUrl,
       );
       await _applyCurrentSubtitleTrack(cache.currentSubtitleStream);
+      if (!mounted) {
+        return;
+      }
       _startHlsSubtitleSessionAsync(
         dio: dio,
         subtitleStream: cache.currentSubtitleStream,
         subtitlePlaylistUrl: subtitlePlaylistUrl,
         startPositionMs: startPositionMs,
+        loadToken: _loadRequestToken,
       );
       if (mounted) {
         setState(() {
@@ -881,6 +898,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _disposeHlsSubtitleSession() {
+    // Invalidate stale async subtitle startup work before clearing the session.
+    _hlsSessionToken++;
     final repository = _hlsSubtitleRepository;
     final listener = _hlsSubtitleTextsListener;
     if (repository != null && listener != null) {
@@ -922,15 +941,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     required SubtitleStream? subtitleStream,
     required String? subtitlePlaylistUrl,
     required int startPositionMs,
+    int? loadToken,
   }) {
     if (!_useHlsSubtitleOverlay) {
       return;
     }
+    final sessionToken = ++_hlsSessionToken;
     unawaited(_configureHlsSubtitleSession(
       dio: dio,
       subtitleStream: subtitleStream,
       subtitlePlaylistUrl: subtitlePlaylistUrl,
       startPositionMs: startPositionMs,
+      sessionToken: sessionToken,
+      loadToken: loadToken,
     ));
   }
 
@@ -939,6 +962,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     required SubtitleStream? subtitleStream,
     required String? subtitlePlaylistUrl,
     required int startPositionMs,
+    required int sessionToken,
+    int? loadToken,
   }) async {
     if (subtitleStream == null ||
         subtitleStream.isExternal == 1 ||
@@ -956,27 +981,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     repository.updateSubtitleOffsetSeconds(
       ref.read(subtitleSettingsProvider).offsetSeconds,
     );
-    void listener() {
-      _hlsSubtitleTexts.value = repository.visibleTexts.value;
-    }
-
-    repository.visibleTexts.addListener(listener);
-    _hlsSubtitleRepository = repository;
-    _hlsSubtitleTextsListener = listener;
-    _useHlsSubtitleOverlay = true;
     try {
-      await repository.initialize(startPositionMs: startPositionMs);
+      // Keep subtitle startup best-effort so video recovery is never blocked.
+      await repository
+          .initialize(startPositionMs: startPositionMs)
+          .timeout(_hlsSubtitleInitTimeout);
+      final isStaleSession = !mounted ||
+          _hlsSessionToken != sessionToken ||
+          (loadToken != null && loadToken != _loadRequestToken);
+      if (isStaleSession) {
+        repository.dispose();
+        return;
+      }
+
+      void listener() {
+        if (_hlsSessionToken != sessionToken) {
+          return;
+        }
+        _hlsSubtitleTexts.value = repository.visibleTexts.value;
+      }
+
+      repository.visibleTexts.addListener(listener);
+      _hlsSubtitleRepository = repository;
+      _hlsSubtitleTextsListener = listener;
+      _hlsSubtitleTexts.value = repository.visibleTexts.value;
+      _useHlsSubtitleOverlay = true;
       AppTalker.info(
         'Player',
         'hls subtitle overlay enabled: playlist=$subtitlePlaylistUrl',
       );
     } catch (e) {
+      repository.dispose();
       AppTalker.warning(
         'Player',
         'hls subtitle overlay init failed: $e',
       );
-      if (_hlsSubtitleRepository == repository) {
-        _disposeHlsSubtitleSession();
+      if (_hlsSessionToken == sessionToken) {
+        _hlsSubtitleTexts.value = const [];
+        _useHlsSubtitleOverlay = false;
       }
     }
   }
@@ -1006,7 +1048,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _playingInfoCache = result.playingInfoCache;
       _qualities = result.qualities;
       _currentQuality = result.currentQuality;
-      _resetInitialResumeState(result.playInfo.ts * 1000);
+      final initialResumeMs =
+          widget.initialPositionMs ?? (result.playInfo.ts * 1000);
+      _resetInitialResumeState(initialResumeMs);
       ref
           .read(playerViewModelProvider.notifier)
           .updatePlayingInfo(result.playingInfoCache);
@@ -1017,7 +1061,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       await _openMediaWithResume(
         playUri: result.preparedPlaySource.playUri,
-        startPositionMs: result.effectiveStartPositionMs,
+        startPositionMs:
+            widget.initialPositionMs ?? result.effectiveStartPositionMs,
         currentSubtitleStream: result.playingInfoCache.currentSubtitleStream,
         isInitialPlayback: true,
       );
@@ -1028,7 +1073,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         dio: dio,
         subtitleStream: result.playingInfoCache.currentSubtitleStream,
         subtitlePlaylistUrl: result.preparedPlaySource.subtitlePlaylistUrl,
-        startPositionMs: result.effectiveStartPositionMs,
+        startPositionMs:
+            widget.initialPositionMs ?? result.effectiveStartPositionMs,
+        loadToken: requestToken,
       );
 
       _volume = ref.read(playerSettingsManagerProvider).getVolume();
@@ -1205,6 +1252,95 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }
     setState(() => _isFullscreen = !_isFullscreen);
+  }
+
+  Future<void> _enterPipMode() async {
+    AppTalker.info('PiP', 'PiP requested from player screen');
+    if (!_isDesktopPlatform()) {
+      _showFeatureComingSoon('画中画');
+      return;
+    }
+
+    final player = _player;
+    if (player == null || !_isInitialized) {
+      _toastManager.showToast('播放器尚未准备完成', type: ToastType.info);
+      return;
+    }
+
+    try {
+      final playerManager = ref.read(playerManagerProvider.notifier);
+
+      // Persist playback progress before handing off the session to PiP.
+      await _callPlayRecordAtCurrentPosition();
+      final windowController = await WindowController.fromCurrentEngine();
+      final savedBounds =
+          ref.read(playerSettingsManagerProvider).getPipWindowBounds();
+      final payload = PipPlaybackHandoff.createPayload(
+        mainWindowId: windowController.windowId,
+        guid: _currentItemGuid,
+        mediaGuid: _currentMediaGuid,
+        audioGuid: _selectedAudioGuid ?? _requestedAudioGuid,
+        subtitleGuid: _selectedSubtitleGuid ?? _requestedSubtitleGuid,
+        startPositionMs: player.state.position.inMilliseconds,
+        volume: _volume,
+        speed: _speed,
+        title: _displayTitle,
+        subhead: _displaySubhead,
+        bounds:
+            savedBounds != null ? PipWindowBounds.fromRect(savedBounds) : null,
+      );
+      // Wait for the PiP engine to confirm playback takeover before leaving.
+      playerManager.requestEnterPip();
+      await WindowController.create(
+        WindowConfiguration(
+          arguments: PipPlaybackHandoff.createBootstrapArgs(payload).encode(),
+          hiddenAtLaunch: true,
+        ),
+      );
+      await playerManager.waitForPipWindowReady(timeout: _pipReadyTimeout);
+      if (!mounted) {
+        return;
+      }
+
+      // Mirror KMP behavior by hiding the main window while PiP is active.
+      await windowManager.hide();
+
+      // Leave the fullscreen player after the PiP engine has been created.
+      _leavePlayerRoute(() {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/home');
+        }
+      });
+    } on TimeoutException catch (error, stackTrace) {
+      ref.read(playerManagerProvider.notifier).clearPipState();
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'enter PiP timed out while waiting for child window ack',
+      );
+      if (!mounted) {
+        return;
+      }
+      _toastManager.showToast(
+        '进入画中画超时，主播放器已保留',
+        type: ToastType.failed,
+      );
+    } catch (error, stackTrace) {
+      ref.read(playerManagerProvider.notifier).clearPipState();
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'enter PiP failed',
+      );
+      if (!mounted) {
+        return;
+      }
+      _toastManager.showToast('进入画中画失败: $error', type: ToastType.failed);
+    }
   }
 
   Future<void> _onQualitySelected(QualityResponse quality) async {
@@ -1639,9 +1775,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       children: [
         PlayerActionButton.svg(
           key: const ValueKey('player-play-pause'),
-          svgAssetPath: _isPlaying
-              ? 'assets/images/pause.svg'
-              : 'assets/images/play.svg',
+          svgAssetPath:
+              _isPlaying ? 'assets/images/pause.svg' : 'assets/images/play.svg',
           onPressed: _togglePlayPause,
           tooltip: '播放/暂停',
           size: 34,
@@ -1726,8 +1861,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
         const SizedBox(width: _trailingControlSpacing),
         MouseRegion(
-          onEnter: (_) =>
-              _overlayController.setHovered(PlayerHoverZone.danmakuControl, true),
+          onEnter: (_) => _overlayController.setHovered(
+              PlayerHoverZone.danmakuControl, true),
           onExit: (_) => _overlayController.setHovered(
             PlayerHoverZone.danmakuControl,
             false,
@@ -1816,8 +1951,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onExit: (_) =>
               _overlayController.setHovered(PlayerHoverZone.pipControl, false),
           child: PlayerActionButton.lottie(
+            key: const ValueKey('player-enter-pip'),
             lottieAssetPath: 'assets/lottie/to_pip.json',
-            onPressed: () => _showFeatureComingSoon('画中画'),
+            onPressed: () => unawaited(_enterPipMode()),
             tooltip: '画中画',
             size: 30,
             iconSize: 22,
@@ -1912,8 +2048,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 : 'assets/images/play.svg',
             width: 34,
             height: 34,
-            colorFilter:
-                const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
           ),
         ),
       ),
@@ -1964,6 +2099,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   bool get _isMacOS => defaultTargetPlatform == TargetPlatform.macOS;
+
+  bool _isDesktopPlatform() {
+    return !kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+  }
 
   bool get _canAdjustSubtitle {
     return _useHlsSubtitleOverlay &&

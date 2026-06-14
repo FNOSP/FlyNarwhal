@@ -61,7 +61,9 @@ class RecentlyWatched extends ConsumerWidget {
           itemBuilder: (context, index) {
             final item = items[index];
             return RecentlyWatchedItem(
+              key: ValueKey('recently-watched-item-$index'),
               item: item,
+              itemIndex: index,
               onFavoriteToggle: onFavoriteToggle,
               onWatchedToggle: onWatchedToggle,
               onItemRemoved: onItemRemoved,
@@ -75,6 +77,7 @@ class RecentlyWatched extends ConsumerWidget {
 
 class RecentlyWatchedItem extends ConsumerStatefulWidget {
   final PlayDetailResponse item;
+  final int itemIndex;
   final Function(
           String guid, bool currentState, Function(bool success) callback)?
       onFavoriteToggle;
@@ -86,6 +89,7 @@ class RecentlyWatchedItem extends ConsumerStatefulWidget {
   const RecentlyWatchedItem({
     super.key,
     required this.item,
+    required this.itemIndex,
     this.onFavoriteToggle,
     this.onWatchedToggle,
     this.onItemRemoved,
@@ -319,6 +323,9 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                   onExit: (_) => setState(
                                       () => _isPlayButtonHovered = false),
                                   child: GestureDetector(
+                                    key: ValueKey(
+                                      'recently-watched-play-${widget.itemIndex}',
+                                    ),
                                     onTap: () {
                                       ref
                                           .read(
