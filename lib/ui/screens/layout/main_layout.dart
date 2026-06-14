@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart'
 import '../home/home_view_model.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/global_refresh.dart';
+import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../widgets/window_caption.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
@@ -354,7 +355,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
     final pane = NavigationPane(
       selected: null,
       onChanged: null,
-      displayMode: _resolveDisplayMode(settings.navigationDisplayMode),
+      displayMode: NavigationDisplayModeMapper.fromValue(
+        settings.navigationDisplayMode,
+      ),
       items: paneItems,
       footerItems: footerPaneItems,
     );
@@ -454,21 +457,5 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
         ),
       ],
     );
-  }
-}
-
-PaneDisplayMode _resolveDisplayMode(String value) {
-  switch (value) {
-    case 'Top':
-      return PaneDisplayMode.top;
-    case 'Left':
-      return PaneDisplayMode.open;
-    case 'LeftCompact':
-      return PaneDisplayMode.compact;
-    case 'LeftMinimal':
-      return PaneDisplayMode.minimal;
-    case 'Auto':
-    default:
-      return PaneDisplayMode.auto;
   }
 }

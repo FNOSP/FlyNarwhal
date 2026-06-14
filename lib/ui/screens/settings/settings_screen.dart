@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/providers.dart';
+import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../widgets/card_expander_item.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -80,8 +81,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                             vertical: 2,
                                           ),
                                           decoration: BoxDecoration(
-                                            border: Border.all(color: Colors.blue),
-                                            borderRadius: BorderRadius.circular(50),
+                                            border:
+                                                Border.all(color: Colors.blue),
+                                            borderRadius:
+                                                BorderRadius.circular(50),
                                           ),
                                           child: Text(
                                             '管理员',
@@ -129,7 +132,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               }
 
                               // Reuse the shared session invalidation flow.
-                              await ref.read(sessionStateControllerProvider).invalidateSession();
+                              await ref
+                                  .read(sessionStateControllerProvider)
+                                  .invalidateSession();
                             },
                           ),
                           const SizedBox(height: 4),
@@ -140,7 +145,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             caption: const Text('是否跟随系统主题'),
                             trailing: ToggleSwitch(
                               checked: settings.followSystemTheme,
-                              onChanged: (v) => settingsNotifier.setFollowSystemTheme(v),
+                              onChanged: (v) =>
+                                  settingsNotifier.setFollowSystemTheme(v),
                               content: Text(
                                 settings.followSystemTheme ? '跟随系统' : '手动设置',
                               ),
@@ -157,7 +163,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               caption: const Text('请选择主题颜色'),
                               trailing: ToggleSwitch(
                                 checked: settings.darkMode,
-                                onChanged: (v) => settingsNotifier.setDarkMode(v),
+                                onChanged: (v) =>
+                                    settingsNotifier.setDarkMode(v),
                                 content: Text(settings.darkMode ? '深色' : '浅色'),
                               ),
                             ),
@@ -166,13 +173,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             heading: const Text('导航栏样式'),
                             caption: const Text('请选择导航视图布局'),
                             trailing: DropDownButton(
-                              title: Text(_mapDisplayModeLabel(settings.navigationDisplayMode)),
+                              title: Text(
+                                NavigationDisplayModeMapper.labelFromValue(
+                                  settings.navigationDisplayMode,
+                                ),
+                              ),
                               items: PaneDisplayMode.values
                                   .map(
                                     (e) => MenuFlyoutItem(
-                                      text: Text(_mapDisplayModeLabel(_modeToString(e))),
-                                      onPressed: () => settingsNotifier.setNavigationDisplayMode(
-                                        _modeToString(e),
+                                      text: Text(
+                                        NavigationDisplayModeMapper.toValue(e),
+                                      ),
+                                      onPressed: () => settingsNotifier
+                                          .setNavigationDisplayMode(
+                                        NavigationDisplayModeMapper.toValue(e),
                                       ),
                                     ),
                                   )
@@ -192,7 +206,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   context: context,
                                   builder: (context) => ContentDialog(
                                     title: const Text('快捷键设置'),
-                                    content: const Text('Flutter 版本暂不支持快捷键自定义，后续补充。'),
+                                    content: const Text(
+                                        'Flutter 版本暂不支持快捷键自定义，后续补充。'),
                                     actions: [
                                       Button(
                                         child: const Text('确定'),
@@ -239,37 +254,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
-  }
-
-  String _modeToString(PaneDisplayMode mode) {
-    switch (mode) {
-      case PaneDisplayMode.top:
-        return 'Top';
-      case PaneDisplayMode.open:
-        return 'Left';
-      case PaneDisplayMode.compact:
-        return 'LeftCompact';
-      case PaneDisplayMode.minimal:
-        return 'LeftMinimal';
-      case PaneDisplayMode.auto:
-        return 'Auto';
-    }
-  }
-
-  String _mapDisplayModeLabel(String value) {
-    switch (value) {
-      case 'Top':
-        return 'Top';
-      case 'Left':
-        return 'Left';
-      case 'LeftCompact':
-        return 'LeftCompact';
-      case 'LeftMinimal':
-        return 'LeftMinimal';
-      case 'Auto':
-      default:
-        return 'Auto';
-    }
   }
 }
 
