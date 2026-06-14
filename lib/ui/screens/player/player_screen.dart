@@ -23,6 +23,7 @@ import '../../../providers/providers.dart';
 import '../../player/hls_subtitle_repository.dart';
 import '../../player/pip/pip_playback_handoff.dart';
 import '../../player/pip/pip_window_payload.dart';
+import '../../player/desktop_pseudo_fullscreen_controller.dart';
 import '../../player/player_manager.dart';
 import '../../player/media_p_view_model.dart';
 import '../../player/player_overlay_controller.dart';
@@ -68,7 +69,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WindowListener {
   static const int _controlFlyoutOffset = 15;
   static const double _trailingControlSpacing = 12;
   static const Duration _pipReadyTimeout = Duration(seconds: 12);
@@ -129,6 +130,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showSubtitleSearchDialog = false;
   bool _showAddNasSubtitleDialog = false;
   bool _isUploadingLocalSubtitle = false;
+  final DesktopPseudoFullscreenController _fullscreenController =
+      DesktopPseudoFullscreenController();
 
   PlayerOverlayController get _overlayController =>
       ref.read(playerOverlayControllerProvider.notifier);
@@ -139,6 +142,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    if (_isDesktopPlatform()) {
+      windowManager.addListener(this);
+      unawaited(_syncFullscreenState());
+    }
     _toastManager = ToastManager();
     _playbackIndicatorExitController = AnimationController(
       vsync: this,
@@ -1240,18 +1247,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _toggleFullscreen() async {
-    if (defaultTargetPlatform == TargetPlatform.macOS) {
-      final isFullscreen = await windowManager.isFullScreen();
-      await windowManager.setFullScreen(!isFullscreen);
-    } else {
-      // Windows/Linux pseudo fullscreen
-      if (_isFullscreen) {
-        await windowManager.unmaximize();
-      } else {
-        await windowManager.maximize();
+    try {
+      final isFullscreen = await _fullscreenController.toggle();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _isFullscreen = isFullscreen);
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'toggle fullscreen failed',
+      );
+      if (mounted) {
+        _toastManager.showToast('切换全屏失败: $error', type: ToastType.failed);
       }
     }
-    setState(() => _isFullscreen = !_isFullscreen);
   }
 
   Future<void> _enterPipMode() async {
@@ -1306,7 +1319,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await windowManager.hide();
 
       // Leave the fullscreen player after the PiP engine has been created.
-      _leavePlayerRoute(() {
+      await _leavePlayerRoute(() {
         if (context.canPop()) {
           context.pop();
         } else {
@@ -1558,8 +1571,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  void _handleBack() {
-    _leavePlayerRoute(() {
+  Future<void> _handleBack() async {
+    await _leavePlayerRoute(() {
       if (context.canPop()) {
         context.pop();
       } else {
@@ -1577,8 +1590,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _overlayController.dismissTransientUi();
   }
 
-  void _leavePlayerRoute(VoidCallback onLeave) {
+  Future<void> _leavePlayerRoute(VoidCallback onLeave) async {
     _dismissTransientPlayerUiBeforeExit();
+
+    // Restore the host window before leaving the fullscreen player route.
+    await _restoreWindowModeBeforeLeave();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       onLeave();
@@ -1587,6 +1604,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void dispose() {
+    if (_isDesktopPlatform()) {
+      windowManager.removeListener(this);
+      unawaited(_fullscreenController.exitForRouteLeave());
+    }
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _disposeHlsSubtitleSession();
@@ -2100,9 +2121,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   bool get _isMacOS => defaultTargetPlatform == TargetPlatform.macOS;
 
+  Future<void> _syncFullscreenState() async {
+    final isFullscreen = await _fullscreenController.syncState();
+    if (!mounted || _isFullscreen == isFullscreen) {
+      return;
+    }
+
+    setState(() => _isFullscreen = isFullscreen);
+  }
+
+  Future<void> _restoreWindowModeBeforeLeave() async {
+    if (!_isDesktopPlatform()) {
+      return;
+    }
+
+    final isFullscreen = await _fullscreenController.exitForRouteLeave();
+    if (!mounted || _isFullscreen == isFullscreen) {
+      return;
+    }
+
+    setState(() => _isFullscreen = isFullscreen);
+  }
+
   bool _isDesktopPlatform() {
     return !kIsWeb &&
         (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+  }
+
+  @override
+  void onWindowEnterFullScreen() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _isFullscreen = true);
+  }
+
+  @override
+  void onWindowLeaveFullScreen() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _isFullscreen = false);
   }
 
   bool get _canAdjustSubtitle {

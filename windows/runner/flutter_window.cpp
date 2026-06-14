@@ -1,9 +1,50 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <stdexcept>
+
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
 
 #include "desktop_multi_window/desktop_multi_window_plugin.h"
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+constexpr const char kWindowDisplayFrameChannelName[] =
+    "fly_narwhal/window_display_frame";
+constexpr const char kGetCurrentDisplayFrameMethod[] =
+    "getCurrentDisplayFrame";
+
+flutter::EncodableMap BuildDisplayFrameResponse(HWND window) {
+  HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+  if (monitor == nullptr) {
+    throw std::runtime_error("Failed to resolve current monitor.");
+  }
+
+  MONITORINFO monitor_info = {};
+  monitor_info.cbSize = sizeof(MONITORINFO);
+  if (!GetMonitorInfo(monitor, &monitor_info)) {
+    throw std::runtime_error("Failed to read monitor info.");
+  }
+
+  const UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
+  const double scale_factor = dpi > 0 ? static_cast<double>(dpi) / 96.0 : 1.0;
+  const RECT frame = monitor_info.rcMonitor;
+
+  flutter::EncodableMap response;
+  response[flutter::EncodableValue("x")] =
+      flutter::EncodableValue(frame.left / scale_factor);
+  response[flutter::EncodableValue("y")] =
+      flutter::EncodableValue(frame.top / scale_factor);
+  response[flutter::EncodableValue("width")] =
+      flutter::EncodableValue((frame.right - frame.left) / scale_factor);
+  response[flutter::EncodableValue("height")] =
+      flutter::EncodableValue((frame.bottom - frame.top) / scale_factor);
+  return response;
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -26,6 +67,27 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+
+  // Expose the full monitor frame so Dart can build non-exclusive fullscreen.
+  flutter::MethodChannel<> channel(
+      flutter_controller_->engine()->messenger(),
+      kWindowDisplayFrameChannelName,
+      &flutter::StandardMethodCodec::GetInstance());
+  channel.SetMethodCallHandler(
+      [this](const flutter::MethodCall<>& call,
+             std::unique_ptr<flutter::MethodResult<>> result) {
+        if (call.method_name() != kGetCurrentDisplayFrameMethod) {
+          result->NotImplemented();
+          return;
+        }
+
+        try {
+          result->Success(BuildDisplayFrameResponse(GetHandle()));
+        } catch (const std::exception& exception) {
+          result->Error("display-frame-error", exception.what());
+        }
+      });
+
   DesktopMultiWindowSetWindowCreatedCallback([](void* controller) {
     auto* flutter_view_controller =
         reinterpret_cast<flutter::FlutterViewController*>(controller);
