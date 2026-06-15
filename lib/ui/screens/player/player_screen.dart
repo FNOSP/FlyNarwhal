@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
@@ -591,24 +591,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  Future<void> _callPlayRecordAtCurrentPosition() async {
+  void _queuePlayRecordUpdate({int? positionMs}) {
+    if (!_isInitialized) return;
+
     final player = _player;
-    if (player == null) return;
-    final position = player.state.position.inMilliseconds;
-    if (position < 0) return;
-    final request = _buildPlayRecordRequest(positionSeconds: position ~/ 1000);
+    final cache = _playingInfoCache;
+    if (player == null || cache == null) return;
+
+    final targetMs = positionMs ?? player.state.position.inMilliseconds;
+    if (targetMs < 0) return;
+
+    final request = _buildPlayRecordRequest(positionSeconds: targetMs ~/ 1000);
     if (request == null) return;
 
-    try {
-      await ref.read(playerServiceProvider).updatePlayRecord(request);
-    } catch (e) {
-      AppTalker.warning(
-        'Player',
-        'play record update during switch failed: $e',
-      );
-    }
+    unawaited(() async {
+      try {
+        await ref.read(playerServiceProvider).updatePlayRecord(request);
+      } catch (_) {
+        // PlayRecord failure must not affect the main playback flow.
+      }
+    }());
   }
-
   Future<void> _reopenPlaybackFromPlayLink({
     required String playLink,
     required int startPositionMs,
@@ -940,7 +943,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         'hls subtitle overlay prepared: playlist=$subtitlePlaylistUrl',
       );
     } else {
-      AppTalker.info('Player', 'hls subtitle overlay disabled');
+      // AppTalker.info('Player', 'hls subtitle overlay disabled');
     }
   }
 
@@ -1139,21 +1142,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _startPlayRecordTimer() {
     _playRecordTimer?.cancel();
-    _playRecordTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (!_isInitialized || _player == null) return;
-
-      final position = _player!.state.position.inMilliseconds;
-      if (position != _lastRecordedPosition && position > 0) {
+    _playRecordTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      final position = _player?.state.position.inMilliseconds ?? 0;
+      if (position > 0 && position != _lastRecordedPosition) {
         _lastRecordedPosition = position;
-        final request =
-            _buildPlayRecordRequest(positionSeconds: position ~/ 1000);
-        if (request == null) return;
-        try {
-          final playerService = ref.read(playerServiceProvider);
-          await playerService.updatePlayRecord(request);
-        } catch (_) {
-          // Ignore record errors
-        }
+        _queuePlayRecordUpdate(positionMs: position);
       }
     });
   }
@@ -1180,6 +1173,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _showPlaybackIndicator(_PlaybackIndicatorType.play);
     }
     _showUi();
+    _queuePlayRecordUpdate();
   }
 
   void _showPlaybackIndicator(_PlaybackIndicatorType type) {
@@ -1233,12 +1227,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final current = _player!.state.position.inMilliseconds;
     final target = (current + milliseconds).clamp(0, _duration);
     _player!.seek(Duration(milliseconds: target));
+    _queuePlayRecordUpdate(positionMs: target);
   }
 
   void _seekTo(double progress) {
     if (_player == null) return;
     final target = (progress * _duration).toInt();
     _player!.seek(Duration(milliseconds: target));
+    _queuePlayRecordUpdate(positionMs: target);
   }
 
   void _setVolume(double volume) {
@@ -1294,7 +1290,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _dismissTransientPlayerUiBeforeExit();
 
       // Persist playback progress in the background; do not block window shrink.
-      unawaited(_callPlayRecordAtCurrentPosition());
+      _queuePlayRecordUpdate();
 
       // Reuse the same window and the same player by switching the window into
       // a compact, borderless, always-on-top form.
@@ -1414,6 +1410,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref
           .read(playerViewModelProvider.notifier)
           .updatePlayingInfo(_playingInfoCache);
+      _queuePlayRecordUpdate(positionMs: currentPosition);
 
       if (isTargetDirectLink &&
           !cache.isUseDirectLink &&
@@ -1494,7 +1491,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref
           .read(playerViewModelProvider.notifier)
           .updatePlayingInfo(_playingInfoCache);
-      await _callPlayRecordAtCurrentPosition();
+      _queuePlayRecordUpdate();
       await ref.read(mediaPViewModelProvider.notifier).resetAudio(
             MediaPRequest(
               playLink: currentPlayLink,
@@ -1552,7 +1549,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref
           .read(playerViewModelProvider.notifier)
           .updatePlayingInfo(_playingInfoCache);
-      await _callPlayRecordAtCurrentPosition();
+      _queuePlayRecordUpdate();
       await ref.read(mediaPViewModelProvider.notifier).resetSubtitle(
             MediaPRequest(
               playLink: currentPlayLink,
