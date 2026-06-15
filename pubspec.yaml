@@ -56,7 +56,6 @@ dependencies:
   
   # Animation
   lottie: ^3.1.0
-  desktop_multi_window: ^0.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

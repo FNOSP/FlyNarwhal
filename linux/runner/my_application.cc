@@ -5,7 +5,6 @@
 #include <gdk/gdkx.h>
 #endif
 
-#include "desktop_multi_window/desktop_multi_window_plugin.h"
 #include "flutter/generated_plugin_registrant.h"
 
 struct _MyApplication {
@@ -141,8 +140,6 @@ static void my_application_activate(GApplication* application) {
       g_object_ref(self), g_object_unref);
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
-  desktop_multi_window_plugin_set_window_created_callback(
-      [](FlPluginRegistry* registry) { fl_register_plugins(registry); });
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }

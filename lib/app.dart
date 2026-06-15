@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,19 +13,11 @@ import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'core/utils/index.dart';
 import 'providers/providers.dart';
 import 'ui/navigation/app_router.dart';
-import 'ui/player/pip/pip_window_payload.dart';
 
-Future<void> bootstrapApp({
-  DesktopWindowBootstrapArgs? windowArgs,
-  String? currentWindowId,
-}) async {
+Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
-    final bootstrapContext = await _resolveWindowBootstrapContext(
-      windowArgs: windowArgs,
-      currentWindowId: currentWindowId,
-    );
     final talker = await AppTalker.initialize();
 
     // Register global Flutter and platform error hooks before app startup.
@@ -49,30 +40,27 @@ Future<void> bootstrapApp({
 
       await acrylic.Window.initialize();
 
-      if (Platform.isWindows &&
-          bootstrapContext.windowArgs.type == DesktopWindowType.main) {
+      if (Platform.isWindows) {
         await acrylic.Window.hideWindowControls();
       }
 
       await windowManager.ensureInitialized();
 
-      if (bootstrapContext.windowArgs.type == DesktopWindowType.main) {
-        const logicalWidth = 1280.0;
-        const logicalHeight = 720.0;
-        const windowOptions = WindowOptions(
-          title: '飞鲸影视',
-          size: Size(logicalWidth, logicalHeight),
-          center: true,
-          titleBarStyle: TitleBarStyle.hidden,
-        );
+      const logicalWidth = 1280.0;
+      const logicalHeight = 720.0;
+      const windowOptions = WindowOptions(
+        title: '飞鲸影视',
+        size: Size(logicalWidth, logicalHeight),
+        center: true,
+        titleBarStyle: TitleBarStyle.hidden,
+      );
 
-        await windowManager.waitUntilReadyToShow(windowOptions, () async {
-          await windowManager
-              .setMinimumSize(const Size(logicalWidth, logicalHeight));
-          await windowManager.show();
-          await windowManager.focus();
-        });
-      }
+      await windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager
+            .setMinimumSize(const Size(logicalWidth, logicalHeight));
+        await windowManager.show();
+        await windowManager.focus();
+      });
       AppTalker.info('Window', 'Desktop initialization complete');
     }
 
@@ -87,38 +75,12 @@ Future<void> bootstrapApp({
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
         ],
-        child: MyApp(
-          windowArgs: bootstrapContext.windowArgs,
-          currentWindowId: bootstrapContext.currentWindowId,
-        ),
+        child: const MyApp(),
       ),
     );
   }, (error, stackTrace) {
     AppTalker.instance.handle(error, stackTrace);
   });
-}
-
-class _WindowBootstrapContext {
-  final DesktopWindowBootstrapArgs windowArgs;
-  final String currentWindowId;
-
-  const _WindowBootstrapContext({
-    required this.windowArgs,
-    required this.currentWindowId,
-  });
-}
-
-Future<_WindowBootstrapContext> _resolveWindowBootstrapContext({
-  DesktopWindowBootstrapArgs? windowArgs,
-  String? currentWindowId,
-}) async {
-  // Resolve the current engine metadata inside the same zone as runApp.
-  final windowController = await WindowController.fromCurrentEngine();
-  return _WindowBootstrapContext(
-    windowArgs: windowArgs ??
-        DesktopWindowBootstrapArgs.tryParse(windowController.arguments),
-    currentWindowId: currentWindowId ?? windowController.windowId,
-  );
 }
 
 bool _isDesktopPlatform() {
@@ -127,14 +89,7 @@ bool _isDesktopPlatform() {
 }
 
 class MyApp extends ConsumerWidget {
-  final DesktopWindowBootstrapArgs windowArgs;
-  final String currentWindowId;
-
-  const MyApp({
-    super.key,
-    required this.windowArgs,
-    required this.currentWindowId,
-  });
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

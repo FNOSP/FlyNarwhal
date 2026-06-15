@@ -22,9 +22,13 @@ class PipWindowModeController {
   static const Size defaultPipSize = Size(320, 180);
   static const Size minimumPipSize = Size(280, 158);
   static const double _cornerMargin = 24;
+  static const double _defaultPipWidth = 320;
+  static const double _minimumPipWidth = 280;
+  static const double _fallbackAspectRatio = 16 / 9;
 
   _PipWindowSnapshot? _snapshot;
   bool _isPipMode = false;
+  double? _currentAspectRatio;
 
   bool get isPipMode => _isPipMode;
 
@@ -36,9 +40,14 @@ class PipWindowModeController {
   bool get _isDesktop => _isMacOS || _isWindowsOrLinux;
 
   /// Switches the main window into PiP form. Returns the applied PiP bounds.
-  Future<Rect> enter({Rect? preferredBounds}) async {
+  ///
+  /// [videoAspectRatio] (width / height) makes the PiP window match the video
+  /// so there are no letterbox bars, and locks edge resizing to that ratio.
+  Future<Rect> enter({Rect? preferredBounds, double? videoAspectRatio}) async {
+    final ratio = _normalizeAspectRatio(videoAspectRatio);
+    _currentAspectRatio = ratio;
     if (!_isDesktop || _isPipMode) {
-      return preferredBounds ?? _defaultBounds();
+      return preferredBounds ?? _defaultBounds(null, ratio);
     }
 
     // Capture the current window state and resolve target bounds in parallel,
@@ -49,7 +58,7 @@ class PipWindowModeController {
       windowManager.isFullScreen(),
       _safeGetMinimumSize(),
     ]);
-    final targetBoundsFuture = _resolvePipBounds(preferredBounds);
+    final targetBoundsFuture = _resolvePipBounds(preferredBounds, ratio);
 
     final snapshot = await snapshotFuture;
     final bounds = snapshot[0] as Rect;
@@ -79,12 +88,41 @@ class PipWindowModeController {
 
     // Keep edge resizing available in PiP form.
     await windowManager.setResizable(true);
-    await windowManager.setMinimumSize(minimumPipSize);
+    await windowManager.setMinimumSize(_minimumSizeForRatio(ratio));
 
     final target = await targetBoundsFuture;
     await windowManager.setBounds(target);
+
+    // Lock edge resizing to the video aspect ratio after the resize border is
+    // restored by setResizable, so dragging keeps the same shape.
+    await windowManager.setAspectRatio(ratio);
     _isPipMode = true;
     return target;
+  }
+
+  /// Re-applies a new video aspect ratio while already in PiP form, e.g. after
+  /// a resolution or track switch changes the video dimensions.
+  Future<void> updateAspectRatio(double videoAspectRatio) async {
+    final ratio = _normalizeAspectRatio(videoAspectRatio);
+    _currentAspectRatio = ratio;
+    if (!_isDesktop || !_isPipMode) {
+      return;
+    }
+    try {
+      await windowManager.setMinimumSize(_minimumSizeForRatio(ratio));
+      await windowManager.setAspectRatio(ratio);
+      final bounds = await windowManager.getBounds();
+      await windowManager.setSize(
+        Size(bounds.width, (bounds.width / ratio).roundToDouble()),
+      );
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'PiP',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'updateAspectRatio failed',
+      );
+    }
   }
 
   /// Restores the window to its pre-PiP geometry and chrome.
@@ -96,7 +134,10 @@ class PipWindowModeController {
     final snapshot = _snapshot;
     _snapshot = null;
     _isPipMode = false;
+    _currentAspectRatio = null;
 
+    // Release the ratio lock so the restored window can resize freely.
+    await windowManager.setAspectRatio(0);
     await _setWindowBorderless(false);
     await windowManager.setAlwaysOnTop(false);
 
@@ -134,26 +175,44 @@ class PipWindowModeController {
     }
   }
 
-  Future<Rect> _resolvePipBounds(Rect? preferredBounds) async {
+  Future<Rect> _resolvePipBounds(Rect? preferredBounds, double ratio) async {
     if (preferredBounds != null) {
       return preferredBounds;
     }
     final saved = await PlayerSettingsStore.getPipWindowBounds();
     if (saved != null) {
-      return saved;
+      // Normalize a previously saved size to the current video ratio so the
+      // window stays letterbox-free across sessions.
+      final height = (saved.width / ratio).roundToDouble();
+      return Rect.fromLTWH(saved.left, saved.top, saved.width, height);
     }
-    return _defaultBounds(await _tryGetDisplayFrame());
+    return _defaultBounds(await _tryGetDisplayFrame(), ratio);
   }
 
-  Rect _defaultBounds([Rect? displayFrame]) {
-    final size = defaultPipSize;
+  Rect _defaultBounds([Rect? displayFrame, double? aspectRatio]) {
+    final ratio = aspectRatio ?? _currentAspectRatio ?? _fallbackAspectRatio;
+    const width = _defaultPipWidth;
+    final height = (width / ratio).roundToDouble();
     if (displayFrame == null) {
-      return Rect.fromLTWH(_cornerMargin, _cornerMargin, size.width, size.height);
+      return Rect.fromLTWH(_cornerMargin, _cornerMargin, width, height);
     }
     // Anchor to the bottom-right corner of the current display.
-    final left = displayFrame.right - size.width - _cornerMargin;
-    final top = displayFrame.bottom - size.height - _cornerMargin;
-    return Rect.fromLTWH(left, top, size.width, size.height);
+    final left = displayFrame.right - width - _cornerMargin;
+    final top = displayFrame.bottom - height - _cornerMargin;
+    return Rect.fromLTWH(left, top, width, height);
+  }
+
+  double _normalizeAspectRatio(double? ratio) {
+    if (ratio == null || !ratio.isFinite || ratio <= 0) {
+      return _fallbackAspectRatio;
+    }
+    return ratio;
+  }
+
+  Size _minimumSizeForRatio(double ratio) {
+    const width = _minimumPipWidth;
+    final height = (width / ratio).roundToDouble();
+    return Size(width, height);
   }
 
   Future<Size?> _safeGetMinimumSize() async {

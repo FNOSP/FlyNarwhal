@@ -1272,6 +1272,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  /// Resolves the playing video's aspect ratio (width / height). Prefers the
+  /// live media_kit decode size, falling back to the negotiated stream info.
+  double? _resolveVideoAspectRatio() {
+    final state = _player?.state;
+    final liveWidth = state?.width ?? 0;
+    final liveHeight = state?.height ?? 0;
+    if (liveWidth > 0 && liveHeight > 0) {
+      return liveWidth / liveHeight;
+    }
+    final videoStream = _playingInfoCache?.currentVideoStream;
+    if (videoStream != null && videoStream.width > 0 && videoStream.height > 0) {
+      return videoStream.width / videoStream.height;
+    }
+    return null;
+  }
+
   Future<void> _enterPipMode() async {
     AppTalker.info('PiP', 'PiP requested from player screen');
     if (!_isDesktopPlatform()) {
@@ -1294,7 +1310,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       // Reuse the same window and the same player by switching the window into
       // a compact, borderless, always-on-top form.
-      await _pipController.enter();
+      await _pipController.enter(videoAspectRatio: _resolveVideoAspectRatio());
       if (!mounted) {
         return;
       }
