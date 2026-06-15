@@ -1293,8 +1293,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _isPipTransitioning = true;
       _dismissTransientPlayerUiBeforeExit();
 
-      // Persist playback progress before shrinking the window.
-      await _callPlayRecordAtCurrentPosition();
+      // Persist playback progress in the background; do not block window shrink.
+      unawaited(_callPlayRecordAtCurrentPosition());
 
       // Reuse the same window and the same player by switching the window into
       // a compact, borderless, always-on-top form.

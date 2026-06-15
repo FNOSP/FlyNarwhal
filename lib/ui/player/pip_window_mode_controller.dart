@@ -41,11 +41,21 @@ class PipWindowModeController {
       return preferredBounds ?? _defaultBounds();
     }
 
-    // Capture the current window state so it can be restored on exit.
-    final bounds = await windowManager.getBounds();
-    final wasMaximized = await windowManager.isMaximized();
-    final wasFullScreen = await windowManager.isFullScreen();
-    final previousMinimumSize = await _safeGetMinimumSize();
+    // Capture the current window state and resolve target bounds in parallel,
+    // so that independent queries don't wait on each other serially.
+    final snapshotFuture = Future.wait([
+      windowManager.getBounds(),
+      windowManager.isMaximized(),
+      windowManager.isFullScreen(),
+      _safeGetMinimumSize(),
+    ]);
+    final targetBoundsFuture = _resolvePipBounds(preferredBounds);
+
+    final snapshot = await snapshotFuture;
+    final bounds = snapshot[0] as Rect;
+    final wasMaximized = snapshot[1] as bool;
+    final wasFullScreen = snapshot[2] as bool;
+    final previousMinimumSize = snapshot[3] as Size?;
     _snapshot = _PipWindowSnapshot(
       bounds: bounds,
       wasMaximized: wasMaximized,
@@ -71,7 +81,7 @@ class PipWindowModeController {
     await windowManager.setResizable(true);
     await windowManager.setMinimumSize(minimumPipSize);
 
-    final target = await _resolvePipBounds(preferredBounds);
+    final target = await targetBoundsFuture;
     await windowManager.setBounds(target);
     _isPipMode = true;
     return target;
