@@ -100,8 +100,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Timer? _playbackIndicatorTimer;
   late final AnimationController _playbackIndicatorExitController;
   int _lastRecordedPosition = 0;
-  int _pendingInitialResumeMs = 0;
-  bool _initialResumeApplied = false;
   bool _hasSetupProviderListeners = false;
   bool _suspendPlaybackTransitionFeedback = true;
   bool _isPlaybackIndicatorVisible = false;
@@ -134,6 +132,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isPipHovered = false;
   bool _isPipTransitioning = false;
   Timer? _pipBoundsSaveTimer;
+  Timer? _pipIdleTimer;
+  static const Duration _pipIdleHideDuration = Duration(seconds: 3);
   AnimationController? _pipTransitionController;
 
   PlayerOverlayController get _overlayController =>
@@ -472,8 +472,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _lastRecordedPosition = 0;
     _currentPosition = 0;
     _duration = 0;
-    _pendingInitialResumeMs = 0;
-    _initialResumeApplied = false;
     _selectedAudioGuid = null;
     _selectedSubtitleGuid = null;
     _qualities = [];
@@ -535,19 +533,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await _loadAndPlayMedia();
   }
 
-  void _resetInitialResumeState(int positionMs) {
-    _pendingInitialResumeMs = positionMs;
-    _initialResumeApplied = positionMs <= 0;
-  }
-
   Future<void> _openMediaWithResume({
     required String playUri,
     required int startPositionMs,
     required SubtitleStream? currentSubtitleStream,
-    bool isInitialPlayback = false,
   }) async {
     final player = _player;
     if (player == null) return;
+
+    // Set mpv native start property so decoding positions from the desired
+    // point. This is the most reliable way for history-progress resume.
+    final platform = player.platform;
+    if (platform is NativePlayer) {
+      if (startPositionMs > 0) {
+        final seconds = (startPositionMs / 1000).toStringAsFixed(3);
+        await platform.setProperty('start', seconds);
+      } else {
+        // Clear any residual start property from a previous open.
+        await platform.setProperty('start', 'none');
+      }
+    }
 
     final headers = _sessionCoordinator.buildPlayerHeaders();
     await player.open(
@@ -558,12 +563,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     await _applyCurrentSubtitleTrack(currentSubtitleStream);
 
-    if (isInitialPlayback) {
-      _resetInitialResumeState(startPositionMs);
-    }
-
-    await _applyResumePosition(startPositionMs,
-        isInitialPlayback: isInitialPlayback);
+    // For non-native platforms or when mpv start didn't fully apply, verify
+    // the position and issue a single correction seek as fallback.
+    await _verifyAndCorrectResume(startPositionMs);
   }
 
   PlayRecordRequest? _buildPlayRecordRequest({
@@ -800,56 +802,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _applyResumePosition(
-    int startPositionMs, {
-    bool isInitialPlayback = false,
-  }) async {
+  Future<void> _verifyAndCorrectResume(int startPositionMs) async {
     final player = _player;
-    if (player == null || startPositionMs <= 0) {
-      if (isInitialPlayback) {
-        _pendingInitialResumeMs = 0;
-        _initialResumeApplied = true;
-      }
-      return;
-    }
+    if (player == null || startPositionMs <= 0) return;
 
-    const attemptDelays = <Duration>[
-      Duration(milliseconds: 300),
-      Duration(milliseconds: 600),
-      Duration(milliseconds: 900),
-    ];
-    final target = Duration(milliseconds: startPositionMs);
-
-    for (final delay in attemptDelays) {
-      await Future<void>.delayed(delay);
-      await player.seek(target);
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-
-      final currentPosition = player.state.position.inMilliseconds;
-      final applied = currentPosition >= startPositionMs - 1500;
-      if (applied) {
-        if (isInitialPlayback) {
-          _pendingInitialResumeMs = 0;
-          _initialResumeApplied = true;
-        }
-        return;
+    // Wait for the player to be in a playing/paused state and have some
+    // duration so position reporting is meaningful.
+    for (int attempt = 0; attempt < 5; attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      final state = player.state;
+      if (state.position.inMilliseconds > 0 ||
+          state.duration.inMilliseconds > 0) {
+        break;
       }
     }
 
-    if (isInitialPlayback) {
-      _pendingInitialResumeMs = startPositionMs;
-      _initialResumeApplied = false;
-    }
-  }
+    final currentPosition = player.state.position.inMilliseconds;
+    final deviation = (currentPosition - startPositionMs).abs();
 
-  Future<void> _ensureInitialResumeApplied() async {
-    if (_initialResumeApplied || _pendingInitialResumeMs <= 0) {
-      return;
-    }
-    await _applyResumePosition(
-      _pendingInitialResumeMs,
-      isInitialPlayback: true,
-    );
+    if (deviation <= 3000) return;
+
+    // mpv start property didn't fully apply (e.g. some HLS or transcoded
+    // streams). Issue a single correction seek.
+    await player.seek(Duration(milliseconds: startPositionMs));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
   }
 
   bool _isSupportedExternalSubtitle(SubtitleStream? subtitleStream) {
@@ -1063,9 +1039,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _playingInfoCache = result.playingInfoCache;
       _qualities = result.qualities;
       _currentQuality = result.currentQuality;
-      final initialResumeMs =
-          widget.initialPositionMs ?? (result.playInfo.ts * 1000);
-      _resetInitialResumeState(initialResumeMs);
       ref
           .read(playerViewModelProvider.notifier)
           .updatePlayingInfo(result.playingInfoCache);
@@ -1079,7 +1052,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         startPositionMs:
             widget.initialPositionMs ?? result.effectiveStartPositionMs,
         currentSubtitleStream: result.playingInfoCache.currentSubtitleStream,
-        isInitialPlayback: true,
       );
       if (!mounted || requestToken != _loadRequestToken) {
         return;
@@ -1115,7 +1087,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _nextEpisode = result.nextEpisode;
       });
 
-      await _ensureInitialResumeApplied();
       _startPlayRecordTimer();
       _suspendPlaybackTransitionFeedback = false;
     } catch (e, st) {
@@ -1155,6 +1126,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _overlayController.showUi(isPlaying: _isPlaying);
   }
 
+  // Reveals the PiP control overlay and (re)starts the idle hide timer.
+  void _showPipControls() {
+    if (!_isPipMode) {
+      return;
+    }
+    if (!_isPipHovered) {
+      setState(() => _isPipHovered = true);
+    }
+    _restartPipIdleTimer();
+  }
+
+  // Restarts the 3s idle timer. While paused the UI stays pinned, so no timer.
+  void _restartPipIdleTimer() {
+    _pipIdleTimer?.cancel();
+    if (!_isPlaying) {
+      return;
+    }
+    _pipIdleTimer = Timer(_pipIdleHideDuration, _hidePipControls);
+  }
+
+  // Hides the PiP control overlay unless playback is paused.
+  void _hidePipControls() {
+    _pipIdleTimer?.cancel();
+    if (!_isPlaying) {
+      return;
+    }
+    if (_isPipHovered && mounted) {
+      setState(() => _isPipHovered = false);
+    }
+  }
+
   void _handlePlaybackStateChanged(bool isPlaying) {
     final wasPlaying = _isPlaying;
     if (mounted && wasPlaying != isPlaying) {
@@ -1163,7 +1165,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _isPlaying = isPlaying;
     }
 
-    if (_suspendPlaybackTransitionFeedback || wasPlaying == isPlaying) {
+    // In PiP, keep controls pinned while paused; resume the idle timer on play.
+    if (_isPipMode && wasPlaying != isPlaying) {
+      if (!isPlaying) {
+        _showPipControls();
+      } else {
+        _restartPipIdleTimer();
+      }
+    }
+
+    if (_suspendPlaybackTransitionFeedback || wasPlaying == isPlaying || _isPipMode) {
       return;
     }
 
@@ -1303,6 +1314,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     try {
       _isPipTransitioning = true;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isPipMode = true;
+        _isPipHovered = true;
+      });
+      // Reveal controls on entry, then let the idle timer hide them.
+      _restartPipIdleTimer();
       _dismissTransientPlayerUiBeforeExit();
 
       // Persist playback progress in the background; do not block window shrink.
@@ -1314,10 +1334,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) {
         return;
       }
-      setState(() {
-        _isPipMode = true;
-        _isPipHovered = false;
-      });
       _pipTransitionController?.forward(from: 0);
     } catch (error, stackTrace) {
       AppTalker.error(
@@ -1346,6 +1362,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       _isPipTransitioning = true;
       _pipBoundsSaveTimer?.cancel();
+      _pipIdleTimer?.cancel();
       await _pipController.persistCurrentBounds();
       await _pipController.exit();
       if (!mounted) {
@@ -1647,6 +1664,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }
     _pipBoundsSaveTimer?.cancel();
+    _pipIdleTimer?.cancel();
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _disposeHlsSubtitleSession();
@@ -1678,6 +1696,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ? Video(
                       controller: _videoController!,
                       controls: NoVideoControls,
+                      fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
                     )
                   : const Center(child: ProgressRing()),
             ),
@@ -1795,7 +1814,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ],
     );
 
-    if (pipTransition == null) {
+    if (pipTransition == null || _isPipMode) {
       return playerStack;
     }
     return AnimatedBuilder(
@@ -1825,108 +1844,141 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildPipOverlay() {
+    // The hover driver must wrap the whole stack as an ancestor (not sit as a
+    // sibling). As an ancestor it stays in the hit-test path regardless of
+    // which child is on top, so toggling the controls' IgnorePointer never
+    // forces a spurious onExit. A sibling region gets occluded by the opaque
+    // controls layer, causing an enter/exit feedback loop that flickers the
+    // cursor between click and arrow.
     return Positioned.fill(
       child: MouseRegion(
-        onEnter: (_) => setState(() => _isPipHovered = true),
-        onExit: (_) => setState(() => _isPipHovered = false),
+        opaque: false,
+        hitTestBehavior: HitTestBehavior.translucent,
+        onEnter: (_) => _showPipControls(),
+        onHover: (_) => _showPipControls(),
+        onExit: (_) => _hidePipControls(),
         child: Stack(
           children: [
             _buildPipDragLayer(),
-            if (_isPipHovered) ...[
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.24),
-                          Colors.transparent,
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.38),
-                        ],
-                      ),
-                    ),
-                  ),
+            Positioned.fill(
+              child: IgnorePointer(
+                ignoring: !_isPipHovered,
+                child: AnimatedOpacity(
+                  opacity: _isPipHovered ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: _buildPipControlsLayer(),
                 ),
               ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: PlayerActionButton.icon(
-                  key: const ValueKey('pip-close'),
-                  iconData: FluentIcons.chrome_close,
-                  tooltip: '关闭',
-                  onPressed: () => unawaited(_closeFromPip()),
-                  size: 28,
-                  iconSize: 14,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              Positioned(
-                left: 16,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: PlayerActionButton.svg(
-                    key: const ValueKey('pip-seek-backward'),
-                    svgAssetPath: 'assets/images/back10s.svg',
-                    tooltip: '快退 10 秒',
-                    onPressed: () => _seekRelative(-10000),
-                    size: 38,
-                    iconSize: 24,
-                    borderRadius: BorderRadius.circular(19),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 16,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: PlayerActionButton.svg(
-                    key: const ValueKey('pip-seek-forward'),
-                    svgAssetPath: 'assets/images/forward10s.svg',
-                    tooltip: '快进 10 秒',
-                    onPressed: () => _seekRelative(10000),
-                    size: 38,
-                    iconSize: 24,
-                    borderRadius: BorderRadius.circular(19),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 44,
-                child: _buildPipProgressBar(),
-              ),
-              Positioned(
-                left: 8,
-                bottom: 6,
-                child: VolumeControl(
-                  volume: _volume,
-                  popupBottomOffset: 36,
-                  onVolumeChange: _setVolume,
-                ),
-              ),
-              Positioned(
-                right: 10,
-                bottom: 8,
-                child: PlayerActionButton.lottie(
-                  key: const ValueKey('pip-exit'),
-                  lottieAssetPath: 'assets/lottie/quit_pip.json',
-                  tooltip: '退出画中画',
-                  onPressed: () => unawaited(_exitPipMode()),
-                  size: 30,
-                  iconSize: 22,
-                ),
-              ),
-            ],
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPipControlsLayer() {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.24),
+                    Colors.transparent,
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.38),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: PlayerActionButton.icon(
+            key: const ValueKey('pip-close'),
+            iconData: FluentIcons.chrome_close,
+            tooltip: '关闭',
+            onPressed: () => unawaited(_closeFromPip()),
+            size: 28,
+            iconSize: 14,
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        // Centered transport cluster: rewind / play-pause / forward.
+        Positioned.fill(
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PlayerActionButton.svg(
+                  key: const ValueKey('pip-seek-backward'),
+                  svgAssetPath: 'assets/images/back10s.svg',
+                  tooltip: '快退 10 秒',
+                  onPressed: () => _seekRelative(-10000),
+                  size: 38,
+                  iconSize: 24,
+                  borderRadius: BorderRadius.circular(19),
+                ),
+                const SizedBox(width: 28),
+                PlayerActionButton.svg(
+                  key: const ValueKey('pip-play-pause'),
+                  svgAssetPath: _isPlaying
+                      ? 'assets/images/pause.svg'
+                      : 'assets/images/play.svg',
+                  tooltip: '播放/暂停',
+                  onPressed: _togglePlayPause,
+                  size: 52,
+                  iconSize: 34,
+                  borderRadius: BorderRadius.circular(26),
+                ),
+                const SizedBox(width: 28),
+                PlayerActionButton.svg(
+                  key: const ValueKey('pip-seek-forward'),
+                  svgAssetPath: 'assets/images/forward10s.svg',
+                  tooltip: '快进 10 秒',
+                  onPressed: () => _seekRelative(10000),
+                  size: 38,
+                  iconSize: 24,
+                  borderRadius: BorderRadius.circular(19),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 12,
+          right: 12,
+          bottom: 44,
+          child: _buildPipProgressBar(),
+        ),
+        Positioned(
+          left: 8,
+          bottom: 6,
+          child: VolumeControl(
+            volume: _volume,
+            popupBottomOffset: 36,
+            onVolumeChange: _setVolume,
+          ),
+        ),
+        Positioned(
+          right: 10,
+          bottom: 8,
+          child: PlayerActionButton.lottie(
+            key: const ValueKey('pip-exit'),
+            lottieAssetPath: 'assets/lottie/quit_pip.json',
+            tooltip: '退出画中画',
+            onPressed: () => unawaited(_exitPipMode()),
+            size: 30,
+            iconSize: 22,
+          ),
+        ),
+      ],
     );
   }
 
