@@ -360,9 +360,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     mediaGuid: currentFile.guid,
                     trimId: item.trimId,
                   );
-              await _refreshSubtitleStreams(targetTrimId: item.trimId);
               if (!mounted) return;
               _toastManager.showToast('字幕下载成功', type: ToastType.success);
+              unawaited(_refreshSubtitleStreams(targetTrimId: item.trimId));
             } catch (error) {
               if (mounted) {
                 _toastManager.showToast('下载字幕失败: $error',
@@ -400,9 +400,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               await ref
                   .read(fileRepositoryProvider)
                   .markSubtitle(mediaGuid, paths);
-              await _refreshSubtitleStreams();
               if (!mounted) return;
               _toastManager.showToast('NAS 字幕添加成功', type: ToastType.success);
+              unawaited(_refreshSubtitleStreams());
             } catch (error) {
               if (!mounted) return;
               _toastManager.showToast('添加 NAS 字幕失败: $error',
@@ -445,9 +445,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             bytes: bytes,
             fileName: file.name,
           );
-      await _refreshSubtitleStreams();
       if (!mounted) return;
       _toastManager.showToast('电脑字幕文件上传成功', type: ToastType.success);
+      unawaited(_refreshSubtitleStreams());
     } catch (error) {
       if (mounted) {
         _toastManager.showToast('上传字幕失败: $error', type: ToastType.failed);
@@ -486,7 +486,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _nextEpisode = null;
   }
 
-  Future<void> _quitCurrentPlaybackIfNeeded() async {
+  void _queueQuitPlayback() {
     final cache = _playingInfoCache;
     final playLink = cache?.playLink;
     if (cache == null ||
@@ -496,14 +496,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
 
-    try {
-      await ref.read(mediaPViewModelProvider.notifier).quit(
-            MediaPRequest(playLink: playLink),
-            updateState: false,
-          );
-    } catch (e) {
-      AppTalker.warning('Player', 'quit media failed: $e');
-    }
+    unawaited(() async {
+      try {
+        await ref.read(mediaPViewModelProvider.notifier).quit(
+              MediaPRequest(playLink: playLink),
+              updateState: false,
+            );
+      } catch (e) {
+        AppTalker.warning('Player', 'quit media failed: $e');
+      }
+    }());
   }
 
   Future<void> _switchPlaybackTarget({
@@ -518,8 +520,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         subtitleGuid == _requestedSubtitleGuid;
     if (isSameTarget) return;
 
-    await _quitCurrentPlaybackIfNeeded();
-    if (!mounted) return;
+    _queueQuitPlayback();
 
     setState(() {
       _currentItemGuid = guid;
@@ -561,7 +562,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         httpHeaders: headers.isEmpty ? null : headers,
       ),
     );
-    await _applyCurrentSubtitleTrack(currentSubtitleStream);
+
+    if (_isSupportedExternalSubtitle(currentSubtitleStream)) {
+      _applyExternalSubtitleAsync(currentSubtitleStream!, _loadRequestToken);
+    } else {
+      await _applyCurrentSubtitleTrack(currentSubtitleStream);
+    }
 
     // For non-native platforms or when mpv start didn't fully apply, verify
     // the position and issue a single correction seek as fallback.
@@ -773,22 +779,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         subtitleStream: cache.currentSubtitleStream,
         subtitlePlaylistUrl: subtitlePlaylistUrl,
       );
-      await _applyCurrentSubtitleTrack(cache.currentSubtitleStream);
-      if (!mounted) {
-        return;
-      }
-      _startHlsSubtitleSessionAsync(
-        dio: dio,
-        subtitleStream: cache.currentSubtitleStream,
-        subtitlePlaylistUrl: subtitlePlaylistUrl,
-        startPositionMs: startPositionMs,
-        loadToken: _loadRequestToken,
-      );
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _selectedSubtitleGuid = cache.currentSubtitleStream?.guid;
-        });
+
+      if (_isSupportedExternalSubtitle(cache.currentSubtitleStream)) {
+        _startHlsSubtitleSessionAsync(
+          dio: dio,
+          subtitleStream: cache.currentSubtitleStream,
+          subtitlePlaylistUrl: subtitlePlaylistUrl,
+          startPositionMs: startPositionMs,
+          loadToken: _loadRequestToken,
+        );
+        _applyExternalSubtitleAsync(
+            cache.currentSubtitleStream!, _loadRequestToken);
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _selectedSubtitleGuid = cache.currentSubtitleStream?.guid;
+          });
+        }
+      } else {
+        await _applyCurrentSubtitleTrack(cache.currentSubtitleStream);
+        if (!mounted) {
+          return;
+        }
+        _startHlsSubtitleSessionAsync(
+          dio: dio,
+          subtitleStream: cache.currentSubtitleStream,
+          subtitlePlaylistUrl: subtitlePlaylistUrl,
+          startPositionMs: startPositionMs,
+          loadToken: _loadRequestToken,
+        );
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _selectedSubtitleGuid = cache.currentSubtitleStream?.guid;
+          });
+        }
       }
     } catch (e) {
       AppTalker.warning(
@@ -834,6 +859,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     const supportedFormats = {'srt', 'ass', 'ssa', 'vtt'};
     return supportedFormats.contains(subtitleStream.format.toLowerCase());
+  }
+
+  void _applyExternalSubtitleAsync(
+    SubtitleStream subtitleStream,
+    int loadToken,
+  ) {
+    unawaited(() async {
+      try {
+        final content = await ref
+            .read(playerServiceProvider)
+            .downloadExternalSubtitle(subtitleStream.guid);
+        final player = _player;
+        if (!mounted || player == null || loadToken != _loadRequestToken) {
+          return;
+        }
+
+        final expectedSubtitleGuid =
+            _requestedSubtitleGuid ?? _selectedSubtitleGuid;
+        if (expectedSubtitleGuid != null &&
+            expectedSubtitleGuid != subtitleStream.guid) {
+          return;
+        }
+
+        await player.setSubtitleTrack(
+          SubtitleTrack.data(
+            content,
+            title:
+                subtitleStream.title.isNotEmpty ? subtitleStream.title : null,
+            language: subtitleStream.language.isNotEmpty
+                ? subtitleStream.language
+                : null,
+          ),
+        );
+      } catch (e) {
+        AppTalker.warning('Player', 'apply external subtitle async failed: $e');
+      }
+    }());
   }
 
   Future<void> _applyCurrentSubtitleTrack(
@@ -1089,6 +1151,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       _startPlayRecordTimer();
       _suspendPlaybackTransitionFeedback = false;
+
+      _fetchEpisodeContextAsync(requestToken);
     } catch (e, st) {
       AppTalker.error(
         'Player',
@@ -1109,6 +1173,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _fetchEpisodeContextAsync(int requestToken) {
+    final info = _playInfo;
+    if (info == null ||
+        info.item.type != 'Episode' ||
+        info.parentGuid.isEmpty) {
+      return;
+    }
+    unawaited(() async {
+      try {
+        final context = await _sessionCoordinator.loadEpisodeContext(
+          parentGuid: info.parentGuid,
+          currentGuid: _currentItemGuid,
+        );
+        if (!mounted || requestToken != _loadRequestToken) return;
+        if (context.currentEpisode?.guid != _currentItemGuid) return;
+
+        setState(() {
+          _episodeList = context.episodeList;
+          _currentEpisode = context.currentEpisode;
+          _nextEpisode = context.nextEpisode;
+        });
+      } catch (e) {
+        AppTalker.warning('Player', 'load episode context failed: $e');
+      }
+    }());
   }
 
   void _startPlayRecordTimer() {

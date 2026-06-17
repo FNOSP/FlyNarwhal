@@ -104,6 +104,18 @@ class DirectPlayLinkResult {
   });
 }
 
+class EpisodeContext {
+  final List<EpisodeListResponse> episodeList;
+  final EpisodeListResponse? currentEpisode;
+  final EpisodeListResponse? nextEpisode;
+
+  const EpisodeContext({
+    required this.episodeList,
+    required this.currentEpisode,
+    required this.nextEpisode,
+  });
+}
+
 class PlayerSessionCoordinator {
   PlayerSessionCoordinator({
     required PlayerService playerService,
@@ -157,18 +169,6 @@ class PlayerSessionCoordinator {
     final audioGuid =
         target.audioGuid ?? currentAudioStream?.guid ?? playInfo.audioGuid;
     final subtitleGuid = target.subtitleGuid ?? currentSubtitleStream?.guid;
-    final episodeList =
-        playInfo.item.type == 'Episode' && playInfo.parentGuid.isNotEmpty
-            ? await _playerService.getEpisodeList(playInfo.parentGuid)
-            : const <EpisodeListResponse>[];
-    final currentEpisode =
-        episodeList.where((episode) => episode.guid == target.guid).firstOrNull;
-    final currentEpisodeIndex =
-        episodeList.indexWhere((episode) => episode.guid == target.guid);
-    final nextEpisode =
-        currentEpisodeIndex >= 0 && currentEpisodeIndex + 1 < episodeList.length
-            ? episodeList[currentEpisodeIndex + 1]
-            : null;
 
     final qualities = streamInfo.qualities ?? [];
     final currentQuality = qualities.isNotEmpty ? qualities.first : null;
@@ -209,8 +209,7 @@ class PlayerSessionCoordinator {
       isEpisode: playInfo.item.type == 'Episode',
       subhead: buildDisplaySubhead(
         playInfo.item,
-        episodeNumber:
-            currentEpisode?.episodeNumber ?? playInfo.item.episodeNumber,
+        episodeNumber: playInfo.item.episodeNumber,
       ),
     );
 
@@ -220,13 +219,33 @@ class PlayerSessionCoordinator {
       playingInfoCache: playingInfoCache,
       qualities: qualities,
       currentQuality: currentQuality,
-      episodeList: episodeList,
-      currentEpisode: currentEpisode,
-      nextEpisode: nextEpisode,
+      episodeList: const [],
+      currentEpisode: null,
+      nextEpisode: null,
       audioGuid: audioGuid,
       subtitleGuid: subtitleGuid,
       preparedPlaySource: preparedPlaySource,
       effectiveStartPositionMs: resolved.effectiveStartMs,
+    );
+  }
+
+  Future<EpisodeContext> loadEpisodeContext({
+    required String parentGuid,
+    required String currentGuid,
+  }) async {
+    final episodeList = await _playerService.getEpisodeList(parentGuid);
+    final currentEpisode =
+        episodeList.where((e) => e.guid == currentGuid).firstOrNull;
+    final currentIndex =
+        episodeList.indexWhere((e) => e.guid == currentGuid);
+    final nextEpisode =
+        currentIndex >= 0 && currentIndex + 1 < episodeList.length
+            ? episodeList[currentIndex + 1]
+            : null;
+    return EpisodeContext(
+      episodeList: episodeList,
+      currentEpisode: currentEpisode,
+      nextEpisode: nextEpisode,
     );
   }
 
