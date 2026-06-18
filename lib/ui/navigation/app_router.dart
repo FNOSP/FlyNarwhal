@@ -1,15 +1,15 @@
 ﻿import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../screens/home/home_screen.dart';
-import '../screens/layout/main_layout.dart';
-import '../screens/login/login_screen.dart';
-import '../screens/media_library/media_library_screen.dart';
-import '../screens/favorites/favorites_screen.dart';
-import '../screens/settings/settings_screen.dart';
-import '../screens/movie_detail/movie_detail_screen.dart';
-import '../screens/tv_detail/tv_detail_screen.dart';
-import '../screens/tv_detail/tv_season_detail_screen.dart';
-import '../screens/player/player_screen.dart';
+import '../features/home/home_screen.dart';
+import '../features/layout/main_layout.dart';
+import '../features/login/login_screen.dart';
+import '../features/media_library/media_library_screen.dart';
+import '../features/favorites/favorites_screen.dart';
+import '../features/settings/settings_screen.dart';
+import '../features/movie_detail/movie_detail_screen.dart';
+import '../features/tv_detail/tv_detail_screen.dart';
+import '../features/tv_detail/tv_season_detail_screen.dart';
+import '../features/player/player_screen.dart';
 import '../../core/utils/log/app_talker.dart';
 import '../../providers/providers.dart';
 

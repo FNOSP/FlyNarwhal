@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../ui/player/player_manager.dart';
-import '../ui/screens/home/home_view_model.dart';
+import '../ui/features/player/controllers/player_manager.dart';
+import '../ui/features/home/home_view_model.dart';
 
 typedef BaseMediaLibraryRefreshCallback = Future<void> Function();
 
