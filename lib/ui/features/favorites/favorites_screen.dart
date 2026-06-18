@@ -303,7 +303,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     return ClipRect(
                       child: SizeTransition(
                         sizeFactor: animation,
-                        axisAlignment: -1,
+                        alignment: Alignment.topCenter,
                         child: FadeTransition(opacity: animation, child: child),
                       ),
                     );

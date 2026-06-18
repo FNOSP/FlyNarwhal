@@ -92,6 +92,9 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
+      onHover: (event) {
+        setState(() => _hoverPositionX = event.localPosition.dx);
+      },
       child: GestureDetector(
         onTapDown: (details) {
           final RenderBox box = context.findRenderObject() as RenderBox;
@@ -365,35 +368,6 @@ class _HoverTimestamp extends StatelessWidget {
           fontWeight: FontWeight.w500,
         ),
       ),
-    );
-  }
-}
-
-// Mouse position tracker widget
-class MousePositionTracker extends StatefulWidget {
-  final Widget child;
-  final void Function(double positionX) onPositionChanged;
-
-  const MousePositionTracker({
-    super.key,
-    required this.child,
-    required this.onPositionChanged,
-  });
-
-  @override
-  State<MousePositionTracker> createState() => _MousePositionTrackerState();
-}
-
-class _MousePositionTrackerState extends State<MousePositionTracker> {
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onHover: (event) {
-        final RenderBox box = context.findRenderObject() as RenderBox;
-        final position = event.localPosition.dx;
-        widget.onPositionChanged(position);
-      },
-      child: widget.child,
     );
   }
 }
