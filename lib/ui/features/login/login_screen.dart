@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' as material;
+import 'package:flutter/services.dart' show FilteringTextInputFormatter, TextInputFormatter;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -109,6 +110,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _displayPort = displayPort;
       _autoLoginFromHistory = allowAutoLogin;
     });
+  }
+
+  void _toggleHistorySidebar() {
+    setState(() => _showHistorySidebar = !_showHistorySidebar);
+  }
+
+  void _hideHistorySidebar() {
+    setState(() => _showHistorySidebar = false);
   }
 
   void _onLogin() async {
@@ -245,6 +254,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     bool obscureText = false,
     TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return GlassTextField(
       controller: controller,
@@ -254,6 +264,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       onChanged: onChanged,
       suffixIcon: suffixIcon,
       onSuffixTap: onSuffixTap,
+      inputFormatters: inputFormatters,
       textStyle: const TextStyle(color: _textColor, fontSize: 16),
       placeholderStyle:
           const TextStyle(color: _hintColor, fontSize: 13),
@@ -605,8 +616,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             onChanged: (_) => _autoLoginFromHistory = false,
                             suffixIcon: const Icon(material.Icons.history,
                                 color: _hintColor, size: 20),
-                            onSuffixTap: () =>
-                                setState(() => _showHistorySidebar = true),
+                            onSuffixTap: _toggleHistorySidebar,
                           )
                         else
                           Row(
@@ -620,8 +630,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       _autoLoginFromHistory = false,
                                   suffixIcon: const Icon(material.Icons.history,
                                       color: _hintColor, size: 20),
-                                  onSuffixTap: () => setState(
-                                      () => _showHistorySidebar = true),
+                                  onSuffixTap: _toggleHistorySidebar,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -631,6 +640,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   controller: _portController,
                                   placeholder: '端口',
                                   keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter
+                                        .digitsOnly,
+                                  ],
                                   onChanged: (_) =>
                                       _autoLoginFromHistory = false,
                                 ),
@@ -739,28 +752,57 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
           ),
-          if (_showHistorySidebar)
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              child: HistorySidebar(
-                historyList: history,
-                onDismiss: () => setState(() => _showHistorySidebar = false),
-                onDelete: (item) {
-                  ref.read(loginHistoryNotifierProvider.notifier).delete(item);
-                },
-                onSelect: (item) {
-                  final canAutoLogin =
-                      item.rememberPassword && (item.password ?? '').isNotEmpty;
-                  _populateFields(
-                    item,
-                    allowAutoLogin: item.isNasLogin && canAutoLogin,
-                  );
-                  setState(() => _showHistorySidebar = false);
-                },
+          // History sidebar backdrop
+          Positioned.fill(
+            child: AnimatedOpacity(
+              opacity: _showHistorySidebar ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 280),
+              curve: _showHistorySidebar ? Curves.easeOut : Curves.easeIn,
+              child: IgnorePointer(
+                ignoring: !_showHistorySidebar,
+                child: GestureDetector(
+                  onTap: _hideHistorySidebar,
+                  child: Container(color: const Color(0x8A000000)),
+                ),
               ),
             ),
+          ),
+          // History sidebar panel
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: ClipRect(
+              child: AnimatedSlide(
+                offset: _showHistorySidebar ? Offset.zero : const Offset(-1.0, 0.0),
+                duration: const Duration(milliseconds: 280),
+                curve: _showHistorySidebar ? Curves.easeOut : Curves.easeIn,
+                child: AnimatedOpacity(
+                  opacity: _showHistorySidebar ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 280),
+                  child: IgnorePointer(
+                    ignoring: !_showHistorySidebar,
+                    child: HistorySidebar(
+                      historyList: history,
+                      onDismiss: _hideHistorySidebar,
+                      onDelete: (item) {
+                        ref.read(loginHistoryNotifierProvider.notifier).delete(item);
+                      },
+                      onSelect: (item) {
+                        final canAutoLogin =
+                            item.rememberPassword && (item.password ?? '').isNotEmpty;
+                        _populateFields(
+                          item,
+                          allowAutoLogin: item.isNasLogin && canAutoLogin,
+                        );
+                        _hideHistorySidebar();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           if (_showFnConnectWebView)
             Positioned.fill(
               child: Acrylic(
