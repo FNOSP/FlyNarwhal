@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Directory, Platform;
 import 'package:dio/dio.dart';
@@ -285,6 +285,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return '$scheme://${uri.host}$portPart';
   }
 
+  WebUri? _tryParseWebUri(String url) {
+    final normalizedUrl = url.trim();
+    final uri = Uri.tryParse(normalizedUrl);
+    if (uri == null || uri.scheme.isEmpty || uri.host.isEmpty) return null;
+    return WebUri(normalizedUrl);
+  }
+
   List<String> _buildUsernameHistory(List<LoginHistory> history) {
     final seen = <String>{};
     final result = <String>[];
@@ -453,9 +460,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
     final uri = Uri.tryParse(baseUrl);
-    if (uri == null) return;
+    final webUri = _tryParseWebUri(baseUrl);
+    if (uri == null || webUri == null) return;
     await CookieManager.instance().setCookie(
-      url: uri,
+      url: webUri,
       name: name,
       value: value,
       path: '/',
@@ -469,9 +477,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await _winWebviewController?.loadUrl(url);
       return;
     }
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    await _inAppWebViewController?.loadUrl(urlRequest: URLRequest(url: uri));
+    final webUri = _tryParseWebUri(url);
+    if (webUri == null) return;
+    await _inAppWebViewController?.loadUrl(
+      urlRequest: URLRequest(url: webUri),
+    );
   }
 
   Future<void> _reloadLoginWebView() async {
@@ -819,11 +829,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               : const Center(child: ProgressRing()))
                           : InAppWebView(
                               initialUrlRequest:
-                                  URLRequest(url: Uri.parse(_fnConnectUrl)),
-                              initialOptions: InAppWebViewGroupOptions(
-                                crossPlatform: InAppWebViewOptions(
-                                  javaScriptEnabled: true,
-                                ),
+                                  URLRequest(url: _tryParseWebUri(_fnConnectUrl)),
+                              initialSettings: InAppWebViewSettings(
+                                javaScriptEnabled: true,
                               ),
                               onWebViewCreated: (controller) {
                                 _inAppWebViewController = controller;
