@@ -92,9 +92,7 @@ endforeach()
 
 file(MAKE_DIRECTORY "${EPHEMERAL_DIR}")
 foreach(RUNTIME_FILE ${RUNTIME_FILES})
-  if (NOT EXISTS "${EPHEMERAL_DIR}/${RUNTIME_FILE}")
-    file(COPY "${FLUTTER_ENGINE_FALLBACK_ROOT}/${RUNTIME_FILE}" DESTINATION "${EPHEMERAL_DIR}")
-  endif()
+  file(COPY "${FLUTTER_ENGINE_FALLBACK_ROOT}/${RUNTIME_FILE}" DESTINATION "${EPHEMERAL_DIR}")
 endforeach()
 
 # Fail immediately when the runtime repair step still leaves missing files.

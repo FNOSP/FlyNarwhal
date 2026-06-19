@@ -46,7 +46,13 @@ class ItemListNotifier extends _$ItemListNotifier {
       tags: Tags(type: ["Movie", "TV", "Directory", "Video"]),
     );
     final remote = ref.read(mediaRemoteDataSourceProvider);
-    return (await remote.getItemList(request)).getOrThrow();
+    try {
+      final result = (await remote.getItemList(request)).getOrThrow();
+      ref.keepAlive();
+      return result;
+    } catch (_) {
+      rethrow;
+    }
   }
 }
 

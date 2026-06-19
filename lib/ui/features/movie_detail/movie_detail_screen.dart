@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,12 +8,12 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'movie_detail_view_model.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     as cache_manager;
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/file_providers.dart';
+import '../../shared/common/fn_cached_image.dart';
 import 'detail_components.dart';
 import '../../shared/common/img_loading_progress_ring.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
@@ -20,11 +21,29 @@ import '../../shared/cast_scroll_row.dart';
 import '../../shared/toast.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
-  if (baseUrl.isEmpty || path.isEmpty) return '';
+  final trimmedPath = path.trim();
+  if (baseUrl.isEmpty || trimmedPath.isEmpty) return '';
+
+  final lowerPath = trimmedPath.toLowerCase();
+  if (lowerPath.startsWith('http://') || lowerPath.startsWith('https://')) {
+    return trimmedPath;
+  }
+
   final normalizedBaseUrl = baseUrl.endsWith('/')
       ? baseUrl.substring(0, baseUrl.length - 1)
       : baseUrl;
-  return '$normalizedBaseUrl/v/api/v1/sys/img$path';
+
+  if (trimmedPath.startsWith('/v/api/v1/sys/img')) {
+    return '$normalizedBaseUrl$trimmedPath';
+  }
+  if (trimmedPath.startsWith('v/api/v1/sys/img')) {
+    return '$normalizedBaseUrl/$trimmedPath';
+  }
+
+  final normalizedPath = trimmedPath.startsWith('/')
+      ? trimmedPath
+      : '/$trimmedPath';
+  return '$normalizedBaseUrl/v/api/v1/sys/img$normalizedPath';
 }
 
 class MovieDetailScreen extends ConsumerWidget {
@@ -400,11 +419,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                     if (backdropUrl.isNotEmpty)
                       Positioned.fill(
                         child: Image(
-                          image: CachedNetworkImageProvider(
-                            backdropUrl,
-                            headers: widget.httpHeaders,
-                            cacheManager: widget.cacheManager,
-                          ),
+                          image: fnCachedImageProvider(ref, backdropUrl),
                           fit: BoxFit.cover,
                           alignment: Alignment.topCenter,
                           filterQuality: FilterQuality.high,

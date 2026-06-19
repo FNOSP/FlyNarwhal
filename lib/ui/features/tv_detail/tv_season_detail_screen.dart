@@ -13,6 +13,7 @@ import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
+import '../../shared/common/fn_cached_image.dart';
 import '../../shared/cast_scroll_row.dart';
 import '../../shared/common/poster_resolution_tags.dart';
 import '../../shared/common/scroll_row.dart';
@@ -233,11 +234,7 @@ class _TvSeasonDetailContentState
                       ImageFiltered(
                         imageFilter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                         child: Image(
-                          image: CachedNetworkImageProvider(
-                            backdropUrl,
-                            headers: widget.httpHeaders,
-                            cacheManager: widget.cacheManager,
-                          ),
+                          image: fnCachedImageProvider(ref, backdropUrl),
                           fit: BoxFit.cover,
                           alignment: Alignment.topCenter,
                           filterQuality: FilterQuality.high,

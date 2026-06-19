@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../data/models/home_models.dart';
 import 'home_view_model.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
@@ -82,70 +81,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       header: const PageHeader(title: Text('首页')),
       content: Stack(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Scrollbar(
-                  controller: _scrollController,
-                  child: ListView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.only(bottom: 16),
-                    primary: false,
-                    children: [
-                      mediaDbListAsync.when(
-                        data: (data) => MediaLibCardRow(
-                          items: data,
-                          onItemClick: (item) {
-                            context.go('/library/${item.guid}');
-                          },
-                        ),
-                        loading: () => const Center(child: ProgressRing()),
-                        error: (err, stack) => Padding(
-                          padding: const EdgeInsets.all(32.0),
-                          child: Text('Error loading libraries: $err'),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      playListAsync.when(
-                        data: (data) {
-                          // Filter out removed items
-                          final filteredData = data.where((item) => !_itemsToBeRemoved.contains(item.guid)).toList();
-                          return RecentlyWatched(
-                            title: "继续观看",
-                            items: filteredData,
-                            onFavoriteToggle: _handleFavoriteToggle,
-                            onWatchedToggle: _handleWatchedToggle,
-                            onItemRemoved: _onItemRemoved,
-                          );
-                        },
-                        loading: () => const SizedBox.shrink(),
-                        error: (err, stack) => const SizedBox.shrink(),
-                      ),
-                      mediaDbListAsync.when(
-                        data: (data) {
-                          return Column(
-                            children: data
-                                .map(
-                                  (lib) => MediaLibGallery(
-                                    title: lib.title,
-                                    guid: lib.guid,
-                                    onFavoriteToggle: _handleFavoriteToggle,
-                                    onWatchedToggle: _handleWatchedToggle,
-                                  ),
-                                )
-                                .toList(),
-                          );
-                        },
-                        loading: () => const SizedBox.shrink(),
-                        error: (err, stack) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
+          Scrollbar(
+            controller: _scrollController,
+            child: CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                mediaDbListAsync.when(
+                  data: (data) => SliverToBoxAdapter(
+                    child: MediaLibCardRow(
+                      items: data,
+                      onItemClick: (item) {
+                        context.go('/library/${item.guid}');
+                      },
+                    ),
+                  ),
+                  loading: () => const SliverToBoxAdapter(child: Center(child: ProgressRing())),
+                  error: (err, stack) => SliverToBoxAdapter(child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Text('Error loading libraries: $err'),
+                  )),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                SliverToBoxAdapter(
+                  child: playListAsync.when(
+                    data: (data) {
+                      final filteredData = data.where((item) => !_itemsToBeRemoved.contains(item.guid)).toList();
+                      return RecentlyWatched(
+                        title: "继续观看",
+                        items: filteredData,
+                        onFavoriteToggle: _handleFavoriteToggle,
+                        onWatchedToggle: _handleWatchedToggle,
+                        onItemRemoved: _onItemRemoved,
+                      );
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (err, stack) => const SizedBox.shrink(),
                   ),
                 ),
-              ),
-            ],
+                mediaDbListAsync.when(
+                  data: (data) {
+                    if (data.isEmpty) {
+                      return const SliverToBoxAdapter(child: SizedBox.shrink());
+                    }
+                    return SliverList.builder(
+                      itemCount: data.length,
+                      itemBuilder: (context, index) {
+                        final lib = data[index];
+                        return MediaLibGallery(
+                          title: lib.title,
+                          guid: lib.guid,
+                          onFavoriteToggle: _handleFavoriteToggle,
+                          onWatchedToggle: _handleWatchedToggle,
+                        );
+                      },
+                    );
+                  },
+                  loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                  error: (err, stack) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              ],
+            ),
           ),
           // Toast overlay
           ToastHost(toastManager: _toastManager),
@@ -170,16 +166,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _itemsToBeRemoved = {};
     });
 
-    // Refresh home-specific sections after the shared metadata is ready.
-    final galleryRefreshes = <Future<ItemListQueryResponse>>[];
+    // 复位滚动条到顶部，使仅有顶部可视区域的 gallery 重建并自动重新请求。
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+
+    // 使所有 gallery provider 失效但不主动全量重拉——仅顶部可视区域的 gallery 会因
+    // SliverList.builder 重建而自动重新请求，屏幕外的等滚动到再拉。
     for (final library in libraries) {
       ref.invalidate(itemListNotifierProvider(library.guid));
-      galleryRefreshes.add(ref.read(itemListNotifierProvider(library.guid).future));
     }
+
     await Future.wait([
       ref.read(playListNotifierProvider.notifier).refresh(),
       ref.read(userInfoProvider.notifier).loadUserInfo(force: true),
-      ...galleryRefreshes,
     ]);
   }
 

@@ -101,7 +101,6 @@ class TvDetailNotifier extends _$TvDetailNotifier {
 
   @override
   FutureOr<TvDetailState> build(String guid) async {
-    state = const AsyncValue.loading();
     final remote = ref.read(mediaRemoteDataSourceProvider);
     final tagRepo = ref.read(iTagRepositoryProvider);
 
@@ -110,20 +109,25 @@ class TvDetailNotifier extends _$TvDetailNotifier {
       return result.dataOrNull;
     }
 
-    final item = await _fetchItem();
-    final playInfo = await _fetchPlayInfo();
-    final seasons = await _fetchSeasonList();
+    final results = await Future.wait([
+      _fetchItem(),
+      _fetchPlayInfo(),
+      _fetchSeasonList(),
+      safeApiRequest(() => remote.getPersonList(guid)),
+      safeApiRequest(() => tagRepo.getTag('iso6391')),
+      safeApiRequest(() => tagRepo.getTag('iso6392')),
+      safeApiRequest(() => tagRepo.getTag('iso3166')),
+    ]);
 
-    final personList = await safeApiRequest(
-      () => remote.getPersonList(guid),
-    );
-
-    // Reuse ApiResult helpers so tag failures degrade to empty maps consistently.
-    final iso6391 = await safeApiRequest(() => tagRepo.getTag('iso6391')) ??
+    final item = results[0] as ItemResponse;
+    final playInfo = results[1] as PlayInfoResponse?;
+    final seasons = results[2] as List<SeasonListResponse>;
+    final personList = results[3] as List<PersonList>?;
+    final iso6391 = (results[4] as Map<String, String>?) ??
         const <String, String>{};
-    final iso6392 = await safeApiRequest(() => tagRepo.getTag('iso6392')) ??
+    final iso6392 = (results[5] as Map<String, String>?) ??
         const <String, String>{};
-    final iso3166 = await safeApiRequest(() => tagRepo.getTag('iso3166')) ??
+    final iso3166 = (results[6] as Map<String, String>?) ??
         const <String, String>{};
 
     return TvDetailState(

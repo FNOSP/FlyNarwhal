@@ -6,9 +6,16 @@ set(EPHEMERAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ephemeral")
 # Configuration provided via flutter tool.
 include(${EPHEMERAL_DIR}/generated_config.cmake)
 
+set(FLUTTER_ENGINE_ARTIFACT_DIR_NAME "windows-x64")
+if (CMAKE_BUILD_TYPE STREQUAL "Profile")
+  set(FLUTTER_ENGINE_ARTIFACT_DIR_NAME "windows-x64-profile")
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+  set(FLUTTER_ENGINE_ARTIFACT_DIR_NAME "windows-x64-release")
+endif()
+
 # TODO: Move the rest of this into files in ephemeral. See
 # https://github.com/flutter/flutter/issues/57146.
-set(FLUTTER_ENGINE_FALLBACK_ROOT "${FLUTTER_ROOT}/bin/cache/artifacts/engine/windows-x64")
+set(FLUTTER_ENGINE_FALLBACK_ROOT "${FLUTTER_ROOT}/bin/cache/artifacts/engine/${FLUTTER_ENGINE_ARTIFACT_DIR_NAME}")
 set(WRAPPER_ROOT "${EPHEMERAL_DIR}/cpp_client_wrapper")
 set(WRAPPER_FALLBACK_ROOT "${FLUTTER_ENGINE_FALLBACK_ROOT}/cpp_client_wrapper")
 set(WRAPPER_BUILD_ROOT "${WRAPPER_FALLBACK_ROOT}")
@@ -32,12 +39,7 @@ foreach(FLUTTER_RUNTIME_FILE ${FLUTTER_RUNTIME_FALLBACK_FILES})
   if (NOT EXISTS "${FLUTTER_ENGINE_FALLBACK_ROOT}/${FLUTTER_RUNTIME_FILE}")
     message(FATAL_ERROR "Flutter runtime fallback file is missing: ${FLUTTER_ENGINE_FALLBACK_ROOT}/${FLUTTER_RUNTIME_FILE}")
   endif()
-  if (NOT EXISTS "${EPHEMERAL_DIR}/${FLUTTER_RUNTIME_FILE}")
-    #region debug-point flutter-runtime-preseed
-    message(STATUS "Pre-seeding Flutter runtime artifact: ${FLUTTER_RUNTIME_FILE}")
-    #endregion
-    file(COPY "${FLUTTER_ENGINE_FALLBACK_ROOT}/${FLUTTER_RUNTIME_FILE}" DESTINATION "${EPHEMERAL_DIR}")
-  endif()
+  file(COPY "${FLUTTER_ENGINE_FALLBACK_ROOT}/${FLUTTER_RUNTIME_FILE}" DESTINATION "${EPHEMERAL_DIR}")
 endforeach()
 
 # Sync the SDK wrapper sources into the ephemeral directory when Flutter only
@@ -77,6 +79,7 @@ set(FLUTTER_INSTALL_ICU_DATA_FILE "${FLUTTER_INSTALL_RUNTIME_ROOT}/icudtl.dat")
 
 # Published to parent scope for install step.
 set(FLUTTER_LIBRARY ${FLUTTER_LIBRARY} PARENT_SCOPE)
+set(FLUTTER_ROOT "${FLUTTER_ROOT}" PARENT_SCOPE)
 set(FLUTTER_ICU_DATA_FILE "${EPHEMERAL_DIR}/icudtl.dat" PARENT_SCOPE)
 set(FLUTTER_INSTALL_LIBRARY "${FLUTTER_INSTALL_LIBRARY}" PARENT_SCOPE)
 set(FLUTTER_INSTALL_ICU_DATA_FILE "${FLUTTER_INSTALL_ICU_DATA_FILE}" PARENT_SCOPE)

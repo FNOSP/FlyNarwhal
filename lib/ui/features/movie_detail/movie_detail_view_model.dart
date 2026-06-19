@@ -74,7 +74,6 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
 
   @override
   FutureOr<MovieDetailState> build(String guid) async {
-    state = const AsyncValue.loading();
     final remote = ref.read(mediaRemoteDataSourceProvider);
     final tagRepo = ref.read(iTagRepositoryProvider);
 
@@ -83,24 +82,31 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
       return result.dataOrNull;
     }
 
-    final item = await _fetchItem();
-    final streamList = await _fetchStreamList();
-    final playInfo = await safeApiRequest(
-      () => remote.getPlayInfo(ItemGuidRequest(itemGuid: guid)),
-    );
-    final personList = await safeApiRequest(
-      () => remote.getPersonList(guid),
-    );
-    // Reuse ApiResult helpers so tag loading follows the same failure handling path.
-    final iso6391 = await safeApiRequest(() => tagRepo.getTag('iso6391')) ??
-        const <String, String>{};
-    final iso6392 = await safeApiRequest(() => tagRepo.getTag('iso6392')) ??
-        const <String, String>{};
-    final iso3166 = await safeApiRequest(() => tagRepo.getTag('iso3166')) ??
-        const <String, String>{};
-    final genresList = await safeApiRequest(() => tagRepo.getGenres()) ??
-        const <GenreEntity>[];
+    final results = await Future.wait([
+      _fetchItem(),
+      _fetchStreamList(),
+      safeApiRequest(
+        () => remote.getPlayInfo(ItemGuidRequest(itemGuid: guid)),
+      ),
+      safeApiRequest(() => remote.getPersonList(guid)),
+      safeApiRequest(() => tagRepo.getTag('iso6391')),
+      safeApiRequest(() => tagRepo.getTag('iso6392')),
+      safeApiRequest(() => tagRepo.getTag('iso3166')),
+      safeApiRequest(() => tagRepo.getGenres()),
+    ]);
 
+    final item = results[0] as ItemResponse;
+    final streamList = results[1] as StreamListResponse?;
+    final playInfo = results[2] as PlayInfoResponse?;
+    final personList = results[3] as List<PersonList>?;
+    final iso6391 = (results[4] as Map<String, String>?) ??
+        const <String, String>{};
+    final iso6392 = (results[5] as Map<String, String>?) ??
+        const <String, String>{};
+    final iso3166 = (results[6] as Map<String, String>?) ??
+        const <String, String>{};
+    final genresList = (results[7] as List<GenreEntity>?) ??
+        const <GenreEntity>[];
     final genresMap = <int, String>{for (final g in genresList) g.id: g.name};
 
     return MovieDetailState(

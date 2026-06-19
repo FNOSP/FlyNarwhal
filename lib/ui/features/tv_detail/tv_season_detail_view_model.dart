@@ -84,7 +84,6 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
 
   @override
   FutureOr<TvSeasonDetailState> build(String guid) async {
-    state = const AsyncValue.loading();
     final remote = ref.read(mediaRemoteDataSourceProvider);
     final tagRepo = ref.read(iTagRepositoryProvider);
 
@@ -93,17 +92,24 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
     if (item == null) {
       throw Exception(itemResult.failureOrNull?.displayMessage ?? '未找到分季信息');
     }
-    final playInfo = await _fetchPlayInfo();
-    final episodes = await _fetchEpisodeList();
-    final personList = await _safeApiRequest(
-      () => remote.getPersonList(guid),
-    );
-    // Reuse ApiResult helpers so tag loading matches the rest of the data flow.
-    final iso6391 = await _safeApiRequest(() => tagRepo.getTag('iso6391')) ??
+
+    final results = await Future.wait([
+      _fetchPlayInfo(),
+      _fetchEpisodeList(),
+      _safeApiRequest(() => remote.getPersonList(guid)),
+      _safeApiRequest(() => tagRepo.getTag('iso6391')),
+      _safeApiRequest(() => tagRepo.getTag('iso6392')),
+      _safeApiRequest(() => tagRepo.getTag('iso3166')),
+    ]);
+
+    final playInfo = results[0] as PlayInfoResponse?;
+    final episodes = results[1] as List<EpisodeListResponse>;
+    final personList = results[2] as List<PersonList>?;
+    final iso6391 = (results[3] as Map<String, String>?) ??
         const <String, String>{};
-    final iso6392 = await _safeApiRequest(() => tagRepo.getTag('iso6392')) ??
+    final iso6392 = (results[4] as Map<String, String>?) ??
         const <String, String>{};
-    final iso3166 = await _safeApiRequest(() => tagRepo.getTag('iso3166')) ??
+    final iso3166 = (results[5] as Map<String, String>?) ??
         const <String, String>{};
 
     return TvSeasonDetailState(

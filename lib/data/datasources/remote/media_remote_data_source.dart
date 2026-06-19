@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import '../../../core/network/api_result.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/constants/app_constants.dart';
@@ -9,9 +11,54 @@ import '../../models/movie_detail_models.dart';
 import '../../models/player_models.dart';
 import '../../models/season_list_response.dart';
 
+/// 内存 LRU 缓存，附带 TTL 过期，用于 guid 详情类请求（getItemDetail/getStreamList 等）。
+class _DetailCache {
+  _DetailCache({int maxEntries = 64, Duration ttl = const Duration(minutes: 5)})
+      : _maxEntries = maxEntries,
+        _ttl = ttl;
+
+  final int _maxEntries;
+  final Duration _ttl;
+  final LinkedHashMap<String, _CacheEntry> _map = LinkedHashMap<String, _CacheEntry>();
+
+  dynamic get(String key) {
+    final entry = _map[key];
+    if (entry == null) return null;
+    if (DateTime.now().isAfter(entry.expireAt)) {
+      _map.remove(key);
+      return null;
+    }
+    // 挪到最末尾实现 LRU
+    _map.remove(key);
+    _map[key] = entry;
+    return entry.value;
+  }
+
+  void set(String key, dynamic value) {
+    _map.remove(key);
+    _map[key] = _CacheEntry(value: value, expireAt: DateTime.now().add(_ttl));
+    while (_map.length > _maxEntries) {
+      _map.remove(_map.keys.first);
+    }
+  }
+
+  void invalidate(String guid) {
+    final prefix = ':$guid';
+    _map.removeWhere((key, value) => key.endsWith(prefix));
+  }
+}
+
+class _CacheEntry {
+  final dynamic value;
+  final DateTime expireAt;
+
+  _CacheEntry({required this.value, required this.expireAt});
+}
+
 /// Remote data source for media-related API calls
 class MediaRemoteDataSource {
   final DioClient _dioClient;
+  final _DetailCache _cache = _DetailCache();
 
   MediaRemoteDataSource(this._dioClient);
 
@@ -68,30 +115,42 @@ class MediaRemoteDataSource {
 
   /// Get item detail by guid
   Future<ApiResult<ItemResponse>> getItemDetail(String guid) async {
+    final key = 'itemDetail:$guid';
+    final cached = _cache.get(key);
+    if (cached is ApiResult<ItemResponse>) return cached;
     final result = await _dioClient.get<ItemResponse>(
       ApiEndpoints.itemByGuid(guid),
       converter: (data) => _parseItemDetailResponse(data),
     );
+    if (result.isSuccess) _cache.set(key, result);
     return result;
   }
 
   /// Get stream list by guid
   Future<ApiResult<StreamListResponse?>> getStreamList(String guid) async {
+    final key = 'streamList:$guid';
+    final cached = _cache.get(key);
+    if (cached is ApiResult<StreamListResponse?>) return cached;
     final result = await _dioClient.get<StreamListResponse?>(
       ApiEndpoints.streamListByGuid(guid),
       converter: (data) => _parseOptionalStreamListResponse(data),
     );
+    if (result.isSuccess) _cache.set(key, result);
     return result;
   }
 
   /// Get play info by item guid
   Future<ApiResult<PlayInfoResponse?>> getPlayInfo(
       ItemGuidRequest request) async {
+    final key = 'playInfo:${request.itemGuid}';
+    final cached = _cache.get(key);
+    if (cached is ApiResult<PlayInfoResponse?>) return cached;
     final result = await _dioClient.post<PlayInfoResponse?>(
       ApiEndpoints.playInfo,
       data: request.toJson(),
       converter: (data) => _parseOptionalPlayInfoResponse(data),
     );
+    if (result.isSuccess) _cache.set(key, result);
     return result;
   }
 
@@ -137,30 +196,42 @@ class MediaRemoteDataSource {
 
   /// Get person list by guid
   Future<ApiResult<List<PersonList>>> getPersonList(String guid) async {
+    final key = 'personList:$guid';
+    final cached = _cache.get(key);
+    if (cached is ApiResult<List<PersonList>>) return cached;
     final result = await _dioClient.post<List<PersonList>>(
       ApiEndpoints.personListByGuid(guid),
       data: const {},
       converter: (data) => _parsePersonListResponse(data),
     );
+    if (result.isSuccess) _cache.set(key, result);
     return result;
   }
 
   /// Get season list by guid
   Future<ApiResult<List<SeasonListResponse>>> getSeasonList(String guid) async {
+    final key = 'seasonList:$guid';
+    final cached = _cache.get(key);
+    if (cached is ApiResult<List<SeasonListResponse>>) return cached;
     final result = await _dioClient.get<List<SeasonListResponse>>(
       ApiEndpoints.seasonListByGuid(guid),
       converter: (data) => _parseSeasonListResponse(data),
     );
+    if (result.isSuccess) _cache.set(key, result);
     return result;
   }
 
   /// Get episode list by guid
   Future<ApiResult<List<EpisodeListResponse>>> getEpisodeList(
       String guid) async {
+    final key = 'episodeList:$guid';
+    final cached = _cache.get(key);
+    if (cached is ApiResult<List<EpisodeListResponse>>) return cached;
     final result = await _dioClient.get<List<EpisodeListResponse>>(
       ApiEndpoints.episodeListByGuid(guid),
       converter: (data) => _parseEpisodeListResponse(data),
     );
+    if (result.isSuccess) _cache.set(key, result);
     return result;
   }
 
@@ -287,38 +358,56 @@ class MediaRemoteDataSource {
   Future<ApiResult<bool>> toggleFavorite(
     ItemGuidRequest request, {
     required bool isFavorite,
-  }) {
-    if (isFavorite) {
-      return _dioClient.delete<bool>(
-        ApiEndpoints.favorite,
-        data: request.toJson(),
-        converter: (data) => _parseSuccessResponse(data),
-      );
-    }
-    return _dioClient.put<bool>(
-      ApiEndpoints.favorite,
-      data: request.toJson(),
-      converter: (data) => _parseSuccessResponse(data),
-    );
+  }) async {
+    final guid = request.itemGuid;
+    final result = isFavorite
+        ? await _dioClient.delete<bool>(
+            ApiEndpoints.favorite,
+            data: request.toJson(),
+            converter: (data) => _parseSuccessResponse(data),
+          )
+        : await _dioClient.put<bool>(
+            ApiEndpoints.favorite,
+            data: request.toJson(),
+            converter: (data) => _parseSuccessResponse(data),
+          );
+    if (result.isSuccess) _cache.invalidate(guid);
+    return result;
   }
 
   /// Toggle watched state
   Future<ApiResult<bool>> toggleWatched(
     ItemGuidRequest request, {
     required bool isWatched,
-  }) {
-    if (isWatched) {
-      return _dioClient.delete<bool>(
-        ApiEndpoints.watched,
-        data: request.toJson(),
-        converter: (data) => _parseSuccessResponse(data),
-      );
+  }) async {
+    final guid = request.itemGuid;
+    final result = isWatched
+        ? await _dioClient.delete<bool>(
+            ApiEndpoints.watched,
+            data: request.toJson(),
+            converter: (data) => _parseSuccessResponse(data),
+          )
+        : await _dioClient.post<bool>(
+            ApiEndpoints.watched,
+            data: request.toJson(),
+            converter: (data) => _parseSuccessResponse(data),
+          );
+    if (result.isSuccess) _cache.invalidate(guid);
+    return result;
+  }
+
+  /// 预取 item 详情，写入缓存；失败静默，不抛异常。
+  Future<void> prefetchItemDetail(String guid) async {
+    try {
+      await getItemDetail(guid);
+    } catch (_) {
+      // 预取失败不报错
     }
-    return _dioClient.post<bool>(
-      ApiEndpoints.watched,
-      data: request.toJson(),
-      converter: (data) => _parseSuccessResponse(data),
-    );
+  }
+
+  /// 清除指定 guid 的所有详情缓存。
+  void invalidateDetailCache(String guid) {
+    _cache.invalidate(guid);
   }
 
   // Private parsing methods

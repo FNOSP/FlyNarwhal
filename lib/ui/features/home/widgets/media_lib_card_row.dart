@@ -1,6 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../data/models/home_models.dart';
 import '../../../../providers/providers.dart';
@@ -82,7 +82,7 @@ class MediaLibraryCard extends StatelessWidget {
   final Map<String, String>? httpHeaders;
   final double scaleFactor;
   final bool isHovered;
-  final CacheManager cacheManager;
+  final cache_manager.CacheManager cacheManager;
 
   const MediaLibraryCard({
     super.key,
@@ -195,7 +195,7 @@ class _PosterRow extends StatelessWidget {
   final List<String> posters;
   final String? baseUrl;
   final Map<String, String>? httpHeaders;
-  final CacheManager cacheManager;
+  final cache_manager.CacheManager cacheManager;
 
   const _PosterRow({
     required this.posters,
@@ -243,7 +243,7 @@ class _PosterImage extends StatelessWidget {
   final String poster;
   final String? baseUrl;
   final Map<String, String>? httpHeaders;
-  final CacheManager cacheManager;
+  final cache_manager.CacheManager cacheManager;
 
   const _PosterImage({
     required this.poster,

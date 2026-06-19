@@ -1,10 +1,11 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/providers.dart';
-import '../shared/common/img_loading_progress_ring.dart';
+import '../shared/common/fn_cached_image.dart';
 import '../shared/common/poster_resolution_tags.dart';
 
 enum FnMediaType {
@@ -112,21 +113,10 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
   Widget build(BuildContext context) {
     final prefs = ref.watch(preferencesManagerProvider);
     final baseUrl = prefs.getBaseUrl();
-    final token = prefs.getToken();
-    final cookie = prefs.getCookie();
     final resolvedPosterPath = widget.posterPath?.trim();
-    final imageUrl = resolvedPosterPath != null &&
-            resolvedPosterPath.isNotEmpty &&
-            baseUrl != null
-        ? '$baseUrl/v/api/v1/sys/img$resolvedPosterPath${resolvedPosterPath.contains('?') ? '' : '?w=400'}'
-        : null;
-    final httpHeaders = token != null || (cookie != null && cookie.isNotEmpty)
-        ? {
-            if (token != null) 'Authorization': token,
-            if (cookie != null && cookie.isNotEmpty) 'Cookie': cookie,
-          }
-        : null;
-    final cacheManager = ref.watch(imageCacheManagerProvider);
+    final hasValidPath = resolvedPosterPath != null &&
+        resolvedPosterPath.isNotEmpty &&
+        baseUrl != null;
     final theme = FluentTheme.of(context);
     final formattedScore = formatVoteAverage(widget.score);
     final showScore = formattedScore != '0.0';
@@ -167,17 +157,11 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      if (imageUrl != null)
-                        CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          httpHeaders: httpHeaders,
-                          cacheManager: cacheManager,
+                      if (hasValidPath)
+                        FnCachedImage(
+                          posterPath: resolvedPosterPath,
                           fit: BoxFit.fitWidth,
-                          fadeOutDuration: const Duration(milliseconds: 120),
-                          errorWidget: (context, url, error) =>
-                              const Center(child: Icon(FluentIcons.error)),
-                          placeholder: (context, url) =>
-                              const ImgLoadingProgressRing(),
+                          width: 400,
                         )
                       else
                         const Center(child: Icon(FluentIcons.file_image)),
@@ -374,6 +358,9 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
 
   void _handleNavigation(BuildContext context, WidgetRef ref) {
     if (widget.guid == null || widget.guid!.isEmpty) return;
+
+    // 预取详情数据到缓存，使进入详情页时近乎秒开。
+    unawaited(ref.read(mediaRemoteDataSourceProvider).prefetchItemDetail(widget.guid!));
 
     final mediaType = FnMediaType.fromString(widget.type);
     switch (mediaType) {

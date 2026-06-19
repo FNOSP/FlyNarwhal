@@ -1,14 +1,13 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../data/models/home_models.dart';
 import '../../../../providers/providers.dart';
+import '../../../shared/common/fn_cached_image.dart';
 import '../../../shared/common/scroll_row.dart';
-import '../../../shared/common/img_loading_progress_ring.dart';
 
 // Accent color for watched state
 const Color kAccentColorDefault = Color(0xFF2173DF);
@@ -208,21 +207,10 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
     final theme = FluentTheme.of(context);
     final prefs = ref.watch(preferencesManagerProvider);
     final baseUrl = prefs.getBaseUrl();
-    final token = prefs.getToken();
-    final cookie = prefs.getCookie();
     final resolvedPosterPath = widget.item.poster?.trim();
-    final imageUrl = resolvedPosterPath != null &&
-            resolvedPosterPath.isNotEmpty &&
-            baseUrl != null
-        ? '$baseUrl/v/api/v1/sys/img$resolvedPosterPath${resolvedPosterPath.contains('?') ? '' : '?w=400'}'
-        : null;
-    final httpHeaders = token != null || (cookie != null && cookie.isNotEmpty)
-        ? {
-            if (token != null) 'Authorization': token,
-            if (cookie != null && cookie.isNotEmpty) 'Cookie': cookie,
-          }
-        : null;
-    final cacheManager = ref.watch(imageCacheManagerProvider);
+    final hasValidPath = resolvedPosterPath != null &&
+        resolvedPosterPath.isNotEmpty &&
+        baseUrl != null;
     final watchedTs = widget.item.ts ?? 0;
     final duration = widget.item.duration ?? 0;
     final progress =
@@ -266,19 +254,11 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            if (imageUrl != null)
-                              CachedNetworkImage(
-                                imageUrl: imageUrl,
-                                httpHeaders: httpHeaders,
-                                cacheManager: cacheManager,
+                            if (hasValidPath)
+                              FnCachedImage(
+                                posterPath: resolvedPosterPath,
                                 fit: BoxFit.cover,
-                                fadeOutDuration:
-                                    const Duration(milliseconds: 120),
-                                errorWidget: (context, url, error) =>
-                                    const Center(
-                                        child: Icon(FluentIcons.error)),
-                                placeholder: (context, url) =>
-                                    const ImgLoadingProgressRing(),
+                                width: 400,
                               )
                             else
                               const Center(child: Icon(FluentIcons.file_image)),
