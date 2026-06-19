@@ -9,6 +9,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'core/utils/index.dart';
 import 'providers/providers.dart';
@@ -18,6 +19,7 @@ Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    await LiquidGlassWidgets.initialize();
     final talker = await AppTalker.initialize();
 
     // Register global Flutter and platform error hooks before app startup.

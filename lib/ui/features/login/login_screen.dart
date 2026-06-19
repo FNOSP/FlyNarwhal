@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Directory, Platform;
 import 'package:dio/dio.dart';
@@ -9,6 +9,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:webview_windows/webview_windows.dart';
@@ -33,7 +34,6 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   static bool _winEnvInitialized = false;
   static const Color _primaryBlue = Color(0xFF3A7BFF);
-  static const Color _borderColor = Color(0x99FFFFFF);
   static const Color _hintColor = Color(0xFF9BA0A6);
   static const Color _textColor = Color(0xFFE6E8EC);
   final _hostController = TextEditingController();
@@ -202,9 +202,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _isProbeMode = isProbe;
     });
     _prepareNetworkProcessor();
-    if (Platform.isWindows) {
-      _initWindowsWebView();
-    }
+    // Route all platforms through InAppWebView. The webview_windows plugin
+    // fails to initialize in this app (PlatformException unsupported_platform),
+    // and flutter_inappwebview_windows is already available as a working
+    // alternative.
   }
 
   void _prepareNetworkProcessor() {
@@ -233,47 +234,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         seedColor: _primaryBlue,
         brightness: material.Brightness.dark,
       ),
-      inputDecorationTheme: material.InputDecorationTheme(
-        isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        filled: false,
-        labelStyle: const TextStyle(color: _hintColor, fontSize: 15),
-        floatingLabelStyle: const TextStyle(color: _primaryBlue, fontSize: 15),
-        hintStyle: const TextStyle(color: _hintColor, fontSize: 13),
-        enabledBorder: material.OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _borderColor),
-        ),
-        focusedBorder: material.OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _primaryBlue, width: 1.4),
-        ),
-      ),
     );
   }
 
-  Widget _buildOutlinedField({
-    required String label,
+  Widget _buildGlassField({
     required TextEditingController controller,
-    String? hint,
-    Widget? suffix,
+    required String placeholder,
+    Widget? suffixIcon,
+    VoidCallback? onSuffixTap,
     bool obscureText = false,
     TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
   }) {
-    return material.TextField(
+    return GlassTextField(
       controller: controller,
+      placeholder: placeholder,
       obscureText: obscureText,
       keyboardType: keyboardType,
       onChanged: onChanged,
-      style: const TextStyle(color: _textColor, fontSize: 16),
-      cursorColor: _primaryBlue,
-      decoration: material.InputDecoration(
-        labelText: label,
-        hintText: hint,
-        suffixIcon: suffix,
-      ),
+      suffixIcon: suffixIcon,
+      onSuffixTap: onSuffixTap,
+      textStyle: const TextStyle(color: _textColor, fontSize: 16),
+      placeholderStyle:
+          const TextStyle(color: _hintColor, fontSize: 13),
+      shape: const LiquidRoundedSuperellipse(borderRadius: 10),
     );
   }
 
@@ -566,7 +550,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         children: [
           Positioned.fill(
             child: Image.asset(
-              'assets/images/login_background.webp',
+              'assets/images/login_background.jpg',
               fit: BoxFit.cover,
             ),
           ),
@@ -586,69 +570,66 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           Positioned.fill(
             top: showWindowCaption ? kWindowTitleBarHeight : 0,
             child: Center(
-              child: Acrylic(
-                tint: Colors.black.withValues(alpha: 0.6),
-                blurAmount: 20,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                child: Container(
+              child: AdaptiveLiquidGlassLayer(
+                settings:
+                    const LiquidGlassSettings(thickness: 24.0, blur: 12.0),
+                child: GlassContainer(
                   width: 420,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 36, vertical: 40),
+                  shape: const LiquidRoundedSuperellipse(borderRadius: 16),
                   child: material.Theme(
                     data: _buildMaterialTheme(),
-                    child: Column(
+                    child: material.Material(
+                      type: material.MaterialType.transparency,
+                      child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        SvgPicture.asset(
-                          'assets/images/fnarwhal_login.svg',
-                          width: 174,
+                        Center(
+                          child: SvgPicture.asset(
+                            'assets/images/fnarwhal_login.svg',
+                            width: 174,
+                          ),
                         ),
                         const SizedBox(height: 8),
-                        const Text('Fly Narwhal',
-                            style: TextStyle(color: _hintColor, fontSize: 16)),
+                        const Center(
+                          child: Text('Fly Narwhal',
+                              style: TextStyle(color: _hintColor, fontSize: 16)),
+                        ),
                         const SizedBox(height: 28),
                         if (_isNasLogin)
-                          _buildOutlinedField(
-                            label: 'IP:Port、域名或 FN ID',
+                          _buildGlassField(
                             controller: _fnIdController,
-                            hint: '请输入 IP:Port、域名或 FN ID',
+                            placeholder: '请输入 IP:Port、域名或 FN ID',
                             onChanged: (_) => _autoLoginFromHistory = false,
-                            suffix: material.IconButton(
-                              icon: const material.Icon(material.Icons.history,
-                                  color: _hintColor),
-                              onPressed: () =>
-                                  setState(() => _showHistorySidebar = true),
-                            ),
+                            suffixIcon: const Icon(material.Icons.history,
+                                color: _hintColor, size: 20),
+                            onSuffixTap: () =>
+                                setState(() => _showHistorySidebar = true),
                           )
                         else
                           Row(
                             children: [
                               Expanded(
                                 flex: 2,
-                                child: _buildOutlinedField(
-                                  label: 'IP、域名或 FN ID',
+                                child: _buildGlassField(
                                   controller: _hostController,
-                                  hint: '请输入 IP、域名或 FN ID',
+                                  placeholder: '请输入 IP、域名或 FN ID',
                                   onChanged: (_) =>
                                       _autoLoginFromHistory = false,
-                                  suffix: material.IconButton(
-                                    icon: const material.Icon(
-                                        material.Icons.history,
-                                        color: _hintColor),
-                                    onPressed: () => setState(
-                                        () => _showHistorySidebar = true),
-                                  ),
+                                  suffixIcon: const Icon(material.Icons.history,
+                                      color: _hintColor, size: 20),
+                                  onSuffixTap: () => setState(
+                                      () => _showHistorySidebar = true),
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 flex: 1,
-                                child: _buildOutlinedField(
-                                  label: '端口',
+                                child: _buildGlassField(
                                   controller: _portController,
-                                  hint: '端口',
+                                  placeholder: '端口',
                                   keyboardType: TextInputType.number,
                                   onChanged: (_) =>
                                       _autoLoginFromHistory = false,
@@ -658,27 +639,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         if (!_isNasLogin) ...[
                           const SizedBox(height: 16),
-                          _buildOutlinedField(
-                            label: '用户名或邮箱',
+                          _buildGlassField(
                             controller: _usernameController,
+                            placeholder: '用户名',
                             onChanged: (_) => _autoLoginFromHistory = false,
                           ),
                           const SizedBox(height: 16),
-                          _buildOutlinedField(
-                            label: '密码',
+                          _buildGlassField(
                             controller: _passwordController,
+                            placeholder: '密码',
                             obscureText: !_passwordVisible,
                             onChanged: (_) => _autoLoginFromHistory = false,
-                            suffix: material.IconButton(
-                              icon: material.Icon(
-                                _passwordVisible
-                                    ? material.Icons.visibility
-                                    : material.Icons.visibility_off,
-                                color: _hintColor,
-                              ),
-                              onPressed: () => setState(
-                                  () => _passwordVisible = !_passwordVisible),
+                            suffixIcon: Icon(
+                              _passwordVisible
+                                  ? material.Icons.visibility
+                                  : material.Icons.visibility_off,
+                              color: _hintColor,
+                              size: 20,
                             ),
+                            onSuffixTap: () => setState(
+                                () => _passwordVisible = !_passwordVisible),
                           ),
                           const SizedBox(height: 16),
                           Row(
@@ -709,13 +689,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               child: Text('使用 NAS 登录',
                                   style: TextStyle(color: _hintColor)),
                             ),
-                            material.Switch(
+                            GlassSwitch(
                               value: _isNasLogin,
                               onChanged: (v) => setState(() {
                                 _isNasLogin = v;
                                 _autoLoginFromHistory = false;
                               }),
-                              activeThumbColor: _primaryBlue,
+                              activeColor: _primaryBlue,
                             ),
                           ],
                         ),
@@ -726,38 +706,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               child: Text('HTTPS 安全访问',
                                   style: TextStyle(color: _hintColor)),
                             ),
-                            material.Switch(
+                            GlassSwitch(
                               value: _isHttps,
                               onChanged: (v) => setState(() => _isHttps = v),
-                              activeThumbColor: _primaryBlue,
+                              activeColor: _primaryBlue,
                             ),
                           ],
                         ),
                         const SizedBox(height: 24),
-                        SizedBox(
+                        GlassButton.custom(
+                          key: const ValueKey('login-submit'),
+                          onTap: _onLogin,
                           height: 48,
-                          child: material.FilledButton(
-                            key: const ValueKey('login-submit'),
-                            onPressed: loginState.isLoading ? null : _onLogin,
-                            style: material.FilledButton.styleFrom(
-                              backgroundColor: _primaryBlue,
-                              disabledBackgroundColor:
-                                  _primaryBlue.withValues(alpha: 0.5),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                            ),
-                            child: loginState.isLoading
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: material.CircularProgressIndicator(
-                                        strokeWidth: 2),
-                                  )
-                                : Text(_isNasLogin ? '下一步' : '登录',
-                                    style: const TextStyle(fontSize: 16)),
-                          ),
+                          enabled: !loginState.isLoading,
+                          shape: const LiquidRoundedSuperellipse(
+                              borderRadius: 10),
+                          child: loginState.isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: material.CircularProgressIndicator(
+                                      strokeWidth: 2),
+                                )
+                              : Text(_isNasLogin ? '下一步' : '登录',
+                                  style: const TextStyle(fontSize: 16)),
                         ),
                       ],
+                    ),
                     ),
                   ),
                 ),
@@ -819,15 +794,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     Expanded(
-                      child: Platform.isWindows
-                          ? (_winWebviewController != null && _winWebviewReady
-                              ? Webview(
-                                  _winWebviewController!,
-                                  permissionRequested:
-                                      _onWinPermissionRequested,
-                                )
-                              : const Center(child: ProgressRing()))
-                          : InAppWebView(
+                      child: InAppWebView(
                               initialUrlRequest:
                                   URLRequest(url: _tryParseWebUri(_fnConnectUrl)),
                               initialSettings: InAppWebViewSettings(
@@ -857,6 +824,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  // Legacy webview_windows path. Kept as a fallback; currently unused because
+  // all platforms route through InAppWebView (see _openFnConnectWebView).
+  // ignore: unused_element
   Future<void> _initWindowsWebView() async {
     _disposeWindowsWebView(keepProcessor: true);
     try {
@@ -945,6 +915,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  // Used only by the legacy webview_windows path; currently unused.
+  // ignore: unused_element
   Future<WebviewPermissionDecision> _onWinPermissionRequested(
     String url,
     WebviewPermissionKind kind,
