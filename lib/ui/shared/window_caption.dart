@@ -204,8 +204,10 @@ class _WindowCaptionRefreshButtonState extends State<WindowCaptionRefreshButton>
   Widget build(BuildContext context) {
     final isDark = widget.brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white : Colors.black;
-    final buttonSize = widget.compact ? 28.0 : 46.0;
-    final iconSize = widget.compact ? 16.0 : 12.0;
+    // Keep the macOS caption refresh button visually lighter than the
+    // traffic-light controls while preserving a usable hit target.
+    final buttonSize = widget.compact ? 20.0 : 46.0;
+    final iconSize = widget.compact ? 12.0 : 12.0;
     final hoverBackground = widget.compact
         ? (isDark
             ? Colors.white.withValues(alpha: 0.12)

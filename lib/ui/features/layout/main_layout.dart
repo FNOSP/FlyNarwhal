@@ -393,6 +393,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
     const double kTrafficLightLeftPadding = 20.0;
     const double kTrafficLightTopPadding = 10.0;
     const double kTrafficLightAreaWidth = 70.0;
+    const double kRefreshButtonLeftOffset = 10.0;
+    // Nudge the refresh button slightly lower to match the traffic lights.
+    const double kRefreshButtonTopPadding = kTrafficLightTopPadding + 6.0;
 
     return Column(
       children: [
@@ -400,37 +403,41 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
           Container(
             height: kWindowTitleBarHeight,
             color: theme.resources.solidBackgroundFillColorBase,
-            child: Padding(
-              padding: const EdgeInsets.only(top: kTrafficLightTopPadding),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(
-                      width: kTrafficLightLeftPadding + kTrafficLightAreaWidth),
-                  if (titleBarRefreshVisibility.shouldShowRefreshAction)
-                    WindowCaptionRefreshButton.compact(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(
+                  width: kTrafficLightLeftPadding +
+                      kTrafficLightAreaWidth -
+                      kRefreshButtonLeftOffset,
+                ),
+                if (titleBarRefreshVisibility.shouldShowRefreshAction)
+                  Padding(
+                    padding:
+                        const EdgeInsets.only(top: kRefreshButtonTopPadding),
+                    child: WindowCaptionRefreshButton.compact(
                       key:
                           const ValueKey('macos-window-caption-refresh-button'),
                       brightness: isDark ? Brightness.dark : Brightness.light,
                       onPressed: triggerWindowRefresh,
                     ),
-                  Expanded(
-                    child: DragToMoveArea(
-                      child: Container(
-                        height: 28.0,
-                        alignment: Alignment.centerLeft,
-                        // child: DefaultTextStyle(
-                        //   style: TextStyle(
-                        //     color: theme.resources.textFillColorPrimary,
-                        //     fontSize: 14,
-                        //   ),
-                        //   child: const Text('飞鲸影视'),
-                        // ),
-                      ),
+                  ),
+                Expanded(
+                  child: DragToMoveArea(
+                    child: Container(
+                      height: 28.0,
+                      alignment: Alignment.centerLeft,
+                      // child: DefaultTextStyle(
+                      //   style: TextStyle(
+                      //     color: theme.resources.textFillColorPrimary,
+                      //     fontSize: 14,
+                      //   ),
+                      //   child: const Text('飞鲸影视'),
+                      // ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           )
         else
