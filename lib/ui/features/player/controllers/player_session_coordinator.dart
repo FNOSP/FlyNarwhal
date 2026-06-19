@@ -157,13 +157,17 @@ class PlayerSessionCoordinator {
     final audioStreams = streamInfo.audioStreams ?? [];
     final subtitleStreams = streamInfo.subtitleStreams ?? [];
 
+    // Echo the audio/subtitle streams returned by the play-info endpoint so
+    // resume restores the same tracks the backend negotiated last time.
     final currentAudioStream = _selectAudioStream(
       audioStreams: audioStreams,
       requestedAudioGuid: target.audioGuid,
+      playInfoAudioGuid: playInfo.audioGuid,
     );
     final currentSubtitleStream = _selectSubtitleStream(
       subtitleStreams: subtitleStreams,
       requestedSubtitleGuid: target.subtitleGuid,
+      playInfoSubtitleGuid: playInfo.subtitleGuid,
     );
 
     final audioGuid =
@@ -446,26 +450,46 @@ class PlayerSessionCoordinator {
   AudioStream? _selectAudioStream({
     required List<AudioStream> audioStreams,
     required String? requestedAudioGuid,
+    String? playInfoAudioGuid,
   }) {
     if (requestedAudioGuid != null) {
       return audioStreams
           .where((stream) => stream.guid == requestedAudioGuid)
           .firstOrNull;
     }
-    return audioStreams.where((stream) => stream.isDefault == 1).firstOrNull ??
+    // Restore the audio track the backend echoed via play-info first, then
+    // fall back to the default-flagged track and finally the first available.
+    final echoedAudioStream =
+        (playInfoAudioGuid != null && playInfoAudioGuid.isNotEmpty)
+            ? audioStreams
+                .where((stream) => stream.guid == playInfoAudioGuid)
+                .firstOrNull
+            : null;
+    return echoedAudioStream ??
+        audioStreams.where((stream) => stream.isDefault == 1).firstOrNull ??
         audioStreams.firstOrNull;
   }
 
   SubtitleStream? _selectSubtitleStream({
     required List<SubtitleStream> subtitleStreams,
     required String? requestedSubtitleGuid,
+    String? playInfoSubtitleGuid,
   }) {
     if (requestedSubtitleGuid != null) {
       return subtitleStreams
           .where((stream) => stream.guid == requestedSubtitleGuid)
           .firstOrNull;
     }
-    return subtitleStreams.where((stream) => stream.isDefault == 1).firstOrNull;
+    // Echo the subtitle track returned by play-info so resume restores the
+    // exact subtitle the backend negotiated, instead of guessing by default.
+    final echoedSubtitleStream =
+        (playInfoSubtitleGuid != null && playInfoSubtitleGuid.isNotEmpty)
+            ? subtitleStreams
+                .where((stream) => stream.guid == playInfoSubtitleGuid)
+                .firstOrNull
+            : null;
+    return echoedSubtitleStream ??
+        subtitleStreams.where((stream) => stream.isDefault == 1).firstOrNull;
   }
 
   Future<_ResolvedPlayLink> _resolvePlayLink({

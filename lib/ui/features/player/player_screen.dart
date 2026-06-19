@@ -577,8 +577,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   PlayRecordRequest? _buildPlayRecordRequest({
     required int positionSeconds,
+    PlayingInfoCache? cacheOverride,
   }) {
-    final cache = _playingInfoCache;
+    final cache = cacheOverride ?? _playingInfoCache;
     final fileStream = cache?.currentFileStream;
     final videoStream = cache?.currentVideoStream;
     if (cache == null || fileStream == null || videoStream == null) {
@@ -600,17 +601,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  void _queuePlayRecordUpdate({int? positionMs}) {
+  void _queuePlayRecordUpdate({int? positionMs, PlayingInfoCache? cacheOverride}) {
     if (!_isInitialized) return;
 
     final player = _player;
-    final cache = _playingInfoCache;
+    final cache = cacheOverride ?? _playingInfoCache;
     if (player == null || cache == null) return;
 
     final targetMs = positionMs ?? player.state.position.inMilliseconds;
     if (targetMs < 0) return;
 
-    final request = _buildPlayRecordRequest(positionSeconds: targetMs ~/ 1000);
+    final request = _buildPlayRecordRequest(
+      positionSeconds: targetMs ~/ 1000,
+      cacheOverride: cacheOverride,
+    );
     if (request == null) return;
 
     unawaited(() async {
@@ -1675,9 +1679,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _switchSubtitleWithSessionFlow(SubtitleStream? subtitle) async {
     final cache = _playingInfoCache;
-    final currentPlayLink = cache?.playLink;
     final player = _player;
-    if (cache == null || currentPlayLink == null || player == null) {
+    if (cache == null || player == null) {
       return;
     }
 
@@ -1694,27 +1697,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isLoading = true;
       });
       _requestedSubtitleGuid = subtitle?.guid;
-      _playingInfoCache = cache.copyWith(
+      final updatedCache = cache.copyWith(
         previousSubtitle: previousSubtitle,
         currentSubtitleStream: subtitle,
       );
+      _playingInfoCache = updatedCache;
       ref
           .read(playerViewModelProvider.notifier)
-          .updatePlayingInfo(_playingInfoCache);
-      _queuePlayRecordUpdate();
-      await ref.read(mediaPViewModelProvider.notifier).resetSubtitle(
-            MediaPRequest(
-              playLink: currentPlayLink,
-              subtitleIndex: subtitleIndex,
-              startTimestamp: player.state.position.inMilliseconds ~/ 1000,
-            ),
-          );
-      if (mounted) {
-        setState(() {
-          _isSubtitleSwitching = false;
-          _selectedSubtitleGuid = subtitle?.guid;
-          _isLoading = false;
-        });
+          .updatePlayingInfo(updatedCache);
+
+      // Persist the newly selected subtitle via /play/record so the server
+      // remembers it for the next session.
+      final currentPosition = player.state.position.inMilliseconds;
+      _queuePlayRecordUpdate(
+        positionMs: currentPosition,
+        cacheOverride: updatedCache,
+      );
+
+      final currentPlayLink = updatedCache.playLink;
+      if (currentPlayLink != null && currentPlayLink.isNotEmpty) {
+        await ref.read(mediaPViewModelProvider.notifier).resetSubtitle(
+              MediaPRequest(
+                playLink: currentPlayLink,
+                subtitleIndex: subtitleIndex,
+                startTimestamp: currentPosition ~/ 1000,
+              ),
+            );
+      } else {
+        // Direct-link playback (no server-side session): apply the chosen
+        // subtitle track locally and clear the loading state immediately.
+        await _applyCurrentSubtitleTrack(subtitle);
+        if (mounted) {
+          setState(() {
+            _isSubtitleSwitching = false;
+            _selectedSubtitleGuid = subtitle?.guid;
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
       _playingInfoCache = cache.copyWith(
