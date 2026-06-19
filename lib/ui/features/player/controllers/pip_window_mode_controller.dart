@@ -84,6 +84,7 @@ class PipWindowModeController {
 
     // Drop the window frame so the compact player fills the small window.
     await _setWindowBorderless(true);
+    await _setMacOSWindowButtonVisibility(false);
     await windowManager.setAlwaysOnTop(true);
 
     // Keep edge resizing available in PiP form.
@@ -139,6 +140,7 @@ class PipWindowModeController {
     // Release the ratio lock so the restored window can resize freely.
     await windowManager.setAspectRatio(0);
     await _setWindowBorderless(false);
+    await _setMacOSWindowButtonVisibility(true);
     await windowManager.setAlwaysOnTop(false);
 
     if (snapshot == null) {
@@ -261,6 +263,27 @@ class PipWindowModeController {
           message: 'Linux borderless toggle failed',
         );
       }
+    }
+  }
+
+  Future<void> _setMacOSWindowButtonVisibility(bool visible) async {
+    if (!_isMacOS) {
+      return;
+    }
+    try {
+      // Keep the hidden title bar mode unchanged and only toggle the macOS
+      // traffic-light buttons for the PiP window lifecycle.
+      await windowManager.setTitleBarStyle(
+        TitleBarStyle.hidden,
+        windowButtonVisibility: visible,
+      );
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'PiP',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'set macOS window button visibility failed: $visible',
+      );
     }
   }
 

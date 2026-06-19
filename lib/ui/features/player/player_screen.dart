@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
@@ -125,6 +125,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showSubtitleSearchDialog = false;
   bool _showAddNasSubtitleDialog = false;
   bool _isUploadingLocalSubtitle = false;
+  bool _isSubtitleSwitching = false;
   final DesktopPseudoFullscreenController _fullscreenController =
       DesktopPseudoFullscreenController();
   final PipWindowModeController _pipController = PipWindowModeController();
@@ -620,6 +621,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }());
   }
+
   Future<void> _reopenPlaybackFromPlayLink({
     required String playLink,
     required int startPositionMs,
@@ -756,11 +758,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   ) async {
     ref.read(mediaPViewModelProvider.notifier).clearResetSubtitleResponse();
     if (response.result != 'succ') {
+      if (mounted) {
+        setState(() {
+          _isSubtitleSwitching = false;
+          _isLoading = false;
+        });
+      }
       return;
     }
 
     final cache = _playingInfoCache;
-    if (cache == null) return;
+    if (cache == null) {
+      if (mounted) {
+        setState(() {
+          _isSubtitleSwitching = false;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
     try {
       final dio = ref.read(dioClientProvider).dio;
       final baseUrl = ref.read(preferencesManagerProvider).getBaseUrl() ?? '';
@@ -792,6 +808,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             cache.currentSubtitleStream!, _loadRequestToken);
         if (mounted) {
           setState(() {
+            _isSubtitleSwitching = false;
             _isLoading = false;
             _selectedSubtitleGuid = cache.currentSubtitleStream?.guid;
           });
@@ -810,6 +827,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         );
         if (mounted) {
           setState(() {
+            _isSubtitleSwitching = false;
             _isLoading = false;
             _selectedSubtitleGuid = cache.currentSubtitleStream?.guid;
           });
@@ -822,7 +840,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
       if (mounted) {
         _toastManager.showToast('切换字幕失败: $e', type: ToastType.failed);
-        setState(() => _isLoading = false);
+        setState(() {
+          _isSubtitleSwitching = false;
+          _isLoading = false;
+        });
       }
     }
   }
@@ -1265,7 +1286,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }
 
-    if (_suspendPlaybackTransitionFeedback || wasPlaying == isPlaying || _isPipMode) {
+    if (_suspendPlaybackTransitionFeedback ||
+        wasPlaying == isPlaying ||
+        _isPipMode) {
       return;
     }
 
@@ -1384,7 +1407,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return liveWidth / liveHeight;
     }
     final videoStream = _playingInfoCache?.currentVideoStream;
-    if (videoStream != null && videoStream.width > 0 && videoStream.height > 0) {
+    if (videoStream != null &&
+        videoStream.width > 0 &&
+        videoStream.height > 0) {
       return videoStream.width / videoStream.height;
     }
     return null;
@@ -1664,7 +1689,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             : subtitle.index;
 
     try {
-      setState(() => _isLoading = true);
+      setState(() {
+        _isSubtitleSwitching = true;
+        _isLoading = true;
+      });
       _requestedSubtitleGuid = subtitle?.guid;
       _playingInfoCache = cache.copyWith(
         previousSubtitle: previousSubtitle,
@@ -1683,6 +1711,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
       if (mounted) {
         setState(() {
+          _isSubtitleSwitching = false;
           _selectedSubtitleGuid = subtitle?.guid;
           _isLoading = false;
         });
@@ -1699,6 +1728,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _toastManager.showToast('切换字幕失败: $e', type: ToastType.failed);
       if (mounted) {
         setState(() {
+          _isSubtitleSwitching = false;
           _selectedSubtitleGuid = previousSubtitle?.guid;
           _isLoading = false;
         });
@@ -1805,7 +1835,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             },
           ),
         ),
-        if (_isLoading) const Center(child: ProgressRing()),
+        // Keep subtitle switches visually lightweight and avoid blocking the video.
+        if (_isLoading && !_isSubtitleSwitching)
+          const Center(child: ProgressRing()),
         Positioned.fill(
           child: IgnorePointer(
             child: Center(
@@ -2324,9 +2356,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Widget _buildTopBar() {
     final leftInset = _isMacOS ? 72.0 : 0.0;
+    // Reduce the top inset on macOS so the custom caption content lines up
+    // more closely with the native traffic-light buttons.
+    final topPadding = _isMacOS ? 6.0 : 12.0;
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        padding: EdgeInsets.fromLTRB(16, topPadding, 16, 0),
         child: SizedBox(
           height: 36,
           child: Stack(
