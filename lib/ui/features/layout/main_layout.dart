@@ -47,7 +47,13 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
 
   @override
   void onWindowClose() async {
-    // On all platforms, destroy the window to properly close the app
+    // Keep the macOS app running in Dock when the main window is closed.
+    if (!kIsWeb && Platform.isMacOS) {
+      await windowManager.hide();
+      return;
+    }
+
+    // Preserve the existing close-to-exit behavior on other desktop platforms.
     await windowManager.destroy();
   }
 

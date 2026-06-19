@@ -45,6 +45,10 @@ Future<void> bootstrapApp() async {
       }
 
       await windowManager.ensureInitialized();
+      if (Platform.isMacOS) {
+        // Keep the app alive when the main window close button is pressed.
+        await windowManager.setPreventClose(true);
+      }
 
       const logicalWidth = 1280.0;
       const logicalHeight = 720.0;

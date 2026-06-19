@@ -15,8 +15,8 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-    // Return true to terminate the app when the last window is closed
-    return true
+    // Keep the app resident in Dock after the main window is closed.
+    return false
   }
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
@@ -24,9 +24,15 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   private func restoreMainWindowIfNeeded() {
-    if let window = NSApp.windows.first {
-      window.makeKeyAndOrderFront(nil)
-      NSApp.activate(ignoringOtherApps: true)
+    guard let window = NSApp.mainWindow ?? NSApp.windows.first else {
+      return
     }
+
+    if window.isMiniaturized {
+      window.deminiaturize(nil)
+    }
+
+    window.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
   }
 }
