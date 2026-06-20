@@ -1,6 +1,6 @@
 ﻿import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Directory, Platform;
+import 'dart:io' show Platform;
 import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -11,9 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:webview_windows/webview_windows.dart';
+
 import '../../../core/network/dio_client.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/login_history.dart';
@@ -33,7 +31,6 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  static bool _winEnvInitialized = false;
   static const Color _primaryBlue = Color(0xFF3A7BFF);
   static const Color _hintColor = Color(0xFF9BA0A6);
   static const Color _textColor = Color(0xFFE6E8EC);
@@ -50,6 +47,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _passwordVisible = false;
   bool _showFnConnectWebView = false;
   bool _isProbeMode = false;
+  bool _isFinalizing = false;
   bool _allowAutoLogin = false;
   bool _autoLoginFromHistory = false;
   String _fnConnectUrl = '';
@@ -61,10 +59,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String _capturedUsername = '';
   String _capturedPassword = '';
   bool _capturedRememberPassword = false;
-  WebviewController? _winWebviewController;
-  bool _winWebviewReady = false;
-  StreamSubscription<String>? _winUrlSub;
-  StreamSubscription<LoadingState>? _winLoadingSub;
   InAppWebViewController? _inAppWebViewController;
   _NetworkMessageProcessor? _networkMessageProcessor;
 
@@ -82,7 +76,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
-    _disposeWindowsWebView();
+    _disposeWebView();
     _hostController.dispose();
     _portController.dispose();
     _usernameController.dispose();
@@ -205,16 +199,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _allowAutoLogin = allowAutoLogin;
     _autoLoginUsername = autoLoginUsername?.trim() ?? '';
     _autoLoginPassword = autoLoginPassword ?? '';
+    // Clear WebView cookies before opening to prevent stale login sessions.
+    // This ensures every NAS login starts from a clean /login page so JS hooks
+    // can reliably capture subsequent status requests and trigger the signin flow.
+    CookieManager.instance().deleteAllCookies();
     setState(() {
       _fnConnectUrl = normalizedUrl;
       _showFnConnectWebView = true;
       _isProbeMode = isProbe;
     });
     _prepareNetworkProcessor();
-    // Route all platforms through InAppWebView. The webview_windows plugin
-    // fails to initialize in this app (PlatformException unsupported_platform),
-    // and flutter_inappwebview_windows is already available as a working
-    // alternative.
   }
 
   void _prepareNetworkProcessor() {
@@ -314,20 +308,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     await controller.evaluateJavascript(source: script);
   }
 
-  Future<void> _injectWinWebViewScript(List<LoginHistory> history) async {
-    final controller = _winWebviewController;
-    if (controller == null) return;
-    // Inject login helper script for Windows WebView
-    AppTalker.info('LoginBridge', 'inject script for WinWebView');
-    final script = LoginJsInjectionBuilder(
-      autoLoginUsernameLiteral: jsonEncode(_autoLoginUsername),
-      autoLoginPasswordLiteral: jsonEncode(_autoLoginPassword),
-      allowAutoLogin: _allowAutoLogin,
-      usernameHistoryJsonLiteral: jsonEncode(_buildUsernameHistory(history)),
-    ).build();
-    await controller.executeScript(script);
-  }
-
   void _handlePageUrl(String url) {
     final normalized = _stripQuotes(url);
     if (_handleBridgeMessageFromUrl(normalized)) {
@@ -341,10 +321,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final uri = Uri.tryParse(baseUrl);
       if (uri == null || uri.host.isEmpty) return;
       final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
+      _isProbeMode = false;
       setState(() {
         _showFnConnectWebView = false;
       });
-      _disposeWindowsWebView();
+      _disposeWebView();
       _hostController.text = uri.host;
       _portController.text = (uri.hasPort ? uri.port : 0).toString();
       _isHttps = scheme == 'https';
@@ -447,13 +428,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _setWebViewCookie(
       String baseUrl, String name, String value) async {
     if (baseUrl.isEmpty || name.isEmpty) return;
-    if (Platform.isWindows) {
-      final controller = _winWebviewController;
-      if (controller == null) return;
-      await controller
-          .executeScript('document.cookie = "$name=$value; path=/";');
-      return;
-    }
     final uri = Uri.tryParse(baseUrl);
     final webUri = _tryParseWebUri(baseUrl);
     if (uri == null || webUri == null) return;
@@ -468,31 +442,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _loadWebViewUrl(String url) async {
     if (url.isEmpty) return;
-    if (Platform.isWindows) {
-      await _winWebviewController?.loadUrl(url);
-      return;
-    }
+    final controller = _inAppWebViewController;
+    if (controller == null) return;
     final webUri = _tryParseWebUri(url);
     if (webUri == null) return;
-    await _inAppWebViewController?.loadUrl(
-      urlRequest: URLRequest(url: webUri),
-    );
+    await controller.loadUrl(urlRequest: URLRequest(url: webUri));
   }
 
   Future<void> _reloadLoginWebView() async {
-    if (!_showFnConnectWebView) {
-      return;
-    }
-
-    // Reload the active login WebView directly without running page data fetches.
-    if (Platform.isWindows) {
-      final controller = _winWebviewController;
-      if (controller != null && _winWebviewReady) {
-        await controller.reload();
-      }
-      return;
-    }
-
+    if (!_showFnConnectWebView) return;
     await _inAppWebViewController?.reload();
   }
 
@@ -508,13 +466,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // permissions for the newly authenticated NAS session.
     ref.read(userInfoProvider.notifier).clear();
 
+    // Clear WebView cookies after login so the next NAS login starts fresh.
+    // Account credentials are managed exclusively by the app (PreferencesManager),
+    // not by WebView's persistent session storage.
+    CookieManager.instance().deleteAllCookies();
+
     final refreshNotifier = ref.read(authRefreshProvider.notifier);
     refreshNotifier.state = refreshNotifier.state + 1;
     if (!mounted) return;
     setState(() {
       _showFnConnectWebView = false;
     });
-    _disposeWindowsWebView();
+    _disposeWebView();
     context.go('/home');
   }
 
@@ -796,6 +759,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           allowAutoLogin: item.isNasLogin && canAutoLogin,
                         );
                         _hideHistorySidebar();
+                        // Auto-trigger login from history.
+                        // NAS login items always open the WebView (JS auto-clicks
+                        // login/authorize only when canAutoLogin is true).
+                        // Normal login items directly login when password is saved,
+                        // otherwise just fill the form for manual submission.
+                        if (item.isNasLogin || canAutoLogin) {
+                          _onLogin();
+                        }
                       },
                     ),
                   ),
@@ -825,7 +796,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 setState(() {
                                   _showFnConnectWebView = false;
                                 });
-                                _disposeWindowsWebView();
+                                _disposeWebView();
                               },
                             ),
                           ),
@@ -841,6 +812,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   URLRequest(url: _tryParseWebUri(_fnConnectUrl)),
                               initialSettings: InAppWebViewSettings(
                                 javaScriptEnabled: true,
+                                incognito: true,
+                                cacheEnabled: false,
                               ),
                               onWebViewCreated: (controller) {
                                 _inAppWebViewController = controller;
@@ -866,105 +839,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  // Legacy webview_windows path. Kept as a fallback; currently unused because
-  // all platforms route through InAppWebView (see _openFnConnectWebView).
-  // ignore: unused_element
-  Future<void> _initWindowsWebView() async {
-    _disposeWindowsWebView(keepProcessor: true);
-    try {
-      String? userDataPath;
-      if (Platform.isWindows) {
-        try {
-          final supportDir = await getApplicationSupportDirectory();
-          userDataPath = p.join(supportDir.path, 'fly_narwhal', 'webview_data');
-          final dir = Directory(userDataPath);
-          if (!dir.existsSync()) {
-            await dir.create(recursive: true);
-          }
-        } catch (e) {
-          AppTalker.warning(
-            'LoginWinWebView',
-            'Failed to initialize webview data folder: $e',
-          );
-        }
-      }
-      if (!_winEnvInitialized) {
-        try {
-          await WebviewController.initializeEnvironment(
-            userDataPath: userDataPath,
-          );
-          _winEnvInitialized = true;
-          AppTalker.info(
-            'LoginWinWebView',
-            'environment initialized userDataPath="$userDataPath"',
-          );
-        } catch (_) {}
-      }
-      final controller = WebviewController();
-      _winWebviewController = controller;
-      await controller.initialize();
-      AppTalker.info(
-        'LoginWinWebView',
-        'controller initialized, loadUrl="$_fnConnectUrl"',
-      );
-      _winUrlSub = controller.url.listen((url) {
-        AppTalker.info('LoginWinWebView', 'url event: $url');
-        _handlePageUrl(url);
-      });
-      await controller.setBackgroundColor(const Color(0x00000000));
-      await controller
-          .setPopupWindowPolicy(WebviewPopupWindowPolicy.sameWindow);
-      _winLoadingSub = controller.loadingState.listen((state) async {
-        AppTalker.info('LoginWinWebView', 'loadingState=$state');
-        if (state == LoadingState.navigationCompleted) {
-          final value = await controller.executeScript('window.location.href');
-          AppTalker.info(
-            'LoginWinWebView',
-            'navigationCompleted href="$value"',
-          );
-          if (value is String) {
-            _handlePageUrl(value);
-          }
-          await _injectWinWebViewScript(ref.read(loginHistoryNotifierProvider));
-        }
-      });
-      await controller.loadUrl(_fnConnectUrl);
-      if (!mounted) return;
-      setState(() {
-        _winWebviewReady = true;
-      });
-      AppTalker.info('LoginWinWebView', 'ready');
-    } catch (_) {
-      // Fallback: close overlay on error
-      setState(() {
-        _showFnConnectWebView = false;
-        _winWebviewReady = false;
-      });
-      AppTalker.warning('LoginWinWebView', 'init failed');
-    }
-  }
-
-  void _disposeWindowsWebView({bool keepProcessor = false}) {
-    _winUrlSub?.cancel();
-    _winUrlSub = null;
-    _winLoadingSub?.cancel();
-    _winLoadingSub = null;
-    _winWebviewController = null;
-    _winWebviewReady = false;
+  void _disposeWebView({bool keepProcessor = false}) {
     _inAppWebViewController = null;
     if (!keepProcessor) {
       _networkMessageProcessor = null;
     }
-  }
-
-  // Used only by the legacy webview_windows path; currently unused.
-  // ignore: unused_element
-  Future<WebviewPermissionDecision> _onWinPermissionRequested(
-    String url,
-    WebviewPermissionKind kind,
-    bool isUserInitiated,
-  ) async {
-    return WebviewPermissionDecision.allow;
   }
 
   String _normalizeFnConnectUrl(String input, bool https) {
@@ -1009,6 +888,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _finalizeLogin({String? displayHost, int? displayPort}) async {
+    if (_isFinalizing) {
+      AppTalker.info('Login', 'finalize login skipped: already running');
+      return;
+    }
+    _isFinalizing = true;
     final host = _hostController.text.trim();
     final port = int.tryParse(_portController.text) ?? 0;
     final username = _usernameController.text;
@@ -1047,6 +931,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } catch (e) {
       AppTalker.warning('Login', 'finalize login error: $e');
       _showErrorDialog(e.toString());
+    } finally {
+      _isFinalizing = false;
     }
   }
 
@@ -1180,9 +1066,25 @@ class _NetworkMessageProcessor {
       Map<String, dynamic> payload, String baseUrl) async {
     if (_isSysConfigLoaded) return;
     final body = (payload['body'] ?? '').toString();
-    if (body.isEmpty) return;
     final cookie = _extractCookie(payload);
-    await _handleSysConfigBody(baseUrl, body, cookie);
+    // Determine whether the JS-fetched body is a usable sys/config response.
+    // The in-page fetch lacks the signature header (authx), so the NAS often
+    // rejects it with {"code":5000,"msg":"invalid sign"} or returns the FN
+    // Connect relay HTML. In those cases, re-fetch via the native Dio client
+    // which injects authx through the AuthInterceptor.
+    final bool jsBodyValid =
+        payload['validSysConfig'] == true ||
+            (body.contains('nas_oauth') && body.contains('app_id'));
+    if (jsBodyValid) {
+      if (body.isEmpty) return;
+      await _handleSysConfigBody(baseUrl, body, cookie);
+      return;
+    }
+    // Fallback: native signed request. Requires a cookie and a real NAS base.
+    if (cookie == null || cookie.isEmpty) return;
+    if (_isSysConfigInFlight) return;
+    final normalizedCookie = _normalizeRelayCookie(cookie, baseUrl);
+    await _fetchSysConfig(baseUrl, normalizedCookie);
   }
 
   Future<void> _fetchSysConfig(String baseUrl, String cookie) async {
@@ -1202,9 +1104,11 @@ class _NetworkMessageProcessor {
       if (data is Map<String, dynamic>) {
         await _handleSysConfigBody(baseUrl, jsonEncode(data), cookie);
       }
-    } catch (e) {
       _isSysConfigInFlight = false;
-      onError('鑾峰彇绯荤粺閰嶇疆澶辫触: $e');
+    } catch (e) {
+      // Keep silent and allow a later status/sysconfig message to retry,
+      // since the very first attempt right after login can fail transiently.
+      _isSysConfigInFlight = false;
     }
   }
 

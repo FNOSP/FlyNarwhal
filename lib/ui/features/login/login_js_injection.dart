@@ -19,6 +19,14 @@ class LoginJsInjectionBuilder {
   var AUTO_LOGIN_PASS = $autoLoginPasswordLiteral;
   var ALLOW_AUTO_LOGIN = $allowAutoLogin;
   var USERNAME_HISTORY = $usernameHistoryJsonLiteral || [];
+  // Reset the sys/config guard once per fresh script context so a previously
+  // failed (invalid-sign) attempt does not permanently block later retries.
+  var SYS_CONFIG_GUARD_VERSION = 'valid-sysconfig-v2';
+  if (window.__flynarwhal_sys_config_guard_version !== SYS_CONFIG_GUARD_VERSION) {
+    window.__flynarwhal_sys_config_guard_version = SYS_CONFIG_GUARD_VERSION;
+    window.__flynarwhal_sys_config_requested = false;
+    window.__flynarwhal_sys_config_in_flight = false;
+  }
   function callNative(method, params) {
     try {
       if (window.kmpJsBridge && typeof window.kmpJsBridge.callNative === 'function') {
@@ -50,12 +58,22 @@ class LoginJsInjectionBuilder {
     return queryInput(['input#remember-password','input[name*="remember"]','input[type="checkbox"]']);
   }
   // Apply input value and fire events
+  function triggerInput(input, value) {
+    if (!input) return false;
+    try {
+      var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      nativeInputValueSetter.call(input, value);
+    } catch (e) {
+      input.value = value;
+    }
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
   function setInputValue(input, value) {
     if (!input) return;
     input.focus();
-    input.value = value;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+    triggerInput(input, value);
   }
   function ensureRememberChecked() {
     var checkbox = getRememberCheckbox();
@@ -108,28 +126,55 @@ class LoginJsInjectionBuilder {
   function autoFill() {
     var user = AUTO_LOGIN_USER;
     var pass = AUTO_LOGIN_PASS;
+    var usernameInput = getUsernameInput();
+    var passwordInput = getPasswordInput();
     if (user && user.length > 0) {
-      setInputValue(getUsernameInput(), user);
+      triggerInput(usernameInput, user);
     }
     if (pass && pass.length > 0) {
-      setInputValue(getPasswordInput(), pass);
+      triggerInput(passwordInput, pass);
     }
-    if (ALLOW_AUTO_LOGIN && user && user.length > 0 && pass && pass.length > 0) {
+    if (ALLOW_AUTO_LOGIN && user && user.length > 0 && pass && pass.length > 0 && usernameInput && passwordInput) {
       ensureRememberChecked();
-      var form = document.querySelector('form');
-      if (form) {
-        form.submit();
-      }
+      if (window.__flynarwhal_autofill_submit_done) return;
+      window.__flynarwhal_autofill_submit_done = true;
+      setTimeout(function() {
+        captureLogin();
+        var btn = document.querySelector('button[type="submit"]');
+        if (btn) {
+          btn.click();
+        } else {
+          var form = document.querySelector('form');
+          if (form) form.submit();
+        }
+      }, 500);
     }
   }
   function injectUI() {
-    if (window.location.href.indexOf('/login') === -1) return;
+    if (window.location.href.indexOf('/login') === -1) {
+      // When not on the login page (e.g. already logged into the NAS home),
+      // periodically attempt to fetch sys/config as a fallback so the signin
+      // redirect is never missed even if the initial status request was too early.
+      fetchSysConfigOnce();
+      // Also check if we are on the signin page and need to auto-click authorize.
+      autoAuthorizeIfNeeded();
+      return;
+    }
     ensureRememberPasswordCheckbox();
     bindSubmit();
     injectUsernameHistory();
-    if (!window.__flynarwhal_autofill_done) {
-      window.__flynarwhal_autofill_done = true;
-      setTimeout(autoFill, 400);
+    if (!window.__flynarwhal_autofill_started) {
+      window.__flynarwhal_autofill_started = true;
+      setTimeout(function() {
+        autoFill();
+        window.__flynarwhal_autofill_interval = setInterval(function() {
+          if (window.__flynarwhal_autofill_submit_done) {
+            clearInterval(window.__flynarwhal_autofill_interval);
+            return;
+          }
+          autoFill();
+        }, 500);
+      }, 1000);
     }
     var usernameInput = getUsernameInput();
     if (usernameInput && !usernameInput.__flynarwhalBound) {
@@ -370,14 +415,23 @@ class LoginJsInjectionBuilder {
   function fetchSysConfigOnce() {
     try {
       if (window.__flynarwhal_sys_config_requested) return;
+      if (window.__flynarwhal_sys_config_in_flight) return;
       if (window.location.href.indexOf('/login') !== -1) return;
-      window.__flynarwhal_sys_config_requested = true;
+      window.__flynarwhal_sys_config_in_flight = true;
       fetch('/v/api/v1/sys/config', { credentials: 'include' })
         .then(function(r) { return r.text(); })
         .then(function(text) {
+          // The in-page fetch lacks the signature header, so the NAS may reject
+          // it ("invalid sign") or return relay HTML. Mark the request as done
+          // only when the body is a valid sys/config; otherwise allow retries
+          // and let the native side re-fetch with a signed request.
+          var isValidSysConfig = text && text.indexOf('nas_oauth') !== -1 && text.indexOf('app_id') !== -1;
+          window.__flynarwhal_sys_config_in_flight = false;
+          window.__flynarwhal_sys_config_requested = isValidSysConfig;
           var payload = {
             type: 'SysConfig',
-            url: '/v/api/v1/sys/config',
+            url: window.location.origin + '/v/api/v1/sys/config',
+            validSysConfig: isValidSysConfig,
             body: text || '',
             cookie: document.cookie || '',
             pageUrl: window.location.href || ''
@@ -385,9 +439,11 @@ class LoginJsInjectionBuilder {
           callNative('LogNetwork', JSON.stringify(payload));
         })
         .catch(function() {
+          window.__flynarwhal_sys_config_in_flight = false;
           window.__flynarwhal_sys_config_requested = false;
         });
     } catch (e) {
+      window.__flynarwhal_sys_config_in_flight = false;
       window.__flynarwhal_sys_config_requested = false;
     }
   }

@@ -8,6 +8,7 @@ class HistorySidebar extends StatelessWidget {
   static const Color _textPrimary = Color(0xFFE6E8EC);
   static const Color _textSecondary = Color(0xFF9BA0A6);
   static const double _headerActionWidth = 40.0;
+  static const Color _accentColor = Color(0xFF3A7BFF);
 
   final List<LoginHistory> historyList;
   final VoidCallback onDismiss;
@@ -102,9 +103,36 @@ class HistorySidebar extends StatelessWidget {
                           child: MouseRegion(
                             cursor: SystemMouseCursors.click,
                             child: ListTile(
-                              title: Text(
-                                history.username,
-                                style: const TextStyle(color: _textPrimary),
+                              title: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      history.username,
+                                      style: const TextStyle(color: _textPrimary),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (history.isNasLogin) ...[
+                                    const SizedBox(width: 8),
+                                    GlassContainer(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 1,
+                                      ),
+                                      shape: const LiquidRoundedSuperellipse(
+                                        borderRadius: 50,
+                                      ),
+                                      child: const Text(
+                                        'NAS',
+                                        style: TextStyle(
+                                          color: _accentColor,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                               subtitle: Text(
                                 history.getEndpoint(),

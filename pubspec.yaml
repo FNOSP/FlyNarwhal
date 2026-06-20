@@ -48,7 +48,7 @@ dependencies:
   crypto: ^3.0.7
   cryptography: ^2.7.0
   flutter_inappwebview: ^6.1.5
-  webview_windows: ^0.4.0
+
   
   # Video Player
   media_kit: ^1.1.10
