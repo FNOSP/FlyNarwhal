@@ -1,10 +1,13 @@
+import 'dart:io' show Platform;
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../../data/models/login_history.dart';
 
 class HistorySidebar extends StatelessWidget {
   static const Color _textPrimary = Color(0xFFE6E8EC);
   static const Color _textSecondary = Color(0xFF9BA0A6);
+  static const double _headerActionWidth = 40.0;
 
   final List<LoginHistory> historyList;
   final VoidCallback onDismiss;
@@ -21,6 +24,8 @@ class HistorySidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMacOS = !kIsWeb && Platform.isMacOS;
+
     return GlassContainer(
       width: 300,
       shape: const LiquidRoundedSuperellipse(borderRadius: 12),
@@ -28,26 +33,52 @@ class HistorySidebar extends StatelessWidget {
       child: Column(
         children: [
           // Header row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '登录历史',
-                style: TextStyle(
-                  color: _textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+          if (isMacOS)
+            Row(
+              children: [
+                const SizedBox(width: _headerActionWidth),
+                const Expanded(
+                  child: Center(
+                    child: Text(
+                      '登录历史',
+                      style: TextStyle(
+                        color: _textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: IconButton(
-                  icon: const Icon(FluentIcons.chrome_close, size: 18),
-                  onPressed: onDismiss,
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: IconButton(
+                    icon: const Icon(FluentIcons.chrome_close, size: 18),
+                    onPressed: onDismiss,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '登录历史',
+                  style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: IconButton(
+                    icon: const Icon(FluentIcons.chrome_close, size: 18),
+                    onPressed: onDismiss,
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           // History list
           Expanded(
