@@ -134,6 +134,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isPipTransitioning = false;
   Timer? _pipBoundsSaveTimer;
   Timer? _pipIdleTimer;
+  bool? _lastMacOSWindowButtonsVisibility;
+  bool? _pendingMacOSWindowButtonsVisibility;
+  bool _pendingMacOSWindowButtonsForce = false;
+  bool _macOSWindowButtonsSyncQueued = false;
   static const Duration _pipIdleHideDuration = Duration(seconds: 3);
   AnimationController? _pipTransitionController;
 
@@ -168,6 +172,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _syncPlaybackTargetsFromWidget();
     unawaited(_ensureSubtitleLanguageMapsLoaded());
     _initializePlayer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_isMacOS) {
+        return;
+      }
+      final overlayVisible =
+          ref.read(playerOverlayControllerProvider).isUiVisible;
+      _scheduleMacOSWindowButtonsSync(
+        visible: overlayVisible,
+        force: true,
+      );
+    });
   }
 
   @override
@@ -1242,6 +1257,70 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _overlayController.showUi(isPlaying: _isPlaying);
   }
 
+  Future<void> _syncMacOSWindowButtonsVisibility({
+    required bool visible,
+    bool force = false,
+  }) async {
+    if (!_isMacOS) {
+      return;
+    }
+    final effectiveVisibility = _isPipMode ? false : visible;
+    if (!force && _lastMacOSWindowButtonsVisibility == effectiveVisibility) {
+      return;
+    }
+    try {
+      await windowManager.setTitleBarStyle(
+        TitleBarStyle.hidden,
+        windowButtonVisibility: effectiveVisibility,
+      );
+      _lastMacOSWindowButtonsVisibility = effectiveVisibility;
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message:
+            'sync macOS window buttons visibility failed: $effectiveVisibility',
+      );
+    }
+  }
+
+  void _scheduleMacOSWindowButtonsSync({
+    required bool visible,
+    bool force = false,
+  }) {
+    if (!_isMacOS) {
+      return;
+    }
+    final effectiveVisibility = _isPipMode ? false : visible;
+    if (!force &&
+        _lastMacOSWindowButtonsVisibility == effectiveVisibility &&
+        _pendingMacOSWindowButtonsVisibility == null) {
+      return;
+    }
+    _pendingMacOSWindowButtonsVisibility = effectiveVisibility;
+    _pendingMacOSWindowButtonsForce =
+        _pendingMacOSWindowButtonsForce || force;
+    if (_macOSWindowButtonsSyncQueued) {
+      return;
+    }
+    _macOSWindowButtonsSyncQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _macOSWindowButtonsSyncQueued = false;
+      final pendingVisibility = _pendingMacOSWindowButtonsVisibility;
+      final pendingForce = _pendingMacOSWindowButtonsForce;
+      _pendingMacOSWindowButtonsVisibility = null;
+      _pendingMacOSWindowButtonsForce = false;
+      if (!mounted || pendingVisibility == null) {
+        return;
+      }
+      unawaited(_syncMacOSWindowButtonsVisibility(
+        visible: pendingVisibility,
+        force: pendingForce,
+      ));
+    });
+  }
+
   // Reveals the PiP control overlay and (re)starts the idle hide timer.
   void _showPipControls() {
     if (!_isPipMode) {
@@ -1493,6 +1572,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isPipHovered = false;
       });
       _pipTransitionController?.reverse(from: 1);
+      _scheduleMacOSWindowButtonsSync(
+        visible: ref.read(playerOverlayControllerProvider).isUiVisible,
+        force: true,
+      );
     } catch (error, stackTrace) {
       AppTalker.error(
         'Player',
@@ -1785,6 +1868,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // Restore the host window before leaving the fullscreen player route.
     await _restoreWindowModeBeforeLeave();
+    unawaited(_syncMacOSWindowButtonsVisibility(visible: true, force: true));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -1802,6 +1886,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (_pipController.isPipMode) {
         unawaited(_pipController.exit());
       }
+    }
+    if (!_pipController.isPipMode) {
+      unawaited(_syncMacOSWindowButtonsVisibility(visible: true, force: true));
     }
     _pipBoundsSaveTimer?.cancel();
     _pipIdleTimer?.cancel();
@@ -1822,6 +1909,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Widget build(BuildContext context) {
     final subtitleSettings = ref.watch(subtitleSettingsProvider);
     final overlayState = ref.watch(playerOverlayControllerProvider);
+    _scheduleMacOSWindowButtonsSync(
+      visible: overlayState.isUiVisible,
+    );
     final pipTransition = _pipTransitionController;
     final playerStack = Stack(
       children: [
