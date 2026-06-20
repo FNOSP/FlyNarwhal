@@ -114,20 +114,32 @@ class HistorySidebar extends StatelessWidget {
                                   ),
                                   if (history.isNasLogin) ...[
                                     const SizedBox(width: 8),
-                                    GlassContainer(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 1,
+                                    const GlassContainer(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 8,
                                       ),
-                                      shape: const LiquidRoundedSuperellipse(
+                                      shape: LiquidRoundedSuperellipse(
                                         borderRadius: 50,
                                       ),
-                                      child: const Text(
-                                        'NAS',
-                                        style: TextStyle(
-                                          color: _accentColor,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
+                                      // Keep the badge label visually centered.
+                                      child: SizedBox(
+                                        height: 18,
+                                        child: Center(
+                                          child: Text(
+                                            'NAS',
+                                            textAlign: TextAlign.center,
+                                            strutStyle: StrutStyle(
+                                              fontSize: 11,
+                                              height: 1,
+                                              forceStrutHeight: true,
+                                            ),
+                                            style: TextStyle(
+                                              color: _accentColor,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              height: 1,
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),

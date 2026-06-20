@@ -1,16 +1,18 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' as material;
-import 'package:flutter/services.dart' show FilteringTextInputFormatter, TextInputFormatter;
+import 'package:flutter/services.dart'
+    show FilteringTextInputFormatter, TextInputFormatter;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:window_manager/window_manager.dart' hide WindowCaption;
 
 import '../../../core/network/dio_client.dart';
 import '../../../core/utils/log/app_talker.dart';
@@ -30,7 +32,7 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
   static const Color _primaryBlue = Color(0xFF3A7BFF);
   static const Color _hintColor = Color(0xFF9BA0A6);
   static const Color _textColor = Color(0xFFE6E8EC);
@@ -65,6 +67,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    if (_shouldListenWindowClose) {
+      windowManager.addListener(this);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final history = ref.read(loginHistoryNotifierProvider);
       if (history.isNotEmpty) {
@@ -76,6 +81,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
+    if (_shouldListenWindowClose) {
+      windowManager.removeListener(this);
+    }
     _disposeWebView();
     _hostController.dispose();
     _portController.dispose();
@@ -83,6 +91,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _passwordController.dispose();
     _fnIdController.dispose();
     super.dispose();
+  }
+
+  bool get _shouldListenWindowClose {
+    return !kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+  }
+
+  @override
+  void onWindowClose() async {
+    if (kIsWeb) {
+      return;
+    }
+    if (Platform.isMacOS) {
+      await windowManager.hide();
+      return;
+    }
+    if (Platform.isWindows || Platform.isLinux) {
+      await windowManager.destroy();
+    }
   }
 
   void _populateFields(
@@ -240,6 +267,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  Widget _withClickCursor(Widget child) {
+    // Show a pointer cursor for clickable controls on desktop/web platforms.
+    return MouseRegion(cursor: SystemMouseCursors.click, child: child);
+  }
+
   Widget _buildGlassField({
     required TextEditingController controller,
     required String placeholder,
@@ -260,8 +292,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       onSuffixTap: onSuffixTap,
       inputFormatters: inputFormatters,
       textStyle: const TextStyle(color: _textColor, fontSize: 16),
-      placeholderStyle:
-          const TextStyle(color: _hintColor, fontSize: 13),
+      placeholderStyle: const TextStyle(color: _hintColor, fontSize: 13),
       shape: const LiquidRoundedSuperellipse(borderRadius: 10),
     );
   }
@@ -516,7 +547,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final isWindows = !kIsWeb && Platform.isWindows;
     final isLinux = !kIsWeb && Platform.isLinux;
+    final isMacOS = !kIsWeb && Platform.isMacOS;
     final showWindowCaption = isWindows || isLinux;
+    const double kMacOSTrafficLightInset = 80.0;
 
     return ScaffoldPage(
       padding: EdgeInsets.zero,
@@ -557,158 +590,171 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: material.Material(
                       type: material.MaterialType.transparency,
                       child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(
-                          child: SvgPicture.asset(
-                            'assets/images/fnarwhal_login.svg',
-                            width: 174,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Center(
-                          child: Text('Fly Narwhal',
-                              style: TextStyle(color: _hintColor, fontSize: 16)),
-                        ),
-                        const SizedBox(height: 28),
-                        if (_isNasLogin)
-                          _buildGlassField(
-                            controller: _fnIdController,
-                            placeholder: '请输入 IP:Port、域名或 FN ID',
-                            onChanged: (_) => _autoLoginFromHistory = false,
-                            suffixIcon: const Icon(material.Icons.history,
-                                color: _hintColor, size: 20),
-                            onSuffixTap: _toggleHistorySidebar,
-                          )
-                        else
-                          Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: _buildGlassField(
-                                  controller: _hostController,
-                                  placeholder: '请输入 IP、域名或 FN ID',
-                                  onChanged: (_) =>
-                                      _autoLoginFromHistory = false,
-                                  suffixIcon: const Icon(material.Icons.history,
-                                      color: _hintColor, size: 20),
-                                  onSuffixTap: _toggleHistorySidebar,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 1,
-                                child: _buildGlassField(
-                                  controller: _portController,
-                                  placeholder: '端口',
-                                  keyboardType: TextInputType.number,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter
-                                        .digitsOnly,
-                                  ],
-                                  onChanged: (_) =>
-                                      _autoLoginFromHistory = false,
-                                ),
-                              ),
-                            ],
-                          ),
-                        if (!_isNasLogin) ...[
-                          const SizedBox(height: 16),
-                          _buildGlassField(
-                            controller: _usernameController,
-                            placeholder: '用户名',
-                            onChanged: (_) => _autoLoginFromHistory = false,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildGlassField(
-                            controller: _passwordController,
-                            placeholder: '密码',
-                            obscureText: !_passwordVisible,
-                            onChanged: (_) => _autoLoginFromHistory = false,
-                            suffixIcon: Icon(
-                              _passwordVisible
-                                  ? material.Icons.visibility
-                                  : material.Icons.visibility_off,
-                              color: _hintColor,
-                              size: 20,
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Center(
+                            child: SvgPicture.asset(
+                              'assets/images/fnarwhal_login.svg',
+                              width: 174,
                             ),
-                            onSuffixTap: () => setState(
-                                () => _passwordVisible = !_passwordVisible),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 8),
+                          const Center(
+                            child: Text('Fly Narwhal',
+                                style:
+                                    TextStyle(color: _hintColor, fontSize: 16)),
+                          ),
+                          const SizedBox(height: 28),
+                          if (_isNasLogin)
+                            _buildGlassField(
+                              controller: _fnIdController,
+                              placeholder: '请输入 IP:Port、域名或 FN ID',
+                              onChanged: (_) => _autoLoginFromHistory = false,
+                              suffixIcon: const Icon(material.Icons.history,
+                                  color: _hintColor, size: 20),
+                              onSuffixTap: _toggleHistorySidebar,
+                            )
+                          else
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: _buildGlassField(
+                                    controller: _hostController,
+                                    placeholder: '请输入 IP、域名或 FN ID',
+                                    onChanged: (_) =>
+                                        _autoLoginFromHistory = false,
+                                    suffixIcon: const Icon(
+                                        material.Icons.history,
+                                        color: _hintColor,
+                                        size: 20),
+                                    onSuffixTap: _toggleHistorySidebar,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 1,
+                                  child: _buildGlassField(
+                                    controller: _portController,
+                                    placeholder: '端口',
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                    ],
+                                    onChanged: (_) =>
+                                        _autoLoginFromHistory = false,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          if (!_isNasLogin) ...[
+                            const SizedBox(height: 16),
+                            _buildGlassField(
+                              controller: _usernameController,
+                              placeholder: '用户名',
+                              onChanged: (_) => _autoLoginFromHistory = false,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildGlassField(
+                              controller: _passwordController,
+                              placeholder: '密码',
+                              obscureText: !_passwordVisible,
+                              onChanged: (_) => _autoLoginFromHistory = false,
+                              suffixIcon: Icon(
+                                _passwordVisible
+                                    ? material.Icons.visibility
+                                    : material.Icons.visibility_off,
+                                color: _hintColor,
+                                size: 20,
+                              ),
+                              onSuffixTap: () => setState(
+                                  () => _passwordVisible = !_passwordVisible),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                _withClickCursor(
+                                  material.Checkbox(
+                                    value: _rememberPassword,
+                                    onChanged: (v) => setState(() {
+                                      _rememberPassword = v ?? false;
+                                      _autoLoginFromHistory = false;
+                                    }),
+                                    activeColor: _primaryBlue,
+                                  ),
+                                ),
+                                const Expanded(
+                                  child: Text('记住密码',
+                                      style: TextStyle(color: _textColor)),
+                                ),
+                                _withClickCursor(
+                                  material.TextButton(
+                                    onPressed: () {},
+                                    child: const Text('忘记密码'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 6),
                           Row(
                             children: [
-                              material.Checkbox(
-                                value: _rememberPassword,
-                                onChanged: (v) => setState(() {
-                                  _rememberPassword = v ?? false;
-                                  _autoLoginFromHistory = false;
-                                }),
-                                activeColor: _primaryBlue,
-                              ),
                               const Expanded(
-                                child: Text('记住密码',
-                                    style: TextStyle(color: _textColor)),
+                                child: Text('使用 NAS 登录',
+                                    style: TextStyle(color: _hintColor)),
                               ),
-                              material.TextButton(
-                                onPressed: () {},
-                                child: const Text('忘记密码'),
+                              _withClickCursor(
+                                GlassSwitch(
+                                  value: _isNasLogin,
+                                  onChanged: (v) => setState(() {
+                                    _isNasLogin = v;
+                                    _autoLoginFromHistory = false;
+                                  }),
+                                  activeColor: _primaryBlue,
+                                ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: Text('HTTPS 安全访问',
+                                    style: TextStyle(color: _hintColor)),
+                              ),
+                              _withClickCursor(
+                                GlassSwitch(
+                                  value: _isHttps,
+                                  onChanged: (v) =>
+                                      setState(() => _isHttps = v),
+                                  activeColor: _primaryBlue,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          _withClickCursor(
+                            GlassButton.custom(
+                              key: const ValueKey('login-submit'),
+                              onTap: _onLogin,
+                              height: 48,
+                              enabled: !loginState.isLoading,
+                              shape: const LiquidRoundedSuperellipse(
+                                  borderRadius: 10),
+                              child: loginState.isLoading
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: material.CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
+                                  : Text(_isNasLogin ? '下一步' : '登录',
+                                      style: const TextStyle(fontSize: 16)),
+                            ),
                           ),
                         ],
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            const Expanded(
-                              child: Text('使用 NAS 登录',
-                                  style: TextStyle(color: _hintColor)),
-                            ),
-                            GlassSwitch(
-                              value: _isNasLogin,
-                              onChanged: (v) => setState(() {
-                                _isNasLogin = v;
-                                _autoLoginFromHistory = false;
-                              }),
-                              activeColor: _primaryBlue,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            const Expanded(
-                              child: Text('HTTPS 安全访问',
-                                  style: TextStyle(color: _hintColor)),
-                            ),
-                            GlassSwitch(
-                              value: _isHttps,
-                              onChanged: (v) => setState(() => _isHttps = v),
-                              activeColor: _primaryBlue,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        GlassButton.custom(
-                          key: const ValueKey('login-submit'),
-                          onTap: _onLogin,
-                          height: 48,
-                          enabled: !loginState.isLoading,
-                          shape: const LiquidRoundedSuperellipse(
-                              borderRadius: 10),
-                          child: loginState.isLoading
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: material.CircularProgressIndicator(
-                                      strokeWidth: 2),
-                                )
-                              : Text(_isNasLogin ? '下一步' : '登录',
-                                  style: const TextStyle(fontSize: 16)),
-                        ),
-                      ],
-                    ),
+                      ),
                     ),
                   ),
                 ),
@@ -737,7 +783,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             bottom: 0,
             child: ClipRect(
               child: AnimatedSlide(
-                offset: _showHistorySidebar ? Offset.zero : const Offset(-1.0, 0.0),
+                offset:
+                    _showHistorySidebar ? Offset.zero : const Offset(-1.0, 0.0),
                 duration: const Duration(milliseconds: 280),
                 curve: _showHistorySidebar ? Curves.easeOut : Curves.easeIn,
                 child: AnimatedOpacity(
@@ -749,11 +796,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       historyList: history,
                       onDismiss: _hideHistorySidebar,
                       onDelete: (item) {
-                        ref.read(loginHistoryNotifierProvider.notifier).delete(item);
+                        ref
+                            .read(loginHistoryNotifierProvider.notifier)
+                            .delete(item);
                       },
                       onSelect: (item) {
-                        final canAutoLogin =
-                            item.rememberPassword && (item.password ?? '').isNotEmpty;
+                        final canAutoLogin = item.rememberPassword &&
+                            (item.password ?? '').isNotEmpty;
                         _populateFields(
                           item,
                           allowAutoLogin: item.isNasLogin && canAutoLogin,
@@ -788,9 +837,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       alignment: Alignment.centerLeft,
                       child: Row(
                         children: [
-                          MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: Button(
+                          if (isMacOS)
+                            const SizedBox(width: kMacOSTrafficLightInset),
+                          _withClickCursor(
+                            Button(
                               child: const Text('关闭'),
                               onPressed: () {
                                 setState(() {
@@ -808,27 +858,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     Expanded(
                       child: InAppWebView(
-                              initialUrlRequest:
-                                  URLRequest(url: _tryParseWebUri(_fnConnectUrl)),
-                              initialSettings: InAppWebViewSettings(
-                                javaScriptEnabled: true,
-                                incognito: true,
-                                cacheEnabled: false,
-                              ),
-                              onWebViewCreated: (controller) {
-                                _inAppWebViewController = controller;
-                              },
-                              onLoadStop: (controller, url) async {
-                                if (url == null) return;
-                                _handlePageUrl(url.toString());
-                                await _injectInAppWebViewScript(history);
-                              },
-                              onUpdateVisitedHistory:
-                                  (controller, url, _) async {
-                                if (url == null) return;
-                                _handlePageUrl(url.toString());
-                              },
-                            ),
+                        initialUrlRequest:
+                            URLRequest(url: _tryParseWebUri(_fnConnectUrl)),
+                        initialSettings: InAppWebViewSettings(
+                          javaScriptEnabled: true,
+                          incognito: true,
+                          cacheEnabled: false,
+                        ),
+                        onWebViewCreated: (controller) {
+                          _inAppWebViewController = controller;
+                        },
+                        onLoadStop: (controller, url) async {
+                          if (url == null) return;
+                          _handlePageUrl(url.toString());
+                          await _injectInAppWebViewScript(history);
+                        },
+                        onUpdateVisitedHistory: (controller, url, _) async {
+                          if (url == null) return;
+                          _handlePageUrl(url.toString());
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -944,9 +993,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         title: const Text('Error'),
         content: Text(message),
         actions: [
-          Button(
-            child: const Text('OK'),
-            onPressed: () => Navigator.pop(context),
+          _withClickCursor(
+            Button(
+              child: const Text('OK'),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
         ],
       ),
@@ -1072,9 +1123,8 @@ class _NetworkMessageProcessor {
     // rejects it with {"code":5000,"msg":"invalid sign"} or returns the FN
     // Connect relay HTML. In those cases, re-fetch via the native Dio client
     // which injects authx through the AuthInterceptor.
-    final bool jsBodyValid =
-        payload['validSysConfig'] == true ||
-            (body.contains('nas_oauth') && body.contains('app_id'));
+    final bool jsBodyValid = payload['validSysConfig'] == true ||
+        (body.contains('nas_oauth') && body.contains('app_id'));
     if (jsBodyValid) {
       if (body.isEmpty) return;
       await _handleSysConfigBody(baseUrl, body, cookie);
