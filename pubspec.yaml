@@ -9,8 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_driver:
-    sdk: flutter
   cupertino_icons: ^1.0.8
   
   # UI
@@ -65,6 +63,8 @@ dev_dependencies:
   riverpod_generator: ^2.4.0
   json_serializable: ^6.8.0
   mocktail: ^1.0.0
+  flutter_driver:
+    sdk: flutter
 
 flutter:
   uses-material-design: true
