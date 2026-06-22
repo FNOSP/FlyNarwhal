@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/providers.dart';
@@ -121,17 +123,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             heading: const Text('退出登录'),
                             caption: const Text('退出当前账号'),
                             onPressed: () async {
-                              // Best-effort server-side logout while credentials are still valid.
-                              // Mirrors KMP LoginStateManager.logout(): fire logout API, do not block on result.
-                              try {
-                                final dataSource =
-                                    ref.read(userRemoteDataSourceProvider);
-                                await dataSource.logout();
-                              } catch (_) {
-                                // Ignore logout API failure; local logout must still proceed.
-                              }
+                              final dataSource =
+                                  ref.read(userRemoteDataSourceProvider);
+                              unawaited(
+                                dataSource.logout().then(
+                                      (_) {},
+                                      onError: (_) {},
+                                    ),
+                              );
 
-                              // Reuse the shared session invalidation flow.
                               await ref
                                   .read(sessionStateControllerProvider)
                                   .invalidateSession();

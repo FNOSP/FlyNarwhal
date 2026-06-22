@@ -1,8 +1,6 @@
-﻿import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../core/constants/app_constants.dart';
-import '../core/network/api_result.dart';
 import '../core/network/dio_client.dart';
 import '../core/utils/log/app_talker.dart';
 import '../data/datasources/remote/media_remote_data_source.dart';
@@ -44,7 +42,8 @@ final sessionStateControllerProvider = Provider<SessionStateController>((ref) {
 });
 
 final lastNavigationKeyProvider = StateProvider<String?>((ref) => null);
-final navigationStackProvider = StateNotifierProvider<NavigationStackNotifier, List<String>>(
+final navigationStackProvider =
+    StateNotifierProvider<NavigationStackNotifier, List<String>>(
   (ref) => NavigationStackNotifier(),
 );
 
@@ -118,7 +117,8 @@ class SettingsState {
     return SettingsState(
       followSystemTheme: followSystemTheme ?? this.followSystemTheme,
       darkMode: darkMode ?? this.darkMode,
-      navigationDisplayMode: navigationDisplayMode ?? this.navigationDisplayMode,
+      navigationDisplayMode:
+          navigationDisplayMode ?? this.navigationDisplayMode,
     );
   }
 }
@@ -149,7 +149,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   }
 }
 
-final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
+final settingsProvider =
+    StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
   final prefs = ref.watch(preferencesManagerProvider);
   return SettingsNotifier(prefs);
 });
@@ -166,8 +167,10 @@ class UserInfoNotifier extends StateNotifier<AsyncValue<UserInfo?>> {
   Future<void> loadUserInfo({bool force = false}) async {
     final token = _prefs.getToken();
     final baseUrl = _prefs.getBaseUrl();
-    final isLoggedIn =
-        token != null && token.isNotEmpty && baseUrl != null && baseUrl.isNotEmpty;
+    final isLoggedIn = token != null &&
+        token.isNotEmpty &&
+        baseUrl != null &&
+        baseUrl.isNotEmpty;
     if (!isLoggedIn) {
       state = const AsyncValue.data(null);
       return;
@@ -186,14 +189,11 @@ class UserInfoNotifier extends StateNotifier<AsyncValue<UserInfo?>> {
     try {
       final result = await _dataSource.getUserInfo();
       state = AsyncValue.data(result.getOrThrow());
-    } catch (error, stackTrace) {
-      // Treat explicit unauthorized responses as a local logout signal.
-      if (_isUnauthorizedFailure(error)) {
-        await _invalidateSession();
-        state = const AsyncValue.data(null);
-        return;
-      }
-      state = AsyncValue.error(error, stackTrace);
+    } catch (_) {
+      // Any user-info failure invalidates the local session and returns to login,
+      // mirroring KMP LoginStateManager behavior.
+      await _invalidateSession();
+      state = const AsyncValue.data(null);
     }
   }
 
@@ -201,23 +201,18 @@ class UserInfoNotifier extends StateNotifier<AsyncValue<UserInfo?>> {
   void clear() {
     state = const AsyncValue.data(null);
   }
-
-  // Only explicit auth failures should invalidate the local session.
-  bool _isUnauthorizedFailure(Object error) {
-    return error is FailureInfo && error.code == ResponseCodes.unauthorized;
-  }
 }
 
 final userInfoProvider =
     StateNotifierProvider<UserInfoNotifier, AsyncValue<UserInfo?>>((ref) {
-      final prefs = ref.watch(preferencesManagerProvider);
-      final dataSource = ref.watch(userRemoteDataSourceProvider);
-      return UserInfoNotifier(
-        prefs,
-        dataSource,
-        ref.read(sessionStateControllerProvider).invalidateSession,
-      );
-    });
+  final prefs = ref.watch(preferencesManagerProvider);
+  final dataSource = ref.watch(userRemoteDataSourceProvider);
+  return UserInfoNotifier(
+    prefs,
+    dataSource,
+    ref.read(sessionStateControllerProvider).invalidateSession,
+  );
+});
 
 final imageCacheManagerProvider = Provider<CacheManager>((ref) {
   const maxCacheBytes = 300 * 1024 * 1024;
