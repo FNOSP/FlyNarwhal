@@ -23,15 +23,18 @@ class FavoritesScreen extends ConsumerStatefulWidget {
 
 class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   static const String _globalRefreshConsumerId = 'favorites-screen';
+  static const Duration _tabSwitchAnimationDuration =
+      Duration(milliseconds: 300);
 
   String _selectedTab = favoritesTabs.first;
   int _selectedTabIndex = 0;
   int _tabSwitchDirection = 1;
   bool _enableTabAnimation = false;
   bool _isFilterOpen = false;
+  Timer? _tabAnimationTimer;
 
   late final ToastManager _toastManager = ToastManager();
-  late final ScrollController _scrollController = ScrollController();
+  final Map<String, ScrollController> _scrollControllers = {};
   final Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
   final Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
 
@@ -43,15 +46,44 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _tabAnimationTimer?.cancel();
+    for (final controller in _scrollControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
+  void _enableOneShotTabAnimation() {
+    _tabAnimationTimer?.cancel();
+    _enableTabAnimation = true;
+    _tabAnimationTimer = Timer(_tabSwitchAnimationDuration, () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _enableTabAnimation = false;
+      });
+    });
+  }
+
+  void _disableTabAnimation() {
+    _tabAnimationTimer?.cancel();
+    _tabAnimationTimer = null;
+    _enableTabAnimation = false;
+  }
+
+  ScrollController _getScrollController(String cacheKey) {
+    return _scrollControllers.putIfAbsent(cacheKey, ScrollController.new);
+  }
+
   Future<void> _scrollToTop() async {
-    if (!_scrollController.hasClients) {
+    final scrollController = _getScrollController(
+      ref.read(favoritesBrowseNotifierProvider).query.selectedCacheKey,
+    );
+    if (!scrollController.hasClients) {
       return;
     }
-    await _scrollController.animateTo(
+    await scrollController.animateTo(
       0,
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
@@ -65,6 +97,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     }
 
     setState(() {
+      _disableTabAnimation();
       _isFilterOpen = false;
     });
     await _scrollToTop();
@@ -184,6 +217,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     final items = favoritesState.items;
     final selectedFilters = favoritesState.query.selectedFilters;
     final headerTitle = favoritesState.mdbName ?? '收藏';
+    final selectedCacheKey = favoritesState.query.selectedCacheKey;
+    final scrollController = _getScrollController(selectedCacheKey);
 
     return ScaffoldPage(
       header: PageHeader(title: Text(headerTitle)),
@@ -220,7 +255,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 }
                                 final nextIndex = favoritesTabs.indexOf(tab);
                                 setState(() {
-                                  _enableTabAnimation = true;
+                                  _enableOneShotTabAnimation();
                                   _tabSwitchDirection =
                                       nextIndex >= _selectedTabIndex ? 1 : -1;
                                   _selectedTabIndex = nextIndex;
@@ -303,7 +338,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     return ClipRect(
                       child: SizeTransition(
                         sizeFactor: animation,
-                        axisAlignment: -1.0,
+                        alignment: AlignmentDirectional.topCenter,
                         child: FadeTransition(opacity: animation, child: child),
                       ),
                     );
@@ -330,7 +365,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: _enableTabAnimation
-                        ? const Duration(milliseconds: 300)
+                        ? _tabSwitchAnimationDuration
                         : Duration.zero,
                     switchInCurve: Curves.easeOut,
                     switchOutCurve: Curves.easeIn,
@@ -341,7 +376,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         reverseCurve: Curves.easeIn,
                       );
                       final isCurrent = child.key ==
-                              ValueKey('favorites-grid-$_selectedTab') ||
+                              ValueKey('favorites-grid-$selectedCacheKey') ||
                           child.key ==
                               ValueKey('favorites-loading-$_selectedTab') ||
                           child.key == const ValueKey('favorites-empty');
@@ -384,8 +419,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 ),
                               )
                             : GridView.builder(
-                                key: ValueKey('favorites-grid-$_selectedTab'),
-                                controller: _scrollController,
+                                key: ValueKey('favorites-grid-$selectedCacheKey'),
+                                controller: scrollController,
                                 padding: EdgeInsets.all(16 * scaleFactor),
                                 gridDelegate:
                                     SliverGridDelegateWithMaxCrossAxisExtent(
