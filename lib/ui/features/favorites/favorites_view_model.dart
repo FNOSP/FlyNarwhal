@@ -165,6 +165,7 @@ String buildFavoritesCacheKey(
 @riverpod
 class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
   int _selectedRequestSerial = 0;
+  int _backgroundWarmSerial = 0;
 
   @override
   FavoritesBrowseState build() {
@@ -174,6 +175,7 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
   }
 
   Future<void> switchTab(String tab) async {
+    _backgroundWarmSerial++;
     final nextQuery = state.query.copyWith(
       selectedTab: tab,
       selectedFilters: const <String, FilterItem>{},
@@ -188,6 +190,7 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
   }
 
   Future<void> applyFilters(Map<String, FilterItem> filters) async {
+    _backgroundWarmSerial++;
     final nextQuery = state.query.copyWith(selectedFilters: filters);
     state = state.copyWith(
       query: nextQuery,
@@ -223,6 +226,7 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
     if (sortColumn == state.query.sortColumn) {
       return;
     }
+    _backgroundWarmSerial++;
     final nextQuery = state.query.copyWith(sortColumn: sortColumn);
     state = state.copyWith(
       query: nextQuery,
@@ -237,6 +241,7 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
     if (sortOrder == state.query.sortOrder) {
       return;
     }
+    _backgroundWarmSerial++;
     final nextQuery = state.query.copyWith(sortOrder: sortOrder);
     state = state.copyWith(
       query: nextQuery,
@@ -248,6 +253,7 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
   }
 
   Future<void> refreshAll({bool resetFilters = false}) async {
+    final warmSerial = ++_backgroundWarmSerial;
     var nextQuery = state.query;
     if (resetFilters) {
       nextQuery =
@@ -262,11 +268,26 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
       isLoadingMore: false,
     );
     await _loadMetadata(force: true);
-    await _warmAllTabs(force: true);
+    if (warmSerial != _backgroundWarmSerial) {
+      return;
+    }
+    await _loadSelectedPage(page: 1, force: true);
+    if (warmSerial != _backgroundWarmSerial ||
+        state.query.selectedCacheKey != nextQuery.selectedCacheKey) {
+      return;
+    }
     state = state.copyWith(isInitializing: false, isRefreshingSelected: false);
+    unawaited(
+      _warmRemainingTabs(
+        force: true,
+        baseQuery: nextQuery,
+        warmSerial: warmSerial,
+      ),
+    );
   }
 
   Future<void> refreshCurrent() async {
+    _backgroundWarmSerial++;
     state = state.copyWith(isRefreshingSelected: true, isLoadingMore: false);
     await _loadSelectedPage(page: 1, force: true);
     state = state.copyWith(isRefreshingSelected: false);
@@ -390,6 +411,31 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
     }
   }
 
+  Future<void> _warmRemainingTabs({
+    required bool force,
+    required FavoritesBrowseQuery baseQuery,
+    required int warmSerial,
+  }) async {
+    for (final tab
+        in favoritesTabs.where((tab) => tab != baseQuery.selectedTab)) {
+      if (warmSerial != _backgroundWarmSerial) {
+        return;
+      }
+      final query = baseQuery.copyWith(
+        selectedTab: tab,
+        selectedFilters: const <String, FilterItem>{},
+      );
+      await _fetchFavoritePage(
+        query: query,
+        page: 1,
+        force: force,
+        append: false,
+        updateSelected: false,
+        warmSerial: warmSerial,
+      );
+    }
+  }
+
   Future<void> _loadSelectedPage({
     required int page,
     required bool force,
@@ -409,10 +455,14 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
     required bool force,
     required bool append,
     required bool updateSelected,
+    int? warmSerial,
   }) async {
     final remote = ref.read(mediaRemoteDataSourceProvider);
     final cacheKey = query.selectedCacheKey;
     final cached = state.cacheEntries[cacheKey];
+    if (warmSerial != null && warmSerial != _backgroundWarmSerial) {
+      return;
+    }
     if (!force && page == 1 && cached != null) {
       if (updateSelected) {
         state = state.copyWith(
@@ -437,6 +487,9 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
         ),
       );
       final data = result.getOrThrow();
+      if (warmSerial != null && warmSerial != _backgroundWarmSerial) {
+        return;
+      }
       final currentCacheEntries =
           Map<String, FavoritesCacheEntry>.from(state.cacheEntries);
       final existing = currentCacheEntries[cacheKey];
@@ -464,6 +517,9 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
         isLoadingMore: false,
       );
     } catch (_) {
+      if (warmSerial != null && warmSerial != _backgroundWarmSerial) {
+        return;
+      }
       state = state.copyWith(
         isRefreshingSelected:
             updateSelected ? false : state.isRefreshingSelected,

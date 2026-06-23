@@ -370,6 +370,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     switchInCurve: Curves.easeOut,
                     switchOutCurve: Curves.easeIn,
                     transitionBuilder: (child, animation) {
+                      if (!_enableTabAnimation) {
+                        return child;
+                      }
                       final curved = CurvedAnimation(
                         parent: animation,
                         curve: Curves.easeOut,
@@ -419,7 +422,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 ),
                               )
                             : GridView.builder(
-                                key: ValueKey('favorites-grid-$selectedCacheKey'),
+                                key: ValueKey(
+                                    'favorites-grid-$selectedCacheKey'),
                                 controller: scrollController,
                                 padding: EdgeInsets.all(16 * scaleFactor),
                                 gridDelegate:
