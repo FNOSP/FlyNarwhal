@@ -9,6 +9,7 @@ import '../features/settings/settings_screen.dart';
 import '../features/movie_detail/movie_detail_screen.dart';
 import '../features/tv_detail/tv_detail_screen.dart';
 import '../features/tv_detail/tv_season_detail_screen.dart';
+import '../features/person_detail/person_detail_screen.dart';
 import '../features/player/player_screen.dart';
 import '../../core/utils/log/app_talker.dart';
 import '../../providers/providers.dart';
@@ -86,6 +87,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/tv/season/:guid',
             builder: (context, state) => TvSeasonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
+          ),
+          GoRoute(
+            path: '/person/:guid',
+            builder: (context, state) => PersonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
         ],
       ),

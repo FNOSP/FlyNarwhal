@@ -8,6 +8,7 @@ import '../../models/episode_list_response.dart';
 import '../../models/home_models.dart';
 import '../../models/media_request_models.dart';
 import '../../models/movie_detail_models.dart';
+import '../../models/person_models.dart';
 import '../../models/player_models.dart';
 import '../../models/season_list_response.dart';
 
@@ -190,6 +191,41 @@ class MediaRemoteDataSource {
   Future<ApiResult<String>> downloadExternalSubtitle(String guid) async {
     final result = await _dioClient.get<String>(
       ApiEndpoints.subtitleDownloadByGuid(guid),
+    );
+    return result;
+  }
+
+  /// Search media items by keyword (GET /v/api/v1/search/list?q=)
+  Future<ApiResult<List<MediaItem>>> search(String query) async {
+    final result = await _dioClient.get<List<MediaItem>>(
+      ApiEndpoints.searchList,
+      queryParameters: {'q': query},
+      converter: (data) => _parseSearchResponse(data),
+    );
+    return result;
+  }
+
+  /// Get person detail by guid (GET /v/api/v1/person/{guid})
+  Future<ApiResult<PersonResponse>> getPerson(String guid) async {
+    final key = 'person:$guid';
+    final cached = _cache.get(key);
+    if (cached is ApiResult<PersonResponse>) return cached;
+    final result = await _dioClient.get<PersonResponse>(
+      ApiEndpoints.personByGuid(guid),
+      converter: (data) => _parsePersonResponse(data),
+    );
+    if (result.isSuccess) _cache.set(key, result);
+    return result;
+  }
+
+  /// Get person works grouped by job (POST /v/api/v1/person/item/list)
+  Future<ApiResult<List<PersonItemList>>> getPersonItemList(
+    PersonItemListRequest request,
+  ) async {
+    final result = await _dioClient.post<List<PersonItemList>>(
+      ApiEndpoints.personItemList,
+      data: request.toJson(),
+      converter: (data) => _parsePersonItemListResponse(data),
     );
     return result;
   }
@@ -536,6 +572,43 @@ class MediaRemoteDataSource {
       throw Exception(baseResponse.msg);
     }
     return baseResponse.data!;
+  }
+
+  List<MediaItem> _parseSearchResponse(dynamic data) {
+    final baseResponse = FnBaseResponse<List<MediaItem>>.fromJson(
+      data,
+      (json) => ((json as List<dynamic>?) ?? const <dynamic>[])
+          .map((e) => MediaItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+    if (baseResponse.code != ResponseCodes.success) {
+      throw Exception(baseResponse.msg);
+    }
+    return baseResponse.data ?? const <MediaItem>[];
+  }
+
+  PersonResponse _parsePersonResponse(dynamic data) {
+    final baseResponse = FnBaseResponse<PersonResponse>.fromJson(
+      data,
+      (json) => PersonResponse.fromJson(json as Map<String, dynamic>),
+    );
+    if (baseResponse.code != ResponseCodes.success ||
+        baseResponse.data == null) {
+      throw Exception(baseResponse.msg);
+    }
+    return baseResponse.data!;
+  }
+
+  List<PersonItemList> _parsePersonItemListResponse(dynamic data) {
+    final baseResponse = FnBaseResponse<PersonItemListQueryResponse>.fromJson(
+      data,
+      (json) => PersonItemListQueryResponse.fromJson(
+          json as Map<String, dynamic>),
+    );
+    if (baseResponse.code != ResponseCodes.success) {
+      throw Exception(baseResponse.msg);
+    }
+    return baseResponse.data?.list ?? const <PersonItemList>[];
   }
 
   List<PersonList> _parsePersonListResponse(dynamic data) {

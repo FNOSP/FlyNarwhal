@@ -9,6 +9,7 @@ const double kWindowTitleBarHeight = 48.0;
 
 class WindowCaption extends StatefulWidget {
   final Widget? title;
+  final Widget? center;
   final Color? backgroundColor;
   final Brightness? brightness;
   final bool showRefreshAction;
@@ -17,6 +18,7 @@ class WindowCaption extends StatefulWidget {
   const WindowCaption({
     super.key,
     this.title,
+    this.center,
     this.backgroundColor,
     this.brightness,
     this.showRefreshAction = false,
@@ -49,68 +51,78 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
     return Container(
       height: kWindowTitleBarHeight,
       color: backgroundColor,
-      child: Row(
+      child: Stack(
         children: [
-          Expanded(
-            child: DragToMoveArea(
-              child: Container(
-                height: double.infinity,
-                padding: const EdgeInsets.only(left: 16),
-                alignment: Alignment.centerLeft,
-                child: DefaultTextStyle(
-                  style: TextStyle(
-                    color: isDark
-                        ? Colors.white
-                        : Colors.black.withValues(alpha: 0.8956),
-                    fontSize: 14,
+          Row(
+            children: [
+              Expanded(
+                child: DragToMoveArea(
+                  child: Container(
+                    height: double.infinity,
+                    padding: const EdgeInsets.only(left: 16),
+                    alignment: Alignment.centerLeft,
+                    child: DefaultTextStyle(
+                      style: TextStyle(
+                        color: isDark
+                            ? Colors.white
+                            : Colors.black.withValues(alpha: 0.8956),
+                        fontSize: 14,
+                      ),
+                      child: widget.title ?? const SizedBox.shrink(),
+                    ),
                   ),
-                  child: widget.title ?? const SizedBox.shrink(),
                 ),
               ),
-            ),
-          ),
-          if (widget.showRefreshAction)
-            WindowCaptionRefreshButton(
-              key: const ValueKey('window-caption-refresh-button'),
-              brightness: widget.brightness,
-              onPressed: widget.onRefreshPressed,
-            ),
-          if (_shouldShowWindowButtons()) ...[
-            WindowCaptionButton.minimize(
-              key: const ValueKey('window-caption-minimize-button'),
-              brightness: widget.brightness,
-              onPressed: () async {
-                final isMinimized = await windowManager.isMinimized();
-                if (isMinimized) {
-                  windowManager.restore();
-                } else {
-                  windowManager.minimize();
-                }
-              },
-            ),
-            FutureBuilder<bool>(
-              future: windowManager.isMaximized(),
-              builder: (context, snapshot) {
-                if (snapshot.data == true) {
-                  return WindowCaptionButton.unmaximize(
-                    key: const ValueKey('window-caption-unmaximize-button'),
-                    brightness: widget.brightness,
-                    onPressed: () => windowManager.unmaximize(),
-                  );
-                }
-                return WindowCaptionButton.maximize(
-                  key: const ValueKey('window-caption-maximize-button'),
+              if (widget.showRefreshAction)
+                WindowCaptionRefreshButton(
+                  key: const ValueKey('window-caption-refresh-button'),
                   brightness: widget.brightness,
-                  onPressed: () => windowManager.maximize(),
-                );
-              },
+                  onPressed: widget.onRefreshPressed,
+                ),
+              if (_shouldShowWindowButtons()) ...[
+                WindowCaptionButton.minimize(
+                  key: const ValueKey('window-caption-minimize-button'),
+                  brightness: widget.brightness,
+                  onPressed: () async {
+                    final isMinimized = await windowManager.isMinimized();
+                    if (isMinimized) {
+                      windowManager.restore();
+                    } else {
+                      windowManager.minimize();
+                    }
+                  },
+                ),
+                FutureBuilder<bool>(
+                  future: windowManager.isMaximized(),
+                  builder: (context, snapshot) {
+                    if (snapshot.data == true) {
+                      return WindowCaptionButton.unmaximize(
+                        key: const ValueKey('window-caption-unmaximize-button'),
+                        brightness: widget.brightness,
+                        onPressed: () => windowManager.unmaximize(),
+                      );
+                    }
+                    return WindowCaptionButton.maximize(
+                      key: const ValueKey('window-caption-maximize-button'),
+                      brightness: widget.brightness,
+                      onPressed: () => windowManager.maximize(),
+                    );
+                  },
+                ),
+                WindowCaptionButton.close(
+                  key: const ValueKey('window-caption-close-button'),
+                  brightness: widget.brightness,
+                  onPressed: () => windowManager.close(),
+                ),
+              ],
+            ],
+          ),
+          // Centered content (e.g. search box) overlaid on the caption.
+          if (widget.center != null)
+            Align(
+              alignment: Alignment.center,
+              child: widget.center!,
             ),
-            WindowCaptionButton.close(
-              key: const ValueKey('window-caption-close-button'),
-              brightness: widget.brightness,
-              onPressed: () => windowManager.close(),
-            ),
-          ],
         ],
       ),
     );

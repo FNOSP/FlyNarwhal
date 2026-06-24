@@ -82,6 +82,11 @@ class MediaItem {
   @JsonKey(name: 'ancestor_category')
   final String? ancestorCategory;
   final int? duration;
+  // Genre id list, mapped to text via tag/genres endpoint
+  final List<int>? genres;
+  // Number of works for a person result
+  @JsonKey(name: 'number_of_item')
+  final int? numberOfItem;
 
   MediaItem({
     required this.guid,
@@ -110,6 +115,8 @@ class MediaItem {
     this.ancestorName,
     this.ancestorCategory,
     this.duration,
+    this.genres,
+    this.numberOfItem,
   });
 
   factory MediaItem.fromJson(Map<String, dynamic> json) => _$MediaItemFromJson(json);

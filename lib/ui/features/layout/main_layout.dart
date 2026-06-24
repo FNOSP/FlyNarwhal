@@ -11,6 +11,7 @@ import '../../../providers/providers.dart';
 import '../../../providers/global_refresh.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/window_caption.dart';
+import '../search/widgets/capsule_search_box.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -409,39 +410,41 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
           Container(
             height: kWindowTitleBarHeight,
             color: theme.resources.solidBackgroundFillColorBase,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Stack(
               children: [
-                const SizedBox(
-                  width: kTrafficLightLeftPadding +
-                      kTrafficLightAreaWidth -
-                      kRefreshButtonLeftOffset,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(
+                      width: kTrafficLightLeftPadding +
+                          kTrafficLightAreaWidth -
+                          kRefreshButtonLeftOffset,
+                    ),
+                    if (titleBarRefreshVisibility.shouldShowRefreshAction)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                            top: kRefreshButtonTopPadding),
+                        child: WindowCaptionRefreshButton.compact(
+                          key: const ValueKey(
+                              'macos-window-caption-refresh-button'),
+                          brightness:
+                              isDark ? Brightness.dark : Brightness.light,
+                          onPressed: triggerWindowRefresh,
+                        ),
+                      ),
+                    Expanded(
+                      child: DragToMoveArea(
+                        child: Container(
+                          height: 28.0,
+                          alignment: Alignment.centerLeft,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                if (titleBarRefreshVisibility.shouldShowRefreshAction)
-                  Padding(
-                    padding:
-                        const EdgeInsets.only(top: kRefreshButtonTopPadding),
-                    child: WindowCaptionRefreshButton.compact(
-                      key:
-                          const ValueKey('macos-window-caption-refresh-button'),
-                      brightness: isDark ? Brightness.dark : Brightness.light,
-                      onPressed: triggerWindowRefresh,
-                    ),
-                  ),
-                Expanded(
-                  child: DragToMoveArea(
-                    child: Container(
-                      height: 28.0,
-                      alignment: Alignment.centerLeft,
-                      // child: DefaultTextStyle(
-                      //   style: TextStyle(
-                      //     color: theme.resources.textFillColorPrimary,
-                      //     fontSize: 14,
-                      //   ),
-                      //   child: const Text('飞鲸影视'),
-                      // ),
-                    ),
-                  ),
+                const Align(
+                  alignment: Alignment.center,
+                  child: CapsuleSearchBox(),
                 ),
               ],
             ),
@@ -449,6 +452,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
         else
           WindowCaption(
             title: const Text('飞鲸影视'),
+            center: const CapsuleSearchBox(),
             brightness: isDark ? Brightness.dark : Brightness.light,
             backgroundColor: theme.resources.solidBackgroundFillColorBase,
             showRefreshAction:

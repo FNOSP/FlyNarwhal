@@ -72,6 +72,10 @@ MediaItem _$MediaItemFromJson(Map<String, dynamic> json) => MediaItem(
       ancestorName: json['ancestor_name'] as String?,
       ancestorCategory: json['ancestor_category'] as String?,
       duration: (json['duration'] as num?)?.toInt(),
+      genres: (json['genres'] as List<dynamic>?)
+          ?.map((e) => (e as num).toInt())
+          .toList(),
+      numberOfItem: (json['number_of_item'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$MediaItemToJson(MediaItem instance) => <String, dynamic>{
@@ -101,6 +105,8 @@ Map<String, dynamic> _$MediaItemToJson(MediaItem instance) => <String, dynamic>{
       'ancestor_name': instance.ancestorName,
       'ancestor_category': instance.ancestorCategory,
       'duration': instance.duration,
+      'genres': instance.genres,
+      'number_of_item': instance.numberOfItem,
     };
 
 ItemListQueryResponse _$ItemListQueryResponseFromJson(
