@@ -377,6 +377,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
         context.go('/tv/season/${widget.guid}');
         break;
       case FnMediaType.person:
+        ref.read(navigationStackProvider.notifier).pushPath('/home');
+        context.go('/person/${widget.guid}');
         break;
       case null:
         break;
