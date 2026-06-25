@@ -1,7 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../data/models/movie_detail_models.dart';
+import '../../providers/providers.dart';
 import '../shared/common/img_loading_progress_ring.dart';
 import '../shared/common/scroll_row.dart';
 
@@ -65,7 +68,7 @@ class CastScrollRow extends StatelessWidget {
   }
 }
 
-class _CastAvatar extends StatefulWidget {
+class _CastAvatar extends ConsumerStatefulWidget {
   final PersonList person;
   final String baseUrl;
   final Map<String, String>? httpHeaders;
@@ -79,11 +82,21 @@ class _CastAvatar extends StatefulWidget {
   });
 
   @override
-  State<_CastAvatar> createState() => _CastAvatarState();
+  ConsumerState<_CastAvatar> createState() => _CastAvatarState();
 }
 
-class _CastAvatarState extends State<_CastAvatar> {
+class _CastAvatarState extends ConsumerState<_CastAvatar> {
   bool _hovered = false;
+
+  // Navigate to person detail page, mirroring Compose CastAvatar
+  void _handleTap() {
+    final personGuid = widget.person.personGuid;
+    if (personGuid.isEmpty) return;
+    ref.read(navigationStackProvider.notifier).pushPath(
+          GoRouterState.of(context).uri.toString(),
+        );
+    context.go('/person/$personGuid');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,70 +111,73 @@ class _CastAvatarState extends State<_CastAvatar> {
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        child: Column(
-          children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
-                  ),
-                  child: ClipOval(
-                    child: imageUrl.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            httpHeaders: widget.httpHeaders,
-                            cacheManager: widget.cacheManager,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => const ImgLoadingProgressRing(size: 24),
-                          )
-                        : Container(
-                            color: Colors.grey[160],
-                            child: const Icon(FluentIcons.contact, size: 28),
-                          ),
-                  ),
-                ),
-                AnimatedOpacity(
-                  opacity: _hovered ? 1 : 0,
-                  duration: const Duration(milliseconds: 150),
-                  child: Container(
+        child: GestureDetector(
+          onTap: _handleTap,
+          child: Column(
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
                       shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                    ),
+                    child: ClipOval(
+                      child: imageUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              httpHeaders: widget.httpHeaders,
+                              cacheManager: widget.cacheManager,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => const ImgLoadingProgressRing(size: 24),
+                            )
+                          : Container(
+                              color: Colors.grey[160],
+                              child: const Icon(FluentIcons.contact, size: 28),
+                            ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.person.name,
-              style: FluentTheme.of(context).typography.caption?.copyWith(
-                    fontSize: 12,
-                    color: nameColor,
+                  AnimatedOpacity(
+                    opacity: _hovered ? 1 : 0,
+                    duration: const Duration(milliseconds: 150),
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                   ),
-              maxLines: 1,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              role,
-              style: FluentTheme.of(context).typography.caption?.copyWith(
-                    fontSize: 12,
-                    color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.6),
-                  ),
-              maxLines: 1,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.person.name,
+                style: FluentTheme.of(context).typography.caption?.copyWith(
+                      fontSize: 12,
+                      color: nameColor,
+                    ),
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                role,
+                style: FluentTheme.of(context).typography.caption?.copyWith(
+                      fontSize: 12,
+                      color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.6),
+                    ),
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );

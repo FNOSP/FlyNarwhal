@@ -237,7 +237,7 @@ class MediaRemoteDataSource {
     if (cached is ApiResult<List<PersonList>>) return cached;
     final result = await _dioClient.post<List<PersonList>>(
       ApiEndpoints.personListByGuid(guid),
-      data: const {},
+      data: <String, dynamic>{},
       converter: (data) => _parsePersonListResponse(data),
     );
     if (result.isSuccess) _cache.set(key, result);

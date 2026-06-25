@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/models/person_models.dart';
+import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../shared/common/fn_cached_image.dart';
 import '../../shared/movie_poster.dart';
@@ -17,6 +20,21 @@ class PersonDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Consume each global refresh request once for the current person detail page.
+    ref.listen<GlobalRefreshRequest?>(
+      currentGlobalRefreshRequestProvider,
+      (_, next) {
+        unawaited(
+          ref.read(globalRefreshManagerProvider).handleRefresh(
+                consumerId: 'person-detail:$guid',
+                request: next,
+                onRefresh: () => ref
+                    .read(personDetailNotifierProvider(guid).notifier)
+                    .refresh(),
+              ),
+        );
+      },
+    );
     final detailState = ref.watch(personDetailNotifierProvider(guid));
     final theme = FluentTheme.of(context);
     final scaffoldBackgroundColor = theme.brightness == Brightness.dark

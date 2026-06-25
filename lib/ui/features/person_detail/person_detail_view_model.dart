@@ -37,8 +37,7 @@ class PersonDetailState {
 
 @riverpod
 class PersonDetailNotifier extends _$PersonDetailNotifier {
-  @override
-  FutureOr<PersonDetailState> build(String guid) async {
+  Future<PersonDetailState> _load(String guid) async {
     final remote = ref.read(mediaRemoteDataSourceProvider);
 
     Future<List<PersonItemList>> worksByJob(String job) async {
@@ -64,8 +63,14 @@ class PersonDetailNotifier extends _$PersonDetailNotifier {
     );
   }
 
+  @override
+  FutureOr<PersonDetailState> build(String guid) async {
+    return _load(guid);
+  }
+
   Future<void> refresh() async {
-    ref.invalidateSelf();
-    await future;
+    // Show an explicit loading state while refreshing person details.
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _load(guid));
   }
 }
