@@ -401,7 +401,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                     return ClipRect(
                       child: SizeTransition(
                         sizeFactor: animation,
-                        axisAlignment: -1.0,
+                        alignment: Alignment.topCenter,
                         child: FadeTransition(opacity: animation, child: child),
                       ),
                     );
