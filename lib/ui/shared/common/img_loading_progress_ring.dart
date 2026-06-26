@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'app_loading_progress_ring.dart';
 
 /// Centered small circular progress ring for image loading placeholders.
 class ImgLoadingProgressRing extends StatelessWidget {
@@ -16,7 +17,7 @@ class ImgLoadingProgressRing extends StatelessWidget {
         width: size,
         height: size,
         child: const ProgressRing(
-          activeColor: Color(0x8BFFFFFF),
+          activeColor: kLoadingRingColorDark,
         ),
       ),
     );

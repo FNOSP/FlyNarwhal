@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/file_models.dart';
 import '../../../providers/file_providers.dart';
+import '../common/app_loading_progress_ring.dart';
 
 class FileTreePicker extends ConsumerStatefulWidget {
   final List<String> rootPaths;
@@ -119,7 +120,7 @@ class _FileTreePickerState extends ConsumerState<FileTreePicker> {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty && widget.rootPaths.isNotEmpty && widget.hideRoot) {
-      return const Center(child: ProgressRing());
+      return const Center(child: AppLoadingProgressRing());
     }
     
     return TreeView(

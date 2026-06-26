@@ -4,6 +4,7 @@ import '../../../data/models/file_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../providers/file_providers.dart';
 import 'file_tree_picker.dart';
+import '../common/app_loading_progress_ring.dart';
 
 class AddNasSubtitleDialog extends ConsumerStatefulWidget {
   final String title;
@@ -112,7 +113,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
               ],
             );
           },
-          loading: () => const Center(child: ProgressRing()),
+          loading: () => const Center(child: AppLoadingProgressRing()),
           error: (err, stack) => Center(child: Text('Error: $err')),
         ),
       ),

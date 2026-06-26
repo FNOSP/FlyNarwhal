@@ -8,6 +8,7 @@ import '../../../data/models/person_models.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../shared/common/fn_cached_image.dart';
+import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/movie_poster.dart';
 import 'person_detail_view_model.dart';
 
@@ -47,7 +48,7 @@ class PersonDetailScreen extends ConsumerWidget {
         padding: EdgeInsets.zero,
         content: detailState.when(
           data: (state) => _PersonDetailContent(state: state),
-          loading: () => const Center(child: ProgressRing()),
+          loading: () => const Center(child: AppLoadingProgressRing()),
           error: (error, stack) => Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,

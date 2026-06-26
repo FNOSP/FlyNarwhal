@@ -8,6 +8,7 @@ import '../../../data/models/home_models.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
+import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/movie_poster.dart';
 import '../../shared/filter_box.dart';
 import '../../shared/sort_flyout.dart';
@@ -427,7 +428,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                 ),
                 Expanded(
                   child: mediaLibraryState.isLoading && items.isEmpty
-                      ? const Center(child: ProgressRing())
+                      ? const Center(child: AppLoadingProgressRing())
                       : GridView.builder(
                           controller: _scrollController,
                           padding: EdgeInsets.all(16 * scaleFactor),

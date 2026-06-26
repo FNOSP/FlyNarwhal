@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/providers.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
+import '../../shared/common/app_loading_progress_ring.dart';
 import 'widgets/card_expander_item.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -105,7 +106,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             loading: () => const CardExpanderItem(
                               heading: Row(
                                 children: [
-                                  ProgressRing(),
+                                  AppLoadingProgressRing(size: 18),
                                   SizedBox(width: 12),
                                   Text('正在加载用户信息…'),
                                 ],

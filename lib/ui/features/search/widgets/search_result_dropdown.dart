@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../data/models/home_models.dart';
 import '../../../shared/common/fn_cached_image.dart';
+import '../../../shared/common/app_loading_progress_ring.dart';
 import '../../../shared/movie_poster.dart' show formatVoteAverage;
 import '../search_view_model.dart';
 
@@ -107,7 +108,7 @@ class SearchResultDropdown extends ConsumerWidget {
     Map<int, String> genresMap,
   ) {
     if (isLoading && items.isEmpty) {
-      return const Center(child: ProgressRing());
+      return const Center(child: AppLoadingProgressRing());
     }
     if (items.isEmpty) {
       return _EmptyResult(hasSearched: hasSearched);

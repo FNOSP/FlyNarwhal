@@ -11,6 +11,7 @@ import '../../../providers/providers.dart';
 import '../../../providers/global_refresh.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/window_caption.dart';
+import '../../shared/common/app_loading_progress_ring.dart';
 import '../search/widgets/capsule_search_box.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
@@ -143,7 +144,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
         loading: () => [
           PaneItem(
             title: const Text('加载中…'),
-            icon: const ProgressRing(),
+            icon: const AppLoadingProgressRing(size: 16),
             enabled: false,
             body: const SizedBox.shrink(),
           ),

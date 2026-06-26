@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../shared/common/app_loading_progress_ring.dart';
 
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/season_list_response.dart';
@@ -79,7 +80,7 @@ class TvDetailScreen extends ConsumerWidget {
             httpHeaders: httpHeaders,
             cacheManager: cacheManager,
           ),
-          loading: () => const Center(child: ProgressRing()),
+          loading: () => const Center(child: AppLoadingProgressRing()),
           error: (error, stack) => Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,

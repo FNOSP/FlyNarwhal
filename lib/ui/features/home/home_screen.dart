@@ -10,6 +10,7 @@ import 'widgets/media_lib_card_row.dart';
 import 'widgets/media_lib_gallery.dart';
 import 'widgets/recently_watched.dart';
 import '../../shared/toast.dart';
+import '../../shared/common/app_loading_progress_ring.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -95,7 +96,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       },
                     ),
                   ),
-                  loading: () => const SliverToBoxAdapter(child: Center(child: ProgressRing())),
+                  loading: () => const SliverToBoxAdapter(child: Center(child: AppLoadingProgressRing())),
                   error: (err, stack) => SliverToBoxAdapter(child: Padding(
                     padding: const EdgeInsets.all(32.0),
                     child: Text('Error loading libraries: $err'),

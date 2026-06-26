@@ -14,6 +14,8 @@ import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:window_manager/window_manager.dart' hide WindowCaption;
 
+import '../../shared/common/app_loading_progress_ring.dart';
+
 import '../../../core/network/dio_client.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/login_history.dart';
@@ -746,8 +748,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
                                   ? const SizedBox(
                                       width: 22,
                                       height: 22,
-                                      child: material.CircularProgressIndicator(
-                                          strokeWidth: 2),
+                                      child: AppLoadingProgressRing(
+                                          size: 22, strokeWidth: 2),
                                     )
                                   : Text(_isNasLogin ? '下一步' : '登录',
                                       style: const TextStyle(fontSize: 16)),

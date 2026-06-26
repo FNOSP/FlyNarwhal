@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../shared/common/app_loading_progress_ring.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
@@ -1928,7 +1929,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       controls: NoVideoControls,
                       fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
                     )
-                  : const Center(child: ProgressRing()),
+                  : const Center(child: AppLoadingProgressRing()),
             ),
           ),
         ),
@@ -1946,7 +1947,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
         // Keep subtitle switches visually lightweight and avoid blocking the video.
         if (_isLoading && !_isSubtitleSwitching)
-          const Center(child: ProgressRing()),
+          const Center(child: AppLoadingProgressRing()),
         Positioned.fill(
           child: IgnorePointer(
             child: Center(

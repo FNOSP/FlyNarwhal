@@ -11,6 +11,7 @@ import '../../shared/filter_box.dart';
 import '../../shared/movie_poster.dart';
 import '../../shared/sort_flyout.dart';
 import '../../shared/toast.dart';
+import '../../shared/common/app_loading_progress_ring.dart';
 import '../home/home_view_model.dart';
 import 'favorites_view_model.dart';
 
@@ -403,7 +404,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 items.isEmpty)
                         ? Center(
                             key: ValueKey('favorites-loading-$_selectedTab'),
-                            child: const ProgressRing(),
+                            child: const AppLoadingProgressRing(),
                           )
                         : items.isEmpty
                             ? Center(

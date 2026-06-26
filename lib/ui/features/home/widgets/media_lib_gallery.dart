@@ -5,6 +5,7 @@ import '../home_view_model.dart';
 import '../../../../data/models/home_models.dart';
 import '../../../shared/movie_poster.dart';
 import '../../../shared/common/scroll_row.dart';
+import '../../../shared/common/app_loading_progress_ring.dart';
 
 class MediaLibGallery extends ConsumerWidget {
   final String title;
@@ -90,7 +91,7 @@ class MediaLibGallery extends ConsumerWidget {
           },
           loading: () => SizedBox(
             height: rowHeight,
-            child: const Center(child: ProgressRing()),
+            child: const Center(child: AppLoadingProgressRing()),
           ),
           error: (err, stack) => SizedBox(
             height: rowHeight,

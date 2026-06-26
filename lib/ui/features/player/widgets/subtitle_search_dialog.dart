@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../../../data/models/subtitle_models.dart';
+import '../../../shared/common/app_loading_progress_ring.dart';
 
 enum _SubtitleDownloadStatus { idle, downloading, done }
 
@@ -155,7 +156,7 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: ProgressRing());
+      return const Center(child: AppLoadingProgressRing());
     }
     if (_errorMessage != null) {
       return Center(
@@ -252,7 +253,7 @@ class _SubtitleSearchItemState extends State<_SubtitleSearchItem> {
                       const SizedBox(
                         width: 12,
                         height: 12,
-                        child: ProgressRing(strokeWidth: 2),
+                        child: AppLoadingProgressRing(size: 12, strokeWidth: 2),
                       ),
                       const SizedBox(width: 8),
                     ] else if (isDone) ...[
