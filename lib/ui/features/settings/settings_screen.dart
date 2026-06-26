@@ -153,8 +153,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ),
                             ),
                           ),
-                          if (!settings.followSystemTheme)
-                            CardExpanderItem(
+                          _AnimatedVisibility(
+                            visible: !settings.followSystemTheme,
+                            child: CardExpanderItem(
                               icon: Icon(
                                 settings.darkMode
                                     ? FluentIcons.clear_night
@@ -169,6 +170,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 content: Text(settings.darkMode ? '深色' : '浅色'),
                               ),
                             ),
+                          ),
                           CardExpanderItem(
                             icon: const Icon(FluentIcons.navigation_flipper),
                             heading: const Text('导航栏样式'),
@@ -253,6 +255,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AnimatedVisibility extends StatelessWidget {
+  const _AnimatedVisibility({
+    required this.visible,
+    required this.child,
+  });
+
+  static const Duration _duration = Duration(milliseconds: 220);
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: AnimatedSwitcher(
+        duration: _duration,
+        reverseDuration: _duration,
+        switchInCurve: Curves.easeInOut,
+        switchOutCurve: Curves.easeInOut,
+        transitionBuilder: (child, animation) {
+          return SizeTransition(
+            sizeFactor: animation,
+            alignment: Alignment.topCenter,
+            child: FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+          );
+        },
+        child: visible
+            ? KeyedSubtree(
+                key: const ValueKey('settings-color-visible'),
+                child: child,
+              )
+            : const SizedBox(
+                key: ValueKey('settings-color-hidden'),
+                width: double.infinity,
+                height: 0,
+              ),
       ),
     );
   }
