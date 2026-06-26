@@ -421,6 +421,14 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
                           kTrafficLightAreaWidth -
                           kRefreshButtonLeftOffset,
                     ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(top: kRefreshButtonTopPadding),
+                      child: WindowCaptionPinButton.compact(
+                        key: const ValueKey('macos-window-caption-pin-button'),
+                        brightness: isDark ? Brightness.dark : Brightness.light,
+                      ),
+                    ),
                     if (titleBarRefreshVisibility.shouldShowRefreshAction)
                       Padding(
                         padding: const EdgeInsets.only(

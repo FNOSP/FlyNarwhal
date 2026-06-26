@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:window_manager/window_manager.dart'
     hide WindowCaption, DragToMoveArea;
 
@@ -13,6 +14,7 @@ class WindowCaption extends StatefulWidget {
   final Color? backgroundColor;
   final Brightness? brightness;
   final bool showRefreshAction;
+  final bool showPinAction;
   final Future<void> Function()? onRefreshPressed;
 
   const WindowCaption({
@@ -22,6 +24,7 @@ class WindowCaption extends StatefulWidget {
     this.backgroundColor,
     this.brightness,
     this.showRefreshAction = false,
+    this.showPinAction = true,
     this.onRefreshPressed,
   });
 
@@ -73,6 +76,11 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
                   ),
                 ),
               ),
+              if (widget.showPinAction && _shouldShowPinAction())
+                WindowCaptionPinButton(
+                  key: const ValueKey('window-caption-pin-button'),
+                  brightness: widget.brightness,
+                ),
               if (widget.showRefreshAction)
                 WindowCaptionRefreshButton(
                   key: const ValueKey('window-caption-refresh-button'),
@@ -131,6 +139,14 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
   bool _shouldShowWindowButtons() {
     if (kIsWeb) return false;
     if (!Platform.isWindows && !Platform.isLinux) return false;
+    return true;
+  }
+
+  bool _shouldShowPinAction() {
+    if (kIsWeb) return false;
+    if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
+      return false;
+    }
     return true;
   }
 
@@ -266,6 +282,128 @@ class _WindowCaptionRefreshButtonState extends State<WindowCaptionRefreshButton>
                   size: iconSize,
                   color: iconColor,
                 ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class WindowCaptionPinButton extends StatefulWidget {
+  final Brightness? brightness;
+  final bool compact;
+  final double? buttonSize;
+  final double? iconSize;
+  final BorderRadius? borderRadius;
+
+  const WindowCaptionPinButton({
+    super.key,
+    this.brightness,
+    this.compact = false,
+    this.buttonSize,
+    this.iconSize,
+    this.borderRadius,
+  });
+
+  const WindowCaptionPinButton.compact({
+    super.key,
+    this.brightness,
+    this.buttonSize,
+    this.iconSize,
+    this.borderRadius,
+  }) : compact = true;
+
+  @override
+  State<WindowCaptionPinButton> createState() => _WindowCaptionPinButtonState();
+}
+
+class _WindowCaptionPinButtonState extends State<WindowCaptionPinButton>
+    with WindowListener {
+  bool _isHovered = false;
+  bool _isAlwaysOnTop = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      windowManager.addListener(this);
+      _loadAlwaysOnTopState();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (!kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      windowManager.removeListener(this);
+    }
+    super.dispose();
+  }
+
+  Future<void> _loadAlwaysOnTopState() async {
+    final isAlwaysOnTop = await windowManager.isAlwaysOnTop();
+    if (mounted) {
+      setState(() => _isAlwaysOnTop = isAlwaysOnTop);
+    }
+  }
+
+  Future<void> _toggleAlwaysOnTop() async {
+    final next = !_isAlwaysOnTop;
+    await windowManager.setAlwaysOnTop(next);
+    if (mounted) {
+      setState(() => _isAlwaysOnTop = next);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white : Colors.black;
+    final buttonSize = widget.buttonSize ?? (widget.compact ? 20.0 : 46.0);
+    final iconSize = widget.iconSize ?? (widget.compact ? 14.0 : 16.0);
+    final hoverBackground = widget.compact
+        ? (isDark
+            ? Colors.white.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.06))
+        : (isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.black.withValues(alpha: 0.05));
+    final backgroundColor = _isHovered ? hoverBackground : Colors.transparent;
+    final borderRadius =
+        widget.borderRadius ?? BorderRadius.circular(widget.compact ? 14 : 0);
+    final label = _isAlwaysOnTop ? '取消置顶' : '窗口置顶';
+
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _toggleAlwaysOnTop,
+            child: Container(
+              width: buttonSize,
+              height: widget.compact ? buttonSize : kWindowTitleBarHeight,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: borderRadius,
+              ),
+              child: SvgPicture.asset(
+                _isAlwaysOnTop
+                    ? 'assets/images/pin-fill.svg'
+                    : 'assets/images/pin.svg',
+                width: iconSize,
+                height: iconSize,
+                colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
               ),
             ),
           ),

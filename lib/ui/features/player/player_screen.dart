@@ -617,7 +617,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  void _queuePlayRecordUpdate({int? positionMs, PlayingInfoCache? cacheOverride}) {
+  void _queuePlayRecordUpdate(
+      {int? positionMs, PlayingInfoCache? cacheOverride}) {
     if (!_isInitialized) return;
 
     final player = _player;
@@ -1300,8 +1301,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     _pendingMacOSWindowButtonsVisibility = effectiveVisibility;
-    _pendingMacOSWindowButtonsForce =
-        _pendingMacOSWindowButtonsForce || force;
+    _pendingMacOSWindowButtonsForce = _pendingMacOSWindowButtonsForce || force;
     if (_macOSWindowButtonsSyncQueued) {
       return;
     }
@@ -2499,6 +2499,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     if (leftInset > 0) SizedBox(width: leftInset),
                     _buildBackButton(),
                   ],
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: WindowCaptionPinButton(
+                  key: const ValueKey('player-window-caption-pin-button'),
+                  brightness: Brightness.dark,
+                  buttonSize: _isMacOS ? 30 : 34,
+                  iconSize: _isMacOS ? 16 : 18,
+                  borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
                 ),
               ),
             ],
