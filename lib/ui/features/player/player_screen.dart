@@ -2046,10 +2046,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       visible: overlayState.isUiVisible,
     );
     final pipTransition = _pipTransitionController;
+    final playerCursor = _isInitialized && !_isPipMode && !overlayState.isUiVisible
+        ? SystemMouseCursors.none
+        : SystemMouseCursors.click;
     final playerStack = Stack(
       children: [
         MouseRegion(
-          cursor: SystemMouseCursors.click,
+          cursor: playerCursor,
           onHover: (_) => _showUi(),
           child: GestureDetector(
             onTap: _togglePlayPause,
