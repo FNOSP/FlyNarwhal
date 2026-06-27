@@ -123,6 +123,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   final ValueNotifier<List<String>> _hlsSubtitleTexts =
       ValueNotifier<List<String>>(const []);
   bool _useHlsSubtitleOverlay = false;
+  // True when the active external subtitle uses absolute positioning
+  // (\pos/\move on most events, e.g. danmaku), making sub-pos ineffective.
+  bool _isPositionLockedSubtitle = false;
   Map<String, String> _iso6391Map = const {};
   Map<String, String> _iso6392Map = const {};
   bool _showSubtitleSearchDialog = false;
@@ -214,7 +217,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _initializePlayer() async {
-    _player = Player();
+    _player = Player(
+      configuration: const PlayerConfiguration(libass: true),
+    );
     _videoController = VideoController(_player!);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
@@ -326,11 +331,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     ref.listenManual<SubtitleSettings>(
       subtitleSettingsProvider,
       (previous, next) {
-        if (!mounted) return;
-        if (previous?.offsetSeconds == next.offsetSeconds) {
+        if (!mounted || _areSubtitleSettingsEqual(previous, next)) return;
+        if (_isCurrentSubtitleMpvAdjustable) {
+          unawaited(_applySubtitleSettingsToMpv(next));
           return;
         }
-        _syncSubtitleOffsetToHlsRepository(next);
+        if (previous?.offsetSeconds != next.offsetSeconds) {
+          _syncSubtitleOffsetToHlsRepository(next);
+        }
       },
     );
   }
@@ -938,6 +946,83 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return supportedFormats.contains(subtitleStream.format.toLowerCase());
   }
 
+  // Detect subtitles that pin every event to absolute coordinates via
+  // \pos/\move (e.g. danmaku). For those, the global sub-pos has no effect,
+  // so the vertical-position control should be disabled in the UI.
+  bool _detectPositionLockedSubtitle(String content, String format) {
+    final normalizedFormat = format.toLowerCase();
+    if (normalizedFormat != 'ass' && normalizedFormat != 'ssa') {
+      return false;
+    }
+    final dialogueLines = content
+        .split('\n')
+        .where((line) => line.trimLeft().startsWith('Dialogue:'))
+        .toList();
+    if (dialogueLines.isEmpty) {
+      return false;
+    }
+    final positionedCount = dialogueLines
+        .where((line) => line.contains('\\pos') || line.contains('\\move'))
+        .length;
+    // Treat as position-locked when the vast majority of events are absolutely
+    // positioned, which is the signature of danmaku / effect-only tracks.
+    return positionedCount / dialogueLines.length >= 0.8;
+  }
+
+  void _updatePositionLockedSubtitle(String content, String format) {
+    final locked = _detectPositionLockedSubtitle(content, format);
+    if (locked == _isPositionLockedSubtitle) return;
+    if (!mounted) {
+      _isPositionLockedSubtitle = locked;
+      return;
+    }
+    setState(() => _isPositionLockedSubtitle = locked);
+  }
+
+  bool _areSubtitleSettingsEqual(
+    SubtitleSettings? left,
+    SubtitleSettings right,
+  ) {
+    return left != null &&
+        left.offsetSeconds == right.offsetSeconds &&
+        left.verticalPosition == right.verticalPosition &&
+        left.fontScale == right.fontScale &&
+        left.fontSize == right.fontSize &&
+        left.fontColor == right.fontColor &&
+        left.backgroundColor == right.backgroundColor;
+  }
+
+  bool get _isCurrentSubtitleMpvAdjustable {
+    return _isSupportedExternalSubtitle(_playingInfoCache?.currentSubtitleStream);
+  }
+
+  Future<void> _applySubtitleSettingsToMpv(SubtitleSettings settings) async {
+    final player = _player;
+    if (player == null || !_isCurrentSubtitleMpvAdjustable) {
+      return;
+    }
+
+    final platform = player.platform;
+    if (platform is! NativePlayer) {
+      return;
+    }
+
+    final subPos = ((1 - settings.verticalPosition.clamp(0.0, 1.0)) * 100)
+        .round()
+        .clamp(0, 100);
+    try {
+      await platform.setProperty('sub-delay', (-settings.offsetSeconds).toStringAsFixed(3));
+      await platform.setProperty('sub-scale', settings.fontScale.toStringAsFixed(3));
+      // Let sub-pos move ASS subtitles that rely on style margins. Has no
+      // effect on absolutely-positioned (\pos/\move) danmaku tracks.
+      await platform.setProperty('sub-ass-force-margins', 'yes');
+      await platform.setProperty('sub-pos', subPos.toString());
+      await platform.setProperty('sub-visibility', 'yes');
+    } catch (e) {
+      AppTalker.warning('Player', 'apply subtitle settings to mpv failed: $e');
+    }
+  }
+
   void _applyExternalSubtitleAsync(
     SubtitleStream subtitleStream,
     int loadToken,
@@ -969,6 +1054,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 : null,
           ),
         );
+        _updatePositionLockedSubtitle(content, subtitleStream.format);
+        await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
       } catch (e) {
         AppTalker.warning('Player', 'apply external subtitle async failed: $e');
       }
@@ -1019,6 +1106,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               : null,
         ),
       );
+      _updatePositionLockedSubtitle(content, subtitleStream.format);
+      await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
     } catch (e) {
       AppTalker.warning('Player', 'apply external subtitle failed: $e');
       if (player == _player) {
@@ -2440,6 +2529,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           iso6392Map: _iso6392Map,
           subtitleSettings: subtitleSettings,
           canAdjustSubtitle: _canAdjustSubtitle,
+          isPositionLocked: _isPositionLockedSubtitle,
           yOffset: _controlFlyoutOffset,
           isActiveControl:
               overlayState.activeFlyout == PlayerFlyoutType.subtitle,
@@ -2701,9 +2791,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void onWindowResized() => _schedulePipBoundsSave();
 
   bool get _canAdjustSubtitle {
+    final subtitleStream = _playingInfoCache?.currentSubtitleStream;
+    if (_isSupportedExternalSubtitle(subtitleStream)) {
+      return true;
+    }
     return _useHlsSubtitleOverlay &&
-        (_playingInfoCache?.currentSubtitleStream != null ||
-            _hlsSubtitleTexts.value.isNotEmpty);
+        (subtitleStream != null || _hlsSubtitleTexts.value.isNotEmpty);
   }
 
   String get _displayTitle {

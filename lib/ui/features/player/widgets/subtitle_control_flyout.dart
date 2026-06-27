@@ -30,6 +30,7 @@ class SubtitleControlFlyout extends StatefulWidget {
   final Map<String, String> iso6392Map;
   final SubtitleSettings subtitleSettings;
   final bool canAdjustSubtitle;
+  final bool isPositionLocked;
   final int yOffset;
   final bool isActiveControl;
   final void Function(SubtitleSettings) onSubtitleSettingsChanged;
@@ -48,6 +49,7 @@ class SubtitleControlFlyout extends StatefulWidget {
     required this.iso6392Map,
     required this.subtitleSettings,
     required this.canAdjustSubtitle,
+    this.isPositionLocked = false,
     this.yOffset = 0,
     this.isActiveControl = false,
     required this.onSubtitleSettingsChanged,
@@ -432,6 +434,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
       child: _isAdjustmentMode
           ? _SubtitleAdjustmentPanel(
               settings: _liveSubtitleSettings,
+              isPositionLocked: widget.isPositionLocked,
               onBack: () =>
                   _updateOverlayState(() => _isAdjustmentMode = false),
               onSettingsChanged: _handleSubtitleSettingsChanged,
@@ -866,6 +869,7 @@ class _SubtitleAddMenuItemState extends State<_SubtitleAddMenuItem> {
 
 class _SubtitleAdjustmentPanel extends StatelessWidget {
   final SubtitleSettings settings;
+  final bool isPositionLocked;
   final ValueChanged<SubtitleSettings> onSettingsChanged;
   final VoidCallback onBack;
 
@@ -873,6 +877,7 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
     required this.settings,
     required this.onSettingsChanged,
     required this.onBack,
+    this.isPositionLocked = false,
   });
 
   @override
@@ -940,6 +945,10 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                     max: 1,
                     leftLabel: '底部',
                     rightLabel: '顶部',
+                    enabled: !isPositionLocked,
+                    disabledHint: isPositionLocked
+                        ? '当前字幕为弹幕/特效字幕（含定位标签），位置调整不可用'
+                        : null,
                     onChanged: (value) => onSettingsChanged(
                       settings.copyWith(verticalPosition: value),
                     ),
@@ -978,6 +987,8 @@ class _AdjustmentSliderSection extends StatefulWidget {
   final String leftLabel;
   final String rightLabel;
   final String? suffix;
+  final bool enabled;
+  final String? disabledHint;
   final ValueChanged<double> onChanged;
 
   const _AdjustmentSliderSection({
@@ -989,6 +1000,8 @@ class _AdjustmentSliderSection extends StatefulWidget {
     required this.rightLabel,
     required this.onChanged,
     this.suffix,
+    this.enabled = true,
+    this.disabledHint,
   });
 
   @override
@@ -1033,13 +1046,14 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = widget.enabled;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           widget.title,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: enabled ? Colors.white : const Color(0x66FFFFFF),
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -1052,7 +1066,9 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
                 min: widget.min,
                 max: widget.max,
                 value: widget.value.clamp(widget.min, widget.max),
-                onChanged: (value) => widget.onChanged(_clampValue(value)),
+                onChanged: enabled
+                    ? (value) => widget.onChanged(_clampValue(value))
+                    : null,
               ),
             ),
             if (widget.suffix != null) ...[
@@ -1102,6 +1118,16 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
             ),
           ],
         ),
+        if (!enabled && widget.disabledHint != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            widget.disabledHint!,
+            style: const TextStyle(
+              color: Color(0x99FFFFFF),
+              fontSize: 11,
+            ),
+          ),
+        ],
       ],
     );
   }
