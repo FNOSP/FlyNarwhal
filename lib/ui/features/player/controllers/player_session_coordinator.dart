@@ -7,7 +7,6 @@ import '../../../../data/models/player_models.dart';
 import '../../../../data/storage/preferences_manager.dart';
 import '../../../../providers/providers.dart';
 import '../services/hls_playlist_resolver.dart';
-import '../services/mp4_parser.dart';
 import '../services/player_service.dart';
 
 class PreparedPlaySource {
@@ -406,30 +405,18 @@ class PlayerSessionCoordinator {
         : baseUrl;
     final controlPlayLink = '/v/api/v1/media/range/$mediaGuid';
     final fullUrl = '$base$controlPlayLink';
-    final ts = startPositionMs / 1000.0;
-    try {
-      final parser = Mp4Parser(_dio);
-      final offset = await parser.getOffset(fullUrl, ts);
-      if (offset > 0) {
-        final rangedPlayLink = '$controlPlayLink?range=bytes=$offset-';
-        return DirectPlayLinkResult(
-          playUri: '$base$rangedPlayLink',
-          playLinkRaw: rangedPlayLink,
-          effectiveStartMs: 0,
-        );
-      }
-      return DirectPlayLinkResult(
-        playUri: fullUrl,
-        playLinkRaw: controlPlayLink,
-        effectiveStartMs: startPositionMs,
-      );
-    } catch (_) {
-      return DirectPlayLinkResult(
-        playUri: fullUrl,
-        playLinkRaw: controlPlayLink,
-        effectiveStartMs: startPositionMs,
-      );
-    }
+    // mpv (media_kit) cannot open the backend's "?range=bytes=offset-"
+    // query-style direct link; it does not translate the query into a real
+    // HTTP Range request, so the stream fails to open. The backend, however,
+    // honours the standard HTTP Range header (verified: probing the base URL
+    // returns 206 Partial Content). So always hand mpv the plain base URL and
+    // let it resume by time via the mpv "start" property + on-demand Range
+    // requests, instead of embedding the byte offset in the query string.
+    return DirectPlayLinkResult(
+      playUri: fullUrl,
+      playLinkRaw: controlPlayLink,
+      effectiveStartMs: startPositionMs,
+    );
   }
 
   String buildDisplaySubhead(
