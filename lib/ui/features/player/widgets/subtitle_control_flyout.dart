@@ -934,8 +934,13 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                     leftLabel: '-5秒',
                     rightLabel: '+5秒',
                     suffix: '秒',
+                    showCenterMarker: true,
+                    snapToCenter: true,
+                    centerValue: 0,
+                    snapThreshold: 0.08,
                     onChanged: (value) => onSettingsChanged(
-                        settings.copyWith(offsetSeconds: value)),
+                      settings.copyWith(offsetSeconds: value),
+                    ),
                   ),
                   const SizedBox(height: 18),
                   _AdjustmentSliderSection(
@@ -946,9 +951,8 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                     leftLabel: '底部',
                     rightLabel: '顶部',
                     enabled: !isPositionLocked,
-                    disabledHint: isPositionLocked
-                        ? '当前字幕为弹幕/特效字幕（含定位标签），位置调整不可用'
-                        : null,
+                    disabledHint:
+                        isPositionLocked ? '当前字幕为弹幕/特效字幕（含定位标签），位置调整不可用' : null,
                     onChanged: (value) => onSettingsChanged(
                       settings.copyWith(verticalPosition: value),
                     ),
@@ -989,6 +993,10 @@ class _AdjustmentSliderSection extends StatefulWidget {
   final String? suffix;
   final bool enabled;
   final String? disabledHint;
+  final bool showCenterMarker;
+  final bool snapToCenter;
+  final double? centerValue;
+  final double snapThreshold;
   final ValueChanged<double> onChanged;
 
   const _AdjustmentSliderSection({
@@ -1002,6 +1010,10 @@ class _AdjustmentSliderSection extends StatefulWidget {
     this.suffix,
     this.enabled = true,
     this.disabledHint,
+    this.showCenterMarker = false,
+    this.snapToCenter = false,
+    this.centerValue,
+    this.snapThreshold = 0,
   });
 
   @override
@@ -1033,15 +1045,42 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
     super.dispose();
   }
 
+  double get _centerValue {
+    return widget.centerValue ?? ((widget.min + widget.max) / 2);
+  }
+
+  double get _centerMarkerAlignment {
+    final range = widget.max - widget.min;
+    if (range == 0) return 0;
+    final normalized = ((_centerValue - widget.min) / range).clamp(0.0, 1.0);
+    return (normalized * 2) - 1;
+  }
+
   String _format(double value) {
-    if (value == value.roundToDouble()) {
-      return value.round().toString();
+    final normalizedValue = _snapValue(value);
+    if (normalizedValue == normalizedValue.roundToDouble()) {
+      return normalizedValue.round().toString();
     }
-    return value.toStringAsFixed(1);
+    return normalizedValue.toStringAsFixed(1);
   }
 
   double _clampValue(double value) {
     return value.clamp(widget.min, widget.max);
+  }
+
+  double _snapValue(double value) {
+    final clampedValue = _clampValue(value);
+    if (!widget.snapToCenter || widget.snapThreshold <= 0) {
+      return clampedValue;
+    }
+    if ((clampedValue - _centerValue).abs() <= widget.snapThreshold) {
+      return _centerValue;
+    }
+    return clampedValue;
+  }
+
+  void _handleChanged(double value) {
+    widget.onChanged(_snapValue(value));
   }
 
   @override
@@ -1062,13 +1101,30 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
         Row(
           children: [
             Expanded(
-              child: Slider(
-                min: widget.min,
-                max: widget.max,
-                value: widget.value.clamp(widget.min, widget.max),
-                onChanged: enabled
-                    ? (value) => widget.onChanged(_clampValue(value))
-                    : null,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Slider(
+                    min: widget.min,
+                    max: widget.max,
+                    value: widget.value.clamp(widget.min, widget.max),
+                    onChanged: enabled ? _handleChanged : null,
+                  ),
+                  if (widget.showCenterMarker)
+                    IgnorePointer(
+                      child: Align(
+                        alignment: Alignment(_centerMarkerAlignment, 0),
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.55),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             if (widget.suffix != null) ...[
@@ -1084,7 +1140,7 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
                       _controller.text = _format(widget.value);
                       return;
                     }
-                    widget.onChanged(_clampValue(value));
+                    widget.onChanged(_snapValue(value));
                   },
                 ),
               ),
