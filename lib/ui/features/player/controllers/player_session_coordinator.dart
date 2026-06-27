@@ -103,6 +103,18 @@ class DirectPlayLinkResult {
   });
 }
 
+class HlsPlayLinkResult {
+  final String playUri;
+  final String playLinkRaw;
+  final int effectiveStartMs;
+
+  const HlsPlayLinkResult({
+    required this.playUri,
+    required this.playLinkRaw,
+    required this.effectiveStartMs,
+  });
+}
+
 class EpisodeContext {
   final List<EpisodeListResponse> episodeList;
   final EpisodeListResponse? currentEpisode;
@@ -338,7 +350,7 @@ class PlayerSessionCoordinator {
         originalQuality != null &&
         quality.resolution == originalQuality.resolution &&
         quality.bitrate == originalQuality.bitrate;
-    return videoStream.wrapper == 'MP4' && isOriginalQuality;
+    return isOriginalQuality;
   }
 
   String absolutePlayUrl(String baseUrl, String playLink) {
@@ -415,6 +427,45 @@ class PlayerSessionCoordinator {
     return DirectPlayLinkResult(
       playUri: fullUrl,
       playLinkRaw: controlPlayLink,
+      effectiveStartMs: startPositionMs,
+    );
+  }
+
+  /// Request an HLS transcode play link from the backend. Used as a fallback
+  /// when direct-link playback fails (e.g. unsupported container format).
+  Future<HlsPlayLinkResult> requestHlsPlayLink({
+    required VideoStream videoStream,
+    required FileInfo fileStream,
+    required String audioGuid,
+    required String? subtitleGuid,
+    required int startPositionMs,
+  }) async {
+    final baseUrl = _preferencesManager.getBaseUrl() ?? '';
+    final request = createPlayRequest(
+      videoStream: videoStream,
+      fileStream: fileStream,
+      audioGuid: audioGuid,
+      subtitleGuid: subtitleGuid,
+    );
+    final response = await _playerService.playVideo(
+      PlayPlayRequest(
+        mediaGuid: request.mediaGuid,
+        videoGuid: request.videoGuid,
+        videoEncoder: request.videoEncoder,
+        resolution: videoStream.resolutionType,
+        bitrate: videoStream.bps,
+        startTimestamp: startPositionMs ~/ 1000,
+        audioEncoder: request.audioEncoder,
+        audioGuid: request.audioGuid,
+        subtitleGuid: request.subtitleGuid,
+        channels: request.channels,
+        forcedSdr: request.forcedSdr,
+      ),
+    );
+    final playUri = absolutePlayUrl(baseUrl, response.playLink);
+    return HlsPlayLinkResult(
+      playUri: playUri,
+      playLinkRaw: response.playLink,
       effectiveStartMs: startPositionMs,
     );
   }

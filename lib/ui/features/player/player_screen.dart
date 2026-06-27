@@ -777,6 +777,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       final startPositionMs = _player!.state.position.inMilliseconds;
       await _reopenPlaybackWithDirectLink(startPositionMs: startPositionMs);
+
+      final verified = await _verifyPlaybackStarted();
+      if (!verified && mounted) {
+        await _fallbackToHlsFromDirectLink(startPositionMs: startPositionMs);
+      }
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -1249,6 +1255,98 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  /// Attempts direct-link playback; if player.open fails, automatically
+  /// falls back to HLS transcode playback.
+  Future<void> _openDirectLinkWithHlsFallback({
+    required PlayerSessionLoadResult result,
+    required Dio dio,
+    required int startPositionMs,
+    required int requestToken,
+  }) async {
+    try {
+      await _openMediaWithResume(
+        playUri: result.preparedPlaySource.playUri,
+        startPositionMs: startPositionMs,
+        currentSubtitleStream:
+            result.playingInfoCache.currentSubtitleStream,
+      );
+      if (!mounted || requestToken != _loadRequestToken) return;
+
+      final verified = await _verifyPlaybackStarted();
+      if (verified) return;
+    } catch (e) {
+      AppTalker.warning(
+        'Player',
+        'direct link playback failed, falling back to HLS: $e',
+      );
+    }
+
+    if (!mounted || requestToken != _loadRequestToken) return;
+    await _fallbackToHlsFromDirectLink(startPositionMs: startPositionMs);
+  }
+
+  /// Returns true if the player has started producing frames.
+  /// Waits up to ~3 seconds for the player to report a non-zero duration,
+  /// which indicates the container was successfully opened.
+  Future<bool> _verifyPlaybackStarted() async {
+    final player = _player;
+    if (player == null) return false;
+
+    for (int attempt = 0; attempt < 6; attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return false;
+      final state = player.state;
+      if (state.duration.inMilliseconds > 0 && state.width != null) {
+        return true;
+      }
+    }
+    AppTalker.warning(
+      'Player',
+      'direct link verification failed: player reports no duration after 3s',
+    );
+    return false;
+  }
+
+  /// Switches from a failed direct-link session to HLS transcode playback.
+  Future<void> _fallbackToHlsFromDirectLink({
+    required int startPositionMs,
+  }) async {
+    final cache = _playingInfoCache;
+    final videoStream = cache?.currentVideoStream;
+    final fileStream = cache?.currentFileStream;
+    if (cache == null || videoStream == null || fileStream == null) return;
+
+    final audioGuid = cache.currentAudioStream?.guid ??
+        _selectedAudioGuid ??
+        _requestedAudioGuid ??
+        _playInfo?.audioGuid ??
+        '';
+    final subtitleGuid = cache.currentSubtitleStream?.guid;
+
+    AppTalker.info('Player', 'falling back to HLS transcode playback');
+    final hlsResult = await _sessionCoordinator.requestHlsPlayLink(
+      videoStream: videoStream,
+      fileStream: fileStream,
+      audioGuid: audioGuid,
+      subtitleGuid: subtitleGuid,
+      startPositionMs: startPositionMs,
+    );
+    if (!mounted) return;
+
+    _playingInfoCache = cache.copyWith(
+      playLink: hlsResult.playLinkRaw,
+      isUseDirectLink: false,
+    );
+    ref
+        .read(playerViewModelProvider.notifier)
+        .updatePlayingInfo(_playingInfoCache);
+
+    await _reopenPlaybackFromPlayLink(
+      playLink: hlsResult.playLinkRaw,
+      startPositionMs: startPositionMs,
+    );
+  }
+
   Future<void> _loadAndPlayMedia() async {
     final requestToken = ++_loadRequestToken;
     try {
@@ -1282,21 +1380,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         subtitlePlaylistUrl: result.preparedPlaySource.subtitlePlaylistUrl,
       );
 
-      await _openMediaWithResume(
-        playUri: result.preparedPlaySource.playUri,
-        startPositionMs:
-            widget.initialPositionMs ?? result.effectiveStartPositionMs,
-        currentSubtitleStream: result.playingInfoCache.currentSubtitleStream,
-      );
+      final startMs =
+          widget.initialPositionMs ?? result.effectiveStartPositionMs;
+
+      if (result.playingInfoCache.isUseDirectLink) {
+        await _openDirectLinkWithHlsFallback(
+          result: result,
+          dio: dio,
+          startPositionMs: startMs,
+          requestToken: requestToken,
+        );
+      } else {
+        await _openMediaWithResume(
+          playUri: result.preparedPlaySource.playUri,
+          startPositionMs: startMs,
+          currentSubtitleStream:
+              result.playingInfoCache.currentSubtitleStream,
+        );
+      }
       if (!mounted || requestToken != _loadRequestToken) {
         return;
       }
       _startHlsSubtitleSessionAsync(
         dio: dio,
-        subtitleStream: result.playingInfoCache.currentSubtitleStream,
+        subtitleStream: _playingInfoCache?.currentSubtitleStream ??
+            result.playingInfoCache.currentSubtitleStream,
         subtitlePlaylistUrl: result.preparedPlaySource.subtitlePlaylistUrl,
-        startPositionMs:
-            widget.initialPositionMs ?? result.effectiveStartPositionMs,
+        startPositionMs: startMs,
         loadToken: requestToken,
       );
 
