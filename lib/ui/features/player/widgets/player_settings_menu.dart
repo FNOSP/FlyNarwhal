@@ -31,6 +31,8 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool smartSkipEnabled;
   final void Function(bool enabled)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+  final bool isAutoPlay;
+  final void Function(bool enabled)? onAutoPlayChanged;
   final Map<String, String>? iso6391Map;
 
   const PlayerSettingsMenu({
@@ -47,6 +49,8 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.smartSkipEnabled = true,
     this.onSmartSkipEnabledChanged,
     this.isSmartAnalysisGloballyEnabled = false,
+    this.isAutoPlay = true,
+    this.onAutoPlayChanged,
   });
 
   @override
@@ -170,8 +174,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
 
   double _calculateBridgeLeft(Size buttonSize) {
     final bridgeWidth = _calculateBridgeWidth(buttonSize);
-    final buttonCenterX =
-        (-_settingsFlyoutLeftOffset) + (buttonSize.width / 2);
+    final buttonCenterX = (-_settingsFlyoutLeftOffset) + (buttonSize.width / 2);
     final desiredLeft = buttonCenterX - (bridgeWidth / 2);
     return desiredLeft.clamp(0.0, _settingsFlyoutWidth - bridgeWidth);
   }
@@ -191,8 +194,10 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
 
         final buttonOffset = renderObject.localToGlobal(Offset.zero);
         final buttonSize = renderObject.size;
-        final flyoutHeight = _flyoutSize?.height ?? _estimatedSettingsFlyoutHeight;
-        final bridgeHeight = _safePopupBottomOffset + _settingsFlyoutBridgeOffset;
+        final flyoutHeight =
+            _flyoutSize?.height ?? _estimatedSettingsFlyoutHeight;
+        final bridgeHeight =
+            _safePopupBottomOffset + _settingsFlyoutBridgeOffset;
         final bridgeWidth = _calculateBridgeWidth(buttonSize);
         final bridgeLeft = _calculateBridgeLeft(buttonSize);
         final top =
@@ -354,6 +359,8 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         smartSkipEnabled: widget.smartSkipEnabled,
         onSmartSkipEnabledChanged: widget.onSmartSkipEnabledChanged,
         isSmartAnalysisGloballyEnabled: widget.isSmartAnalysisGloballyEnabled,
+        isAutoPlay: widget.isAutoPlay,
+        onAutoPlayChanged: widget.onAutoPlayChanged,
       ),
     );
   }
@@ -394,6 +401,8 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool smartSkipEnabled;
   final void Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+  final bool isAutoPlay;
+  final void Function(bool)? onAutoPlayChanged;
 
   const _SettingsFlyoutContent({
     super.key,
@@ -409,6 +418,8 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.smartSkipEnabled,
     required this.onSmartSkipEnabledChanged,
     required this.isSmartAnalysisGloballyEnabled,
+    required this.isAutoPlay,
+    required this.onAutoPlayChanged,
   });
 
   @override
@@ -458,6 +469,8 @@ class _SettingsFlyoutContent extends StatelessWidget {
           iso6391Map: iso6391Map,
           smartSkipEnabled: smartSkipEnabled,
           isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
+          isAutoPlay: isAutoPlay,
+          onAutoPlayChanged: onAutoPlayChanged,
           onNavigateToAudio: () => onNavigate('Audio'),
           onNavigateToWindowAspectRatio: () => onNavigate('WindowAspectRatio'),
           onNavigateToSkipConfig: () => onNavigate('SkipConfig'),
@@ -471,6 +484,8 @@ class _MainSettingsScreen extends StatelessWidget {
   final Map<String, String>? iso6391Map;
   final bool smartSkipEnabled;
   final bool isSmartAnalysisGloballyEnabled;
+  final bool isAutoPlay;
+  final void Function(bool)? onAutoPlayChanged;
   final VoidCallback onNavigateToAudio;
   final VoidCallback onNavigateToWindowAspectRatio;
   final VoidCallback onNavigateToSkipConfig;
@@ -480,6 +495,8 @@ class _MainSettingsScreen extends StatelessWidget {
     required this.iso6391Map,
     required this.smartSkipEnabled,
     required this.isSmartAnalysisGloballyEnabled,
+    required this.isAutoPlay,
+    required this.onAutoPlayChanged,
     required this.onNavigateToAudio,
     required this.onNavigateToWindowAspectRatio,
     required this.onNavigateToSkipConfig,
@@ -509,6 +526,11 @@ class _MainSettingsScreen extends StatelessWidget {
         const SizedBox(height: 12),
         const Divider(),
         const SizedBox(height: 8),
+        _SettingsToggleItem(
+          title: '自动连播',
+          checked: isAutoPlay,
+          onChanged: onAutoPlayChanged,
+        ),
         // Skip config for episodes
         if (playingInfoCache?.isEpisode == true ||
             playingInfoCache?.item?.type == 'Episode')
@@ -553,6 +575,61 @@ class _MainSettingsScreen extends StatelessWidget {
       return '已设置片尾';
     }
     return '未设置';
+  }
+}
+
+class _SettingsToggleItem extends StatefulWidget {
+  final String title;
+  final bool checked;
+  final void Function(bool)? onChanged;
+
+  const _SettingsToggleItem({
+    required this.title,
+    required this.checked,
+    required this.onChanged,
+  });
+
+  @override
+  State<_SettingsToggleItem> createState() => _SettingsToggleItemState();
+}
+
+class _SettingsToggleItemState extends State<_SettingsToggleItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onChanged == null
+            ? null
+            : () => widget.onChanged?.call(!widget.checked),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          margin: const EdgeInsets.only(bottom: 4),
+          decoration: BoxDecoration(
+            color: _isHovered ? _hoverBackgroundColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                widget.title,
+                style: const TextStyle(color: _defaultTextColor, fontSize: 14),
+              ),
+              ToggleSwitch(
+                checked: widget.checked,
+                onChanged: widget.onChanged,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1104,8 +1181,9 @@ class _SkipSlider extends StatelessWidget {
                 Builder(builder: (context) {
                   final remaining =
                       totalDurationSeconds - currentPositionSeconds;
-                  if (remaining > maxValue.toInt())
+                  if (remaining > maxValue.toInt()) {
                     return const SizedBox.shrink();
+                  }
                   return MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(

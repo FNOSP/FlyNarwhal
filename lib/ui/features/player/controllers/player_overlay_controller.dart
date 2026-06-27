@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../providers/providers.dart';
+
 enum PlayerFlyoutType { nextEpisode, speed, episode, quality, subtitle }
 
 enum PlayerHoverZone {
@@ -58,8 +60,9 @@ class PlayerOverlayState {
 class PlayerOverlayController extends StateNotifier<PlayerOverlayState> {
   PlayerOverlayController({
     Duration autoHideDuration = const Duration(seconds: 3),
+    bool initialAutoPlayEnabled = true,
   })  : _autoHideDuration = autoHideDuration,
-        super(const PlayerOverlayState());
+        super(PlayerOverlayState(isAutoPlayEnabled: initialAutoPlayEnabled));
 
   final Duration _autoHideDuration;
   Timer? _hideUiTimer;
@@ -149,5 +152,9 @@ class PlayerOverlayController extends StateNotifier<PlayerOverlayState> {
 
 final playerOverlayControllerProvider = StateNotifierProvider.autoDispose<
     PlayerOverlayController, PlayerOverlayState>((ref) {
-  return PlayerOverlayController();
+  final settingsManager = ref.watch(playerSettingsManagerProvider);
+  final initialAutoPlayEnabled = settingsManager.getAutoPlay();
+  return PlayerOverlayController(
+    initialAutoPlayEnabled: initialAutoPlayEnabled,
+  );
 });

@@ -17,6 +17,7 @@ import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
+import '../../../data/storage/player_settings_store.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/providers.dart';
@@ -97,6 +98,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   StreamResponse? _streamInfo;
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<bool>? _playingSubscription;
+  StreamSubscription<bool>? _completedSubscription;
   Timer? _playRecordTimer;
   Timer? _playbackIndicatorTimer;
   late final AnimationController _playbackIndicatorExitController;
@@ -171,6 +173,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       duration: const Duration(milliseconds: 240),
     );
     _syncPlaybackTargetsFromWidget();
+    _restoreAutoPlaySetting();
     unawaited(_ensureSubtitleLanguageMapsLoaded());
     _initializePlayer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -215,6 +218,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _videoController = VideoController(_player!);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
+    _setupPlayerCompletedListener();
     _setupProviderListeners();
 
     await _loadAndPlayMedia();
@@ -238,6 +242,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playingSubscription = player.stream.playing.listen((isPlaying) {
       _handlePlaybackStateChanged(isPlaying);
     });
+  }
+
+  void _setupPlayerCompletedListener() {
+    _completedSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+
+    _completedSubscription = player.stream.completed.listen((completed) {
+      if (!completed || !mounted) return;
+      _handlePlaybackCompleted();
+    });
+  }
+
+  void _handlePlaybackCompleted() {
+    final nextEpisode = _nextEpisode;
+    final autoPlayEnabled =
+        ref.read(playerOverlayControllerProvider).isAutoPlayEnabled;
+    if (!autoPlayEnabled || nextEpisode == null) {
+      return;
+    }
+    _openEpisode(nextEpisode);
+  }
+
+  void _restoreAutoPlaySetting() {
+    final autoPlay = ref.read(playerSettingsManagerProvider).getAutoPlay();
+    _overlayController.setAutoPlayEnabled(autoPlay);
+  }
+
+  void _onAutoPlayChanged(bool value) {
+    _overlayController.setAutoPlayEnabled(value);
+    unawaited(PlayerSettingsStore.setAutoPlay(value));
   }
 
   void _setupProviderListeners() {
@@ -1895,6 +1930,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _pipIdleTimer?.cancel();
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
+    _completedSubscription?.cancel();
     _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
@@ -2332,14 +2368,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           EpisodeSelectionFlyout(
             episodes: _episodeList,
             currentEpisodeGuid: _currentItemGuid,
-            isAutoPlay: overlayState.isAutoPlayEnabled,
+            parentTitle: _episodeFlyoutTitle,
+            baseUrl: baseUrl,
+            httpHeaders: httpHeaders,
+            cacheManager: cacheManager,
             yOffset: _controlFlyoutOffset,
             isActiveControl:
                 overlayState.activeFlyout == PlayerFlyoutType.episode,
             onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
                 PlayerFlyoutType.episode, hovered),
             onEpisodeSelected: _openEpisode,
-            onAutoPlayChanged: _overlayController.setAutoPlayEnabled,
           ),
           const SizedBox(width: _trailingControlSpacing),
         ],
@@ -2421,6 +2459,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           currentPositionMillis: _currentPosition,
           totalDurationMillis: _duration,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
+          isAutoPlay: overlayState.isAutoPlayEnabled,
+          onAutoPlayChanged: _onAutoPlayChanged,
           onHoverStateChanged: (hovered) => _overlayController.setHovered(
             PlayerHoverZone.settingsMenu,
             hovered,
@@ -2685,6 +2725,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       episodeNumber:
           _currentEpisode?.episodeNumber ?? _playInfo?.item.episodeNumber ?? 0,
     );
+  }
+
+  String get _episodeFlyoutTitle {
+    final currentEpisode = _currentEpisode;
+    if (currentEpisode != null) {
+      final tvTitle = currentEpisode.tvTitle.trim();
+      final seasonTitle = currentEpisode.parentTitle.trim();
+      if (tvTitle.isNotEmpty && seasonTitle.isNotEmpty) {
+        return '$tvTitle・$seasonTitle';
+      }
+      if (seasonTitle.isNotEmpty) {
+        return seasonTitle;
+      }
+    }
+
+    final item = _playInfo?.item ?? _playingInfoCache?.item;
+    if (item != null && item.type == 'Episode') {
+      final tvTitle = item.tvTitle.trim();
+      final seasonTitle = item.parentTitle.trim();
+      if (tvTitle.isNotEmpty && seasonTitle.isNotEmpty) {
+        return '$tvTitle・$seasonTitle';
+      }
+      if (seasonTitle.isNotEmpty) {
+        return seasonTitle;
+      }
+    }
+
+    return _displaySubhead;
   }
 
   void _openEpisode(EpisodeListResponse episode) {
