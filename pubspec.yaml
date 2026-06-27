@@ -72,3 +72,7 @@ flutter:
   assets:
     - assets/images/
     - assets/lottie/
+  fonts:
+    - family: SourceHanSansSC
+      fonts:
+        - asset: assets/fonts/SourceHanSansSC-VF.otf

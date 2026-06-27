@@ -18,6 +18,7 @@ import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/storage/player_settings_store.dart';
+import '../../../core/utils/app_fonts.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/providers.dart';
@@ -993,7 +994,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   bool get _isCurrentSubtitleMpvAdjustable {
-    return _isSupportedExternalSubtitle(_playingInfoCache?.currentSubtitleStream);
+    return _isSupportedExternalSubtitle(
+        _playingInfoCache?.currentSubtitleStream);
   }
 
   Future<void> _applySubtitleSettingsToMpv(SubtitleSettings settings) async {
@@ -1011,8 +1013,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         .round()
         .clamp(0, 100);
     try {
-      await platform.setProperty('sub-delay', (-settings.offsetSeconds).toStringAsFixed(3));
-      await platform.setProperty('sub-scale', settings.fontScale.toStringAsFixed(3));
+      await platform.setProperty(
+        'sub-delay',
+        (-settings.offsetSeconds).toStringAsFixed(3),
+      );
+      await platform.setProperty(
+          'sub-scale', settings.fontScale.toStringAsFixed(3));
+      await platform.setProperty('sub-font', AppFonts.primary);
       // Let sub-pos move ASS subtitles that rely on style margins. Has no
       // effect on absolutely-positioned (\pos/\move) danmaku tracks.
       await platform.setProperty('sub-ass-force-margins', 'yes');

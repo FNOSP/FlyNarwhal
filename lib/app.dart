@@ -112,6 +112,7 @@ class MyApp extends ConsumerWidget {
       theme: FluentThemeData(
         brightness: isDark ? Brightness.dark : Brightness.light,
         accentColor: Colors.blue,
+        fontFamily: AppFonts.primary,
       ),
       routeInformationParser: router.routeInformationParser,
       routerDelegate: router.routerDelegate,

@@ -1,6 +1,7 @@
 import 'dart:ui' show lerpDouble;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import '../../../../core/utils/app_fonts.dart';
 import '../../../../data/models/player_models.dart';
 
 class PlayerSubtitleOverlay extends StatelessWidget {
@@ -50,7 +51,9 @@ class PlayerSubtitleOverlay extends StatelessWidget {
             style: TextStyle(
               fontSize: fontSize,
               height: 1.35,
-              fontWeight: FontWeight.w500,
+              fontFamily: AppFonts.primary,
+              fontFamilyFallback: AppFonts.fallback,
+              fontWeight: FontWeight.w400,
               color: Colors.white,
               shadows: const [
                 Shadow(

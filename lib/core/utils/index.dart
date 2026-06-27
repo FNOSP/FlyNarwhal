@@ -8,3 +8,4 @@ export 'log/talker_formatter.dart';
 export 'log/talker_file_history.dart';
 export 'log/talker_log_sanitizer.dart';
 export 'log/talker_log_types.dart';
+export 'app_fonts.dart';
