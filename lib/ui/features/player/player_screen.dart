@@ -2772,6 +2772,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  Widget _buildPlaybackTimeText() {
+    return StreamBuilder<Duration>(
+      stream: _player?.stream.position,
+      builder: (context, snapshot) {
+        final currentPosition =
+            snapshot.data?.inMilliseconds ?? _currentPosition;
+        return Text(
+          '${formatDurationToDateTime(currentPosition)} / ${formatDurationToDateTime(_duration)}',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.92),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildControlButtons({
     required PlayerOverlayState overlayState,
     required SubtitleSettings subtitleSettings,
@@ -2830,14 +2848,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
         ],
         const SizedBox(width: 16),
-        Text(
-          '${formatDurationToDateTime(_currentPosition)} / ${formatDurationToDateTime(_duration)}',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.92),
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        _buildPlaybackTimeText(),
         const Spacer(),
         // Keep the trailing control cluster visually consistent.
         SpeedControlFlyout(
