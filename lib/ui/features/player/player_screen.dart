@@ -2263,6 +2263,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
 
+    final videoStream = cache.currentVideoStream;
+    final fileStream = cache.currentFileStream;
+    final currentAudio = cache.currentAudioStream;
+    if (videoStream == null || fileStream == null) return;
+
     final previousSubtitle = cache.currentSubtitleStream;
     final isDirectLinkEmbeddedSwitch = subtitle != null &&
         subtitle.isExternal != 1 &&
@@ -2283,9 +2288,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isLoading = !isDirectLinkEmbeddedSwitch;
       });
       _requestedSubtitleGuid = subtitle?.guid;
+      final currentPosition = player.state.position.inMilliseconds;
+      final currentPlayLink = cache.playLink;
+      final targetNeedsHls = _sessionCoordinator.isSupSubtitle(subtitle);
+      final canUseDirectLink = _sessionCoordinator.supportsDirectLink(
+        videoStream,
+        cache.currentQuality,
+        cache.currentQualities,
+      );
+      final shouldUseDirectLink = canUseDirectLink && !targetNeedsHls;
       final updatedCache = cache.copyWith(
         previousSubtitle: previousSubtitle,
         currentSubtitleStream: subtitle,
+        isUseDirectLink: shouldUseDirectLink,
+        playLink: shouldUseDirectLink ? null : cache.playLink,
       );
       _playingInfoCache = updatedCache;
       ref
@@ -2294,7 +2310,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       // Persist the newly selected subtitle via /play/record so the server
       // remembers it for the next session.
-      final currentPosition = player.state.position.inMilliseconds;
       _queuePlayRecordUpdate(
         positionMs: currentPosition,
         cacheOverride: updatedCache,

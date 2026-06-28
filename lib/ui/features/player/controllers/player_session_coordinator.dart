@@ -195,6 +195,7 @@ class PlayerSessionCoordinator {
       fileStream: fileStream,
       audioGuid: audioGuid,
       subtitleGuid: subtitleGuid,
+      currentSubtitleStream: currentSubtitleStream,
       currentQuality: currentQuality,
       qualities: qualities,
       startPositionMs: historyMs,
@@ -350,6 +351,18 @@ class PlayerSessionCoordinator {
         quality.resolution == originalQuality.resolution &&
         quality.bitrate == originalQuality.bitrate;
     return isOriginalQuality;
+  }
+
+  bool isSupSubtitle(SubtitleStream? subtitle) {
+    if (subtitle == null) return false;
+    if (subtitle.isBitmap == 1) return true;
+
+    final codec = subtitle.codecName.toLowerCase();
+    final format = subtitle.format.toLowerCase();
+    return codec.contains('pgs') ||
+        codec.contains('hdmv') ||
+        codec.contains('sup') ||
+        format == 'sup';
   }
 
   String absolutePlayUrl(String baseUrl, String playLink) {
@@ -535,12 +548,14 @@ class PlayerSessionCoordinator {
     required FileInfo fileStream,
     required String audioGuid,
     required String? subtitleGuid,
+    required SubtitleStream? currentSubtitleStream,
     required QualityResponse? currentQuality,
     required List<QualityResponse> qualities,
     required int startPositionMs,
     required String baseUrl,
   }) async {
-    if (supportsDirectLink(videoStream, currentQuality, qualities)) {
+    if (!isSupSubtitle(currentSubtitleStream) &&
+        supportsDirectLink(videoStream, currentQuality, qualities)) {
       final directLink = await getDirectPlayLink(
         mediaGuid: videoStream.mediaGuid,
         startPositionMs: startPositionMs,
@@ -568,6 +583,10 @@ class PlayerSessionCoordinator {
         isDirectLink: false,
       );
     } catch (error) {
+      if (isSupSubtitle(currentSubtitleStream)) {
+        rethrow;
+      }
+
       final message = error.toString();
       if (!message.contains('8192')) {
         rethrow;
