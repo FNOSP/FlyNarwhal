@@ -217,7 +217,7 @@ class PlayerSessionCoordinator {
       currentQuality: currentQuality,
       currentAudioStreamList: audioStreams,
       currentSubtitleStreamList: subtitleStreams,
-      playLink: resolved.playLinkRaw,
+      playLink: resolved.isDirectLink ? null : resolved.playLinkRaw,
       isUseDirectLink: resolved.isDirectLink,
       playConfig: playInfo.playConfig,
       streamInfo: streamInfo,
@@ -251,8 +251,7 @@ class PlayerSessionCoordinator {
     final episodeList = await _playerService.getEpisodeList(parentGuid);
     final currentEpisode =
         episodeList.where((e) => e.guid == currentGuid).firstOrNull;
-    final currentIndex =
-        episodeList.indexWhere((e) => e.guid == currentGuid);
+    final currentIndex = episodeList.indexWhere((e) => e.guid == currentGuid);
     final nextEpisode =
         currentIndex >= 0 && currentIndex + 1 < episodeList.length
             ? episodeList[currentIndex + 1]

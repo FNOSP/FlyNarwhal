@@ -311,7 +311,8 @@ class PlayingInfoCache {
   final QualityResponse? currentQuality;
   final List<AudioStream> currentAudioStreamList;
   final List<SubtitleStream> currentSubtitleStreamList;
-  // Control link reused by media/p requests. It may differ from playUri.
+  // Server-side playback session link reused by media/p requests.
+  // Direct-link playback must leave this null.
   final String? playLink;
   final bool isUseDirectLink;
   final PlayConfig? playConfig;

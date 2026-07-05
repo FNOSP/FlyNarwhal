@@ -22,6 +22,7 @@ import '../../../core/utils/app_fonts.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/providers.dart';
+import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
 import 'controllers/desktop_pseudo_fullscreen_controller.dart';
 import 'controllers/pip_window_mode_controller.dart';
@@ -100,6 +101,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<bool>? _completedSubscription;
+  StreamSubscription<Tracks>? _tracksSubscription;
   Timer? _playRecordTimer;
   Timer? _playbackIndicatorTimer;
   late final AnimationController _playbackIndicatorExitController;
@@ -133,6 +135,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showAddNasSubtitleDialog = false;
   bool _isUploadingLocalSubtitle = false;
   bool _isSubtitleSwitching = false;
+  List<SubtitleTrack> _embeddedSubtitleTracks = const <SubtitleTrack>[];
+  String? _pendingEmbeddedSubtitleGuid;
+  SubtitleStream? _pendingEmbeddedSubtitlePrevious;
+  int _embeddedSubtitleSwitchToken = 0;
+  final DirectLinkSubtitleTrackResolver _directLinkSubtitleTrackResolver =
+      const DirectLinkSubtitleTrackResolver();
   final DesktopPseudoFullscreenController _fullscreenController =
       DesktopPseudoFullscreenController();
   final PipWindowModeController _pipController = PipWindowModeController();
@@ -258,6 +266,59 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _completedSubscription = player.stream.completed.listen((completed) {
       if (!completed || !mounted) return;
       _handlePlaybackCompleted();
+    });
+  }
+
+  bool get _shouldTrackDirectLinkEmbeddedSubtitles {
+    return _playingInfoCache?.isUseDirectLink == true;
+  }
+
+  void _clearPendingEmbeddedSubtitleSwitch({bool advanceToken = false}) {
+    if (advanceToken) {
+      _embeddedSubtitleSwitchToken++;
+    }
+    _pendingEmbeddedSubtitleGuid = null;
+    _pendingEmbeddedSubtitlePrevious = null;
+  }
+
+  void _resetDirectLinkEmbeddedSubtitleState() {
+    _tracksSubscription?.cancel();
+    _tracksSubscription = null;
+    _embeddedSubtitleTracks = const <SubtitleTrack>[];
+    _clearPendingEmbeddedSubtitleSwitch(advanceToken: true);
+  }
+
+  void _syncEmbeddedSubtitleTracks(Tracks tracks) {
+    _embeddedSubtitleTracks =
+        _directLinkSubtitleTrackResolver.embeddedTracksOf(tracks.subtitle);
+  }
+
+  void _setupDirectLinkEmbeddedSubtitleTracking() {
+    _tracksSubscription?.cancel();
+    _tracksSubscription = null;
+
+    if (!_shouldTrackDirectLinkEmbeddedSubtitles) {
+      _embeddedSubtitleTracks = const <SubtitleTrack>[];
+      return;
+    }
+
+    final player = _player;
+    if (player == null) {
+      return;
+    }
+
+    _syncEmbeddedSubtitleTracks(player.state.tracks);
+    _tracksSubscription = player.stream.tracks.listen((tracks) {
+      _syncEmbeddedSubtitleTracks(tracks);
+      final pendingGuid = _pendingEmbeddedSubtitleGuid;
+      final currentSubtitleGuid =
+          _playingInfoCache?.currentSubtitleStream?.guid;
+      if (pendingGuid == null || pendingGuid != currentSubtitleGuid) {
+        return;
+      }
+      unawaited(_tryApplyPendingDirectLinkEmbeddedSubtitleSwitch(
+        requestToken: _embeddedSubtitleSwitchToken,
+      ));
     });
   }
 
@@ -529,6 +590,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _resetPlaybackStateForTargetChange() {
     _disposeHlsSubtitleSession();
+    _resetDirectLinkEmbeddedSubtitleState();
     _playRecordTimer?.cancel();
     _lastRecordedPosition = 0;
     _currentPosition = 0;
@@ -602,6 +664,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }) async {
     final player = _player;
     if (player == null) return;
+    _resetDirectLinkEmbeddedSubtitleState();
 
     // Set mpv native start property so decoding positions from the desired
     // point. This is the most reliable way for history-progress resume.
@@ -623,6 +686,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         httpHeaders: headers.isEmpty ? null : headers,
       ),
     );
+    _setupDirectLinkEmbeddedSubtitleTracking();
 
     if (_isSupportedExternalSubtitle(currentSubtitleStream)) {
       _applyExternalSubtitleAsync(currentSubtitleStream!, _loadRequestToken);
@@ -732,7 +796,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       startPositionMs: startPositionMs,
     );
     _playingInfoCache = cache.copyWith(
-      playLink: directLink.playLinkRaw,
+      playLink: null,
       isUseDirectLink: true,
     );
     ref
@@ -953,6 +1017,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return supportedFormats.contains(subtitleStream.format.toLowerCase());
   }
 
+  bool _isDirectLinkEmbeddedSubtitle(SubtitleStream? subtitleStream) {
+    final cache = _playingInfoCache;
+    return subtitleStream != null &&
+        subtitleStream.isExternal != 1 &&
+        cache?.isUseDirectLink == true &&
+        !_useHlsSubtitleOverlay;
+  }
+
   // Detect subtitles that pin every event to absolute coordinates via
   // \pos/\move (e.g. danmaku). For those, the global sub-pos has no effect,
   // so the vertical-position control should be disabled in the UI.
@@ -986,6 +1058,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     setState(() => _isPositionLockedSubtitle = locked);
   }
 
+  void _clearPositionLockedSubtitle() {
+    if (!_isPositionLockedSubtitle) {
+      return;
+    }
+    if (!mounted) {
+      _isPositionLockedSubtitle = false;
+      return;
+    }
+    setState(() => _isPositionLockedSubtitle = false);
+  }
+
   bool _areSubtitleSettingsEqual(
     SubtitleSettings? left,
     SubtitleSettings right,
@@ -1000,8 +1083,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   bool get _isCurrentSubtitleMpvAdjustable {
-    return _isSupportedExternalSubtitle(
-        _playingInfoCache?.currentSubtitleStream);
+    final subtitleStream = _playingInfoCache?.currentSubtitleStream;
+    return _isSupportedExternalSubtitle(subtitleStream) ||
+        _isDirectLinkEmbeddedSubtitle(subtitleStream);
   }
 
   Future<void> _applySubtitleSettingsToMpv(SubtitleSettings settings) async {
@@ -1057,6 +1141,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           return;
         }
 
+        _clearPositionLockedSubtitle();
+        await player.setSubtitleTrack(SubtitleTrack.no());
         await player.setSubtitleTrack(
           SubtitleTrack.data(
             content,
@@ -1075,27 +1161,194 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }());
   }
 
-  Future<void> _applyCurrentSubtitleTrack(
-    SubtitleStream? subtitleStream,
+  SubtitleTrack? _resolveDirectLinkSubtitleTrack(
+      SubtitleStream subtitleStream) {
+    final cache = _playingInfoCache;
+    if (cache == null) {
+      return null;
+    }
+    return _directLinkSubtitleTrackResolver.resolve(
+      subtitleStreams: cache.currentSubtitleStreamList,
+      subtitleTracks: _embeddedSubtitleTracks,
+      targetSubtitle: subtitleStream,
+    );
+  }
+
+  Future<bool> _applyDirectLinkEmbeddedSubtitleTrack(
+    SubtitleStream subtitleStream,
   ) async {
+    final player = _player;
+    if (player == null) {
+      return false;
+    }
+
+    final targetTrack = _resolveDirectLinkSubtitleTrack(subtitleStream);
+    if (targetTrack == null) {
+      _pendingEmbeddedSubtitleGuid = subtitleStream.guid;
+      return false;
+    }
+
+    _clearPositionLockedSubtitle();
+    final platform = player.platform;
+    try {
+      if (platform is NativePlayer) {
+        // Use mpv sid directly to avoid the heavier synchronized track-switch
+        // path on hot subtitle interactions.
+        await platform.setProperty(
+          'sid',
+          targetTrack.id,
+          waitForInitialization: false,
+        );
+      } else {
+        await player.setSubtitleTrack(targetTrack);
+      }
+    } catch (error) {
+      AppTalker.warning(
+        'Player',
+        'lightweight sid switch failed, fallback to setSubtitleTrack: $error',
+      );
+      await player.setSubtitleTrack(targetTrack);
+    }
+
+    _pendingEmbeddedSubtitleGuid = null;
+    await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+    return true;
+  }
+
+  Future<void> _handleDirectLinkEmbeddedSubtitleSwitchFailure({
+    required int requestToken,
+    required SubtitleStream targetSubtitle,
+    required Object error,
+  }) async {
+    if (requestToken != _embeddedSubtitleSwitchToken) {
+      return;
+    }
+
+    final previousSubtitle = _pendingEmbeddedSubtitlePrevious;
+    final cache = _playingInfoCache;
+    if (cache != null &&
+        cache.currentSubtitleStream?.guid == targetSubtitle.guid) {
+      _playingInfoCache = cache.copyWith(
+        currentSubtitleStream: previousSubtitle,
+        previousSubtitle: previousSubtitle,
+      );
+      ref
+          .read(playerViewModelProvider.notifier)
+          .updatePlayingInfo(_playingInfoCache);
+    }
+    _pendingEmbeddedSubtitleGuid = null;
+    _pendingEmbeddedSubtitlePrevious = null;
+    AppTalker.warning(
+      'Player',
+      'direct-link embedded subtitle switch failed: $error',
+    );
+    if (!mounted) {
+      _selectedSubtitleGuid = previousSubtitle?.guid;
+      return;
+    }
+    _toastManager.showToast('切换字幕失败: $error', type: ToastType.failed);
+    setState(() {
+      _selectedSubtitleGuid = previousSubtitle?.guid;
+    });
+  }
+
+  Future<void> _tryApplyPendingDirectLinkEmbeddedSubtitleSwitch({
+    required int requestToken,
+  }) async {
+    if (requestToken != _embeddedSubtitleSwitchToken) {
+      return;
+    }
+    final pendingGuid = _pendingEmbeddedSubtitleGuid;
+    final cache = _playingInfoCache;
+    final targetSubtitle = cache?.currentSubtitleStream;
+    if (pendingGuid == null ||
+        targetSubtitle == null ||
+        targetSubtitle.guid != pendingGuid ||
+        !_isDirectLinkEmbeddedSubtitle(targetSubtitle)) {
+      return;
+    }
+
+    try {
+      final applied =
+          await _applyDirectLinkEmbeddedSubtitleTrack(targetSubtitle);
+      if (!applied || requestToken != _embeddedSubtitleSwitchToken) {
+        return;
+      }
+      _pendingEmbeddedSubtitlePrevious = null;
+      if (!mounted) {
+        _selectedSubtitleGuid = targetSubtitle.guid;
+        return;
+      }
+      setState(() => _selectedSubtitleGuid = targetSubtitle.guid);
+    } catch (error) {
+      await _handleDirectLinkEmbeddedSubtitleSwitchFailure(
+        requestToken: requestToken,
+        targetSubtitle: targetSubtitle,
+        error: error,
+      );
+    }
+  }
+
+  void _scheduleDirectLinkEmbeddedSubtitleSwitch({
+    required SubtitleStream targetSubtitle,
+    required SubtitleStream? previousSubtitle,
+  }) {
+    final requestToken = ++_embeddedSubtitleSwitchToken;
+    _pendingEmbeddedSubtitleGuid = targetSubtitle.guid;
+    _pendingEmbeddedSubtitlePrevious = previousSubtitle;
+    unawaited(_tryApplyPendingDirectLinkEmbeddedSubtitleSwitch(
+      requestToken: requestToken,
+    ));
+  }
+
+  Future<void> _applyCurrentSubtitleTrack(
+    SubtitleStream? subtitleStream, {
+    bool strict = false,
+  }) async {
     final player = _player;
     if (player == null) return;
 
     if (subtitleStream == null) {
+      _clearPendingEmbeddedSubtitleSwitch();
+      _clearPositionLockedSubtitle();
       await player.setSubtitleTrack(SubtitleTrack.no());
       return;
     }
 
     if (_useHlsSubtitleOverlay && subtitleStream.isExternal != 1) {
+      _clearPendingEmbeddedSubtitleSwitch();
+      _clearPositionLockedSubtitle();
       await player.setSubtitleTrack(SubtitleTrack.no());
       return;
     }
 
     if (!_isSupportedExternalSubtitle(subtitleStream)) {
+      if (!_isDirectLinkEmbeddedSubtitle(subtitleStream)) {
+        _clearPendingEmbeddedSubtitleSwitch();
+        _clearPositionLockedSubtitle();
+        return;
+      }
+
+      final applied =
+          await _applyDirectLinkEmbeddedSubtitleTrack(subtitleStream);
+      if (!applied) {
+        final error = StateError(
+          'Unable to resolve embedded subtitle track for ${subtitleStream.guid}',
+        );
+        AppTalker.warning('Player', 'apply embedded subtitle failed: $error');
+        if (strict) {
+          throw error;
+        }
+        return;
+      }
+
       return;
     }
 
     try {
+      _clearPendingEmbeddedSubtitleSwitch();
+      _clearPositionLockedSubtitle();
+      await player.setSubtitleTrack(SubtitleTrack.no());
       final content = await ref
           .read(playerServiceProvider)
           .downloadExternalSubtitle(subtitleStream.guid);
@@ -1125,6 +1378,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       AppTalker.warning('Player', 'apply external subtitle failed: $e');
       if (player == _player) {
         await player.setSubtitleTrack(SubtitleTrack.no());
+      }
+      if (strict) {
+        rethrow;
       }
     }
   }
@@ -1267,8 +1523,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await _openMediaWithResume(
         playUri: result.preparedPlaySource.playUri,
         startPositionMs: startPositionMs,
-        currentSubtitleStream:
-            result.playingInfoCache.currentSubtitleStream,
+        currentSubtitleStream: result.playingInfoCache.currentSubtitleStream,
       );
       if (!mounted || requestToken != _loadRequestToken) return;
 
@@ -1394,8 +1649,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         await _openMediaWithResume(
           playUri: result.preparedPlaySource.playUri,
           startPositionMs: startMs,
-          currentSubtitleStream:
-              result.playingInfoCache.currentSubtitleStream,
+          currentSubtitleStream: result.playingInfoCache.currentSubtitleStream,
         );
       }
       if (!mounted || requestToken != _loadRequestToken) {
@@ -2010,6 +2264,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     final previousSubtitle = cache.currentSubtitleStream;
+    final isDirectLinkEmbeddedSwitch = subtitle != null &&
+        subtitle.isExternal != 1 &&
+        cache.isUseDirectLink &&
+        !_useHlsSubtitleOverlay;
+    if (!isDirectLinkEmbeddedSwitch) {
+      _clearPendingEmbeddedSubtitleSwitch(advanceToken: true);
+    }
     final subtitleIndex = subtitle == null
         ? null
         : subtitle.isExternal == 1
@@ -2019,7 +2280,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       setState(() {
         _isSubtitleSwitching = true;
-        _isLoading = true;
+        _isLoading = !isDirectLinkEmbeddedSwitch;
       });
       _requestedSubtitleGuid = subtitle?.guid;
       final updatedCache = cache.copyWith(
@@ -2040,7 +2301,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
 
       final currentPlayLink = updatedCache.playLink;
-      if (currentPlayLink != null && currentPlayLink.isNotEmpty) {
+      if (!updatedCache.isUseDirectLink &&
+          currentPlayLink != null &&
+          currentPlayLink.isNotEmpty) {
         await ref.read(mediaPViewModelProvider.notifier).resetSubtitle(
               MediaPRequest(
                 playLink: currentPlayLink,
@@ -2048,10 +2311,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 startTimestamp: currentPosition ~/ 1000,
               ),
             );
+      } else if (isDirectLinkEmbeddedSwitch) {
+        _scheduleDirectLinkEmbeddedSubtitleSwitch(
+          targetSubtitle: subtitle,
+          previousSubtitle: previousSubtitle,
+        );
+        if (mounted) {
+          setState(() {
+            _isSubtitleSwitching = false;
+            _selectedSubtitleGuid = subtitle.guid;
+            _isLoading = false;
+          });
+        }
       } else {
         // Direct-link playback (no server-side session): apply the chosen
         // subtitle track locally and clear the loading state immediately.
-        await _applyCurrentSubtitleTrack(subtitle);
+        await _applyCurrentSubtitleTrack(subtitle, strict: true);
         if (mounted) {
           setState(() {
             _isSubtitleSwitching = false;
@@ -2137,6 +2412,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
+    _tracksSubscription?.cancel();
     _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
@@ -2156,9 +2432,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       visible: overlayState.isUiVisible,
     );
     final pipTransition = _pipTransitionController;
-    final playerCursor = _isInitialized && !_isPipMode && !overlayState.isUiVisible
-        ? SystemMouseCursors.none
-        : SystemMouseCursors.click;
+    final playerCursor =
+        _isInitialized && !_isPipMode && !overlayState.isUiVisible
+            ? SystemMouseCursors.none
+            : SystemMouseCursors.click;
     final playerStack = Stack(
       children: [
         MouseRegion(
@@ -2912,7 +3189,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   bool get _canAdjustSubtitle {
     final subtitleStream = _playingInfoCache?.currentSubtitleStream;
-    if (_isSupportedExternalSubtitle(subtitleStream)) {
+    if (_isSupportedExternalSubtitle(subtitleStream) ||
+        _isDirectLinkEmbeddedSubtitle(subtitleStream)) {
       return true;
     }
     return _useHlsSubtitleOverlay &&
