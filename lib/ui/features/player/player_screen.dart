@@ -2265,7 +2265,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     final videoStream = cache.currentVideoStream;
     final fileStream = cache.currentFileStream;
-    final currentAudio = cache.currentAudioStream;
     if (videoStream == null || fileStream == null) return;
 
     final previousSubtitle = cache.currentSubtitleStream;
@@ -2289,19 +2288,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       });
       _requestedSubtitleGuid = subtitle?.guid;
       final currentPosition = player.state.position.inMilliseconds;
-      final currentPlayLink = cache.playLink;
-      final targetNeedsHls = _sessionCoordinator.isSupSubtitle(subtitle);
-      final canUseDirectLink = _sessionCoordinator.supportsDirectLink(
-        videoStream,
-        cache.currentQuality,
-        cache.currentQualities,
-      );
-      final shouldUseDirectLink = canUseDirectLink && !targetNeedsHls;
+      final initialPlayLink = cache.playLink;
       final updatedCache = cache.copyWith(
         previousSubtitle: previousSubtitle,
         currentSubtitleStream: subtitle,
-        isUseDirectLink: shouldUseDirectLink,
-        playLink: shouldUseDirectLink ? null : cache.playLink,
       );
       _playingInfoCache = updatedCache;
       ref
@@ -2316,12 +2306,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
 
       final currentPlayLink = updatedCache.playLink;
-      if (!updatedCache.isUseDirectLink &&
-          currentPlayLink != null &&
-          currentPlayLink.isNotEmpty) {
+      final resetPlayLink = currentPlayLink ?? initialPlayLink;
+      if (resetPlayLink != null && resetPlayLink.isNotEmpty) {
         await ref.read(mediaPViewModelProvider.notifier).resetSubtitle(
               MediaPRequest(
-                playLink: currentPlayLink,
+                playLink: resetPlayLink,
                 subtitleIndex: subtitleIndex,
                 startTimestamp: currentPosition ~/ 1000,
               ),
