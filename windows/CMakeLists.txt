@@ -183,6 +183,12 @@ add_subdirectory("runner")
 # to add_custom_command(TARGET ...), such as webview_windows 0.4.0.
 set(CMAKE_POLICY_DEFAULT_CMP0175 OLD)
 include(flutter/generated_plugins.cmake)
+
+if(MSVC AND TARGET flutter_inappwebview_windows_plugin)
+  # Suppress noisy warnings from the WebView2 SDK and plugin conversion code.
+  target_compile_options(flutter_inappwebview_windows_plugin PRIVATE /utf-8 /wd4458 /wd4244 /wd4819)
+endif()
+
 unset(CMAKE_POLICY_DEFAULT_CMP0175)
 
 
