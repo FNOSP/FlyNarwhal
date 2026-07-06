@@ -1626,6 +1626,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _playInfo = result.playInfo;
       _streamInfo = result.streamInfo;
       _playingInfoCache = result.playingInfoCache;
+      _currentItemGuid = result.playingInfoCache.itemGuid ?? result.playInfo.item.guid;
       _qualities = result.qualities;
       _currentQuality = result.currentQuality;
       ref
@@ -1688,6 +1689,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       });
 
       _startPlayRecordTimer();
+      // Immediately record playback start, using at least 1s to avoid zero-second record.
+      final recordStartMs = startMs > 0 ? startMs : 1000;
+      _queuePlayRecordUpdate(positionMs: recordStartMs);
+      _lastRecordedPosition = recordStartMs;
       _suspendPlaybackTransitionFeedback = false;
 
       _fetchEpisodeContextAsync(requestToken);
@@ -1724,10 +1729,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       try {
         final context = await _sessionCoordinator.loadEpisodeContext(
           parentGuid: info.parentGuid,
-          currentGuid: _currentItemGuid,
+          currentGuid: info.item.guid,
         );
         if (!mounted || requestToken != _loadRequestToken) return;
-        if (context.currentEpisode?.guid != _currentItemGuid) return;
+        if (context.currentEpisode?.guid != info.item.guid) return;
 
         setState(() {
           _episodeList = context.episodeList;

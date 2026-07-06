@@ -515,9 +515,7 @@ class _TvSeasonDetailContentState
           text: playButtonText,
           onPressed: () async {
             if (playInfo != null) {
-              final playItemGuid = playInfo.item.playItemGuid;
-              final targetGuid =
-                  playItemGuid.isNotEmpty ? playItemGuid : widget.guid;
+              final targetGuid = playInfo.item.guid.isNotEmpty ? playInfo.item.guid : widget.guid;
               ref.read(navigationStackProvider.notifier).pushPath('/home');
               context.go('/player/$targetGuid');
             }

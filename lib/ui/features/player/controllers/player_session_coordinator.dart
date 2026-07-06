@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -208,7 +208,7 @@ class PlayerSessionCoordinator {
     );
 
     final playingInfoCache = PlayingInfoCache(
-      itemGuid: target.guid,
+      itemGuid: playInfo.item.guid,
       parentGuid: playInfo.parentGuid,
       item: playInfo.item,
       currentFileStream: fileStream,
@@ -493,7 +493,7 @@ class PlayerSessionCoordinator {
       if (episodeLabel.isNotEmpty) episodeLabel,
       if (episodeTitle.isNotEmpty) episodeTitle,
     ];
-    return parts.join(' · ');
+    return parts.join(' 路 ');
   }
 
   AudioStream? _selectAudioStream({
