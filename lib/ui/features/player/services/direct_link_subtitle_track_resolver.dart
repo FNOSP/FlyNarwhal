@@ -23,9 +23,9 @@ class DirectLinkSubtitleTrackResolver {
     // resolver only compares real embedded tracks from the current media.
     final embeddedTracks = embeddedTracksOf(subtitleTracks);
     if (embeddedTracks.isEmpty) {
-      AppTalker.warning(
+      AppTalker.info(
         'Player',
-        'direct-link subtitle resolve failed: no embedded subtitle tracks',
+        'direct-link subtitle resolve skipped: no embedded subtitle tracks yet',
       );
       return null;
     }

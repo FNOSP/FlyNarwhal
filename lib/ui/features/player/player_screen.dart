@@ -81,6 +81,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   static const Duration _playbackIndicatorExitDuration =
       Duration(milliseconds: 300);
   static const Duration _hlsSubtitleInitTimeout = Duration(seconds: 5);
+  static const Duration _directLinkEmbeddedSubtitleTracksTimeout =
+      Duration(seconds: 3);
 
   late final ToastManager _toastManager;
   Player? _player;
@@ -322,6 +324,64 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         requestToken: _embeddedSubtitleSwitchToken,
       ));
     });
+  }
+
+  /// Waits until [player.stream.tracks] first reports at least one real
+  /// embedded subtitle track. Returns [true] if tracks became available
+  /// before the timeout; [false] on timeout, disposal, or request staleness.
+  Future<bool> _waitForDirectLinkEmbeddedSubtitleTracks({
+    required SubtitleStream? subtitleStream,
+    required int loadToken,
+  }) async {
+    if (subtitleStream == null) return false;
+    if (!_isDirectLinkEmbeddedSubtitle(subtitleStream)) return false;
+    if (_embeddedSubtitleTracks.isNotEmpty) return true;
+
+    final player = _player;
+    if (player == null) return false;
+
+    final completer = Completer<bool>();
+    StreamSubscription<Tracks>? subscription;
+    Timer? timeoutTimer;
+
+    void cleanup() {
+      subscription?.cancel();
+      timeoutTimer?.cancel();
+    }
+
+    timeoutTimer = Timer(_directLinkEmbeddedSubtitleTracksTimeout, () {
+      cleanup();
+      if (!completer.isCompleted) {
+        completer.complete(false);
+      }
+    });
+
+    subscription = player.stream.tracks.listen((tracks) {
+      final embeddedTracks =
+          _directLinkSubtitleTrackResolver.embeddedTracksOf(tracks.subtitle);
+      if (embeddedTracks.isNotEmpty) {
+        cleanup();
+        if (!completer.isCompleted) {
+          _syncEmbeddedSubtitleTracks(tracks);
+          completer.complete(true);
+        }
+      }
+    }, onError: (_) {
+      cleanup();
+      if (!completer.isCompleted) {
+        completer.complete(false);
+      }
+    });
+
+    final result = await completer.future;
+
+    // Verify the request hasn't been superseded during the wait.
+    if (loadToken != _loadRequestToken || !mounted || player != _player) {
+      cleanup();
+      return false;
+    }
+
+    return result;
   }
 
   void _handlePlaybackCompleted() {
@@ -692,6 +752,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     if (_isSupportedExternalSubtitle(currentSubtitleStream)) {
       _applyExternalSubtitleAsync(currentSubtitleStream!, _loadRequestToken);
+    } else if (_isDirectLinkEmbeddedSubtitle(currentSubtitleStream)) {
+      final tracksReady = await _waitForDirectLinkEmbeddedSubtitleTracks(
+        subtitleStream: currentSubtitleStream,
+        loadToken: _loadRequestToken,
+      );
+      if (tracksReady) {
+        await _applyCurrentSubtitleTrack(currentSubtitleStream);
+      } else {
+        _pendingEmbeddedSubtitleGuid = currentSubtitleStream!.guid;
+      }
     } else {
       await _applyCurrentSubtitleTrack(currentSubtitleStream);
     }
