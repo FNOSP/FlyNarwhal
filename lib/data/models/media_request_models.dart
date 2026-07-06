@@ -52,6 +52,14 @@ class PlayRecordRequest {
   final int duration;
   @JsonKey(name: 'play_link')
   final String? playLink;
+  @JsonKey(name: 'device_id')
+  final String deviceId;
+  @JsonKey(name: 'direct_link_audio_index')
+  final int directLinkAudioIndex;
+  @JsonKey(name: 'lan')
+  final String lan;
+  @JsonKey(name: 'device_name')
+  final String deviceName;
 
   const PlayRecordRequest({
     required this.itemGuid,
@@ -64,6 +72,10 @@ class PlayRecordRequest {
     required this.ts,
     required this.duration,
     this.playLink,
+    required this.deviceId,
+    required this.directLinkAudioIndex,
+    required this.lan,
+    required this.deviceName,
   });
 
   Map<String, dynamic> toJson() => _$PlayRecordRequestToJson(this);

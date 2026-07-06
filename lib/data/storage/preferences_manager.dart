@@ -10,6 +10,7 @@ class PreferencesManager {
   static const String _keyFollowSystemTheme = 'follow_system_theme';
   static const String _keyDarkMode = 'dark_mode';
   static const String _keyNavigationDisplayMode = 'navigation_display_mode';
+  static const String _keyFallbackDeviceId = 'fallback_device_id';
 
   final SharedPreferences _prefs;
 
@@ -77,6 +78,14 @@ class PreferencesManager {
 
   Future<void> saveNavigationDisplayMode(String value) async {
     await _prefs.setString(_keyNavigationDisplayMode, value);
+  }
+
+  String? getFallbackDeviceId() {
+    return _prefs.getString(_keyFallbackDeviceId);
+  }
+
+  Future<void> saveFallbackDeviceId(String value) async {
+    await _prefs.setString(_keyFallbackDeviceId, value);
   }
 
   Future<void> clear() async {

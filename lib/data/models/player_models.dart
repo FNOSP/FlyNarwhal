@@ -314,6 +314,8 @@ class PlayingInfoCache {
   // Server-side playback session link reused by media/p requests.
   // Direct-link playback must leave this null.
   final String? playLink;
+  // Client-side record session link used by play/record requests.
+  final String? playRecordLink;
   final bool isUseDirectLink;
   final PlayConfig? playConfig;
   final StreamResponse? streamInfo;
@@ -334,6 +336,7 @@ class PlayingInfoCache {
     this.currentAudioStreamList = const [],
     this.currentSubtitleStreamList = const [],
     this.playLink,
+    this.playRecordLink,
     this.isUseDirectLink = true,
     this.playConfig,
     this.streamInfo,
@@ -355,6 +358,7 @@ class PlayingInfoCache {
     List<AudioStream>? currentAudioStreamList,
     List<SubtitleStream>? currentSubtitleStreamList,
     Object? playLink = _unset,
+    Object? playRecordLink = _unset,
     bool? isUseDirectLink,
     Object? playConfig = _unset,
     StreamResponse? streamInfo,
@@ -386,6 +390,9 @@ class PlayingInfoCache {
           currentSubtitleStreamList ?? this.currentSubtitleStreamList,
       playLink:
           identical(playLink, _unset) ? this.playLink : playLink as String?,
+      playRecordLink: identical(playRecordLink, _unset)
+          ? this.playRecordLink
+          : playRecordLink as String?,
       isUseDirectLink: isUseDirectLink ?? this.isUseDirectLink,
       playConfig: identical(playConfig, _unset)
           ? this.playConfig

@@ -24,6 +24,8 @@ import '../../../providers/file_providers.dart';
 import '../../../providers/providers.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
+import 'services/player_device_context_service.dart';
+import 'services/play_record_request_builder.dart';
 import 'controllers/desktop_pseudo_fullscreen_controller.dart';
 import 'controllers/pip_window_mode_controller.dart';
 import 'controllers/player_manager.dart';
@@ -701,27 +703,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   PlayRecordRequest? _buildPlayRecordRequest({
     required int positionSeconds,
+    required String deviceId,
+    required String deviceName,
     PlayingInfoCache? cacheOverride,
   }) {
-    final cache = cacheOverride ?? _playingInfoCache;
-    final fileStream = cache?.currentFileStream;
-    final videoStream = cache?.currentVideoStream;
-    if (cache == null || fileStream == null || videoStream == null) {
-      return null;
-    }
-
-    final quality = cache.currentQuality;
-    return PlayRecordRequest(
-      itemGuid: cache.itemGuid ?? _currentItemGuid,
-      mediaGuid: fileStream.guid,
-      videoGuid: videoStream.guid,
-      audioGuid: cache.currentAudioStream?.guid ?? '',
-      subtitleGuid: cache.currentSubtitleStream?.guid,
-      resolution: quality?.resolution ?? videoStream.resolutionType,
-      bitrate: quality?.bitrate ?? videoStream.bps,
-      ts: positionSeconds,
-      duration: videoStream.duration,
-      playLink: cache.playLink,
+    // Route play/record requests through a pure builder so direct-link and
+    // HLS sessions pick the correct play_link source consistently.
+    return buildPlayRecordRequest(
+      positionSeconds: positionSeconds,
+      fallbackItemGuid: _currentItemGuid,
+      deviceId: deviceId,
+      deviceName: deviceName,
+      cache: cacheOverride ?? _playingInfoCache,
     );
   }
 
@@ -736,14 +729,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final targetMs = positionMs ?? player.state.position.inMilliseconds;
     if (targetMs < 0) return;
 
-    final request = _buildPlayRecordRequest(
-      positionSeconds: targetMs ~/ 1000,
-      cacheOverride: cacheOverride,
-    );
-    if (request == null) return;
-
     unawaited(() async {
       try {
+        // Resolve the current device metadata right before sending play/record.
+        final deviceContext =
+            await ref.read(playerDeviceContextServiceProvider).loadContext();
+        final request = _buildPlayRecordRequest(
+          positionSeconds: targetMs ~/ 1000,
+          deviceId: deviceContext.deviceId,
+          deviceName: deviceContext.deviceName,
+          cacheOverride: cacheOverride,
+        );
+        if (request == null) return;
         await ref.read(playerServiceProvider).updatePlayRecord(request);
       } catch (_) {
         // PlayRecord failure must not affect the main playback flow.
@@ -797,6 +794,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     _playingInfoCache = cache.copyWith(
       playLink: null,
+      playRecordLink:
+          _sessionCoordinator.ensureDirectPlayRecordLink(cache.playRecordLink),
       isUseDirectLink: true,
     );
     ref
@@ -819,6 +818,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     _playingInfoCache = cache.copyWith(
       playLink: response.playLink,
+      playRecordLink: null,
       isUseDirectLink: false,
     );
     ref
@@ -1590,6 +1590,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     _playingInfoCache = cache.copyWith(
       playLink: hlsResult.playLinkRaw,
+      playRecordLink: null,
       isUseDirectLink: false,
     );
     ref
@@ -2138,6 +2139,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         currentQuality: quality,
         isUseDirectLink: isTargetDirectLink,
         playLink: isTargetDirectLink ? null : cache.playLink,
+        playRecordLink: isTargetDirectLink
+            ? _sessionCoordinator.ensureDirectPlayRecordLink(
+                cache.playRecordLink,
+              )
+            : cache.playRecordLink,
       );
       ref
           .read(playerViewModelProvider.notifier)

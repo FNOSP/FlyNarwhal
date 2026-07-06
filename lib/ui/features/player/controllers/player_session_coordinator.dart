@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../data/models/episode_list_response.dart';
 import '../../../../data/models/movie_detail_models.dart';
@@ -141,6 +142,7 @@ class PlayerSessionCoordinator {
   final Dio _dio;
 
   static const Duration _sessionRequestTimeout = Duration(seconds: 15);
+  static const Uuid _uuid = Uuid();
 
   Future<PlayerSessionLoadResult> loadSession(PlayerRouteTarget target) async {
     final baseUrl = _preferencesManager.getBaseUrl() ?? '';
@@ -218,6 +220,8 @@ class PlayerSessionCoordinator {
       currentAudioStreamList: audioStreams,
       currentSubtitleStreamList: subtitleStreams,
       playLink: resolved.isDirectLink ? null : resolved.playLinkRaw,
+      playRecordLink:
+          resolved.isDirectLink ? ensureDirectPlayRecordLink(null) : null,
       isUseDirectLink: resolved.isDirectLink,
       playConfig: playInfo.playConfig,
       streamInfo: streamInfo,
@@ -350,6 +354,14 @@ class PlayerSessionCoordinator {
         quality.resolution == originalQuality.resolution &&
         quality.bitrate == originalQuality.bitrate;
     return isOriginalQuality;
+  }
+
+  String ensureDirectPlayRecordLink(String? currentLink) {
+    // Reuse the current direct-link record session when possible.
+    if (currentLink != null && currentLink.isNotEmpty) {
+      return currentLink;
+    }
+    return _uuid.v4();
   }
 
   String absolutePlayUrl(String baseUrl, String playLink) {

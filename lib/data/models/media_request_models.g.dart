@@ -23,4 +23,8 @@ Map<String, dynamic> _$PlayRecordRequestToJson(PlayRecordRequest instance) =>
       'ts': instance.ts,
       'duration': instance.duration,
       'play_link': instance.playLink,
+      'device_id': instance.deviceId,
+      'direct_link_audio_index': instance.directLinkAudioIndex,
+      'lan': instance.lan,
+      'device_name': instance.deviceName,
     };
