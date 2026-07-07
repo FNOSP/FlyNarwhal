@@ -106,10 +106,19 @@ function(ENSURE_VERIFIED_WINDOWS_ARCHIVE ARCHIVE_NAME ARCHIVE_URL ARCHIVE_MD5)
   endif()
 endfunction()
 
+# Full libmpv download module (for PGS/HDMV bitmap subtitle support)
+include(cmake/full_libmpv.cmake)
+
 # Normalize Windows plugin links before including generated plugin rules.
 if (WIN32)
   # Pre-seed archives downloaded by media_kit so plugin configure steps do not
   # get stuck on zero-byte caches produced by file(DOWNLOAD).
+
+  # -------------------------------------------------------------------------
+  # Download & extract full libmpv for bitmap subtitle (PGS/HDMV/SUP) support.
+  # The extracted DLL overrides media_kit's stripped build during install.
+  # -------------------------------------------------------------------------
+  ensure_full_libmpv_windows()
 #   ensure_verified_windows_archive(
 #     "mpv-dev-x86_64-20230924-git-652a1dd.7z"
 #     "https://github.com/media-kit/libmpv-win32-video-build/releases/download/2023-09-24/mpv-dev-x86_64-20230924-git-652a1dd.7z"
@@ -176,7 +185,6 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
-
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 # Default CMP0175 for third-party plugins that still pass unsupported DEPENDS
@@ -199,9 +207,7 @@ unset(CMAKE_POLICY_DEFAULT_CMP0175)
 set(BUILD_BUNDLE_DIR "$<TARGET_FILE_DIR:${BINARY_NAME}>")
 # Make the "install" step default, as it's required to run.
 set(CMAKE_VS_INCLUDE_INSTALL_TO_DEFAULT_BUILD 1)
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
-endif()
+set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
 
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
@@ -220,6 +226,13 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Override the stripped libmpv-2.dll bundled by media_kit with a full-featured
+# build that supports bitmap subtitles (PGS/HDMV/SUP). This install rule runs
+# after the plugin's, so it replaces the stripped DLL in the bundle.
+install(FILES "${FULL_LIBMPV_DLL}"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
