@@ -131,6 +131,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         return MediaLibGallery(
                           title: lib.title,
                           guid: lib.guid,
+                          onTitleTap: () => context.go('/library/${lib.guid}'),
                           onFavoriteToggle: _handleFavoriteToggle,
                           onWatchedToggle: _handleWatchedToggle,
                         );

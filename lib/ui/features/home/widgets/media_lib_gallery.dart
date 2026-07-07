@@ -10,6 +10,7 @@ import '../../../shared/common/app_loading_progress_ring.dart';
 class MediaLibGallery extends ConsumerWidget {
   final String title;
   final String guid;
+  final VoidCallback? onTitleTap;
   final Function(String guid, bool currentState, Function(bool success) callback)? onFavoriteToggle;
   final Function(String guid, bool currentState, Function(bool success) callback)? onWatchedToggle;
 
@@ -17,6 +18,7 @@ class MediaLibGallery extends ConsumerWidget {
     super.key,
     required this.title,
     required this.guid,
+    this.onTitleTap,
     this.onFavoriteToggle,
     this.onWatchedToggle,
   });
@@ -46,10 +48,7 @@ class MediaLibGallery extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 16.0),
-          child: Text(title, style: FluentTheme.of(context).typography.subtitle),
-        ),
+        _buildTitleRow(context),
         listAsync.when(
           data: (data) {
             if (data.list.isEmpty) return const SizedBox.shrink();
@@ -99,6 +98,47 @@ class MediaLibGallery extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTitleRow(BuildContext context) {
+    final callback = onTitleTap;
+    if (callback == null) {
+      return Padding(
+        padding: const EdgeInsets.only(left: 32.0, bottom: 12.0),
+        child: Text(
+          title,
+          style: FluentTheme.of(context).typography.subtitle?.copyWith(fontWeight: FontWeight.w600),
+        ),
+      );
+    }
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: HoverButton(
+        onPressed: callback,
+        builder: (context, states) {
+          return Padding(
+            padding: const EdgeInsets.only(left: 32.0, bottom: 12.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: FluentTheme.of(context).typography.subtitle?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  FluentIcons.chevron_right,
+                  size: 12,
+                  color: FluentTheme.of(context).typography.subtitle?.color?.withValues(alpha: 0.7),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
