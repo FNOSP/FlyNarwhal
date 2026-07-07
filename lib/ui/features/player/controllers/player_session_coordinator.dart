@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -348,12 +348,20 @@ class PlayerSessionCoordinator {
     QualityResponse? quality,
     List<QualityResponse> qualities,
   ) {
+    if (_requiresHlsPlayback(videoStream)) {
+      return false;
+    }
     final originalQuality = qualities.firstOrNull;
     final isOriginalQuality = quality != null &&
         originalQuality != null &&
         quality.resolution == originalQuality.resolution &&
         quality.bitrate == originalQuality.bitrate;
     return isOriginalQuality;
+  }
+
+  bool _requiresHlsPlayback(VideoStream videoStream) {
+    return videoStream.colorRangeType == 'DolbyVision' &&
+        videoStream.dvProfile == 5;
   }
 
   String ensureDirectPlayRecordLink(String? currentLink) {
@@ -486,14 +494,14 @@ class PlayerSessionCoordinator {
     required int episodeNumber,
   }) {
     final season = item.parentTitle;
-    final episodeLabel = episodeNumber > 0 ? '第$episodeNumber集' : '';
+    final episodeLabel = episodeNumber > 0 ? '��$episodeNumber��' : '';
     final episodeTitle = item.title;
     final parts = <String>[
       if (season.isNotEmpty) season,
       if (episodeLabel.isNotEmpty) episodeLabel,
       if (episodeTitle.isNotEmpty) episodeTitle,
     ];
-    return parts.join(' 路 ');
+    return parts.join(' · ');
   }
 
   AudioStream? _selectAudioStream({
