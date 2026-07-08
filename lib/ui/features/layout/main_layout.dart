@@ -76,6 +76,20 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
       await globalRefreshManager.requestRefresh();
     }
 
+    // Show the title bar back button only when a previous page exists.
+    final navigationStack = ref.watch(navigationStackProvider);
+    final canGoBack = navigationStack.length > 1;
+
+    // Pop the navigation stack and route to the previous page.
+    void handleBackNavigation() {
+      final previousPath = ref.read(navigationStackProvider.notifier).pop();
+      if (previousPath != null && previousPath.isNotEmpty) {
+        context.go(previousPath);
+      } else {
+        context.go('/home');
+      }
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(navigationStackProvider.notifier).pushPath(currentPath);
       globalRefreshManager.updateCurrentRoutePath(currentRoutePath);
@@ -424,6 +438,16 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
                     Padding(
                       padding:
                           const EdgeInsets.only(top: kRefreshButtonTopPadding),
+                      child: WindowCaptionBackButton.compact(
+                        key: const ValueKey(
+                            'macos-window-caption-back-button'),
+                        brightness: isDark ? Brightness.dark : Brightness.light,
+                        onPressed: canGoBack ? handleBackNavigation : null,
+                      ),
+                    ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(top: kRefreshButtonTopPadding),
                       child: WindowCaptionPinButton.compact(
                         key: const ValueKey('macos-window-caption-pin-button'),
                         brightness: isDark ? Brightness.dark : Brightness.light,
@@ -467,6 +491,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
             showRefreshAction:
                 titleBarRefreshVisibility.shouldShowRefreshAction,
             onRefreshPressed: triggerWindowRefresh,
+            showBackButton: true,
+            onBack: canGoBack ? handleBackNavigation : null,
           ),
         Expanded(
           child: NavigationView(

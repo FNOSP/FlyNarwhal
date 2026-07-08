@@ -135,15 +135,6 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     super.dispose();
   }
 
-  void _handleBackNavigation(BuildContext context) {
-    final previousPath = ref.read(navigationStackProvider.notifier).pop();
-    if (previousPath != null && previousPath.isNotEmpty) {
-      context.go(previousPath);
-      return;
-    }
-    context.go('/home');
-  }
-
   Future<void> _handleToggleFavorite() async {
     final result = await ref
         .read(tvDetailNotifierProvider(widget.guid).notifier)
@@ -420,39 +411,6 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                 ),
               ),
           ],
-        ),
-        Positioned(
-          top: 12,
-          left: 12,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: () => _handleBackNavigation(context),
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.black.withValues(alpha: 0.2),
-                      Colors.black.withValues(alpha: 0.15),
-                      Colors.black.withValues(alpha: 0.1),
-                      Colors.black.withValues(alpha: 0.01),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.4, 0.65, 0.85, 1.0],
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  FluentIcons.back,
-                  size: 24,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
         ),
         Positioned.fill(
           child: ToastHost(toastManager: _toastManager),

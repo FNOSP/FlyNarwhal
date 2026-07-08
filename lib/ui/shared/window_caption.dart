@@ -17,6 +17,11 @@ class WindowCaption extends StatefulWidget {
   final bool showPinAction;
   final Future<void> Function()? onRefreshPressed;
 
+  // When true, always show the back button (enabled when onBack is set,
+  // grayed-out and non-interactive when onBack is null).
+  final bool showBackButton;
+  final VoidCallback? onBack;
+
   const WindowCaption({
     super.key,
     this.title,
@@ -26,6 +31,8 @@ class WindowCaption extends StatefulWidget {
     this.showRefreshAction = false,
     this.showPinAction = true,
     this.onRefreshPressed,
+    this.showBackButton = false,
+    this.onBack,
   });
 
   @override
@@ -58,6 +65,12 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
         children: [
           Row(
             children: [
+              if (widget.showBackButton || widget.onBack != null)
+                WindowCaptionBackButton(
+                  key: const ValueKey('window-caption-back-button'),
+                  brightness: widget.brightness,
+                  onPressed: widget.onBack,
+                ),
               Expanded(
                 child: DragToMoveArea(
                   child: Container(
@@ -155,6 +168,96 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
 
   @override
   void onWindowUnmaximize() => setState(() {});
+}
+
+class WindowCaptionBackButton extends StatefulWidget {
+  // Null means the button is shown but disabled (grayed out, non-interactive).
+  final VoidCallback? onPressed;
+  final Brightness? brightness;
+  final bool compact;
+  final String semanticLabel;
+
+  const WindowCaptionBackButton({
+    super.key,
+    this.onPressed,
+    this.brightness,
+    this.compact = false,
+    this.semanticLabel = '返回',
+  });
+
+  const WindowCaptionBackButton.compact({
+    super.key,
+    this.onPressed,
+    this.brightness,
+    this.semanticLabel = '返回',
+  }) : compact = true;
+
+  @override
+  State<WindowCaptionBackButton> createState() =>
+      _WindowCaptionBackButtonState();
+}
+
+class _WindowCaptionBackButtonState extends State<WindowCaptionBackButton> {
+  bool _isHovered = false;
+
+  bool get _isEnabled => widget.onPressed != null;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black;
+    // Dim the icon when the button is disabled.
+    final iconColor = _isEnabled
+        ? baseColor
+        : baseColor.withValues(alpha: 0.3);
+    final buttonSize = widget.compact ? 20.0 : 46.0;
+    final iconSize = widget.compact ? 14.0 : 16.0;
+    final hoverBackground = widget.compact
+        ? (isDark
+            ? Colors.white.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.06))
+        : (isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.black.withValues(alpha: 0.05));
+    // Only apply hover background when enabled.
+    final backgroundColor =
+        (_isHovered && _isEnabled) ? hoverBackground : Colors.transparent;
+    final borderRadius = BorderRadius.circular(widget.compact ? 14 : 0);
+
+    return Semantics(
+      button: true,
+      enabled: _isEnabled,
+      label: widget.semanticLabel,
+      child: Tooltip(
+        message: widget.semanticLabel,
+        child: MouseRegion(
+          cursor: _isEnabled
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _isEnabled ? widget.onPressed : null,
+            child: Container(
+              width: buttonSize,
+              height: widget.compact ? buttonSize : kWindowTitleBarHeight,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: borderRadius,
+              ),
+              child: Icon(
+                FluentIcons.back,
+                size: iconSize,
+                color: iconColor,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class WindowCaptionRefreshButton extends StatefulWidget {

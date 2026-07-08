@@ -2,11 +2,9 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../data/models/person_models.dart';
 import '../../../providers/global_refresh.dart';
-import '../../../providers/providers.dart';
 import '../../shared/common/fn_cached_image.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/movie_poster.dart';
@@ -78,15 +76,6 @@ class _PersonDetailContent extends ConsumerWidget {
 
   const _PersonDetailContent({required this.state});
 
-  void _handleBack(BuildContext context, WidgetRef ref) {
-    final previousPath = ref.read(navigationStackProvider.notifier).pop();
-    if (previousPath != null && previousPath.isNotEmpty) {
-      context.go(previousPath);
-      return;
-    }
-    context.go('/home');
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final person = state.person;
@@ -108,14 +97,6 @@ class _PersonDetailContent extends ConsumerWidget {
               _buildSection(context, ref, '作为编剧', state.screenplayWorks),
             const SliverToBoxAdapter(child: SizedBox(height: 32)),
           ],
-        ),
-        Positioned(
-          top: 12,
-          left: 12,
-          child: IconButton(
-            icon: const Icon(FluentIcons.back, size: 18),
-            onPressed: () => _handleBack(context, ref),
-          ),
         ),
       ],
     );

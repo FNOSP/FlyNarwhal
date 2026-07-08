@@ -136,15 +136,6 @@ class _TvSeasonDetailContentState
     super.dispose();
   }
 
-  void _handleBackNavigation(BuildContext context) {
-    final previousPath = ref.read(navigationStackProvider.notifier).pop();
-    if (previousPath != null && previousPath.isNotEmpty) {
-      context.go(previousPath);
-      return;
-    }
-    context.go('/home');
-  }
-
   Future<void> _handleToggleWatched() async {
     final result = await ref
         .read(tvSeasonDetailNotifierProvider(widget.guid).notifier)
@@ -426,16 +417,6 @@ class _TvSeasonDetailContentState
                 ),
               ),
           ],
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 24, left: 24),
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: IconButton(
-              icon: const Icon(FluentIcons.back, size: 24),
-              onPressed: () => _handleBackNavigation(context),
-            ),
-          ),
         ),
       ],
     );

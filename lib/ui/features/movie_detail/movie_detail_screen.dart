@@ -46,6 +46,13 @@ String _buildImageUrl(String baseUrl, String path) {
   return '$normalizedBaseUrl/v/api/v1/sys/img$normalizedPath';
 }
 
+String _formatAudioTypeLabel(String audioType) {
+  return switch (audioType.trim().toLowerCase()) {
+    'stereo' => '立体声',
+    _ => audioType,
+  };
+}
+
 class MovieDetailScreen extends ConsumerWidget {
   final String guid;
 
@@ -322,15 +329,6 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         _updateCurrentStreamSelections();
       }
     });
-  }
-
-  void _handleBackNavigation(BuildContext context) {
-    final previousPath = ref.read(navigationStackProvider.notifier).pop();
-    if (previousPath != null && previousPath.isNotEmpty) {
-      context.go(previousPath);
-      return;
-    }
-    context.go('/home');
   }
 
   Future<void> _handleToggleFavorite() async {
@@ -697,7 +695,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                               s.guid == _selectedAudioGuid)
                                           .firstOrNull;
                                       return MediaQualityTag(
-                                          text: audio?.audioType ?? '');
+                                          text: _formatAudioTypeLabel(
+                                              audio?.audioType ?? ''));
                                     }),
                                   ],
                                 ],
@@ -767,37 +766,6 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           ],
         ),
 
-        // Back Button
-        Positioned(
-          top: 12,
-          left: 12,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: () => _handleBackNavigation(context),
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.black.withValues(alpha: 0.2),
-                      Colors.black.withValues(alpha: 0.15),
-                      Colors.black.withValues(alpha: 0.1),
-                      Colors.black.withValues(alpha: 0.01),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.4, 0.65, 0.85, 1.0],
-                  ),
-                ),
-                alignment: Alignment.center,
-                child:
-                    const Icon(FluentIcons.back, size: 24, color: Colors.white),
-              ),
-            ),
-          ),
-        ),
         Positioned.fill(
           child: ToastHost(toastManager: _toastManager),
         ),
