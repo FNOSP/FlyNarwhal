@@ -91,14 +91,28 @@ class FnDataConvertor {
     }
   }
 
-  static String getLanguageName(String? langCode, Map<String, String> iso6391, Map<String, String> iso6392) {
-    if (langCode == null || langCode.isEmpty) return '未知';
-    if (langCode == '_no_display_') return '无';
-    final iso6391Value = iso6391[langCode];
-    if (iso6391Value != null && iso6391Value.isNotEmpty) return iso6391Value;
-    final iso6392Value = iso6392[langCode];
-    if (iso6392Value != null && iso6392Value.isNotEmpty) return iso6392Value;
-    return langCode;
+  static String getLanguageName(
+    String? langCode,
+    Map<String, String> iso6391,
+    Map<String, String> iso6392,
+  ) {
+    final language = langCode?.trim();
+    if (language == null || language == '_no_display_') return '无';
+    if ({'', 'und', 'zxx', 'qaa-qtz', 'zz-unknow'}.contains(language)) {
+      return '未知';
+    }
+
+    if (language.length == 2) {
+      final iso6391Value = iso6391[language];
+      return iso6391Value?.isNotEmpty == true ? iso6391Value! : language;
+    }
+
+    if (language.length == 3) {
+      final iso6392Value = iso6392[language];
+      return iso6392Value?.isNotEmpty == true ? iso6392Value! : language;
+    }
+
+    return language;
   }
 
   static MediaDetails convertToMediaDetails({

@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -494,7 +494,7 @@ class PlayerSessionCoordinator {
     required int episodeNumber,
   }) {
     final season = item.parentTitle;
-    final episodeLabel = episodeNumber > 0 ? '��$episodeNumber��' : '';
+    final episodeLabel = episodeNumber > 0 ? '第 $episodeNumber 集' : '';
     final episodeTitle = item.title;
     final parts = <String>[
       if (season.isNotEmpty) season,
