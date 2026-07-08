@@ -1,4 +1,4 @@
-function(ensure_full_libmpv_windows)
+﻿function(ensure_full_libmpv_windows)
   set(ARCHIVE_NAME "mpv-dev-x86_64-20260706-git-c8c7d91a8e.7z")
   set(ARCHIVE_URL  "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-07-06-c8c7d91a8e/${ARCHIVE_NAME}")
   set(ARCHIVE_SHA256 "81beeb603d42162fcee96fdaadea2d564282563a054db93431a755d43a2f53c3")
@@ -28,9 +28,12 @@ function(ensure_full_libmpv_windows)
   if(NEEDS_DOWNLOAD)
     message(STATUS "[full_libmpv] Downloading from: ${ARCHIVE_URL}")
     file(TO_NATIVE_PATH "${LIBMPV_ARCHIVE}" OUT_NATIVE)
+    # Wrap the download in a background job guarded by both a per-request
+    # timeout and a hard wall-clock timeout. A stalled GitHub connection that
+    # never throws would otherwise hang the whole CMake configure step.
     execute_process(
       COMMAND powershell -NoProfile -ExecutionPolicy Bypass -Command
-        "Write-Host '[full_libmpv] Downloading ~30 MB ...'; $url = '${ARCHIVE_URL}'; $out = '${OUT_NATIVE}'; for ($r = 1; $r -le 3; $r++) { try { Invoke-WebRequest -Uri $url -OutFile $out -MaximumRedirection 10 -UseBasicParsing; if ((Test-Path $out) -and ((Get-Item $out).Length -gt 0)) { $size = (Get-Item $out).Length; Write-Host \"[full_libmpv] Download complete: $size bytes\"; exit 0 } } catch { if (Test-Path $out) { Remove-Item $out -Force }; if ($r -eq 3) { Write-Host \"[full_libmpv] Download failed after 3 attempts: $_\" }; Start-Sleep -Seconds 2 } }; exit 1"
+        "Write-Host '[full_libmpv] Downloading ~30 MB ...'; $orig = '${ARCHIVE_URL}'; $out = '${OUT_NATIVE}'; $urls = @($orig, \"https://ghfast.top/$orig\", \"https://gh-proxy.com/$orig\", \"https://ghproxy.net/$orig\"); $ok = $false; foreach ($url in $urls) { Write-Host \"[full_libmpv] trying source: $url\"; if (Test-Path $out) { Remove-Item $out -Force }; $job = Start-Job -ScriptBlock { param($u, $o) $ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri $u -OutFile $o -MaximumRedirection 10 -UseBasicParsing -TimeoutSec 30 } -ArgumentList $url, $out; if (Wait-Job $job -Timeout 90) { Receive-Job $job -ErrorAction SilentlyContinue | Out-Null; Remove-Job $job -Force -ErrorAction SilentlyContinue; if ((Test-Path $out) -and ((Get-Item $out).Length -gt 0)) { $size = (Get-Item $out).Length; Write-Host \"[full_libmpv] Download complete: $size bytes\"; $ok = $true; break } else { Write-Host \"[full_libmpv] source produced no file, next\" } } else { Write-Host \"[full_libmpv] source stalled >90s, killing, next\"; Stop-Job $job -ErrorAction SilentlyContinue; Remove-Job $job -Force -ErrorAction SilentlyContinue; if (Test-Path $out) { Remove-Item $out -Force } }; Start-Sleep -Seconds 1 }; if ($ok) { exit 0 } else { Write-Host '[full_libmpv] Download failed from all sources'; exit 1 }"
       RESULT_VARIABLE DL_RESULT
       ERROR_VARIABLE DL_ERROR
     )
