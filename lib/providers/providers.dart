@@ -10,6 +10,7 @@ import '../data/models/user_info.dart';
 import '../data/repositories/tag_repository_impl.dart';
 import '../data/storage/player_settings_store.dart';
 import '../data/storage/preferences_manager.dart';
+import '../data/storage/shortcut_settings_store.dart';
 import '../domain/repositories/i_tag_repository.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
@@ -421,4 +422,9 @@ class _InMemoryCacheInfoRepository implements CacheInfoRepository {
 final playerSettingsManagerProvider = Provider<PlayerSettingsManager>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return PlayerSettingsManager(prefs);
+});
+
+final shortcutSettingsStoreProvider = Provider<ShortcutSettingsStore>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return ShortcutSettingsStore(prefs);
 });

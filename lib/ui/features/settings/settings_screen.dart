@@ -6,6 +6,7 @@ import '../../../providers/providers.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import 'widgets/card_expander_item.dart';
+import 'widgets/shortcut_settings_dialog.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -203,21 +204,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             heading: const Text('快捷键设置'),
                             caption: const Text('自定义快捷键'),
                             trailing: Button(
+                              key: const ValueKey('settings-shortcuts-open'),
                               child: const Text('自定义'),
                               onPressed: () {
                                 showDialog(
                                   context: context,
-                                  builder: (context) => ContentDialog(
-                                    title: const Text('快捷键设置'),
-                                    content: const Text(
-                                        'Flutter 版本暂不支持快捷键自定义，后续补充。'),
-                                    actions: [
-                                      Button(
-                                        child: const Text('确定'),
-                                        onPressed: () => Navigator.pop(context),
-                                      ),
-                                    ],
-                                  ),
+                                  builder: (context) =>
+                                      const ShortcutSettingsDialog(),
                                 );
                               },
                             ),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../data/models/home_models.dart';
+import '../../../../data/storage/shortcut_settings_store.dart';
 import '../../../../providers/providers.dart';
 import '../search_view_model.dart';
 import 'search_result_dropdown.dart';
@@ -17,6 +18,8 @@ class CapsuleSearchBox extends ConsumerStatefulWidget {
   final double expandedWidth;
   final double height;
   final String placeholder;
+  final FocusNode? focusNode;
+  final VoidCallback? onDismissed;
 
   const CapsuleSearchBox({
     super.key,
@@ -24,6 +27,8 @@ class CapsuleSearchBox extends ConsumerStatefulWidget {
     this.expandedWidth = 360,
     this.height = 32,
     this.placeholder = '搜索片名、演员',
+    this.focusNode,
+    this.onDismissed,
   });
 
   @override
@@ -32,7 +37,8 @@ class CapsuleSearchBox extends ConsumerStatefulWidget {
 
 class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
   final TextEditingController _controller = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
+  final FocusNode _internalFocusNode = FocusNode();
+  FocusNode get _focusNode => widget.focusNode ?? _internalFocusNode;
   final OverlayPortalController _overlayController = OverlayPortalController();
   final LayerLink _layerLink = LayerLink();
 
@@ -51,9 +57,17 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
   }
 
   @override
+  void didUpdateWidget(covariant CapsuleSearchBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode == widget.focusNode) return;
+    (oldWidget.focusNode ?? _internalFocusNode).removeListener(_onFocusChange);
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
   void dispose() {
     _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
+    _internalFocusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -133,6 +147,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
     _selectedIndex = -1;
     _overlayController.hide();
     _focusNode.unfocus();
+    widget.onDismissed?.call();
   }
 
   // Navigate to the detail page matching the item type, like Compose navigateToSearchItem.
@@ -167,24 +182,25 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
     }
     final searchState = ref.read(searchProvider);
     final items = _filterItems(searchState.results);
-    final dropdownVisible =
-        _isFocused && _controller.text.trim().isNotEmpty;
+    final dropdownVisible = _isFocused && _controller.text.trim().isNotEmpty;
 
-    if (event.logicalKey == LogicalKeyboardKey.escape) {
+    final shortcutStore = ref.read(shortcutSettingsStoreProvider);
+
+    if (shortcutStore.matches(event, ShortcutActionId.searchExit)) {
       _dismiss();
       return KeyEventResult.handled;
     }
     if (!dropdownVisible || items.isEmpty) {
       return KeyEventResult.ignored;
     }
-    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+    if (shortcutStore.matches(event, ShortcutActionId.searchNext)) {
       setState(() {
         _selectedIndex =
             _selectedIndex < 0 ? 0 : (_selectedIndex + 1) % items.length;
       });
       return KeyEventResult.handled;
     }
-    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+    if (shortcutStore.matches(event, ShortcutActionId.searchPrev)) {
       setState(() {
         _selectedIndex = _selectedIndex < 0
             ? items.length - 1
@@ -192,8 +208,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
       });
       return KeyEventResult.handled;
     }
-    if (event.logicalKey == LogicalKeyboardKey.enter ||
-        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+    if (shortcutStore.matches(event, ShortcutActionId.searchSelect)) {
       final item = items.length > _selectedIndex && _selectedIndex >= 0
           ? items[_selectedIndex]
           : null;
@@ -202,7 +217,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
         return KeyEventResult.handled;
       }
     }
-    if (event.logicalKey == LogicalKeyboardKey.tab) {
+    if (shortcutStore.matches(event, ShortcutActionId.searchSwitchTab)) {
       final currentIndex = _tabs.indexOf(_selectedTab);
       setState(() {
         _selectedTab = _tabs[(currentIndex + 1) % _tabs.length];
@@ -321,8 +336,8 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
                             cursorColor: theme.resources.textFillColorPrimary,
                             backgroundCursorColor:
                                 theme.resources.textFillColorTertiary,
-                            selectionColor: const Color(0xFF2173DF)
-                                .withValues(alpha: 0.25),
+                            selectionColor:
+                                const Color(0xFF2173DF).withValues(alpha: 0.25),
                           ),
                         ],
                       ),

@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart'
     hide WindowCaption, DragToMoveArea;
 import '../home/home_view_model.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/global_refresh.dart';
+import '../../../data/storage/shortcut_settings_store.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/window_caption.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
@@ -29,6 +31,9 @@ class MainLayout extends ConsumerStatefulWidget {
 }
 
 class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
+  final FocusNode _searchFocusNode = FocusNode(debugLabel: 'global-search');
+  final FocusNode _shortcutFocusNode = FocusNode(debugLabel: 'global-shortcuts');
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +49,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
         (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
       windowManager.removeListener(this);
     }
+    _searchFocusNode.dispose();
+    _shortcutFocusNode.dispose();
     super.dispose();
   }
 
@@ -411,6 +418,21 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
 
     final isMacOS = !kIsWeb && Platform.isMacOS;
 
+    KeyEventResult handleGlobalKeyEvent(FocusNode node, KeyEvent event) {
+      if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+        return KeyEventResult.ignored;
+      }
+      final shortcutStore = ref.read(shortcutSettingsStoreProvider);
+      if (shortcutStore.shouldSuppressFocusSearchInput(event)) {
+        return KeyEventResult.ignored;
+      }
+      if (shortcutStore.matches(event, ShortcutActionId.focusSearch)) {
+        _searchFocusNode.requestFocus();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
     // Traffic light buttons area dimensions for macOS
     const double kTrafficLightLeftPadding = 20.0;
     const double kTrafficLightTopPadding = 10.0;
@@ -419,95 +441,109 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
     // Nudge the refresh button slightly lower to match the traffic lights.
     const double kRefreshButtonTopPadding = kTrafficLightTopPadding + 6.0;
 
-    return Column(
-      children: [
-        if (isMacOS)
-          Container(
-            height: kWindowTitleBarHeight,
-            color: theme.resources.solidBackgroundFillColorBase,
-            child: Stack(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(
-                      width: kTrafficLightLeftPadding +
-                          kTrafficLightAreaWidth -
-                          kRefreshButtonLeftOffset,
-                    ),
-                    Padding(
-                      padding:
-                          const EdgeInsets.only(top: kRefreshButtonTopPadding),
-                      child: WindowCaptionBackButton.compact(
-                        key: const ValueKey(
-                            'macos-window-caption-back-button'),
-                        brightness: isDark ? Brightness.dark : Brightness.light,
-                        onPressed: canGoBack ? handleBackNavigation : null,
+    return Focus(
+      focusNode: _shortcutFocusNode,
+      autofocus: true,
+      onKeyEvent: handleGlobalKeyEvent,
+      child: Column(
+        children: [
+          if (isMacOS)
+            Container(
+              height: kWindowTitleBarHeight,
+              color: theme.resources.solidBackgroundFillColorBase,
+              child: Stack(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(
+                        width: kTrafficLightLeftPadding +
+                            kTrafficLightAreaWidth -
+                            kRefreshButtonLeftOffset,
                       ),
-                    ),
-                    Padding(
-                      padding:
-                          const EdgeInsets.only(top: kRefreshButtonTopPadding),
-                      child: WindowCaptionPinButton.compact(
-                        key: const ValueKey('macos-window-caption-pin-button'),
-                        brightness: isDark ? Brightness.dark : Brightness.light,
-                      ),
-                    ),
-                    if (titleBarRefreshVisibility.shouldShowRefreshAction)
                       Padding(
                         padding: const EdgeInsets.only(
                             top: kRefreshButtonTopPadding),
-                        child: WindowCaptionRefreshButton.compact(
+                        child: WindowCaptionBackButton.compact(
                           key: const ValueKey(
-                              'macos-window-caption-refresh-button'),
+                              'macos-window-caption-back-button'),
                           brightness:
                               isDark ? Brightness.dark : Brightness.light,
-                          onPressed: triggerWindowRefresh,
+                          onPressed: canGoBack ? handleBackNavigation : null,
                         ),
                       ),
-                    Expanded(
-                      child: DragToMoveArea(
-                        child: Container(
-                          height: 28.0,
-                          alignment: Alignment.centerLeft,
+                      Padding(
+                        padding: const EdgeInsets.only(
+                            top: kRefreshButtonTopPadding),
+                        child: WindowCaptionPinButton.compact(
+                          key:
+                              const ValueKey('macos-window-caption-pin-button'),
+                          brightness:
+                              isDark ? Brightness.dark : Brightness.light,
                         ),
                       ),
+                      if (titleBarRefreshVisibility.shouldShowRefreshAction)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                              top: kRefreshButtonTopPadding),
+                          child: WindowCaptionRefreshButton.compact(
+                            key: const ValueKey(
+                                'macos-window-caption-refresh-button'),
+                            brightness:
+                                isDark ? Brightness.dark : Brightness.light,
+                            onPressed: triggerWindowRefresh,
+                          ),
+                        ),
+                      Expanded(
+                        child: DragToMoveArea(
+                          child: Container(
+                            height: 28.0,
+                            alignment: Alignment.centerLeft,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Align(
+                    alignment: Alignment.center,
+                    child: CapsuleSearchBox(
+                      focusNode: _searchFocusNode,
+                      onDismissed: _shortcutFocusNode.requestFocus,
                     ),
-                  ],
-                ),
-                const Align(
-                  alignment: Alignment.center,
-                  child: CapsuleSearchBox(),
-                ),
-              ],
+                  ),
+                ],
+              ),
+            )
+          else
+            WindowCaption(
+              title: const Text('飞鲸影视'),
+              center: CapsuleSearchBox(
+                focusNode: _searchFocusNode,
+                onDismissed: _shortcutFocusNode.requestFocus,
+              ),
+              brightness: isDark ? Brightness.dark : Brightness.light,
+              backgroundColor: theme.resources.solidBackgroundFillColorBase,
+              showRefreshAction:
+                  titleBarRefreshVisibility.shouldShowRefreshAction,
+              onRefreshPressed: triggerWindowRefresh,
+              showBackButton: true,
+              onBack: canGoBack ? handleBackNavigation : null,
             ),
-          )
-        else
-          WindowCaption(
-            title: const Text('飞鲸影视'),
-            center: const CapsuleSearchBox(),
-            brightness: isDark ? Brightness.dark : Brightness.light,
-            backgroundColor: theme.resources.solidBackgroundFillColorBase,
-            showRefreshAction:
-                titleBarRefreshVisibility.shouldShowRefreshAction,
-            onRefreshPressed: triggerWindowRefresh,
-            showBackButton: true,
-            onBack: canGoBack ? handleBackNavigation : null,
-          ),
-        Expanded(
-          child: NavigationView(
-            pane: NavigationPane(
-              header: pane.header,
-              selected: selectedIndex >= 0 ? selectedIndex : null,
-              onChanged: pane.onChanged,
-              displayMode: pane.displayMode,
-              items: pane.items,
-              footerItems: pane.footerItems,
+          Expanded(
+            child: NavigationView(
+              pane: NavigationPane(
+                header: pane.header,
+                selected: selectedIndex >= 0 ? selectedIndex : null,
+                onChanged: pane.onChanged,
+                displayMode: pane.displayMode,
+                items: pane.items,
+                footerItems: pane.footerItems,
+              ),
+              paneBodyBuilder: (item, body) => widget.child,
             ),
-            paneBodyBuilder: (item, body) => widget.child,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

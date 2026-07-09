@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,7 @@ import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/storage/player_settings_store.dart';
+import '../../../data/storage/shortcut_settings_store.dart';
 import '../../../core/utils/app_fonts.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
@@ -85,6 +87,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       Duration(seconds: 3);
 
   late final ToastManager _toastManager;
+  final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
   Player? _player;
   VideoController? _videoController;
   bool _isInitialized = false;
@@ -94,6 +97,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   int _currentPosition = 0;
   int _duration = 0;
   double _volume = 1.0;
+  double _lastVolumeBeforeMute = 0.0;
   double _speed = 1.0;
   List<QualityResponse> _qualities = [];
   QualityResponse? _currentQuality;
@@ -240,6 +244,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _setupProviderListeners();
 
     await _loadAndPlayMedia();
+    if (mounted) {
+      _playerFocusNode.requestFocus();
+    }
   }
 
   void _setupPlayerPositionListener() {
@@ -1696,7 +1703,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _playInfo = result.playInfo;
       _streamInfo = result.streamInfo;
       _playingInfoCache = result.playingInfoCache;
-      _currentItemGuid = result.playingInfoCache.itemGuid ?? result.playInfo.item.guid;
+      _currentItemGuid =
+          result.playingInfoCache.itemGuid ?? result.playInfo.item.guid;
       _qualities = result.qualities;
       _currentQuality = result.currentQuality;
       ref
@@ -2029,6 +2037,97 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _speed = speed;
     _player!.setRate(speed);
     ref.read(playerSettingsManagerProvider).setSpeed(speed);
+  }
+
+  KeyEventResult _handlePlayerKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final shortcutStore = ref.read(shortcutSettingsStoreProvider);
+    if (shortcutStore.matches(event, ShortcutActionId.mute)) {
+      _toggleMute();
+      return KeyEventResult.handled;
+    }
+    if (shortcutStore.matches(event, ShortcutActionId.seekBackward)) {
+      _seekRelativeWithToast(-10000);
+      return KeyEventResult.handled;
+    }
+    if (shortcutStore.matches(event, ShortcutActionId.seekForward)) {
+      _seekRelativeWithToast(10000);
+      return KeyEventResult.handled;
+    }
+    if (shortcutStore.matches(event, ShortcutActionId.volumeUp)) {
+      _changeVolumeBy(0.1);
+      return KeyEventResult.handled;
+    }
+    if (shortcutStore.matches(event, ShortcutActionId.volumeDown)) {
+      _changeVolumeBy(-0.1);
+      return KeyEventResult.handled;
+    }
+    if (shortcutStore.matches(event, ShortcutActionId.togglePlayPause)) {
+      _togglePlayPause();
+      return KeyEventResult.handled;
+    }
+    if (shortcutStore.matches(event, ShortcutActionId.toggleFullscreen)) {
+      unawaited(_toggleFullscreen());
+      return KeyEventResult.handled;
+    }
+    if (shortcutStore.matches(event, ShortcutActionId.exitFullscreen)) {
+      if (_isFullscreen) {
+        unawaited(_toggleFullscreen());
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _seekRelativeWithToast(int milliseconds) {
+    final player = _player;
+    if (player == null) return;
+    final current = player.state.position.inMilliseconds;
+    final target = (current + milliseconds).clamp(0, _duration).toInt();
+    player.seek(Duration(milliseconds: target));
+    _queuePlayRecordUpdate(positionMs: target);
+    final label = milliseconds < 0 ? '快退至' : '快进至';
+    _toastManager.showToast(
+      '$label：${formatDurationToDateTime(target)}',
+      type: ToastType.info,
+      category: 'seek',
+    );
+  }
+
+  void _changeVolumeBy(double delta) {
+    final newVolume = ((_volume + delta) * 10).round() / 10.0;
+    final clampedVolume = newVolume.clamp(0.0, 1.0).toDouble();
+    _setVolume(clampedVolume);
+    _lastVolumeBeforeMute = 0.0;
+    _toastManager.showToast(
+      '当前音量：${(clampedVolume * 100).toInt()}%',
+      type: ToastType.info,
+      category: 'volume',
+    );
+  }
+
+  void _toggleMute() {
+    if (_player == null) return;
+    if (_volume > 0) {
+      _lastVolumeBeforeMute = _volume;
+      _setVolume(0.0);
+      _toastManager.showToast(
+        '静音',
+        type: ToastType.info,
+        category: 'volume',
+      );
+    } else {
+      final restoreVolume =
+          _lastVolumeBeforeMute > 0 ? _lastVolumeBeforeMute : 0.05;
+      _setVolume(restoreVolume);
+      _toastManager.showToast(
+        '解除静音：${(restoreVolume * 100).toInt()}%',
+        type: ToastType.info,
+        category: 'volume',
+      );
+    }
   }
 
   Future<void> _toggleFullscreen() async {
@@ -2503,6 +2602,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playbackIndicatorTimer?.cancel();
     _playbackIndicatorExitController.dispose();
     _pipTransitionController?.dispose();
+    _playerFocusNode.dispose();
     _player?.dispose();
     _hlsSubtitleTexts.dispose();
     _toastManager.dispose();
@@ -2527,7 +2627,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           cursor: playerCursor,
           onHover: (_) => _showUi(),
           child: GestureDetector(
-            onTap: _togglePlayPause,
+            onTap: () {
+              _playerFocusNode.requestFocus();
+              _togglePlayPause();
+            },
             child: Container(
               color: Colors.black,
               child: _isInitialized && _videoController != null
@@ -2654,19 +2757,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ],
     );
 
-    if (pipTransition == null || _isPipMode) {
-      return playerStack;
+    Widget focusedPlayer(Widget child) {
+      return Focus(
+        focusNode: _playerFocusNode,
+        autofocus: true,
+        onKeyEvent: _handlePlayerKeyEvent,
+        child: child,
+      );
     }
-    return AnimatedBuilder(
-      animation: pipTransition,
-      builder: (context, child) {
-        final t = Curves.easeInOutCubic.transform(pipTransition.value);
-        return Transform.scale(
-          scale: 1.0 - t * 0.08,
-          child: child,
-        );
-      },
-      child: playerStack,
+
+    if (pipTransition == null || _isPipMode) {
+      return focusedPlayer(playerStack);
+    }
+    return focusedPlayer(
+      AnimatedBuilder(
+        animation: pipTransition,
+        builder: (context, child) {
+          final t = Curves.easeInOutCubic.transform(pipTransition.value);
+          return Transform.scale(
+            scale: 1.0 - t * 0.08,
+            child: child,
+          );
+        },
+        child: playerStack,
+      ),
     );
   }
 
