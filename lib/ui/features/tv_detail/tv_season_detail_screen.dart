@@ -203,6 +203,16 @@ class _TvSeasonDetailContentState
     if (item == null) return const Center(child: Text('未找到分季信息'));
 
     final windowHeight = MediaQuery.of(context).size.height;
+    final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+    // Round header height to physical pixels to avoid a 1px seam between the
+    // backdrop image and the gradient overlay at fractional DPI boundaries.
+    final headerHeight =
+        (windowHeight * 0.5 * pixelRatio).roundToDouble() / pixelRatio;
+    // Also snap the width so the header Stack has integer-physical-pixel
+    // dimensions on both axes, preventing a 1px seam on the left/right edges.
+    final headerWidth =
+        (MediaQuery.of(context).size.width * pixelRatio).roundToDouble() /
+            pixelRatio;
     final posterUrl = _buildImageUrl(widget.baseUrl, item.posters);
     final backdropPath =
         (item.backdrops?.isNotEmpty ?? false) ? item.backdrops! : item.posters;
@@ -210,7 +220,6 @@ class _TvSeasonDetailContentState
     final isWatched = item.isWatched == 1;
     final textColor = FluentTheme.of(context).typography.body?.color;
     final resolvedTextColor = textColor ?? Colors.white;
-    final headerHeight = windowHeight * 0.5;
 
     return Stack(
       children: [
@@ -218,6 +227,7 @@ class _TvSeasonDetailContentState
           slivers: [
             SliverToBoxAdapter(
               child: SizedBox(
+                width: headerWidth,
                 height: headerHeight,
                 child: Stack(
                   fit: StackFit.expand,

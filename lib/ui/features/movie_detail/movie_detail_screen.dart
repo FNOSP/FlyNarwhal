@@ -383,6 +383,11 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     // different sub-pixel rounding rules at fractional DPI boundaries.
     final backdropHeight =
         (windowHeight * 0.5 * pixelRatio).roundToDouble() / pixelRatio;
+    // Also snap the width so the backdrop Stack has integer-physical-pixel
+    // dimensions on both axes, preventing a 1px seam on the left/right edges.
+    final backdropWidth =
+        (MediaQuery.of(context).size.width * pixelRatio).roundToDouble() /
+            pixelRatio;
 
     final backdropPath =
         (item.backdrops?.isNotEmpty ?? false) ? item.backdrops! : item.posters;
@@ -393,6 +398,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final iso3166Map = widget.state.iso3166;
     final textColor = FluentTheme.of(context).typography.body?.color;
     final resolvedTextColor = textColor ?? Colors.white;
+    // Cover the final physical pixels at the moving sliver boundary where
+    // fractional scroll offsets can expose the backdrop below the gradient.
+    final backdropSeamCoverHeight = 2 / pixelRatio;
     final isFavorite = item.isFavorite == 1;
     final isWatched = item.isWatched == 1;
 
@@ -410,6 +418,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           slivers: [
             SliverToBoxAdapter(
               child: SizedBox(
+                width: backdropWidth,
                 height: backdropHeight,
                 child: Stack(
                   fit: StackFit.expand,
@@ -436,6 +445,15 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                             stops: const [0.45, 1.0],
                           ),
                         ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: backdropSeamCoverHeight,
+                      child: ColoredBox(
+                        color: FluentTheme.of(context).scaffoldBackgroundColor,
                       ),
                     ),
                     Align(

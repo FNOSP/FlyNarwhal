@@ -218,7 +218,10 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
     final displayTitle = buildPlayDetailTitle(widget.item);
     final displaySubtitle = buildPlayDetailSubtitle(widget.item);
     final scaleFactor = resolveWindowScaleFactor(context);
-    final posterWidth = 240 * scaleFactor;
+    final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+    double snap(double v) => (v * pixelRatio).roundToDouble() / pixelRatio;
+    final posterWidth = snap(240 * scaleFactor);
+    final posterHeight = snap(posterWidth * 9 / 16);
     final normalPlayButtonSize = 48.0 * scaleFactor;
     final hoveredPlayButtonSize = 56.0 * scaleFactor;
     final playButtonSize =
@@ -241,8 +244,9 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    AspectRatio(
-                      aspectRatio: 16 / 9,
+                    SizedBox(
+                      width: posterWidth,
+                      height: posterHeight,
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(14 * scaleFactor),

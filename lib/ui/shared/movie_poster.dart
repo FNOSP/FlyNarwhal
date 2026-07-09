@@ -121,8 +121,12 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
     final formattedScore = formatVoteAverage(widget.score);
     final showScore = formattedScore != '0.0';
     final scaleFactor = widget.scaleFactor;
-    final scaledWidth = widget.width * scaleFactor;
-    final scaledHeight = widget.height * scaleFactor;
+    final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+    double snap(double v) => (v * pixelRatio).roundToDouble() / pixelRatio;
+    // Snap poster dimensions to physical pixels to avoid a 1px seam between
+    // the image and the semi-transparent overlay at fractional DPI boundaries.
+    final scaledWidth = snap(widget.width * scaleFactor);
+    final scaledHeight = snap(widget.height * scaleFactor);
     final mediaType = FnMediaType.fromString(widget.type);
     final showFavoriteButton = mediaType != FnMediaType.season;
     final actionInset = 8.0 * scaleFactor;
