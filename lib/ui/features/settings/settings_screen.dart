@@ -17,9 +17,93 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _flyNarwhalServerUrlController =
+      TextEditingController();
+  final TextEditingController _flyNarwhalAuthCodeController =
+      TextEditingController();
+  bool _isFlyNarwhalAuthCodeVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _flyNarwhalServerUrlController.text =
+        ref.read(settingsProvider).flyNarwhalServerBaseUrl;
+  }
+
+  void _openFlyNarwhalAuthCodeDialog() {
+    _flyNarwhalAuthCodeController.text =
+        ref.read(settingsProvider.notifier).getFlyNarwhalAuthCode();
+    _isFlyNarwhalAuthCodeVisible = false;
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => ContentDialog(
+          title: const Text('填写授权码'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('请输入飞鲸服务端授权码：'),
+              const SizedBox(height: 12),
+              TextBox(
+                key: const ValueKey('settings-fly-narwhal-auth-code-input'),
+                controller: _flyNarwhalAuthCodeController,
+                obscureText: !_isFlyNarwhalAuthCodeVisible,
+                onSubmitted: (_) => _saveFlyNarwhalAuthCode(dialogContext),
+                suffix: IconButton(
+                  icon: Icon(
+                    _isFlyNarwhalAuthCodeVisible
+                        ? FluentIcons.hide3
+                        : FluentIcons.view,
+                  ),
+                  onPressed: () {
+                    setDialogState(() {
+                      _isFlyNarwhalAuthCodeVisible =
+                          !_isFlyNarwhalAuthCodeVisible;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '请在飞鲸服务端页面点击“获取授权码”后粘贴到此处。',
+                style: TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+          actions: [
+            Button(
+              child: const Text('取消'),
+              onPressed: () {
+                _isFlyNarwhalAuthCodeVisible = false;
+                Navigator.pop(dialogContext);
+              },
+            ),
+            FilledButton(
+              key: const ValueKey('settings-fly-narwhal-auth-code-save'),
+              child: const Text('确定'),
+              onPressed: () => _saveFlyNarwhalAuthCode(dialogContext),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveFlyNarwhalAuthCode(BuildContext dialogContext) async {
+    await ref
+        .read(settingsProvider.notifier)
+        .setFlyNarwhalAuthCode(_flyNarwhalAuthCodeController.text);
+    _isFlyNarwhalAuthCodeVisible = false;
+    if (mounted) {
+      Navigator.pop(dialogContext);
+    }
+  }
 
   @override
   void dispose() {
+    _flyNarwhalAuthCodeController.dispose();
+    _flyNarwhalServerUrlController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -29,6 +113,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final settings = ref.watch(settingsProvider);
     final settingsNotifier = ref.read(settingsProvider.notifier);
     final userInfoAsync = ref.watch(userInfoProvider);
+    final connectionTestState = ref.watch(flyNarwhalConnectionTestProvider);
+
+    ref.listen<AsyncValue<String?>>(
+      flyNarwhalConnectionTestProvider,
+      (_, nextState) {
+        nextState.whenOrNull(
+          data: (version) {
+            if (version == null) return;
+            displayInfoBar(
+              context,
+              builder: (context, close) => InfoBar(
+                title: const Text('连接成功'),
+                content: Text('当前服务端版本号：$version'),
+                severity: InfoBarSeverity.success,
+                onClose: close,
+              ),
+            );
+            ref.read(flyNarwhalConnectionTestProvider.notifier).clear();
+          },
+          error: (error, _) {
+            displayInfoBar(
+              context,
+              builder: (context, close) => InfoBar(
+                title: const Text('连接失败'),
+                content: Text(error.toString()),
+                severity: InfoBarSeverity.error,
+                onClose: close,
+              ),
+            );
+            ref.read(flyNarwhalConnectionTestProvider.notifier).clear();
+          },
+        );
+      },
+    );
+    final isTestingFlyNarwhalServer = connectionTestState.isLoading;
 
     return ScaffoldPage(
       content: Column(
@@ -213,6 +332,109 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       const ShortcutSettingsDialog(),
                                 );
                               },
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const _Header(title: '服务器'),
+                          CardExpanderItem(
+                            key: const ValueKey('settings-fly-narwhal-enabled'),
+                            icon: const Icon(FluentIcons.server),
+                            heading: const Text('启用飞鲸服务端'),
+                            caption: const Text(
+                              '启用后可连接飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持',
+                            ),
+                            trailing: ToggleSwitch(
+                              checked: settings.flyNarwhalServerEnabled,
+                              onChanged:
+                                  settingsNotifier.setFlyNarwhalServerEnabled,
+                              content: Text(
+                                settings.flyNarwhalServerEnabled ? '开启' : '关闭',
+                              ),
+                            ),
+                          ),
+                          _AnimatedVisibility(
+                            visible: settings.flyNarwhalServerEnabled,
+                            child: Column(
+                              children: [
+                                CardExpanderItem(
+                                  key: const ValueKey(
+                                    'settings-fly-narwhal-url',
+                                  ),
+                                  icon: const Icon(FluentIcons.globe),
+                                  heading: const Text('飞鲸服务端地址'),
+                                  caption: const Text('请填写完整的服务端 URL'),
+                                  trailing: SizedBox(
+                                    width: 360,
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextBox(
+                                            key: const ValueKey(
+                                              'settings-fly-narwhal-url-input',
+                                            ),
+                                            controller:
+                                                _flyNarwhalServerUrlController,
+                                            placeholder:
+                                                'http://192.168.1.1:5365',
+                                            onSubmitted: settingsNotifier
+                                                .setFlyNarwhalServerBaseUrl,
+                                            onTapOutside: (_) =>
+                                                settingsNotifier
+                                                    .setFlyNarwhalServerBaseUrl(
+                                              _flyNarwhalServerUrlController
+                                                  .text,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Button(
+                                          key: const ValueKey(
+                                            'settings-fly-narwhal-test',
+                                          ),
+                                          onPressed: isTestingFlyNarwhalServer
+                                              ? null
+                                              : () async {
+                                                  final baseUrl =
+                                                      _flyNarwhalServerUrlController
+                                                          .text;
+                                                  await settingsNotifier
+                                                      .setFlyNarwhalServerBaseUrl(
+                                                    baseUrl,
+                                                  );
+                                                  await ref
+                                                      .read(
+                                                        flyNarwhalConnectionTestProvider
+                                                            .notifier,
+                                                      )
+                                                      .testConnection(baseUrl);
+                                                },
+                                          child: Text(
+                                            isTestingFlyNarwhalServer
+                                                ? '测试中'
+                                                : '测试',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                CardExpanderItem(
+                                  key: const ValueKey(
+                                    'settings-fly-narwhal-auth-code',
+                                  ),
+                                  icon: const Icon(FluentIcons.key),
+                                  heading: const Text('授权码'),
+                                  caption: Text(
+                                    settings.hasFlyNarwhalAuthCode
+                                        ? '已填写飞鲸服务端授权码'
+                                        : '填写飞鲸服务端授权码',
+                                  ),
+                                  trailing: Button(
+                                    child: const Text('填写授权码'),
+                                    onPressed: _openFlyNarwhalAuthCodeDialog,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 4),

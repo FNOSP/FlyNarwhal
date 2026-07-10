@@ -4,7 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../providers/providers.dart';
 
-enum PlayerFlyoutType { nextEpisode, speed, episode, quality, subtitle }
+enum PlayerFlyoutType {
+  nextEpisode,
+  speed,
+  episode,
+  quality,
+  subtitle,
+  danmaku,
+}
 
 enum PlayerHoverZone {
   progressBar,
@@ -25,14 +32,12 @@ class PlayerOverlayState {
   final bool isUiVisible;
   final Set<PlayerHoverZone> hoveredZones;
   final PlayerFlyoutType? activeFlyout;
-  final bool isDanmakuVisible;
   final bool isAutoPlayEnabled;
 
   const PlayerOverlayState({
     this.isUiVisible = true,
     this.hoveredZones = const <PlayerHoverZone>{},
     this.activeFlyout,
-    this.isDanmakuVisible = true,
     this.isAutoPlayEnabled = true,
   });
 
@@ -40,7 +45,6 @@ class PlayerOverlayState {
     bool? isUiVisible,
     Set<PlayerHoverZone>? hoveredZones,
     Object? activeFlyout = _unset,
-    bool? isDanmakuVisible,
     bool? isAutoPlayEnabled,
   }) {
     return PlayerOverlayState(
@@ -49,7 +53,6 @@ class PlayerOverlayState {
       activeFlyout: identical(activeFlyout, _unset)
           ? this.activeFlyout
           : activeFlyout as PlayerFlyoutType?,
-      isDanmakuVisible: isDanmakuVisible ?? this.isDanmakuVisible,
       isAutoPlayEnabled: isAutoPlayEnabled ?? this.isAutoPlayEnabled,
     );
   }
@@ -108,10 +111,6 @@ class PlayerOverlayController extends StateNotifier<PlayerOverlayState> {
     state = state.copyWith(isAutoPlayEnabled: value);
   }
 
-  void toggleDanmakuVisibility() {
-    state = state.copyWith(isDanmakuVisible: !state.isDanmakuVisible);
-  }
-
   void dismissTransientUi() {
     _hideUiTimer?.cancel();
     state = state.copyWith(
@@ -136,6 +135,8 @@ class PlayerOverlayController extends StateNotifier<PlayerOverlayState> {
         return PlayerHoverZone.qualityControl;
       case PlayerFlyoutType.subtitle:
         return PlayerHoverZone.subtitleControl;
+      case PlayerFlyoutType.danmaku:
+        return PlayerHoverZone.danmakuSettings;
     }
   }
 

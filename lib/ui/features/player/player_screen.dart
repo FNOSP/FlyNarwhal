@@ -18,11 +18,13 @@ import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
+import '../../../data/models/fly_narwhal/danmaku.dart';
 import '../../../data/storage/player_settings_store.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
 import '../../../core/utils/app_fonts.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
+import '../../../providers/danmaku_controller.dart';
 import '../../../providers/providers.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
@@ -37,6 +39,8 @@ import 'controllers/player_session_coordinator.dart';
 import 'services/player_service.dart';
 import 'viewmodels/player_view_model.dart';
 import 'widgets/episode_selection_flyout.dart';
+import 'widgets/player_danmaku_overlay.dart';
+import 'widgets/danmaku_settings_flyout.dart';
 import 'widgets/player_subtitle_overlay.dart';
 import 'widgets/video_player_progress_bar.dart';
 import 'widgets/speed_control_flyout.dart';
@@ -133,6 +137,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   VoidCallback? _hlsSubtitleTextsListener;
   final ValueNotifier<List<String>> _hlsSubtitleTexts =
       ValueNotifier<List<String>>(const []);
+  final ValueNotifier<Duration> _danmakuPosition =
+      ValueNotifier<Duration>(Duration.zero);
+  int _danmakuResetGeneration = 0;
   bool _useHlsSubtitleOverlay = false;
   // True when the active external subtitle uses absolute positioning
   // (\pos/\move on most events, e.g. danmaku), making sub-pos ineffective.
@@ -255,6 +262,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null) return;
     _positionSubscription = player.stream.position.listen((position) {
       _hlsSubtitleRepository?.onPlaybackPosition(position.inMilliseconds);
+      _danmakuPosition.value = position;
     });
   }
 
@@ -658,6 +666,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _resetPlaybackStateForTargetChange() {
+    ref.read(danmakuControllerProvider.notifier).clear();
+    _danmakuPosition.value = Duration.zero;
+    _danmakuResetGeneration++;
     _disposeHlsSubtitleSession();
     _resetDirectLinkEmbeddedSubtitleState();
     _playRecordTimer?.cancel();
@@ -1082,6 +1093,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // mpv start property didn't fully apply (e.g. some HLS or transcoded
     // streams). Issue a single correction seek.
+    _danmakuResetGeneration++;
+    _danmakuPosition.value = Duration(milliseconds: startPositionMs);
     await player.seek(Duration(milliseconds: startPositionMs));
     await Future<void>.delayed(const Duration(milliseconds: 200));
   }
@@ -1680,6 +1693,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  DanmakuRequest _buildDanmakuRequest(PlayInfoResponse playInfo) {
+    final item = playInfo.item;
+    final isSeason = playInfo.type != 'Movie';
+    final parentGuid =
+        item.parentGuid.isNotEmpty ? item.parentGuid : playInfo.parentGuid;
+    return DanmakuRequest(
+      doubanId: item.imdbId ?? '',
+      episodeNumber: item.episodeNumber,
+      episodeTitle: item.title,
+      title: isSeason && item.tvTitle.isNotEmpty ? item.tvTitle : item.title,
+      seasonNumber: item.seasonNumber,
+      season: isSeason,
+      guid: item.guid,
+      parentGuid: parentGuid,
+    );
+  }
+
   Future<void> _loadAndPlayMedia() async {
     final requestToken = ++_loadRequestToken;
     try {
@@ -1703,6 +1733,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _playInfo = result.playInfo;
       _streamInfo = result.streamInfo;
       _playingInfoCache = result.playingInfoCache;
+      final flyNarwhalSettings = ref.read(settingsProvider);
+      if (flyNarwhalSettings.flyNarwhalServerEnabled &&
+          flyNarwhalSettings.flyNarwhalServerBaseUrl.isNotEmpty &&
+          flyNarwhalSettings.hasFlyNarwhalAuthCode) {
+        unawaited(
+          ref
+              .read(danmakuControllerProvider.notifier)
+              .loadDanmaku(_buildDanmakuRequest(result.playInfo)),
+        );
+      } else {
+        ref.read(danmakuControllerProvider.notifier).clear();
+      }
       _currentItemGuid =
           result.playingInfoCache.itemGuid ?? result.playInfo.item.guid;
       _qualities = result.qualities;
@@ -2013,16 +2055,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _seekRelative(int milliseconds) {
     if (_player == null) return;
     final current = _player!.state.position.inMilliseconds;
-    final target = (current + milliseconds).clamp(0, _duration);
-    _player!.seek(Duration(milliseconds: target));
-    _queuePlayRecordUpdate(positionMs: target);
+    final target = (current + milliseconds).clamp(0, _duration).toInt();
+    _seekPlayerTo(target);
   }
 
   void _seekTo(double progress) {
     if (_player == null) return;
     final target = (progress * _duration).toInt();
-    _player!.seek(Duration(milliseconds: target));
-    _queuePlayRecordUpdate(positionMs: target);
+    _seekPlayerTo(target);
+  }
+
+  void _seekPlayerTo(int targetMilliseconds) {
+    _danmakuResetGeneration++;
+    _danmakuPosition.value = Duration(milliseconds: targetMilliseconds);
+    _player?.seek(Duration(milliseconds: targetMilliseconds));
+    _queuePlayRecordUpdate(positionMs: targetMilliseconds);
   }
 
   void _setVolume(double volume) {
@@ -2034,7 +2081,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _setSpeed(double speed) {
     if (_player == null) return;
-    _speed = speed;
+    setState(() => _speed = speed);
     _player!.setRate(speed);
     ref.read(playerSettingsManagerProvider).setSpeed(speed);
   }
@@ -2086,8 +2133,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null) return;
     final current = player.state.position.inMilliseconds;
     final target = (current + milliseconds).clamp(0, _duration).toInt();
-    player.seek(Duration(milliseconds: target));
-    _queuePlayRecordUpdate(positionMs: target);
+    _seekPlayerTo(target);
     final label = milliseconds < 0 ? '快退至' : '快进至';
     _toastManager.showToast(
       '$label：${formatDurationToDateTime(target)}',
@@ -2579,6 +2625,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void dispose() {
+    ref.read(danmakuControllerProvider.notifier).clear();
     if (_isDesktopPlatform()) {
       windowManager.removeListener(this);
       unawaited(_fullscreenController.exitForRouteLeave());
@@ -2605,6 +2652,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playerFocusNode.dispose();
     _player?.dispose();
     _hlsSubtitleTexts.dispose();
+    _danmakuPosition.dispose();
     _toastManager.dispose();
     super.dispose();
   }
@@ -2612,6 +2660,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   Widget build(BuildContext context) {
     final subtitleSettings = ref.watch(subtitleSettingsProvider);
+    final danmakuState = ref.watch(danmakuControllerProvider);
     final overlayState = ref.watch(playerOverlayControllerProvider);
     _scheduleMacOSWindowButtonsSync(
       visible: overlayState.isUiVisible,
@@ -2640,6 +2689,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
                     )
                   : const Center(child: AppLoadingProgressRing()),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ValueListenableBuilder<Duration>(
+              valueListenable: _danmakuPosition,
+              builder: (context, position, _) {
+                return PlayerDanmakuOverlay(
+                  danmakuList: danmakuState.danmakuList,
+                  position: position,
+                  isPlaying: _isPlaying,
+                  playbackRate: _speed,
+                  isVisible: danmakuState.isVisible,
+                  settings: danmakuState.settings,
+                  loadStatus: danmakuState.loadStatus,
+                  resetGeneration: _danmakuResetGeneration,
+                );
+              },
             ),
           ),
         ),
@@ -2740,6 +2808,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             _buildControlButtons(
                               overlayState: overlayState,
                               subtitleSettings: subtitleSettings,
+                              danmakuState: danmakuState,
                             ),
                           ],
                         ),
@@ -2992,8 +3061,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Widget _buildControlButtons({
     required PlayerOverlayState overlayState,
     required SubtitleSettings subtitleSettings,
+    required DanmakuState danmakuState,
   }) {
     final prefs = ref.watch(preferencesManagerProvider);
+    final settings = ref.watch(settingsProvider);
     final baseUrl = prefs.getBaseUrl() ?? '';
     final token = prefs.getToken();
     final cookie = prefs.getCookie();
@@ -3090,45 +3161,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             onQualitySelected: _onQualitySelected,
           ),
         const SizedBox(width: _trailingControlSpacing),
-        MouseRegion(
-          onEnter: (_) => _overlayController.setHovered(
-              PlayerHoverZone.danmakuControl, true),
-          onExit: (_) => _overlayController.setHovered(
-            PlayerHoverZone.danmakuControl,
-            false,
+        if (settings.flyNarwhalServerEnabled) ...[
+          MouseRegion(
+            onEnter: (_) => _overlayController.setHovered(
+                PlayerHoverZone.danmakuControl, true),
+            onExit: (_) => _overlayController.setHovered(
+              PlayerHoverZone.danmakuControl,
+              false,
+            ),
+            child: PlayerActionButton.svg(
+              key: const ValueKey('player-danmaku-toggle'),
+              svgAssetPath: danmakuState.isVisible
+                  ? 'assets/images/danmu_open.svg'
+                  : 'assets/images/danmu_close.svg',
+              onPressed: () {
+                ref.read(danmakuControllerProvider.notifier).toggleVisibility();
+              },
+              tooltip: '弹幕',
+              size: 30,
+              iconSize: 20,
+            ),
           ),
-          child: PlayerActionButton.svg(
-            svgAssetPath: overlayState.isDanmakuVisible
-                ? 'assets/images/danmu_open.svg'
-                : 'assets/images/danmu_close.svg',
-            onPressed: () {
-              _overlayController.toggleDanmakuVisibility();
-              _showFeatureComingSoon('弹幕');
-            },
-            tooltip: '弹幕',
-            size: 30,
-            iconSize: 20,
+          const SizedBox(width: _trailingControlSpacing),
+          DanmakuSettingsFlyout(
+            settings: danmakuState.settings,
+            loadStatus: danmakuState.loadStatus,
+            popupBottomOffset: _controlFlyoutOffset.toDouble(),
+            onAreaChanged:
+                ref.read(danmakuControllerProvider.notifier).updateArea,
+            onOpacityChanged:
+                ref.read(danmakuControllerProvider.notifier).updateOpacity,
+            onFontSizeScaleChanged: ref
+                .read(danmakuControllerProvider.notifier)
+                .updateFontSizeScale,
+            onSpeedChanged:
+                ref.read(danmakuControllerProvider.notifier).updateSpeed,
+            onSyncPlaybackSpeedChanged: ref
+                .read(danmakuControllerProvider.notifier)
+                .updateSyncPlaybackSpeed,
+            onDebugEnabledChanged:
+                ref.read(danmakuControllerProvider.notifier).updateDebugEnabled,
+            onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
+              PlayerFlyoutType.danmaku,
+              hovered,
+            ),
           ),
-        ),
-        const SizedBox(width: _trailingControlSpacing),
-        MouseRegion(
-          onEnter: (_) => _overlayController.setHovered(
-            PlayerHoverZone.danmakuSettings,
-            true,
-          ),
-          onExit: (_) => _overlayController.setHovered(
-            PlayerHoverZone.danmakuSettings,
-            false,
-          ),
-          child: PlayerActionButton.svg(
-            svgAssetPath: 'assets/images/danmu_setting.svg',
-            onPressed: () => _showFeatureComingSoon('弹幕设置'),
-            tooltip: '弹幕设置',
-            size: 30,
-            iconSize: 20,
-          ),
-        ),
-        const SizedBox(width: _trailingControlSpacing),
+          const SizedBox(width: _trailingControlSpacing),
+        ],
         SubtitleControlFlyout(
           subtitles: _playingInfoCache?.currentSubtitleStreamList ?? const [],
           selectedSubtitleGuid: _selectedSubtitleGuid,

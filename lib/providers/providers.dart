@@ -119,6 +119,7 @@ final flyNarwhalRemoteDataSourceProvider =
     getCookie: () => prefsManager.getCookie() ?? '',
     getFnBaseUrl: () => prefsManager.getBaseUrl() ?? '',
     getFlyNarwhalBaseUrl: () => flyNarwhalSettings.baseUrl ?? '',
+    getFlyNarwhalServerEnabled: () => flyNarwhalSettings.enabled,
     getAuthCode: () => flyNarwhalSettings.authCode ?? '',
   );
 });
@@ -146,43 +147,86 @@ final smartAnalysisStatusControllerProvider = StateNotifierProvider<
 final danmakuControllerProvider =
     StateNotifierProvider<DanmakuController, DanmakuState>((ref) {
   final dataSource = ref.watch(flyNarwhalRemoteDataSourceProvider);
-  return DanmakuController(dataSource);
+  final settingsManager = ref.watch(playerSettingsManagerProvider);
+  final controller = DanmakuController(
+    dataSource,
+    settingsManager,
+    () {
+      final settings = ref.read(settingsProvider);
+      return settings.flyNarwhalServerEnabled &&
+          settings.flyNarwhalServerBaseUrl.isNotEmpty &&
+          settings.hasFlyNarwhalAuthCode;
+    },
+  );
+  ref.listen<SettingsState>(settingsProvider, (previous, next) {
+    final wasAvailable = previous != null &&
+        previous.flyNarwhalServerEnabled &&
+        previous.flyNarwhalServerBaseUrl.isNotEmpty &&
+        previous.hasFlyNarwhalAuthCode;
+    final isAvailable = next.flyNarwhalServerEnabled &&
+        next.flyNarwhalServerBaseUrl.isNotEmpty &&
+        next.hasFlyNarwhalAuthCode;
+    if (wasAvailable && !isAvailable) {
+      controller.clear();
+    }
+  });
+  return controller;
 });
 
 class SettingsState {
   final bool followSystemTheme;
   final bool darkMode;
   final String navigationDisplayMode;
+  final bool flyNarwhalServerEnabled;
+  final String flyNarwhalServerBaseUrl;
+  final bool hasFlyNarwhalAuthCode;
 
   const SettingsState({
     required this.followSystemTheme,
     required this.darkMode,
     required this.navigationDisplayMode,
+    required this.flyNarwhalServerEnabled,
+    required this.flyNarwhalServerBaseUrl,
+    required this.hasFlyNarwhalAuthCode,
   });
 
   SettingsState copyWith({
     bool? followSystemTheme,
     bool? darkMode,
     String? navigationDisplayMode,
+    bool? flyNarwhalServerEnabled,
+    String? flyNarwhalServerBaseUrl,
+    bool? hasFlyNarwhalAuthCode,
   }) {
     return SettingsState(
       followSystemTheme: followSystemTheme ?? this.followSystemTheme,
       darkMode: darkMode ?? this.darkMode,
       navigationDisplayMode:
           navigationDisplayMode ?? this.navigationDisplayMode,
+      flyNarwhalServerEnabled:
+          flyNarwhalServerEnabled ?? this.flyNarwhalServerEnabled,
+      flyNarwhalServerBaseUrl:
+          flyNarwhalServerBaseUrl ?? this.flyNarwhalServerBaseUrl,
+      hasFlyNarwhalAuthCode:
+          hasFlyNarwhalAuthCode ?? this.hasFlyNarwhalAuthCode,
     );
   }
 }
 
 class SettingsNotifier extends StateNotifier<SettingsState> {
-  SettingsNotifier(this._prefs)
+  SettingsNotifier(this._prefs, this._flyNarwhalSettings)
       : super(SettingsState(
           followSystemTheme: _prefs.getFollowSystemTheme(),
           darkMode: _prefs.getDarkMode(),
           navigationDisplayMode: _prefs.getNavigationDisplayMode(),
+          flyNarwhalServerEnabled: _flyNarwhalSettings.enabled,
+          flyNarwhalServerBaseUrl: _flyNarwhalSettings.baseUrl?.trim() ?? '',
+          hasFlyNarwhalAuthCode:
+              _flyNarwhalSettings.authCode?.trim().isNotEmpty ?? false,
         ));
 
   final PreferencesManager _prefs;
+  final FlyNarwhalSettings _flyNarwhalSettings;
 
   Future<void> setFollowSystemTheme(bool value) async {
     await _prefs.saveFollowSystemTheme(value);
@@ -198,12 +242,42 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await _prefs.saveNavigationDisplayMode(value);
     state = state.copyWith(navigationDisplayMode: value);
   }
+
+  Future<void> setFlyNarwhalServerEnabled(bool value) async {
+    await _flyNarwhalSettings.setEnabled(value);
+    state = state.copyWith(flyNarwhalServerEnabled: value);
+  }
+
+  Future<void> setFlyNarwhalServerBaseUrl(String value) async {
+    final normalizedBaseUrl = value.trim();
+    await _flyNarwhalSettings.setBaseUrl(normalizedBaseUrl);
+    state = state.copyWith(flyNarwhalServerBaseUrl: normalizedBaseUrl);
+  }
+
+  Future<void> setFlyNarwhalAuthCode(String value) async {
+    final normalizedAuthCode = value.trim();
+    await _flyNarwhalSettings.setAuthCode(normalizedAuthCode);
+    state = state.copyWith(
+      hasFlyNarwhalAuthCode: normalizedAuthCode.isNotEmpty,
+    );
+  }
+
+  String getFlyNarwhalAuthCode() {
+    return _flyNarwhalSettings.authCode ?? '';
+  }
+
+  bool get isFlyNarwhalServerAvailable {
+    return state.flyNarwhalServerEnabled &&
+        state.flyNarwhalServerBaseUrl.isNotEmpty &&
+        state.hasFlyNarwhalAuthCode;
+  }
 }
 
 final settingsProvider =
     StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
   final prefs = ref.watch(preferencesManagerProvider);
-  return SettingsNotifier(prefs);
+  final flyNarwhalSettings = ref.watch(flyNarwhalSettingsProvider);
+  return SettingsNotifier(prefs, flyNarwhalSettings);
 });
 
 class UserInfoNotifier extends StateNotifier<AsyncValue<UserInfo?>> {

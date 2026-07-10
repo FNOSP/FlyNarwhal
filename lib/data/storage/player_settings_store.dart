@@ -11,6 +11,13 @@ class PlayerSettingsStore {
   static const String _keyPipWindowTop = 'pip_window_top';
   static const String _keyPipWindowWidth = 'pip_window_width';
   static const String _keyPipWindowHeight = 'pip_window_height';
+  static const String _keyDanmakuArea = 'danmaku_area';
+  static const String _keyDanmakuOpacity = 'danmaku_opacity';
+  static const String _keyDanmakuFontSize = 'danmaku_font_size';
+  static const String _keyDanmakuSpeed = 'danmaku_speed';
+  static const String _keyDanmakuSyncPlaybackSpeed =
+      'danmaku_sync_playback_speed';
+  static const String _keyDanmakuDebug = 'danmaku_debug';
 
   static double getVolume() {
     return SharedPreferences.getInstance().then((prefs) {
@@ -90,6 +97,39 @@ class PlayerSettingsManager {
   double getSpeed() => _prefs.getDouble(PlayerSettingsStore._keySpeed) ?? 1.0;
   Future<void> setSpeed(double speed) =>
       _prefs.setDouble(PlayerSettingsStore._keySpeed, speed);
+
+  double getDanmakuArea() =>
+      _prefs.getDouble(PlayerSettingsStore._keyDanmakuArea) ?? 1.0;
+  Future<void> setDanmakuArea(double area) =>
+      _prefs.setDouble(PlayerSettingsStore._keyDanmakuArea, area);
+
+  double getDanmakuOpacity() =>
+      _prefs.getDouble(PlayerSettingsStore._keyDanmakuOpacity) ?? 1.0;
+  Future<void> setDanmakuOpacity(double opacity) =>
+      _prefs.setDouble(PlayerSettingsStore._keyDanmakuOpacity, opacity);
+
+  double getDanmakuFontSizeScale() =>
+      _prefs.getDouble(PlayerSettingsStore._keyDanmakuFontSize) ?? 1.0;
+  Future<void> setDanmakuFontSizeScale(double fontSizeScale) =>
+      _prefs.setDouble(PlayerSettingsStore._keyDanmakuFontSize, fontSizeScale);
+
+  double getDanmakuSpeed() =>
+      _prefs.getDouble(PlayerSettingsStore._keyDanmakuSpeed) ?? 1.0;
+  Future<void> setDanmakuSpeed(double speed) =>
+      _prefs.setDouble(PlayerSettingsStore._keyDanmakuSpeed, speed);
+
+  bool getDanmakuSyncPlaybackSpeed() =>
+      _prefs.getBool(PlayerSettingsStore._keyDanmakuSyncPlaybackSpeed) ?? false;
+  Future<void> setDanmakuSyncPlaybackSpeed(bool syncPlaybackSpeed) =>
+      _prefs.setBool(
+        PlayerSettingsStore._keyDanmakuSyncPlaybackSpeed,
+        syncPlaybackSpeed,
+      );
+
+  bool getDanmakuDebugEnabled() =>
+      _prefs.getBool(PlayerSettingsStore._keyDanmakuDebug) ?? false;
+  Future<void> setDanmakuDebugEnabled(bool debugEnabled) =>
+      _prefs.setBool(PlayerSettingsStore._keyDanmakuDebug, debugEnabled);
 
   bool getAutoPlay() =>
       _prefs.getBool(PlayerSettingsStore._keyAutoPlay) ?? true;
