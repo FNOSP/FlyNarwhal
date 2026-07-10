@@ -3,15 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/network/dio_client.dart';
 import '../core/utils/log/app_talker.dart';
+import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
 import '../data/datasources/remote/media_remote_data_source.dart';
 import '../data/datasources/remote/tag_remote_data_source.dart';
 import '../data/datasources/remote/user_remote_data_source.dart';
 import '../data/models/user_info.dart';
 import '../data/repositories/tag_repository_impl.dart';
+import '../data/storage/fly_narwhal_settings.dart';
 import '../data/storage/player_settings_store.dart';
 import '../data/storage/preferences_manager.dart';
 import '../data/storage/shortcut_settings_store.dart';
 import '../domain/repositories/i_tag_repository.dart';
+import 'danmaku_controller.dart';
+import 'fly_narwhal_connection_test_notifier.dart';
+import 'smart_analysis_controller.dart';
+import 'smart_analysis_status_controller.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences not initialized');
@@ -97,6 +103,50 @@ final mediaRemoteDataSourceProvider = Provider<MediaRemoteDataSource>((ref) {
 final userRemoteDataSourceProvider = Provider<UserRemoteDataSource>((ref) {
   final dioClient = ref.watch(dioClientProvider);
   return UserRemoteDataSource(dioClient);
+});
+
+final flyNarwhalSettingsProvider = Provider<FlyNarwhalSettings>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return FlyNarwhalSettings(prefs);
+});
+
+final flyNarwhalRemoteDataSourceProvider =
+    Provider<FlyNarwhalRemoteDataSource>((ref) {
+  final prefsManager = ref.watch(preferencesManagerProvider);
+  final flyNarwhalSettings = ref.watch(flyNarwhalSettingsProvider);
+  return FlyNarwhalRemoteDataSource(
+    getToken: () => prefsManager.getToken() ?? '',
+    getCookie: () => prefsManager.getCookie() ?? '',
+    getFnBaseUrl: () => prefsManager.getBaseUrl() ?? '',
+    getFlyNarwhalBaseUrl: () => flyNarwhalSettings.baseUrl ?? '',
+    getAuthCode: () => flyNarwhalSettings.authCode ?? '',
+  );
+});
+
+final flyNarwhalConnectionTestProvider = StateNotifierProvider<
+    FlyNarwhalConnectionTestNotifier, AsyncValue<String?>>((ref) {
+  final dataSource = ref.watch(flyNarwhalRemoteDataSourceProvider);
+  return FlyNarwhalConnectionTestNotifier(dataSource);
+});
+
+final smartAnalysisControllerProvider =
+    StateNotifierProvider<SmartAnalysisController, UiState<String>>((ref) {
+  final flyNarwhalDataSource = ref.watch(flyNarwhalRemoteDataSourceProvider);
+  final mediaDataSource = ref.watch(mediaRemoteDataSourceProvider);
+  return SmartAnalysisController(flyNarwhalDataSource, mediaDataSource);
+});
+
+final smartAnalysisStatusControllerProvider = StateNotifierProvider<
+    SmartAnalysisStatusController, SmartAnalysisStatusState>((ref) {
+  final dataSource = ref.watch(flyNarwhalRemoteDataSourceProvider);
+  final settings = ref.watch(flyNarwhalSettingsProvider);
+  return SmartAnalysisStatusController(dataSource, settings);
+});
+
+final danmakuControllerProvider =
+    StateNotifierProvider<DanmakuController, DanmakuState>((ref) {
+  final dataSource = ref.watch(flyNarwhalRemoteDataSourceProvider);
+  return DanmakuController(dataSource);
 });
 
 class SettingsState {
