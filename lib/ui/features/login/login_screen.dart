@@ -76,7 +76,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
       final history = ref.read(loginHistoryNotifierProvider);
       if (history.isNotEmpty) {
         final last = history.first;
-        _populateFields(last, allowAutoLogin: false);
+        unawaited(_populateFields(last, allowAutoLogin: false));
       }
     });
   }
@@ -114,17 +114,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     }
   }
 
-  void _populateFields(
-    var item, {
+  Future<void> _populateFields(
+    LoginHistory item, {
     bool allowAutoLogin = false,
-  }) {
+  }) async {
+    final passwordResult = await ref
+        .read(loginHistoryPasswordServiceProvider)
+        .decryptForDisplay(item);
+    if (!mounted) {
+      return;
+    }
+    if (passwordResult.shouldClear) {
+      await ref.read(loginHistoryNotifierProvider.notifier).clearPassword(item);
+    }
+    if (!mounted) {
+      return;
+    }
     setState(() {
-      final displayHost = item.displayHost.toString();
+      final displayHost = item.displayHost;
       final displayPort = item.displayPort ?? item.port;
       _hostController.text = displayHost.isEmpty ? item.host : displayHost;
       _portController.text = displayPort.toString();
       _usernameController.text = item.username;
-      _passwordController.text = item.password ?? '';
+      _passwordController.text = passwordResult.password ?? '';
       _isHttps = item.isHttps;
       _rememberPassword = item.rememberPassword;
       _isNasLogin = item.isNasLogin;

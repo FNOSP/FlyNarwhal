@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
+
 /// Authentication interceptor for FnOfficial API requests.
 /// Injects Authorization, Cookie, User-Agent and Authx (single layer sign).
 class AuthInterceptor extends Interceptor {
@@ -55,9 +56,8 @@ class AuthInterceptor extends Interceptor {
       final path = _resolvePath(options.path);
       final authx = _genAuthx(
         path,
-        parameters: options.queryParameters.isEmpty
-            ? null
-            : options.queryParameters,
+        parameters:
+            options.queryParameters.isEmpty ? null : options.queryParameters,
         data: options.data is Map<String, dynamic> ? options.data : null,
       );
       options.headers['Authx'] = authx;

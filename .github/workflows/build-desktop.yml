@@ -19,26 +19,38 @@ jobs:
           - runner: windows-latest
             platform: windows
             architecture: x64
+            goarch: amd64
+            libname: fly_narwhal_obfuscator.dll
             artifact: windows-x64
           - runner: windows-11-arm
             platform: windows
             architecture: arm64
+            goarch: arm64
+            libname: fly_narwhal_obfuscator.dll
             artifact: windows-arm64
           - runner: macos-15-intel
             platform: macos
             architecture: x64
+            goarch: amd64
+            libname: libfly_narwhal_obfuscator.dylib
             artifact: macos-x64
           - runner: macos-14
             platform: macos
             architecture: arm64
+            goarch: arm64
+            libname: libfly_narwhal_obfuscator.dylib
             artifact: macos-arm64
           - runner: ubuntu-24.04
             platform: linux
             architecture: x64
+            goarch: amd64
+            libname: libfly_narwhal_obfuscator.so
             artifact: linux-x64
           - runner: ubuntu-24.04-arm
             platform: linux
             architecture: arm64
+            goarch: arm64
+            libname: libfly_narwhal_obfuscator.so
             artifact: linux-arm64
     runs-on: ${{ matrix.runner }}
     environment: release
@@ -53,8 +65,22 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Set up C toolchain (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc
+
+      - name: Set up C toolchain (Windows arm64)
+        if: matrix.platform == 'windows' && matrix.architecture == 'arm64'
+        shell: pwsh
+        run: |
+          Write-Host 'The windows-11-arm runner must provide an ARM64 MSVC or LLVM-MinGW C toolchain.'
 
       - name: Check out verified private obfuscator
         uses: actions/checkout@v4
@@ -79,6 +105,8 @@ jobs:
           REPORT_URL: ${{ secrets.REPORT_URL }}
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           OBFUSCATOR_TOOL_DIRECTORY: ${{ github.workspace }}/.private/obfuscator
+          OBFUSCATOR_GOARCH: ${{ matrix.goarch }}
+          OBFUSCATOR_LIBNAME: ${{ matrix.libname }}
         run: dart run scripts/release/build_desktop.dart ${{ matrix.platform }} ${{ matrix.architecture }}
 
       - name: Package Windows installer
@@ -87,7 +115,7 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
           $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([^+]+)').Matches[0].Groups[1].Value
-          iscc "/DMyAppArch=amd64" "/DMyAppVersion=$version" "/DFlutterBundleDir=$PWD\\build\\windows\\x64\\runner\\Release" installer/setup.iss
+          iscc "/DMyAppArch=${{ matrix.goarch }}" "/DMyAppVersion=$version" "/DFlutterBundleDir=$PWD\\build\\windows\\${{ matrix.architecture }}\\runner\\Release" installer/setup.iss
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

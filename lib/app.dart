@@ -11,7 +11,13 @@ import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import 'core/config/runtime_configuration.dart';
+import 'core/config/secret_bridge_selector.dart';
+import 'core/security/password_cipher.dart';
 import 'core/utils/index.dart';
+import 'data/storage/account_settings_store.dart';
+import 'data/storage/kmp_preferences_migration_service.dart';
+import 'data/storage/kmp_windows_preferences_reader.dart';
 import 'providers/providers.dart';
 import 'ui/navigation/app_router.dart';
 
@@ -74,6 +80,11 @@ Future<void> bootstrapApp() async {
     final prefs = await SharedPreferences.getInstance();
     AppTalker.info('Prefs', 'SharedPreferences ready');
 
+    // Run the idempotent KMP migration before providers access preferences.
+    if (!kIsWeb && Platform.isWindows) {
+      await _runKmpMigration(prefs);
+    }
+
     // Start the widget tree after all startup services are prepared.
     AppTalker.info('Bootstrap', 'runApp start');
     runApp(
@@ -87,6 +98,33 @@ Future<void> bootstrapApp() async {
   }, (error, stackTrace) {
     AppTalker.instance.handle(error, stackTrace);
   });
+}
+
+/// Migrates KMP preferences without allowing a legacy-data issue to block UI.
+Future<void> _runKmpMigration(SharedPreferences preferences) async {
+  try {
+    final accountSettingsStore = AccountSettingsStore(preferences);
+    await accountSettingsStore.initializeSchema();
+    final configuration = NativeRuntimeConfiguration(resolveSecretBridge());
+    final rawValues = await KmpWindowsPreferencesReader().readAll();
+    if (rawValues.isEmpty) {
+      return;
+    }
+
+    final migrationService = KmpPreferencesMigrationService(
+      accountSettingsStore: accountSettingsStore,
+      passwordCipher: PasswordCipher(configuration),
+    );
+    final report = await migrationService.migrate(rawValues);
+    AppTalker.info(
+      'Migration',
+      'KMP migration: alreadyCompleted=${report.alreadyCompleted} '
+          'migrated=${report.migratedEntries} skipped=${report.skippedEntries}',
+    );
+  } catch (error, stackTrace) {
+    AppTalker.warning('Migration', 'KMP migration failed: $error');
+    AppTalker.instance.handle(error, stackTrace);
+  }
 }
 
 bool _isDesktopPlatform() {

@@ -8,6 +8,9 @@ class LoginHistory {
   final int port;
   final String username;
   final String? password;
+
+  @JsonKey(defaultValue: false)
+  final bool passwordEncrypted;
   final bool isHttps;
   final bool rememberPassword;
   final bool isNasLogin;
@@ -22,6 +25,7 @@ class LoginHistory {
     required this.port,
     required this.username,
     this.password,
+    this.passwordEncrypted = false,
     required this.isHttps,
     required this.rememberPassword,
     this.isNasLogin = false,
@@ -30,9 +34,11 @@ class LoginHistory {
     int? lastLoginTimestamp,
     this.displayHost = "",
     this.displayPort,
-  }) : lastLoginTimestamp = lastLoginTimestamp ?? DateTime.now().millisecondsSinceEpoch;
+  }) : lastLoginTimestamp =
+            lastLoginTimestamp ?? DateTime.now().millisecondsSinceEpoch;
 
-  factory LoginHistory.fromJson(Map<String, dynamic> json) => _$LoginHistoryFromJson(json);
+  factory LoginHistory.fromJson(Map<String, dynamic> json) =>
+      _$LoginHistoryFromJson(json);
   Map<String, dynamic> toJson() => _$LoginHistoryToJson(this);
 
   String getEndpoint() {

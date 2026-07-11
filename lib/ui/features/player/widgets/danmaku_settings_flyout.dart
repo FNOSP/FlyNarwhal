@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../../../providers/danmaku_controller.dart';
@@ -43,27 +46,93 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout> {
   final FlyoutController _flyoutController = FlyoutController();
   DanmakuSettingsPage _page = DanmakuSettingsPage.main;
 
+  void _writeDebugLog({
+    required String hypothesisId,
+    required String message,
+    Map<String, Object?> data = const {},
+  }) {
+    // #region debug instrumentation
+    try {
+      final payload = <String, Object?>{
+        'sessionId': 'bb0059',
+        'location': 'danmaku_settings_flyout.dart',
+        'message': message,
+        'data': <String, Object?>{
+          'hypothesisId': hypothesisId,
+          ...data,
+        },
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+      File(r'd:\WorkSpace\personal\FlyNarwhal-flutter\.cursor\debug-bb0059.log')
+          .writeAsStringSync('${jsonEncode(payload)}\n', mode: FileMode.append);
+    } catch (_) {}
+    // #endregion
+  }
+
   @override
   Widget build(BuildContext context) {
-    return FlyoutTarget(
-      controller: _flyoutController,
-      child: PlayerActionButton.svg(
-        key: const ValueKey('player-danmaku-settings'),
-        svgAssetPath: 'assets/images/danmu_setting.svg',
-        onPressed: _toggleFlyout,
-        tooltip: '弹幕设置',
-        size: 30,
-        iconSize: 20,
+    return MouseRegion(
+      onEnter: (_) {
+        // #region debug instrumentation
+        _writeDebugLog(
+          hypothesisId: 'H1-H2',
+          message: 'pointer entered danmaku settings target',
+          data: {'flyoutIsOpen': _flyoutController.isOpen},
+        );
+        // #endregion
+        _showFlyout();
+      },
+      onExit: (_) {
+        // #region debug instrumentation
+        _writeDebugLog(
+          hypothesisId: 'H2-H4',
+          message: 'pointer exited danmaku settings target',
+          data: {'flyoutIsOpen': _flyoutController.isOpen},
+        );
+        // #endregion
+      },
+      child: FlyoutTarget(
+        controller: _flyoutController,
+        child: PlayerActionButton.svg(
+          key: const ValueKey('player-danmaku-settings'),
+          svgAssetPath: 'assets/images/danmu_setting.svg',
+          onPressed: _toggleFlyout,
+          tooltip: '弹幕设置',
+          size: 30,
+          iconSize: 20,
+        ),
       ),
     );
   }
 
   void _toggleFlyout() {
+    // #region debug instrumentation
+    _writeDebugLog(
+      hypothesisId: 'H1-H3',
+      message: 'danmaku settings toggle requested',
+      data: {'flyoutIsOpen': _flyoutController.isOpen},
+    );
+    // #endregion
     if (_flyoutController.isOpen) {
       _flyoutController.close();
       return;
     }
 
+    _showFlyout();
+  }
+
+  void _showFlyout() {
+    if (_flyoutController.isOpen) {
+      return;
+    }
+
+    // #region debug instrumentation
+    _writeDebugLog(
+      hypothesisId: 'H1-H3',
+      message: 'danmaku settings flyout opening',
+      data: {'trigger': 'hover', 'flyoutIsOpen': _flyoutController.isOpen},
+    );
+    // #endregion
     _flyoutController.showFlyout(
       barrierDismissible: true,
       dismissOnPointerMoveAway: false,

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+
 /// Retry interceptor for automatic request retry on failure
 class RetryInterceptor extends Interceptor {
   final int maxRetries;

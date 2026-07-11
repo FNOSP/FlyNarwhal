@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 const _requiredSecrets = <String>[
@@ -6,110 +5,81 @@ const _requiredSecrets = <String>[
   'FLY_NARWHAL_SECRET',
 ];
 
-const _allConfigurationKeys = <String>[
-  ..._requiredSecrets,
-  'REPORT_URL',
-  'REPORT_API_SECRET',
-];
-
 Future<void> main(List<String> arguments) async {
-  if (arguments.length != 2) {
-    stderr.writeln(
-        'Usage: dart run scripts/release/build_desktop.dart <platform> <architecture>');
-    exitCode = 64;
-    return;
-  }
-
-  final platform = arguments[0];
-  final architecture = arguments[1];
+  final parsedArguments = _parseArguments(arguments);
+  final platform = parsedArguments.platform;
+  final architecture = parsedArguments.architecture;
   _validateTarget(platform, architecture);
-  final configuration = _readBuildConfiguration();
-  final privateToolDirectory =
-      Platform.environment['OBFUSCATOR_TOOL_DIRECTORY'];
-  if (privateToolDirectory == null || privateToolDirectory.isEmpty) {
-    _fail(
-        'OBFUSCATOR_TOOL_DIRECTORY must reference the verified private checkout');
-  }
+  _validateRequiredSecrets();
 
-  final workspaceDirectory = Directory.current;
-  final outputDirectory = Directory(
-    '${workspaceDirectory.path}${Platform.pathSeparator}generated-obfuscator${Platform.pathSeparator}$platform-$architecture',
+  final obfuscatorDirectory = _requiredEnvironmentValue(
+    'OBFUSCATOR_TOOL_DIRECTORY',
   );
-  if (outputDirectory.existsSync()) {
-    await outputDirectory.delete(recursive: true);
-  }
-  await outputDirectory.create(recursive: true);
+  final goArchitecture = _requiredEnvironmentValue('OBFUSCATOR_GOARCH');
+  final libraryName = _requiredEnvironmentValue('OBFUSCATOR_LIBNAME');
+  final dryRun = parsedArguments.dryRun;
 
   try {
-    await _runPrivateGenerator(
-      privateToolDirectory: privateToolDirectory,
-      outputDirectory: outputDirectory.path,
+    await _runProtectedBuild(
       platform: platform,
       architecture: architecture,
-      configuration: configuration,
+      goArchitecture: goArchitecture,
+      libraryName: libraryName,
+      obfuscatorDirectory: obfuscatorDirectory,
+      dryRun: dryRun,
     );
-    await _runFlutterBuild(platform, architecture, outputDirectory.path);
   } finally {
-    configuration.clear();
+    await _deleteGeneratedSecretSource(obfuscatorDirectory, dryRun: dryRun);
   }
 }
 
-Map<String, String> _readBuildConfiguration() {
-  final configuration = <String, String>{};
-  for (final key in _allConfigurationKeys) {
-    configuration[key] = Platform.environment[key] ?? '';
-  }
-  for (final key in _requiredSecrets) {
-    if (configuration[key]!.trim().isEmpty) {
-      _fail('$key is required for release builds');
-    }
-  }
-  return configuration;
-}
-
-Future<void> _runPrivateGenerator({
-  required String privateToolDirectory,
-  required String outputDirectory,
+Future<void> _runProtectedBuild({
   required String platform,
   required String architecture,
-  required Map<String, String> configuration,
+  required String goArchitecture,
+  required String libraryName,
+  required String obfuscatorDirectory,
+  required bool dryRun,
 }) async {
-  final executable = Platform.isWindows ? 'generate.exe' : 'generate';
-  final generatorPath =
-      '$privateToolDirectory${Platform.pathSeparator}bin${Platform.pathSeparator}$executable';
-  if (!File(generatorPath).existsSync()) {
-    _fail('Verified private generator executable is missing');
-  }
-
-  final generatorInput = <String, Object>{
-    'protocolVersion': 1,
-    'platform': platform,
-    'architecture': architecture,
-    'outputDirectory': outputDirectory,
-    'configuration': configuration,
-  };
-  final process = await Process.start(
-    generatorPath,
-    const <String>[],
-    workingDirectory: privateToolDirectory,
+  await _runProcess(
+    executable: 'go',
+    arguments: const <String>['run', './cmd/gensecret'],
+    workingDirectory: obfuscatorDirectory,
+    environment: Platform.environment,
+    dryRun: dryRun,
   );
-  process.stdin
-    ..write(jsonEncode(generatorInput))
-    ..close();
-  final stdoutFuture = process.stdout.drain<void>();
-  final stderrFuture = process.stderr.drain<void>();
-  final exitCode = await process.exitCode;
-  await Future.wait(<Future<void>>[stdoutFuture, stderrFuture]);
-  if (exitCode != 0) {
-    _fail('Private obfuscator generator failed');
-  }
-}
 
-Future<void> _runFlutterBuild(
-  String platform,
-  String architecture,
-  String generatedOutputDirectory,
-) async {
+  final nativeLibraryPath = _nativeLibraryPath(
+    obfuscatorDirectory: obfuscatorDirectory,
+    platform: platform,
+    goArchitecture: goArchitecture,
+    libraryName: libraryName,
+  );
+  await Directory(nativeLibraryPath).parent.create(recursive: true);
+  await _runProcess(
+    executable: 'go',
+    arguments: <String>[
+      'build',
+      '-tags',
+      'secretgen',
+      '-buildmode=c-shared',
+      '-trimpath',
+      '-ldflags',
+      '-s -w',
+      '-o',
+      nativeLibraryPath,
+      './cmd/shared',
+    ],
+    workingDirectory: obfuscatorDirectory,
+    environment: <String, String>{
+      ...Platform.environment,
+      'CGO_ENABLED': '1',
+      'GOOS': platform == 'macos' ? 'darwin' : platform,
+      'GOARCH': goArchitecture,
+    },
+    dryRun: dryRun,
+  );
+
   final flutterArguments = <String>[
     'build',
     platform,
@@ -118,22 +88,126 @@ Future<void> _runFlutterBuild(
     '--split-debug-info=symbols/$platform-$architecture',
   ];
   if (platform == 'windows') {
-    flutterArguments
-        .addAll(<String>['--target-platform', 'windows-$architecture']);
+    flutterArguments.addAll(<String>[
+      '--target-platform',
+      'windows-$architecture',
+    ]);
+  }
+  await _runProcess(
+    executable: 'flutter',
+    arguments: flutterArguments,
+    dryRun: dryRun,
+  );
+
+  final bundleDirectory = _bundleDirectory(platform, architecture);
+  final bundleLibraryPath =
+      '$bundleDirectory${Platform.pathSeparator}$libraryName';
+  if (dryRun) {
+    stdout.writeln('Copy $nativeLibraryPath -> $bundleLibraryPath');
+    return;
+  }
+  final nativeLibrary = File(nativeLibraryPath);
+  if (!await nativeLibrary.exists()) {
+    _fail('Native obfuscator library is missing after the Go build');
+  }
+  final bundle = Directory(bundleDirectory);
+  if (!await bundle.exists()) {
+    _fail('Desktop release bundle is missing after the Flutter build');
+  }
+  await nativeLibrary.copy(bundleLibraryPath);
+}
+
+Future<void> _deleteGeneratedSecretSource(
+  String obfuscatorDirectory, {
+  required bool dryRun,
+}) async {
+  final sourceFile = File(
+    '$obfuscatorDirectory${Platform.pathSeparator}internal${Platform.pathSeparator}'
+    'secret${Platform.pathSeparator}config_gen.go',
+  );
+  if (dryRun) {
+    stdout.writeln('Delete ${sourceFile.path}');
+    return;
+  }
+  if (await sourceFile.exists()) {
+    await sourceFile.delete();
+  }
+}
+
+Future<void> _runProcess({
+  required String executable,
+  required List<String> arguments,
+  String? workingDirectory,
+  Map<String, String>? environment,
+  required bool dryRun,
+}) async {
+  if (dryRun) {
+    stdout.writeln('$executable ${arguments.join(' ')}');
+    return;
   }
   final process = await Process.start(
-    'flutter',
-    flutterArguments,
-    environment: <String, String>{
-      ...Platform.environment,
-      'FLY_NARWHAL_OBFUSCATOR_OUTPUT': generatedOutputDirectory,
-    },
+    executable,
+    arguments,
+    workingDirectory: workingDirectory,
+    environment: environment,
     mode: ProcessStartMode.inheritStdio,
   );
   final exitCode = await process.exitCode;
   if (exitCode != 0) {
-    _fail('Flutter $platform release build failed with exit code $exitCode');
+    _fail('$executable failed with exit code $exitCode');
   }
+}
+
+String _nativeLibraryPath({
+  required String obfuscatorDirectory,
+  required String platform,
+  required String goArchitecture,
+  required String libraryName,
+}) {
+  final goOperatingSystem = platform == 'macos' ? 'darwin' : platform;
+  return '$obfuscatorDirectory${Platform.pathSeparator}build${Platform.pathSeparator}'
+      '${goOperatingSystem}_$goArchitecture${Platform.pathSeparator}$libraryName';
+}
+
+String _bundleDirectory(String platform, String architecture) {
+  return switch (platform) {
+    'windows' => 'build/windows/$architecture/runner/Release',
+    'linux' => 'build/linux/$architecture/release/bundle',
+    'macos' =>
+      'build/macos/Build/Products/Release/FlyNarwhal.app/Contents/MacOS',
+    _ => throw ArgumentError.value(platform, 'platform'),
+  };
+}
+
+_BuildArguments _parseArguments(List<String> arguments) {
+  final dryRun = arguments.remove('--dry-run');
+  if (arguments.length != 2) {
+    _fail(
+      'Usage: dart run scripts/release/build_desktop.dart '
+      '<platform> <architecture> [--dry-run]',
+    );
+  }
+  return _BuildArguments(
+    platform: arguments[0],
+    architecture: arguments[1],
+    dryRun: dryRun,
+  );
+}
+
+void _validateRequiredSecrets() {
+  for (final key in _requiredSecrets) {
+    if ((Platform.environment[key] ?? '').trim().isEmpty) {
+      _fail('$key is required for release builds');
+    }
+  }
+}
+
+String _requiredEnvironmentValue(String key) {
+  final value = Platform.environment[key]?.trim();
+  if (value == null || value.isEmpty) {
+    _fail('$key is required');
+  }
+  return value;
 }
 
 void _validateTarget(String platform, String architecture) {
@@ -148,4 +222,16 @@ void _validateTarget(String platform, String architecture) {
 Never _fail(String message) {
   stderr.writeln(message);
   exit(1);
+}
+
+class _BuildArguments {
+  const _BuildArguments({
+    required this.platform,
+    required this.architecture,
+    required this.dryRun,
+  });
+
+  final String platform;
+  final String architecture;
+  final bool dryRun;
 }

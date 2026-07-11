@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../../../core/config/runtime_configuration.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/fly_narwhal_auth_helper.dart';
@@ -21,6 +22,7 @@ class FlyNarwhalRemoteDataSource {
   final String Function() getFlyNarwhalBaseUrl;
   final bool Function() getFlyNarwhalServerEnabled;
   final String Function() getAuthCode;
+  final RuntimeConfiguration? _runtimeConfiguration;
   final FlyNarwhalResponseCrypto _crypto;
   final Dio _dio;
 
@@ -31,9 +33,11 @@ class FlyNarwhalRemoteDataSource {
     required this.getFlyNarwhalBaseUrl,
     bool Function()? getFlyNarwhalServerEnabled,
     required this.getAuthCode,
+    RuntimeConfiguration? runtimeConfiguration,
     Dio? dio,
     FlyNarwhalResponseCrypto? crypto,
-  })  : getFlyNarwhalServerEnabled = getFlyNarwhalServerEnabled ?? (() => true),
+  })  : _runtimeConfiguration = runtimeConfiguration,
+        getFlyNarwhalServerEnabled = getFlyNarwhalServerEnabled ?? (() => true),
         _dio = dio ??
             Dio(BaseOptions(
               connectTimeout: _connectTimeout,
@@ -228,6 +232,46 @@ class FlyNarwhalRemoteDataSource {
     return '$normalizedBaseUrl/$normalizedPath';
   }
 
+  Future<String> _generateAuthx({
+    required String signaturePath,
+    Map<String, dynamic>? parameters,
+    dynamic data,
+  }) async {
+    if (AppConstants.flyNarwhalApiSecret.isNotEmpty) {
+      return FlyNarwhalAuthHelper.generateAuthx(
+        signaturePath,
+        parameters: parameters,
+        data: data,
+      );
+    }
+
+    final runtimeConfiguration = _runtimeConfiguration;
+    if (runtimeConfiguration == null) {
+      return FlyNarwhalAuthHelper.generateAuthx(
+        signaturePath,
+        parameters: parameters,
+        data: data,
+      );
+    }
+    final secretBytes = await runtimeConfiguration.resolveRequiredSecret(
+      RuntimeSecret.flyNarwhalApiSecret,
+    );
+    try {
+      final apiSecret = utf8.decode(secretBytes, allowMalformed: false);
+      if (apiSecret.isEmpty) {
+        throw StateError('FlyNarwhal API secret is not configured');
+      }
+      return FlyNarwhalAuthHelper.generateAuthx(
+        signaturePath,
+        parameters: parameters,
+        data: data,
+        apiSecret: apiSecret,
+      );
+    } finally {
+      await runtimeConfiguration.zeroize(secretBytes);
+    }
+  }
+
   Future<Map<String, String>> _buildHeaders({
     required String signaturePath,
     Map<String, dynamic>? parameters,
@@ -236,8 +280,8 @@ class FlyNarwhalRemoteDataSource {
     bool isSse = false,
   }) async {
     final authCode = getAuthCode();
-    final authx = FlyNarwhalAuthHelper.generateAuthx(
-      signaturePath,
+    final authx = await _generateAuthx(
+      signaturePath: signaturePath,
       parameters: parameters,
       data: data,
     );

@@ -23,11 +23,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const String _globalRefreshConsumerId = 'home-screen';
   late final ToastManager _toastManager = ToastManager();
   late final ScrollController _scrollController = ScrollController();
-  
+
   // Pending callbacks for favorite/watched operations
   final Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
   final Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
-  
+
   // Track items to be removed from recently watched
   Set<String> _itemsToBeRemoved = {};
 
@@ -69,7 +69,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
 
     // Listen to favorite result changes
-    ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (previous, next) {
+    ref.listen<FavoriteActionResult?>(favoriteNotifierProvider,
+        (previous, next) {
       _handleFavoriteResult(next);
     });
 
@@ -77,7 +78,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.listen<WatchedActionResult?>(watchedNotifierProvider, (previous, next) {
       _handleWatchedResult(next);
     });
-    
+
     return ScaffoldPage(
       header: const PageHeader(title: Text('首页')),
       content: Stack(
@@ -96,8 +97,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       },
                     ),
                   ),
-                  loading: () => const SliverToBoxAdapter(child: Center(child: AppLoadingProgressRing())),
-                  error: (err, stack) => SliverToBoxAdapter(child: Padding(
+                  loading: () => const SliverToBoxAdapter(
+                      child: Center(child: AppLoadingProgressRing())),
+                  error: (err, stack) => SliverToBoxAdapter(
+                      child: Padding(
                     padding: const EdgeInsets.all(32.0),
                     child: Text('Error loading libraries: $err'),
                   )),
@@ -106,7 +109,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 SliverToBoxAdapter(
                   child: playListAsync.when(
                     data: (data) {
-                      final filteredData = data.where((item) => !_itemsToBeRemoved.contains(item.guid)).toList();
+                      final filteredData = data
+                          .where(
+                              (item) => !_itemsToBeRemoved.contains(item.guid))
+                          .toList();
                       return RecentlyWatched(
                         title: "继续观看",
                         items: filteredData,
@@ -138,8 +144,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       },
                     );
                   },
-                  loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
-                  error: (err, stack) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                  loading: () =>
+                      const SliverToBoxAdapter(child: SizedBox.shrink()),
+                  error: (err, stack) =>
+                      const SliverToBoxAdapter(child: SizedBox.shrink()),
                 ),
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
@@ -186,35 +194,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   // Handle favorite toggle
-  void _handleFavoriteToggle(String guid, bool currentFavoriteState, Function(bool success) callback) {
+  void _handleFavoriteToggle(
+      String guid, bool currentFavoriteState, Function(bool success) callback) {
     // Store the callback
     _pendingFavoriteCallbacks[guid] = callback;
     // Call the notifier
-    ref.read(favoriteNotifierProvider.notifier).toggleFavorite(guid, currentFavoriteState);
+    ref
+        .read(favoriteNotifierProvider.notifier)
+        .toggleFavorite(guid, currentFavoriteState);
   }
 
   // Handle watched toggle
-  void _handleWatchedToggle(String guid, bool currentWatchedState, Function(bool success) callback) {
+  void _handleWatchedToggle(
+      String guid, bool currentWatchedState, Function(bool success) callback) {
     // Store the callback
     _pendingWatchedCallbacks[guid] = callback;
     // Call the notifier
-    ref.read(watchedNotifierProvider.notifier).toggleWatched(guid, currentWatchedState);
+    ref
+        .read(watchedNotifierProvider.notifier)
+        .toggleWatched(guid, currentWatchedState);
   }
 
   // Handle favorite result
   void _handleFavoriteResult(FavoriteActionResult? result) {
     if (result == null) return;
-    
+
     // Show toast
     _toastManager.showToast(
       result.message,
       type: result.success ? ToastType.success : ToastType.failed,
     );
-    
+
     // Call the pending callback
     _pendingFavoriteCallbacks[result.guid]?.call(result.success);
     _pendingFavoriteCallbacks.remove(result.guid);
-    
+
     // Clear the state after delay
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
@@ -226,22 +240,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Handle watched result
   void _handleWatchedResult(WatchedActionResult? result) {
     if (result == null) return;
-    
+
     // Show toast
     _toastManager.showToast(
       result.message,
       type: result.success ? ToastType.success : ToastType.failed,
     );
-    
+
     // Call the pending callback
     _pendingWatchedCallbacks[result.guid]?.call(result.success);
     _pendingWatchedCallbacks.remove(result.guid);
-    
+
     // Refresh play list if marked as watched
     if (result.success && result.isWatched) {
       ref.read(playListNotifierProvider.notifier).refresh();
     }
-    
+
     // Clear the state after delay
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {

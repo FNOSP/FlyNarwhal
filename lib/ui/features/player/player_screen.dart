@@ -2625,7 +2625,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void dispose() {
-    ref.read(danmakuControllerProvider.notifier).clear();
     if (_isDesktopPlatform()) {
       windowManager.removeListener(this);
       unawaited(_fullscreenController.exitForRouteLeave());
@@ -3172,12 +3171,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             child: PlayerActionButton.svg(
               key: const ValueKey('player-danmaku-toggle'),
               svgAssetPath: danmakuState.isVisible
-                  ? 'assets/images/danmu_open.svg'
-                  : 'assets/images/danmu_close.svg',
-              onPressed: () {
-                ref.read(danmakuControllerProvider.notifier).toggleVisibility();
-              },
-              tooltip: '弹幕',
+                  ? 'assets/images/danmu_close.svg'
+                  : 'assets/images/danmu_open.svg',
+              onPressed: () => ref
+                  .read(danmakuControllerProvider.notifier)
+                  .setVisibility(!danmakuState.isVisible),
+              tooltip: danmakuState.isVisible ? '关闭弹幕' : '开启弹幕',
               size: 30,
               iconSize: 20,
             ),

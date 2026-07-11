@@ -1,7 +1,10 @@
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/config/runtime_configuration.dart';
+import '../core/config/secret_bridge_selector.dart';
 import '../core/network/dio_client.dart';
+import '../core/security/password_cipher.dart';
 import '../core/utils/log/app_talker.dart';
 import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
 import '../data/datasources/remote/media_remote_data_source.dart';
@@ -9,7 +12,9 @@ import '../data/datasources/remote/tag_remote_data_source.dart';
 import '../data/datasources/remote/user_remote_data_source.dart';
 import '../data/models/user_info.dart';
 import '../data/repositories/tag_repository_impl.dart';
+import '../data/storage/account_settings_store.dart';
 import '../data/storage/fly_narwhal_settings.dart';
+import '../data/storage/login_history_password_service.dart';
 import '../data/storage/player_settings_store.dart';
 import '../data/storage/preferences_manager.dart';
 import '../data/storage/shortcut_settings_store.dart';
@@ -26,6 +31,26 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
 final preferencesManagerProvider = Provider<PreferencesManager>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return PreferencesManager(prefs);
+});
+
+final accountSettingsStoreProvider = Provider<AccountSettingsStore>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return AccountSettingsStore(prefs);
+});
+
+final runtimeConfigurationProvider = Provider<RuntimeConfiguration>((ref) {
+  return NativeRuntimeConfiguration(resolveSecretBridge());
+});
+
+final passwordCipherProvider = Provider<PasswordCipher>((ref) {
+  final configuration = ref.watch(runtimeConfigurationProvider);
+  return PasswordCipher(configuration);
+});
+
+final loginHistoryPasswordServiceProvider =
+    Provider<LoginHistoryPasswordService>((ref) {
+  final passwordCipher = ref.watch(passwordCipherProvider);
+  return LoginHistoryPasswordService(passwordCipher);
 });
 
 final authRefreshProvider = StateProvider<int>((ref) => 0);
@@ -114,6 +139,7 @@ final flyNarwhalRemoteDataSourceProvider =
     Provider<FlyNarwhalRemoteDataSource>((ref) {
   final prefsManager = ref.watch(preferencesManagerProvider);
   final flyNarwhalSettings = ref.watch(flyNarwhalSettingsProvider);
+  final runtimeConfiguration = ref.watch(runtimeConfigurationProvider);
   return FlyNarwhalRemoteDataSource(
     getToken: () => prefsManager.getToken() ?? '',
     getCookie: () => prefsManager.getCookie() ?? '',
@@ -121,6 +147,7 @@ final flyNarwhalRemoteDataSourceProvider =
     getFlyNarwhalBaseUrl: () => flyNarwhalSettings.baseUrl ?? '',
     getFlyNarwhalServerEnabled: () => flyNarwhalSettings.enabled,
     getAuthCode: () => flyNarwhalSettings.authCode ?? '',
+    runtimeConfiguration: runtimeConfiguration,
   );
 });
 

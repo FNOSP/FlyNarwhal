@@ -11,7 +11,7 @@ enum RuntimeSecret {
 /// Provides short-lived byte buffers for build-time configuration values.
 ///
 /// Production release builds replace the development implementation with the
-/// Rust-backed generated binding produced by the private obfuscator repository.
+/// Go cgo-backed binding produced by the private obfuscator repository.
 abstract interface class RuntimeConfiguration {
   Future<Uint8List> resolveRequiredSecret(RuntimeSecret secret);
 

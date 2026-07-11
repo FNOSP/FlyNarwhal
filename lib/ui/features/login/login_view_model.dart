@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/base_response.dart';
@@ -30,17 +30,19 @@ class LoginViewModel extends _$LoginViewModel {
     state = await AsyncValue.guard(() async {
       final dioClient = ref.read(dioClientProvider);
       final prefs = ref.read(preferencesManagerProvider);
-      
+
       final protocol = isHttps ? 'https' : 'http';
-      final baseUrl = isNasLogin 
-          ? (await _resolveNasUrl(fnId!)) 
+      final baseUrl = isNasLogin
+          ? (await _resolveNasUrl(fnId!))
           : (port == 0 ? '$protocol://$host' : '$protocol://$host:$port');
-      
+
       dioClient.updateBaseUrl(baseUrl);
       await prefs.saveBaseUrl(baseUrl);
-      
+
       final parsed = Uri.tryParse(baseUrl);
-      final isRelay = (parsed?.host.contains('5ddd.com') ?? false) || (parsed?.host.contains('fnos.net') ?? false) || isNasLogin;
+      final isRelay = (parsed?.host.contains('5ddd.com') ?? false) ||
+          (parsed?.host.contains('fnos.net') ?? false) ||
+          isNasLogin;
       if (isRelay) {
         await prefs.saveCookie('mode=relay');
         AppTalker.info(
@@ -53,7 +55,8 @@ class LoginViewModel extends _$LoginViewModel {
         'Login',
         'login request: baseUrl="$baseUrl" path="/v/api/v1/login" username="$username" passwordLength=${password.length} isNasLogin=$isNasLogin',
       );
-      final requestData = LoginRequest(username: username, password: password).toJson();
+      final requestData =
+          LoginRequest(username: username, password: password).toJson();
       final maskedRequestData = Map<String, dynamic>.from(requestData);
       if (maskedRequestData.containsKey('password')) {
         maskedRequestData['password'] = password.isEmpty ? '' : '***';
@@ -89,11 +92,9 @@ class LoginViewModel extends _$LoginViewModel {
         }
         rethrow;
       }
-      
-      final baseResponse = FnBaseResponse<LoginResponse>.fromJson(
-        response.data, 
-        (json) => LoginResponse.fromJson(json as Map<String, dynamic>)
-      );
+
+      final baseResponse = FnBaseResponse<LoginResponse>.fromJson(response.data,
+          (json) => LoginResponse.fromJson(json as Map<String, dynamic>));
       AppTalker.info(
         'Login',
         'login parsed: code=${baseResponse.code} msg="${baseResponse.msg}" hasData=${baseResponse.data != null}',
@@ -102,11 +103,11 @@ class LoginViewModel extends _$LoginViewModel {
       if (baseResponse.code != 0) {
         throw Exception(baseResponse.msg);
       }
-      
+
       if (baseResponse.data == null) {
         throw Exception("Login failed: No data returned");
       }
-      
+
       final token = baseResponse.data!.token;
       AppTalker.info(
         'Login',
@@ -131,26 +132,32 @@ class LoginViewModel extends _$LoginViewModel {
         'Login',
         'token saved: ${token.isNotEmpty} stored=${storedToken != null} storedLength=${storedToken?.length ?? 0}',
       );
-      
-      // Save History
+
+      // Encrypt remembered credentials before they reach persistent storage.
+      final passwordService = ref.read(loginHistoryPasswordServiceProvider);
+      final storedPassword = rememberPassword
+          ? await passwordService.encryptForStorage(password)
+          : null;
       final history = LoginHistory(
         host: host,
         port: port,
         username: username,
-        password: rememberPassword ? password : null,
+        password: storedPassword,
+        passwordEncrypted: rememberPassword && storedPassword != null,
         isHttps: isHttps,
         rememberPassword: rememberPassword,
         isNasLogin: isNasLogin,
         fnId: fnId ?? "",
-        displayHost: displayHost ?? host, 
+        displayHost: displayHost ?? host,
         displayPort: displayPort ?? port,
       );
-      
+
       final currentHistory = prefs.getLoginHistory();
       // Remove existing with same identity
-      final updatedHistory = currentHistory.where((element) => element != history).toList();
+      final updatedHistory =
+          currentHistory.where((element) => element != history).toList();
       updatedHistory.insert(0, history);
-      
+
       await prefs.saveLoginHistory(updatedHistory);
       ref.invalidate(loginHistoryNotifierProvider);
 
@@ -163,7 +170,7 @@ class LoginViewModel extends _$LoginViewModel {
       AppTalker.info('Login', 'auth refresh state=${refreshNotifier.state}');
     });
   }
-  
+
   Future<String> _resolveNasUrl(String fnId) async {
     final raw = fnId.trim();
     if (raw.isEmpty) {
@@ -191,11 +198,36 @@ class LoginHistoryNotifier extends _$LoginHistoryNotifier {
     final prefs = ref.watch(preferencesManagerProvider);
     return prefs.getLoginHistory();
   }
-  
+
   Future<void> delete(LoginHistory item) async {
     final prefs = ref.read(preferencesManagerProvider);
-    final current = state.where((e) => e != item).toList();
+    final current = state.where((entry) => entry != item).toList();
     await prefs.saveLoginHistory(current);
     state = current;
+  }
+
+  /// Removes a stale encrypted password while preserving the history identity.
+  Future<void> clearPassword(LoginHistory item) async {
+    final prefs = ref.read(preferencesManagerProvider);
+    final updatedHistory = state.map((entry) {
+      if (entry != item) {
+        return entry;
+      }
+      return LoginHistory(
+        host: entry.host,
+        port: entry.port,
+        username: entry.username,
+        isHttps: entry.isHttps,
+        rememberPassword: false,
+        isNasLogin: entry.isNasLogin,
+        fnConnectUrl: entry.fnConnectUrl,
+        fnId: entry.fnId,
+        lastLoginTimestamp: entry.lastLoginTimestamp,
+        displayHost: entry.displayHost,
+        displayPort: entry.displayPort,
+      );
+    }).toList();
+    await prefs.saveLoginHistory(updatedHistory);
+    state = updatedHistory;
   }
 }

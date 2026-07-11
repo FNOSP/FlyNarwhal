@@ -10,7 +10,12 @@ class MediaDbListNotifier extends _$MediaDbListNotifier {
   @override
   FutureOr<List<MediaDbListResponse>> build() async {
     final remote = ref.read(mediaRemoteDataSourceProvider);
-    return (await remote.getMediaDbList()).getOrThrow();
+    try {
+      final result = (await remote.getMediaDbList()).getOrThrow();
+      return result;
+    } catch (error) {
+      rethrow;
+    }
   }
 }
 
@@ -95,7 +100,8 @@ class FavoriteNotifier extends _$FavoriteNotifier {
   @override
   FavoriteActionResult? build() => null;
 
-  Future<FavoriteActionResult> toggleFavorite(String guid, bool currentFavoriteState) async {
+  Future<FavoriteActionResult> toggleFavorite(
+      String guid, bool currentFavoriteState) async {
     try {
       final remote = ref.read(mediaRemoteDataSourceProvider);
       final response = await remote.toggleFavorite(
@@ -103,7 +109,7 @@ class FavoriteNotifier extends _$FavoriteNotifier {
         isFavorite: currentFavoriteState,
       );
       final isSuccess = response.getOrElse(false);
-      
+
       final result = FavoriteActionResult(
         guid: guid,
         isFavorite: !currentFavoriteState,
@@ -113,7 +119,7 @@ class FavoriteNotifier extends _$FavoriteNotifier {
             : (response.failureOrNull?.displayMessage ?? '操作失败'),
         previousState: currentFavoriteState,
       );
-      
+
       state = result;
       return result;
     } catch (e) {
@@ -139,7 +145,8 @@ class WatchedNotifier extends _$WatchedNotifier {
   @override
   WatchedActionResult? build() => null;
 
-  Future<WatchedActionResult> toggleWatched(String guid, bool currentWatchedState) async {
+  Future<WatchedActionResult> toggleWatched(
+      String guid, bool currentWatchedState) async {
     try {
       final remote = ref.read(mediaRemoteDataSourceProvider);
       final response = await remote.toggleWatched(
@@ -156,7 +163,7 @@ class WatchedNotifier extends _$WatchedNotifier {
             : (response.failureOrNull?.displayMessage ?? '操作失败'),
         previousState: currentWatchedState,
       );
-      
+
       state = result;
       return result;
     } catch (e) {

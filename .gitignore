@@ -102,9 +102,22 @@ app.*.symbols
 
 # Obfuscation related
 app.*.map.json
+symbols/
+artifacts/
+dist/
+.private/
+release-work/
+
+# Private obfuscator generated output
+/generated-obfuscator/
 
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
 /android/app/release
 /.trae/
+
+# Prevent accidental commit of large binary dependencies downloaded at build time
+/windows/libs/
+/docs/
+/test/

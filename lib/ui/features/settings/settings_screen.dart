@@ -422,7 +422,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   key: const ValueKey(
                                     'settings-fly-narwhal-auth-code',
                                   ),
-                                  icon: const Icon(FluentIcons.key),
+                                  icon: const Icon(FluentIcons.permissions),
                                   heading: const Text('授权码'),
                                   caption: Text(
                                     settings.hasFlyNarwhalAuthCode

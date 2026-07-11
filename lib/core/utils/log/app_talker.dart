@@ -157,6 +157,9 @@ class AppTalker {
         developer.log(message, name: 'Talker');
         break;
       case TargetPlatform.windows:
+        // Windows debug output can synchronously block when the debugger pipe
+        // applies backpressure, so desktop file history remains the log sink.
+        break;
       case TargetPlatform.android:
       case TargetPlatform.linux:
       case TargetPlatform.fuchsia:

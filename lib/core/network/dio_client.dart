@@ -181,6 +181,7 @@ class DioClient {
     Future<Response> Function() request, {
     T Function(dynamic data)? converter,
   }) async {
+    final requestStopwatch = Stopwatch()..start();
     try {
       final response = await request();
       final normalizedData =
@@ -211,6 +212,8 @@ class DioClient {
         code: failure.code,
         displayMessage: failure.displayMessage,
       ));
+    } finally {
+      requestStopwatch.stop();
     }
   }
 
