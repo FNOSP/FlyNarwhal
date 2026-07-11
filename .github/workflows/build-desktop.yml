@@ -1,0 +1,128 @@
+name: Build Desktop Releases
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows
+            architecture: x64
+            artifact: windows-x64
+          - runner: windows-11-arm
+            platform: windows
+            architecture: arm64
+            artifact: windows-arm64
+          - runner: macos-15-intel
+            platform: macos
+            architecture: x64
+            artifact: macos-x64
+          - runner: macos-14
+            platform: macos
+            architecture: arm64
+            artifact: macos-arm64
+          - runner: ubuntu-24.04
+            platform: linux
+            architecture: x64
+            artifact: linux-x64
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            architecture: arm64
+            artifact: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check out verified private obfuscator
+        uses: actions/checkout@v4
+        with:
+          repository: Jankin-Wu/fly-narwhal-obfuscator
+          ref: ${{ vars.OBFUSCATOR_RELEASE_TAG }}
+          token: ${{ secrets.OBFUSCATOR_REPO_TOKEN }}
+          path: .private/obfuscator
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Verify private obfuscator revision
+        shell: bash
+        run: |
+          test -n "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
+          test "$(git -C .private/obfuscator rev-parse HEAD)" = "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
+
+      - name: Build protected release bundle
+        env:
+          FLY_NARWHAL_API_SECRET: ${{ secrets.FLY_NARWHAL_API_SECRET }}
+          FLY_NARWHAL_SECRET: ${{ secrets.FLY_NARWHAL_SECRET }}
+          REPORT_URL: ${{ secrets.REPORT_URL }}
+          REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
+          OBFUSCATOR_TOOL_DIRECTORY: ${{ github.workspace }}/.private/obfuscator
+        run: dart run scripts/release/build_desktop.dart ${{ matrix.platform }} ${{ matrix.architecture }}
+
+      - name: Package Windows installer
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([^+]+)').Matches[0].Groups[1].Value
+          iscc "/DMyAppArch=amd64" "/DMyAppVersion=$version" "/DFlutterBundleDir=$PWD\\build\\windows\\x64\\runner\\Release" installer/setup.iss
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            installer/FlyNarwhal_Setup_Windows_*.exe
+            build/macos/Build/Products/Release/*.dmg
+            dist/**/*
+          if-no-files-found: error
+
+      - name: Remove private build material
+        if: always()
+        shell: bash
+        run: rm -rf .private generated-obfuscator
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true

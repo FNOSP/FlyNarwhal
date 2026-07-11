@@ -72,10 +72,9 @@ class FlyNarwhalAuthHelper {
           .where((entry) => entry.value != null)
           .toList()
         ..sort((first, second) => first.key.compareTo(second.key));
-      final querySource = sortedEntries
-          .map((entry) => '${entry.key}=${entry.value}')
-          .join('&');
-      return _md5Hex(querySource.isEmpty ? '' : '$querySource&');
+      final querySource =
+          sortedEntries.map((entry) => '${entry.key}=${entry.value}').join('&');
+      return _md5Hex(querySource);
     }
     return _md5Hex('');
   }

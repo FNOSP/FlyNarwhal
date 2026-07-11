@@ -1,7 +1,11 @@
 #include "flutter_window.h"
 
+#include <windows.h>
+
 #include <optional>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
@@ -16,6 +20,11 @@ constexpr const char kGetCurrentDisplayFrameMethod[] =
     "getCurrentDisplayFrame";
 constexpr const char kSetWindowBorderlessMethod[] =
     "setWindowBorderless";
+constexpr const char kKmpPreferencesChannelName[] =
+    "fly_narwhal/kmp_preferences";
+constexpr const char kReadJavaPreferencesMethod[] = "readJavaPreferences";
+constexpr const wchar_t kJavaPreferencesRegistryPath[] =
+    L"Software\\JavaSoft\\Prefs";
 
 flutter::EncodableMap BuildDisplayFrameResponse(HWND window) {
   HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
@@ -57,6 +66,94 @@ void SetWindowBorderless(HWND hwnd, bool borderless) {
   SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
                    SWP_NOACTIVATE);
+}
+
+std::string Utf8FromWideString(const std::wstring& value) {
+  if (value.empty()) {
+    return "";
+  }
+  const int required_size = WideCharToMultiByte(
+      CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0,
+      nullptr, nullptr);
+  std::string result(required_size, '\0');
+  WideCharToMultiByte(CP_UTF8, 0, value.data(),
+                      static_cast<int>(value.size()), result.data(),
+                      required_size, nullptr, nullptr);
+  return result;
+}
+
+std::string DecodeJavaPreferenceName(const std::wstring& encoded_name) {
+  std::wstring decoded_name;
+  bool uppercase_next = false;
+  for (const wchar_t character : encoded_name) {
+    if (character == L'/') {
+      uppercase_next = true;
+      continue;
+    }
+    if (uppercase_next && character >= L'a' && character <= L'z') {
+      decoded_name.push_back(character - (L'a' - L'A'));
+    } else {
+      decoded_name.push_back(character);
+    }
+    uppercase_next = false;
+  }
+  return Utf8FromWideString(decoded_name);
+}
+
+flutter::EncodableMap ReadJavaPreferences() {
+  HKEY preferences_key = nullptr;
+  const LSTATUS open_status = RegOpenKeyExW(
+      HKEY_CURRENT_USER, kJavaPreferencesRegistryPath, 0, KEY_READ,
+      &preferences_key);
+  if (open_status == ERROR_FILE_NOT_FOUND) {
+    return flutter::EncodableMap();
+  }
+  if (open_status != ERROR_SUCCESS) {
+    throw std::runtime_error("Unable to open Java Preferences Registry root.");
+  }
+
+  flutter::EncodableMap preferences;
+  DWORD value_index = 0;
+  while (true) {
+    std::vector<wchar_t> value_name(256);
+    DWORD value_name_length = static_cast<DWORD>(value_name.size());
+    DWORD value_type = 0;
+    DWORD value_size = 0;
+    const LSTATUS query_status = RegEnumValueW(
+        preferences_key, value_index, value_name.data(), &value_name_length,
+        nullptr, &value_type, nullptr, &value_size);
+    if (query_status == ERROR_NO_MORE_ITEMS) {
+      break;
+    }
+    if (query_status == ERROR_MORE_DATA) {
+      value_name.resize(value_name_length + 1);
+      value_name_length = static_cast<DWORD>(value_name.size());
+    } else if (query_status != ERROR_SUCCESS) {
+      ++value_index;
+      continue;
+    }
+
+    std::vector<BYTE> value_data(value_size + sizeof(wchar_t));
+    const LSTATUS value_status = RegQueryValueExW(
+        preferences_key, value_name.data(), nullptr, &value_type,
+        value_data.data(), &value_size);
+    if (value_status == ERROR_SUCCESS &&
+        (value_type == REG_SZ || value_type == REG_EXPAND_SZ)) {
+      const auto* value_text =
+          reinterpret_cast<const wchar_t*>(value_data.data());
+      const size_t value_length = value_size / sizeof(wchar_t);
+      std::wstring wide_value(value_text, value_length);
+      while (!wide_value.empty() && wide_value.back() == L'\0') {
+        wide_value.pop_back();
+      }
+      const std::wstring wide_name(value_name.data(), value_name_length);
+      preferences[flutter::EncodableValue(DecodeJavaPreferenceName(wide_name))] =
+          flutter::EncodableValue(Utf8FromWideString(wide_value));
+    }
+    ++value_index;
+  }
+  RegCloseKey(preferences_key);
+  return preferences;
 }
 
 }  // namespace
@@ -125,6 +222,23 @@ bool FlutterWindow::OnCreate() {
         }
 
         result->NotImplemented();
+      });
+
+  flutter::MethodChannel<> preferences_channel(
+      flutter_controller_->engine()->messenger(), kKmpPreferencesChannelName,
+      &flutter::StandardMethodCodec::GetInstance());
+  preferences_channel.SetMethodCallHandler(
+      [](const flutter::MethodCall<>& call,
+         std::unique_ptr<flutter::MethodResult<>> result) {
+        if (call.method_name() != kReadJavaPreferencesMethod) {
+          result->NotImplemented();
+          return;
+        }
+        try {
+          result->Success(ReadJavaPreferences());
+        } catch (const std::exception& exception) {
+          result->Error("kmp-preferences-error", exception.what());
+        }
       });
 
   SetChildContent(flutter_controller_->view()->GetNativeWindow());

@@ -138,7 +138,10 @@ class FlyNarwhalRemoteDataSource {
       final response = await _dio.get<String>(url,
           queryParameters: parameters,
           options: Options(
-              headers: await _buildHeaders(url, parameters: parameters),
+              headers: await _buildHeaders(
+                signaturePath: path,
+                parameters: parameters,
+              ),
               responseType: ResponseType.plain));
       return Success(await _decodeSmartResult(response.data ?? '', fromJsonT));
     } catch (error) {
@@ -153,7 +156,11 @@ class FlyNarwhalRemoteDataSource {
       final response = await _dio.post<String>(url,
           data: data,
           options: Options(
-              headers: await _buildHeaders(url, data: data, isPost: true),
+              headers: await _buildHeaders(
+                signaturePath: path,
+                data: data,
+                isPost: true,
+              ),
               responseType: ResponseType.plain));
       return Success(await _decodeSmartResult(response.data ?? '', fromJsonT));
     } catch (error) {
@@ -167,8 +174,11 @@ class FlyNarwhalRemoteDataSource {
     final response = await _dio.get<ResponseBody>(url,
         queryParameters: parameters,
         options: Options(
-            headers:
-                await _buildHeaders(url, parameters: parameters, isSse: true),
+            headers: await _buildHeaders(
+              signaturePath: path,
+              parameters: parameters,
+              isSse: true,
+            ),
             responseType: ResponseType.stream,
             receiveTimeout: _sseReceiveTimeout));
     return _parseResponseBodyEvents(response.data!);
@@ -179,8 +189,12 @@ class FlyNarwhalRemoteDataSource {
     final response = await _dio.post<ResponseBody>(url,
         data: data,
         options: Options(
-            headers:
-                await _buildHeaders(url, data: data, isPost: true, isSse: true),
+            headers: await _buildHeaders(
+              signaturePath: path,
+              data: data,
+              isPost: true,
+              isSse: true,
+            ),
             responseType: ResponseType.stream,
             receiveTimeout: _sseReceiveTimeout));
     return _parseResponseBodyEvents(response.data!);
@@ -214,24 +228,30 @@ class FlyNarwhalRemoteDataSource {
     return '$normalizedBaseUrl/$normalizedPath';
   }
 
-  Future<Map<String, String>> _buildHeaders(String url,
-      {Map<String, dynamic>? parameters,
-      dynamic data,
-      bool isPost = false,
-      bool isSse = false}) async {
+  Future<Map<String, String>> _buildHeaders({
+    required String signaturePath,
+    Map<String, dynamic>? parameters,
+    dynamic data,
+    bool isPost = false,
+    bool isSse = false,
+  }) async {
     final authCode = getAuthCode();
-    final authx = FlyNarwhalAuthHelper.generateAuthx(url,
-        parameters: parameters, data: data);
+    final authx = FlyNarwhalAuthHelper.generateAuthx(
+      signaturePath,
+      parameters: parameters,
+      data: data,
+    );
     final headers = <String, String>{
       'Accept': isSse ? 'text/event-stream' : 'application/json',
       'User-Agent': AppConstants.userAgent,
       'Authx': authx,
       'Signx': FlyNarwhalAuthHelper.generateSignx(
-          url: url,
-          authx: authx,
-          parameters: parameters,
-          data: data,
-          authCode: authCode),
+        url: signaturePath,
+        authx: authx,
+        parameters: parameters,
+        data: data,
+        authCode: authCode,
+      ),
     };
     final token = getToken();
     final cookie = getCookie();
