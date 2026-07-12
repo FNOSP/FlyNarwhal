@@ -4,6 +4,7 @@ import 'package:flutter/scheduler.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import 'player_action_button.dart';
+import 'player_settings_components.dart';
 
 const Color _flyoutBackgroundColor = Color(0xE6000000);
 const Color _flyoutBorderColor = Color(0x80808080);
@@ -69,6 +70,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
   Timer? _hideTimer;
   String _currentScreen = 'Main';
   bool _overlayRebuildScheduled = false;
+  late bool _isAutoPlay;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -76,6 +78,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
   @override
   void initState() {
     super.initState();
+    _isAutoPlay = widget.isAutoPlay;
     _animationController = AnimationController(
       duration: const Duration(milliseconds: _animationDurationMs),
       vsync: this,
@@ -116,7 +119,12 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
   @override
   void didUpdateWidget(covariant PlayerSettingsMenu oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.popupBottomOffset != widget.popupBottomOffset) {
+    final autoPlayChanged = oldWidget.isAutoPlay != widget.isAutoPlay;
+    if (autoPlayChanged) {
+      _isAutoPlay = widget.isAutoPlay;
+    }
+    if (oldWidget.popupBottomOffset != widget.popupBottomOffset ||
+        autoPlayChanged) {
       _requestOverlayRebuild();
     }
   }
@@ -125,19 +133,10 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
       widget.popupBottomOffset < 0 ? 0 : widget.popupBottomOffset;
 
   void _requestOverlayRebuild() {
-    if (_overlayEntry == null) return;
+    if (_overlayEntry == null || _overlayRebuildScheduled) return;
 
-    final schedulerPhase = SchedulerBinding.instance.schedulerPhase;
-    final canRebuildNow = schedulerPhase == SchedulerPhase.idle ||
-        schedulerPhase == SchedulerPhase.postFrameCallbacks;
-    if (canRebuildNow) {
-      _overlayEntry?.markNeedsBuild();
-      return;
-    }
-
-    if (_overlayRebuildScheduled) return;
     _overlayRebuildScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
       _overlayRebuildScheduled = false;
       if (!mounted || _overlayEntry == null) return;
       _overlayEntry?.markNeedsBuild();
@@ -221,7 +220,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
                       top: 0,
                       child: MouseRegion(
                         opaque: false,
-                        cursor: SystemMouseCursors.basic,
+                        cursor: SystemMouseCursors.click,
                         onEnter: (_) {
                           _setPopupHovered(true);
                           _hideTimer?.cancel();
@@ -249,7 +248,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
                       top: flyoutHeight,
                       child: MouseRegion(
                         opaque: false,
-                        cursor: SystemMouseCursors.basic,
+                        cursor: SystemMouseCursors.click,
                         onEnter: (_) {
                           _setPopupHovered(true);
                           _hideTimer?.cancel();
@@ -359,8 +358,12 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         smartSkipEnabled: widget.smartSkipEnabled,
         onSmartSkipEnabledChanged: widget.onSmartSkipEnabledChanged,
         isSmartAnalysisGloballyEnabled: widget.isSmartAnalysisGloballyEnabled,
-        isAutoPlay: widget.isAutoPlay,
-        onAutoPlayChanged: widget.onAutoPlayChanged,
+        isAutoPlay: _isAutoPlay,
+        onAutoPlayChanged: (value) {
+          _isAutoPlay = value;
+          _requestOverlayRebuild();
+          widget.onAutoPlayChanged?.call(value);
+        },
       ),
     );
   }
@@ -515,18 +518,10 @@ class _MainSettingsScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '设置',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        const Divider(),
+        const PlayerSettingsHeader(title: '设置'),
         const SizedBox(height: 8),
-        _SettingsToggleItem(
+        PlayerSettingsToggleRow(
+          key: const ValueKey('player-settings-autoplay-toggle'),
           title: '自动连播',
           checked: isAutoPlay,
           onChanged: onAutoPlayChanged,
@@ -575,61 +570,6 @@ class _MainSettingsScreen extends StatelessWidget {
       return '已设置片尾';
     }
     return '未设置';
-  }
-}
-
-class _SettingsToggleItem extends StatefulWidget {
-  final String title;
-  final bool checked;
-  final void Function(bool)? onChanged;
-
-  const _SettingsToggleItem({
-    required this.title,
-    required this.checked,
-    required this.onChanged,
-  });
-
-  @override
-  State<_SettingsToggleItem> createState() => _SettingsToggleItemState();
-}
-
-class _SettingsToggleItemState extends State<_SettingsToggleItem> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onChanged == null
-            ? null
-            : () => widget.onChanged?.call(!widget.checked),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          margin: const EdgeInsets.only(bottom: 4),
-          decoration: BoxDecoration(
-            color: _isHovered ? _hoverBackgroundColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                widget.title,
-                style: const TextStyle(color: _defaultTextColor, fontSize: 14),
-              ),
-              ToggleSwitch(
-                checked: widget.checked,
-                onChanged: widget.onChanged,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -721,15 +661,15 @@ class _AudioSettingsScreen extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onBack,
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(
+                Icon(
                   FluentIcons.chevron_left,
                   size: 16,
                   color: Colors.white,
                 ),
-                const SizedBox(width: 8),
-                const Text(
+                SizedBox(width: 8),
+                Text(
                   '音频',
                   style: TextStyle(
                     color: Colors.white,
@@ -851,15 +791,15 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onBack,
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(
+                Icon(
                   FluentIcons.chevron_left,
                   size: 16,
                   color: Colors.white,
                 ),
-                const SizedBox(width: 8),
-                const Text(
+                SizedBox(width: 8),
+                Text(
                   '窗口比例',
                   style: TextStyle(
                     color: Colors.white,
@@ -965,18 +905,28 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
 class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
   late int _skipOpening;
   late int _skipEnding;
+  late bool _smartSkipEnabled;
 
   @override
   void initState() {
     super.initState();
     _skipOpening = widget.playingInfoCache?.playConfig?.skipOpening ?? 0;
     _skipEnding = widget.playingInfoCache?.playConfig?.skipEnding ?? 0;
+    _smartSkipEnabled = widget.smartSkipEnabled;
+  }
+
+  @override
+  void didUpdateWidget(covariant _SkipConfigSettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.smartSkipEnabled != widget.smartSkipEnabled) {
+      _smartSkipEnabled = widget.smartSkipEnabled;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final manualEnabled =
-        !widget.isSmartAnalysisGloballyEnabled || !widget.smartSkipEnabled;
+        !widget.isSmartAnalysisGloballyEnabled || !_smartSkipEnabled;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -988,15 +938,15 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
               cursor: SystemMouseCursors.click,
               child: GestureDetector(
                 onTap: widget.onBack,
-                child: Row(
+                child: const Row(
                   children: [
-                    const Icon(
+                    Icon(
                       FluentIcons.chevron_left,
                       size: 16,
                       color: Colors.white,
                     ),
-                    const SizedBox(width: 8),
-                    const Text(
+                    SizedBox(width: 8),
+                    Text(
                       '跳过片头/片尾',
                       style: TextStyle(
                         color: Colors.white,
@@ -1053,16 +1003,16 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
         ),
         const SizedBox(height: 8),
         if (widget.isSmartAnalysisGloballyEnabled)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('智能跳过片头/片尾',
-                  style: TextStyle(color: _defaultTextColor, fontSize: 14)),
-              ToggleSwitch(
-                checked: widget.smartSkipEnabled,
-                onChanged: widget.onSmartSkipEnabledChanged,
-              ),
-            ],
+          PlayerSettingsToggleRow(
+            key: const ValueKey('player-settings-smart-skip-toggle'),
+            title: '智能跳过片头/片尾',
+            checked: _smartSkipEnabled,
+            onChanged: widget.onSmartSkipEnabledChanged == null
+                ? null
+                : (value) {
+                    setState(() => _smartSkipEnabled = value);
+                    widget.onSmartSkipEnabledChanged?.call(value);
+                  },
           ),
         const SizedBox(height: 8),
         const Divider(),

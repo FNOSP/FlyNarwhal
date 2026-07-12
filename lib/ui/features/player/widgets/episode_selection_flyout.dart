@@ -161,7 +161,7 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
                       top: 0,
                       child: MouseRegion(
                         opaque: false,
-                        cursor: SystemMouseCursors.basic,
+                        cursor: SystemMouseCursors.click,
                         onEnter: (_) {
                           _setPopupHovered(true);
                           _hideTimer?.cancel();
@@ -189,7 +189,7 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
                       top: flyoutHeight,
                       child: MouseRegion(
                         opaque: false,
-                        cursor: SystemMouseCursors.basic,
+                        cursor: SystemMouseCursors.click,
                         onEnter: (_) {
                           _setPopupHovered(true);
                           _hideTimer?.cancel();

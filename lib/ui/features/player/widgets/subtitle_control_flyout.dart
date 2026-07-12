@@ -15,7 +15,6 @@ const Color _subtitleHoverBackgroundColor = Color(0x1AFFFFFF);
 const int _subtitleHideDelayMs = 200;
 const int _subtitleAnimationDurationMs = 200;
 const double _subtitleFlyoutWidth = 320;
-const double _subtitleFlyoutLeftOffset = -248;
 const double _subtitleFlyoutBridgeOffset = 40;
 const double _subtitleFlyoutMinBridgeWidth = 56;
 const double _subtitleFlyoutBridgeHorizontalPadding = 12;
@@ -204,9 +203,9 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
     );
   }
 
-  double _calculateBridgeLeft(Size buttonSize) {
+  double _calculateBridgeLeft(Size buttonSize, double flyoutLeft) {
     final bridgeWidth = _calculateBridgeWidth(buttonSize);
-    final buttonCenterX = (-_subtitleFlyoutLeftOffset) + (buttonSize.width / 2);
+    final buttonCenterX = buttonSize.width / 2 - flyoutLeft;
     final desiredLeft = buttonCenterX - (bridgeWidth / 2);
     return desiredLeft.clamp(0.0, _subtitleFlyoutWidth - bridgeWidth);
   }
@@ -224,13 +223,20 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
           return const SizedBox.shrink();
         }
 
+        final overlaySize = MediaQuery.of(context).size;
         final buttonOffset = renderObject.localToGlobal(Offset.zero);
         final buttonSize = renderObject.size;
         final flyoutHeight =
             _flyoutSize?.height ?? _estimatedSubtitleFlyoutHeight;
         final bridgeHeight = widget.yOffset + _subtitleFlyoutBridgeOffset;
+        final flyoutLeft = (buttonSize.width - _subtitleFlyoutWidth) / 2;
+        final left = (buttonOffset.dx + flyoutLeft)
+            .clamp(8.0, overlaySize.width - _subtitleFlyoutWidth - 8.0);
         final bridgeWidth = _calculateBridgeWidth(buttonSize);
-        final bridgeLeft = _calculateBridgeLeft(buttonSize);
+        final bridgeLeft = _calculateBridgeLeft(
+          buttonSize,
+          left - buttonOffset.dx,
+        );
         final top =
             buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight;
 
@@ -239,7 +245,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
         return Stack(
           children: [
             Positioned(
-              left: buttonOffset.dx + _subtitleFlyoutLeftOffset,
+              left: left,
               top: top,
               child: SizedBox(
                 width: _subtitleFlyoutWidth,
@@ -252,7 +258,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
                       top: 0,
                       child: MouseRegion(
                         opaque: false,
-                        cursor: SystemMouseCursors.basic,
+                        cursor: SystemMouseCursors.click,
                         onEnter: (_) {
                           _setPopupHovered(true);
                           _hideTimer?.cancel();
@@ -277,7 +283,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
                       top: flyoutHeight,
                       child: MouseRegion(
                         opaque: false,
-                        cursor: SystemMouseCursors.basic,
+                        cursor: SystemMouseCursors.click,
                         onEnter: (_) {
                           _setPopupHovered(true);
                           _hideTimer?.cancel();

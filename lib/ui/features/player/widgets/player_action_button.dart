@@ -144,10 +144,32 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
 
   @override
   Widget build(BuildContext context) {
-    final child = MouseRegion(
-      cursor: widget.onPressed == null
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
+    final button = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: widget.size,
+        height: widget.size,
+        padding: widget.padding,
+        decoration: BoxDecoration(
+          color: _isHovered
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.transparent,
+          borderRadius: widget.borderRadius,
+        ),
+        child: Center(child: _buildIcon()),
+      ),
+    );
+
+    final buttonWithTooltip = widget.tooltip == null || widget.tooltip!.isEmpty
+        ? button
+        : Tooltip(message: widget.tooltip!, child: button);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      opaque: true,
+      hitTestBehavior: HitTestBehavior.opaque,
       onEnter: (_) {
         setState(() => _isHovered = true);
         if (widget.lottieAssetPath != null && widget.animateLottieOnHover) {
@@ -162,29 +184,8 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
           _showIdleLottieFrame();
         }
       },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          width: widget.size,
-          height: widget.size,
-          padding: widget.padding,
-          decoration: BoxDecoration(
-            color: _isHovered
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.transparent,
-            borderRadius: widget.borderRadius,
-          ),
-          child: Center(child: _buildIcon()),
-        ),
-      ),
+      child: buttonWithTooltip,
     );
-
-    if (widget.tooltip == null || widget.tooltip!.isEmpty) {
-      return child;
-    }
-    return Tooltip(message: widget.tooltip!, child: child);
   }
 
   Widget _buildIcon() {

@@ -182,7 +182,7 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
                       top: 0,
                       child: MouseRegion(
                         opaque: false,
-                        cursor: SystemMouseCursors.basic,
+                        cursor: SystemMouseCursors.click,
                         onEnter: (_) {
                           _setPopupHovered(true);
                           _hideTimer?.cancel();
@@ -210,7 +210,7 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
                       top: flyoutHeight,
                       child: MouseRegion(
                         opaque: false,
-                        cursor: SystemMouseCursors.basic,
+                        cursor: SystemMouseCursors.click,
                         onEnter: (_) {
                           // Keep the flyout open only while the cursor is near
                           // the button-to-popup travel path.

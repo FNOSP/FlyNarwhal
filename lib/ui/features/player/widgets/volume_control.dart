@@ -146,7 +146,7 @@ class _VolumeControlState extends State<VolumeControl>
               top: top,
               child: MouseRegion(
                 opaque: false,
-                cursor: SystemMouseCursors.basic,
+                cursor: SystemMouseCursors.click,
                 onEnter: (_) {
                   _setPopupHovered(true);
                   _hideTimer?.cancel();
