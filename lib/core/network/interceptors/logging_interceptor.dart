@@ -10,6 +10,8 @@ const _hiddenHeaders = {
   'Authorization',
   'Cookie',
   'Authx',
+  'Signx',
+  'Keyx',
 };
 
 /// Logging interceptor backed by TalkerDioLogger.

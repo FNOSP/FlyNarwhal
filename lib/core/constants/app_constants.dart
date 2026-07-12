@@ -4,6 +4,8 @@ class AppConstants {
 
   // API
   static const String defaultApiKey = "NDzZTVxnRKP8Z0jXg1VAMonaG8akvh";
+  static const String defaultFlyNarwhalApiSecret =
+      "16CCEB3D-AB42-077D-36A1-F355324E4237";
   static const String flyNarwhalApiSecret =
       String.fromEnvironment('FLY_NARWHAL_API_SECRET');
 

@@ -8,7 +8,9 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/fly_narwhal_auth_helper.dart';
 import '../../../core/network/fly_narwhal_response_crypto.dart';
+import '../../../core/network/interceptors/logging_interceptor.dart';
 import '../../../core/network/sse_event_parser.dart';
+import '../../../core/utils/log/app_talker.dart';
 import '../../models/fly_narwhal/index.dart';
 
 class FlyNarwhalRemoteDataSource {
@@ -38,15 +40,29 @@ class FlyNarwhalRemoteDataSource {
     FlyNarwhalResponseCrypto? crypto,
   })  : _runtimeConfiguration = runtimeConfiguration,
         getFlyNarwhalServerEnabled = getFlyNarwhalServerEnabled ?? (() => true),
-        _dio = dio ??
-            Dio(BaseOptions(
-              connectTimeout: _connectTimeout,
-              receiveTimeout: _requestReceiveTimeout,
-              sendTimeout: _requestReceiveTimeout,
-              responseType: ResponseType.plain,
-              followRedirects: true,
-            )),
+        _dio = _createDio(dio),
         _crypto = crypto ?? FlyNarwhalResponseCrypto.instance;
+
+  static Dio _createDio(Dio? dio) {
+    final client = dio ??
+        Dio(BaseOptions(
+          connectTimeout: _connectTimeout,
+          receiveTimeout: _requestReceiveTimeout,
+          sendTimeout: _requestReceiveTimeout,
+          responseType: ResponseType.plain,
+          followRedirects: true,
+        ));
+    final hasLoggingInterceptor = client.interceptors
+        .any((interceptor) => interceptor is LoggingInterceptor);
+    if (!hasLoggingInterceptor) {
+      client.interceptors.add(LoggingInterceptor(
+        printRequestBody: true,
+        printResponseBody: true,
+        printError: true,
+      ));
+    }
+    return client;
+  }
 
   Future<ApiResult<SmartAnalysisResult<String>>> getVersion({
     String? baseUrl,
@@ -148,7 +164,13 @@ class FlyNarwhalRemoteDataSource {
               ),
               responseType: ResponseType.plain));
       return Success(await _decodeSmartResult(response.data ?? '', fromJsonT));
-    } catch (error) {
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'FlyNarwhal',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'GET 请求失败: $path',
+      );
       return ResultFailure(FailureInfo.fromMessage(error.toString()));
     }
   }
@@ -167,7 +189,13 @@ class FlyNarwhalRemoteDataSource {
               ),
               responseType: ResponseType.plain));
       return Success(await _decodeSmartResult(response.data ?? '', fromJsonT));
-    } catch (error) {
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'FlyNarwhal',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'POST 请求失败: $path',
+      );
       return ResultFailure(FailureInfo.fromMessage(error.toString()));
     }
   }
@@ -175,33 +203,85 @@ class FlyNarwhalRemoteDataSource {
   Future<Stream<SseEvent>> _sseGet(String path,
       {Map<String, dynamic>? parameters}) async {
     final url = _buildFullUrl(path);
-    final response = await _dio.get<ResponseBody>(url,
-        queryParameters: parameters,
-        options: Options(
-            headers: await _buildHeaders(
-              signaturePath: path,
-              parameters: parameters,
-              isSse: true,
-            ),
-            responseType: ResponseType.stream,
-            receiveTimeout: _sseReceiveTimeout));
-    return _parseResponseBodyEvents(response.data!);
+    final requestStopwatch = Stopwatch()..start();
+    AppTalker.info('FlyNarwhal', '建立 SSE GET 连接: $path');
+    try {
+      final response = await _dio.get<ResponseBody>(url,
+          queryParameters: parameters,
+          options: Options(
+              headers: await _buildHeaders(
+                signaturePath: path,
+                parameters: parameters,
+                isSse: true,
+              ),
+              responseType: ResponseType.stream,
+              receiveTimeout: _sseReceiveTimeout));
+      AppTalker.info(
+        'FlyNarwhal',
+        'SSE GET 已连接: $path，状态码 ${response.statusCode}，耗时 ${requestStopwatch.elapsedMilliseconds}ms',
+      );
+      return _logSseEvents(path, _parseResponseBodyEvents(response.data!));
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'FlyNarwhal',
+        error: error,
+        stackTrace: stackTrace,
+        message:
+            'SSE GET 连接失败: $path，耗时 ${requestStopwatch.elapsedMilliseconds}ms',
+      );
+      rethrow;
+    }
   }
 
   Future<Stream<SseEvent>> _ssePost(String path, {dynamic data}) async {
     final url = _buildFullUrl(path);
-    final response = await _dio.post<ResponseBody>(url,
-        data: data,
-        options: Options(
-            headers: await _buildHeaders(
-              signaturePath: path,
-              data: data,
-              isPost: true,
-              isSse: true,
-            ),
-            responseType: ResponseType.stream,
-            receiveTimeout: _sseReceiveTimeout));
-    return _parseResponseBodyEvents(response.data!);
+    final requestStopwatch = Stopwatch()..start();
+    AppTalker.info('FlyNarwhal', '建立 SSE POST 连接: $path');
+    try {
+      final response = await _dio.post<ResponseBody>(url,
+          data: data,
+          options: Options(
+              headers: await _buildHeaders(
+                signaturePath: path,
+                data: data,
+                isPost: true,
+                isSse: true,
+              ),
+              responseType: ResponseType.stream,
+              receiveTimeout: _sseReceiveTimeout));
+      AppTalker.info(
+        'FlyNarwhal',
+        'SSE POST 已连接: $path，状态码 ${response.statusCode}，耗时 ${requestStopwatch.elapsedMilliseconds}ms',
+      );
+      return _logSseEvents(path, _parseResponseBodyEvents(response.data!));
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'FlyNarwhal',
+        error: error,
+        stackTrace: stackTrace,
+        message:
+            'SSE POST 连接失败: $path，耗时 ${requestStopwatch.elapsedMilliseconds}ms',
+      );
+      rethrow;
+    }
+  }
+
+  Stream<SseEvent> _logSseEvents(String path, Stream<SseEvent> events) async* {
+    try {
+      await for (final event in events) {
+        AppTalker.info('FlyNarwhal', 'SSE 事件: $path，类型 ${event.name}');
+        yield event;
+      }
+      AppTalker.info('FlyNarwhal', 'SSE 流已结束: $path');
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'FlyNarwhal',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'SSE 流发生错误: $path',
+      );
+      rethrow;
+    }
   }
 
   void _ensureDanmakuRequestConfigured() {
@@ -237,39 +317,49 @@ class FlyNarwhalRemoteDataSource {
     Map<String, dynamic>? parameters,
     dynamic data,
   }) async {
-    if (AppConstants.flyNarwhalApiSecret.isNotEmpty) {
+    final configuredApiSecret = AppConstants.flyNarwhalApiSecret.trim();
+    if (configuredApiSecret.isNotEmpty) {
       return FlyNarwhalAuthHelper.generateAuthx(
         signaturePath,
         parameters: parameters,
         data: data,
+        apiSecret: configuredApiSecret,
       );
     }
 
     final runtimeConfiguration = _runtimeConfiguration;
-    if (runtimeConfiguration == null) {
-      return FlyNarwhalAuthHelper.generateAuthx(
-        signaturePath,
-        parameters: parameters,
-        data: data,
-      );
-    }
-    final secretBytes = await runtimeConfiguration.resolveRequiredSecret(
-      RuntimeSecret.flyNarwhalApiSecret,
-    );
-    try {
-      final apiSecret = utf8.decode(secretBytes, allowMalformed: false);
-      if (apiSecret.isEmpty) {
-        throw StateError('FlyNarwhal API secret is not configured');
+    if (runtimeConfiguration != null) {
+      try {
+        final secretBytes = await runtimeConfiguration.resolveRequiredSecret(
+          RuntimeSecret.flyNarwhalApiSecret,
+        );
+        try {
+          final runtimeApiSecret = utf8.decode(
+            secretBytes,
+            allowMalformed: false,
+          );
+          if (runtimeApiSecret.isNotEmpty) {
+            return FlyNarwhalAuthHelper.generateAuthx(
+              signaturePath,
+              parameters: parameters,
+              data: data,
+              apiSecret: runtimeApiSecret,
+            );
+          }
+        } finally {
+          await runtimeConfiguration.zeroize(secretBytes);
+        }
+      } on StateError {
+        // Fall back to the server-compatible default secret.
       }
-      return FlyNarwhalAuthHelper.generateAuthx(
-        signaturePath,
-        parameters: parameters,
-        data: data,
-        apiSecret: apiSecret,
-      );
-    } finally {
-      await runtimeConfiguration.zeroize(secretBytes);
     }
+
+    return FlyNarwhalAuthHelper.generateAuthx(
+      signaturePath,
+      parameters: parameters,
+      data: data,
+      apiSecret: AppConstants.defaultFlyNarwhalApiSecret,
+    );
   }
 
   Future<Map<String, String>> _buildHeaders({
