@@ -40,9 +40,8 @@ String _buildImageUrl(String baseUrl, String path) {
     return '$normalizedBaseUrl/$trimmedPath';
   }
 
-  final normalizedPath = trimmedPath.startsWith('/')
-      ? trimmedPath
-      : '/$trimmedPath';
+  final normalizedPath =
+      trimmedPath.startsWith('/') ? trimmedPath : '/$trimmedPath';
   return '$normalizedBaseUrl/v/api/v1/sys/img$normalizedPath';
 }
 
@@ -159,7 +158,6 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   // Maps to track selection per media guid
   final Map<String, String> _mediaGuidAudioGuidMap = {};
   final Map<String, String> _mediaGuidSubtitleGuidMap = {};
-  late final ToastManager _toastManager = ToastManager();
 
   @override
   void initState() {
@@ -173,12 +171,6 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     if (oldWidget.state != widget.state) {
       _initializeSelection();
     }
-  }
-
-  @override
-  void dispose() {
-    _toastManager.dispose();
-    super.dispose();
   }
 
   void _initializeSelection() {
@@ -336,19 +328,11 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         .read(movieDetailNotifierProvider(widget.guid).notifier)
         .toggleFavorite();
     if (!mounted) return;
-    if (result.success) {
-      _toastManager.showToast(
-        result.message,
-        type: ToastType.success,
-        category: 'favorite_${widget.guid}',
-      );
-    } else {
-      _toastManager.showToast(
-        '操作失败，${result.message}',
-        type: ToastType.failed,
-        category: 'favorite_${widget.guid}',
-      );
-    }
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.success ? result.message : '操作失败，${result.message}',
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'favorite:${widget.guid}',
+        );
   }
 
   Future<void> _handleToggleWatched() async {
@@ -356,19 +340,11 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         .read(movieDetailNotifierProvider(widget.guid).notifier)
         .toggleWatched();
     if (!mounted) return;
-    if (result.success) {
-      _toastManager.showToast(
-        result.message,
-        type: ToastType.success,
-        category: 'watched_${widget.guid}',
-      );
-    } else {
-      _toastManager.showToast(
-        '操作失败，${result.message}',
-        type: ToastType.failed,
-        category: 'watched_${widget.guid}',
-      );
-    }
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.success ? result.message : '操作失败，${result.message}',
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'watched:${widget.guid}',
+        );
   }
 
   @override
@@ -782,10 +758,6 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                 ),
               ),
           ],
-        ),
-
-        Positioned.fill(
-          child: ToastHost(toastManager: _toastManager),
         ),
       ],
     );

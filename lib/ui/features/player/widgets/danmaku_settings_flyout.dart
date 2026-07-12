@@ -1,5 +1,4 @@
-import 'dart:convert';
-import 'dart:io';
+import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 
@@ -11,10 +10,20 @@ enum DanmakuSettingsPage {
   advanced,
 }
 
+const Color _flyoutBackgroundColor = Color(0xD91D2323);
+const Color _flyoutBorderColor = Color(0x33FFFFFF);
+const int _hideDelayMs = 200;
+const int _animationDurationMs = 200;
+const double _flyoutWidth = 340;
+const double _flyoutBridgeOffset = 40;
+const double _flyoutMinBridgeWidth = 48;
+const double _flyoutBridgeHorizontalPadding = 12;
+
 class DanmakuSettingsFlyout extends StatefulWidget {
   final DanmakuSettings settings;
   final DanmakuLoadStatus loadStatus;
   final double popupBottomOffset;
+  final bool isActiveControl;
   final ValueChanged<double> onAreaChanged;
   final ValueChanged<double> onOpacityChanged;
   final ValueChanged<double> onFontSizeScaleChanged;
@@ -28,6 +37,7 @@ class DanmakuSettingsFlyout extends StatefulWidget {
     required this.settings,
     required this.loadStatus,
     required this.popupBottomOffset,
+    this.isActiveControl = false,
     required this.onAreaChanged,
     required this.onOpacityChanged,
     required this.onFontSizeScaleChanged,
@@ -38,61 +48,274 @@ class DanmakuSettingsFlyout extends StatefulWidget {
   });
 
   @override
-  State<DanmakuSettingsFlyout> createState() =>
-      _DanmakuSettingsFlyoutState();
+  State<DanmakuSettingsFlyout> createState() => _DanmakuSettingsFlyoutState();
 }
 
-class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout> {
-  final FlyoutController _flyoutController = FlyoutController();
-  DanmakuSettingsPage _page = DanmakuSettingsPage.main;
+class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout>
+    with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+  bool _isButtonHovered = false;
+  bool _popupHovered = false;
+  final GlobalKey _buttonKey = GlobalKey();
+  final GlobalKey _flyoutKey = GlobalKey();
+  OverlayEntry? _overlayEntry;
+  Size? _flyoutSize;
+  Timer? _hideTimer;
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
 
-  void _writeDebugLog({
-    required String hypothesisId,
-    required String message,
-    Map<String, Object?> data = const {},
-  }) {
-    // #region debug instrumentation
-    try {
-      final payload = <String, Object?>{
-        'sessionId': 'bb0059',
-        'location': 'danmaku_settings_flyout.dart',
-        'message': message,
-        'data': <String, Object?>{
-          'hypothesisId': hypothesisId,
-          ...data,
-        },
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-      };
-      File(r'd:\WorkSpace\personal\FlyNarwhal-flutter\.cursor\debug-bb0059.log')
-          .writeAsStringSync('${jsonEncode(payload)}\n', mode: FileMode.append);
-    } catch (_) {}
-    // #endregion
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: _animationDurationMs),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+    _scaleAnimation = Tween<double>(begin: 0.4, end: 1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void didUpdateWidget(DanmakuSettingsFlyout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActiveControl && !widget.isActiveControl) {
+      _forceCloseFlyout();
+    }
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _hideOverlay();
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _requestOverlayRebuild() {
+    _overlayEntry?.markNeedsBuild();
+  }
+
+  void _setPopupHovered(bool value) {
+    if (_popupHovered == value || !mounted) return;
+    setState(() => _popupHovered = value);
+  }
+
+  void _updateFlyoutSizeAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final flyoutContext = _flyoutKey.currentContext;
+      if (flyoutContext == null) return;
+      final renderObject = flyoutContext.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) return;
+      final nextSize = renderObject.size;
+      if (nextSize == _flyoutSize) return;
+      _flyoutSize = nextSize;
+      _overlayEntry?.markNeedsBuild();
+    });
+  }
+
+  double _calculateBridgeWidth(Size buttonSize) {
+    final preferredWidth =
+        buttonSize.width + (_flyoutBridgeHorizontalPadding * 2);
+    return preferredWidth.clamp(_flyoutMinBridgeWidth, _flyoutWidth);
+  }
+
+  OverlayEntry _buildOverlayEntry() {
+    return OverlayEntry(
+      builder: (overlayContext) {
+        final buttonContext = _buttonKey.currentContext;
+        if (buttonContext == null) {
+          return const SizedBox.shrink();
+        }
+
+        final renderObject = buttonContext.findRenderObject();
+        if (renderObject is! RenderBox || !renderObject.hasSize) {
+          return const SizedBox.shrink();
+        }
+
+        final overlaySize = MediaQuery.of(overlayContext).size;
+        final buttonOffset = renderObject.localToGlobal(Offset.zero);
+        final buttonSize = renderObject.size;
+        final flyoutHeight = _flyoutSize?.height ?? 380.0;
+        final bridgeHeight = widget.popupBottomOffset + _flyoutBridgeOffset;
+        final top =
+            (buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight)
+                .clamp(8.0, overlaySize.height - flyoutHeight - bridgeHeight);
+        final left =
+            (buttonOffset.dx + (buttonSize.width - _flyoutWidth) / 2)
+                .clamp(8.0, overlaySize.width - _flyoutWidth - 8.0);
+        final bridgeWidth = _calculateBridgeWidth(buttonSize);
+        final buttonCenterX =
+            buttonOffset.dx + (buttonSize.width / 2) - left;
+        final bridgeLeft = (buttonCenterX - bridgeWidth / 2)
+            .clamp(0.0, _flyoutWidth - bridgeWidth);
+
+        _updateFlyoutSizeAfterFrame();
+
+        return Stack(
+          children: [
+            Positioned(
+              left: left,
+              top: top,
+              child: SizedBox(
+                width: _flyoutWidth,
+                height: flyoutHeight + bridgeHeight,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      child: MouseRegion(
+                        opaque: false,
+                        cursor: SystemMouseCursors.basic,
+                        onEnter: (_) {
+                          _setPopupHovered(true);
+                          _hideTimer?.cancel();
+                        },
+                        onHover: (_) {
+                          if (!_popupHovered) {
+                            _setPopupHovered(true);
+                          }
+                        },
+                        onExit: (_) {
+                          _setPopupHovered(false);
+                          _hideFlyoutWithDelay();
+                        },
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: KeyedSubtree(
+                            key: _flyoutKey,
+                            child: _buildAnimatedFlyout(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: bridgeLeft,
+                      top: flyoutHeight,
+                      child: MouseRegion(
+                        opaque: false,
+                        cursor: SystemMouseCursors.basic,
+                        onEnter: (_) {
+                          _setPopupHovered(true);
+                          _hideTimer?.cancel();
+                        },
+                        onExit: (_) {
+                          _setPopupHovered(false);
+                          _hideFlyoutWithDelay();
+                        },
+                        child: SizedBox(
+                          width: bridgeWidth,
+                          height: bridgeHeight,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) {
+      _requestOverlayRebuild();
+      return;
+    }
+    _overlayEntry = _buildOverlayEntry();
+    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
+  }
+
+  void _hideOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _flyoutSize = null;
+  }
+
+  void _showFlyout() {
+    _hideTimer?.cancel();
+    if (_isExpanded) {
+      if (_animationController.status == AnimationStatus.reverse) {
+        _animationController.forward();
+      }
+      _requestOverlayRebuild();
+      return;
+    }
+
+    setState(() => _isExpanded = true);
+    _showOverlay();
+    _animationController.forward(from: 0);
+    widget.onHoverStateChanged?.call(true);
+  }
+
+  void _hideFlyoutWithDelay() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: _hideDelayMs), () {
+      if (!_isButtonHovered && !_popupHovered && mounted) {
+        _closeFlyout();
+      }
+    });
+  }
+
+  Future<void> _closeFlyout() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
+    }
+
+    if (!mounted) return;
+    if (_isButtonHovered || _popupHovered) {
+      _animationController.forward();
+      return;
+    }
+
+    _hideOverlay();
+    setState(() => _isExpanded = false);
+    widget.onHoverStateChanged?.call(false);
+  }
+
+  Future<void> _forceCloseFlyout() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    _isButtonHovered = false;
+    _popupHovered = false;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
+    }
+
+    if (!mounted) return;
+    _hideOverlay();
+    setState(() => _isExpanded = false);
+    widget.onHoverStateChanged?.call(false);
   }
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) {
-        // #region debug instrumentation
-        _writeDebugLog(
-          hypothesisId: 'H1-H2',
-          message: 'pointer entered danmaku settings target',
-          data: {'flyoutIsOpen': _flyoutController.isOpen},
-        );
-        // #endregion
+        setState(() => _isButtonHovered = true);
         _showFlyout();
       },
       onExit: (_) {
-        // #region debug instrumentation
-        _writeDebugLog(
-          hypothesisId: 'H2-H4',
-          message: 'pointer exited danmaku settings target',
-          data: {'flyoutIsOpen': _flyoutController.isOpen},
-        );
-        // #endregion
+        setState(() => _isButtonHovered = false);
+        _hideFlyoutWithDelay();
       },
-      child: FlyoutTarget(
-        controller: _flyoutController,
+      child: KeyedSubtree(
+        key: _buttonKey,
         child: PlayerActionButton.svg(
           key: const ValueKey('player-danmaku-settings'),
           svgAssetPath: 'assets/images/danmu_setting.svg',
@@ -106,64 +329,91 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout> {
   }
 
   void _toggleFlyout() {
-    // #region debug instrumentation
-    _writeDebugLog(
-      hypothesisId: 'H1-H3',
-      message: 'danmaku settings toggle requested',
-      data: {'flyoutIsOpen': _flyoutController.isOpen},
-    );
-    // #endregion
-    if (_flyoutController.isOpen) {
-      _flyoutController.close();
+    if (_isExpanded) {
+      _closeFlyout();
       return;
     }
-
     _showFlyout();
   }
 
-  void _showFlyout() {
-    if (_flyoutController.isOpen) {
-      return;
-    }
-
-    // #region debug instrumentation
-    _writeDebugLog(
-      hypothesisId: 'H1-H3',
-      message: 'danmaku settings flyout opening',
-      data: {'trigger': 'hover', 'flyoutIsOpen': _flyoutController.isOpen},
-    );
-    // #endregion
-    _flyoutController.showFlyout(
-      barrierDismissible: true,
-      dismissOnPointerMoveAway: false,
-      placementMode: FlyoutPlacementMode.topCenter,
-      builder: (context) {
-        return MouseRegion(
-          onEnter: (_) => widget.onHoverStateChanged?.call(true),
-          onExit: (_) => widget.onHoverStateChanged?.call(false),
-          child: StatefulBuilder(
-            builder: (context, setFlyoutState) {
-              return Container(
-                key: const ValueKey('player-danmaku-settings-flyout'),
-                width: 340,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: const Color(0xF2181818),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0x667F7F7F)),
-                ),
-                child: _page == DanmakuSettingsPage.main
-                    ? _buildMainPage(setFlyoutState)
-                    : _buildAdvancedPage(setFlyoutState),
-              );
-            },
+  Widget _buildAnimatedFlyout() {
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: Transform.scale(
+            scale: _scaleAnimation.value,
+            alignment: Alignment.bottomCenter,
+            child: child,
           ),
         );
       },
+      child: _DanmakuSettingsFlyoutContent(
+        settings: widget.settings,
+        loadStatus: widget.loadStatus,
+        onPageChanged: (_) => _requestOverlayRebuild(),
+        onAreaChanged: widget.onAreaChanged,
+        onOpacityChanged: widget.onOpacityChanged,
+        onFontSizeScaleChanged: widget.onFontSizeScaleChanged,
+        onSpeedChanged: widget.onSpeedChanged,
+        onSyncPlaybackSpeedChanged: widget.onSyncPlaybackSpeedChanged,
+        onDebugEnabledChanged: widget.onDebugEnabledChanged,
+      ),
+    );
+  }
+}
+
+class _DanmakuSettingsFlyoutContent extends StatefulWidget {
+  final DanmakuSettings settings;
+  final DanmakuLoadStatus loadStatus;
+  final ValueChanged<DanmakuSettingsPage> onPageChanged;
+  final ValueChanged<double> onAreaChanged;
+  final ValueChanged<double> onOpacityChanged;
+  final ValueChanged<double> onFontSizeScaleChanged;
+  final ValueChanged<double> onSpeedChanged;
+  final ValueChanged<bool> onSyncPlaybackSpeedChanged;
+  final ValueChanged<bool> onDebugEnabledChanged;
+
+  const _DanmakuSettingsFlyoutContent({
+    required this.settings,
+    required this.loadStatus,
+    required this.onPageChanged,
+    required this.onAreaChanged,
+    required this.onOpacityChanged,
+    required this.onFontSizeScaleChanged,
+    required this.onSpeedChanged,
+    required this.onSyncPlaybackSpeedChanged,
+    required this.onDebugEnabledChanged,
+  });
+
+  @override
+  State<_DanmakuSettingsFlyoutContent> createState() =>
+      _DanmakuSettingsFlyoutContentState();
+}
+
+class _DanmakuSettingsFlyoutContentState
+    extends State<_DanmakuSettingsFlyoutContent> {
+  DanmakuSettingsPage _page = DanmakuSettingsPage.main;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('player-danmaku-settings-flyout'),
+      width: _flyoutWidth,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _flyoutBackgroundColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _flyoutBorderColor),
+      ),
+      child: _page == DanmakuSettingsPage.main
+          ? _buildMainPage()
+          : _buildAdvancedPage(),
     );
   }
 
-  Widget _buildMainPage(StateSetter setFlyoutState) {
+  Widget _buildMainPage() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,7 +467,8 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout> {
         const SizedBox(height: 4),
         Button(
           onPressed: () {
-            setFlyoutState(() => _page = DanmakuSettingsPage.advanced);
+            setState(() => _page = DanmakuSettingsPage.advanced);
+            widget.onPageChanged(DanmakuSettingsPage.advanced);
           },
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -228,7 +479,7 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout> {
     );
   }
 
-  Widget _buildAdvancedPage(StateSetter setFlyoutState) {
+  Widget _buildAdvancedPage() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,7 +489,8 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout> {
             IconButton(
               icon: const Icon(FluentIcons.chevron_left),
               onPressed: () {
-                setFlyoutState(() => _page = DanmakuSettingsPage.main);
+                setState(() => _page = DanmakuSettingsPage.main);
+                widget.onPageChanged(DanmakuSettingsPage.main);
               },
             ),
             const SizedBox(width: 8),

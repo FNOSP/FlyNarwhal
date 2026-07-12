@@ -1,31 +1,45 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:uuid/uuid.dart';
 
-enum ToastType { success, failed, info }
+import 'window_caption.dart';
 
+const Duration _defaultToastDuration = Duration(seconds: 2);
+const Duration _toastAnimationDuration = Duration(milliseconds: 300);
+
+enum ToastType {
+  success,
+  failed,
+  info,
+  warning,
+}
+
+@immutable
 class ToastMessage {
-  final String id;
-  final String message;
-  final ToastType type;
-  final int duration;
-  final String? category;
-  final int updateTime;
-
-  ToastMessage({
+  const ToastMessage({
     required this.id,
     required this.message,
     required this.type,
     required this.duration,
     required this.category,
-    required this.updateTime,
+    required this.revision,
   });
+
+  final String id;
+  final String message;
+  final ToastType type;
+  final Duration duration;
+  final String? category;
+  final int revision;
 
   ToastMessage copyWith({
     String? message,
     ToastType? type,
-    int? duration,
-    int? updateTime,
+    Duration? duration,
+    int? revision,
   }) {
     return ToastMessage(
       id: id,
@@ -33,198 +47,318 @@ class ToastMessage {
       type: type ?? this.type,
       duration: duration ?? this.duration,
       category: category,
-      updateTime: updateTime ?? this.updateTime,
+      revision: revision ?? this.revision,
     );
   }
 }
 
-class ToastManager extends ChangeNotifier {
-  final List<ToastMessage> _toasts = [];
+@immutable
+class ToastPresentation {
+  const ToastPresentation({
+    required this.assetPath,
+    required this.iconColor,
+    required this.semanticLabel,
+  });
 
-  List<ToastMessage> get toasts => List.unmodifiable(_toasts);
+  final String assetPath;
+  final Color iconColor;
+  final String semanticLabel;
+}
+
+extension ToastTypePresentation on ToastType {
+  ToastPresentation get presentation {
+    return switch (this) {
+      ToastType.success => const ToastPresentation(
+          assetPath: 'assets/images/toast_success.svg',
+          iconColor: Color(0xFF5DC264),
+          semanticLabel: '成功',
+        ),
+      ToastType.failed => const ToastPresentation(
+          assetPath: 'assets/images/toast_error.svg',
+          iconColor: Color(0xFFFF7864),
+          semanticLabel: '错误',
+        ),
+      ToastType.info => const ToastPresentation(
+          assetPath: 'assets/images/toast_info.svg',
+          iconColor: Color(0xFF409EFF),
+          semanticLabel: '信息',
+        ),
+      ToastType.warning => const ToastPresentation(
+          assetPath: 'assets/images/toast_warning.svg',
+          iconColor: Color(0xFFFFAA43),
+          semanticLabel: '警告',
+        ),
+    };
+  }
+}
+
+class ToastManager extends StateNotifier<List<ToastMessage>> {
+  ToastManager({Uuid? uuid})
+      : _uuid = uuid ?? const Uuid(),
+        super(const []);
+
+  final Uuid _uuid;
+  int _nextRevision = 0;
 
   void showToast(
     String message, {
     ToastType type = ToastType.success,
-    int duration = 2000,
+    Duration duration = _defaultToastDuration,
     String? category,
   }) {
-    if (category != null) {
-      final existingIndex = _toasts.indexWhere((t) => t.category == category);
-      if (existingIndex != -1) {
-        _toasts[existingIndex] = _toasts[existingIndex].copyWith(
-          message: message,
-          type: type,
-          duration: duration,
-          updateTime: DateTime.now().millisecondsSinceEpoch,
-        );
-        notifyListeners();
-        return;
-      }
+    final normalizedMessage = message.trim();
+    if (normalizedMessage.isEmpty) {
+      return;
     }
-    final toast = ToastMessage(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      message: message,
-      type: type,
-      duration: duration,
-      category: category,
-      updateTime: DateTime.now().millisecondsSinceEpoch,
-    );
-    _toasts.add(toast);
-    notifyListeners();
+
+    final normalizedDuration =
+        duration > Duration.zero ? duration : _defaultToastDuration;
+    final existingIndex = category == null
+        ? -1
+        : state.indexWhere((toast) => toast.category == category);
+
+    if (existingIndex >= 0) {
+      final updatedToasts = [...state];
+      updatedToasts[existingIndex] = updatedToasts[existingIndex].copyWith(
+        message: normalizedMessage,
+        type: type,
+        duration: normalizedDuration,
+        revision: _takeNextRevision(),
+      );
+      state = List.unmodifiable(updatedToasts);
+      return;
+    }
+
+    state = List.unmodifiable([
+      ...state,
+      ToastMessage(
+        id: _uuid.v4(),
+        message: normalizedMessage,
+        type: type,
+        duration: normalizedDuration,
+        category: category,
+        revision: _takeNextRevision(),
+      ),
+    ]);
   }
 
   void removeToast(String id) {
-    _toasts.removeWhere((t) => t.id == id);
-    notifyListeners();
+    final remainingToasts = state.where((toast) => toast.id != id).toList();
+    if (remainingToasts.length == state.length) {
+      return;
+    }
+    state = List.unmodifiable(remainingToasts);
+  }
+
+  void clear() {
+    if (state.isEmpty) {
+      return;
+    }
+    state = const [];
+  }
+
+  int _takeNextRevision() {
+    _nextRevision++;
+    return _nextRevision;
   }
 }
 
-class ToastHost extends StatelessWidget {
-  final ToastManager toastManager;
+final toastManagerProvider =
+    StateNotifierProvider<ToastManager, List<ToastMessage>>(
+  (ref) => ToastManager(),
+);
 
-  const ToastHost({super.key, required this.toastManager});
+class ToastHost extends ConsumerWidget {
+  const ToastHost({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final toastMessages = ref.watch(toastManagerProvider);
+    if (toastMessages.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: toastManager,
-        builder: (context, _) {
-          return Align(
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: toastManager.toasts
-                    .map(
-                      (toast) => Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: _ToastItem(
-                          key: ValueKey('${toast.id}_${toast.updateTime}'),
-                          message: toast.message,
-                          type: toast.type,
-                          duration: toast.duration,
-                          updateTime: toast.updateTime,
-                          onDismiss: () => toastManager.removeToast(toast.id),
+      child: SafeArea(
+        bottom: false,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              16,
+              kWindowTitleBarHeight + 16,
+              16,
+              0,
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final maximumToastWidth =
+                    constraints.maxWidth > 480 ? 480.0 : constraints.maxWidth;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final toast in toastMessages) ...[
+                      RepaintBoundary(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: maximumToastWidth,
+                          ),
+                          child: _ToastItem(
+                            key: ValueKey(toast.id),
+                            toast: toast,
+                            onDismiss: () => ref
+                                .read(toastManagerProvider.notifier)
+                                .removeToast(toast.id),
+                          ),
                         ),
                       ),
-                    )
-                    .toList(),
-              ),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
+                );
+              },
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 }
 
 class _ToastItem extends StatefulWidget {
-  final String message;
-  final ToastType type;
-  final int duration;
-  final int updateTime;
-  final VoidCallback onDismiss;
-
   const _ToastItem({
     super.key,
-    required this.message,
-    required this.type,
-    required this.duration,
-    required this.updateTime,
+    required this.toast,
     required this.onDismiss,
   });
+
+  final ToastMessage toast;
+  final VoidCallback onDismiss;
 
   @override
   State<_ToastItem> createState() => _ToastItemState();
 }
 
-class _ToastItemState extends State<_ToastItem> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _opacity;
-  late final Animation<Offset> _offset;
-  Timer? _timer;
+class _ToastItemState extends State<_ToastItem>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animationController;
+  late final Animation<double> _opacityAnimation;
+  late final Animation<Offset> _offsetAnimation;
+  Timer? _dismissTimer;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: _toastAnimationDuration,
     );
-    _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _offset = Tween<Offset>(begin: const Offset(0, -0.2), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-    _startAnimation();
+    _opacityAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+    );
+    _offsetAnimation = Tween<Offset>(
+      begin: const Offset(0, -0.35),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    _restartLifecycle();
   }
 
   @override
   void didUpdateWidget(covariant _ToastItem oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.updateTime != widget.updateTime) {
-      _startAnimation();
+    if (oldWidget.toast.revision != widget.toast.revision) {
+      _restartLifecycle();
     }
   }
 
-  void _startAnimation() {
-    _timer?.cancel();
-    _controller.forward(from: 0);
-    _timer = Timer(Duration(milliseconds: widget.duration), () async {
-      await _controller.reverse();
-      if (mounted) {
-        widget.onDismiss();
-      }
-    });
+  void _restartLifecycle() {
+    _dismissTimer?.cancel();
+    _animationController.forward(from: 0);
+    _dismissTimer = Timer(widget.toast.duration, _dismissToast);
+  }
+
+  Future<void> _dismissToast() async {
+    await _animationController.reverse();
+    if (mounted) {
+      widget.onDismiss();
+    }
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
-    _controller.dispose();
+    _dismissTimer?.cancel();
+    _animationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final iconColor = switch (widget.type) {
-      ToastType.success => const Color(0xFF5BA85A),
-      ToastType.failed => const Color(0xFFFF0421),
-      ToastType.info => const Color(0xFF54A9FF),
-    };
-    final iconData = switch (widget.type) {
-      ToastType.success => FluentIcons.completed,
-      ToastType.failed => FluentIcons.warning,
-      ToastType.info => FluentIcons.info,
-    };
-    return SlideTransition(
-      position: _offset,
-      child: FadeTransition(
-        opacity: _opacity,
-        child: Container(
-          padding: const EdgeInsets.only(left: 10, right: 15, top: 8, bottom: 8),
-          decoration: BoxDecoration(
-            color: FluentTheme.of(context).resources.controlSolidFillColorDefault,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                iconData,
-                color: iconColor,
-                size: 28,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                widget.message,
-                style: TextStyle(
-                  color: FluentTheme.of(context).typography.body?.color,
-                  fontSize: 14,
+    final presentation = widget.toast.type.presentation;
+    final isDarkTheme = FluentTheme.of(context).brightness == Brightness.dark;
+    final backgroundColor =
+        isDarkTheme ? const Color(0xFF414249) : const Color(0xFFFFFFFF);
+    final borderColor =
+        isDarkTheme ? const Color(0xFF565860) : const Color(0xFFE5E6EB);
+    final textColor =
+        isDarkTheme ? const Color(0xFFF5F5F6) : const Color(0xFF1D2129);
+
+    return Semantics(
+      liveRegion: true,
+      label: '${presentation.semanticLabel}：${widget.toast.message}',
+      child: SlideTransition(
+        position: _offsetAnimation,
+        child: FadeTransition(
+          opacity: _opacityAnimation,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x2E000000),
+                  blurRadius: 14,
+                  offset: Offset(0, 4),
                 ),
-              ),
-            ],
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                ExcludeSemantics(
+                  child: SvgPicture.asset(
+                    presentation.assetPath,
+                    width: 16,
+                    height: 16,
+                    colorFilter: ColorFilter.mode(
+                      presentation.iconColor,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    widget.toast.message,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

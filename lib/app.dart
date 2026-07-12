@@ -20,6 +20,7 @@ import 'data/storage/kmp_preferences_migration_service.dart';
 import 'data/storage/kmp_windows_preferences_reader.dart';
 import 'providers/providers.dart';
 import 'ui/navigation/app_router.dart';
+import 'ui/shared/toast.dart';
 
 Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
@@ -155,6 +156,15 @@ class MyApp extends ConsumerWidget {
       routeInformationParser: router.routeInformationParser,
       routerDelegate: router.routerDelegate,
       routeInformationProvider: router.routeInformationProvider,
+      builder: (context, child) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            if (child != null) child,
+            const ToastHost(),
+          ],
+        );
+      },
     );
   }
 }

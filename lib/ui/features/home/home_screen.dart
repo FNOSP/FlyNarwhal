@@ -21,7 +21,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const String _globalRefreshConsumerId = 'home-screen';
-  late final ToastManager _toastManager = ToastManager();
   late final ScrollController _scrollController = ScrollController();
 
   // Pending callbacks for favorite/watched operations
@@ -153,8 +152,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ],
             ),
           ),
-          // Toast overlay
-          ToastHost(toastManager: _toastManager),
         ],
       ),
     );
@@ -220,10 +217,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (result == null) return;
 
     // Show toast
-    _toastManager.showToast(
-      result.message,
-      type: result.success ? ToastType.success : ToastType.failed,
-    );
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.message,
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'favorite:${result.guid}',
+        );
 
     // Call the pending callback
     _pendingFavoriteCallbacks[result.guid]?.call(result.success);
@@ -242,10 +240,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (result == null) return;
 
     // Show toast
-    _toastManager.showToast(
-      result.message,
-      type: result.success ? ToastType.success : ToastType.failed,
-    );
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.message,
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'watched:${result.guid}',
+        );
 
     // Call the pending callback
     _pendingWatchedCallbacks[result.guid]?.call(result.success);

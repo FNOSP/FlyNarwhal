@@ -126,13 +126,11 @@ class _TvSeasonDetailContent extends ConsumerStatefulWidget {
 
 class _TvSeasonDetailContentState
     extends ConsumerState<_TvSeasonDetailContent> {
-  late final ToastManager _toastManager = ToastManager();
   late final ScrollController _descriptionScrollController = ScrollController();
 
   @override
   void dispose() {
     _descriptionScrollController.dispose();
-    _toastManager.dispose();
     super.dispose();
   }
 
@@ -141,19 +139,11 @@ class _TvSeasonDetailContentState
         .read(tvSeasonDetailNotifierProvider(widget.guid).notifier)
         .toggleWatched();
     if (!mounted) return;
-    if (result.success) {
-      _toastManager.showToast(
-        result.message,
-        type: ToastType.success,
-        category: 'watched_${widget.guid}',
-      );
-    } else {
-      _toastManager.showToast(
-        '操作失败，${result.message}',
-        type: ToastType.failed,
-        category: 'watched_${widget.guid}',
-      );
-    }
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.success ? result.message : '操作失败，${result.message}',
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'watched:${widget.guid}',
+        );
   }
 
   void _showDescriptionDialog(BuildContext context, ItemResponse item) {
@@ -506,7 +496,9 @@ class _TvSeasonDetailContentState
           text: playButtonText,
           onPressed: () async {
             if (playInfo != null) {
-              final targetGuid = playInfo.item.guid.isNotEmpty ? playInfo.item.guid : widget.guid;
+              final targetGuid = playInfo.item.guid.isNotEmpty
+                  ? playInfo.item.guid
+                  : widget.guid;
               ref.read(navigationStackProvider.notifier).pushPath('/home');
               context.go('/player/$targetGuid');
             }

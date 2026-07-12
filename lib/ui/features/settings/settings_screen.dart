@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/providers.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
+import '../../shared/toast.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/shortcut_settings_dialog.dart';
 
@@ -121,27 +122,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         nextState.whenOrNull(
           data: (version) {
             if (version == null) return;
-            displayInfoBar(
-              context,
-              builder: (context, close) => InfoBar(
-                title: const Text('连接成功'),
-                content: Text('当前服务端版本号：$version'),
-                severity: InfoBarSeverity.success,
-                onClose: close,
-              ),
-            );
+            ref.read(toastManagerProvider.notifier).showToast(
+                  '飞鲸服务端连接成功，当前版本号：$version',
+                  type: ToastType.success,
+                  category: 'fly-narwhal-connection',
+                );
             ref.read(flyNarwhalConnectionTestProvider.notifier).clear();
           },
           error: (error, _) {
-            displayInfoBar(
-              context,
-              builder: (context, close) => InfoBar(
-                title: const Text('连接失败'),
-                content: Text(error.toString()),
-                severity: InfoBarSeverity.error,
-                onClose: close,
-              ),
-            );
+            ref.read(toastManagerProvider.notifier).showToast(
+                  '飞鲸服务端连接失败：$error',
+                  type: ToastType.failed,
+                  category: 'fly-narwhal-connection',
+                );
             ref.read(flyNarwhalConnectionTestProvider.notifier).clear();
           },
         );

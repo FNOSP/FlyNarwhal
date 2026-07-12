@@ -34,7 +34,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   bool _isFilterOpen = false;
   Timer? _tabAnimationTimer;
 
-  late final ToastManager _toastManager = ToastManager();
   final Map<String, ScrollController> _scrollControllers = {};
   final Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
   final Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
@@ -134,10 +133,11 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       return;
     }
 
-    _toastManager.showToast(
-      result.message,
-      type: result.success ? ToastType.success : ToastType.failed,
-    );
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.message,
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'favorite:${result.guid}',
+        );
 
     _pendingFavoriteCallbacks[result.guid]?.call(result.success);
     _pendingFavoriteCallbacks.remove(result.guid);
@@ -162,10 +162,11 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       return;
     }
 
-    _toastManager.showToast(
-      result.message,
-      type: result.success ? ToastType.success : ToastType.failed,
-    );
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.message,
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'watched:${result.guid}',
+        );
 
     _pendingWatchedCallbacks[result.guid]?.call(result.success);
     _pendingWatchedCallbacks.remove(result.guid);
@@ -472,7 +473,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
               ],
             ),
           ),
-          ToastHost(toastManager: _toastManager),
         ],
       ),
     );

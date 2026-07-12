@@ -125,13 +125,11 @@ class _TvDetailContent extends ConsumerStatefulWidget {
 }
 
 class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
-  late final ToastManager _toastManager = ToastManager();
   late final FlyoutController _moreController = FlyoutController();
 
   @override
   void dispose() {
     _moreController.dispose();
-    _toastManager.dispose();
     super.dispose();
   }
 
@@ -140,19 +138,11 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         .read(tvDetailNotifierProvider(widget.guid).notifier)
         .toggleFavorite();
     if (!mounted) return;
-    if (result.success) {
-      _toastManager.showToast(
-        result.message,
-        type: ToastType.success,
-        category: 'favorite_${widget.guid}',
-      );
-    } else {
-      _toastManager.showToast(
-        '操作失败，${result.message}',
-        type: ToastType.failed,
-        category: 'favorite_${widget.guid}',
-      );
-    }
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.success ? result.message : '操作失败，${result.message}',
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'favorite:${widget.guid}',
+        );
   }
 
   Future<void> _handleToggleWatched() async {
@@ -160,19 +150,11 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         .read(tvDetailNotifierProvider(widget.guid).notifier)
         .toggleWatched();
     if (!mounted) return;
-    if (result.success) {
-      _toastManager.showToast(
-        result.message,
-        type: ToastType.success,
-        category: 'watched_${widget.guid}',
-      );
-    } else {
-      _toastManager.showToast(
-        '操作失败，${result.message}',
-        type: ToastType.failed,
-        category: 'watched_${widget.guid}',
-      );
-    }
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.success ? result.message : '操作失败，${result.message}',
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'watched:${widget.guid}',
+        );
   }
 
   Future<bool> _handleToggleSeasonWatched(
@@ -181,19 +163,11 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         .read(tvDetailNotifierProvider(widget.guid).notifier)
         .toggleSeasonWatched(seasonGuid, isWatched);
     if (!mounted) return false;
-    if (result.success) {
-      _toastManager.showToast(
-        result.message,
-        type: ToastType.success,
-        category: 'season_watched_$seasonGuid',
-      );
-    } else {
-      _toastManager.showToast(
-        '操作失败，${result.message}',
-        type: ToastType.failed,
-        category: 'season_watched_$seasonGuid',
-      );
-    }
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.success ? result.message : '操作失败，${result.message}',
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'season-watched:$seasonGuid',
+        );
     return result.success;
   }
 
@@ -201,7 +175,8 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     final playInfo = widget.state.playInfo;
     if (playInfo == null) return;
 
-    final targetGuid = playInfo.item.guid.isNotEmpty ? playInfo.item.guid : widget.guid;
+    final targetGuid =
+        playInfo.item.guid.isNotEmpty ? playInfo.item.guid : widget.guid;
     ref.read(navigationStackProvider.notifier).pushPath('/home');
     context.go('/player/$targetGuid');
   }
@@ -429,9 +404,6 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                 ),
               ),
           ],
-        ),
-        Positioned.fill(
-          child: ToastHost(toastManager: _toastManager),
         ),
       ],
     );

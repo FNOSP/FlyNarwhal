@@ -36,7 +36,6 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   List<GenreEntity>? _genres;
   Map<String, String>? _iso3166;
 
-  late final ToastManager _toastManager = ToastManager();
   late final ScrollController _scrollController = ScrollController();
   final Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
   final Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
@@ -50,7 +49,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   @override
   void didUpdateWidget(covariant MediaLibraryScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.id != widget.id || oldWidget.categoryType != widget.categoryType) {
+    if (oldWidget.id != widget.id ||
+        oldWidget.categoryType != widget.categoryType) {
       setState(() {
         _isFilterOpen = false;
         _selectedFilters = {};
@@ -136,7 +136,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
 
   Tags _buildTags(Map<String, FilterItem> filters) {
     final types = List<String>.from(
-      widget.id == null ? _categoryTypes(widget.categoryType) : ['Movie', 'TV', 'Directory', 'Video'],
+      widget.id == null
+          ? _categoryTypes(widget.categoryType)
+          : ['Movie', 'TV', 'Directory', 'Video'],
     );
     int? genres;
     String? resolution;
@@ -255,7 +257,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     } else {
       setState(() {
         _selectedFilters = {
-          for (final e in _selectedFilters.entries) e.key: const FilterItem('全部', null),
+          for (final e in _selectedFilters.entries)
+            e.key: const FilterItem('全部', null),
         };
       });
     }
@@ -263,25 +266,32 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   }
 
   // Handle favorite toggle
-  void _handleFavoriteToggle(String guid, bool currentFavoriteState, Function(bool success) callback) {
+  void _handleFavoriteToggle(
+      String guid, bool currentFavoriteState, Function(bool success) callback) {
     _pendingFavoriteCallbacks[guid] = callback;
-    ref.read(favoriteNotifierProvider.notifier).toggleFavorite(guid, currentFavoriteState);
+    ref
+        .read(favoriteNotifierProvider.notifier)
+        .toggleFavorite(guid, currentFavoriteState);
   }
 
   // Handle watched toggle
-  void _handleWatchedToggle(String guid, bool currentWatchedState, Function(bool success) callback) {
+  void _handleWatchedToggle(
+      String guid, bool currentWatchedState, Function(bool success) callback) {
     _pendingWatchedCallbacks[guid] = callback;
-    ref.read(watchedNotifierProvider.notifier).toggleWatched(guid, currentWatchedState);
+    ref
+        .read(watchedNotifierProvider.notifier)
+        .toggleWatched(guid, currentWatchedState);
   }
 
   // Handle favorite result
   void _handleFavoriteResult(FavoriteActionResult? result) {
     if (result == null) return;
 
-    _toastManager.showToast(
-      result.message,
-      type: result.success ? ToastType.success : ToastType.failed,
-    );
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.message,
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'favorite:${result.guid}',
+        );
 
     _pendingFavoriteCallbacks[result.guid]?.call(result.success);
     _pendingFavoriteCallbacks.remove(result.guid);
@@ -297,10 +307,11 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   void _handleWatchedResult(WatchedActionResult? result) {
     if (result == null) return;
 
-    _toastManager.showToast(
-      result.message,
-      type: result.success ? ToastType.success : ToastType.failed,
-    );
+    ref.read(toastManagerProvider.notifier).showToast(
+          result.message,
+          type: result.success ? ToastType.success : ToastType.failed,
+          category: 'watched:${result.guid}',
+        );
 
     _pendingWatchedCallbacks[result.guid]?.call(result.success);
     _pendingWatchedCallbacks.remove(result.guid);
@@ -335,7 +346,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     });
 
     // Listen to favorite result changes
-    ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (previous, next) {
+    ref.listen<FavoriteActionResult?>(favoriteNotifierProvider,
+        (previous, next) {
       _handleFavoriteResult(next);
     });
 
@@ -345,15 +357,18 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     });
 
     final scaleFactor = resolveWindowScaleFactor(context);
-    final mediaDbList = ref.watch(mediaDbListNotifierProvider).asData?.value ?? const [];
-    final mediaLibraryState = ref.watch(mediaLibraryNotifierProvider(_providerGuid));
+    final mediaDbList =
+        ref.watch(mediaDbListNotifierProvider).asData?.value ?? const [];
+    final mediaLibraryState =
+        ref.watch(mediaLibraryNotifierProvider(_providerGuid));
     final libraryData = mediaLibraryState.asData?.value;
     final items = libraryData?.items ?? const <MediaItem>[];
     const posterHeight = 200.0;
     const posterWidth = posterHeight * 2 / 3;
     final mediaDbTitle = _resolveMediaDbTitle(mediaDbList);
-    final title =
-        widget.id != null ? (libraryData?.mdbName ?? mediaDbTitle ?? '媒体库') : _resolveTitle();
+    final title = widget.id != null
+        ? (libraryData?.mdbName ?? mediaDbTitle ?? '媒体库')
+        : _resolveTitle();
 
     return ScaffoldPage(
       header: PageHeader(title: Text(title)),
@@ -361,8 +376,11 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         children: [
           NotificationListener<ScrollNotification>(
             onNotification: (scrollInfo) {
-              if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
-                ref.read(mediaLibraryNotifierProvider(_providerGuid).notifier).loadMore();
+              if (scrollInfo.metrics.pixels >=
+                  scrollInfo.metrics.maxScrollExtent - 200) {
+                ref
+                    .read(mediaLibraryNotifierProvider(_providerGuid).notifier)
+                    .loadMore();
               }
               return false;
             },
@@ -370,14 +388,16 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   child: Row(
                     children: [
                       FilterButton(
                         isSelected: _isFilterOpen,
                         selectedFilters: _selectedFilters,
                         onFilterClear: _onClearFilter,
-                        onClick: () => setState(() => _isFilterOpen = !_isFilterOpen),
+                        onClick: () =>
+                            setState(() => _isFilterOpen = !_isFilterOpen),
                       ),
                       const SizedBox(width: 8),
                       SortFlyout(
@@ -416,10 +436,12 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                             iso3166: _iso3166,
                             initialSelectedFilters: _selectedFilters,
                             onFilterChanged: (filters) {
-                              _selectedFilters = Map<String, FilterItem>.from(filters);
+                              _selectedFilters =
+                                  Map<String, FilterItem>.from(filters);
                               _refresh();
                             },
-                            onCollapse: () => setState(() => _isFilterOpen = false),
+                            onCollapse: () =>
+                                setState(() => _isFilterOpen = false),
                           ),
                         )
                       : const SizedBox(
@@ -432,7 +454,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                       : GridView.builder(
                           controller: _scrollController,
                           padding: EdgeInsets.all(16 * scaleFactor),
-                          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                          gridDelegate:
+                              SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: 180 * scaleFactor,
                             mainAxisSpacing: 8,
                             crossAxisSpacing: 0,
@@ -473,8 +496,6 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
               ],
             ),
           ),
-          // Toast overlay
-          ToastHost(toastManager: _toastManager),
         ],
       ),
     );
