@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
+import 'talker_async_dispatcher.dart';
 import 'talker_file_history.dart';
 import 'talker_formatter.dart';
 import 'talker_log_sanitizer.dart';
@@ -15,13 +16,24 @@ class AppTalker {
   AppTalker._();
 
   static const TalkerLogSanitizer _sanitizer = TalkerLogSanitizer();
+  static TalkerAsyncDispatcher _dispatcher = sharedTalkerAsyncDispatcher;
   static Talker? _instance;
+  static bool _desktopAsyncOutputEnabled = false;
+  static Future<String?> Function()? _logDirectoryResolverOverride;
 
   static Talker get instance => _instance ??= _createFallbackTalker();
 
   static Future<Talker> initialize() async {
     if (_instance != null) {
       return _instance!;
+    }
+
+    // Start desktop log I/O off the main isolate before wiring Talker outputs.
+    try {
+      await _dispatcher.initialize();
+      _desktopAsyncOutputEnabled = true;
+    } catch (_) {
+      _desktopAsyncOutputEnabled = false;
     }
 
     final logDirectoryPath = await _resolveLogDirectoryPath();
@@ -123,6 +135,11 @@ class AppTalker {
   }
 
   static Future<String?> _resolveLogDirectoryPath() async {
+    final overrideResolver = _logDirectoryResolverOverride;
+    if (overrideResolver != null) {
+      return overrideResolver();
+    }
+
     if (kIsWeb || !_isDesktopPlatform()) {
       return null;
     }
@@ -151,21 +168,52 @@ class AppTalker {
       return;
     }
 
+    // Route desktop logs through the async worker when it is available.
+    if (_isDesktopPlatform() &&
+        _desktopAsyncOutputEnabled &&
+        _dispatcher.enqueueDesktopConsoleLine(message)) {
+      return;
+    }
+
     switch (defaultTargetPlatform) {
       case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
         developer.log(message, name: 'Talker');
         break;
       case TargetPlatform.windows:
         // Windows debug output can synchronously block when the debugger pipe
-        // applies backpressure, so desktop file history remains the log sink.
+        // applies backpressure, so file history remains the fallback log sink.
         break;
       case TargetPlatform.android:
-      case TargetPlatform.linux:
       case TargetPlatform.fuchsia:
         debugPrint(message);
         break;
+      case TargetPlatform.macOS:
+      case TargetPlatform.linux:
+        debugPrint(message);
+        break;
     }
+  }
+
+  @visibleForTesting
+  static void debugSetDispatcherForTest(TalkerAsyncDispatcher dispatcher) {
+    _dispatcher = dispatcher;
+    _desktopAsyncOutputEnabled = false;
+  }
+
+  @visibleForTesting
+  static void debugSetLogDirectoryResolverForTest(
+    Future<String?> Function()? resolver,
+  ) {
+    _logDirectoryResolverOverride = resolver;
+  }
+
+  @visibleForTesting
+  static Future<void> debugResetForTest() async {
+    _instance = null;
+    _desktopAsyncOutputEnabled = false;
+    _logDirectoryResolverOverride = null;
+    await _dispatcher.dispose();
+    _dispatcher = sharedTalkerAsyncDispatcher;
   }
 
   static Talker _createFallbackTalker() {

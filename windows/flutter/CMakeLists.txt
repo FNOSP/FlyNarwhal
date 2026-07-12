@@ -167,10 +167,13 @@ add_dependencies(flutter_wrapper_app flutter_assemble)
 # Invoke the Flutter tool backend directly as a target because Visual Studio's
 # output-based custom command graph can deadlock on synthetic file rules.
 add_custom_target(flutter_assemble
-  COMMAND ${CMAKE_COMMAND} -E env
-    ${FLUTTER_TOOL_ENVIRONMENT}
-    "${FLUTTER_ROOT}/packages/flutter_tools/bin/tool_backend.bat"
-      ${FLUTTER_TARGET_PLATFORM} $<CONFIG>
+  # Run tool_backend from the project root so Flutter can resolve .dart_tool
+  # and other generated inputs using the same working directory as flutter CLI.
+  COMMAND ${CMAKE_COMMAND} -E chdir "${PROJECT_DIR}"
+    ${CMAKE_COMMAND} -E env
+      ${FLUTTER_TOOL_ENVIRONMENT}
+      "${FLUTTER_ROOT}/packages/flutter_tools/bin/tool_backend.bat"
+        ${FLUTTER_TARGET_PLATFORM} $<CONFIG>
   VERBATIM
 )
 
