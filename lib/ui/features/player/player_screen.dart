@@ -89,6 +89,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   static const Duration _hlsSubtitleInitTimeout = Duration(seconds: 5);
   static const Duration _directLinkEmbeddedSubtitleTracksTimeout =
       Duration(seconds: 3);
+  static const String _defaultMpvSubtitleFontSize = '60';
+  static const String _defaultMpvSubtitlePosition = '100';
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
   Player? _player;
@@ -242,6 +244,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _player = Player(
       configuration: const PlayerConfiguration(libass: true),
     );
+    await _applyDefaultMpvSubtitleSettings(_player!);
     _videoController = VideoController(_player!);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
@@ -252,6 +255,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (mounted) {
       _playerFocusNode.requestFocus();
     }
+  }
+
+  Future<void> _applyDefaultMpvSubtitleSettings(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer) {
+      return;
+    }
+
+    await platform.setProperty(
+      'sub-font-size',
+      _defaultMpvSubtitleFontSize,
+    );
+    await platform.setProperty(
+      'sub-pos',
+      _defaultMpvSubtitlePosition,
+    );
   }
 
   void _setupPlayerPositionListener() {

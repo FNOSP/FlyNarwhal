@@ -122,7 +122,7 @@ class SubtitleSettings {
 
   const SubtitleSettings({
     this.offsetSeconds = 0,
-    this.verticalPosition = 0.1,
+    this.verticalPosition = 0.02,
     this.fontScale = 1.0,
     this.fontSize = 24.0,
     this.fontColor = '#FFFFFF',
