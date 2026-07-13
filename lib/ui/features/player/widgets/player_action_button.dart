@@ -127,9 +127,10 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
     if (!lottieSourceChanged && !idleFrameChanged) return;
 
     if (_isHovered && widget.animateLottieOnHover && lottieSourceChanged) {
-      _animationController
-        ..reset()
-        ..forward();
+      _animationController.reset();
+      if (_animationController.duration != null) {
+        _animationController.forward();
+      }
       return;
     }
 
@@ -173,9 +174,10 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
       onEnter: (_) {
         setState(() => _isHovered = true);
         if (widget.lottieAssetPath != null && widget.animateLottieOnHover) {
-          _animationController
-            ..reset()
-            ..forward();
+          _animationController.reset();
+          if (_animationController.duration != null) {
+            _animationController.forward();
+          }
         }
       },
       onExit: (_) {
@@ -221,7 +223,11 @@ class _PlayerActionButtonState extends State<PlayerActionButton>
           ),
           onLoaded: (composition) {
             _animationController.duration = composition.duration;
-            if (!_isHovered) {
+            if (_isHovered && widget.animateLottieOnHover) {
+              _animationController
+                ..reset()
+                ..forward();
+            } else {
               _showIdleLottieFrame();
             }
           },

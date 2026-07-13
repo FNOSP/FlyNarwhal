@@ -21,6 +21,7 @@ const double _subtitleFlyoutBridgeHorizontalPadding = 12;
 const double _subtitleFlyoutPanelHeight = 390;
 const double _estimatedSubtitleFlyoutHeight = _subtitleFlyoutPanelHeight;
 const double _subtitleFlyoutItemExtent = 72;
+const double _subtitleSliderCenterSnapThreshold = 0.08;
 
 class SubtitleControlFlyout extends StatefulWidget {
   final List<SubtitleStream> subtitles;
@@ -943,7 +944,7 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                     showCenterMarker: true,
                     snapToCenter: true,
                     centerValue: 0,
-                    snapThreshold: 0.08,
+                    snapThreshold: _subtitleSliderCenterSnapThreshold,
                     onChanged: (value) => onSettingsChanged(
                       settings.copyWith(offsetSeconds: value),
                     ),
@@ -959,6 +960,10 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                     enabled: !isPositionLocked,
                     disabledHint:
                         isPositionLocked ? '当前字幕为弹幕/特效字幕（含定位标签），位置调整不可用' : null,
+                    showCenterMarker: true,
+                    snapToCenter: true,
+                    centerValue: 0.5,
+                    snapThreshold: 0.04,
                     onChanged: (value) => onSettingsChanged(
                       settings.copyWith(verticalPosition: value),
                     ),
@@ -971,6 +976,10 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                     max: 1.5,
                     leftLabel: '最小',
                     rightLabel: '最大',
+                    showCenterMarker: true,
+                    snapToCenter: true,
+                    centerValue: 1.0,
+                    snapThreshold: 0.04,
                     onChanged: (value) => onSettingsChanged(
                       settings.copyWith(
                         fontScale: value,

@@ -1878,6 +1878,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _lastRecordedPosition = recordStartMs;
       _suspendPlaybackTransitionFeedback = false;
 
+      // Start the initial idle countdown after playback state is finalized.
+      _showUi();
+
       _fetchEpisodeContextAsync(requestToken);
     } catch (e, st) {
       AppTalker.error(

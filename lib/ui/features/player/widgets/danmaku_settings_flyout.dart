@@ -12,7 +12,7 @@ enum DanmakuSettingsPage {
   advanced,
 }
 
-const Color _flyoutBackgroundColor = Color(0xD91D2323);
+const Color _flyoutBackgroundColor = Color(0xE6000000);
 const Color _flyoutBorderColor = Color(0x33FFFFFF);
 const int _hideDelayMs = 200;
 const int _animationDurationMs = 200;
@@ -495,13 +495,13 @@ class _DanmakuSettingsFlyoutContentState
             widget.onPageChanged(DanmakuSettingsPage.advanced);
           },
         ),
-        if (_statusText != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            _statusText!,
-            style: const TextStyle(color: Color(0xBFFFFFFF), fontSize: 13),
-          ),
-        ],
+        // if (_statusText != null) ...[
+        //   const SizedBox(height: 4),
+        //   Text(
+        //     _statusText!,
+        //     style: const TextStyle(color: Color(0xBFFFFFFF), fontSize: 13),
+        //   ),
+        // ],
         const SizedBox(height: 18),
         _buildSlider(
           key: const ValueKey('player-danmaku-area-control'),
