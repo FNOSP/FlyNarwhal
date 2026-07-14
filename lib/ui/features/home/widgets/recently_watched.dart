@@ -13,6 +13,7 @@ import '../../../shared/common/scroll_row.dart';
 const Color kAccentColorDefault = Color(0xFF2173DF);
 // Danger color for favorite state
 const Color kDangerDefaultColor = Color(0xFFFF0420);
+const double _hoverOverlayBleed = 1.0;
 
 class RecentlyWatched extends ConsumerWidget {
   final String title;
@@ -239,6 +240,7 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
             onPressed: () => _handleItemNavigation(context),
             builder: (context, states) {
               final isHovered = states.isHovered;
+
               return SizedBox(
                 width: posterWidth,
                 child: Column(
@@ -247,17 +249,19 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                     SizedBox(
                       width: posterWidth,
                       height: posterHeight,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14 * scaleFactor),
-                          border: Border.all(
-                              color: Colors.grey[160].withValues(alpha: 0.6)),
-                          color: Colors.grey[160],
-                        ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14 * scaleFactor),
                         clipBehavior: Clip.antiAlias,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.grey[160].withValues(alpha: 0.6),
+                            ),
+                            color: Colors.grey[160],
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
                             if (hasValidPath)
                               FnCachedImage(
                                 posterPath: resolvedPosterPath,
@@ -284,27 +288,33 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                           widthFactor: progress,
                                           alignment: Alignment.centerLeft,
                                           child: Container(
-                                              decoration: BoxDecoration(
-                                            color: const Color(0xFF2073DF),
-                                            borderRadius: BorderRadius.only(
-                                              topRight:
-                                                  Radius.circular(2.5),
-                                              bottomRight:
-                                                  Radius.circular(2.5),
+                                            decoration: const BoxDecoration(
+                                              color: Color(0xFF2073DF),
+                                              borderRadius: BorderRadius.only(
+                                                topRight: Radius.circular(2.5),
+                                                bottomRight:
+                                                    Radius.circular(2.5),
+                                              ),
                                             ),
-                                          )),
+                                          ),
                                         ),
                                     ],
                                   ),
                                 ),
                               ),
                             ),
-                            AnimatedOpacity(
-                              duration: const Duration(milliseconds: 200),
-                              opacity: isHovered ? 1 : 0,
-                              child: Container(
-                                color: const Color(0xFF1C1C1C)
-                                    .withValues(alpha: 0.5),
+                            Positioned.fill(
+                              left: -_hoverOverlayBleed,
+                              top: -_hoverOverlayBleed,
+                              right: -_hoverOverlayBleed,
+                              bottom: -_hoverOverlayBleed,
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 200),
+                                opacity: isHovered ? 1 : 0,
+                                child: ColoredBox(
+                                  color: const Color(0xFF1C1C1C)
+                                      .withValues(alpha: 0.5),
+                                ),
                               ),
                             ),
                             Center(
@@ -388,6 +398,7 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                         ),
                       ),
                     ),
+                  ),
                     const SizedBox(height: 8),
                     SizedBox(
                       width: posterWidth,

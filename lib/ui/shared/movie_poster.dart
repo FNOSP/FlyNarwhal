@@ -28,6 +28,7 @@ enum FnMediaType {
 const Color kAccentColorDefault = Color(0xFF2173DF);
 // Danger color for favorite state
 const Color kDangerDefaultColor = Color(0xFFFF0420);
+const double _hoverOverlayBleed = 1.0;
 
 class MoviePoster extends ConsumerStatefulWidget {
   final String? posterPath;
@@ -148,19 +149,22 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
+                SizedBox(
                   height: scaledHeight,
                   width: scaledWidth,
-                  decoration: BoxDecoration(
+                  child: ClipRRect(
                     borderRadius: BorderRadius.circular(14 * scaleFactor),
-                    border: Border.all(
-                        color: Colors.grey[160].withValues(alpha: 0.6)),
-                    color: Colors.grey[160],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
+                    clipBehavior: Clip.antiAlias,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.grey[160].withValues(alpha: 0.6),
+                        ),
+                        color: Colors.grey[160],
+                      ),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
                       if (hasValidPath)
                         FnCachedImage(
                           posterPath: resolvedPosterPath,
@@ -219,11 +223,18 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                           scaleFactor: scaleFactor,
                         ),
                       ),
-                      AnimatedOpacity(
-                        duration: const Duration(milliseconds: 200),
-                        opacity: isHovered ? 1 : 0,
-                        child: Container(
-                          color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
+                      Positioned.fill(
+                        left: -_hoverOverlayBleed,
+                        top: -_hoverOverlayBleed,
+                        right: -_hoverOverlayBleed,
+                        bottom: -_hoverOverlayBleed,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: isHovered ? 1 : 0,
+                          child: ColoredBox(
+                            color: const Color(0xFF1C1C1C)
+                                .withValues(alpha: 0.5),
+                          ),
                         ),
                       ),
                       // Show play button for Movie and Video types
@@ -317,6 +328,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                     ],
                   ),
                 ),
+              ),
+            ),
                 SizedBox(height: 8 * scaleFactor),
                 SizedBox(
                   width: scaledWidth,
