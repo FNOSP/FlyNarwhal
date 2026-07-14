@@ -95,6 +95,9 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout>
     if (oldWidget.isActiveControl && !widget.isActiveControl) {
       _forceCloseFlyout();
     }
+    if (widget.loadStatus == DanmakuLoadStatus.empty && _isExpanded) {
+      _forceCloseFlyout();
+    }
   }
 
   @override
@@ -330,32 +333,45 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout>
     widget.onHoverStateChanged?.call(false);
   }
 
+  bool get _isDanmakuSettingsDisabled {
+    return widget.loadStatus == DanmakuLoadStatus.empty;
+  }
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: _isDanmakuSettingsDisabled
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
       opaque: true,
       hitTestBehavior: HitTestBehavior.opaque,
       onEnter: (_) {
+        if (_isDanmakuSettingsDisabled) return;
         setState(() => _isButtonHovered = true);
         _showFlyout();
       },
       onExit: (_) {
+        if (_isDanmakuSettingsDisabled) return;
         setState(() => _isButtonHovered = false);
         _hideFlyoutWithDelay();
       },
       child: KeyedSubtree(
         key: _buttonKey,
         child: MouseRegion(
-          cursor: SystemMouseCursors.click,
+          cursor: _isDanmakuSettingsDisabled
+              ? SystemMouseCursors.basic
+              : SystemMouseCursors.click,
           opaque: true,
           child: PlayerActionButton.svg(
             key: const ValueKey('player-danmaku-settings'),
             svgAssetPath: 'assets/images/danmu_setting.svg',
-            onPressed: _toggleFlyout,
+            onPressed: _isDanmakuSettingsDisabled ? null : _toggleFlyout,
             tooltip: '弹幕设置',
             size: 30,
             iconSize: 20,
+            color: _isDanmakuSettingsDisabled
+                ? const Color(0x66FFFFFF)
+                : Colors.white,
           ),
         ),
       ),
