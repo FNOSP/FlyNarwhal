@@ -266,26 +266,51 @@ class _ToastItemState extends State<_ToastItem>
         curve: Curves.easeOutCubic,
       ),
     );
-    _restartLifecycle();
+    _showToastForTheFirstTime();
   }
 
   @override
   void didUpdateWidget(covariant _ToastItem oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.toast.revision != widget.toast.revision) {
-      _restartLifecycle();
+      _refreshToastLifetime();
     }
   }
 
-  void _restartLifecycle() {
-    _dismissTimer?.cancel();
+  int _dismissalGeneration = 0;
+
+  void _showToastForTheFirstTime() {
     _animationController.forward(from: 0);
-    _dismissTimer = Timer(widget.toast.duration, _dismissToast);
+    _scheduleDismissal();
   }
 
-  Future<void> _dismissToast() async {
-    await _animationController.reverse();
-    if (mounted) {
+  void _refreshToastLifetime() {
+    _dismissTimer?.cancel();
+    _dismissalGeneration++;
+
+    if (_animationController.status != AnimationStatus.completed) {
+      _animationController.forward();
+    }
+
+    _scheduleDismissal();
+  }
+
+  void _scheduleDismissal() {
+    final dismissalGeneration = _dismissalGeneration;
+    _dismissTimer = Timer(
+      widget.toast.duration,
+      () => _dismissToast(dismissalGeneration),
+    );
+  }
+
+  Future<void> _dismissToast(int dismissalGeneration) async {
+    try {
+      await _animationController.reverse();
+    } on TickerCanceled {
+      return;
+    }
+
+    if (mounted && dismissalGeneration == _dismissalGeneration) {
       widget.onDismiss();
     }
   }
@@ -317,7 +342,7 @@ class _ToastItemState extends State<_ToastItem>
           opacity: _opacityAnimation,
           child: Container(
             constraints: const BoxConstraints(minHeight: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             decoration: BoxDecoration(
               color: backgroundColor,
               borderRadius: BorderRadius.circular(8),
@@ -349,11 +374,15 @@ class _ToastItemState extends State<_ToastItem>
                 Flexible(
                   child: Text(
                     widget.toast.message,
+                    textHeightBehavior: const TextHeightBehavior(
+                      applyHeightToFirstAscent: false,
+                      applyHeightToLastDescent: false,
+                    ),
                     style: TextStyle(
                       color: textColor,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      height: 1.4,
+                      height: 1,
                     ),
                   ),
                 ),
