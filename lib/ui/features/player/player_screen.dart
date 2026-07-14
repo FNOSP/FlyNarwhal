@@ -2119,6 +2119,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  void _handleVideoDoubleTap() {
+    _playerFocusNode.requestFocus();
+
+    // Toggle fullscreen when the primary mouse button is double-clicked.
+    unawaited(_toggleFullscreen());
+  }
+
   void _seekRelative(int milliseconds) {
     if (_player == null) return;
     final current = _player!.state.position.inMilliseconds;
@@ -2755,10 +2762,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           cursor: playerCursor,
           onHover: (_) => _showUi(),
           child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () {
               _playerFocusNode.requestFocus();
               _togglePlayPause();
             },
+            onDoubleTap: _handleVideoDoubleTap,
             child: Container(
               color: Colors.black,
               child: _isInitialized && _videoController != null
