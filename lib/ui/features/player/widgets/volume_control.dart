@@ -3,7 +3,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/scheduler.dart';
 import 'player_action_button.dart';
 
-const Color _flyoutBackgroundColor = Color(0xE6000000);
+const Color _flyoutBackgroundColor = Color(0xCC000000);
 const Color _flyoutBorderColor = Color(0x80808080);
 const int _hideDelayMs = 200;
 const int _animationDurationMs = 200;

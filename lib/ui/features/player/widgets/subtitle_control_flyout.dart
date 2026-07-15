@@ -7,7 +7,7 @@ import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 
-const Color _subtitleFlyoutBackgroundColor = Color(0xE6000000);
+const Color _subtitleFlyoutBackgroundColor = Color(0xCC000000);
 const Color _subtitleFlyoutBorderColor = Color(0x80808080);
 const Color _subtitleSelectedTextColor = Color(0xFF2073DF);
 const Color _subtitleDefaultTextColor = Color(0xC8FFFFFF);

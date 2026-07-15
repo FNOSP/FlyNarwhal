@@ -2,6 +2,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../../../../data/models/subtitle_models.dart';
 import '../../../shared/common/app_loading_progress_ring.dart';
 
+const Color _dialogBackgroundColor = Color(0xCC000000);
+
 enum _SubtitleDownloadStatus { idle, downloading, done }
 
 class SubtitleSearchDialog extends StatefulWidget {
@@ -94,6 +96,13 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
   @override
   Widget build(BuildContext context) {
     return ContentDialog(
+      // Keep the dialog surface consistent with player flyouts.
+      style: const ContentDialogThemeData(
+        decoration: BoxDecoration(
+          color: _dialogBackgroundColor,
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+      ),
       title: const Text('搜索字幕'),
       content: SizedBox(
         width: 720,

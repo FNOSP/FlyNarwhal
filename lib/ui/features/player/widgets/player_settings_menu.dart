@@ -7,7 +7,7 @@ import '../../../../data/models/movie_detail_models.dart';
 import 'player_action_button.dart';
 import 'player_settings_components.dart';
 
-const Color _flyoutBackgroundColor = Color(0xE6000000);
+const Color _flyoutBackgroundColor = Color(0xCC000000);
 const Color _flyoutBorderColor = Color(0x80808080);
 const Color _selectedTextColor = Color(0xFF2073DF);
 const Color _defaultTextColor = Color(0xC8FFFFFF);

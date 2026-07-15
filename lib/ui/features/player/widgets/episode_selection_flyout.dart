@@ -8,7 +8,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import '../../../../core/utils/date_utils.dart';
 import '../../../../data/models/episode_list_response.dart';
 
-const Color _episodeFlyoutBackgroundColor = Color(0xD91D2323);
+const Color _episodeFlyoutBackgroundColor = Color(0xCC000000);
 const Color _episodeFlyoutBorderColor = Color(0x33FFFFFF);
 const Color _episodeSelectedTextColor = Color(0xFF2073DF);
 const Color _episodeDefaultTextColor = Color(0xC8FFFFFF);

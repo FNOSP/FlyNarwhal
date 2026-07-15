@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../../../data/models/player_models.dart';
 
-const Color _flyoutBackgroundColor = Color(0xE6000000);
+const Color _flyoutBackgroundColor = Color(0xCC000000);
 const Color _flyoutBorderColor = Color(0x80808080);
 const Color _selectedTextColor = Color(0xFF2073DF);
 const Color _defaultTextColor = Color(0xC8FFFFFF);

@@ -8,7 +8,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import '../../../../data/models/episode_list_response.dart';
 import 'player_action_button.dart';
 
-const Color _flyoutBackgroundColor = Color(0xE6000000);
+const Color _flyoutBackgroundColor = Color(0xCC000000);
 const Color _flyoutBorderColor = Color(0x80808080);
 const Color _secondaryTextColor = Color(0xB3FFFFFF);
 const BorderRadius _flyoutBorderRadius = BorderRadius.all(Radius.circular(8));
