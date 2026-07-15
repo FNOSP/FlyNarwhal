@@ -3527,50 +3527,67 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Reduce the top inset on macOS so the custom caption content lines up
     // more closely with the native traffic-light buttons.
     final topPadding = _isMacOS ? 6.0 : 12.0;
+    final topBarContentHeight = _isMacOS ? 30.0 : 36.0;
+    final topBarDragHeight = topPadding + topBarContentHeight;
+
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, topPadding, 16, 0),
-        child: SizedBox(
-          height: 36,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: DragToMoveArea(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 720),
-                      child: RichText(
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        text: _buildTitleSpan(),
+      child: SizedBox(
+        height: topBarDragHeight,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: DragToMoveArea(
+                child: const SizedBox.expand(),
+              ),
+            ),
+            Positioned(
+              top: topPadding,
+              left: 16,
+              right: 16,
+              height: topBarContentHeight,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 720),
+                          child: RichText(
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            text: _buildTitleSpan(),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (leftInset > 0) SizedBox(width: leftInset),
+                        _buildBackButton(),
+                      ],
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: WindowCaptionPinButton(
+                      key: const ValueKey(
+                        'player-window-caption-pin-button',
+                      ),
+                      brightness: Brightness.dark,
+                      buttonSize: _isMacOS ? 30 : 34,
+                      iconSize: _isMacOS ? 16 : 18,
+                      borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
+                    ),
+                  ),
+                ],
               ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (leftInset > 0) SizedBox(width: leftInset),
-                    _buildBackButton(),
-                  ],
-                ),
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: WindowCaptionPinButton(
-                  key: const ValueKey('player-window-caption-pin-button'),
-                  brightness: Brightness.dark,
-                  buttonSize: _isMacOS ? 30 : 34,
-                  iconSize: _isMacOS ? 16 : 18,
-                  borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
