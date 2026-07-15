@@ -20,8 +20,6 @@ const double _settingsFlyoutWidth = 320;
 const double _settingsFlyoutMinBridgeWidth = 56;
 const double _settingsFlyoutBridgeHorizontalPadding = 12;
 const double _estimatedSettingsFlyoutHeight = 300;
-const Color _selectedItemBackgroundColor = Color(0x1F2073DF);
-const Color _selectedItemBorderColor = Color(0x992073DF);
 
 class PlayerAudioDisplayTexts {
   final String summaryText;
@@ -443,10 +441,9 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
           setState(() => _currentScreen = screen);
           _requestOverlayRebuild();
         },
+        // Keep the audio flyout open for continuous track switching.
         onAudioSelected: (audio) {
-          _setPopupHovered(false);
           widget.onAudioSelected(audio);
-          _closeMenu();
         },
         onWindowAspectRatioChanged: (ratio) {
           _setPopupHovered(false);
@@ -747,7 +744,7 @@ class _SettingsMenuItemState extends State<_SettingsMenuItem> {
   }
 }
 
-class _AudioSettingsScreen extends StatelessWidget {
+class _AudioSettingsScreen extends StatefulWidget {
   final PlayingInfoCache? playingInfoCache;
   final Map<String, String>? iso6391Map;
   final Map<String, String>? iso6392Map;
@@ -763,9 +760,34 @@ class _AudioSettingsScreen extends StatelessWidget {
   });
 
   @override
+  State<_AudioSettingsScreen> createState() => _AudioSettingsScreenState();
+}
+
+class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
+  AudioStream? _selectedAudioStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedAudioStream = widget.playingInfoCache?.currentAudioStream;
+  }
+
+  @override
+  void didUpdateWidget(covariant _AudioSettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextSelectedAudio = widget.playingInfoCache?.currentAudioStream;
+    final previousSelectedAudio =
+        oldWidget.playingInfoCache?.currentAudioStream;
+    if (!_isSameAudioStream(previousSelectedAudio, nextSelectedAudio)) {
+      _selectedAudioStream = nextSelectedAudio;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final audioList = playingInfoCache?.currentAudioStreamList ?? [];
-    final currentAudioStream = playingInfoCache?.currentAudioStream;
+    final audioList = widget.playingInfoCache?.currentAudioStreamList ?? [];
+    final currentAudioStream =
+        _selectedAudioStream ?? widget.playingInfoCache?.currentAudioStream;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -773,7 +795,7 @@ class _AudioSettingsScreen extends StatelessWidget {
         MouseRegion(
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
-            onTap: onBack,
+            onTap: widget.onBack,
             child: const Row(
               children: [
                 Icon(
@@ -798,12 +820,12 @@ class _AudioSettingsScreen extends StatelessWidget {
         const Divider(),
         const SizedBox(height: 10),
         ...audioList.map((audio) {
-          final isSelected = currentAudioStream?.guid.isNotEmpty == true &&
-                  audio.guid.isNotEmpty
-              ? currentAudioStream?.guid == audio.guid
-              : currentAudioStream?.index == audio.index;
-          final audioDisplayTexts =
-              buildPlayerAudioDisplayTexts(audio, iso6391Map, iso6392Map);
+          final isSelected = _isSameAudioStream(currentAudioStream, audio);
+          final audioDisplayTexts = buildPlayerAudioDisplayTexts(
+            audio,
+            widget.iso6391Map,
+            widget.iso6392Map,
+          );
 
           return KeyedSubtree(
             key: ValueKey(
@@ -816,12 +838,26 @@ class _AudioSettingsScreen extends StatelessWidget {
               secondaryLeadingText: audioDisplayTexts.secondaryLeadingText,
               secondaryTrailingText: audioDisplayTexts.secondaryTrailingText,
               isSelected: isSelected,
-              onClick: () => onAudioSelected(audio),
+              onClick: () {
+                // Update selection immediately before async state flows back.
+                setState(() => _selectedAudioStream = audio);
+                widget.onAudioSelected(audio);
+              },
             ),
           );
         }),
       ],
     );
+  }
+
+  bool _isSameAudioStream(AudioStream? left, AudioStream? right) {
+    if (left == null || right == null) {
+      return false;
+    }
+    if (left.guid.isNotEmpty && right.guid.isNotEmpty) {
+      return left.guid == right.guid;
+    }
+    return left.index == right.index;
   }
 }
 
@@ -863,17 +899,10 @@ class _AudioItemState extends State<_AudioItem> {
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
           margin: const EdgeInsets.only(bottom: 6),
           decoration: BoxDecoration(
-            color: widget.isSelected
-                ? _selectedItemBackgroundColor
-                : _isHovered
-                    ? _hoverBackgroundColor
-                    : Colors.transparent,
+            color: _isHovered || widget.isSelected
+                ? _hoverBackgroundColor
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: widget.isSelected
-                  ? _selectedItemBorderColor
-                  : Colors.transparent,
-            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

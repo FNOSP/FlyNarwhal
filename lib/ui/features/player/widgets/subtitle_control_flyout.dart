@@ -462,7 +462,6 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
               }),
               onSubtitleSelected: (guid) {
                 widget.onSubtitleSelected(guid);
-                _closeAfterAction();
               },
               onOpenSubtitleSearch: () {
                 widget.onOpenSubtitleSearch();
