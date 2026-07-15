@@ -2932,136 +2932,136 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   : const Center(child: AppLoadingProgressRing()),
             ),
           ),
-        Positioned.fill(
-          child: IgnorePointer(
-            child: ValueListenableBuilder<Duration>(
-              valueListenable: _danmakuPosition,
-              builder: (context, position, _) {
-                return PlayerDanmakuOverlay(
-                  danmakuList: danmakuState.danmakuList,
-                  position: position,
-                  isPlaying: _isPlaying,
-                  playbackRate: _speed,
-                  isVisible: danmakuState.isVisible,
-                  settings: danmakuState.settings,
-                  loadStatus: danmakuState.loadStatus,
-                  resetGeneration: _danmakuResetGeneration,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ValueListenableBuilder<Duration>(
+                valueListenable: _danmakuPosition,
+                builder: (context, position, _) {
+                  return PlayerDanmakuOverlay(
+                    danmakuList: danmakuState.danmakuList,
+                    position: position,
+                    isPlaying: _isPlaying,
+                    playbackRate: _speed,
+                    isVisible: danmakuState.isVisible,
+                    settings: danmakuState.settings,
+                    loadStatus: danmakuState.loadStatus,
+                    resetGeneration: _danmakuResetGeneration,
+                  );
+                },
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: ValueListenableBuilder<List<String>>(
+              valueListenable: _hlsSubtitleTexts,
+              builder: (context, lines, _) {
+                return PlayerSubtitleOverlay(
+                  lines: lines,
+                  visible: _useHlsSubtitleOverlay,
+                  settings: subtitleSettings,
                 );
               },
             ),
           ),
-        ),
-        Positioned.fill(
-          child: ValueListenableBuilder<List<String>>(
-            valueListenable: _hlsSubtitleTexts,
-            builder: (context, lines, _) {
-              return PlayerSubtitleOverlay(
-                lines: lines,
-                visible: _useHlsSubtitleOverlay,
-                settings: subtitleSettings,
-              );
-            },
-          ),
-        ),
-        // Keep subtitle switches visually lightweight and avoid blocking the video.
-        if (_isLoading && !_isSubtitleSwitching)
-          const Center(child: AppLoadingProgressRing()),
-        Positioned.fill(
-          child: IgnorePointer(
-            child: Center(
-              child: _buildPlaybackIndicator(),
+          // Keep subtitle switches visually lightweight and avoid blocking the
+          // video.
+          if (_isLoading && !_isSubtitleSwitching)
+            const Center(child: AppLoadingProgressRing()),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Center(
+                child: _buildPlaybackIndicator(),
+              ),
             ),
           ),
-        ),
-        if (_isInitialized && !_isPipMode)
-          AnimatedOpacity(
-            opacity: overlayState.isUiVisible ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    height: 112,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.7),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: _buildTopBar(),
-                ),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    height: 168,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.7),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: MouseRegion(
-                    onEnter: (_) {
-                      _overlayController.setHovered(
-                        PlayerHoverZone.bottomControls,
-                        true,
-                      );
-                      _showUi();
-                    },
-                    onExit: (_) => _overlayController.setHovered(
-                      PlayerHoverZone.bottomControls,
-                      false,
-                    ),
-                    child: SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildProgressBar(),
-                            const SizedBox(height: 12),
-                            _buildControlButtons(
-                              overlayState: overlayState,
-                              subtitleSettings: subtitleSettings,
-                              danmakuState: danmakuState,
-                            ),
+          if (_isInitialized && !_isPipMode)
+            AnimatedOpacity(
+              opacity: overlayState.isUiVisible ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 112,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.7),
+                            Colors.transparent,
                           ],
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: _buildTopBar(),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 168,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.7),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: MouseRegion(
+                      onEnter: (_) {
+                        _overlayController.setHovered(
+                          PlayerHoverZone.bottomControls,
+                          true,
+                        );
+                        _showUi();
+                      },
+                      onExit: (_) => _overlayController.setHovered(
+                        PlayerHoverZone.bottomControls,
+                        false,
+                      ),
+                      child: SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildProgressBar(),
+                              const SizedBox(height: 12),
+                              _buildControlButtons(
+                                overlayState: overlayState,
+                                subtitleSettings: subtitleSettings,
+                                danmakuState: danmakuState,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        if (_isInitialized && _isPipMode) _buildPipOverlay(),
-      ],
-        ),
+          if (_isInitialized && _isPipMode) _buildPipOverlay(),
+        ],
       ),
     );
 
@@ -3473,6 +3473,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         PlayerSettingsMenu(
           playingInfoCache: _playingInfoCache,
           iso6391Map: _iso6391Map,
+          iso6392Map: _iso6392Map,
           currentPositionMillis: _currentPosition,
           totalDurationMillis: _duration,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
@@ -3689,8 +3690,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   bool _isDesktopPlatform() {
+    // Use Flutter target platform checks to avoid relying on dart:io in UI code.
     return !kIsWeb &&
-        (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux ||
+            defaultTargetPlatform == TargetPlatform.macOS);
   }
 
   @override

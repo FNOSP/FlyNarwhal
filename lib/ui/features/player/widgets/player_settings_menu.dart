@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/scheduler.dart';
+import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import 'player_action_button.dart';
@@ -19,6 +20,98 @@ const double _settingsFlyoutWidth = 320;
 const double _settingsFlyoutMinBridgeWidth = 56;
 const double _settingsFlyoutBridgeHorizontalPadding = 12;
 const double _estimatedSettingsFlyoutHeight = 300;
+const Color _selectedItemBackgroundColor = Color(0x1F2073DF);
+const Color _selectedItemBorderColor = Color(0x992073DF);
+
+class PlayerAudioDisplayTexts {
+  final String summaryText;
+  final String primaryText;
+  final String secondaryLeadingText;
+  final String secondaryTrailingText;
+
+  const PlayerAudioDisplayTexts({
+    required this.summaryText,
+    required this.primaryText,
+    required this.secondaryLeadingText,
+    required this.secondaryTrailingText,
+  });
+}
+
+// Build consistent summary and detail texts for audio tracks.
+PlayerAudioDisplayTexts buildPlayerAudioDisplayTexts(
+  AudioStream? audio,
+  Map<String, String>? iso6391Map,
+  Map<String, String>? iso6392Map,
+) {
+  if (audio == null) {
+    return const PlayerAudioDisplayTexts(
+      summaryText: '未知',
+      primaryText: '未知',
+      secondaryLeadingText: '',
+      secondaryTrailingText: '',
+    );
+  }
+
+  final languageName = _getPlayerAudioLanguageName(
+    audio.language,
+    iso6391Map,
+    iso6392Map,
+  );
+  final technicalSummary = _joinAudioParts([
+    audio.codecName,
+    audio.channelLayout,
+  ]);
+  final readableTitle = audio.title.trim().isNotEmpty
+      ? audio.title.trim()
+      : _buildPlayerAudioReadableTitle(languageName, audio);
+  final primaryText =
+      audio.isDefault == 1 ? '$languageName - 默认' : languageName;
+
+  return PlayerAudioDisplayTexts(
+    summaryText: _joinAudioParts([languageName, technicalSummary]),
+    primaryText: primaryText,
+    secondaryLeadingText: technicalSummary,
+    secondaryTrailingText: readableTitle,
+  );
+}
+
+String _getPlayerAudioLanguageName(
+  String? code,
+  Map<String, String>? iso6391Map,
+  Map<String, String>? iso6392Map,
+) {
+  return FnDataConvertor.getLanguageName(
+    code,
+    iso6391Map ?? const <String, String>{},
+    iso6392Map ?? const <String, String>{},
+  );
+}
+
+String _buildPlayerAudioReadableTitle(String languageName, AudioStream audio) {
+  final readableProfile = _joinAudioParts([
+    audio.profile,
+    audio.channelLayout,
+  ]);
+  final trailing = readableProfile.isNotEmpty
+      ? readableProfile
+      : _joinAudioParts([
+          audio.audioType,
+          audio.channelLayout,
+        ]);
+
+  if (trailing.isEmpty) {
+    return languageName;
+  }
+
+  return '$languageName ($trailing)';
+}
+
+String _joinAudioParts(List<String?> parts) {
+  return parts
+      .map((part) => part?.trim() ?? '')
+      .where((part) => part.isNotEmpty)
+      .join(' ');
+}
 
 class PlayerSettingsMenu extends StatefulWidget {
   final PlayingInfoCache? playingInfoCache;
@@ -35,11 +128,13 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool isAutoPlay;
   final void Function(bool enabled)? onAutoPlayChanged;
   final Map<String, String>? iso6391Map;
+  final Map<String, String>? iso6392Map;
 
   const PlayerSettingsMenu({
     super.key,
     required this.playingInfoCache,
     this.iso6391Map,
+    this.iso6392Map,
     required this.currentPositionMillis,
     required this.totalDurationMillis,
     this.popupBottomOffset = 70,
@@ -340,6 +435,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         key: ValueKey(_currentScreen),
         playingInfoCache: widget.playingInfoCache,
         iso6391Map: widget.iso6391Map,
+        iso6392Map: widget.iso6392Map,
         currentPositionMillis: widget.currentPositionMillis,
         totalDurationMillis: widget.totalDurationMillis,
         currentScreen: _currentScreen,
@@ -397,6 +493,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
 class _SettingsFlyoutContent extends StatelessWidget {
   final PlayingInfoCache? playingInfoCache;
   final Map<String, String>? iso6391Map;
+  final Map<String, String>? iso6392Map;
   final int currentPositionMillis;
   final int totalDurationMillis;
   final String currentScreen;
@@ -414,6 +511,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
     super.key,
     required this.playingInfoCache,
     required this.iso6391Map,
+    required this.iso6392Map,
     required this.currentPositionMillis,
     required this.totalDurationMillis,
     required this.currentScreen,
@@ -450,6 +548,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
         return _AudioSettingsScreen(
           playingInfoCache: playingInfoCache,
           iso6391Map: iso6391Map,
+          iso6392Map: iso6392Map,
           onBack: () => onNavigate('Main'),
           onAudioSelected: onAudioSelected,
         );
@@ -473,6 +572,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
         return _MainSettingsScreen(
           playingInfoCache: playingInfoCache,
           iso6391Map: iso6391Map,
+          iso6392Map: iso6392Map,
           smartSkipEnabled: smartSkipEnabled,
           isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
           isAutoPlay: isAutoPlay,
@@ -488,6 +588,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
 class _MainSettingsScreen extends StatelessWidget {
   final PlayingInfoCache? playingInfoCache;
   final Map<String, String>? iso6391Map;
+  final Map<String, String>? iso6392Map;
   final bool smartSkipEnabled;
   final bool isSmartAnalysisGloballyEnabled;
   final bool isAutoPlay;
@@ -499,6 +600,7 @@ class _MainSettingsScreen extends StatelessWidget {
   const _MainSettingsScreen({
     required this.playingInfoCache,
     required this.iso6391Map,
+    required this.iso6392Map,
     required this.smartSkipEnabled,
     required this.isSmartAnalysisGloballyEnabled,
     required this.isAutoPlay,
@@ -511,12 +613,8 @@ class _MainSettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentAudio = playingInfoCache?.currentAudioStream;
-    final language = currentAudio != null
-        ? _getLanguageName(currentAudio.language, iso6391Map)
-        : '未知';
-    final audioDetails = currentAudio != null
-        ? '${currentAudio.codecName} ${currentAudio.channelLayout}'
-        : '';
+    final audioDisplayTexts =
+        buildPlayerAudioDisplayTexts(currentAudio, iso6391Map, iso6392Map);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -545,16 +643,11 @@ class _MainSettingsScreen extends StatelessWidget {
         _SettingsMenuItem(
           key: const ValueKey('player-settings-audio'),
           title: '音频',
-          value: '$language $audioDetails',
+          value: audioDisplayTexts.summaryText,
           onClick: onNavigateToAudio,
         ),
       ],
     );
-  }
-
-  String _getLanguageName(String? code, Map<String, String>? isoMap) {
-    if (code == null || code.isEmpty) return '未知';
-    return isoMap?[code] ?? code;
   }
 
   String _getSkipText(PlayConfig? config) {
@@ -611,27 +704,40 @@ class _SettingsMenuItemState extends State<_SettingsMenuItem> {
             borderRadius: BorderRadius.circular(4),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 widget.title,
                 style: const TextStyle(color: _defaultTextColor, fontSize: 14),
               ),
-              Row(
-                children: [
-                  if (widget.value != null)
-                    Text(
-                      widget.value!,
-                      style: const TextStyle(
-                          color: _defaultTextColor, fontSize: 14),
-                    ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    FluentIcons.chevron_right,
-                    size: 16,
-                    color: _defaultTextColor,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.value != null)
+                        Flexible(
+                          child: Text(
+                            widget.value!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                              color: _defaultTextColor,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        FluentIcons.chevron_right,
+                        size: 16,
+                        color: _defaultTextColor,
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ],
           ),
@@ -644,12 +750,14 @@ class _SettingsMenuItemState extends State<_SettingsMenuItem> {
 class _AudioSettingsScreen extends StatelessWidget {
   final PlayingInfoCache? playingInfoCache;
   final Map<String, String>? iso6391Map;
+  final Map<String, String>? iso6392Map;
   final VoidCallback onBack;
   final void Function(AudioStream) onAudioSelected;
 
   const _AudioSettingsScreen({
     required this.playingInfoCache,
     required this.iso6391Map,
+    required this.iso6392Map,
     required this.onBack,
     required this.onAudioSelected,
   });
@@ -688,14 +796,14 @@ class _AudioSettingsScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         const Divider(),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         ...audioList.map((audio) {
           final isSelected = currentAudioStream?.guid.isNotEmpty == true &&
                   audio.guid.isNotEmpty
               ? currentAudioStream?.guid == audio.guid
               : currentAudioStream?.index == audio.index;
-          final language = _getLanguageName(audio.language, iso6391Map);
-          final label = '$language ${audio.codecName} ${audio.channelLayout}';
+          final audioDisplayTexts =
+              buildPlayerAudioDisplayTexts(audio, iso6391Map, iso6392Map);
 
           return KeyedSubtree(
             key: ValueKey(
@@ -704,7 +812,9 @@ class _AudioSettingsScreen extends StatelessWidget {
                   : 'player-audio-option-index-${audio.index}',
             ),
             child: _AudioItem(
-              label: label,
+              primaryText: audioDisplayTexts.primaryText,
+              secondaryLeadingText: audioDisplayTexts.secondaryLeadingText,
+              secondaryTrailingText: audioDisplayTexts.secondaryTrailingText,
               isSelected: isSelected,
               onClick: () => onAudioSelected(audio),
             ),
@@ -713,20 +823,19 @@ class _AudioSettingsScreen extends StatelessWidget {
       ],
     );
   }
-
-  String _getLanguageName(String? code, Map<String, String>? isoMap) {
-    if (code == null || code.isEmpty) return '未知';
-    return isoMap?[code] ?? code;
-  }
 }
 
 class _AudioItem extends StatefulWidget {
-  final String label;
+  final String primaryText;
+  final String secondaryLeadingText;
+  final String secondaryTrailingText;
   final bool isSelected;
   final VoidCallback onClick;
 
   const _AudioItem({
-    required this.label,
+    required this.primaryText,
+    required this.secondaryLeadingText,
+    required this.secondaryTrailingText,
     required this.isSelected,
     required this.onClick,
   });
@@ -740,6 +849,10 @@ class _AudioItemState extends State<_AudioItem> {
 
   @override
   Widget build(BuildContext context) {
+    final textColor =
+        widget.isSelected ? _selectedTextColor : _defaultTextColor;
+    final secondaryOpacity = widget.isSelected ? 1.0 : 0.82;
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
@@ -747,31 +860,68 @@ class _AudioItemState extends State<_AudioItem> {
       child: GestureDetector(
         onTap: widget.onClick,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          margin: const EdgeInsets.only(bottom: 4),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+          margin: const EdgeInsets.only(bottom: 6),
           decoration: BoxDecoration(
-            color: _isHovered ? _hoverBackgroundColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
+            color: widget.isSelected
+                ? _selectedItemBackgroundColor
+                : _isHovered
+                    ? _hoverBackgroundColor
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: widget.isSelected
+                  ? _selectedItemBorderColor
+                  : Colors.transparent,
+            ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.label,
+                widget.primaryText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: widget.isSelected
-                      ? _selectedTextColor
-                      : _defaultTextColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              if (widget.isSelected)
-                const Icon(
-                  FluentIcons.check_mark,
-                  size: 16,
-                  color: _selectedTextColor,
-                ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  if (widget.secondaryLeadingText.isNotEmpty)
+                    Flexible(
+                      flex: 3,
+                      child: Text(
+                        widget.secondaryLeadingText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: textColor.withValues(alpha: secondaryOpacity),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  if (widget.secondaryLeadingText.isNotEmpty &&
+                      widget.secondaryTrailingText.isNotEmpty)
+                    const SizedBox(width: 16),
+                  if (widget.secondaryTrailingText.isNotEmpty)
+                    Flexible(
+                      flex: 5,
+                      child: Text(
+                        widget.secondaryTrailingText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: textColor.withValues(alpha: secondaryOpacity),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
