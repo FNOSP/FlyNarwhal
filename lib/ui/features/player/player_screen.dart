@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io' show File, FileMode, Platform;
 
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
@@ -95,9 +93,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       Duration(seconds: 3);
   static const String _defaultMpvSubtitleFontSize = '60';
   static const String _defaultMpvSubtitlePosition = '100';
-  static const String _debugSessionId = 'dbc870';
-  static const String _debugLogPath =
-      r'd:\WorkSpace\personal\FlyNarwhal-flutter\.cursor\debug-dbc870.log';
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
   Player? _player;
@@ -188,36 +183,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   PlayerSessionCoordinator get _sessionCoordinator =>
       ref.read(playerSessionCoordinatorProvider);
-
-  // region debug-session-dbc870
-  void _writeAudioStartupDebugLog({
-    required String hypothesisId,
-    required String location,
-    required String message,
-    required Map<String, Object?> data,
-  }) {
-    if (!Platform.isWindows) {
-      return;
-    }
-    final payload = <String, Object?>{
-      'sessionId': _debugSessionId,
-      'hypothesisId': hypothesisId,
-      'location': location,
-      'message': message,
-      'data': data,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    };
-    try {
-      File(_debugLogPath).writeAsStringSync(
-        '${jsonEncode(payload)}\n',
-        mode: FileMode.append,
-        flush: true,
-      );
-    } catch (_) {
-      // Debug logging must never affect playback.
-    }
-  }
-  // endregion
 
   @override
   void initState() {
@@ -860,31 +825,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         httpHeaders: headers.isEmpty ? null : headers,
       ),
     );
-    // region debug-session-dbc870
-    _writeAudioStartupDebugLog(
-      hypothesisId: 'H2_H3_H4',
-      location: 'player_screen.dart:_openMediaWithResume',
-      message: 'player opened before startup audio alignment',
-      data: {
-        'isDirectLink': _playingInfoCache?.isUseDirectLink,
-        'cacheAudioGuid': _playingInfoCache?.currentAudioStream?.guid,
-        'cacheAudioIndex': _playingInfoCache?.currentAudioStream?.index,
-        'selectedAudioGuid': _selectedAudioGuid,
-        'actualTrackId': player.state.track.audio.id,
-        'actualTrackTitle': player.state.track.audio.title,
-        'actualTrackLanguage': player.state.track.audio.language,
-        'availableTracks': player.state.tracks.audio
-            .map((track) => {
-                  'id': track.id,
-                  'title': track.title,
-                  'language': track.language,
-                  'codec': track.codec,
-                  'channels': track.channelscount,
-                })
-            .toList(growable: false),
-      },
-    );
-    // endregion
     _setupDirectLinkEmbeddedSubtitleTracking();
     if (_playingInfoCache?.isUseDirectLink == true) {
       await _applyInitialDirectLinkAudioTrack();
@@ -1867,22 +1807,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _playInfo = result.playInfo;
       _streamInfo = result.streamInfo;
       _playingInfoCache = result.playingInfoCache;
-      // region debug-session-dbc870
-      _writeAudioStartupDebugLog(
-        hypothesisId: 'H1_H2',
-        location: 'player_screen.dart:_loadAndPlayMedia',
-        message: 'resolved startup audio selection',
-        data: {
-          'isDirectLink': result.playingInfoCache.isUseDirectLink,
-          'routeAudioGuid': _requestedAudioGuid,
-          'resultAudioGuid': result.audioGuid,
-          'cacheAudioGuid': result.playingInfoCache.currentAudioStream?.guid,
-          'cacheAudioIndex': result.playingInfoCache.currentAudioStream?.index,
-          'audioStreamCount':
-              result.playingInfoCache.currentAudioStreamList.length,
-        },
-      );
-      // endregion
       final flyNarwhalSettings = ref.read(settingsProvider);
       if (flyNarwhalSettings.flyNarwhalServerEnabled &&
           flyNarwhalSettings.flyNarwhalServerBaseUrl.isNotEmpty &&
@@ -1957,22 +1881,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _currentEpisode = result.currentEpisode;
         _nextEpisode = result.nextEpisode;
       });
-      // region debug-session-dbc870
-      _writeAudioStartupDebugLog(
-        hypothesisId: 'H1_H2_H3',
-        location: 'player_screen.dart:_loadAndPlayMedia:finalized',
-        message: 'startup UI audio and player audio finalized',
-        data: {
-          'selectedAudioGuid': _selectedAudioGuid,
-          'cacheAudioGuid': _playingInfoCache?.currentAudioStream?.guid,
-          'cacheAudioIndex': _playingInfoCache?.currentAudioStream?.index,
-          'actualTrackId': _player?.state.track.audio.id,
-          'actualTrackTitle': _player?.state.track.audio.title,
-          'actualTrackLanguage': _player?.state.track.audio.language,
-        },
-      );
-      // endregion
-
       _startPlayRecordTimer();
       // Immediately record playback start, using at least 1s to avoid zero-second record.
       final recordStartMs = startMs > 0 ? startMs : 1000;
@@ -2761,14 +2669,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _applyInitialDirectLinkAudioTrack() async {
     final targetAudio = _playingInfoCache?.currentAudioStream;
     if (targetAudio == null) {
-      // region debug-session-dbc870
-      _writeAudioStartupDebugLog(
-        hypothesisId: 'H2',
-        location: 'player_screen.dart:_applyInitialDirectLinkAudioTrack',
-        message: 'startup audio alignment skipped without target audio',
-        data: const {},
-      );
-      // endregion
       return;
     }
 
@@ -2782,34 +2682,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return;
       }
       await _applyDirectLinkAudioTrack(targetTrack);
-      // region debug-session-dbc870
-      _writeAudioStartupDebugLog(
-        hypothesisId: 'H2_H4',
-        location: 'player_screen.dart:_applyInitialDirectLinkAudioTrack',
-        message: 'startup audio alignment applied',
-        data: {
-          'targetAudioGuid': targetAudio.guid,
-          'targetAudioIndex': targetAudio.index,
-          'resolvedTrackId': targetTrack.id,
-          'resolvedTrackTitle': targetTrack.title,
-          'actualTrackId': _player?.state.track.audio.id,
-        },
-      );
-      // endregion
     } catch (error, stackTrace) {
-      // region debug-session-dbc870
-      _writeAudioStartupDebugLog(
-        hypothesisId: 'H2_H4',
-        location: 'player_screen.dart:_applyInitialDirectLinkAudioTrack',
-        message: 'startup audio alignment failed',
-        data: {
-          'targetAudioGuid': targetAudio.guid,
-          'targetAudioIndex': targetAudio.index,
-          'errorType': error.runtimeType.toString(),
-          'error': error.toString(),
-        },
-      );
-      // endregion
       AppTalker.error(
         'Player',
         error: error,
@@ -3035,12 +2908,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isInitialized && !_isPipMode && !overlayState.isUiVisible
             ? SystemMouseCursors.none
             : SystemMouseCursors.click;
-    final playerStack = Stack(
-      children: [
-        MouseRegion(
-          cursor: playerCursor,
-          onHover: (_) => _showUi(),
-          child: GestureDetector(
+
+    final playerStack = MouseRegion(
+      cursor: playerCursor,
+      onHover: (_) => _showUi(),
+      child: Stack(
+        children: [
+          GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () {
               _playerFocusNode.requestFocus();
@@ -3058,7 +2932,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   : const Center(child: AppLoadingProgressRing()),
             ),
           ),
-        ),
         Positioned.fill(
           child: IgnorePointer(
             child: ValueListenableBuilder<Duration>(
@@ -3188,6 +3061,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
         if (_isInitialized && _isPipMode) _buildPipOverlay(),
       ],
+        ),
+      ),
     );
 
     Widget focusedPlayer(Widget child) {
