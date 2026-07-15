@@ -367,8 +367,8 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout>
             svgAssetPath: 'assets/images/danmu_setting.svg',
             onPressed: _isDanmakuSettingsDisabled ? null : _toggleFlyout,
             tooltip: '弹幕设置',
-            size: 30,
-            iconSize: 20,
+            size: 34,
+            iconSize: 24,
             color: _isDanmakuSettingsDisabled
                 ? const Color(0x66FFFFFF)
                 : Colors.white,

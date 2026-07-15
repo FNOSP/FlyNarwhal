@@ -3417,8 +3417,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   .read(danmakuControllerProvider.notifier)
                   .setVisibility(!danmakuState.isVisible),
               tooltip: danmakuState.isVisible ? '关闭弹幕' : '开启弹幕',
-              size: 30,
-              iconSize: 20,
+              size: 34,
+              iconSize: 24,
             ),
           ),
           const SizedBox(width: _trailingControlSpacing),
