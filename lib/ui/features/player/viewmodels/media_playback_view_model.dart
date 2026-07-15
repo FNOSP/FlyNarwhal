@@ -123,7 +123,7 @@ class MediaPViewModel extends StateNotifier<MediaPState> {
       final data = response.getOrThrow();
       state = state.copyWith(
         isLoading: false,
-        resetAudioResponse: data,
+        resetQualityResponse: data,
         error: null,
       );
       return data;
@@ -147,7 +147,7 @@ class MediaPViewModel extends StateNotifier<MediaPState> {
       final data = response.getOrThrow();
       state = state.copyWith(
         isLoading: false,
-        resetQualityResponse: data,
+        resetAudioResponse: data,
         error: null,
       );
       return data;

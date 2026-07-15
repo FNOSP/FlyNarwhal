@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:convert';
+import 'dart:io' show File, FileMode, Platform;
 
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
@@ -26,6 +27,7 @@ import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/danmaku_controller.dart';
 import '../../../providers/providers.dart';
+import 'services/direct_link_audio_track_resolver.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
 import 'services/player_device_context_service.dart';
@@ -89,8 +91,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   static const Duration _hlsSubtitleInitTimeout = Duration(seconds: 5);
   static const Duration _directLinkEmbeddedSubtitleTracksTimeout =
       Duration(seconds: 3);
+  static const Duration _directLinkEmbeddedAudioTracksTimeout =
+      Duration(seconds: 3);
   static const String _defaultMpvSubtitleFontSize = '60';
   static const String _defaultMpvSubtitlePosition = '100';
+  static const String _debugSessionId = 'dbc870';
+  static const String _debugLogPath =
+      r'd:\WorkSpace\personal\FlyNarwhal-flutter\.cursor\debug-dbc870.log';
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
   Player? _player;
@@ -151,6 +158,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showAddNasSubtitleDialog = false;
   bool _isUploadingLocalSubtitle = false;
   bool _isSubtitleSwitching = false;
+  List<AudioTrack> _embeddedAudioTracks = const <AudioTrack>[];
+  int _audioSwitchToken = 0;
+  final DirectLinkAudioTrackResolver _directLinkAudioTrackResolver =
+      const DirectLinkAudioTrackResolver();
   List<SubtitleTrack> _embeddedSubtitleTracks = const <SubtitleTrack>[];
   String? _pendingEmbeddedSubtitleGuid;
   SubtitleStream? _pendingEmbeddedSubtitlePrevious;
@@ -177,6 +188,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   PlayerSessionCoordinator get _sessionCoordinator =>
       ref.read(playerSessionCoordinatorProvider);
+
+  // region debug-session-dbc870
+  void _writeAudioStartupDebugLog({
+    required String hypothesisId,
+    required String location,
+    required String message,
+    required Map<String, Object?> data,
+  }) {
+    if (!Platform.isWindows) {
+      return;
+    }
+    final payload = <String, Object?>{
+      'sessionId': _debugSessionId,
+      'hypothesisId': hypothesisId,
+      'location': location,
+      'message': message,
+      'data': data,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
+    try {
+      File(_debugLogPath).writeAsStringSync(
+        '${jsonEncode(payload)}\n',
+        mode: FileMode.append,
+        flush: true,
+      );
+    } catch (_) {
+      // Debug logging must never affect playback.
+    }
+  }
+  // endregion
 
   @override
   void initState() {
@@ -318,6 +359,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _resetDirectLinkEmbeddedSubtitleState() {
+    _audioSwitchToken++;
+    _embeddedAudioTracks = const <AudioTrack>[];
     _tracksSubscription?.cancel();
     _tracksSubscription = null;
     _embeddedSubtitleTracks = const <SubtitleTrack>[];
@@ -817,7 +860,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         httpHeaders: headers.isEmpty ? null : headers,
       ),
     );
+    // region debug-session-dbc870
+    _writeAudioStartupDebugLog(
+      hypothesisId: 'H2_H3_H4',
+      location: 'player_screen.dart:_openMediaWithResume',
+      message: 'player opened before startup audio alignment',
+      data: {
+        'isDirectLink': _playingInfoCache?.isUseDirectLink,
+        'cacheAudioGuid': _playingInfoCache?.currentAudioStream?.guid,
+        'cacheAudioIndex': _playingInfoCache?.currentAudioStream?.index,
+        'selectedAudioGuid': _selectedAudioGuid,
+        'actualTrackId': player.state.track.audio.id,
+        'actualTrackTitle': player.state.track.audio.title,
+        'actualTrackLanguage': player.state.track.audio.language,
+        'availableTracks': player.state.tracks.audio
+            .map((track) => {
+                  'id': track.id,
+                  'title': track.title,
+                  'language': track.language,
+                  'codec': track.codec,
+                  'channels': track.channelscount,
+                })
+            .toList(growable: false),
+      },
+    );
+    // endregion
     _setupDirectLinkEmbeddedSubtitleTracking();
+    if (_playingInfoCache?.isUseDirectLink == true) {
+      await _applyInitialDirectLinkAudioTrack();
+    }
 
     if (_isSupportedExternalSubtitle(currentSubtitleStream)) {
       _applyExternalSubtitleAsync(currentSubtitleStream!, _loadRequestToken);
@@ -1796,6 +1867,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _playInfo = result.playInfo;
       _streamInfo = result.streamInfo;
       _playingInfoCache = result.playingInfoCache;
+      // region debug-session-dbc870
+      _writeAudioStartupDebugLog(
+        hypothesisId: 'H1_H2',
+        location: 'player_screen.dart:_loadAndPlayMedia',
+        message: 'resolved startup audio selection',
+        data: {
+          'isDirectLink': result.playingInfoCache.isUseDirectLink,
+          'routeAudioGuid': _requestedAudioGuid,
+          'resultAudioGuid': result.audioGuid,
+          'cacheAudioGuid': result.playingInfoCache.currentAudioStream?.guid,
+          'cacheAudioIndex': result.playingInfoCache.currentAudioStream?.index,
+          'audioStreamCount':
+              result.playingInfoCache.currentAudioStreamList.length,
+        },
+      );
+      // endregion
       final flyNarwhalSettings = ref.read(settingsProvider);
       if (flyNarwhalSettings.flyNarwhalServerEnabled &&
           flyNarwhalSettings.flyNarwhalServerBaseUrl.isNotEmpty &&
@@ -1870,6 +1957,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _currentEpisode = result.currentEpisode;
         _nextEpisode = result.nextEpisode;
       });
+      // region debug-session-dbc870
+      _writeAudioStartupDebugLog(
+        hypothesisId: 'H1_H2_H3',
+        location: 'player_screen.dart:_loadAndPlayMedia:finalized',
+        message: 'startup UI audio and player audio finalized',
+        data: {
+          'selectedAudioGuid': _selectedAudioGuid,
+          'cacheAudioGuid': _playingInfoCache?.currentAudioStream?.guid,
+          'cacheAudioIndex': _playingInfoCache?.currentAudioStream?.index,
+          'actualTrackId': _player?.state.track.audio.id,
+          'actualTrackTitle': _player?.state.track.audio.title,
+          'actualTrackLanguage': _player?.state.track.audio.language,
+        },
+      );
+      // endregion
 
       _startPlayRecordTimer();
       // Immediately record playback start, using at least 1s to avoid zero-second record.
@@ -2519,53 +2621,230 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _switchAudioWithSessionFlow(AudioStream audio) async {
     final cache = _playingInfoCache;
-    final currentPlayLink = cache?.playLink;
     final player = _player;
-    if (cache == null || currentPlayLink == null || player == null) {
+    if (cache == null || player == null) {
+      return;
+    }
+    if (audio.guid.isNotEmpty && cache.currentAudioStream?.guid == audio.guid) {
       return;
     }
 
+    final switchToken = ++_audioSwitchToken;
     final previousAudio = cache.currentAudioStream;
+    _requestedAudioGuid = audio.guid;
+    setState(() => _isLoading = true);
+
     try {
-      setState(() => _isLoading = true);
-      _requestedAudioGuid = audio.guid;
-      _playingInfoCache = cache.copyWith(currentAudioStream: audio);
-      ref
-          .read(playerViewModelProvider.notifier)
-          .updatePlayingInfo(_playingInfoCache);
-      _queuePlayRecordUpdate();
-      await ref.read(mediaPViewModelProvider.notifier).resetAudio(
-            MediaPRequest(
-              playLink: currentPlayLink,
-              startTimestamp: player.state.position.inMilliseconds ~/ 1000,
-              clearCache: true,
-              audioEncoder: 'aac',
-              channels: 2,
-              audioIndex: audio.index,
-            ),
-          );
-      if (mounted) {
-        setState(() {
-          _selectedAudioGuid = audio.guid;
-          _isLoading = false;
-        });
+      if (cache.isUseDirectLink) {
+        final audioTrack = await _resolveDirectLinkAudioTrack(
+          audio,
+          switchToken,
+        );
+        if (!_isCurrentAudioSwitch(switchToken)) {
+          return;
+        }
+        await _applyDirectLinkAudioTrack(audioTrack);
+      } else {
+        final playLink = cache.playLink;
+        if (playLink == null || playLink.isEmpty) {
+          throw StateError('服务端播放会话链接缺失');
+        }
+        final response = await ref
+            .read(mediaPViewModelProvider.notifier)
+            .resetAudio(
+              MediaPRequest(
+                playLink: playLink,
+                startTimestamp: player.state.position.inMilliseconds ~/ 1000,
+                clearCache: true,
+                audioEncoder: 'aac',
+                channels: 2,
+                audioIndex: audio.index,
+              ),
+            );
+        if (!response.isSuccess) {
+          throw StateError('服务端未能切换音频轨道');
+        }
       }
-    } catch (e) {
-      _playingInfoCache = cache.copyWith(currentAudioStream: previousAudio);
+
+      if (!_isCurrentAudioSwitch(switchToken)) {
+        return;
+      }
+      final updatedCache = cache.copyWith(currentAudioStream: audio);
+      _playingInfoCache = updatedCache;
       ref
           .read(playerViewModelProvider.notifier)
-          .updatePlayingInfo(_playingInfoCache);
-      AppTalker.warning('Player', 'switch audio failed: $e');
-      ref
-          .read(toastManagerProvider.notifier)
-          .showToast('切换音频失败: $e', type: ToastType.failed);
-      if (mounted) {
+          .updatePlayingInfo(updatedCache);
+      _queuePlayRecordUpdate(cacheOverride: updatedCache);
+      setState(() {
+        _selectedAudioGuid = audio.guid;
+        _isLoading = false;
+      });
+    } catch (error, stackTrace) {
+      if (_isCurrentAudioSwitch(switchToken)) {
+        _requestedAudioGuid = null;
+        ref.read(toastManagerProvider.notifier).showToast(
+              '切换音频失败: $error',
+              type: ToastType.failed,
+              category: 'player-audio-switch',
+            );
         setState(() {
           _selectedAudioGuid = previousAudio?.guid;
           _isLoading = false;
         });
       }
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'audio switch failed',
+      );
     }
+  }
+
+  Future<AudioTrack> _resolveDirectLinkAudioTrack(
+    AudioStream audio,
+    int switchToken,
+  ) async {
+    AudioTrack? resolveCurrentTracks() {
+      return _directLinkAudioTrackResolver.resolve(
+        audioStreams:
+            _playingInfoCache?.currentAudioStreamList ?? const <AudioStream>[],
+        audioTracks: _embeddedAudioTracks,
+        targetAudio: audio,
+      );
+    }
+
+    _embeddedAudioTracks = _directLinkAudioTrackResolver.embeddedTracksOf(
+      _player!.state.tracks.audio,
+    );
+    final immediateTrack = resolveCurrentTracks();
+    if (immediateTrack != null) {
+      return immediateTrack;
+    }
+
+    final player = _player;
+    if (player == null) {
+      throw StateError('播放器尚未初始化');
+    }
+    final completer = Completer<AudioTrack>();
+    late final StreamSubscription<Tracks> subscription;
+    final timeoutTimer = Timer(_directLinkEmbeddedAudioTracksTimeout, () {
+      if (!completer.isCompleted) {
+        completer.completeError(StateError('等待音频轨道超时'));
+      }
+    });
+    subscription = player.stream.tracks.listen((tracks) {
+      _embeddedAudioTracks =
+          _directLinkAudioTrackResolver.embeddedTracksOf(tracks.audio);
+      final resolvedTrack = resolveCurrentTracks();
+      if (resolvedTrack != null && !completer.isCompleted) {
+        completer.complete(resolvedTrack);
+      }
+    }, onError: (Object error) {
+      if (!completer.isCompleted) {
+        completer.completeError(error);
+      }
+    });
+
+    try {
+      final resolvedTrack = await completer.future;
+      if (!_isCurrentAudioSwitch(switchToken)) {
+        throw StateError('音频切换请求已过期');
+      }
+      return resolvedTrack;
+    } finally {
+      timeoutTimer.cancel();
+      await subscription.cancel();
+    }
+  }
+
+  Future<void> _applyInitialDirectLinkAudioTrack() async {
+    final targetAudio = _playingInfoCache?.currentAudioStream;
+    if (targetAudio == null) {
+      // region debug-session-dbc870
+      _writeAudioStartupDebugLog(
+        hypothesisId: 'H2',
+        location: 'player_screen.dart:_applyInitialDirectLinkAudioTrack',
+        message: 'startup audio alignment skipped without target audio',
+        data: const {},
+      );
+      // endregion
+      return;
+    }
+
+    final switchToken = ++_audioSwitchToken;
+    try {
+      final targetTrack = await _resolveDirectLinkAudioTrack(
+        targetAudio,
+        switchToken,
+      );
+      if (!_isCurrentAudioSwitch(switchToken)) {
+        return;
+      }
+      await _applyDirectLinkAudioTrack(targetTrack);
+      // region debug-session-dbc870
+      _writeAudioStartupDebugLog(
+        hypothesisId: 'H2_H4',
+        location: 'player_screen.dart:_applyInitialDirectLinkAudioTrack',
+        message: 'startup audio alignment applied',
+        data: {
+          'targetAudioGuid': targetAudio.guid,
+          'targetAudioIndex': targetAudio.index,
+          'resolvedTrackId': targetTrack.id,
+          'resolvedTrackTitle': targetTrack.title,
+          'actualTrackId': _player?.state.track.audio.id,
+        },
+      );
+      // endregion
+    } catch (error, stackTrace) {
+      // region debug-session-dbc870
+      _writeAudioStartupDebugLog(
+        hypothesisId: 'H2_H4',
+        location: 'player_screen.dart:_applyInitialDirectLinkAudioTrack',
+        message: 'startup audio alignment failed',
+        data: {
+          'targetAudioGuid': targetAudio.guid,
+          'targetAudioIndex': targetAudio.index,
+          'errorType': error.runtimeType.toString(),
+          'error': error.toString(),
+        },
+      );
+      // endregion
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'initial direct-link audio alignment failed',
+      );
+    }
+  }
+
+  Future<void> _applyDirectLinkAudioTrack(AudioTrack audioTrack) async {
+    final player = _player;
+    if (player == null) {
+      throw StateError('播放器尚未初始化');
+    }
+    final platform = player.platform;
+    if (platform is NativePlayer) {
+      try {
+        await platform.setProperty(
+          'aid',
+          audioTrack.id,
+          waitForInitialization: false,
+        );
+        return;
+      } catch (error) {
+        AppTalker.warning(
+          'Player',
+          'mpv aid switch failed, fallback to setAudioTrack: $error',
+        );
+      }
+    }
+    await player.setAudioTrack(audioTrack);
+  }
+
+  bool _isCurrentAudioSwitch(int switchToken) {
+    return mounted && switchToken == _audioSwitchToken;
   }
 
   Future<void> _switchSubtitleWithSessionFlow(SubtitleStream? subtitle) async {

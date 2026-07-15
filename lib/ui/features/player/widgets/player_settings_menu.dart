@@ -310,11 +310,14 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         _hideFlyoutWithDelay();
       },
       child: KeyedSubtree(
-        key: _buttonKey,
-        child: const PlayerActionButton.lottie(
-          lottieAssetPath: 'assets/lottie/settings_lottie.json',
-          size: 30,
-          iconSize: 22,
+        key: const ValueKey('player-settings-menu'),
+        child: KeyedSubtree(
+          key: _buttonKey,
+          child: const PlayerActionButton.lottie(
+            lottieAssetPath: 'assets/lottie/settings_lottie.json',
+            size: 30,
+            iconSize: 22,
+          ),
         ),
       ),
     );
@@ -540,6 +543,7 @@ class _MainSettingsScreen extends StatelessWidget {
           onClick: onNavigateToWindowAspectRatio,
         ),
         _SettingsMenuItem(
+          key: const ValueKey('player-settings-audio'),
           title: '音频',
           value: '$language $audioDetails',
           onClick: onNavigateToAudio,
@@ -579,6 +583,7 @@ class _SettingsMenuItem extends StatefulWidget {
   final VoidCallback onClick;
 
   const _SettingsMenuItem({
+    super.key,
     required this.title,
     this.value,
     required this.onClick,
@@ -685,14 +690,24 @@ class _AudioSettingsScreen extends StatelessWidget {
         const Divider(),
         const SizedBox(height: 8),
         ...audioList.map((audio) {
-          final isSelected = currentAudioStream?.index == audio.index;
+          final isSelected = currentAudioStream?.guid.isNotEmpty == true &&
+                  audio.guid.isNotEmpty
+              ? currentAudioStream?.guid == audio.guid
+              : currentAudioStream?.index == audio.index;
           final language = _getLanguageName(audio.language, iso6391Map);
           final label = '$language ${audio.codecName} ${audio.channelLayout}';
 
-          return _AudioItem(
-            label: label,
-            isSelected: isSelected,
-            onClick: () => onAudioSelected(audio),
+          return KeyedSubtree(
+            key: ValueKey(
+              audio.guid.isNotEmpty
+                  ? 'player-audio-option-${audio.guid}'
+                  : 'player-audio-option-index-${audio.index}',
+            ),
+            child: _AudioItem(
+              label: label,
+              isSelected: isSelected,
+              onClick: () => onAudioSelected(audio),
+            ),
           );
         }),
       ],
