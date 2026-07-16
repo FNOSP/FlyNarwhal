@@ -93,6 +93,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       Duration(seconds: 3);
   static const String _defaultMpvSubtitleFontSize = '60';
   static const String _defaultMpvSubtitlePosition = '100';
+  static const String _defaultMpvCachePauseWait = '1.0';
+  static const String _directLinkMpvCachePauseWait = '0.1';
+  static const String _defaultMpvCachePause = 'yes';
+  static const String _directLinkMpvCachePause = 'no';
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
   Player? _player;
@@ -276,6 +280,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await platform.setProperty(
       'sub-pos',
       _defaultMpvSubtitlePosition,
+    );
+  }
+
+  Future<void> _applyDirectLinkCachePolicy(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer) {
+      return;
+    }
+
+    final isDirectLink = _playingInfoCache?.isUseDirectLink == true;
+    final cachePauseWait = isDirectLink
+        ? _directLinkMpvCachePauseWait
+        : _defaultMpvCachePauseWait;
+    final cachePause = isDirectLink
+        ? _directLinkMpvCachePause
+        : _defaultMpvCachePause;
+    await platform.setProperty(
+      'cache-pause-wait',
+      cachePauseWait,
+      waitForInitialization: false,
+    );
+    await platform.setProperty(
+      'cache-pause',
+      cachePause,
+      waitForInitialization: false,
     );
   }
 
@@ -804,6 +833,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player == null) return;
     _resetDirectLinkEmbeddedSubtitleState();
+    await _applyDirectLinkCachePolicy(player);
 
     // Set mpv native start property so decoding positions from the desired
     // point. This is the most reliable way for history-progress resume.
