@@ -17,11 +17,24 @@ const Color _episodeHoverBackgroundColor = Color(0x1AFFFFFF);
 const int _episodeHideDelayMs = 200;
 const int _episodeAnimationDurationMs = 200;
 const double _episodeFlyoutWidth = 320;
-const double _episodeFlyoutHeightFactor = 0.75;
+const double _episodeFlyoutHeightFactor = 0.6;
 const double _episodeFlyoutBridgeOffset = 40;
 const double _episodeFlyoutMinBridgeWidth = 48;
 const double _episodeFlyoutBridgeHorizontalPadding = 12;
+const double _episodeFlyoutHeaderHeight = 72;
+const double _episodeFlyoutDividerHeight = 1;
+const double _episodeFlyoutListTopSpacing = 12;
+const double _episodeFlyoutListBottomPadding = 10;
 const double _episodeListRowHeight = 76;
+const double _episodeListRowSpacing = 6;
+const int _episodeDetailedViewMaxVisibleCount = 6;
+const double _episodeFlyoutMaxHeight =
+    _episodeFlyoutHeaderHeight +
+    _episodeFlyoutDividerHeight +
+    _episodeFlyoutListTopSpacing +
+    _episodeFlyoutListBottomPadding +
+    ((_episodeListRowHeight + _episodeListRowSpacing) *
+        _episodeDetailedViewMaxVisibleCount);
 
 class EpisodeSelectionFlyout extends StatefulWidget {
   final List<EpisodeListResponse> episodes;
@@ -132,7 +145,11 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
         final overlaySize = MediaQuery.of(overlayContext).size;
         final buttonOffset = renderObject.localToGlobal(Offset.zero);
         final buttonSize = renderObject.size;
-        final flyoutHeight = overlaySize.height * _episodeFlyoutHeightFactor;
+        final responsiveFlyoutHeight =
+            overlaySize.height * _episodeFlyoutHeightFactor;
+        final flyoutHeight = responsiveFlyoutHeight
+            .clamp(0.0, _episodeFlyoutMaxHeight)
+            .toDouble();
         final bridgeHeight = widget.yOffset + _episodeFlyoutBridgeOffset;
         final top =
             (buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight)
