@@ -6,6 +6,7 @@ import '../core/config/secret_bridge_selector.dart';
 import '../core/network/dio_client.dart';
 import '../core/security/password_cipher.dart';
 import '../core/utils/log/app_talker.dart';
+import '../core/utils/log/error_log_exporter.dart';
 import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
 import '../data/datasources/remote/media_remote_data_source.dart';
 import '../data/datasources/remote/tag_remote_data_source.dart';
@@ -40,6 +41,10 @@ final accountSettingsStoreProvider = Provider<AccountSettingsStore>((ref) {
 
 final runtimeConfigurationProvider = Provider<RuntimeConfiguration>((ref) {
   return NativeRuntimeConfiguration(resolveSecretBridge());
+});
+
+final errorLogExporterProvider = Provider<ErrorLogExporter>((ref) {
+  return DesktopErrorLogExporter();
 });
 
 final passwordCipherProvider = Provider<PasswordCipher>((ref) {

@@ -148,6 +148,11 @@ class AppTalker {
     return path.join(supportDirectory.path, 'logs');
   }
 
+  // Reuse the same log directory resolution for export flows and tests.
+  static Future<String?> resolveLogDirectoryPathForExport() {
+    return _resolveLogDirectoryPath();
+  }
+
   static bool _isDesktopPlatform() {
     switch (defaultTargetPlatform) {
       case TargetPlatform.windows:
