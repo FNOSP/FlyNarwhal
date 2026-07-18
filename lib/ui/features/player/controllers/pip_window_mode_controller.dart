@@ -65,10 +65,12 @@ class PipWindowModeController {
     final wasMaximized = snapshot[1] as bool;
     final wasFullScreen = snapshot[2] as bool;
     final previousMinimumSize = snapshot[3] as Size?;
+    final wasBorderless = await _isWindowBorderless();
     _snapshot = _PipWindowSnapshot(
       bounds: bounds,
       wasMaximized: wasMaximized,
       wasFullScreen: wasFullScreen,
+      wasBorderless: wasBorderless,
       minimumSize: previousMinimumSize,
     );
 
@@ -139,7 +141,9 @@ class PipWindowModeController {
 
     // Release the ratio lock so the restored window can resize freely.
     await windowManager.setAspectRatio(0);
-    await _setWindowBorderless(false);
+    if (snapshot != null) {
+      await _setWindowBorderless(snapshot.wasBorderless);
+    }
     await _setMacOSWindowButtonVisibility(true);
     await windowManager.setAlwaysOnTop(false);
 
@@ -223,6 +227,27 @@ class PipWindowModeController {
       return const Size(640, 360);
     } catch (_) {
       return null;
+    }
+  }
+
+  Future<bool> _isWindowBorderless() async {
+    if (defaultTargetPlatform != TargetPlatform.windows) {
+      return false;
+    }
+
+    try {
+      return await _displayFrameChannel.invokeMethod<bool>(
+            'isWindowBorderless',
+          ) ??
+          false;
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'PiP',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'isWindowBorderless failed on Windows',
+      );
+      return false;
     }
   }
 
@@ -324,11 +349,13 @@ class _PipWindowSnapshot {
     required this.bounds,
     required this.wasMaximized,
     required this.wasFullScreen,
+    required this.wasBorderless,
     required this.minimumSize,
   });
 
   final Rect bounds;
   final bool wasMaximized;
   final bool wasFullScreen;
+  final bool wasBorderless;
   final Size? minimumSize;
 }

@@ -2162,6 +2162,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _handleVideoDoubleTap() {
     _playerFocusNode.requestFocus();
 
+    if (_isPipMode || _pipController.isPipMode) {
+      return;
+    }
+
     // Toggle fullscreen when the primary mouse button is double-clicked.
     unawaited(_toggleFullscreen());
   }
@@ -2230,11 +2234,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return KeyEventResult.handled;
     }
     if (shortcutStore.matches(event, ShortcutActionId.toggleFullscreen)) {
-      unawaited(_toggleFullscreen());
+      if (!_isPipMode && !_pipController.isPipMode) {
+        unawaited(_toggleFullscreen());
+      }
       return KeyEventResult.handled;
     }
     if (shortcutStore.matches(event, ShortcutActionId.exitFullscreen)) {
-      if (_isFullscreen) {
+      if (!_isPipMode && !_pipController.isPipMode && _isFullscreen) {
         unawaited(_toggleFullscreen());
       }
       return KeyEventResult.handled;
@@ -2365,6 +2371,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Reuse the same window and the same player by switching the window into
       // a compact, borderless, always-on-top form.
       await _pipController.enter(videoAspectRatio: _resolveVideoAspectRatio());
+
       if (!mounted) {
         return;
       }
@@ -2399,8 +2406,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _isPipTransitioning = true;
       _pipBoundsSaveTimer?.cancel();
       _pipIdleTimer?.cancel();
+
       await _pipController.persistCurrentBounds();
       await _pipController.exit();
+
       if (!mounted) {
         return;
       }
@@ -3123,14 +3132,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildPipDragLayer() {
-    // DragToMoveArea lets the user drag the borderless PiP window by its body.
     return Positioned.fill(
-      child: DragToMoveArea(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _togglePlayPause,
-          child: const SizedBox.expand(),
-        ),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _togglePlayPause,
+        onDoubleTap: () {},
+        onPanStart: (_) => unawaited(windowManager.startDragging()),
+        child: const SizedBox.expand(),
       ),
     );
   }

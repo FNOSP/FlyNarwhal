@@ -20,6 +20,8 @@ constexpr const char kGetCurrentDisplayFrameMethod[] =
     "getCurrentDisplayFrame";
 constexpr const char kSetWindowBorderlessMethod[] =
     "setWindowBorderless";
+constexpr const char kIsWindowBorderlessMethod[] =
+    "isWindowBorderless";
 constexpr const char kKmpPreferencesChannelName[] =
     "fly_narwhal/kmp_preferences";
 constexpr const char kReadJavaPreferencesMethod[] = "readJavaPreferences";
@@ -52,6 +54,14 @@ flutter::EncodableMap BuildDisplayFrameResponse(HWND window) {
   response[flutter::EncodableValue("height")] =
       flutter::EncodableValue((frame.bottom - frame.top) / scale_factor);
   return response;
+}
+
+bool IsWindowBorderless(HWND hwnd) {
+  const LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
+  const LONG_PTR framed_style =
+      WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX |
+      WS_MAXIMIZEBOX;
+  return (style & framed_style) == 0;
 }
 
 void SetWindowBorderless(HWND hwnd, bool borderless) {
@@ -190,6 +200,11 @@ bool FlutterWindow::OnCreate() {
           } catch (const std::exception& exception) {
             result->Error("display-frame-error", exception.what());
           }
+          return;
+        }
+
+        if (call.method_name() == kIsWindowBorderlessMethod) {
+          result->Success(IsWindowBorderless(GetHandle()));
           return;
         }
 
