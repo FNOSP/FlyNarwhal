@@ -4,7 +4,7 @@ project(fly_narwhal LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "fly_narwhal")
+set(BINARY_NAME "FlyNarwhal")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.

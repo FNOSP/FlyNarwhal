@@ -11,7 +11,7 @@
 
 #define MyAppName "飞鲸影视"
 #define MyAppPublisher "JankinWu"
-#define MyAppExecutable "fly_narwhal.exe"
+#define MyAppExecutable "FlyNarwhal.exe"
 
 [Setup]
 AppId={#MyAppId}
@@ -25,9 +25,14 @@ OutputBaseFilename=FlyNarwhal_Setup_Windows_{#MyAppArch}_{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-#if MyAppArch == "amd64" || MyAppArch == "aarch64"
-ArchitecturesAllowed=x64 arm64
-ArchitecturesInstallIn64BitMode=x64 arm64
+#if MyAppArch == "amd64"
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+#elif MyAppArch == "aarch64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
+  #error Unsupported Windows architecture. Only amd64 and aarch64 are allowed.
 #endif
 
 [Files]

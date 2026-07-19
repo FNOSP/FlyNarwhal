@@ -2,7 +2,13 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../data/storage/update_settings_store.dart';
 import '../../../providers/providers.dart';
+import '../../../providers/update_providers.dart';
+import '../../../providers/update_settings_provider.dart';
+import '../update/update_badge.dart';
+import '../update/update_dialog.dart';
+import '../update/update_state.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
@@ -22,6 +28,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       TextEditingController();
   final TextEditingController _flyNarwhalAuthCodeController =
       TextEditingController();
+  final TextEditingController _updateProxyUrlController =
+      TextEditingController();
   bool _isFlyNarwhalAuthCodeVisible = false;
   List<String> _availableLogDates = const <String>[];
   String? _selectedLogDate;
@@ -33,6 +41,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.initState();
     _flyNarwhalServerUrlController.text =
         ref.read(settingsProvider).flyNarwhalServerBaseUrl;
+    _updateProxyUrlController.text =
+        ref.read(updateSettingsStoreProvider).proxyUrl;
 
     // Cache available log dates once so the export picker stays stable.
     _availableLogDates =
@@ -146,6 +156,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void dispose() {
     _flyNarwhalAuthCodeController.dispose();
+    _updateProxyUrlController.dispose();
     _flyNarwhalServerUrlController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -158,6 +169,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final errorLogExporter = ref.watch(errorLogExporterProvider);
     final userInfoAsync = ref.watch(userInfoProvider);
     final connectionTestState = ref.watch(flyNarwhalConnectionTestProvider);
+    final updateState = ref.watch(updateControllerProvider);
+    final updateSettingsAsync = ref.watch(updateSettingsProvider);
+    final updateSettings = updateSettingsAsync.asData?.value;
+    final updateSettingsNotifier = ref.read(updateSettingsProvider.notifier);
+    final currentVersionAsync = ref.watch(currentAppVersionProvider);
     final canExportLogs =
         errorLogExporter.isSupported && _availableLogDates.isNotEmpty;
 
@@ -500,6 +516,103 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               const SizedBox(height: 4),
                               const _Header(title: '关于'),
                               CardExpanderItem(
+                                key: const ValueKey('settings-check-update'),
+                                icon: const Icon(FluentIcons.update_restore),
+                                heading: Row(
+                                  children: [
+                                    const Text('当前版本'),
+                                    if (updateState.hasUpdateBadge) ...[
+                                      const SizedBox(width: 6),
+                                      const SharedUpdateBadge(
+                                        key: ValueKey('settings-update-badge'),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                caption: currentVersionAsync.when(
+                                  data: (version) => Text(version),
+                                  loading: () => const Text('正在读取版本信息…'),
+                                  error: (error, _) => const Text('无法读取版本信息'),
+                                ),
+                                trailing: Button(
+                                  key: const ValueKey(
+                                      'settings-check-update-button'),
+                                  onPressed: updateState.phase ==
+                                          UpdatePhase.checking
+                                      ? null
+                                      : () {
+                                          showUpdateDialog(context);
+                                          ref
+                                              .read(updateControllerProvider
+                                                  .notifier)
+                                              .checkForUpdates(isManual: true);
+                                        },
+                                  child:
+                                      updateState.phase == UpdatePhase.checking
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: ProgressRing())
+                                          : const Text('检查更新'),
+                                ),
+                              ),
+                              SettingsUpdateControls(
+                                settings: updateSettings,
+                                proxyUrlController: _updateProxyUrlController,
+                                onIncludePrereleaseChanged: (value) async {
+                                  await updateSettingsNotifier
+                                      .setIncludePrerelease(value);
+                                  await ref
+                                      .read(updateControllerProvider.notifier)
+                                      .handleIncludePrereleaseChanged(value);
+                                },
+                                onAutoDownloadChanged: (value) async {
+                                  await updateSettingsNotifier
+                                      .setAutoDownload(value);
+                                  await ref
+                                      .read(updateControllerProvider.notifier)
+                                      .handleAutoDownloadChanged(value);
+                                },
+                                onProxyEnabledChanged: (value) async {
+                                  await updateSettingsNotifier
+                                      .setProxyEnabled(value);
+                                  await ref
+                                      .read(updateControllerProvider.notifier)
+                                      .handleProxyChanged(
+                                        isEnabled: value,
+                                        proxyUrl: updateSettings!.proxyUrl,
+                                      );
+                                },
+                                onProxyUrlSubmitted: (value) async {
+                                  try {
+                                    await updateSettingsNotifier
+                                        .setProxyUrl(value);
+                                    final currentSettings = ref
+                                        .read(updateSettingsProvider)
+                                        .asData
+                                        ?.value;
+                                    if (currentSettings != null) {
+                                      await ref
+                                          .read(
+                                              updateControllerProvider.notifier)
+                                          .handleProxyChanged(
+                                            isEnabled:
+                                                currentSettings.isProxyEnabled,
+                                            proxyUrl: value,
+                                          );
+                                    }
+                                  } on FormatException catch (error) {
+                                    ref
+                                        .read(toastManagerProvider.notifier)
+                                        .showToast(
+                                          error.message,
+                                          type: ToastType.failed,
+                                          category: 'update-proxy',
+                                        );
+                                  }
+                                },
+                              ),
+                              CardExpanderItem(
                                 icon: const Icon(FluentIcons.info),
                                 heading: const Text('隐私声明'),
                                 caption: const Text('隐私声明'),
@@ -614,6 +727,102 @@ class _DialogOverlay extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class SettingsUpdateControls extends StatelessWidget {
+  const SettingsUpdateControls({
+    super.key,
+    required this.settings,
+    required this.proxyUrlController,
+    required this.onIncludePrereleaseChanged,
+    required this.onAutoDownloadChanged,
+    required this.onProxyEnabledChanged,
+    required this.onProxyUrlSubmitted,
+  });
+
+  final UpdateSettings? settings;
+  final TextEditingController proxyUrlController;
+  final ValueChanged<bool> onIncludePrereleaseChanged;
+  final ValueChanged<bool> onAutoDownloadChanged;
+  final ValueChanged<bool> onProxyEnabledChanged;
+  final ValueChanged<String> onProxyUrlSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentSettings = settings;
+    return Column(
+      children: [
+        CardExpanderItem(
+          key: const ValueKey('settings-update-prerelease'),
+          icon: const Icon(FluentIcons.test_beaker),
+          heading: const Text('抢先体验'),
+          caption: const Text('接收预发布版本更新'),
+          trailing: ToggleSwitch(
+            key: const ValueKey('settings-update-prerelease-toggle'),
+            checked: currentSettings?.includePrerelease ?? false,
+            onChanged:
+                currentSettings == null ? null : onIncludePrereleaseChanged,
+            content: Text(_toggleLabel(
+              isLoading: currentSettings == null,
+              value: currentSettings?.includePrerelease ?? false,
+            )),
+          ),
+        ),
+        CardExpanderItem(
+          key: const ValueKey('settings-update-auto-download'),
+          icon: const Icon(FluentIcons.cloud_download),
+          heading: const Text('自动下载更新'),
+          caption: const Text('发现更新后在后台下载并校验安装包'),
+          trailing: ToggleSwitch(
+            key: const ValueKey('settings-update-auto-download-toggle'),
+            checked: currentSettings?.autoDownload ?? false,
+            onChanged: currentSettings == null ? null : onAutoDownloadChanged,
+            content: Text(_toggleLabel(
+              isLoading: currentSettings == null,
+              value: currentSettings?.autoDownload ?? false,
+            )),
+          ),
+        ),
+        CardExpanderItem(
+          key: const ValueKey('settings-update-proxy-enabled'),
+          icon: const Icon(FluentIcons.globe),
+          heading: const Text('GitHub 资源代理'),
+          caption: const Text('仅用于安装包下载，默认关闭'),
+          trailing: ToggleSwitch(
+            key: const ValueKey('settings-update-proxy-enabled-toggle'),
+            checked: currentSettings?.isProxyEnabled ?? false,
+            onChanged: currentSettings == null ? null : onProxyEnabledChanged,
+            content: Text(_toggleLabel(
+              isLoading: currentSettings == null,
+              value: currentSettings?.isProxyEnabled ?? false,
+            )),
+          ),
+        ),
+        _AnimatedVisibility(
+          visible: currentSettings?.isProxyEnabled ?? false,
+          child: CardExpanderItem(
+            key: const ValueKey('settings-update-proxy-url'),
+            icon: const Icon(FluentIcons.link),
+            heading: const Text('代理地址'),
+            caption: const Text('必须使用 HTTPS 地址'),
+            trailing: SizedBox(
+              width: 360,
+              child: TextBox(
+                key: const ValueKey('settings-update-proxy-url-input'),
+                controller: proxyUrlController,
+                onSubmitted: onProxyUrlSubmitted,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _toggleLabel({required bool isLoading, required bool value}) {
+    if (isLoading) return '加载中';
+    return value ? '开启' : '关闭';
   }
 }
 

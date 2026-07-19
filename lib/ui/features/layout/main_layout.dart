@@ -15,6 +15,7 @@ import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/window_caption.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../search/widgets/capsule_search_box.dart';
+import '../update/update_badge.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -32,7 +33,8 @@ class MainLayout extends ConsumerStatefulWidget {
 
 class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'global-search');
-  final FocusNode _shortcutFocusNode = FocusNode(debugLabel: 'global-shortcuts');
+  final FocusNode _shortcutFocusNode =
+      FocusNode(debugLabel: 'global-shortcuts');
 
   @override
   void initState() {
@@ -517,9 +519,17 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
           else
             WindowCaption(
               title: const Text('飞鲸影视'),
-              center: CapsuleSearchBox(
-                focusNode: _searchFocusNode,
-                onDismissed: _shortcutFocusNode.requestFocus,
+              center: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CapsuleSearchBox(
+                    focusNode: _searchFocusNode,
+                    onDismissed: _shortcutFocusNode.requestFocus,
+                  ),
+                  const SharedUpdateBadge(
+                    key: ValueKey('titlebar-update-badge'),
+                  ),
+                ],
               ),
               brightness: isDark ? Brightness.dark : Brightness.light,
               backgroundColor: theme.resources.solidBackgroundFillColorBase,

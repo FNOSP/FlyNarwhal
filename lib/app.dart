@@ -18,7 +18,10 @@ import 'core/utils/index.dart';
 import 'data/storage/account_settings_store.dart';
 import 'data/storage/kmp_preferences_migration_service.dart';
 import 'data/storage/kmp_windows_preferences_reader.dart';
+import 'data/storage/update_settings_store.dart';
 import 'providers/providers.dart';
+import 'providers/update_providers.dart';
+import 'services/update/update_scheduler.dart';
 import 'ui/navigation/app_router.dart';
 import 'ui/shared/toast.dart';
 
@@ -85,6 +88,7 @@ Future<void> bootstrapApp() async {
     if (!kIsWeb && Platform.isWindows) {
       await _runKmpMigration(prefs);
     }
+    await UpdateSettingsStore(prefs).initialize();
 
     // Start the widget tree after all startup services are prepared.
     AppTalker.info('Bootstrap', 'runApp start');
@@ -93,7 +97,7 @@ Future<void> bootstrapApp() async {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
         ],
-        child: const MyApp(),
+        child: const _UpdateSchedulerHost(child: MyApp()),
       ),
     );
   }, (error, stackTrace) {
@@ -131,6 +135,62 @@ Future<void> _runKmpMigration(SharedPreferences preferences) async {
 bool _isDesktopPlatform() {
   return !kIsWeb &&
       (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+}
+
+class _UpdateSchedulerHost extends ConsumerStatefulWidget {
+  const _UpdateSchedulerHost({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_UpdateSchedulerHost> createState() =>
+      _UpdateSchedulerHostState();
+}
+
+class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
+    with WidgetsBindingObserver {
+  UpdateScheduler? _scheduler;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final scheduler = ref.read(updateSchedulerProvider);
+      scheduler.start();
+      _scheduler = scheduler;
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final scheduler = _scheduler;
+    if (scheduler == null) return;
+    switch (state) {
+      case AppLifecycleState.resumed:
+        scheduler.handleLifecycleState(
+          UpdateSchedulerLifecycleState.foreground,
+        );
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        scheduler.handleLifecycleState(
+          UpdateSchedulerLifecycleState.background,
+        );
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_scheduler?.stop());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class MyApp extends ConsumerWidget {
