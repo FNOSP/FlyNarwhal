@@ -184,17 +184,15 @@ flutter build linux --release
 
 ## 🌟 Star History
 
-<a href="https://github.com/FNOSP/FlyNarwhal/stargazers" target="_blank" style="display: block" align="center">
-
-<picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=FNOSP/FlyNarwhal&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=FNOSP/FlyNarwhal&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=FNOSP/FlyNarwhal&type=Date" />
-  </picture>
+<a href="https://www.star-history.com/?repos=FlyNarwhal%2FFlyNarwhal&type=date&legend=top-left" target="_blank" style="display: block" align="center">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=FlyNarwhal/FlyNarwhal&type=date&theme=dark&legend=top-left&sealed_token=9G01Yt_j5R983IXSGvq4W9bbVH931sHfjzBZiMOVUS1dhtJ-Cmh3uxXe2CB2rpWFetma17Upq0-SxGbqlPcmrH2z5udzZnNbJ3P0M8FyHwk-7LGjEi6DPQ" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=FlyNarwhal/FlyNarwhal&type=date&legend=top-left&sealed_token=9G01Yt_j5R983IXSGvq4W9bbVH931sHfjzBZiMOVUS1dhtJ-Cmh3uxXe2CB2rpWFetma17Upq0-SxGbqlPcmrH2z5udzZnNbJ3P0M8FyHwk-7LGjEi6DPQ" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=FlyNarwhal/FlyNarwhal&type=date&legend=top-left&sealed_token=9G01Yt_j5R983IXSGvq4W9bbVH931sHfjzBZiMOVUS1dhtJ-Cmh3uxXe2CB2rpWFetma17Upq0-SxGbqlPcmrH2z5udzZnNbJ3P0M8FyHwk-7LGjEi6DPQ" />
+ </picture>
 </a>
+
 
 <a href="#readme">
     <img src="https://img.shields.io/badge/-返回顶部-7d09f1.svg" alt="#" align="right">
 </a>
-
-
