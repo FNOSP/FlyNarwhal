@@ -1,61 +1,80 @@
-#define MyAppName "飞鲸影视"
-#ifndef MyAppVersion
-  #define MyAppVersion "1.0.10"
-#endif
-#define MyAppOS "Windows"
-#define MyAppPublisher "JankinWu"
-#define MyAppExeName "FlyNarwhal.exe"
-#define MyAppPackageName "FlyNarwhal"
-#define MyAppId "9A262498-6C63-4816-A346-056028719600"
+#pragma encoding("utf-8")
 
+#define MyAppId "{{9A262498-6C63-4816-A346-056028719600}"
+#ifndef MyAppVersion
+  #define MyAppVersion "0.0.0"
+#endif
 #ifndef MyAppArch
-  #if GetEnv('PROCESSOR_ARCHITEW6432') == 'AMD64' || GetEnv('PROCESSOR_ARCHITECTURE') == 'AMD64'
-    #define MyAppArch "amd64"
-  #elif GetEnv('PROCESSOR_ARCHITEW6432') == 'ARM64' || GetEnv('PROCESSOR_ARCHITECTURE') == 'ARM64'
-    #define MyAppArch "aarch64"
+  #define MyAppArch "amd64"
+#endif
+#ifndef FlutterBundleDir
+  #if MyAppArch == "aarch64"
+    #define FlutterBundleDir "..\\build\\windows\\arm64\\runner\\Release"
   #else
-    #define MyAppArch "x86"
+    #define FlutterBundleDir "..\\build\\windows\\x64\\runner\\Release"
   #endif
 #endif
 
-#pragma encoding("utf-8")
+#define MyAppName "飞鲸影视"
+#define MyAppPublisher "JankinWu"
+#define MyAppExecutable "FlyNarwhal.exe"
+#define MyUpdaterExecutable "updater.exe"
+#define MyPreviousUpdaterExecutable "flynarwhal-updater.exe"
+#define MyLegacyUpdaterExecutable "fntv-updater.exe"
+
+#if !DirExists(FlutterBundleDir)
+  #error FlutterBundleDir does not exist.
+#endif
+#if !FileExists(FlutterBundleDir + "\\" + MyAppExecutable)
+  #error Flutter bundle is missing FlyNarwhal.exe.
+#endif
+#if !FileExists(FlutterBundleDir + "\\" + MyUpdaterExecutable)
+  #error Flutter bundle is missing updater.exe.
+#endif
+#if FileExists(FlutterBundleDir + "\\" + MyPreviousUpdaterExecutable)
+  #error Flutter bundle still contains the previous updater executable.
+#endif
+#if FileExists(FlutterBundleDir + "\\" + MyLegacyUpdaterExecutable)
+  #error Flutter bundle still contains the legacy updater executable.
+#endif
 
 [Setup]
-; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
-; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={#MyAppId}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={localappdata}\{#MyAppPackageName}
+DefaultDirName={localappdata}\FlyNarwhal
+PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
-; Remove the following line if you want the standard folder selection
-DisableDirPage=no
-
-OutputDir=.
-OutputBaseFilename=FlyNarwhal_Setup_{#MyAppOS}_{#MyAppArch}_{#MyAppVersion}
-SetupIconFile=favicon.ico
+OutputDir=..\build\installer
+OutputBaseFilename=FlyNarwhal_Setup_Windows_{#MyAppArch}_{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-#if MyAppArch == "amd64" || MyAppArch == "aarch64"
-ArchitecturesAllowed=x64 arm64
-ArchitecturesInstallIn64BitMode=x64 arm64
+#if MyAppArch == "amd64"
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+#elif MyAppArch == "aarch64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
+  #error Unsupported Windows architecture. Only amd64 and aarch64 are allowed.
 #endif
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
 
-[Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-
 [Files]
-; NOTE: You must run "./gradlew createReleaseDistributable" before compiling this script
-Source: "..\composeApp\build\compose\binaries\main-release\app\{#MyAppPackageName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#FlutterBundleDir}\{#MyAppExecutable}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#FlutterBundleDir}\{#MyUpdaterExecutable}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#FlutterBundleDir}\*"; DestDir: "{app}"; Excludes: "{#MyAppExecutable},{#MyUpdaterExecutable},{#MyPreviousUpdaterExecutable},{#MyLegacyUpdaterExecutable}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExecutable}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExecutable}"; Tasks: desktopicon
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExecutable}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent

@@ -1,0 +1,69 @@
+---
+description: 项目开发规范与AI交互指南
+alwaysApply: true
+---
+
+# 项目开发规范
+
+## 1. 代码注释规范
+
+主要逻辑必须添加简短的英文注释：
+
+```dart
+// BAD: 行尾注释
+if (user.isLoggedIn) { // Check login status
+  navigate();
+}
+
+// GOOD: 注释放在代码上方
+// Check if user is logged in
+if (user.isLoggedIn) {
+  navigate();
+}
+```
+
+**规则：**
+- 注释只能放在代码上方
+- 禁止行尾注释
+- 使用简短的英文注释
+- 仅在主要逻辑处添加注释，避免冗余
+
+---
+
+## 2. Skill 优先原则
+
+解决问题前，先查阅可用的 Skill：
+
+1. 检查项目及全局skill目录下的技能
+2. 选择最适合当前任务的 Skill
+3. 按照 Skill 指导完成任务
+
+**常用 Skill 示例：**
+- `flutter-expert`: Flutter/Dart 开发
+- `flutter-tester`: Flutter 测试
+- `swift-expert`: iOS/macOS 开发
+- `golang-pro`: Go 开发
+
+---
+
+## 3. 语言偏好
+
+- 优先使用中文回答用户问题
+- 代码注释使用英文
+- 技术术语可保留英文
+
+---
+
+## 4. 功能验证要求
+
+实现功能后必须自行验证：
+
+| 类型 | 验证方式 |
+|---|----|
+| 后端功能 | 编写单元测试用例 |
+| 前端/客户端 UI | 使用 MCP 工具完成测试 |
+
+**验证流程：**
+1. 实现功能代码
+2. 编写测试用例或使用 MCP 测试
+3. 确认功能可用后再提交
