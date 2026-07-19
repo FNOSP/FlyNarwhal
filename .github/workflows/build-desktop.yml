@@ -65,10 +65,40 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Probe Go toolchain
+        id: probe-go
+        shell: pwsh
+        run: |
+          $requiredVersion = (Get-Content updater/go.mod | Where-Object { $_ -match '^go\s+([0-9.]+)$' } | Select-Object -First 1) -replace '^go\s+', ''
+          if (-not $requiredVersion) {
+            throw 'Unable to determine required Go version from updater/go.mod'
+          }
+          $goCommand = Get-Command go -ErrorAction SilentlyContinue
+          $needsSetup = $true
+          if ($goCommand) {
+            $versionOutput = & go version
+            Write-Host "Existing Go toolchain: $versionOutput"
+            if ($versionOutput -match 'go([0-9]+\.[0-9]+(?:\.[0-9]+)?)') {
+              $installedVersion = [version]$matches[1]
+              if ($installedVersion -ge ([version]$requiredVersion)) {
+                $needsSetup = $false
+              }
+            }
+          } else {
+            Write-Host 'Go is not preinstalled on this runner.'
+          }
+          "needs_setup=$($needsSetup.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
       - name: Set up Go
+        if: steps.probe-go.outputs.needs_setup == 'true'
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: updater/go.mod
+          check-latest: true
+
+      - name: Verify Go toolchain
+        shell: pwsh
+        run: go version
 
       - name: Set up C toolchain (Linux)
         if: matrix.platform == 'linux'
@@ -109,6 +139,13 @@ jobs:
           OBFUSCATOR_LIBNAME: ${{ matrix.libname }}
         run: dart run scripts/release/build_desktop.dart ${{ matrix.platform }} ${{ matrix.architecture }}
 
+      - name: Run updater tests
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          Set-Location updater
+          go test ./...
+
       - name: Package Windows installer
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -122,7 +159,7 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: |
-            installer/FlyNarwhal_Setup_Windows_*.exe
+            build/installer/FlyNarwhal_Setup_Windows_*.exe
             build/macos/Build/Products/Release/*.dmg
             dist/**/*
           if-no-files-found: error

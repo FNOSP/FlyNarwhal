@@ -5,13 +5,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"fntv-updater/internal/updater"
+	"updater/internal/lang"
+	"updater/internal/updater"
 )
 
 func main() {
 	installerPath, installDir, err := updater.ParseArguments(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, lang.Msg("usage", filepath.Base(os.Args[0])))
 		os.Exit(2)
 	}
 	paths, err := updater.ValidatePaths(installerPath, installDir, environmentMap())

@@ -4,7 +4,6 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 import '../../domain/update/entities/update_models.dart';
 import 'update_path_safety.dart';
@@ -71,6 +70,7 @@ final class UnsupportedPlatformUpdateInstaller
 }
 
 typedef UpdateDirectoryLoader = Future<Directory> Function();
+typedef CurrentExecutableLoader = Future<File> Function();
 typedef UpdateProcessStarter = Future<void> Function(
   String executable,
   List<String> arguments,
@@ -81,21 +81,29 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
     required this.updaterExecutable,
     UpdateDirectoryLoader? updateCacheDirectoryLoader,
     UpdateDirectoryLoader? installDirectoryLoader,
+    CurrentExecutableLoader? currentExecutableLoader,
     UpdateProcessStarter? processStarter,
+    String? trustedLocalAppDataPath,
   })  : _updateCacheDirectoryLoader =
             updateCacheDirectoryLoader ?? _loadDefaultUpdateCacheDirectory,
         _installDirectoryLoader =
             installDirectoryLoader ?? _loadDefaultInstallDirectory,
-        _processStarter = processStarter ?? _startDetachedProcess;
+        _currentExecutableLoader =
+            currentExecutableLoader ?? _loadCurrentExecutable,
+        _processStarter = processStarter ?? _startDetachedProcess,
+        _trustedLocalAppDataPath = trustedLocalAppDataPath;
 
   static const String applicationExecutable = 'FlyNarwhal.exe';
   static const String applicationId = '9A262498-6C63-4816-A346-056028719600';
+  static const String updaterExecutableName = 'updater.exe';
   static const String _manifestName = 'installer-manifest.json';
 
   final File updaterExecutable;
   final UpdateDirectoryLoader _updateCacheDirectoryLoader;
   final UpdateDirectoryLoader _installDirectoryLoader;
+  final CurrentExecutableLoader _currentExecutableLoader;
   final UpdateProcessStarter _processStarter;
+  final String? _trustedLocalAppDataPath;
 
   @override
   Future<PlatformUpdateInstallResult> launch(
@@ -104,6 +112,7 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
     try {
       final cacheDirectory = await _updateCacheDirectoryLoader();
       final installDirectory = await _installDirectoryLoader();
+      final currentExecutable = await _currentExecutableLoader();
       if (!_isTrustedInstallDirectory(installDirectory)) {
         return _failure(
           code: 'install_directory_rejected',
@@ -116,6 +125,16 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
         return _failure(
           code: 'reparse_path_rejected',
           detail: 'A trusted update path contains a link or reparse point.',
+          retryable: false,
+        );
+      }
+      if (!await _isTrustedCurrentExecutable(
+        currentExecutable,
+        installDirectory,
+      )) {
+        return _failure(
+          code: 'application_identity_invalid',
+          detail: 'The running executable is not the trusted FlyNarwhal.exe.',
           retryable: false,
         );
       }
@@ -138,6 +157,7 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
       final stagedInstaller = await _stageInstaller(
         source: request.packageFile,
         cacheDirectory: cacheDirectory,
+        operationId: request.operationId,
       );
       await _processStarter(updaterExecutable.path, <String>[
         stagedInstaller.path,
@@ -156,7 +176,8 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
   }
 
   Future<bool> _isTrustedUpdater(Directory installDirectory) async {
-    if (path.extension(updaterExecutable.path).toLowerCase() != '.exe' ||
+    if (path.basename(updaterExecutable.path) != updaterExecutableName ||
+        path.extension(updaterExecutable.path).toLowerCase() != '.exe' ||
         !UpdatePathSafety.isWithinRoot(
           rootPath: installDirectory.path,
           candidatePath: updaterExecutable.path,
@@ -164,6 +185,20 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
       return false;
     }
     return UpdatePathSafety.isSafeRegularFile(updaterExecutable.path);
+  }
+
+  Future<bool> _isTrustedCurrentExecutable(
+    File currentExecutable,
+    Directory installDirectory,
+  ) async {
+    if (path.basename(currentExecutable.path) != applicationExecutable ||
+        !UpdatePathSafety.sameWindowsPath(
+          firstPath: currentExecutable.parent.path,
+          secondPath: installDirectory.path,
+        )) {
+      return false;
+    }
+    return UpdatePathSafety.isSafeRegularFile(currentExecutable.path);
   }
 
   Future<bool> _isSafeInstallerSource(
@@ -183,10 +218,11 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
   Future<File> _stageInstaller({
     required File source,
     required Directory cacheDirectory,
+    required String operationId,
   }) async {
     final operationDirectory = Directory(path.join(
       cacheDirectory.path,
-      'operation-${DateTime.now().microsecondsSinceEpoch}-${_randomToken()}',
+      'operation-${_sanitizeOperationId(operationId)}-${_randomToken()}',
     ));
     await operationDirectory.create(recursive: true);
     if (!await UpdatePathSafety.isSafeDirectoryTree(operationDirectory.path)) {
@@ -219,7 +255,8 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
   }
 
   bool _isTrustedInstallDirectory(Directory installDirectory) {
-    final localAppData = Platform.environment['LOCALAPPDATA'];
+    final localAppData =
+        _trustedLocalAppDataPath ?? Platform.environment['LOCALAPPDATA'];
     if (localAppData == null || localAppData.trim().isEmpty) return false;
     return UpdatePathSafety.sameWindowsPath(
       firstPath: installDirectory.path,
@@ -232,6 +269,11 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
       4,
       (_) => Random.secure().nextInt(0x7fffffff).toRadixString(16),
     ).join();
+  }
+
+  String _sanitizeOperationId(String operationId) {
+    final sanitized = operationId.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    return sanitized.isEmpty ? 'unknown' : sanitized;
   }
 
   PlatformUpdateInstallFailure _failure({
@@ -248,8 +290,10 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
   }
 
   static Future<Directory> _loadDefaultUpdateCacheDirectory() async {
-    final temporaryDirectory = await getTemporaryDirectory();
-    return Directory(path.join(temporaryDirectory.path, 'updates'));
+    final temporaryRoot = Platform.environment['TEMP'] ??
+        Platform.environment['TMP'] ??
+        Directory.systemTemp.path;
+    return Directory(path.join(temporaryRoot, 'updates'));
   }
 
   static Future<Directory> _loadDefaultInstallDirectory() async {
@@ -258,6 +302,10 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
       throw const FileSystemException('LOCALAPPDATA is unavailable.');
     }
     return Directory(path.join(localAppData, 'FlyNarwhal'));
+  }
+
+  static Future<File> _loadCurrentExecutable() async {
+    return File(Platform.resolvedExecutable);
   }
 
   static Future<void> _startDetachedProcess(
@@ -334,6 +382,28 @@ final class WindowsInstallResult {
   final DateTime updatedAt;
 
   bool get isFailure => status == 'failure';
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'schemaVersion': schemaVersion,
+      'status': status,
+      'code': code,
+      'technicalDetail': technicalDetail,
+      'installerPath': installerPath,
+      'installDir': installDir,
+      'updatedAt': updatedAt.toUtc().toIso8601String(),
+    };
+  }
+
+  PlatformUpdateInstallFailure? toFailure() {
+    if (!isFailure) return null;
+    return PlatformUpdateInstallFailure(
+      code: code,
+      userMessageKey: 'update.install.error.failed',
+      technicalDetail: jsonEncode(toJson()),
+      isRetryable: true,
+    );
+  }
 }
 
 final class WindowsInstallResultStore {

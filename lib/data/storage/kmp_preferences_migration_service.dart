@@ -84,7 +84,8 @@ class KmpPreferencesMigrationService {
           report.skippedEntries++;
           continue;
         }
-        final entry = Map<String, dynamic>.from(rawEntry);
+        final entry =
+            _normalizeLegacyJsonMap(Map<String, dynamic>.from(rawEntry));
         final history = LoginHistory.fromJson(entry);
         final encryptedPassword =
             await _encryptHistoryPassword(history.password);
@@ -194,6 +195,10 @@ class KmpPreferencesMigrationService {
   }
 
   Object? _parsePreferenceValue(String value) {
+    final normalizedUrl = _normalizeLegacyUrl(value);
+    if (normalizedUrl != null) {
+      return normalizedUrl;
+    }
     if (value == 'true' || value == 'false') {
       return value == 'true';
     }
@@ -206,6 +211,54 @@ class KmpPreferencesMigrationService {
       return doubleValue;
     }
     return value;
+  }
+
+  Map<String, dynamic> _normalizeLegacyJsonMap(Map<String, dynamic> json) {
+    return json.map((key, value) {
+      return MapEntry(_decodeLegacyKey(key), _normalizeLegacyJsonValue(value));
+    });
+  }
+
+  dynamic _normalizeLegacyJsonValue(dynamic value) {
+    if (value is Map) {
+      return _normalizeLegacyJsonMap(Map<String, dynamic>.from(value));
+    }
+    if (value is List) {
+      return value.map(_normalizeLegacyJsonValue).toList();
+    }
+    if (value is String) {
+      return _normalizeLegacyUrl(value) ?? value;
+    }
+    return value;
+  }
+
+  String _decodeLegacyKey(String key) {
+    final buffer = StringBuffer();
+    var uppercaseNext = false;
+    for (final codePoint in key.runes) {
+      final character = String.fromCharCode(codePoint);
+      if (character == '/') {
+        uppercaseNext = true;
+        continue;
+      }
+      if (uppercaseNext && codePoint >= 0x61 && codePoint <= 0x7A) {
+        buffer.writeCharCode(codePoint - 0x20);
+      } else {
+        buffer.write(character);
+      }
+      uppercaseNext = false;
+    }
+    return buffer.toString();
+  }
+
+  String? _normalizeLegacyUrl(String value) {
+    final match = RegExp(r'^(https?):\\+').firstMatch(value);
+    if (match == null) {
+      return null;
+    }
+    final scheme = match.group(1)!;
+    final suffix = value.substring(match.end).replaceAll('\\', '/');
+    return '$scheme://$suffix';
   }
 }
 

@@ -2,27 +2,33 @@ package updater
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"updater/internal/lang"
 )
 
 const (
 	ApplicationExecutable     = "FlyNarwhal.exe"
 	ApplicationID             = "9A262498-6C63-4816-A346-056028719600"
+	UpdaterExecutable         = "updater.exe"
 	installerManifestFileName = "installer-manifest.json"
 	installerManifestSchema   = 1
 )
 
-var SilentInstallerArguments = []string{
+var baseSilentInstallerArguments = []string{
 	"/SILENT",
 	"/SP-",
 	"/SUPPRESSMSGBOXES",
 	"/NORESTART",
 	"/CLOSEAPPLICATIONS",
+}
+
+func SilentInstallerArguments(installDir string) []string {
+	arguments := append([]string(nil), baseSilentInstallerArguments...)
+	return append(arguments, "/DIR="+installDir)
 }
 
 type Paths struct {
@@ -55,7 +61,7 @@ type installerManifest struct {
 
 func ParseArguments(arguments []string) (string, string, error) {
 	if len(arguments) != 2 {
-		return "", "", fmt.Errorf("expected exactly two arguments, got %d", len(arguments))
+		return "", "", lang.Error("expected_exactly_two_arguments", len(arguments))
 	}
 	return arguments[0], arguments[1], nil
 }
@@ -63,54 +69,54 @@ func ParseArguments(arguments []string) (string, string, error) {
 func ValidatePaths(installerPath string, installDir string, environment map[string]string) (Paths, error) {
 	localAppData := strings.TrimSpace(environment["LOCALAPPDATA"])
 	if localAppData == "" {
-		return Paths{}, errors.New("LOCALAPPDATA is unavailable")
+		return Paths{}, lang.Error("localappdata_unavailable")
 	}
 
 	cacheRoot, err := filepath.Abs(filepath.Join(os.TempDir(), "updates"))
 	if err != nil {
-		return Paths{}, fmt.Errorf("resolve cache root: %w", err)
+		return Paths{}, lang.Wrap(err, "resolve_cache_root")
 	}
 	if err := validateExistingDirectory(cacheRoot); err != nil {
-		return Paths{}, fmt.Errorf("unsafe update cache root: %w", err)
+		return Paths{}, lang.Wrap(err, "unsafe_update_cache_root")
 	}
 
 	canonicalInstallerPath, err := canonicalExistingFile(installerPath)
 	if err != nil {
-		return Paths{}, fmt.Errorf("invalid installer: %w", err)
+		return Paths{}, lang.Wrap(err, "invalid_installer")
 	}
 	if !strings.EqualFold(filepath.Ext(canonicalInstallerPath), ".exe") {
-		return Paths{}, errors.New("installer must have an .exe extension")
+		return Paths{}, lang.Error("installer_must_have_exe_extension")
 	}
 	if !isWithinRoot(cacheRoot, canonicalInstallerPath) {
-		return Paths{}, errors.New("installer is outside the update cache root")
+		return Paths{}, lang.Error("installer_outside_update_cache_root")
 	}
 	if err := validatePathComponents(cacheRoot, filepath.Dir(canonicalInstallerPath)); err != nil {
-		return Paths{}, fmt.Errorf("unsafe installer staging directory: %w", err)
+		return Paths{}, lang.Wrap(err, "unsafe_installer_staging_directory")
 	}
 
 	canonicalInstallDir, err := filepath.Abs(filepath.Clean(installDir))
 	if err != nil {
-		return Paths{}, fmt.Errorf("resolve install directory: %w", err)
+		return Paths{}, lang.Wrap(err, "resolve_install_directory")
 	}
 	trustedInstallDir, err := filepath.Abs(filepath.Join(localAppData, "FlyNarwhal"))
 	if err != nil {
-		return Paths{}, fmt.Errorf("resolve trusted install directory: %w", err)
+		return Paths{}, lang.Wrap(err, "resolve_trusted_install_directory")
 	}
 	if !samePath(canonicalInstallDir, trustedInstallDir) {
-		return Paths{}, errors.New("install directory does not match the trusted FlyNarwhal directory")
+		return Paths{}, lang.Error("install_directory_mismatch")
 	}
 	if err := validateExistingDirectory(trustedInstallDir); err != nil {
-		return Paths{}, fmt.Errorf("unsafe installation directory: %w", err)
+		return Paths{}, lang.Wrap(err, "unsafe_installation_directory")
 	}
 
 	updatesDirectory := filepath.Join(trustedInstallDir, "updates")
 	if err := ensureSafeDirectory(updatesDirectory); err != nil {
-		return Paths{}, fmt.Errorf("unsafe installation updates directory: %w", err)
+		return Paths{}, lang.Wrap(err, "unsafe_installation_updates_directory")
 	}
 
 	installerIdentity, err := identifyFile(canonicalInstallerPath)
 	if err != nil {
-		return Paths{}, fmt.Errorf("identify installer: %w", err)
+		return Paths{}, lang.Wrap(err, "identify_installer")
 	}
 	manifestPath := filepath.Join(filepath.Dir(canonicalInstallerPath), installerManifestFileName)
 	if err := validateInstallerManifest(manifestPath, installerIdentity); err != nil {
@@ -131,14 +137,14 @@ func ValidatePaths(installerPath string, installDir string, environment map[stri
 
 func VerifyInstallerIdentity(paths Paths) error {
 	if err := validatePathComponents(paths.CacheRoot, filepath.Dir(paths.InstallerPath)); err != nil {
-		return fmt.Errorf("unsafe installer staging directory: %w", err)
+		return lang.Wrap(err, "unsafe_installer_staging_directory")
 	}
 	currentIdentity, err := identifyFile(paths.InstallerPath)
 	if err != nil {
-		return fmt.Errorf("identify installer: %w", err)
+		return lang.Wrap(err, "identify_installer")
 	}
 	if !paths.InstallerIdentity.matches(currentIdentity) {
-		return errors.New("installer identity changed after validation")
+		return lang.Error("installer_identity_changed_after_validation")
 	}
 	return validateInstallerManifest(paths.InstallerManifest, currentIdentity)
 }
@@ -146,14 +152,14 @@ func VerifyInstallerIdentity(paths Paths) error {
 func ValidateApplicationExecutable(paths Paths) (string, error) {
 	applicationPath := filepath.Join(paths.InstallDir, ApplicationExecutable)
 	if err := validatePathComponents(paths.InstallDir, filepath.Dir(applicationPath)); err != nil {
-		return "", fmt.Errorf("unsafe application directory: %w", err)
+		return "", lang.Wrap(err, "unsafe_application_directory")
 	}
 	canonicalApplicationPath, err := canonicalExistingFile(applicationPath)
 	if err != nil {
-		return "", fmt.Errorf("invalid application executable: %w", err)
+		return "", lang.Wrap(err, "invalid_application_executable")
 	}
 	if !isWithinRoot(paths.InstallDir, canonicalApplicationPath) {
-		return "", errors.New("application executable is outside the trusted installation directory")
+		return "", lang.Error("application_executable_outside_trusted_root")
 	}
 	return canonicalApplicationPath, nil
 }
@@ -165,23 +171,23 @@ func identifyFile(filePath string) (FileIdentity, error) {
 func validateInstallerManifest(manifestPath string, installerIdentity FileIdentity) error {
 	manifestFile, err := os.Open(manifestPath)
 	if err != nil {
-		return fmt.Errorf("open protected installer manifest: %w", err)
+		return lang.Wrap(err, "open_protected_installer_manifest")
 	}
 	defer manifestFile.Close()
 
 	manifestInfo, err := manifestFile.Stat()
 	if err != nil {
-		return fmt.Errorf("stat protected installer manifest: %w", err)
+		return lang.Wrap(err, "stat_protected_installer_manifest")
 	}
 	if !manifestInfo.Mode().IsRegular() || manifestInfo.Size() > 64*1024 {
-		return errors.New("installer manifest is not a safe regular file")
+		return lang.Error("installer_manifest_not_safe_regular_file")
 	}
 	var manifest installerManifest
 	if err := json.NewDecoder(io.LimitReader(manifestFile, 64*1024)).Decode(&manifest); err != nil {
-		return fmt.Errorf("decode protected installer manifest: %w", err)
+		return lang.Wrap(err, "decode_protected_installer_manifest")
 	}
 	if manifest.SchemaVersion != installerManifestSchema || !installerIdentity.matches(manifest.Installer) {
-		return errors.New("installer manifest does not match the staged installer")
+		return lang.Error("installer_manifest_mismatch")
 	}
 	return nil
 }
@@ -196,7 +202,7 @@ func canonicalExistingFile(filePath string) (string, error) {
 		return "", err
 	}
 	if fileInfo.Mode()&os.ModeSymlink != 0 || fileInfo.Mode()&os.ModeIrregular != 0 || !fileInfo.Mode().IsRegular() {
-		return "", errors.New("path is not a regular non-reparse file")
+		return "", lang.Error("path_not_regular_non_reparse_file")
 	}
 	return absolutePath, nil
 }
@@ -207,7 +213,7 @@ func validateExistingDirectory(directoryPath string) error {
 		return err
 	}
 	if fileInfo.Mode()&os.ModeSymlink != 0 || !fileInfo.IsDir() {
-		return errors.New("path is not a non-reparse directory")
+		return lang.Error("path_not_non_reparse_directory")
 	}
 	return nil
 }
@@ -221,7 +227,7 @@ func ensureSafeDirectory(directoryPath string) error {
 
 func validatePathComponents(rootPath string, candidateDirectory string) error {
 	if !isWithinRoot(rootPath, candidateDirectory) && !samePath(rootPath, candidateDirectory) {
-		return errors.New("directory is outside trusted root")
+		return lang.Error("directory_outside_trusted_root")
 	}
 	currentPath := rootPath
 	if err := validateExistingDirectory(currentPath); err != nil {

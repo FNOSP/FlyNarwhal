@@ -5,9 +5,10 @@ package updater
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"io"
 	"os"
+
+	"updater/internal/lang"
 )
 
 func inspectRegularFile(filePath string) (FileIdentity, error) {
@@ -16,7 +17,7 @@ func inspectRegularFile(filePath string) (FileIdentity, error) {
 		return FileIdentity{}, err
 	}
 	if fileInfo.Mode()&os.ModeSymlink != 0 || !fileInfo.Mode().IsRegular() {
-		return FileIdentity{}, errors.New("path is not a regular non-reparse file")
+		return FileIdentity{}, lang.Error("path_not_regular_non_reparse_file")
 	}
 	file, err := os.Open(filePath)
 	if err != nil {

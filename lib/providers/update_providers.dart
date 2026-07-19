@@ -1,8 +1,10 @@
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as path;
+import 'package:window_manager/window_manager.dart';
 
 import '../data/datasources/remote/github_release_data_source.dart';
 import '../data/repositories/update_repository_impl.dart';
@@ -12,6 +14,7 @@ import '../domain/update/services/update_asset_selector.dart';
 import '../domain/update/services/update_policy.dart';
 import '../services/update/app_version_service.dart';
 import '../services/update/download_url_resolver.dart';
+import '../services/update/platform_update_installer.dart';
 import '../services/update/sha256_verifier.dart';
 import '../services/update/update_downloader.dart';
 import '../services/update/update_file_store.dart';
@@ -78,6 +81,51 @@ final updateDownloaderProvider = Provider<UpdateDownloader>((ref) {
   );
 });
 
+final platformUpdateInstallerProvider =
+    Provider<PlatformUpdateInstaller>((ref) {
+  if (kIsWeb || !Platform.isWindows) {
+    return const UnsupportedPlatformUpdateInstaller();
+  }
+  final currentExecutable = File(Platform.resolvedExecutable);
+  final updaterPath = path.join(
+    currentExecutable.parent.path,
+    WindowsUpdateInstaller.updaterExecutableName,
+  );
+  return WindowsUpdateInstaller(updaterExecutable: File(updaterPath));
+});
+
+final windowsInstallResultStoreProvider = Provider<WindowsInstallResultStore?>(
+  (ref) {
+    if (kIsWeb || !Platform.isWindows) {
+      return null;
+    }
+    return WindowsInstallResultStore();
+  },
+);
+
+final updateInstallFailureRecoveryProvider =
+    Provider<UpdateInstallFailureRecovery>((ref) {
+  final store = ref.watch(windowsInstallResultStoreProvider);
+  if (store == null) {
+    return () async => null;
+  }
+  return () async {
+    try {
+      final result = await store.consume();
+      return result?.toFailure();
+    } on FormatException {
+      return null;
+    }
+  };
+});
+
+final updateExitRequesterProvider = Provider<UpdateExitRequester>((ref) {
+  if (kIsWeb || !Platform.isWindows) {
+    return () async {};
+  }
+  return () => windowManager.destroy();
+});
+
 /// Provides global update discovery state for title bars and settings.
 final updateControllerProvider =
     StateNotifierProvider<UpdateController, UpdateState>((ref) {
@@ -87,6 +135,9 @@ final updateControllerProvider =
     settingsStore: ref.watch(updateSettingsStoreProvider),
     appVersionService: ref.watch(appVersionServiceProvider),
     downloader: ref.watch(updateDownloaderProvider),
+    installer: ref.watch(platformUpdateInstallerProvider),
+    exitRequester: ref.watch(updateExitRequesterProvider),
+    installFailureRecovery: ref.watch(updateInstallFailureRecoveryProvider),
   );
 });
 

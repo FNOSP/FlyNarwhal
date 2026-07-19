@@ -3,11 +3,11 @@ package updater
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"os"
 	"time"
+
+	"updater/internal/lang"
 )
 
 const (
@@ -39,16 +39,16 @@ type InstallResult struct {
 
 func (result InstallResult) Validate() error {
 	if result.SchemaVersion != installResultSchema {
-		return errors.New("unsupported result schema version")
+		return lang.Error("unsupported_result_schema_version")
 	}
 	if result.Status != "success" && result.Status != "failure" {
-		return errors.New("invalid installation result status")
+		return lang.Error("invalid_installation_result_status")
 	}
 	if result.Code == "" || len(result.Code) > 128 || len(result.TechnicalDetail) > 4096 {
-		return errors.New("invalid installation result values")
+		return lang.Error("invalid_installation_result_values")
 	}
 	if result.InstallerPath == "" || result.InstallDir == "" || result.UpdatedAt.IsZero() || result.UpdatedAt.Location() != time.UTC {
-		return errors.New("installation result is missing required identity fields")
+		return lang.Error("installation_result_missing_required_fields")
 	}
 	return nil
 }
@@ -60,6 +60,7 @@ type Runner struct {
 	Now                 func() time.Time
 	VerifyInstaller     func(Paths) error
 	ValidateApplication func(Paths) (string, error)
+	CleanupLegacyFiles  func(Paths) error
 }
 
 func (runner Runner) verifyInstaller(paths Paths) error {
@@ -76,9 +77,16 @@ func (runner Runner) validateApplication(paths Paths) (string, error) {
 	return ValidateApplicationExecutable(paths)
 }
 
+func (runner Runner) cleanupLegacyFiles(paths Paths) error {
+	if runner.CleanupLegacyFiles != nil {
+		return runner.CleanupLegacyFiles(paths)
+	}
+	return CleanupLegacyInstallation(paths)
+}
+
 func (runner Runner) Execute(paths Paths) error {
 	if runner.Processes == nil || runner.Files == nil {
-		return errors.New("updater dependencies are unavailable")
+		return lang.Error("updater_dependencies_unavailable")
 	}
 	now := runner.Now
 	if now == nil {
@@ -95,6 +103,9 @@ func (runner Runner) Execute(paths Paths) error {
 	if err := runner.Processes.WaitForExit(waitContext, applicationPath); err != nil {
 		return runner.recordFailure(paths, now, "application_exit_timeout", err)
 	}
+	if err := runner.cleanupLegacyFiles(paths); err != nil {
+		return runner.recordFailure(paths, now, "legacy_cleanup_failed", err)
+	}
 
 	// Recheck the protected staged installer after the application has exited.
 	if err := runner.verifyInstaller(paths); err != nil {
@@ -102,15 +113,19 @@ func (runner Runner) Execute(paths Paths) error {
 	}
 	installerContext, cancelInstaller := context.WithTimeout(context.Background(), installerProcessTimeout)
 	defer cancelInstaller()
-	exitCode, err := runner.Processes.Run(installerContext, paths.InstallerPath, SilentInstallerArguments)
-	if errors.Is(installerContext.Err(), context.DeadlineExceeded) {
+	exitCode, err := runner.Processes.Run(
+		installerContext,
+		paths.InstallerPath,
+		SilentInstallerArguments(paths.InstallDir),
+	)
+	if installerContext.Err() == context.DeadlineExceeded {
 		return runner.recordFailure(paths, now, "installer_timeout", installerContext.Err())
 	}
 	if err != nil {
 		return runner.recordFailure(paths, now, "installer_process_failed", err)
 	}
 	if exitCode != 0 {
-		return runner.recordFailure(paths, now, "installer_exit_nonzero", fmt.Errorf("exit code %d", exitCode))
+		return runner.recordFailure(paths, now, "installer_exit_nonzero", lang.Error("installer_exit_code", exitCode))
 	}
 
 	applicationPath, err = runner.validateApplication(paths)
@@ -130,7 +145,7 @@ func (runner Runner) Execute(paths Paths) error {
 		UpdatedAt:     now().UTC(),
 	}
 	if err := runner.Files.WriteResult(paths.ResultPath, result); err != nil {
-		return fmt.Errorf("write installation result: %w", err)
+		return lang.Wrap(err, "write_installation_result")
 	}
 	if err := runner.verifyInstaller(paths); err != nil {
 		runner.log("installer_cleanup_skipped", err.Error())
@@ -139,7 +154,7 @@ func (runner Runner) Execute(paths Paths) error {
 	if err := runner.Files.Remove(paths.InstallerPath); err != nil && !os.IsNotExist(err) {
 		runner.log("installer_delete_failed", err.Error())
 	}
-	runner.log("installed", "installation completed")
+	runner.log("installed", lang.Msg("installation_completed"))
 	return nil
 }
 
@@ -157,7 +172,7 @@ func (runner Runner) recordFailure(paths Paths, now func() time.Time, code strin
 		runner.log("result_write_failed", writeError.Error())
 	}
 	runner.log(code, cause.Error())
-	return fmt.Errorf("%s: %w", code, cause)
+	return lang.Error(code)
 }
 
 func (runner Runner) log(code string, detail string) {

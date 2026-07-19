@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:fly_narwhal/tooling/windows_bundle_contract.dart';
+
 const _requiredSecrets = <String>[
   'FLY_NARWHAL_API_SECRET',
   'FLY_NARWHAL_SECRET',
@@ -87,12 +89,6 @@ Future<void> _runProtectedBuild({
     '--obfuscate',
     '--split-debug-info=symbols/$platform-$architecture',
   ];
-  if (platform == 'windows') {
-    flutterArguments.addAll(<String>[
-      '--target-platform',
-      'windows-$architecture',
-    ]);
-  }
   await _runProcess(
     executable: 'flutter',
     arguments: flutterArguments,
@@ -104,6 +100,12 @@ Future<void> _runProtectedBuild({
       '$bundleDirectory${Platform.pathSeparator}$libraryName';
   if (dryRun) {
     stdout.writeln('Copy $nativeLibraryPath -> $bundleLibraryPath');
+    if (platform == 'windows') {
+      stdout.writeln(
+        'CMake will build $windowsUpdaterExecutable during flutter build windows.',
+      );
+      stdout.writeln('Verify Windows bundle contract in $bundleDirectory');
+    }
     return;
   }
   final nativeLibrary = File(nativeLibraryPath);
@@ -115,6 +117,18 @@ Future<void> _runProtectedBuild({
     _fail('Desktop release bundle is missing after the Flutter build');
   }
   await nativeLibrary.copy(bundleLibraryPath);
+  if (platform == 'windows') {
+    await _runWindowsIdentityCheck();
+    try {
+      final summary = await verifyWindowsBundleContract(
+        architecture: architecture,
+        bundleDirectory: bundleDirectory,
+      );
+      stdout.writeln(encodeWindowsBundleSummary(summary));
+    } on WindowsBundleContractFailure catch (error) {
+      _fail(error.message);
+    }
+  }
 }
 
 Future<void> _deleteGeneratedSecretSource(
@@ -141,12 +155,13 @@ Future<void> _runProcess({
   Map<String, String>? environment,
   required bool dryRun,
 }) async {
+  final resolvedExecutable = _resolveExecutable(executable);
   if (dryRun) {
-    stdout.writeln('$executable ${arguments.join(' ')}');
+    stdout.writeln('$resolvedExecutable ${arguments.join(' ')}');
     return;
   }
   final process = await Process.start(
-    executable,
+    resolvedExecutable,
     arguments,
     workingDirectory: workingDirectory,
     environment: environment,
@@ -154,8 +169,15 @@ Future<void> _runProcess({
   );
   final exitCode = await process.exitCode;
   if (exitCode != 0) {
-    _fail('$executable failed with exit code $exitCode');
+    _fail('$resolvedExecutable failed with exit code $exitCode');
   }
+}
+
+String _resolveExecutable(String executable) {
+  if (Platform.isWindows && executable == 'flutter') {
+    return 'flutter.bat';
+  }
+  return executable;
 }
 
 String _nativeLibraryPath({
@@ -179,17 +201,29 @@ String _bundleDirectory(String platform, String architecture) {
   };
 }
 
+Future<void> _runWindowsIdentityCheck() async {
+  await _runProcess(
+    executable: 'dart',
+    arguments: const <String>[
+      'run',
+      'scripts/windows/verify_identity_contract.dart'
+    ],
+    dryRun: false,
+  );
+}
+
 _BuildArguments _parseArguments(List<String> arguments) {
-  final dryRun = arguments.remove('--dry-run');
-  if (arguments.length != 2) {
+  final normalizedArguments = List<String>.of(arguments);
+  final dryRun = normalizedArguments.remove('--dry-run');
+  if (normalizedArguments.length != 2) {
     _fail(
       'Usage: dart run scripts/release/build_desktop.dart '
       '<platform> <architecture> [--dry-run]',
     );
   }
   return _BuildArguments(
-    platform: arguments[0],
-    architecture: arguments[1],
+    platform: normalizedArguments[0],
+    architecture: normalizedArguments[1],
     dryRun: dryRun,
   );
 }

@@ -2,12 +2,14 @@ import 'dart:io';
 
 const applicationId = '9A262498-6C63-4816-A346-056028719600';
 const applicationExecutable = 'FlyNarwhal.exe';
+const updaterExecutable = 'updater.exe';
 
 Future<void> main() async {
   final contracts = <String, List<String>>{
     'installer/setup.iss': <String>[
       applicationId,
       applicationExecutable,
+      updaterExecutable,
       r'{localappdata}\FlyNarwhal',
       'ArchitecturesAllowed=x64compatible',
       'ArchitecturesAllowed=arm64',
@@ -17,13 +19,15 @@ Future<void> main() async {
       '"OriginalFilename", "FlyNarwhal.exe"',
       '"InternalName", "FlyNarwhal"',
     ],
-    'fntv-updater/internal/updater/contract.go': <String>[
+    'updater/internal/updater/contract.go': <String>[
       applicationId,
       applicationExecutable,
+      updaterExecutable,
     ],
     'lib/services/update/platform_update_installer.dart': <String>[
       applicationId,
       applicationExecutable,
+      updaterExecutable,
     ],
   };
 

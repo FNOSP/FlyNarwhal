@@ -25,6 +25,8 @@ import 'update_state.dart';
 typedef CurrentVersionLoader = Future<SemanticVersion> Function();
 typedef UpdatePlatformLoader = Future<UpdatePlatform> Function();
 typedef UpdateExitRequester = Future<void> Function();
+typedef UpdateInstallFailureRecovery =
+    Future<PlatformUpdateInstallFailure?> Function();
 typedef UpdateClock = DateTime Function();
 
 /// Coordinates update work without coupling background tasks to presentation.
@@ -44,6 +46,7 @@ final class UpdateController extends StateNotifier<UpdateState> {
     CurrentVersionLoader? currentVersionLoader,
     UpdatePlatformLoader? platformLoader,
     UpdateExitRequester? exitRequester,
+    UpdateInstallFailureRecovery? installFailureRecovery,
     UpdateClock? clock,
   })  : _repository = repository,
         _policy = policy,
@@ -66,10 +69,13 @@ final class UpdateController extends StateNotifier<UpdateState> {
         _platformLoader =
             platformLoader ?? appVersionService.detectCurrentPlatform,
         _exitRequester = exitRequester ?? _doNothing,
+        _installFailureRecovery = installFailureRecovery ?? _noRecoveredFailure,
         _clock = clock ?? DateTime.now,
         super(UpdateState.initial(
           lastSuccessfulCheckAt: settingsStore.lastSuccessfulCheckAt,
-        ));
+        )) {
+    unawaited(_recoverInstallationFailure());
+  }
 
   static const int _pageSize = 10;
   static const int _maximumPages = 5;
@@ -88,6 +94,7 @@ final class UpdateController extends StateNotifier<UpdateState> {
   final CurrentVersionLoader _currentVersionLoader;
   final UpdatePlatformLoader _platformLoader;
   final UpdateExitRequester _exitRequester;
+  final UpdateInstallFailureRecovery _installFailureRecovery;
   final UpdateClock _clock;
 
   Future<void>? _activeCheck;
@@ -98,6 +105,10 @@ final class UpdateController extends StateNotifier<UpdateState> {
   CancellationTokenSource? _downloadCancellationSource;
   UpdateRetryHandle? _retryHandle;
   bool _isDisposed = false;
+
+  static Future<PlatformUpdateInstallFailure?> _noRecoveredFailure() async {
+    return null;
+  }
 
   Future<void> checkManually() {
     if (_activeInstallation != null) return Future<void>.value();
@@ -210,6 +221,30 @@ final class UpdateController extends StateNotifier<UpdateState> {
   }
 
   Future<void> retryInstallation() => installDownloadedUpdate();
+
+  Future<void> _recoverInstallationFailure() async {
+    final failure = await _installFailureRecovery();
+    if (_isDisposed ||
+        failure == null ||
+        state.task.phase != UpdateTaskPhase.idle ||
+        state.presentation.isDialogVisible) {
+      return;
+    }
+    state = state.copyWith(
+      presentation: const UpdatePresentationState(
+        dialogPhase: UpdateDialogPhase.installFailed,
+        isDialogVisible: true,
+        isUpdatePromptVisible: true,
+      ),
+      failure: UpdateInstallFailure(
+        code: failure.code,
+        userMessageKey: failure.userMessageKey,
+        technicalDetail: failure.technicalDetail,
+        isRetryable: failure.isRetryable,
+        cause: failure.cause,
+      ),
+    );
+  }
 
   Future<void> restoreCachedUpdate(UpdateCandidate candidate) async {
     if (!await _fileStore.hasValidCachedFile(candidate)) return;
