@@ -1,36 +1,123 @@
-*.iml
-.kotlin
-.gradle
-**/build/
-xcuserdata
-!src/**/build/
-local.properties
-.idea
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
 .DS_Store
-captures
-.externalNativeBuild
-.cxx
-*.xcodeproj/*
-!*.xcodeproj/project.pbxproj
-!*.xcodeproj/xcshareddata/
-!*.xcodeproj/project.xcworkspace/
-!*.xcworkspace/contents.xcworkspacedata
-**/xcshareddata/WorkspaceSettings.xcsettings
-/.vscode/
-**.ini
-/installer/**.exe
-**/logs/
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Visual Studio Code related
+.classpath
+.project
+.settings/
+.vscode/
+
+# Flutter repo-specific
+/bin/cache/
+/bin/mingit/
+/dev/benchmarks/mega_gallery/
+/dev/bots/.recipe_deps
+/dev/bots/android_tools/
+/dev/devicelab/ABresults*.json
+/dev/docs/doc/
+/dev/docs/flutter.docs.zip
+/dev/docs/lib/
+/dev/docs/pubspec.yaml
+/dev/integration_tests/**/xcuserdata
+/dev/integration_tests/**/Pods
+/packages/flutter/coverage/
+version
+analysis_benchmark.json
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/generated_plugin_registrant.dart
+.pub-cache/
+.pub/
+/build/
+build/
+/coverage/
+.packages
+linked_*.ds
+unlinked.ds
+unlinked_spec.ds
+
+# Flutter generated files
+**/generated_*
+**/GeneratedPluginRegistrant.*
+**/ephemeral/
+
+# Dart/Flutter build artifacts
+**/.dart_tool/
+**/.packages
+**/.pub-cache/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+
+# IDE files
+**/.idea/
+**/*.iml
+**/.vscode/
+
+# OS generated files
+**/Thumbs.db
+**/.DS_Store
+**/*.swp
+**/*.swo
+
+# Log files
+**/*.log
+
+# Environment files
+**/.env
+**/.env.local
+
+# Coverage reports
+**/coverage/
+**/*.lcov
+
+# Temporary files
+**/tmp/
+**/temp/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+symbols/
+artifacts/
+dist/
+.private/
+release-work/
+
+# Private obfuscator generated output
+/generated-obfuscator/
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
 /.trae/
-/flutter-player/.dart_tool/
-/flutter-player/windows/flutter/ephemeral/
-/flutter-player/.flutter-plugins-dependencies
-/mapping.txt
-/flutter-player/macos/
 
-# Flutter-related
-**/Flutter/ephemeral/
-**/Pods/
-
-# Xcode-related
-**/dgph
-**/xcuserdata/
+# Prevent accidental commit of large binary dependencies downloaded at build time
+/windows/libs/
+/docs/
+/test/
