@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
@@ -21,6 +23,7 @@ class PipWindowModeController {
 
   static const Size defaultPipSize = Size(320, 180);
   static const Size minimumPipSize = Size(280, 158);
+  static const Size _normalWindowMinimumSize = Size(1280, 720);
   static const double _cornerMargin = 24;
   static const double _defaultPipWidth = 320;
   static const double _minimumPipWidth = 280;
@@ -151,9 +154,8 @@ class PipWindowModeController {
       return;
     }
 
-    if (snapshot.minimumSize != null) {
-      await windowManager.setMinimumSize(snapshot.minimumSize!);
-    }
+    final restoredMinimumSize = _normalMinimumSizeForSnapshot(snapshot);
+    await windowManager.setMinimumSize(restoredMinimumSize);
 
     await windowManager.setBounds(snapshot.bounds);
     if (snapshot.wasMaximized) {
@@ -228,6 +230,22 @@ class PipWindowModeController {
     } catch (_) {
       return null;
     }
+  }
+
+  Size _normalMinimumSizeForSnapshot(_PipWindowSnapshot snapshot) {
+    final snapshotMinimumSize = snapshot.minimumSize;
+    if (snapshotMinimumSize == null) {
+      return _normalWindowMinimumSize;
+    }
+    final restoredWidth =
+        snapshotMinimumSize.width < _normalWindowMinimumSize.width
+            ? _normalWindowMinimumSize.width
+            : snapshotMinimumSize.width;
+    final restoredHeight =
+        snapshotMinimumSize.height < _normalWindowMinimumSize.height
+            ? _normalWindowMinimumSize.height
+            : snapshotMinimumSize.height;
+    return Size(restoredWidth, restoredHeight);
   }
 
   Future<bool> _isWindowBorderless() async {
