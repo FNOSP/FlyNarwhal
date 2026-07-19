@@ -25,16 +25,6 @@
 
 **本项目为飞牛 OS 爱好者开发的第三方影视客户端，与飞牛影视官方无关。使用前请确保遵守相关服务条款。**
 
-## 当前技术栈
-
-- UI：Flutter + [Fluent UI](https://pub.dev/packages/fluent_ui)
-- 状态管理：[Riverpod](https://riverpod.dev/)
-- 导航：[GoRouter](https://pub.dev/packages/go_router)
-- 网络请求：[Dio](https://pub.dev/packages/dio)
-- 媒体播放：[media_kit](https://github.com/media-kit/media-kit) / libmpv
-- 桌面能力：`window_manager`、`flutter_acrylic`
-- 自动更新：Flutter 更新流程 + Windows `updater`
-
 ## 项目结构
 
 ```text
