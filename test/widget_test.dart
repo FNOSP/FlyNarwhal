@@ -12,7 +12,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fly_narwhal/app.dart';
 import 'package:fly_narwhal/providers/providers.dart';
-import 'package:fly_narwhal/ui/player/pip/pip_window_payload.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 void main() {
@@ -25,10 +24,7 @@ void main() {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
       ],
-      child: MyApp(
-        windowArgs: DesktopWindowBootstrapArgs.main(),
-        currentWindowId: 'test',
-      ),
+      child: const MyApp(),
     ));
 
     await tester.pumpAndSettle();
