@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:system_info2/system_info2.dart';
 import 'package:media_kit/media_kit.dart';
@@ -217,14 +219,60 @@ class MyApp extends ConsumerWidget {
       routerDelegate: router.routerDelegate,
       routeInformationProvider: router.routeInformationProvider,
       builder: (context, child) {
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            if (child != null) child,
-            const ToastHost(),
-          ],
+        return _MouseBackNavigationListener(
+          router: router,
+          navigationStackNotifier: ref.read(navigationStackProvider.notifier),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (child != null) child,
+              const ToastHost(),
+            ],
+          ),
         );
       },
     );
+  }
+}
+
+class _MouseBackNavigationListener extends StatelessWidget {
+  const _MouseBackNavigationListener({
+    required this.router,
+    required this.navigationStackNotifier,
+    required this.child,
+  });
+
+  final GoRouter router;
+  final NavigationStackNotifier navigationStackNotifier;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _handlePointerDown,
+      child: child,
+    );
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (event.buttons != kBackMouseButton) {
+      return;
+    }
+
+    final previousPath = navigationStackNotifier.pop();
+    if (previousPath != null && previousPath.isNotEmpty) {
+      router.go(previousPath);
+      return;
+    }
+
+    if (router.canPop()) {
+      router.pop();
+      return;
+    }
+
+    if (router.routeInformationProvider.value.uri.path != '/home') {
+      router.go('/home');
+    }
   }
 }
