@@ -248,58 +248,61 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
             Positioned(
               left: left,
               top: top,
-              child: SizedBox(
-                width: _subtitleFlyoutWidth,
-                height: flyoutHeight + bridgeHeight,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      child: MouseRegion(
-                        opaque: false,
-                        cursor: SystemMouseCursors.click,
-                        onEnter: (_) {
-                          _setPopupHovered(true);
-                          _hideTimer?.cancel();
-                        },
-                        onHover: (_) {
-                          if (!_popupHovered) {
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox(
+                  width: _subtitleFlyoutWidth,
+                  height: flyoutHeight + bridgeHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        child: MouseRegion(
+                          opaque: false,
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) {
                             _setPopupHovered(true);
-                          }
-                        },
-                        onExit: (_) {
-                          _setPopupHovered(false);
-                          _hideFlyoutWithDelay();
-                        },
-                        child: KeyedSubtree(
-                          key: _flyoutKey,
-                          child: _buildAnimatedFlyout(),
+                            _hideTimer?.cancel();
+                          },
+                          onHover: (_) {
+                            if (!_popupHovered) {
+                              _setPopupHovered(true);
+                            }
+                          },
+                          onExit: (_) {
+                            _setPopupHovered(false);
+                            _hideFlyoutWithDelay();
+                          },
+                          child: KeyedSubtree(
+                            key: _flyoutKey,
+                            child: _buildAnimatedFlyout(),
+                          ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      left: bridgeLeft,
-                      top: flyoutHeight,
-                      child: MouseRegion(
-                        opaque: false,
-                        cursor: SystemMouseCursors.click,
-                        onEnter: (_) {
-                          _setPopupHovered(true);
-                          _hideTimer?.cancel();
-                        },
-                        onExit: (_) {
-                          _setPopupHovered(false);
-                          _hideFlyoutWithDelay();
-                        },
-                        child: SizedBox(
-                          width: bridgeWidth,
-                          height: bridgeHeight,
+                      Positioned(
+                        left: bridgeLeft,
+                        top: flyoutHeight,
+                        child: MouseRegion(
+                          opaque: false,
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) {
+                            _setPopupHovered(true);
+                            _hideTimer?.cancel();
+                          },
+                          onExit: (_) {
+                            _setPopupHovered(false);
+                            _hideFlyoutWithDelay();
+                          },
+                          child: SizedBox(
+                            width: bridgeWidth,
+                            height: bridgeHeight,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

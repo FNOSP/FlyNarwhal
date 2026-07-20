@@ -171,63 +171,66 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
             Positioned(
               left: buttonOffset.dx + _qualityFlyoutLeftOffset,
               top: top,
-              child: SizedBox(
-                width: flyoutWidth,
-                height: flyoutHeight + bridgeHeight,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      child: MouseRegion(
-                        opaque: false,
-                        cursor: SystemMouseCursors.click,
-                        onEnter: (_) {
-                          _setPopupHovered(true);
-                          _hideTimer?.cancel();
-                        },
-                        onHover: (_) {
-                          if (!_popupHovered) {
-                            _setPopupHovered(true);
-                          }
-                        },
-                        onExit: (_) {
-                          _setPopupHovered(false);
-                          _hideFlyoutWithDelay();
-                        },
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox(
+                  width: flyoutWidth,
+                  height: flyoutHeight + bridgeHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 0,
                         child: MouseRegion(
+                          opaque: false,
                           cursor: SystemMouseCursors.click,
-                          child: KeyedSubtree(
-                            key: _flyoutKey,
-                            child: _buildAnimatedFlyout(),
+                          onEnter: (_) {
+                            _setPopupHovered(true);
+                            _hideTimer?.cancel();
+                          },
+                          onHover: (_) {
+                            if (!_popupHovered) {
+                              _setPopupHovered(true);
+                            }
+                          },
+                          onExit: (_) {
+                            _setPopupHovered(false);
+                            _hideFlyoutWithDelay();
+                          },
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: KeyedSubtree(
+                              key: _flyoutKey,
+                              child: _buildAnimatedFlyout(),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      left: bridgeLeft,
-                      top: flyoutHeight,
-                      child: MouseRegion(
-                        opaque: false,
-                        cursor: SystemMouseCursors.click,
-                        onEnter: (_) {
-                          // Keep the flyout open only while the cursor is near
-                          // the button-to-popup travel path.
-                          _setPopupHovered(true);
-                          _hideTimer?.cancel();
-                        },
-                        onExit: (_) {
-                          _setPopupHovered(false);
-                          _hideFlyoutWithDelay();
-                        },
-                        child: SizedBox(
-                          width: bridgeWidth,
-                          height: bridgeHeight,
+                      Positioned(
+                        left: bridgeLeft,
+                        top: flyoutHeight,
+                        child: MouseRegion(
+                          opaque: false,
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) {
+                            // Keep the flyout open only while the cursor is near
+                            // the button-to-popup travel path.
+                            _setPopupHovered(true);
+                            _hideTimer?.cancel();
+                          },
+                          onExit: (_) {
+                            _setPopupHovered(false);
+                            _hideFlyoutWithDelay();
+                          },
+                          child: SizedBox(
+                            width: bridgeWidth,
+                            height: bridgeHeight,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -490,14 +493,16 @@ class _SimpleQualityPage extends StatelessWidget {
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
                     onTap: onToCustom,
-                    child: Row(
+                    child: const Row(
                       children: [
-                        const Text(
+                        Text(
                           '自定义',
-                          style:
-                              TextStyle(color: _defaultTextColor, fontSize: 14),
+                          style: TextStyle(
+                            color: _defaultTextColor,
+                            fontSize: 14,
+                          ),
                         ),
-                        const Icon(
+                        Icon(
                           FluentIcons.chevron_right,
                           size: 16,
                           color: _defaultTextColor,
@@ -643,15 +648,15 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
                       onTap: widget.onBack,
-                      child: Row(
+                      child: const Row(
                         children: [
-                          const Icon(
+                          Icon(
                             FluentIcons.chevron_left,
                             size: 16,
                             color: Colors.white,
                           ),
-                          const SizedBox(width: 8),
-                          const Text(
+                          SizedBox(width: 8),
+                          Text(
                             '自定义视频质量',
                             style: TextStyle(
                               color: Colors.white,

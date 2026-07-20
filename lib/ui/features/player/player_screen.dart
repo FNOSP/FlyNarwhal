@@ -3573,9 +3573,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         height: topBarDragHeight,
         child: Stack(
           children: [
-            Positioned.fill(
+            const Positioned.fill(
               child: DragToMoveArea(
-                child: const SizedBox.expand(),
+                child: SizedBox.expand(),
               ),
             ),
             Positioned(
