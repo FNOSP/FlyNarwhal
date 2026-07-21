@@ -96,6 +96,7 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
         setState(() => _hoverPositionX = event.localPosition.dx);
       },
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTapDown: (details) {
           final RenderBox box = context.findRenderObject() as RenderBox;
           _handleTap(details.localPosition, box.size.width);
@@ -110,7 +111,7 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
           widget.onInteractionEnd?.call();
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: LayoutBuilder(
             builder: (context, constraints) {
               _layoutWidth = constraints.maxWidth;
