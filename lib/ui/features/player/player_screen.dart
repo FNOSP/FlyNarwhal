@@ -2208,6 +2208,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+    if (_isSystemVolumeShortcut(event)) {
+      return KeyEventResult.ignored;
+    }
     final shortcutStore = ref.read(shortcutSettingsStoreProvider);
     if (shortcutStore.matches(event, ShortcutActionId.mute)) {
       _toggleMute();
@@ -2246,6 +2249,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  bool _isSystemVolumeShortcut(KeyEvent event) {
+    return event.logicalKey == LogicalKeyboardKey.f2 ||
+        event.logicalKey == LogicalKeyboardKey.f3 ||
+        event.logicalKey == LogicalKeyboardKey.audioVolumeUp ||
+        event.logicalKey == LogicalKeyboardKey.audioVolumeDown ||
+        event.logicalKey == LogicalKeyboardKey.audioVolumeMute;
   }
 
   void _seekRelativeWithToast(int milliseconds) {
