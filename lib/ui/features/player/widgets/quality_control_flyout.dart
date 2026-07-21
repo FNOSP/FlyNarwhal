@@ -158,11 +158,15 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
         final buttonSize = renderObject.size;
         final flyoutWidth = _currentFlyoutWidth;
         final flyoutHeight = _flyoutSize?.height ?? _estimatedFlyoutHeight;
-        final bridgeHeight = widget.yOffset + _qualityFlyoutBridgeOffset;
+        final buttonToFlyoutGapHeight =
+            widget.yOffset + _qualityFlyoutBridgeOffset - buttonSize.height;
+        final bridgeHeight = buttonToFlyoutGapHeight.clamp(
+          0.0,
+          double.infinity,
+        );
         final bridgeWidth = _calculateBridgeWidth(buttonSize, flyoutWidth);
         final bridgeLeft = _calculateBridgeLeft(buttonSize, flyoutWidth);
-        final top =
-            buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight;
+        final top = buttonOffset.dy - bridgeHeight - flyoutHeight;
 
         _updateFlyoutSizeAfterFrame();
 
