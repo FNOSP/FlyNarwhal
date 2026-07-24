@@ -11,6 +11,7 @@ class PreferencesManager {
   static const String _keyDarkMode = 'dark_mode';
   static const String _keyNavigationDisplayMode = 'navigation_display_mode';
   static const String _keyFallbackDeviceId = 'fallback_device_id';
+  static const String _keySmartSkipEnabled = 'smart_skip_enabled';
 
   final SharedPreferences _prefs;
 
@@ -86,6 +87,46 @@ class PreferencesManager {
 
   Future<void> saveFallbackDeviceId(String value) async {
     await _prefs.setString(_keyFallbackDeviceId, value);
+  }
+
+  bool? getSmartSkipEnabledForUser(String userGuid) {
+    final normalizedUserGuid = userGuid.trim();
+    if (normalizedUserGuid.isEmpty) return null;
+    return _prefs.getBool('$normalizedUserGuid::$_keySmartSkipEnabled');
+  }
+
+  Future<void> saveSmartSkipEnabledForUser(
+    String userGuid,
+    bool enabled,
+  ) async {
+    final normalizedUserGuid = userGuid.trim();
+    if (normalizedUserGuid.isEmpty) return;
+    await _prefs.setBool(
+      '$normalizedUserGuid::$_keySmartSkipEnabled',
+      enabled,
+    );
+  }
+
+  bool? getLegacySmartSkipEnabled() {
+    return _prefs.getBool(_keySmartSkipEnabled);
+  }
+
+  Future<void> saveLegacySmartSkipEnabled(bool enabled) async {
+    await _prefs.setBool(_keySmartSkipEnabled, enabled);
+  }
+
+  Future<bool> loadSmartSkipEnabled(String? userGuid) async {
+    final normalizedUserGuid = userGuid?.trim() ?? '';
+    if (normalizedUserGuid.isEmpty) {
+      return getLegacySmartSkipEnabled() ?? true;
+    }
+
+    final userValue = getSmartSkipEnabledForUser(normalizedUserGuid);
+    if (userValue != null) return userValue;
+
+    final initialValue = getLegacySmartSkipEnabled() ?? true;
+    await saveSmartSkipEnabledForUser(normalizedUserGuid, initialValue);
+    return initialValue;
   }
 
   Future<void> clear() async {

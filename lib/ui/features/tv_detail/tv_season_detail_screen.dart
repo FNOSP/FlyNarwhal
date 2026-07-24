@@ -12,8 +12,11 @@ import '../../shared/common/app_loading_progress_ring.dart';
 
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
+import '../../../data/models/fly_narwhal/index.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
+import '../../../providers/season_analysis_status_controller.dart';
+import '../../../providers/smart_analysis_controller.dart';
 import '../../shared/common/fn_cached_image.dart';
 import '../../shared/cast_scroll_row.dart';
 import '../../shared/common/poster_resolution_tags.dart';
@@ -127,9 +130,29 @@ class _TvSeasonDetailContent extends ConsumerStatefulWidget {
 class _TvSeasonDetailContentState
     extends ConsumerState<_TvSeasonDetailContent> {
   late final ScrollController _descriptionScrollController = ScrollController();
+  late final FlyoutController _moreController = FlyoutController();
+  late final SeasonAnalysisStatusController _seasonAnalysisStatusController;
+
+  @override
+  void initState() {
+    super.initState();
+    _seasonAnalysisStatusController =
+        ref.read(seasonAnalysisStatusControllerProvider.notifier);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        _seasonAnalysisStatusController.startPolling(widget.guid),
+      );
+    });
+  }
 
   @override
   void dispose() {
+    _seasonAnalysisStatusController.stopPolling(
+      widget.guid,
+      notifyListeners: false,
+    );
+    _moreController.dispose();
     _descriptionScrollController.dispose();
     super.dispose();
   }
@@ -181,6 +204,60 @@ class _TvSeasonDetailContentState
     );
   }
 
+  Future<void> _handleAnalyzeSeason(ItemResponse item) async {
+    await ref
+        .read(smartAnalysisControllerProvider.notifier)
+        .analyzeSeason(widget.guid, item.tvTitle, item.seasonNumber);
+  }
+
+  void _showMoreFlyout(ItemResponse item) {
+    if (_moreController.isOpen) {
+      _moreController.close();
+      return;
+    }
+    _moreController.showFlyout<void>(
+      placementMode: FlyoutPlacementMode.bottomCenter,
+      builder: (context) => MenuFlyout(
+        items: [
+          MenuFlyoutItem(
+            key: const ValueKey('season-detail-smart-analysis'),
+            text: const Text('智能分析'),
+            onPressed: ref.read(smartAnalysisControllerProvider).isSubmitting(
+                      SmartAnalysisTargetType.season,
+                      widget.guid,
+                    )
+                ? null
+                : () {
+                    Flyout.of(context).close();
+                    _handleAnalyzeSeason(item);
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _buildSeasonStatusText() {
+    final entry =
+        ref.watch(seasonAnalysisStatusControllerProvider)[widget.guid];
+    if (entry == null ||
+        entry.phase == SeasonAnalysisViewPhase.initial ||
+        entry.phase == SeasonAnalysisViewPhase.loading) {
+      return '获取中';
+    }
+    if (entry.phase == SeasonAnalysisViewPhase.notDetected) return '未检测';
+    if (entry.phase == SeasonAnalysisViewPhase.failed) return '获取失败';
+    return switch (entry.status) {
+      AnalysisStatus.preparing => '准备中',
+      AnalysisStatus.pending => '等待中',
+      AnalysisStatus.inProgress => '分析中',
+      AnalysisStatus.partialSuccess => '部分成功',
+      AnalysisStatus.completed => '已完成',
+      AnalysisStatus.failed => '失败',
+      null => '获取失败',
+    };
+  }
+
   String _buildPlayButtonText() {
     final playInfo = widget.state.playInfo;
     if (playInfo == null) return '播放';
@@ -191,6 +268,35 @@ class _TvSeasonDetailContentState
   Widget build(BuildContext context) {
     final item = widget.state.item;
     if (item == null) return const Center(child: Text('未找到分季信息'));
+
+    ref.listen<AsyncValue<String>?>(
+      smartAnalysisControllerProvider.select(
+        (state) => state.submissionFor(
+          SmartAnalysisTargetType.season,
+          widget.guid,
+        ),
+      ),
+      (previous, next) {
+        if (next == null || next.isLoading || identical(previous, next)) return;
+        next.when(
+          data: (message) {
+            ref.read(toastManagerProvider.notifier).showToast(
+                  message,
+                  type: ToastType.success,
+                  category: 'smart-analysis:season:${widget.guid}',
+                );
+          },
+          loading: () {},
+          error: (error, stackTrace) {
+            ref.read(toastManagerProvider.notifier).showToast(
+                  error.toString(),
+                  type: ToastType.failed,
+                  category: 'smart-analysis:season:${widget.guid}',
+                );
+          },
+        );
+      },
+    );
 
     final windowHeight = MediaQuery.of(context).size.height;
     final pixelRatio = MediaQuery.of(context).devicePixelRatio;
@@ -331,6 +437,17 @@ class _TvSeasonDetailContentState
                                 ),
                                 const SizedBox(height: 12),
                                 _buildTags(context, item),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '智能分析：${_buildSeasonStatusText()}',
+                                  key: const ValueKey(
+                                    'season-analysis-status',
+                                  ),
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                    fontSize: 14,
+                                  ),
+                                ),
                                 const SizedBox(height: 16),
                                 _buildActionButtons(
                                   context,
@@ -522,12 +639,17 @@ class _TvSeasonDetailContentState
           tooltip: item.isWatched == 1 ? '标记为未看' : '标记为已看',
           onPressed: _handleToggleWatched,
         ),
-        const SizedBox(width: 16),
-        CircleIconButton(
-          icon: FluentIcons.more,
-          tooltip: '更多操作',
-          onPressed: () {},
-        ),
+        if (ref.watch(settingsProvider).flyNarwhalServerEnabled) ...[
+          const SizedBox(width: 16),
+          FlyoutTarget(
+            controller: _moreController,
+            child: CircleIconButton(
+              icon: FluentIcons.more,
+              tooltip: '更多操作',
+              onPressed: () => _showMoreFlyout(item),
+            ),
+          ),
+        ],
       ],
     );
   }

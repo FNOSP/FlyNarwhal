@@ -19,6 +19,7 @@ import '../../../services/update/platform_update_installer.dart';
 import '../../../services/update/sha256_verifier.dart';
 import '../../../services/update/update_downloader.dart';
 import '../../../services/update/update_file_store.dart';
+import '../../../services/update/update_release_pagination_service.dart';
 import '../../../services/update/update_retry_scheduler.dart';
 import 'update_state.dart';
 
@@ -78,7 +79,12 @@ final class UpdateController extends StateNotifier<UpdateState> {
   }
 
   static const int _pageSize = 10;
-  static const int _maximumPages = 5;
+  static const int _maximumPages = 20;
+  static const UpdateReleasePaginationService _releasePaginationService =
+      UpdateReleasePaginationService(
+    pageSize: _pageSize,
+    maximumPages: _maximumPages,
+  );
   static const int _maximumAutomaticAttempts = 6;
   static const Duration _automaticRetryDelay = Duration(minutes: 30);
 
@@ -324,9 +330,25 @@ final class UpdateController extends StateNotifier<UpdateState> {
       );
     }
     try {
-      final releases = await _fetchAllReleases(_checkCancellationSource!);
+      AppTalker.info(
+        'UpdateCheck',
+        'Starting ${manual ? 'manual' : 'automatic'} update check.',
+      );
       final currentVersion = await _currentVersionLoader();
+      AppTalker.info(
+        'UpdateCheck',
+        'Current application version is ${currentVersion.skipKey}.',
+      );
+      final releases = await _releasePaginationService.fetchAll(
+        repository: _repository,
+        currentVersion: currentVersion,
+        cancellationToken: _checkCancellationSource!,
+      );
       final platform = await _platformLoader();
+      AppTalker.info(
+        'UpdateCheck',
+        'Selecting update candidate from ${releases.length} newer releases for ${platform.operatingSystem.name}/${platform.architecture.name}.',
+      );
       final candidate = _policy.selectCandidate(
         releases: releases,
         currentVersion: currentVersion,
@@ -338,6 +360,10 @@ final class UpdateController extends StateNotifier<UpdateState> {
       await _settingsStore.setLastSuccessfulCheckAt(successfulCheckAt);
       if (_isDisposed) return;
       if (candidate == null) {
+        AppTalker.info(
+          'UpdateCheck',
+          'Update check completed: the application is up to date.',
+        );
         state = state.copyWith(
           task: UpdateTaskState(phase: UpdateTaskPhase.upToDate),
           presentation: manual
@@ -352,6 +378,10 @@ final class UpdateController extends StateNotifier<UpdateState> {
         return;
       }
 
+      AppTalker.info(
+        'UpdateCheck',
+        'Update check found version ${candidate.version.skipKey}.',
+      );
       final activeDownloadCandidate = state.task.downloadCandidate;
       final task = activeDownloadCandidate == null
           ? UpdateTaskState(
@@ -378,9 +408,15 @@ final class UpdateController extends StateNotifier<UpdateState> {
         await startAutomaticDownload();
       }
     } on UpdateOperationCancelledException {
+      AppTalker.info('UpdateCheck', 'Update check was cancelled.');
       return;
     } on Object catch (error, stackTrace) {
-      AppTalker.instance.handle(error, stackTrace);
+      AppTalker.error(
+        'UpdateCheck',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'Update check failed.',
+      );
       if (_isDisposed) return;
       final failure = _mapCheckFailure(error);
       state = state.copyWith(
@@ -720,26 +756,6 @@ final class UpdateController extends StateNotifier<UpdateState> {
       source: source,
       cancellationToken: const NonCancellableToken(),
     ));
-  }
-
-  Future<List<UpdateRelease>> _fetchAllReleases(
-    CancellationToken cancellationToken,
-  ) async {
-    final releases = <UpdateRelease>[];
-    for (var page = 1; page <= _maximumPages; page++) {
-      final result = await _repository.fetchReleasePage(
-        page: page,
-        pageSize: _pageSize,
-        cancellationToken: cancellationToken,
-      );
-      releases.addAll(result.releases);
-      if (!result.hasNextPage) return releases;
-    }
-    throw const UpdateRepositoryException(
-      code: UpdateRepositoryErrorCode.releasePaginationLimitExceeded,
-      technicalDetails: 'Release pagination exceeded the controller limit.',
-      retryable: true,
-    );
   }
 
   UpdateCheckFailure _mapCheckFailure(Object error) {

@@ -24,6 +24,9 @@ import 'danmaku_controller.dart';
 import 'fly_narwhal_connection_test_notifier.dart';
 import 'smart_analysis_controller.dart';
 import 'smart_analysis_status_controller.dart';
+import 'smart_skip_settings_controller.dart';
+import 'season_analysis_status_controller.dart';
+import 'episode_analysis_controller.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences not initialized');
@@ -162,11 +165,19 @@ final flyNarwhalConnectionTestProvider = StateNotifierProvider<
   return FlyNarwhalConnectionTestNotifier(dataSource);
 });
 
-final smartAnalysisControllerProvider =
-    StateNotifierProvider<SmartAnalysisController, UiState<String>>((ref) {
+final smartAnalysisControllerProvider = StateNotifierProvider<
+    SmartAnalysisController, SmartAnalysisSubmissionState>((ref) {
   final flyNarwhalDataSource = ref.watch(flyNarwhalRemoteDataSourceProvider);
   final mediaDataSource = ref.watch(mediaRemoteDataSourceProvider);
-  return SmartAnalysisController(flyNarwhalDataSource, mediaDataSource);
+  return SmartAnalysisController(
+    flyNarwhalDataSource,
+    mediaDataSource,
+    startSeasonPolling: (seasonGuid) {
+      ref
+          .read(seasonAnalysisStatusControllerProvider.notifier)
+          .startForcedPolling(seasonGuid);
+    },
+  );
 });
 
 final smartAnalysisStatusControllerProvider = StateNotifierProvider<
@@ -174,6 +185,34 @@ final smartAnalysisStatusControllerProvider = StateNotifierProvider<
   final dataSource = ref.watch(flyNarwhalRemoteDataSourceProvider);
   final settings = ref.watch(flyNarwhalSettingsProvider);
   return SmartAnalysisStatusController(dataSource, settings);
+});
+
+final smartSkipSettingsControllerProvider =
+    StateNotifierProvider<SmartSkipSettingsController, SmartSkipSettingsState>(
+        (ref) {
+  final controller = SmartSkipSettingsController(
+    ref.watch(preferencesManagerProvider),
+  );
+  ref.listen<AsyncValue<UserInfo?>>(userInfoProvider, (previous, next) {
+    controller.updateUserInfo(next.valueOrNull);
+  }, fireImmediately: true);
+  return controller;
+});
+
+final seasonAnalysisStatusControllerProvider = StateNotifierProvider<
+    SeasonAnalysisStatusController,
+    Map<String, SeasonAnalysisStatusEntry>>((ref) {
+  return SeasonAnalysisStatusController(
+    ref.watch(flyNarwhalRemoteDataSourceProvider),
+  );
+});
+
+final episodeAnalysisControllerProvider =
+    StateNotifierProvider<EpisodeAnalysisController, EpisodeAnalysisState>(
+        (ref) {
+  return EpisodeAnalysisController(
+    ref.watch(flyNarwhalRemoteDataSourceProvider),
+  );
 });
 
 final danmakuControllerProvider =

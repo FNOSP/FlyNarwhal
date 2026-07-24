@@ -24,7 +24,16 @@ import '../../../core/utils/app_fonts.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/danmaku_controller.dart';
+import '../../../providers/episode_analysis_controller.dart';
 import '../../../providers/providers.dart';
+import '../../../providers/smart_skip_settings_controller.dart';
+import 'controllers/intro_skip_controller.dart';
+import 'controllers/intro_skip_state.dart';
+import 'controllers/player_seek_executor.dart';
+import 'models/player_seek_origin.dart';
+import 'models/player_skip_action.dart';
+import 'models/resolved_skip_segments.dart';
+import 'services/skip_segment_resolver.dart';
 import 'services/direct_link_audio_track_resolver.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
@@ -50,6 +59,9 @@ import 'widgets/fullscreen_control.dart';
 import 'widgets/next_episode_preview_flyout.dart';
 import 'widgets/player_action_button.dart';
 import 'widgets/player_settings_menu.dart';
+import 'widgets/skip_intro_prompt.dart';
+import 'widgets/skip_outro_prompt.dart';
+import 'widgets/playback_end_overlay.dart';
 import 'widgets/subtitle_control_flyout.dart';
 import 'widgets/subtitle_search_dialog.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
@@ -118,9 +130,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   PlayInfoResponse? _playInfo;
   StreamResponse? _streamInfo;
   StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration>? _durationSubscription;
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<bool>? _completedSubscription;
   StreamSubscription<Tracks>? _tracksSubscription;
+  StreamSubscription<PlayerSkipAction>? _skipActionSubscription;
+  void Function()? _removeIntroSkipStateListener;
+  late final IntroSkipController _introSkipController;
+  IntroSkipState _introSkipState = IntroSkipState.initial();
+  late final PlayerSeekExecutor _seekExecutor;
+  final SkipSegmentResolver _skipSegmentResolver = const SkipSegmentResolver();
+  ResolvedSkipSegments _resolvedSkipSegments = ResolvedSkipSegments.empty();
+  NextEpisodeLoadPhase _nextEpisodeLoadPhase = NextEpisodeLoadPhase.idle;
+  bool _isSavingSkipConfig = false;
   Timer? _playRecordTimer;
   Timer? _playbackIndicatorTimer;
   late final AnimationController _playbackIndicatorExitController;
@@ -191,6 +213,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    _introSkipController = IntroSkipController();
+    _removeIntroSkipStateListener = _introSkipController.addListener((state) {
+      _introSkipState = state;
+      if (mounted) setState(() {});
+    });
+    _skipActionSubscription =
+        _introSkipController.actions.listen(_handleSkipAction);
+    _seekExecutor = PlayerSeekExecutor(
+      playerAdapter: CallbackPlayerSeekAdapter((targetMilliseconds) async {
+        await _player?.seek(Duration(milliseconds: targetMilliseconds));
+      }),
+      authoritativeDurationMilliseconds: () => _duration,
+      resetDanmaku: () => _danmakuResetGeneration++,
+      updateDanmakuPosition: (targetMilliseconds) {
+        _danmakuPosition.value = Duration(milliseconds: targetMilliseconds);
+      },
+      updatePlayRecord: (targetMilliseconds) {
+        _queuePlayRecordUpdate(positionMs: targetMilliseconds);
+      },
+      notifyUserSeekStarted: () {
+        _introSkipController.dispatch(const UserSeekStarted());
+      },
+      notifyUserSeekCompleted: () {
+        _introSkipController.dispatch(const UserSeekCompleted());
+      },
+    );
     if (_isDesktopPlatform()) {
       windowManager.addListener(this);
       unawaited(_syncFullscreenState());
@@ -258,6 +306,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _videoController = VideoController(_player!);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
+    _setupPlayerDurationListener();
     _setupPlayerCompletedListener();
     _setupProviderListeners();
 
@@ -290,12 +339,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     final isDirectLink = _playingInfoCache?.isUseDirectLink == true;
-    final cachePauseWait = isDirectLink
-        ? _directLinkMpvCachePauseWait
-        : _defaultMpvCachePauseWait;
-    final cachePause = isDirectLink
-        ? _directLinkMpvCachePause
-        : _defaultMpvCachePause;
+    final cachePauseWait =
+        isDirectLink ? _directLinkMpvCachePauseWait : _defaultMpvCachePauseWait;
+    final cachePause =
+        isDirectLink ? _directLinkMpvCachePause : _defaultMpvCachePause;
     await platform.setProperty(
       'cache-pause-wait',
       cachePauseWait,
@@ -313,8 +360,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player == null) return;
     _positionSubscription = player.stream.position.listen((position) {
-      _hlsSubtitleRepository?.onPlaybackPosition(position.inMilliseconds);
+      final positionMilliseconds = position.inMilliseconds;
+      if (mounted && _currentPosition != positionMilliseconds) {
+        setState(() => _currentPosition = positionMilliseconds);
+      } else {
+        _currentPosition = positionMilliseconds;
+      }
+      _hlsSubtitleRepository?.onPlaybackPosition(positionMilliseconds);
       _danmakuPosition.value = position;
+      _introSkipController.dispatch(PositionChanged(positionMilliseconds));
+    });
+  }
+
+  void _setupPlayerDurationListener() {
+    _durationSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+    _durationSubscription = player.stream.duration.listen((duration) {
+      final durationMilliseconds = duration.inMilliseconds;
+      if (durationMilliseconds <= 0 || durationMilliseconds == _duration) {
+        return;
+      }
+      if (mounted) {
+        setState(() => _duration = durationMilliseconds);
+      } else {
+        _duration = durationMilliseconds;
+      }
+      _resolveAndDispatchSkipSegments();
+      _introSkipController.dispatch(DurationChanged(durationMilliseconds));
     });
   }
 
@@ -324,8 +397,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null) return;
 
     _isPlaying = player.state.playing;
+    _introSkipController.dispatch(PlayingChanged(_isPlaying));
     _playingSubscription = player.stream.playing.listen((isPlaying) {
       _handlePlaybackStateChanged(isPlaying);
+      _introSkipController.dispatch(PlayingChanged(isPlaying));
     });
   }
 
@@ -454,13 +529,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _handlePlaybackCompleted() {
-    final nextEpisode = _nextEpisode;
-    final autoPlayEnabled =
-        ref.read(playerOverlayControllerProvider).isAutoPlayEnabled;
-    if (!autoPlayEnabled || nextEpisode == null) {
-      return;
+    _introSkipController.dispatch(const PlaybackCompleted());
+    if (mounted) {
+      setState(() {});
     }
-    _openEpisode(nextEpisode);
   }
 
   void _restoreAutoPlaySetting() {
@@ -470,6 +542,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _onAutoPlayChanged(bool value) {
     _overlayController.setAutoPlayEnabled(value);
+    _introSkipController.dispatch(AutoPlayChanged(value));
     unawaited(PlayerSettingsStore.setAutoPlay(value));
   }
 
@@ -533,6 +606,119 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _syncSubtitleOffsetToHlsRepository(next);
         }
       },
+    );
+
+    ref.listenManual<SettingsState>(settingsProvider, (previous, next) {
+      if (!mounted ||
+          previous?.flyNarwhalServerEnabled == next.flyNarwhalServerEnabled) {
+        return;
+      }
+      if (!next.flyNarwhalServerEnabled) {
+        ref.read(episodeAnalysisControllerProvider.notifier).stopAndClear();
+        _introSkipController.dispatch(const FeatureDisabled());
+      }
+      _updateEpisodeAnalysisContext();
+      _resolveAndDispatchSkipSegments();
+      setState(() {});
+    });
+
+    ref.listenManual<SmartSkipSettingsState>(
+      smartSkipSettingsControllerProvider,
+      (previous, next) {
+        if (!mounted || previous?.enabled == next.enabled) return;
+        _updateEpisodeAnalysisContext();
+        _resolveAndDispatchSkipSegments();
+        setState(() {});
+      },
+    );
+
+    ref.listenManual<EpisodeAnalysisState>(
+      episodeAnalysisControllerProvider,
+      (previous, next) {
+        if (!mounted || previous?.smartSegments == next.smartSegments) return;
+        _resolveAndDispatchSkipSegments();
+        setState(() {});
+      },
+    );
+  }
+
+  void _resolveAndDispatchSkipSegments() {
+    final cache = _playingInfoCache;
+    final playConfig = cache?.playConfig;
+    final settings = ref.read(settingsProvider);
+    final smartSkipSettings = ref.read(smartSkipSettingsControllerProvider);
+    final smartSegments =
+        settings.flyNarwhalServerEnabled && smartSkipSettings.enabled
+            ? ref.read(episodeAnalysisControllerProvider).smartSegments
+            : null;
+    _resolvedSkipSegments = _skipSegmentResolver.resolve(
+      episodeGuid: cache?.itemGuid ?? _currentItemGuid,
+      smartSegments: smartSegments,
+      manualSkipOpeningSeconds: playConfig?.skipOpening ?? 0,
+      manualSkipEndingSeconds: playConfig?.skipEnding ?? 0,
+      durationMilliseconds: _duration > 0 ? _duration : null,
+    );
+    _introSkipController.dispatch(SegmentsChanged(_resolvedSkipSegments));
+  }
+
+  void _updateEpisodeAnalysisContext() {
+    final cache = _playingInfoCache;
+    final settings = ref.read(settingsProvider);
+    final smartSkipSettings = ref.read(smartSkipSettingsControllerProvider);
+    unawaited(
+      ref.read(episodeAnalysisControllerProvider.notifier).updateContext(
+            isEpisode:
+                cache?.isEpisode == true || cache?.item?.type == 'Episode',
+            serviceEnabled: settings.flyNarwhalServerEnabled,
+            smartSkipEnabled: smartSkipSettings.enabled,
+            episodeGuid: cache?.itemGuid,
+            mediaGuid: cache?.currentVideoStream?.mediaGuid,
+          ),
+    );
+  }
+
+  Future<void> _handleSkipAction(PlayerSkipAction action) async {
+    if (action.sessionGeneration != _introSkipState.sessionGeneration) {
+      return;
+    }
+    switch (action) {
+      case SeekTo():
+        await _seekExecutor.performSeek(
+          targetMilliseconds: action.milliseconds,
+          origin: action.origin,
+        );
+      case PlayNextEpisode():
+        final nextEpisode = _nextEpisode;
+        if (nextEpisode != null) {
+          _openEpisode(nextEpisode);
+        }
+      case PausePlayback():
+        await _player?.pause();
+      case ShowPlaybackEnd():
+        if (mounted) setState(() {});
+      case AwaitNextEpisode():
+        await _awaitNextEpisode(action);
+    }
+  }
+
+  Future<void> _awaitNextEpisode(AwaitNextEpisode action) async {
+    final deadline = DateTime.now().add(action.timeout);
+    while (mounted &&
+        action.sessionGeneration == _introSkipState.sessionGeneration &&
+        _nextEpisodeLoadPhase == NextEpisodeLoadPhase.loading &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    final phase = _nextEpisode != null
+        ? NextEpisodeLoadPhase.available
+        : _nextEpisodeLoadPhase == NextEpisodeLoadPhase.loading
+            ? NextEpisodeLoadPhase.failed
+            : _nextEpisodeLoadPhase;
+    _introSkipController.dispatch(
+      NextEpisodeWaitCompleted(
+        sessionGeneration: action.sessionGeneration,
+        phase: phase,
+      ),
     );
   }
 
@@ -754,6 +940,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _resetPlaybackStateForTargetChange() {
+    ref.read(episodeAnalysisControllerProvider.notifier).stopAndClear();
+    _introSkipController.dispatch(const SessionDisposed());
+    _resolvedSkipSegments = ResolvedSkipSegments.empty();
+    _nextEpisodeLoadPhase = NextEpisodeLoadPhase.idle;
     ref.read(danmakuControllerProvider.notifier).clear();
     _danmakuPosition.value = Duration.zero;
     _danmakuResetGeneration++;
@@ -1191,11 +1381,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     if (deviation <= 3000) return;
 
-    // mpv start property didn't fully apply (e.g. some HLS or transcoded
-    // streams). Issue a single correction seek.
-    _danmakuResetGeneration++;
-    _danmakuPosition.value = Duration(milliseconds: startPositionMs);
-    await player.seek(Duration(milliseconds: startPositionMs));
+    // mpv start property didn't fully apply. Correct through the runtime seek
+    // executor without classifying the correction as a user interaction.
+    await _seekExecutor.performSeek(
+      targetMilliseconds: startPositionMs,
+      origin: PlayerSeekOrigin.resumeCorrection,
+    );
     await Future<void>.delayed(const Duration(milliseconds: 200));
   }
 
@@ -1900,9 +2091,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isLoading = false;
         _isInitialized = true;
         _isPlaying = _player?.state.playing ?? false;
-        _duration = result.playingInfoCache.currentVideoStream!.duration > 0
-            ? result.playingInfoCache.currentVideoStream!.duration * 1000
-            : result.playInfo.item.duration * 1000;
+        final playerDuration = _player?.state.duration.inMilliseconds ?? 0;
+        final serviceDuration =
+            result.playingInfoCache.currentVideoStream!.duration > 0
+                ? result.playingInfoCache.currentVideoStream!.duration * 1000
+                : result.playInfo.item.duration * 1000;
+        _duration = playerDuration > 0 ? playerDuration : serviceDuration;
         _currentResolution = _currentQuality?.resolution ?? '';
         _currentBitrate = _currentQuality?.bitrate;
         _selectedAudioGuid = result.audioGuid;
@@ -1910,7 +2104,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _episodeList = result.episodeList;
         _currentEpisode = result.currentEpisode;
         _nextEpisode = result.nextEpisode;
+        _nextEpisodeLoadPhase = result.nextEpisode != null
+            ? NextEpisodeLoadPhase.available
+            : result.playInfo.item.type == 'Episode'
+                ? NextEpisodeLoadPhase.loading
+                : NextEpisodeLoadPhase.unavailable;
       });
+      _resolveAndDispatchSkipSegments();
+      _introSkipController.dispatch(
+        EpisodeSessionStarted(
+          episodeGuid: _currentItemGuid,
+          effectiveStartPositionMilliseconds: startMs,
+          segments: _resolvedSkipSegments,
+          isAutoPlayEnabled:
+              ref.read(playerOverlayControllerProvider).isAutoPlayEnabled,
+          nextEpisodeLoadPhase: _nextEpisodeLoadPhase,
+        ),
+      );
+      _introSkipController.dispatch(const MediaOpened());
+      _introSkipController.dispatch(PlayingChanged(_isPlaying));
+      _updateEpisodeAnalysisContext();
       _startPlayRecordTimer();
       // Immediately record playback start, using at least 1s to avoid zero-second record.
       final recordStartMs = startMs > 0 ? startMs : 1000;
@@ -1965,8 +2178,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _episodeList = context.episodeList;
           _currentEpisode = context.currentEpisode;
           _nextEpisode = context.nextEpisode;
+          _nextEpisodeLoadPhase = context.nextEpisode != null
+              ? NextEpisodeLoadPhase.available
+              : NextEpisodeLoadPhase.unavailable;
         });
+        _introSkipController.dispatch(
+          NextEpisodeLoadChanged(_nextEpisodeLoadPhase),
+        );
       } catch (e) {
+        _nextEpisodeLoadPhase = NextEpisodeLoadPhase.failed;
+        _introSkipController.dispatch(
+          const NextEpisodeLoadChanged(NextEpisodeLoadPhase.failed),
+        );
         AppTalker.warning('Player', 'load episode context failed: $e');
       }
     }());
@@ -2174,20 +2397,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_player == null) return;
     final current = _player!.state.position.inMilliseconds;
     final target = (current + milliseconds).clamp(0, _duration).toInt();
-    _seekPlayerTo(target);
+    final origin =
+        _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
+    unawaited(_performSeek(target, origin));
   }
 
   void _seekTo(double progress) {
     if (_player == null) return;
     final target = (progress * _duration).toInt();
-    _seekPlayerTo(target);
+    final origin = _isPipMode
+        ? PlayerSeekOrigin.pipProgressBar
+        : PlayerSeekOrigin.progressBar;
+    unawaited(_performSeek(target, origin));
   }
 
-  void _seekPlayerTo(int targetMilliseconds) {
-    _danmakuResetGeneration++;
-    _danmakuPosition.value = Duration(milliseconds: targetMilliseconds);
-    _player?.seek(Duration(milliseconds: targetMilliseconds));
-    _queuePlayRecordUpdate(positionMs: targetMilliseconds);
+  Future<void> _performSeek(
+    int targetMilliseconds,
+    PlayerSeekOrigin origin,
+  ) async {
+    await _seekExecutor.performSeek(
+      targetMilliseconds: targetMilliseconds,
+      origin: origin,
+    );
   }
 
   void _setVolume(double volume) {
@@ -2264,7 +2495,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null) return;
     final current = player.state.position.inMilliseconds;
     final target = (current + milliseconds).clamp(0, _duration).toInt();
-    _seekPlayerTo(target);
+    final origin =
+        _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
+    unawaited(_performSeek(target, origin));
     final label = milliseconds < 0 ? '快退至' : '快进至';
     ref.read(toastManagerProvider.notifier).showToast(
           '$label：${formatDurationToDateTime(target)}',
@@ -2930,9 +3163,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _pipBoundsSaveTimer?.cancel();
     _pipIdleTimer?.cancel();
     _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
     _tracksSubscription?.cancel();
+    _skipActionSubscription?.cancel();
+    _removeIntroSkipStateListener?.call();
+    ref.read(episodeAnalysisControllerProvider.notifier).stopAndClear();
+    _introSkipController.dispose();
     _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
@@ -3111,6 +3349,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ),
           if (_isInitialized && _isPipMode) _buildPipOverlay(),
+          ..._buildSkipAndEndOverlays(),
         ],
       ),
     );
@@ -3140,6 +3379,85 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         child: playerStack,
       ),
     );
+  }
+
+  List<Widget> _buildSkipAndEndOverlays() {
+    final state = _introSkipState;
+    final credits = state.segments.creditsSegment;
+    final hasContentAfterCredits = credits != null &&
+        state.durationMilliseconds != null &&
+        credits.endMilliseconds < state.durationMilliseconds! - 1000;
+    final item = _playInfo?.item ?? _playingInfoCache?.item;
+
+    return [
+      if (state.isIntroUndoVisible)
+        SkipIntroPrompt(
+          countdown: state.introUndoRemainingSeconds,
+          isPip: _isPipMode,
+          onHoverChanged: _handleSkipPromptHover,
+          onUndo: () {
+            _introSkipController.dispatch(const IntroUndoRequested());
+          },
+        ),
+      if (state.isOutroPromptVisible)
+        SkipOutroPrompt(
+          countdown: state.outroRemainingSeconds,
+          autoPlayEnabled: state.isAutoPlayEnabled,
+          hasContentAfterCredits: hasContentAfterCredits,
+          nextEpisodePhase: state.nextEpisodeLoadPhase,
+          isPip: _isPipMode,
+          onHoverChanged: _handleSkipPromptHover,
+          onCancel: () {
+            _introSkipController.dispatch(const OutroCancelRequested());
+          },
+        ),
+      if (state.isPlaybackEndVisible)
+        PlaybackEndOverlay(
+          episodeNumber: item?.episodeNumber ?? 0,
+          episodeTitle: item?.title ?? '',
+          runtimeMinutes: _duration ~/ Duration.millisecondsPerMinute,
+          isPip: _isPipMode,
+          onReplay: _replayCurrentEpisode,
+          onReturnHome: () => unawaited(_handleBack()),
+        ),
+    ];
+  }
+
+  void _handleSkipPromptHover(bool hovered) {
+    if (!_isPipMode) return;
+    if (hovered) {
+      _showPipControls();
+    } else {
+      _restartPipIdleTimer();
+    }
+  }
+
+  void _replayCurrentEpisode() {
+    final smartSkipEnabled =
+        ref.read(settingsProvider).flyNarwhalServerEnabled &&
+            ref.read(smartSkipSettingsControllerProvider).enabled;
+    final manualIntroEnd =
+        _resolvedSkipSegments.introSource == SkipSegmentSource.manual
+            ? _resolvedSkipSegments.introSegment?.endMilliseconds ?? 0
+            : 0;
+    final replayTarget = smartSkipEnabled ? 0 : manualIntroEnd;
+    _introSkipController.dispatch(const SessionDisposed());
+    _resolveAndDispatchSkipSegments();
+    _introSkipController.dispatch(
+      EpisodeSessionStarted(
+        episodeGuid: _currentItemGuid,
+        effectiveStartPositionMilliseconds: replayTarget,
+        segments: _resolvedSkipSegments,
+        isAutoPlayEnabled:
+            ref.read(playerOverlayControllerProvider).isAutoPlayEnabled,
+        nextEpisodeLoadPhase: _nextEpisodeLoadPhase,
+      ),
+    );
+    _introSkipController.dispatch(const MediaOpened());
+    unawaited(() async {
+      await _performSeek(replayTarget, PlayerSeekOrigin.settings);
+      await _player?.play();
+    }());
   }
 
   Widget _buildPipDragLayer() {
@@ -3294,56 +3612,109 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildPipProgressBar() {
-    return StreamBuilder<Duration>(
-      stream: _player?.stream.position,
-      builder: (context, snapshot) {
-        _currentPosition = snapshot.data?.inMilliseconds ?? _currentPosition;
-        return VideoPlayerProgressBar(
-          currentPosition: _currentPosition,
-          totalDuration: _duration,
-          onSeek: _seekTo,
-        );
-      },
+    return VideoPlayerProgressBar(
+      currentPosition: _currentPosition,
+      totalDuration: _duration,
+      introSegment: _resolvedSkipSegments.introSegment,
+      creditsSegment: _resolvedSkipSegments.creditsSegment,
+      showHoverTimestamp: false,
+      onSeek: _seekTo,
     );
   }
 
   Widget _buildProgressBar() {
-    return StreamBuilder<Duration>(
-      stream: _player?.stream.position,
-      builder: (context, snapshot) {
-        _currentPosition = snapshot.data?.inMilliseconds ?? _currentPosition;
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) =>
-              _overlayController.setHovered(PlayerHoverZone.progressBar, true),
-          onExit: (_) =>
-              _overlayController.setHovered(PlayerHoverZone.progressBar, false),
-          child: VideoPlayerProgressBar(
-            currentPosition: _currentPosition,
-            totalDuration: _duration,
-            onSeek: _seekTo,
-          ),
-        );
-      },
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) =>
+          _overlayController.setHovered(PlayerHoverZone.progressBar, true),
+      onExit: (_) =>
+          _overlayController.setHovered(PlayerHoverZone.progressBar, false),
+      child: VideoPlayerProgressBar(
+        currentPosition: _currentPosition,
+        totalDuration: _duration,
+        introSegment: _resolvedSkipSegments.introSegment,
+        creditsSegment: _resolvedSkipSegments.creditsSegment,
+        onSeek: _seekTo,
+      ),
     );
   }
 
   Widget _buildPlaybackTimeText() {
-    return StreamBuilder<Duration>(
-      stream: _player?.stream.position,
-      builder: (context, snapshot) {
-        final currentPosition =
-            snapshot.data?.inMilliseconds ?? _currentPosition;
-        return Text(
-          '${formatDurationToDateTime(currentPosition)} / ${formatDurationToDateTime(_duration)}',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.92),
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        );
-      },
+    return Text(
+      '${formatDurationToDateTime(_currentPosition)} / ${formatDurationToDateTime(_duration)}',
+      style: TextStyle(
+        color: Colors.white.withValues(alpha: 0.92),
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
     );
+  }
+
+  Future<void> _saveSkipConfig(int skipOpening, int skipEnding) async {
+    if (_isSavingSkipConfig) return;
+    final cache = _playingInfoCache;
+    final configGuid = cache?.playConfig?.guid ?? cache?.itemGuid;
+    if (cache == null || configGuid == null || configGuid.isEmpty) return;
+
+    final previousConfig = cache.playConfig;
+    final optimisticConfig = PlayConfig(
+      guid: configGuid,
+      skipOpening: skipOpening.clamp(0, 600),
+      skipEnding: skipEnding.clamp(0, 600),
+    );
+    setState(() {
+      _isSavingSkipConfig = true;
+      _playingInfoCache = cache.copyWith(playConfig: optimisticConfig);
+    });
+    ref
+        .read(playerViewModelProvider.notifier)
+        .updatePlayingInfo(_playingInfoCache);
+    _resolveAndDispatchSkipSegments();
+
+    try {
+      await ref.read(playerServiceProvider).setSkipConfig(
+            guid: configGuid,
+            skipOpening: optimisticConfig.skipOpening ?? 0,
+            skipEnding: optimisticConfig.skipEnding ?? 0,
+          );
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '跳过设置已保存',
+            type: ToastType.success,
+            category: 'skip-config',
+          );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _playingInfoCache = cache.copyWith(playConfig: previousConfig);
+      });
+      ref
+          .read(playerViewModelProvider.notifier)
+          .updatePlayingInfo(_playingInfoCache);
+      _resolveAndDispatchSkipSegments();
+      ref.read(toastManagerProvider.notifier).showToast(
+            '保存跳过设置失败: $error',
+            type: ToastType.failed,
+            category: 'skip-config',
+          );
+    } finally {
+      if (mounted) setState(() => _isSavingSkipConfig = false);
+    }
+  }
+
+  Future<void> _setSmartSkipEnabled(bool enabled) async {
+    try {
+      await ref
+          .read(smartSkipSettingsControllerProvider.notifier)
+          .setEnabled(enabled);
+    } catch (error) {
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '保存智能跳过设置失败: $error',
+            type: ToastType.failed,
+            category: 'smart-skip-setting',
+          );
+    }
   }
 
   Widget _buildControlButtons({
@@ -3526,6 +3897,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           currentPositionMillis: _currentPosition,
           totalDurationMillis: _duration,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
+          smartSkipEnabled:
+              ref.watch(smartSkipSettingsControllerProvider).enabled,
+          isSmartAnalysisGloballyEnabled: settings.flyNarwhalServerEnabled,
+          isSavingSkipConfig: _isSavingSkipConfig,
+          onSmartSkipEnabledChanged: (enabled) {
+            unawaited(_setSmartSkipEnabled(enabled));
+          },
           isAutoPlay: overlayState.isAutoPlayEnabled,
           onAutoPlayChanged: _onAutoPlayChanged,
           onHoverStateChanged: (hovered) => _overlayController.setHovered(
@@ -3534,7 +3912,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
           onAudioSelected: _onAudioSelected,
           onWindowAspectRatioChanged: (_) {},
-          onSkipConfigChanged: (_, __) {},
+          onSkipConfigChanged: (skipOpening, skipEnding) {
+            unawaited(_saveSkipConfig(skipOpening, skipEnding));
+          },
         ),
         const SizedBox(width: _trailingControlSpacing),
         VolumeControl(

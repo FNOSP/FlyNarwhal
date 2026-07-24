@@ -198,6 +198,7 @@ final class UpdateRelease {
     required this.isPrerelease,
     required this.isDraft,
     required this.assets,
+    this.publishedAt,
   });
 
   final String tagName;
@@ -207,6 +208,7 @@ final class UpdateRelease {
   final bool isPrerelease;
   final bool isDraft;
   final List<UpdateReleaseAsset> assets;
+  final DateTime? publishedAt;
 
   static UpdateModelValidationResult<UpdateRelease> validate({
     required String tagName,
@@ -216,6 +218,7 @@ final class UpdateRelease {
     required bool isPrerelease,
     required bool isDraft,
     required List<UpdateReleaseAsset> assets,
+    DateTime? publishedAt,
   }) {
     if (!_isHttpsUrl(htmlUrl)) {
       return const UpdateModelValidationFailure<UpdateRelease>(
@@ -231,6 +234,7 @@ final class UpdateRelease {
         isPrerelease: isPrerelease,
         isDraft: isDraft,
         assets: List<UpdateReleaseAsset>.unmodifiable(assets),
+        publishedAt: publishedAt,
       ),
     );
   }

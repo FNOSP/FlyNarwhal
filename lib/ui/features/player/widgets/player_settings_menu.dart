@@ -123,6 +123,7 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool smartSkipEnabled;
   final void Function(bool enabled)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+  final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool enabled)? onAutoPlayChanged;
   final Map<String, String>? iso6391Map;
@@ -143,6 +144,7 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.smartSkipEnabled = true,
     this.onSmartSkipEnabledChanged,
     this.isSmartAnalysisGloballyEnabled = false,
+    this.isSavingSkipConfig = false,
     this.isAutoPlay = true,
     this.onAutoPlayChanged,
   });
@@ -457,6 +459,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         smartSkipEnabled: widget.smartSkipEnabled,
         onSmartSkipEnabledChanged: widget.onSmartSkipEnabledChanged,
         isSmartAnalysisGloballyEnabled: widget.isSmartAnalysisGloballyEnabled,
+        isSavingSkipConfig: widget.isSavingSkipConfig,
         isAutoPlay: _isAutoPlay,
         onAutoPlayChanged: (value) {
           _isAutoPlay = value;
@@ -504,6 +507,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool smartSkipEnabled;
   final void Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+  final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool)? onAutoPlayChanged;
 
@@ -522,6 +526,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.smartSkipEnabled,
     required this.onSmartSkipEnabledChanged,
     required this.isSmartAnalysisGloballyEnabled,
+    required this.isSavingSkipConfig,
     required this.isAutoPlay,
     required this.onAutoPlayChanged,
   });
@@ -567,6 +572,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
           smartSkipEnabled: smartSkipEnabled,
           onSmartSkipEnabledChanged: onSmartSkipEnabledChanged,
           isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
+          isSavingSkipConfig: isSavingSkipConfig,
         );
       default:
         return _MainSettingsScreen(
@@ -1082,6 +1088,7 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
   final bool smartSkipEnabled;
   final void Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+  final bool isSavingSkipConfig;
 
   const _SkipConfigSettingsScreen({
     required this.playingInfoCache,
@@ -1092,6 +1099,7 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
     required this.smartSkipEnabled,
     required this.onSmartSkipEnabledChanged,
     required this.isSmartAnalysisGloballyEnabled,
+    required this.isSavingSkipConfig,
   });
 
   @override
@@ -1122,8 +1130,8 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final manualEnabled =
-        !widget.isSmartAnalysisGloballyEnabled || !_smartSkipEnabled;
+    final manualEnabled = !widget.isSavingSkipConfig &&
+        (!widget.isSmartAnalysisGloballyEnabled || !_smartSkipEnabled);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1204,7 +1212,8 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
             key: const ValueKey('player-settings-smart-skip-toggle'),
             title: '智能跳过片头/片尾',
             checked: _smartSkipEnabled,
-            onChanged: widget.onSmartSkipEnabledChanged == null
+            onChanged: widget.isSavingSkipConfig ||
+                    widget.onSmartSkipEnabledChanged == null
                 ? null
                 : (value) {
                     setState(() => _smartSkipEnabled = value);
