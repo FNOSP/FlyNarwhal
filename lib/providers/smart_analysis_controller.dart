@@ -59,6 +59,7 @@ class SmartAnalysisSubmissionState {
 class SmartAnalysisController
     extends StateNotifier<SmartAnalysisSubmissionState> {
   static const Duration episodeThrottleDelay = Duration(milliseconds: 300);
+  static const String queuedSuccessMessage = '已加入分析队列';
   static const String fallbackSuccessMessage = '分析请求已提交';
 
   final FlyNarwhalRemoteDataSource _flyNarwhalRemoteDataSource;
@@ -229,6 +230,10 @@ class SmartAnalysisController
 
     // Force polling only after the analysis request is accepted.
     _startSeasonPolling(seasonGuid);
+    if (response.success == true) {
+      return queuedSuccessMessage;
+    }
+
     final serviceMessage = response.msg.trim().isNotEmpty
         ? response.msg.trim()
         : response.data?.trim() ?? '';

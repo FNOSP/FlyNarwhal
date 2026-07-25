@@ -240,27 +240,10 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
       placementMode: FlyoutPlacementMode.bottomCenter,
       builder: (context) => MenuFlyout(
         items: [
-          MenuFlyoutItem(
-            text: const Text('刷新页面'),
-            onPressed: () {
-              Flyout.of(context).close();
-              ref
-                  .read(tvDetailNotifierProvider(widget.guid).notifier)
-                  .refresh();
-            },
-          ),
-          if (item.imdbId != null && item.imdbId!.isNotEmpty)
-            MenuFlyoutItem(
-              text: const Text('在 IMDb 上查看'),
-              onPressed: () {
-                Flyout.of(context).close();
-                launchUrl(Uri.parse(FnDataConvertor.getImdbLink(item.imdbId)));
-              },
-            ),
           if (ref.read(settingsProvider).flyNarwhalServerEnabled)
             MenuFlyoutItem(
               key: const ValueKey('tv-smart-analysis'),
-              text: const Text('智能分析'),
+              text: const Text('智能分析片头/片尾'),
               onPressed: ref
                       .read(smartAnalysisControllerProvider)
                       .isSubmitting(SmartAnalysisTargetType.tv, widget.guid)
@@ -269,21 +252,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                       Flyout.of(context).close();
                       _handleAnalyzeTv(item);
                     },
-            ),
-          MenuFlyoutItem(
-            text: Text(item.isFavorite == 1 ? '取消收藏' : '加入收藏'),
-            onPressed: () {
-              Flyout.of(context).close();
-              _handleToggleFavorite();
-            },
-          ),
-          MenuFlyoutItem(
-            text: Text(item.isWatched == 1 ? '标记为未看' : '标记为已看'),
-            onPressed: () {
-              Flyout.of(context).close();
-              _handleToggleWatched();
-            },
-          ),
+            )
         ],
       ),
     );
@@ -621,7 +590,7 @@ class _SeasonListGridState extends State<_SeasonListGrid> {
         items: [
           MenuFlyoutItem(
             key: ValueKey('season-smart-analysis-${season.guid}'),
-            text: const Text('智能分析'),
+            text: const Text('智能分析片头/片尾'),
             onPressed: () {
               Flyout.of(context).close();
               widget.onAnalyze(season);

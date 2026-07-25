@@ -221,7 +221,7 @@ class _TvSeasonDetailContentState
         items: [
           MenuFlyoutItem(
             key: const ValueKey('season-detail-smart-analysis'),
-            text: const Text('智能分析'),
+            text: const Text('智能分析片头/片尾'),
             onPressed: ref.read(smartAnalysisControllerProvider).isSubmitting(
                       SmartAnalysisTargetType.season,
                       widget.guid,
