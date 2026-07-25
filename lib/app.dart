@@ -128,10 +128,31 @@ Future<void> _runKmpMigration(SharedPreferences preferences) async {
       'KMP migration: alreadyCompleted=${report.alreadyCompleted} '
           'migrated=${report.migratedEntries} skipped=${report.skippedEntries}',
     );
+
+    // Sync migrated login history to the key used by PreferencesManager.
+    _syncMigratedLoginHistory(preferences, accountSettingsStore);
   } catch (error, stackTrace) {
     AppTalker.warning('Migration', 'KMP migration failed: $error');
     AppTalker.instance.handle(error, stackTrace);
   }
+}
+
+/// Copies migrated login history into the key consumed by PreferencesManager.
+void _syncMigratedLoginHistory(
+  SharedPreferences preferences,
+  AccountSettingsStore accountSettingsStore,
+) {
+  const targetKey = 'login_history';
+  if (preferences.getString(targetKey) != null) {
+    return;
+  }
+  final migratedJson =
+      accountSettingsStore.readGlobal<String>('loginHistory');
+  if (migratedJson == null || migratedJson.isEmpty) {
+    return;
+  }
+  preferences.setString(targetKey, migratedJson);
+  AppTalker.info('Migration', 'Login history synced to PreferencesManager key');
 }
 
 bool _isDesktopPlatform() {

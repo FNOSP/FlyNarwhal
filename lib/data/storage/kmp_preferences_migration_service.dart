@@ -87,8 +87,12 @@ class KmpPreferencesMigrationService {
         final entry =
             _normalizeLegacyJsonMap(Map<String, dynamic>.from(rawEntry));
         final history = LoginHistory.fromJson(entry);
+          // Decode Java Preferences encoding in password value before encryption.
+        final decodedPassword = history.password != null
+            ? _decodeLegacyKey(history.password!)
+            : null;
         final encryptedPassword =
-            await _encryptHistoryPassword(history.password);
+            await _encryptHistoryPassword(decodedPassword);
         final migratedEntry = history.toJson()
           ..['password'] = encryptedPassword
           ..['passwordEncrypted'] = encryptedPassword != null;
