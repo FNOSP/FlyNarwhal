@@ -143,7 +143,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_isNasLogin) {
       _displayHost = fnId.trim();
       _displayPort = 0;
-      final url = _normalizeFnConnectUrl(fnId, true);
+      // Use the actual HTTPS switch state, matching KMP behavior.
+      final url = _normalizeFnConnectUrl(fnId, _isHttps);
       AppTalker.info('Login', 'nas login: normalizedUrl="$url"');
       if (url.isEmpty) {
         AppTalker.warning('Login', 'nas login: empty url, abort');
@@ -788,13 +789,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             .read(loginHistoryNotifierProvider.notifier)
                             .delete(item);
                       },
-                      onSelect: (item) {
+                      onSelect: (item) async {
                         final canAutoLogin = item.rememberPassword &&
                             (item.password ?? '').isNotEmpty;
-                        _populateFields(
+                        // Await field population so decrypted credentials are
+                        // available before _onLogin reads them for auto-fill.
+                        await _populateFields(
                           item,
                           allowAutoLogin: item.isNasLogin && canAutoLogin,
                         );
+                        if (!mounted) return;
                         _hideHistorySidebar();
                         // Auto-trigger login from history.
                         // NAS login items always open the WebView (JS auto-clicks
