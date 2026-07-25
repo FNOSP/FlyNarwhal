@@ -192,6 +192,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   final DesktopPseudoFullscreenController _fullscreenController =
       DesktopPseudoFullscreenController();
   final PipWindowModeController _pipController = PipWindowModeController();
+  late final EpisodeAnalysisController _episodeAnalysisController;
   bool _isPipMode = false;
   bool _isPipHovered = false;
   bool _isPipTransitioning = false;
@@ -213,6 +214,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    _episodeAnalysisController =
+        ref.read(episodeAnalysisControllerProvider.notifier);
     _introSkipController = IntroSkipController();
     _removeIntroSkipStateListener = _introSkipController.addListener((state) {
       _introSkipState = state;
@@ -3135,6 +3138,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _leavePlayerRoute(VoidCallback onLeave) async {
     _dismissTransientPlayerUiBeforeExit();
+    _episodeAnalysisController.stopAndClear();
 
     // Restore the host window before leaving the fullscreen player route.
     await _restoreWindowModeBeforeLeave();
@@ -3169,7 +3173,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _tracksSubscription?.cancel();
     _skipActionSubscription?.cancel();
     _removeIntroSkipStateListener?.call();
-    ref.read(episodeAnalysisControllerProvider.notifier).stopAndClear();
     _introSkipController.dispose();
     _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
