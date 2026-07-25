@@ -268,9 +268,10 @@ class _ProgressBarPainter extends CustomPainter {
 
     // 4. Buffered progress
     final bufferedEndX = buffered.clamp(0.0, 1.0) * size.width;
+    final activeEndX = progress.clamp(0.0, 1.0) * size.width;
     if (bufferedEndX > 0) {
       final bufferedPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.6)
+        ..color = Colors.white.withValues(alpha: 0.4)
         ..strokeWidth = trackStrokeWidth
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke;
@@ -282,7 +283,6 @@ class _ProgressBarPainter extends CustomPainter {
     }
 
     // 5. Active progress (blue)
-    final activeEndX = progress.clamp(0.0, 1.0) * size.width;
     if (activeEndX > 0) {
       final activePaint = Paint()
         ..color = const Color(0xFF3B82F6)

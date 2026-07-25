@@ -109,6 +109,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   static const String _directLinkMpvCachePauseWait = '0.1';
   static const String _defaultMpvCachePause = 'yes';
   static const String _directLinkMpvCachePause = 'no';
+  static const String _defaultMpvReadAheadSeconds = '120';
+  static const String _directLinkMpvReadAheadSeconds = '120';
+  static const String _defaultMpvDemuxerMaxBytes = '268435456';
+  static const String _directLinkMpvDemuxerMaxBytes = '268435456';
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
   Player? _player;
@@ -118,6 +122,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isPlaying = false;
   bool _isFullscreen = false;
   int _currentPosition = 0;
+  int _bufferedPosition = 0;
   int _duration = 0;
   double _volume = 1.0;
   double _lastVolumeBeforeMute = 0.0;
@@ -130,6 +135,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   PlayInfoResponse? _playInfo;
   StreamResponse? _streamInfo;
   StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration>? _bufferSubscription;
   StreamSubscription<Duration>? _durationSubscription;
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<bool>? _completedSubscription;
@@ -309,6 +315,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _videoController = VideoController(_player!);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
+    _setupPlayerBufferListener();
     _setupPlayerDurationListener();
     _setupPlayerCompletedListener();
     _setupProviderListeners();
@@ -346,6 +353,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         isDirectLink ? _directLinkMpvCachePauseWait : _defaultMpvCachePauseWait;
     final cachePause =
         isDirectLink ? _directLinkMpvCachePause : _defaultMpvCachePause;
+    final readAheadSeconds = isDirectLink
+        ? _directLinkMpvReadAheadSeconds
+        : _defaultMpvReadAheadSeconds;
+    final demuxerMaxBytes = isDirectLink
+        ? _directLinkMpvDemuxerMaxBytes
+        : _defaultMpvDemuxerMaxBytes;
+    await platform.setProperty(
+      'cache',
+      'yes',
+      waitForInitialization: false,
+    );
+    await platform.setProperty(
+      'demuxer-readahead-secs',
+      readAheadSeconds,
+      waitForInitialization: false,
+    );
+    await platform.setProperty(
+      'demuxer-max-bytes',
+      demuxerMaxBytes,
+      waitForInitialization: false,
+    );
     await platform.setProperty(
       'cache-pause-wait',
       cachePauseWait,
@@ -373,6 +401,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _danmakuPosition.value = position;
       _introSkipController.dispatch(PositionChanged(positionMilliseconds));
     });
+  }
+
+  void _setupPlayerBufferListener() {
+    _bufferSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+
+    _bufferSubscription = player.stream.buffer.listen((bufferPosition) {
+      final bufferMilliseconds = bufferPosition.inMilliseconds;
+      if (mounted && _bufferedPosition != bufferMilliseconds) {
+        setState(() => _bufferedPosition = bufferMilliseconds);
+      } else {
+        _bufferedPosition = bufferMilliseconds;
+      }
+    });
+  }
+
+  double get _bufferedProgressRatio {
+    if (_duration <= 0) return 0.0;
+    final effectiveBufferedPosition =
+        _bufferedPosition > _currentPosition
+            ? _bufferedPosition
+            : _currentPosition;
+    return (effectiveBufferedPosition / _duration).clamp(0.0, 1.0);
   }
 
   void _setupPlayerDurationListener() {
@@ -3167,6 +3219,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _pipBoundsSaveTimer?.cancel();
     _pipIdleTimer?.cancel();
     _positionSubscription?.cancel();
+    _bufferSubscription?.cancel();
     _durationSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
@@ -3615,9 +3668,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildPipProgressBar() {
+    final bufferedProgressRatio = _bufferedProgressRatio;
     return VideoPlayerProgressBar(
       currentPosition: _currentPosition,
       totalDuration: _duration,
+      buffered: bufferedProgressRatio,
       introSegment: _resolvedSkipSegments.introSegment,
       creditsSegment: _resolvedSkipSegments.creditsSegment,
       showHoverTimestamp: false,
@@ -3626,6 +3681,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildProgressBar() {
+    final bufferedProgressRatio = _bufferedProgressRatio;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) =>
@@ -3635,6 +3691,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       child: VideoPlayerProgressBar(
         currentPosition: _currentPosition,
         totalDuration: _duration,
+        buffered: bufferedProgressRatio,
         introSegment: _resolvedSkipSegments.introSegment,
         creditsSegment: _resolvedSkipSegments.creditsSegment,
         onSeek: _seekTo,
