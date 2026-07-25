@@ -16,6 +16,9 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'core/config/runtime_configuration.dart';
 import 'core/config/secret_bridge_selector.dart';
 import 'core/security/password_cipher.dart';
+import 'core/window/desktop_display_service.dart';
+import 'core/window/window_geometry.dart';
+import 'data/storage/main_window_settings_store.dart';
 import 'core/utils/index.dart';
 import 'data/storage/account_settings_store.dart';
 import 'data/storage/kmp_preferences_migration_service.dart';
@@ -24,8 +27,11 @@ import 'data/storage/update_settings_store.dart';
 import 'providers/providers.dart';
 import 'providers/update_providers.dart';
 import 'services/update/update_scheduler.dart';
+import 'services/window/main_window_lifecycle_controller.dart';
 import 'ui/navigation/app_router.dart';
 import 'ui/shared/toast.dart';
+
+MainWindowLifecycleController? mainWindowLifecycleController;
 
 Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
@@ -43,6 +49,11 @@ Future<void> bootstrapApp() async {
     MediaKit.ensureInitialized();
     AppTalker.info('Bootstrap', 'MediaKit initialized');
 
+    // Preferences are needed before the desktop window is shown so its saved
+    // geometry can be validated against the current display arrangement.
+    final prefs = await SharedPreferences.getInstance();
+    AppTalker.info('Prefs', 'SharedPreferences ready');
+
     // Apply desktop-only window initialization and cache tuning.
     if (_isDesktopPlatform()) {
       AppTalker.info('Window', 'Desktop initialization start');
@@ -59,32 +70,49 @@ Future<void> bootstrapApp() async {
       }
 
       await windowManager.ensureInitialized();
-      if (Platform.isMacOS) {
-        // Keep the app alive when the main window close button is pressed.
-        await windowManager.setPreventClose(true);
+      await windowManager.setPreventClose(true);
+
+      const defaultWindowSize = Size(1280, 720);
+      final savedState = MainWindowSettingsStore(prefs).read();
+      Rect? restoredBounds;
+      if (savedState != null) {
+        try {
+          final displays = await const DesktopDisplayService().getDisplays();
+          restoredBounds = WindowGeometry.normalizeMainWindowBounds(
+            savedState.bounds,
+            displays,
+            fallbackSize: defaultWindowSize,
+            minimumSize: defaultWindowSize,
+          );
+        } catch (error, stackTrace) {
+          AppTalker.warning('Window', 'Display discovery failed: $error');
+          AppTalker.instance.handle(error, stackTrace);
+          restoredBounds = savedState.bounds;
+        }
       }
 
-      const logicalWidth = 1280.0;
-      const logicalHeight = 720.0;
-      const windowOptions = WindowOptions(
+      final windowOptions = WindowOptions(
         title: '飞鲸影视',
-        size: Size(logicalWidth, logicalHeight),
-        center: true,
+        size: restoredBounds?.size ?? defaultWindowSize,
+        center: restoredBounds == null,
         titleBarStyle: TitleBarStyle.hidden,
       );
 
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
-        await windowManager
-            .setMinimumSize(const Size(logicalWidth, logicalHeight));
+        await windowManager.setMinimumSize(defaultWindowSize);
+        if (restoredBounds != null) {
+          await windowManager.setBounds(restoredBounds);
+        }
+        if (savedState?.isMaximized == true) {
+          await windowManager.maximize();
+        }
         await windowManager.show();
         await windowManager.focus();
       });
+      mainWindowLifecycleController = MainWindowLifecycleController(prefs)
+        ..start();
       AppTalker.info('Window', 'Desktop initialization complete');
     }
-
-    // Load persisted app preferences before creating providers.
-    final prefs = await SharedPreferences.getInstance();
-    AppTalker.info('Prefs', 'SharedPreferences ready');
 
     // Run the idempotent KMP migration before providers access preferences.
     if (!kIsWeb && Platform.isWindows) {

@@ -12,7 +12,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
-import 'package:window_manager/window_manager.dart' hide WindowCaption;
 
 import '../../shared/common/app_loading_progress_ring.dart';
 
@@ -34,7 +33,7 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   static const Color _primaryBlue = Color(0xFF3A7BFF);
   static const Color _hintColor = Color(0xFF9BA0A6);
   static const Color _textColor = Color(0xFFE6E8EC);
@@ -69,9 +68,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
   @override
   void initState() {
     super.initState();
-    if (_shouldListenWindowClose) {
-      windowManager.addListener(this);
-    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final history = ref.read(loginHistoryNotifierProvider);
       if (history.isNotEmpty) {
@@ -83,9 +79,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
 
   @override
   void dispose() {
-    if (_shouldListenWindowClose) {
-      windowManager.removeListener(this);
-    }
     _disposeWebView();
     _hostController.dispose();
     _portController.dispose();
@@ -93,25 +86,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WindowListener {
     _passwordController.dispose();
     _fnIdController.dispose();
     super.dispose();
-  }
-
-  bool get _shouldListenWindowClose {
-    return !kIsWeb &&
-        (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
-  }
-
-  @override
-  void onWindowClose() async {
-    if (kIsWeb) {
-      return;
-    }
-    if (Platform.isMacOS) {
-      await windowManager.hide();
-      return;
-    }
-    if (Platform.isWindows || Platform.isLinux) {
-      await windowManager.destroy();
-    }
   }
 
   Future<void> _populateFields(

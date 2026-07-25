@@ -5,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
-import 'package:window_manager/window_manager.dart'
-    hide WindowCaption, DragToMoveArea;
 import '../home/home_view_model.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/global_refresh.dart';
@@ -31,41 +29,16 @@ class MainLayout extends ConsumerStatefulWidget {
   ConsumerState<MainLayout> createState() => _MainLayoutState();
 }
 
-class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
+class _MainLayoutState extends ConsumerState<MainLayout> {
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'global-search');
   final FocusNode _shortcutFocusNode =
       FocusNode(debugLabel: 'global-shortcuts');
 
   @override
-  void initState() {
-    super.initState();
-    if (!kIsWeb &&
-        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      windowManager.addListener(this);
-    }
-  }
-
-  @override
   void dispose() {
-    if (!kIsWeb &&
-        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      windowManager.removeListener(this);
-    }
     _searchFocusNode.dispose();
     _shortcutFocusNode.dispose();
     super.dispose();
-  }
-
-  @override
-  void onWindowClose() async {
-    // Keep the macOS app running in Dock when the main window is closed.
-    if (!kIsWeb && Platform.isMacOS) {
-      await windowManager.hide();
-      return;
-    }
-
-    // Preserve the existing close-to-exit behavior on other desktop platforms.
-    await windowManager.destroy();
   }
 
   @override

@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../../../core/utils/log/app_talker.dart';
+import '../../../../core/window/desktop_display_service.dart';
+import '../../../../core/window/main_window_persistence_guard.dart';
+import '../../../../core/window/window_geometry.dart';
 import '../../../../data/storage/player_settings_store.dart';
 
 /// Controls switching the main player window in and out of a compact
@@ -77,33 +80,33 @@ class PipWindowModeController {
       minimumSize: previousMinimumSize,
     );
 
-    if (wasFullScreen) {
-      await windowManager.setFullScreen(false);
-      await Future<void>.delayed(_windowStateTransitionDelay);
+    MainWindowPersistenceGuard.suspend();
+    try {
+      if (wasFullScreen) {
+        await windowManager.setFullScreen(false);
+        await Future<void>.delayed(_windowStateTransitionDelay);
+      }
+
+      if (wasMaximized) {
+        await windowManager.unmaximize();
+        await Future<void>.delayed(_windowStateTransitionDelay);
+      }
+
+      await _setWindowBorderless(true);
+      await _setMacOSWindowButtonVisibility(false);
+      await windowManager.setAlwaysOnTop(true);
+      await windowManager.setResizable(true);
+      await windowManager.setMinimumSize(_minimumSizeForRatio(ratio));
+
+      final target = await targetBoundsFuture;
+      await windowManager.setBounds(target);
+      await windowManager.setAspectRatio(ratio);
+      _isPipMode = true;
+      return target;
+    } catch (_) {
+      MainWindowPersistenceGuard.resume();
+      rethrow;
     }
-
-    if (wasMaximized) {
-      await windowManager.unmaximize();
-      await Future<void>.delayed(_windowStateTransitionDelay);
-    }
-
-    // Drop the window frame so the compact player fills the small window.
-    await _setWindowBorderless(true);
-    await _setMacOSWindowButtonVisibility(false);
-    await windowManager.setAlwaysOnTop(true);
-
-    // Keep edge resizing available in PiP form.
-    await windowManager.setResizable(true);
-    await windowManager.setMinimumSize(_minimumSizeForRatio(ratio));
-
-    final target = await targetBoundsFuture;
-    await windowManager.setBounds(target);
-
-    // Lock edge resizing to the video aspect ratio after the resize border is
-    // restored by setResizable, so dragging keeps the same shape.
-    await windowManager.setAspectRatio(ratio);
-    _isPipMode = true;
-    return target;
   }
 
   /// Re-applies a new video aspect ratio while already in PiP form, e.g. after
@@ -142,25 +145,34 @@ class PipWindowModeController {
     _isPipMode = false;
     _currentAspectRatio = null;
 
-    // Release the ratio lock so the restored window can resize freely.
-    await windowManager.setAspectRatio(0);
-    if (snapshot != null) {
-      await _setWindowBorderless(snapshot.wasBorderless);
-    }
-    await _setMacOSWindowButtonVisibility(true);
-    await windowManager.setAlwaysOnTop(false);
+    try {
+      await windowManager.setAspectRatio(0);
+      if (snapshot != null) {
+        await _setWindowBorderless(snapshot.wasBorderless);
+      }
+      await _setMacOSWindowButtonVisibility(true);
+      await windowManager.setAlwaysOnTop(false);
 
-    if (snapshot == null) {
-      return;
-    }
+      if (snapshot == null) {
+        return;
+      }
 
-    final restoredMinimumSize = _normalMinimumSizeForSnapshot(snapshot);
-    await windowManager.setMinimumSize(restoredMinimumSize);
-
-    await windowManager.setBounds(snapshot.bounds);
-    if (snapshot.wasMaximized) {
-      await Future<void>.delayed(_windowStateTransitionDelay);
-      await windowManager.maximize();
+      final restoredMinimumSize = _normalMinimumSizeForSnapshot(snapshot);
+      await windowManager.setMinimumSize(restoredMinimumSize);
+      final displays = await _tryGetDisplays();
+      final restoredBounds = WindowGeometry.normalizeMainWindowBounds(
+        snapshot.bounds,
+        displays,
+        fallbackSize: _normalWindowMinimumSize,
+        minimumSize: _normalWindowMinimumSize,
+      );
+      await windowManager.setBounds(restoredBounds);
+      if (snapshot.wasMaximized) {
+        await Future<void>.delayed(_windowStateTransitionDelay);
+        await windowManager.maximize();
+      }
+    } finally {
+      MainWindowPersistenceGuard.resume();
     }
   }
 
@@ -172,7 +184,17 @@ class PipWindowModeController {
     }
     try {
       final bounds = await windowManager.getBounds();
-      await PlayerSettingsStore.setPipWindowBounds(bounds);
+      final displays = await _tryGetDisplays();
+      final normalizedBounds = WindowGeometry.normalizePipBounds(
+        bounds,
+        displays,
+        margin: _cornerMargin,
+        fallbackSize: defaultPipSize,
+      );
+      if (normalizedBounds != bounds) {
+        await windowManager.setBounds(normalizedBounds);
+      }
+      await PlayerSettingsStore.setPipWindowBounds(normalizedBounds);
     } catch (error, stackTrace) {
       AppTalker.error(
         'PiP',
@@ -184,17 +206,26 @@ class PipWindowModeController {
   }
 
   Future<Rect> _resolvePipBounds(Rect? preferredBounds, double ratio) async {
-    if (preferredBounds != null) {
-      return preferredBounds;
-    }
-    final saved = await PlayerSettingsStore.getPipWindowBounds();
-    if (saved != null) {
-      // Normalize a previously saved size to the current video ratio so the
-      // window stays letterbox-free across sessions.
-      final height = (saved.width / ratio).roundToDouble();
-      return Rect.fromLTWH(saved.left, saved.top, saved.width, height);
-    }
-    return _defaultBounds(await _tryGetDisplayFrame(), ratio);
+    final savedBounds =
+        preferredBounds ?? await PlayerSettingsStore.getPipWindowBounds();
+    final requestedBounds = savedBounds == null
+        ? _defaultBounds(null, ratio)
+        : Rect.fromLTWH(
+            savedBounds.left,
+            savedBounds.top,
+            savedBounds.width,
+            (savedBounds.width / ratio).roundToDouble(),
+          );
+    final displays = await _tryGetDisplays();
+    return WindowGeometry.normalizePipBounds(
+      requestedBounds,
+      displays,
+      margin: _cornerMargin,
+      fallbackSize: Size(
+        _defaultPipWidth,
+        (_defaultPipWidth / ratio).roundToDouble(),
+      ),
+    );
   }
 
   Rect _defaultBounds([Rect? displayFrame, double? aspectRatio]) {
@@ -330,35 +361,12 @@ class PipWindowModeController {
     }
   }
 
-  Future<Rect?> _tryGetDisplayFrame() async {
-    if (!_isWindowsOrLinux) {
-      return null;
-    }
+  Future<List<DesktopDisplayGeometry>> _tryGetDisplays() async {
     try {
-      final result =
-          await _displayFrameChannel.invokeMethod<Map<Object?, Object?>>(
-        'getCurrentDisplayFrame',
-      );
-      if (result == null) {
-        return null;
-      }
-      return Rect.fromLTWH(
-        _readDouble(result, 'x'),
-        _readDouble(result, 'y'),
-        _readDouble(result, 'width'),
-        _readDouble(result, 'height'),
-      );
+      return await const DesktopDisplayService().getDisplays();
     } catch (_) {
-      return null;
+      return const [];
     }
-  }
-
-  double _readDouble(Map<Object?, Object?> result, String key) {
-    final value = result[key];
-    if (value is num) {
-      return value.toDouble();
-    }
-    return 0;
   }
 }
 

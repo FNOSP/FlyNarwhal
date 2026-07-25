@@ -18,6 +18,7 @@ constexpr const char kWindowDisplayFrameChannelName[] =
     "fly_narwhal/window_display_frame";
 constexpr const char kGetCurrentDisplayFrameMethod[] =
     "getCurrentDisplayFrame";
+constexpr const char kGetAllDisplaysMethod[] = "getAllDisplays";
 constexpr const char kSetWindowBorderlessMethod[] =
     "setWindowBorderless";
 constexpr const char kIsWindowBorderlessMethod[] =
@@ -27,6 +28,32 @@ constexpr const char kKmpPreferencesChannelName[] =
 constexpr const char kReadJavaPreferencesMethod[] = "readJavaPreferences";
 constexpr const wchar_t kJavaPreferencesRegistryPath[] =
     L"Software\\JavaSoft\\Prefs";
+
+std::string Utf8FromWideString(const std::wstring& value);
+
+flutter::EncodableMap BuildRectResponse(const RECT& bounds,
+                                        double coordinate_scale_factor) {
+  flutter::EncodableMap response;
+  response[flutter::EncodableValue("x")] =
+      flutter::EncodableValue(bounds.left / coordinate_scale_factor);
+  response[flutter::EncodableValue("y")] =
+      flutter::EncodableValue(bounds.top / coordinate_scale_factor);
+  response[flutter::EncodableValue("width")] = flutter::EncodableValue(
+      (bounds.right - bounds.left) / coordinate_scale_factor);
+  response[flutter::EncodableValue("height")] = flutter::EncodableValue(
+      (bounds.bottom - bounds.top) / coordinate_scale_factor);
+  return response;
+}
+
+double GetWindowCoordinateScaleFactor(HWND window) {
+  const HMONITOR monitor =
+      MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+  if (monitor == nullptr) {
+    return 1.0;
+  }
+  const UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
+  return dpi > 0 ? static_cast<double>(dpi) / 96.0 : 1.0;
+}
 
 flutter::EncodableMap BuildDisplayFrameResponse(HWND window) {
   HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
@@ -40,20 +67,52 @@ flutter::EncodableMap BuildDisplayFrameResponse(HWND window) {
     throw std::runtime_error("Failed to read monitor info.");
   }
 
-  const UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
-  const double scale_factor = dpi > 0 ? static_cast<double>(dpi) / 96.0 : 1.0;
-  const RECT frame = monitor_info.rcMonitor;
+  return BuildRectResponse(monitor_info.rcMonitor,
+                           GetWindowCoordinateScaleFactor(window));
+}
 
-  flutter::EncodableMap response;
-  response[flutter::EncodableValue("x")] =
-      flutter::EncodableValue(frame.left / scale_factor);
-  response[flutter::EncodableValue("y")] =
-      flutter::EncodableValue(frame.top / scale_factor);
-  response[flutter::EncodableValue("width")] =
-      flutter::EncodableValue((frame.right - frame.left) / scale_factor);
-  response[flutter::EncodableValue("height")] =
-      flutter::EncodableValue((frame.bottom - frame.top) / scale_factor);
-  return response;
+struct DisplayEnumerationContext {
+  double coordinate_scale_factor;
+  flutter::EncodableList displays;
+};
+
+BOOL CALLBACK CollectDisplay(HMONITOR monitor, HDC, LPRECT,
+                             LPARAM context_value) {
+  auto* context = reinterpret_cast<DisplayEnumerationContext*>(context_value);
+  MONITORINFOEXW monitor_info = {};
+  monitor_info.cbSize = sizeof(MONITORINFOEXW);
+  if (!GetMonitorInfoW(monitor, &monitor_info)) {
+    return TRUE;
+  }
+
+  const UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
+  const double display_scale_factor =
+      dpi > 0 ? static_cast<double>(dpi) / 96.0 : 1.0;
+  flutter::EncodableMap display;
+  display[flutter::EncodableValue("id")] = flutter::EncodableValue(
+      Utf8FromWideString(std::wstring(monitor_info.szDevice)));
+  display[flutter::EncodableValue("monitorBounds")] = flutter::EncodableValue(
+      BuildRectResponse(monitor_info.rcMonitor,
+                        context->coordinate_scale_factor));
+  display[flutter::EncodableValue("workArea")] = flutter::EncodableValue(
+      BuildRectResponse(monitor_info.rcWork,
+                        context->coordinate_scale_factor));
+  display[flutter::EncodableValue("isPrimary")] = flutter::EncodableValue(
+      (monitor_info.dwFlags & MONITORINFOF_PRIMARY) != 0);
+  display[flutter::EncodableValue("scaleFactor")] =
+      flutter::EncodableValue(display_scale_factor);
+  context->displays.emplace_back(display);
+  return TRUE;
+}
+
+flutter::EncodableList BuildAllDisplaysResponse(HWND window) {
+  DisplayEnumerationContext context = {GetWindowCoordinateScaleFactor(window),
+                                       flutter::EncodableList()};
+  if (!EnumDisplayMonitors(nullptr, nullptr, CollectDisplay,
+                           reinterpret_cast<LPARAM>(&context))) {
+    throw std::runtime_error("Failed to enumerate displays.");
+  }
+  return context.displays;
 }
 
 bool IsWindowBorderless(HWND hwnd) {
@@ -199,6 +258,15 @@ bool FlutterWindow::OnCreate() {
             result->Success(BuildDisplayFrameResponse(GetHandle()));
           } catch (const std::exception& exception) {
             result->Error("display-frame-error", exception.what());
+          }
+          return;
+        }
+
+        if (call.method_name() == kGetAllDisplaysMethod) {
+          try {
+            result->Success(BuildAllDisplaysResponse(GetHandle()));
+          } catch (const std::exception& exception) {
+            result->Error("display-enumeration-error", exception.what());
           }
           return;
         }
