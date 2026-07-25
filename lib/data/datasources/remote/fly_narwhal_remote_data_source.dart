@@ -118,7 +118,7 @@ class FlyNarwhalRemoteDataSource {
   Future<ApiResult<SmartAnalysisResult<EpisodeSegmentsResponse>>> getSegments(
       String episodeGuid) {
     return _get(ApiEndpoints.flyNarwhalSegments,
-        parameters: <String, dynamic>{'guid': episodeGuid},
+        parameters: <String, dynamic>{'episodeGuid': episodeGuid},
         fromJsonT: (json) => EpisodeSegmentsResponse.fromJson(
             Map<String, dynamic>.from(json as Map)));
   }

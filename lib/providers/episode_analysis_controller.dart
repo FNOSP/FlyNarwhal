@@ -135,7 +135,7 @@ class EpisodeAnalysisController extends StateNotifier<EpisodeAnalysisState> {
     final status = response.data;
     state = state.copyWith(status: status, errorMessage: null);
     if (status == null) {
-      state = state.copyWith(isPolling: false);
+      await _requestSegments(mediaGuid, generation);
       return;
     }
 
@@ -147,27 +147,31 @@ class EpisodeAnalysisController extends StateNotifier<EpisodeAnalysisState> {
     }
 
     if (status == AnalysisStatus.completed) {
-      final segmentsResult = await _remoteDataSource.getSegments(mediaGuid);
-      if (!_isCurrent(mediaGuid, generation)) return;
-      if (segmentsResult
-          case Success<SmartAnalysisResult<EpisodeSegmentsResponse>>(
-            data: final segmentsResponse,
-          )) {
-        state = state.copyWith(
-          isPolling: false,
-          smartSegments:
-              segmentsResponse.isSuccess() ? segmentsResponse.data : null,
-          errorMessage:
-              segmentsResponse.isSuccess() ? null : segmentsResponse.msg,
-        );
-        return;
-      }
-      final failure = segmentsResult.failureOrNull;
-      _stopWithError(failure?.displayMessage ?? 'Failed to get segments');
+      await _requestSegments(mediaGuid, generation);
       return;
     }
 
     state = state.copyWith(isPolling: false);
+  }
+
+  Future<void> _requestSegments(String mediaGuid, int generation) async {
+    final segmentsResult = await _remoteDataSource.getSegments(mediaGuid);
+    if (!_isCurrent(mediaGuid, generation)) return;
+    if (segmentsResult
+        case Success<SmartAnalysisResult<EpisodeSegmentsResponse>>(
+          data: final segmentsResponse,
+        )) {
+      state = state.copyWith(
+        isPolling: false,
+        smartSegments:
+            segmentsResponse.isSuccess() ? segmentsResponse.data : null,
+        errorMessage:
+            segmentsResponse.isSuccess() ? null : segmentsResponse.msg,
+      );
+      return;
+    }
+    final failure = segmentsResult.failureOrNull;
+    _stopWithError(failure?.displayMessage ?? 'Failed to get segments');
   }
 
   bool _isCurrent(String mediaGuid, int generation) {
