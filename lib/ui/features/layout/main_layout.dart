@@ -85,10 +85,19 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
       );
     }
 
-    Widget buildCategoryIcon(String category) {
+    Widget buildNavigationAssetIcon(String assetPath) {
       final theme = FluentTheme.of(context);
       final iconColor =
           IconTheme.of(context).color ?? theme.iconTheme.color ?? Colors.white;
+      return SvgPicture.asset(
+        assetPath,
+        width: 14,
+        height: 14,
+        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+      );
+    }
+
+    Widget buildCategoryIcon(String category) {
       String assetPath;
       switch (category) {
         case 'Movie':
@@ -107,12 +116,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
           assetPath = 'assets/images/other_media.svg';
           break;
       }
-      return SvgPicture.asset(
-        assetPath,
-        width: 16,
-        height: 16,
-        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
-      );
+      return buildNavigationAssetIcon(assetPath);
     }
 
     List<NavigationPaneItem> buildMediaDbItems() {
@@ -190,15 +194,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     }
 
     Widget buildFavoriteIcon() {
-      final theme = FluentTheme.of(context);
-      final iconColor =
-          IconTheme.of(context).color ?? theme.iconTheme.color ?? Colors.white;
-      return SvgPicture.asset(
-        'assets/images/favorite.svg',
-        width: 16,
-        height: 16,
-        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
-      );
+      return buildNavigationAssetIcon('assets/images/favorite.svg');
     }
 
     final mediaDbPaneItems = buildMediaDbItems();
@@ -245,7 +241,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
         onTap: () => context.go('/favorites'),
       ),
       PaneItemExpander(
-        icon: const Icon(FluentIcons.library),
+        icon: buildNavigationAssetIcon('assets/images/media_library.svg'),
         title: const Text('媒体库'),
         body: const SizedBox.shrink(),
         items: mediaDbPaneItems.map((item) {
@@ -268,7 +264,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
         }).toList(),
       ),
       PaneItemExpander(
-        icon: const Icon(FluentIcons.filter),
+        icon: buildNavigationAssetIcon('assets/images/category.svg'),
         title: const Text('分类'),
         body: const SizedBox.shrink(),
         items: categoryPaneItems.map((item) {
