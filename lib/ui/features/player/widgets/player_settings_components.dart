@@ -1,6 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-const Color playerSettingsAccentColor = Color(0xFF0066FF);
+// Soft blue for toggle default checked state
+const Color playerSettingsAccentColor = Color(0xFF3D84E0);
+// Lighter blue for toggle hover state
+const Color playerSettingsAccentHoverColor = Color(0xFF5CA0FF);
 const Color playerSettingsTextColor = Color(0xE6FFFFFF);
 const Color playerSettingsHoverColor = Color(0x1AFFFFFF);
 const Color playerSettingsDividerColor = Color(0x33FFFFFF);
@@ -156,9 +159,29 @@ class _PlayerSettingsToggleRowState extends State<PlayerSettingsToggleRow> {
   bool _isHovered = false;
 
   ToggleSwitchThemeData get _toggleStyle => ToggleSwitchThemeData(
+        // White knob for all states
+        checkedKnobDecoration: WidgetStateProperty.resolveWith((states) {
+          final knobColor = states.isDisabled
+              ? Colors.white.withValues(alpha: 0.6)
+              : Colors.white;
+          return BoxDecoration(
+            color: knobColor,
+            borderRadius: BorderRadius.circular(100),
+          );
+        }),
         checkedDecoration: WidgetStateProperty.resolveWith((states) {
-          final color = states.isDisabled
-              ? playerSettingsAccentColor.withValues(alpha: 0.45)
+          // Use dimmed color when disabled
+          if (states.isDisabled) {
+            final color = playerSettingsAccentColor.withValues(alpha: 0.45);
+            return BoxDecoration(
+              color: color,
+              border: Border.all(color: color),
+              borderRadius: BorderRadius.circular(100),
+            );
+          }
+          // Use lighter blue when hovered
+          final color = states.isHovered
+              ? playerSettingsAccentHoverColor
               : playerSettingsAccentColor;
           return BoxDecoration(
             color: color,

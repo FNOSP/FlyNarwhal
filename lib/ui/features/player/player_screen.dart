@@ -3763,6 +3763,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _setSmartSkipEnabled(bool enabled) async {
+    // Guard: require full FlyNarwhal config before enabling smart skip
+    if (enabled) {
+      final fnSettings = ref.read(settingsProvider);
+      if (!fnSettings.isFlyNarwhalServerAvailable) {
+        if (!mounted) return;
+        ref.read(toastManagerProvider.notifier).showToast(
+          buildFlyNarwhalConfigWarning(
+            missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
+            missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
+          ),
+          type: ToastType.warning,
+          category: 'fly-narwhal-config',
+        );
+        return;
+      }
+    }
     try {
       await ref
           .read(smartSkipSettingsControllerProvider.notifier)
@@ -3893,9 +3909,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               svgAssetPath: danmakuState.isVisible
                   ? 'assets/images/danmu_close.svg'
                   : 'assets/images/danmu_open.svg',
-              onPressed: () => ref
-                  .read(danmakuControllerProvider.notifier)
-                  .setVisibility(!danmakuState.isVisible),
+              onPressed: () {
+                final newVisibility = !danmakuState.isVisible;
+                // Guard: require full FlyNarwhal config before enabling danmaku
+                if (newVisibility) {
+                  final fnSettings = ref.read(settingsProvider);
+                  if (!fnSettings.isFlyNarwhalServerAvailable) {
+                    ref.read(toastManagerProvider.notifier).showToast(
+                      buildFlyNarwhalConfigWarning(
+                        missingUrl:
+                            fnSettings.flyNarwhalServerBaseUrl.isEmpty,
+                        missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
+                      ),
+                      type: ToastType.warning,
+                      category: 'fly-narwhal-config',
+                    );
+                    return;
+                  }
+                }
+                ref
+                    .read(danmakuControllerProvider.notifier)
+                    .setVisibility(newVisibility);
+              },
               tooltip: danmakuState.isVisible ? '关闭弹幕' : '开启弹幕',
               size: 34,
               iconSize: 24,
@@ -3963,6 +3998,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           isSavingSkipConfig: _isSavingSkipConfig,
           onSmartSkipEnabledChanged: (enabled) {
             unawaited(_setSmartSkipEnabled(enabled));
+          },
+          isFlyNarwhalServerAvailable: settings.isFlyNarwhalServerAvailable,
+          onFlyNarwhalConfigMissing: () {
+            ref.read(toastManagerProvider.notifier).showToast(
+              buildFlyNarwhalConfigWarning(
+                missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+                missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+              ),
+              type: ToastType.warning,
+              category: 'fly-narwhal-config',
+            );
           },
           isAutoPlay: overlayState.isAutoPlayEnabled,
           onAutoPlayChanged: _onAutoPlayChanged,

@@ -261,6 +261,13 @@ class SettingsState {
     required this.hasFlyNarwhalAuthCode,
   });
 
+  // Whether the FlyNarwhal server is fully configured and ready to use
+  bool get isFlyNarwhalServerAvailable {
+    return flyNarwhalServerEnabled &&
+        flyNarwhalServerBaseUrl.isNotEmpty &&
+        hasFlyNarwhalAuthCode;
+  }
+
   SettingsState copyWith({
     bool? followSystemTheme,
     bool? darkMode,

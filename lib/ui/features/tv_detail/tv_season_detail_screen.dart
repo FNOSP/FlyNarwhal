@@ -140,6 +140,8 @@ class _TvSeasonDetailContentState
         ref.read(seasonAnalysisStatusControllerProvider.notifier);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // Only poll when the Fly Narwhal backend service is fully configured
+      if (!ref.read(settingsProvider).isFlyNarwhalServerAvailable) return;
       unawaited(
         _seasonAnalysisStatusController.startPolling(widget.guid),
       );
@@ -205,6 +207,19 @@ class _TvSeasonDetailContentState
   }
 
   Future<void> _handleAnalyzeSeason(ItemResponse item) async {
+    final settings = ref.read(settingsProvider);
+    // Guard: require full FlyNarwhal config before triggering analysis
+    if (!settings.isFlyNarwhalServerAvailable) {
+      ref.read(toastManagerProvider.notifier).showToast(
+        buildFlyNarwhalConfigWarning(
+          missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+          missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+        ),
+        type: ToastType.warning,
+        category: 'fly-narwhal-config',
+      );
+      return;
+    }
     await ref
         .read(smartAnalysisControllerProvider.notifier)
         .analyzeSeason(widget.guid, item.tvTitle, item.seasonNumber);
@@ -268,6 +283,21 @@ class _TvSeasonDetailContentState
   Widget build(BuildContext context) {
     final item = widget.state.item;
     if (item == null) return const Center(child: Text('未找到分季信息'));
+
+    // Start or stop polling when the Fly Narwhal server availability changes
+    ref.listen<bool>(
+      settingsProvider.select((s) => s.isFlyNarwhalServerAvailable),
+      (previous, next) {
+        if (previous == next) return;
+        if (next) {
+          unawaited(
+            _seasonAnalysisStatusController.startPolling(widget.guid),
+          );
+        } else {
+          _seasonAnalysisStatusController.stopPolling(widget.guid);
+        }
+      },
+    );
 
     ref.listen<AsyncValue<String>?>(
       smartAnalysisControllerProvider.select(
@@ -438,17 +468,20 @@ class _TvSeasonDetailContentState
                                 const SizedBox(height: 12),
                                 _buildTags(context, item),
                                 const SizedBox(height: 8),
-                                Text(
-                                  '智能分析：${_buildSeasonStatusText()}',
-                                  key: const ValueKey(
-                                    'season-analysis-status',
+                                // Only show smart analysis status when the backend service is fully configured
+                                if (ref.watch(settingsProvider).isFlyNarwhalServerAvailable) ...[
+                                  Text(
+                                    '智能分析：${_buildSeasonStatusText()}',
+                                    key: const ValueKey(
+                                      'season-analysis-status',
+                                    ),
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.8),
+                                      fontSize: 14,
+                                    ),
                                   ),
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.8),
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
+                                  const SizedBox(height: 16),
+                                ],
                                 _buildActionButtons(
                                   context,
                                   item,

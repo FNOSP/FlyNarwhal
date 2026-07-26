@@ -480,6 +480,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                           final baseUrl =
                                                               _flyNarwhalServerUrlController
                                                                   .text;
+                                                          final missingUrl =
+                                                              baseUrl
+                                                                  .trim()
+                                                                  .isEmpty;
+                                                          final missingAuthCode =
+                                                              !settings
+                                                                  .hasFlyNarwhalAuthCode;
+                                                          // Guard: require both URL and auth code before testing
+                                                          if (missingUrl ||
+                                                              missingAuthCode) {
+                                                            ref
+                                                                .read(
+                                                                    toastManagerProvider
+                                                                        .notifier)
+                                                                .showToast(
+                                                                  buildFlyNarwhalConfigWarning(
+                                                                    missingUrl:
+                                                                        missingUrl,
+                                                                    missingAuthCode:
+                                                                        missingAuthCode,
+                                                                  ),
+                                                                  type: ToastType
+                                                                      .warning,
+                                                                  category:
+                                                                      'fly-narwhal-config',
+                                                                );
+                                                            return;
+                                                          }
                                                           await settingsNotifier
                                                               .setFlyNarwhalServerBaseUrl(
                                                             baseUrl,

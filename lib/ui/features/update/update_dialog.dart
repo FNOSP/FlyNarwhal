@@ -68,7 +68,6 @@ class UpdateDialog extends StatelessWidget {
     required this.state,
     required this.onClose,
     this.currentVersion = '当前安装版本',
-    this.channel = '稳定通道',
     this.onSkip,
     this.onDownload,
     this.onCancelDownload,
@@ -81,7 +80,6 @@ class UpdateDialog extends StatelessWidget {
 
   final UpdateState state;
   final String currentVersion;
-  final String channel;
   final VoidCallback onClose;
   final Future<void> Function()? onSkip;
   final Future<void> Function()? onDownload;
@@ -153,16 +151,14 @@ class UpdateDialog extends StatelessWidget {
   Widget _buildContent(BuildContext context, UpdateDialogPhase phase) {
     final candidate = state.candidate;
     return switch (phase) {
-      UpdateDialogPhase.checking => _StatusContent(
-          key: const ValueKey('update-state-checking'),
+      UpdateDialogPhase.checking => const _StatusContent(
+          key: ValueKey('update-state-checking'),
           busy: true,
           message: '正在从 GitHub Releases 获取更新信息…',
-          details: '$channel · 当前版本 $currentVersion',
         ),
-      UpdateDialogPhase.upToDate => _StatusContent(
-          key: const ValueKey('update-state-up-to-date'),
+      UpdateDialogPhase.upToDate => const _StatusContent(
+          key: ValueKey('update-state-up-to-date'),
           message: '当前已是最新版本。',
-          details: '$channel · 当前版本 $currentVersion',
         ),
       UpdateDialogPhase.available => _CandidateContent(
           key: const ValueKey('update-state-available'),
@@ -313,12 +309,10 @@ class _StatusContent extends StatelessWidget {
   const _StatusContent({
     super.key,
     required this.message,
-    this.details,
     this.busy = false,
   });
 
   final String message;
-  final String? details;
   final bool busy;
 
   @override
@@ -336,10 +330,6 @@ class _StatusContent extends StatelessWidget {
             Expanded(child: Text(message)),
           ],
         ),
-        if (details != null) ...[
-          const SizedBox(height: 12),
-          Text(details!),
-        ],
       ],
     );
   }
