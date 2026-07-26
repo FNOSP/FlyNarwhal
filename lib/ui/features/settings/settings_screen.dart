@@ -24,6 +24,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _flyNarwhalServerUrlFocusNode = FocusNode();
   final TextEditingController _flyNarwhalServerUrlController =
       TextEditingController();
   final TextEditingController _flyNarwhalAuthCodeController =
@@ -158,6 +159,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _flyNarwhalAuthCodeController.dispose();
     _updateProxyUrlController.dispose();
     _flyNarwhalServerUrlController.dispose();
+    _flyNarwhalServerUrlFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -446,16 +448,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                 ),
                                                 controller:
                                                     _flyNarwhalServerUrlController,
+                                                focusNode:
+                                                    _flyNarwhalServerUrlFocusNode,
                                                 placeholder:
                                                     'http://192.168.1.1:5365',
+                                                placeholderStyle: TextStyle(
+                                                  color: Colors.grey[130],
+                                                ),
                                                 onSubmitted: settingsNotifier
                                                     .setFlyNarwhalServerBaseUrl,
-                                                onTapOutside: (_) =>
-                                                    settingsNotifier
-                                                        .setFlyNarwhalServerBaseUrl(
-                                                  _flyNarwhalServerUrlController
-                                                      .text,
-                                                ),
+                                                onTapOutside: (_) {
+                                                  _flyNarwhalServerUrlFocusNode
+                                                      .unfocus();
+                                                  settingsNotifier
+                                                      .setFlyNarwhalServerBaseUrl(
+                                                    _flyNarwhalServerUrlController
+                                                        .text,
+                                                  );
+                                                },
                                               ),
                                             ),
                                             const SizedBox(width: 8),

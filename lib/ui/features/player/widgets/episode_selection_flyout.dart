@@ -167,61 +167,64 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
             Positioned(
               left: left,
               top: top,
-              child: SizedBox(
-                width: _episodeFlyoutWidth,
-                height: flyoutHeight + bridgeHeight,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      child: MouseRegion(
-                        opaque: false,
-                        cursor: SystemMouseCursors.click,
-                        onEnter: (_) {
-                          _setPopupHovered(true);
-                          _hideTimer?.cancel();
-                        },
-                        onHover: (_) {
-                          if (!_popupHovered) {
-                            _setPopupHovered(true);
-                          }
-                        },
-                        onExit: (_) {
-                          _setPopupHovered(false);
-                          _hideFlyoutWithDelay();
-                        },
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox(
+                  width: _episodeFlyoutWidth,
+                  height: flyoutHeight + bridgeHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 0,
                         child: MouseRegion(
+                          opaque: false,
                           cursor: SystemMouseCursors.click,
-                          child: KeyedSubtree(
-                            key: _flyoutKey,
-                            child: _buildAnimatedFlyout(flyoutHeight),
+                          onEnter: (_) {
+                            _setPopupHovered(true);
+                            _hideTimer?.cancel();
+                          },
+                          onHover: (_) {
+                            if (!_popupHovered) {
+                              _setPopupHovered(true);
+                            }
+                          },
+                          onExit: (_) {
+                            _setPopupHovered(false);
+                            _hideFlyoutWithDelay();
+                          },
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: KeyedSubtree(
+                              key: _flyoutKey,
+                              child: _buildAnimatedFlyout(flyoutHeight),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      left: bridgeLeft,
-                      top: flyoutHeight,
-                      child: MouseRegion(
-                        opaque: false,
-                        cursor: SystemMouseCursors.click,
-                        onEnter: (_) {
-                          _setPopupHovered(true);
-                          _hideTimer?.cancel();
-                        },
-                        onExit: (_) {
-                          _setPopupHovered(false);
-                          _hideFlyoutWithDelay();
-                        },
-                        child: SizedBox(
-                          width: bridgeWidth,
-                          height: bridgeHeight,
+                      Positioned(
+                        left: bridgeLeft,
+                        top: flyoutHeight,
+                        child: MouseRegion(
+                          opaque: false,
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) {
+                            _setPopupHovered(true);
+                            _hideTimer?.cancel();
+                          },
+                          onExit: (_) {
+                            _setPopupHovered(false);
+                            _hideFlyoutWithDelay();
+                          },
+                          child: SizedBox(
+                            width: bridgeWidth,
+                            height: bridgeHeight,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -184,11 +184,11 @@ flutter build linux --release
 
 ## 🌟 Star History
 
-<a href="https://www.star-history.com/?repos=FlyNarwhal%2FFlyNarwhal&type=date&legend=top-left" target="_blank" style="display: block" align="center">
+<a href="https://www.star-history.com/?repos=FNOSP%2FFlyNarwhal&type=date&legend=top-left" target="_blank" style="display: block" align="center">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=FlyNarwhal/FlyNarwhal&type=date&theme=dark&legend=top-left&sealed_token=9G01Yt_j5R983IXSGvq4W9bbVH931sHfjzBZiMOVUS1dhtJ-Cmh3uxXe2CB2rpWFetma17Upq0-SxGbqlPcmrH2z5udzZnNbJ3P0M8FyHwk-7LGjEi6DPQ" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=FlyNarwhal/FlyNarwhal&type=date&legend=top-left&sealed_token=9G01Yt_j5R983IXSGvq4W9bbVH931sHfjzBZiMOVUS1dhtJ-Cmh3uxXe2CB2rpWFetma17Upq0-SxGbqlPcmrH2z5udzZnNbJ3P0M8FyHwk-7LGjEi6DPQ" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=FlyNarwhal/FlyNarwhal&type=date&legend=top-left&sealed_token=9G01Yt_j5R983IXSGvq4W9bbVH931sHfjzBZiMOVUS1dhtJ-Cmh3uxXe2CB2rpWFetma17Upq0-SxGbqlPcmrH2z5udzZnNbJ3P0M8FyHwk-7LGjEi6DPQ" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=FNOSP/FlyNarwhal&type=date&theme=dark&legend=top-left&sealed_token=9G01Yt_j5R983IXSGvq4W9bbVH931sHfjzBZiMOVUS1dhtJ-Cmh3uxXe2CB2rpWFetma17Upq0-SxGbqlPcmrH2z5udzZnNbJ3P0M8FyHwk-7LGjEi6DPQ" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=FNOSP/FlyNarwhal&type=date&legend=top-left&sealed_token=9G01Yt_j5R983IXSGvq4W9bbVH931sHfjzBZiMOVUS1dhtJ-Cmh3uxXe2CB2rpWFetma17Upq0-SxGbqlPcmrH2z5udzZnNbJ3P0M8FyHwk-7LGjEi6DPQ" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=FNOSP/FlyNarwhal&type=date&legend=top-left&sealed_token=9G01Yt_j5R983IXSGvq4W9bbVH931sHfjzBZiMOVUS1dhtJ-Cmh3uxXe2CB2rpWFetma17Upq0-SxGbqlPcmrH2z5udzZnNbJ3P0M8FyHwk-7LGjEi6DPQ" />
  </picture>
 </a>
 

@@ -1,8 +1,9 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+
+import '../../../core/utils/log/app_talker.dart';
 
 import '../../../domain/update/entities/update_models.dart';
 import '../../../domain/update/repositories/cancellation_token.dart';
@@ -92,6 +93,10 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
 
     for (var attempt = 0; attempt <= maximumRetryCount; attempt++) {
       _throwIfCancelled(cancellationToken);
+      AppTalker.info(
+        'UpdateCheck',
+        'Requesting GitHub releases: page=$page, pageSize=$pageSize, attempt=${attempt + 1}.',
+      );
       try {
         final response = await _dio.get<Object?>(
           releasesEndpoint.toString(),
@@ -108,7 +113,12 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
             },
           ),
         );
-        return _parseRoot(response.data);
+        final releases = _parseRoot(response.data);
+        AppTalker.info(
+          'UpdateCheck',
+          'Received GitHub releases: page=$page, status=${response.statusCode}, count=${releases.length}.',
+        );
+        return releases;
       } on UpdateOperationCancelledException {
         throw _cancelledFailure();
       } on DioException catch (error) {
@@ -210,6 +220,7 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
       isPrerelease: payload['prerelease'] as bool? ?? false,
       isDraft: payload['draft'] as bool? ?? false,
       assets: assets,
+      publishedAt: _parsePublishedAt(payload['published_at']),
     );
     if (validation is UpdateModelValidationFailure<UpdateRelease>) {
       _warn(
@@ -256,6 +267,11 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
     }
     return (validation as UpdateModelValidationSuccess<UpdateReleaseAsset>)
         .value;
+  }
+
+  static DateTime? _parsePublishedAt(Object? value) {
+    if (value is! String || value.isEmpty) return null;
+    return DateTime.tryParse(value)?.toUtc();
   }
 
   UpdateRepositoryException _mapDioException(DioException error) {

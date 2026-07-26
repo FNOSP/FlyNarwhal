@@ -22,6 +22,7 @@ final class UpdateReleaseLogCollectionService {
   }) async {
     final releases = await paginationService.fetchAll(
       repository: repository,
+      currentVersion: currentVersion,
       cancellationToken: cancellationToken,
     );
     final fragments = <UpdateReleaseNotesFragment>[];

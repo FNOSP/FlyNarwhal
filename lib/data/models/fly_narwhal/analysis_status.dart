@@ -4,11 +4,10 @@ enum AnalysisStatus {
   inProgress,
   partialSuccess,
   completed,
-  failed,
-  unknown;
+  failed;
 
   static AnalysisStatus fromString(String? value) {
-    switch (value?.toUpperCase()) {
+    switch (value) {
       case 'PREPARING':
         return AnalysisStatus.preparing;
       case 'PENDING':
@@ -22,7 +21,7 @@ enum AnalysisStatus {
       case 'FAILED':
         return AnalysisStatus.failed;
       default:
-        return AnalysisStatus.unknown;
+        throw FormatException('Unknown analysis status: $value');
     }
   }
 
@@ -40,8 +39,6 @@ enum AnalysisStatus {
         return 'COMPLETED';
       case AnalysisStatus.failed:
         return 'FAILED';
-      case AnalysisStatus.unknown:
-        return 'UNKNOWN';
     }
   }
 

@@ -118,7 +118,7 @@ class FlyNarwhalRemoteDataSource {
   Future<ApiResult<SmartAnalysisResult<EpisodeSegmentsResponse>>> getSegments(
       String episodeGuid) {
     return _get(ApiEndpoints.flyNarwhalSegments,
-        parameters: <String, dynamic>{'guid': episodeGuid},
+        parameters: <String, dynamic>{'episodeGuid': episodeGuid},
         fromJsonT: (json) => EpisodeSegmentsResponse.fromJson(
             Map<String, dynamic>.from(json as Map)));
   }
@@ -163,7 +163,11 @@ class FlyNarwhalRemoteDataSource {
                 parameters: parameters,
               ),
               responseType: ResponseType.plain));
-      return Success(await _decodeSmartResult(response.data ?? '', fromJsonT));
+      return Success(await _decodeSmartResult(
+        response.data ?? '',
+        fromJsonT,
+        requestPath: path,
+      ));
     } catch (error, stackTrace) {
       AppTalker.error(
         'FlyNarwhal',
@@ -188,7 +192,11 @@ class FlyNarwhalRemoteDataSource {
                 isPost: true,
               ),
               responseType: ResponseType.plain));
-      return Success(await _decodeSmartResult(response.data ?? '', fromJsonT));
+      return Success(await _decodeSmartResult(
+        response.data ?? '',
+        fromJsonT,
+        requestPath: path,
+      ));
     } catch (error, stackTrace) {
       AppTalker.error(
         'FlyNarwhal',
@@ -402,25 +410,48 @@ class FlyNarwhalRemoteDataSource {
   }
 
   Future<SmartAnalysisResult<T>> _decodeSmartResult<T>(
-      String raw, T Function(Object? json) fromJsonT) async {
+    String raw,
+    T Function(Object? json) fromJsonT, {
+    required String requestPath,
+  }) async {
     final decoded = jsonDecode(raw);
     final result = SmartAnalysisResult<dynamic>.fromJson(
-        Map<String, dynamic>.from(decoded as Map), (json) => json);
+      Map<String, dynamic>.from(decoded as Map),
+      (json) => json,
+    );
     if (!result.isSuccess()) {
       throw FailureInfo(
-          message: result.msg, code: result.code, displayMessage: result.msg);
-    }
-    final rawData = result.data;
-    final resolvedData = result.encrypted == true && rawData is String
-        ? jsonDecode(
-            await _crypto.decryptAesGcmBase64Url(rawData, getAuthCode()))
-        : rawData;
-    return SmartAnalysisResult<T>(
+        message: result.msg,
         code: result.code,
-        msg: result.msg,
-        data: resolvedData == null ? null : fromJsonT(resolvedData),
-        success: result.success,
-        encrypted: result.encrypted);
+        displayMessage: result.msg,
+      );
+    }
+
+    final rawData = result.data;
+    final isEncrypted = result.encrypted == true && rawData is String;
+    final resolvedData = isEncrypted
+        ? jsonDecode(
+            await _crypto.decryptAesGcmBase64Url(rawData, getAuthCode()),
+          )
+        : rawData;
+
+    // Log only decoded smart-analysis payloads after credential sanitization.
+    if (isEncrypted &&
+        (requestPath == ApiEndpoints.flyNarwhalAnalysisStatus ||
+            requestPath == ApiEndpoints.flyNarwhalSegments)) {
+      AppTalker.info(
+        'FlyNarwhal',
+        'decrypted smart-analysis response: $requestPath，data=${jsonEncode(resolvedData)}',
+      );
+    }
+
+    return SmartAnalysisResult<T>(
+      code: result.code,
+      msg: result.msg,
+      data: resolvedData == null ? null : fromJsonT(resolvedData),
+      success: result.success,
+      encrypted: result.encrypted,
+    );
   }
 
   Stream<SseEvent> _parseResponseBodyEvents(ResponseBody responseBody) {

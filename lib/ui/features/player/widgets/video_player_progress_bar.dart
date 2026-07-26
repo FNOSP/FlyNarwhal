@@ -1,5 +1,12 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../models/resolved_skip_segments.dart';
+
+const playerProgressBarKey = ValueKey('player-progress-bar');
+const playerProgressBarCanvasKey = ValueKey('player-progress-bar-canvas');
+const playerProgressBarTimestampKey = ValueKey('player-progress-bar-timestamp');
+const _hoverTimestampWidth = 60.0;
+
 // Format duration to HH:MM:SS or MM:SS
 String formatDurationToDateTime(int milliseconds) {
   final totalSeconds = milliseconds ~/ 1000;
@@ -17,24 +24,50 @@ String formatDurationToDateTime(int milliseconds) {
 }
 
 class VideoPlayerProgressBar extends StatefulWidget {
-  final int currentPosition;
-  final int totalDuration;
-  final double buffered;
-  final void Function(double progress) onSeek;
-  final VoidCallback? onInteractionEnd;
-  final (int, int)? introSegmentMillis;
-  final (int, int)? creditsSegmentMillis;
-
   const VideoPlayerProgressBar({
-    super.key,
+    super.key = playerProgressBarKey,
     required this.currentPosition,
     required this.totalDuration,
     this.buffered = 0.0,
     required this.onSeek,
+    this.onInteractionStart,
     this.onInteractionEnd,
-    this.introSegmentMillis,
-    this.creditsSegmentMillis,
+    this.onInteractionCancel,
+    this.introSegment,
+    this.creditsSegment,
+    @Deprecated('Use introSegment instead.') this.introSegmentMillis,
+    @Deprecated('Use creditsSegment instead.') this.creditsSegmentMillis,
+    this.showHoverTimestamp = true,
   });
+
+  final int currentPosition;
+  final int totalDuration;
+  final double buffered;
+  final ValueChanged<double> onSeek;
+  final VoidCallback? onInteractionStart;
+  final VoidCallback? onInteractionEnd;
+  final VoidCallback? onInteractionCancel;
+  final SkipSegmentMillis? introSegment;
+  final SkipSegmentMillis? creditsSegment;
+  final (int, int)? introSegmentMillis;
+  final (int, int)? creditsSegmentMillis;
+  final bool showHoverTimestamp;
+
+  SkipSegmentMillis? get effectiveIntroSegment =>
+      introSegment ?? _convertLegacySegment(introSegmentMillis);
+
+  SkipSegmentMillis? get effectiveCreditsSegment =>
+      creditsSegment ?? _convertLegacySegment(creditsSegmentMillis);
+
+  static SkipSegmentMillis? _convertLegacySegment((int, int)? segment) {
+    if (segment == null || segment.$1 < 0 || segment.$2 <= segment.$1) {
+      return null;
+    }
+    return SkipSegmentMillis(
+      startMilliseconds: segment.$1,
+      endMilliseconds: segment.$2,
+    );
+  }
 
   @override
   State<VideoPlayerProgressBar> createState() => _VideoPlayerProgressBarState();
@@ -43,6 +76,7 @@ class VideoPlayerProgressBar extends StatefulWidget {
 class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
   bool _isHovered = false;
   bool _isDragging = false;
+  bool _hasActiveInteraction = false;
   double _hoverPositionX = 0.0;
   double _layoutWidth = 0.0;
 
@@ -53,35 +87,47 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     return widget.currentPosition / widget.totalDuration;
   }
 
-  (double, double)? get _introRangeRatio {
-    if (widget.totalDuration <= 0) return null;
-    final segment = widget.introSegmentMillis;
-    if (segment == null) return null;
-    final start = segment.$1.clamp(0, widget.totalDuration);
-    final end = segment.$2.clamp(0, widget.totalDuration);
+  (double, double)? get _introRangeRatio =>
+      _calculateRangeRatio(widget.effectiveIntroSegment);
+
+  (double, double)? get _creditsRangeRatio =>
+      _calculateRangeRatio(widget.effectiveCreditsSegment);
+
+  (double, double)? _calculateRangeRatio(SkipSegmentMillis? segment) {
+    if (widget.totalDuration <= 0 || segment == null) return null;
+    final start = segment.startMilliseconds.clamp(0, widget.totalDuration);
+    final end = segment.endMilliseconds.clamp(0, widget.totalDuration);
     if (end <= start) return null;
     return (start / widget.totalDuration, end / widget.totalDuration);
   }
 
-  (double, double)? get _creditsRangeRatio {
-    if (widget.totalDuration <= 0) return null;
-    final segment = widget.creditsSegmentMillis;
-    if (segment == null) return null;
-    final start = segment.$1.clamp(0, widget.totalDuration);
-    final end = segment.$2.clamp(0, widget.totalDuration);
-    if (end <= start) return null;
-    return (start / widget.totalDuration, end / widget.totalDuration);
-  }
-
-  void _handleTap(Offset offset, double width) {
+  void _seekAt(Offset offset, double width) {
+    if (width <= 0) return;
     final progress = (offset.dx / width).clamp(0.0, 1.0);
     widget.onSeek(progress);
+  }
+
+  void _startInteraction() {
+    if (_hasActiveInteraction) return;
+    _hasActiveInteraction = true;
+    widget.onInteractionStart?.call();
+  }
+
+  void _finishInteraction({required bool wasCancelled}) {
+    if (!_hasActiveInteraction) return;
+    _hasActiveInteraction = false;
+    if (wasCancelled) {
+      (widget.onInteractionCancel ?? widget.onInteractionEnd)?.call();
+      return;
+    }
     widget.onInteractionEnd?.call();
   }
 
-  void _handleDrag(Offset offset, double width) {
-    final progress = (offset.dx / width).clamp(0.0, 1.0);
-    widget.onSeek(progress);
+  void _finishDrag({required bool wasCancelled}) {
+    if (mounted) {
+      setState(() => _isDragging = false);
+    }
+    _finishInteraction(wasCancelled: wasCancelled);
   }
 
   @override
@@ -96,29 +142,40 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
         setState(() => _hoverPositionX = event.localPosition.dx);
       },
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTapDown: (details) {
-          final RenderBox box = context.findRenderObject() as RenderBox;
-          _handleTap(details.localPosition, box.size.width);
+          _startInteraction();
+          final renderBox = context.findRenderObject() as RenderBox;
+          _seekAt(details.localPosition, renderBox.size.width);
         },
-        onHorizontalDragStart: (_) => setState(() => _isDragging = true),
+        onTapUp: (_) => _finishInteraction(wasCancelled: false),
+        onTapCancel: () => _finishInteraction(wasCancelled: true),
+        onHorizontalDragStart: (details) {
+          _startInteraction();
+          setState(() {
+            _isDragging = true;
+            _hoverPositionX = details.localPosition.dx;
+          });
+          final renderBox = context.findRenderObject() as RenderBox;
+          _seekAt(details.localPosition, renderBox.size.width);
+        },
         onHorizontalDragUpdate: (details) {
-          final RenderBox box = context.findRenderObject() as RenderBox;
-          _handleDrag(details.localPosition, box.size.width);
+          setState(() => _hoverPositionX = details.localPosition.dx);
+          final renderBox = context.findRenderObject() as RenderBox;
+          _seekAt(details.localPosition, renderBox.size.width);
         },
-        onHorizontalDragEnd: (_) {
-          setState(() => _isDragging = false);
-          widget.onInteractionEnd?.call();
-        },
+        onHorizontalDragEnd: (_) => _finishDrag(wasCancelled: false),
+        onHorizontalDragCancel: () => _finishDrag(wasCancelled: true),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: LayoutBuilder(
             builder: (context, constraints) {
               _layoutWidth = constraints.maxWidth;
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // Progress bar canvas
                   CustomPaint(
+                    key: playerProgressBarCanvasKey,
                     size: Size(constraints.maxWidth, barHeight),
                     painter: _ProgressBarPainter(
                       progress: _progress,
@@ -130,14 +187,19 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
                       thumbRadius: thumbRadius,
                     ),
                   ),
-                  // Hover timestamp
-                  if (_showDetails && _layoutWidth > 0)
+                  if (_showDetails &&
+                      widget.showHoverTimestamp &&
+                      _layoutWidth > 0)
                     Positioned(
                       left: _calculateTimestampPosition(),
                       bottom: barHeight + 8,
-                      child: _HoverTimestamp(
-                        hoverProgress: _hoverPositionX / _layoutWidth,
-                        totalDuration: widget.totalDuration,
+                      child: SizedBox(
+                        width: _hoverTimestampWidth,
+                        child: _HoverTimestamp(
+                          key: playerProgressBarTimestampKey,
+                          hoverProgress: _hoverPositionX / _layoutWidth,
+                          totalDuration: widget.totalDuration,
+                        ),
                       ),
                     ),
                 ],
@@ -151,9 +213,8 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
 
   double _calculateTimestampPosition() {
     if (_layoutWidth <= 0) return 0;
-    const timestampWidth = 60.0;
-    final position = _hoverPositionX - timestampWidth / 2;
-    return position.clamp(0.0, _layoutWidth - timestampWidth);
+    final position = _hoverPositionX - _hoverTimestampWidth / 2;
+    return position.clamp(0.0, _layoutWidth - _hoverTimestampWidth);
   }
 }
 
@@ -195,19 +256,22 @@ class _ProgressBarPainter extends CustomPainter {
 
     // 2. Intro segment marker
     if (introRangeRatio != null) {
-      _drawSegmentMarker(canvas, size, introRangeRatio!, trackYCenter, trackStrokeWidth);
+      _drawSegmentMarker(
+          canvas, size, introRangeRatio!, trackYCenter, trackStrokeWidth);
     }
 
     // 3. Credits segment marker
     if (creditsRangeRatio != null) {
-      _drawSegmentMarker(canvas, size, creditsRangeRatio!, trackYCenter, trackStrokeWidth);
+      _drawSegmentMarker(
+          canvas, size, creditsRangeRatio!, trackYCenter, trackStrokeWidth);
     }
 
     // 4. Buffered progress
     final bufferedEndX = buffered.clamp(0.0, 1.0) * size.width;
+    final activeEndX = progress.clamp(0.0, 1.0) * size.width;
     if (bufferedEndX > 0) {
       final bufferedPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.6)
+        ..color = Colors.white.withValues(alpha: 0.4)
         ..strokeWidth = trackStrokeWidth
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke;
@@ -219,7 +283,6 @@ class _ProgressBarPainter extends CustomPainter {
     }
 
     // 5. Active progress (blue)
-    final activeEndX = progress.clamp(0.0, 1.0) * size.width;
     if (activeEndX > 0) {
       final activePaint = Paint()
         ..color = const Color(0xFF3B82F6)
@@ -338,13 +401,15 @@ class _HoverTimestamp extends StatelessWidget {
   final int totalDuration;
 
   const _HoverTimestamp({
+    super.key,
     required this.hoverProgress,
     required this.totalDuration,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hoverTimeMillis = (hoverProgress.clamp(0.0, 1.0) * totalDuration).toInt();
+    final hoverTimeMillis =
+        (hoverProgress.clamp(0.0, 1.0) * totalDuration).toInt();
     final timeText = formatDurationToDateTime(hoverTimeMillis);
 
     return Container(

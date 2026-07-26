@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../../../core/utils/log/app_talker.dart';
+import '../../../../core/window/desktop_display_service.dart';
+import '../../../../core/window/main_window_persistence_guard.dart';
+import '../../../../core/window/window_geometry.dart';
 
 class DesktopPseudoFullscreenController {
   static const MethodChannel _displayFrameChannel =
@@ -56,24 +59,26 @@ class DesktopPseudoFullscreenController {
       wasFullScreen: wasFullScreen,
     );
 
-    if (wasFullScreen) {
-      await windowManager.setFullScreen(false);
-      await Future<void>.delayed(_windowStateTransitionDelay);
+    MainWindowPersistenceGuard.suspend();
+    try {
+      if (wasFullScreen) {
+        await windowManager.setFullScreen(false);
+        await Future<void>.delayed(_windowStateTransitionDelay);
+      }
+
+      if (wasMaximized) {
+        await windowManager.unmaximize();
+        await Future<void>.delayed(_windowStateTransitionDelay);
+      }
+
+      await _setWindowBorderless(true);
+      final targetFrame = await _getCurrentDisplayFrame();
+      await windowManager.setBounds(targetFrame);
+      _isPseudoFullscreen = true;
+    } catch (_) {
+      MainWindowPersistenceGuard.resume();
+      rethrow;
     }
-
-    if (wasMaximized) {
-      await windowManager.unmaximize();
-      await Future<void>.delayed(_windowStateTransitionDelay);
-    }
-
-    // Remove window borders so the pseudo-fullscreen-window completely fills
-    // the display without any visible frame.
-    await _setWindowBorderless(true);
-
-    // Resize the window to the full monitor frame.
-    final targetFrame = await _getCurrentDisplayFrame();
-    await windowManager.setBounds(targetFrame);
-    _isPseudoFullscreen = true;
   }
 
   Future<void> exit() async {
@@ -88,14 +93,22 @@ class DesktopPseudoFullscreenController {
       return;
     }
 
-    // Restore window borders before shrinking back to the saved geometry.
-    await _setWindowBorderless(false);
-
-    // Restore the original geometry before re-applying maximized state.
-    await windowManager.setBounds(snapshot.bounds);
-    if (snapshot.wasMaximized) {
-      await Future<void>.delayed(_windowStateTransitionDelay);
-      await windowManager.maximize();
+    try {
+      await _setWindowBorderless(false);
+      final displays = await _tryGetDisplays();
+      final restoredBounds = WindowGeometry.normalizeMainWindowBounds(
+        snapshot.bounds,
+        displays,
+        fallbackSize: const Size(1280, 720),
+        minimumSize: const Size(1280, 720),
+      );
+      await windowManager.setBounds(restoredBounds);
+      if (snapshot.wasMaximized) {
+        await Future<void>.delayed(_windowStateTransitionDelay);
+        await windowManager.maximize();
+      }
+    } finally {
+      MainWindowPersistenceGuard.resume();
     }
   }
 
@@ -188,6 +201,14 @@ class DesktopPseudoFullscreenController {
       _readDouble(result, 'width'),
       _readDouble(result, 'height'),
     );
+  }
+
+  Future<List<DesktopDisplayGeometry>> _tryGetDisplays() async {
+    try {
+      return await const DesktopDisplayService().getDisplays();
+    } catch (_) {
+      return const [];
+    }
   }
 
   double _readDouble(Map<Object?, Object?> result, String key) {

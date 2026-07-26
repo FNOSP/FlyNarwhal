@@ -7,14 +7,13 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/season_list_response.dart';
-import '../../../data/utils/fn_data_convertor.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
+import '../../../providers/smart_analysis_controller.dart';
 import '../movie_detail/detail_components.dart';
 import '../../shared/common/img_loading_progress_ring.dart';
 import '../../shared/movie_poster.dart';
@@ -191,6 +190,44 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     );
   }
 
+  Future<void> _handleAnalyzeTv(ItemResponse item) async {
+    await ref
+        .read(smartAnalysisControllerProvider.notifier)
+        .analyzeTv(widget.guid, item.title);
+  }
+
+  Future<void> _handleAnalyzeSeason(SeasonListResponse season) async {
+    await ref
+        .read(smartAnalysisControllerProvider.notifier)
+        .analyzeSeason(season.guid, season.tvTitle, season.seasonNumber);
+  }
+
+  void _showAnalysisToast(
+    SmartAnalysisTargetType targetType,
+    String targetGuid,
+    AsyncValue<String>? previous,
+    AsyncValue<String>? next,
+  ) {
+    if (next == null || next.isLoading || identical(previous, next)) return;
+    next.when(
+      data: (message) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              message,
+              type: ToastType.success,
+              category: 'smart-analysis:${targetType.name}:$targetGuid',
+            );
+      },
+      loading: () {},
+      error: (error, stackTrace) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              error.toString(),
+              type: ToastType.failed,
+              category: 'smart-analysis:${targetType.name}:$targetGuid',
+            );
+      },
+    );
+  }
+
   void _showMoreFlyout(ItemResponse item) {
     if (_moreController.isOpen) {
       _moreController.close();
@@ -201,37 +238,19 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
       placementMode: FlyoutPlacementMode.bottomCenter,
       builder: (context) => MenuFlyout(
         items: [
-          MenuFlyoutItem(
-            text: const Text('刷新页面'),
-            onPressed: () {
-              Flyout.of(context).close();
-              ref
-                  .read(tvDetailNotifierProvider(widget.guid).notifier)
-                  .refresh();
-            },
-          ),
-          if (item.imdbId != null && item.imdbId!.isNotEmpty)
+          if (ref.read(settingsProvider).flyNarwhalServerEnabled)
             MenuFlyoutItem(
-              text: const Text('在 IMDb 上查看'),
-              onPressed: () {
-                Flyout.of(context).close();
-                launchUrl(Uri.parse(FnDataConvertor.getImdbLink(item.imdbId)));
-              },
-            ),
-          MenuFlyoutItem(
-            text: Text(item.isFavorite == 1 ? '取消收藏' : '加入收藏'),
-            onPressed: () {
-              Flyout.of(context).close();
-              _handleToggleFavorite();
-            },
-          ),
-          MenuFlyoutItem(
-            text: Text(item.isWatched == 1 ? '标记为未看' : '标记为已看'),
-            onPressed: () {
-              Flyout.of(context).close();
-              _handleToggleWatched();
-            },
-          ),
+              key: const ValueKey('tv-smart-analysis'),
+              text: const Text('智能分析片头/片尾'),
+              onPressed: ref
+                      .read(smartAnalysisControllerProvider)
+                      .isSubmitting(SmartAnalysisTargetType.tv, widget.guid)
+                  ? null
+                  : () {
+                      Flyout.of(context).close();
+                      _handleAnalyzeTv(item);
+                    },
+            )
         ],
       ),
     );
@@ -252,6 +271,37 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   Widget build(BuildContext context) {
     final item = widget.state.item;
     if (item == null) return const Center(child: Text('未找到剧集信息'));
+
+    ref.listen<AsyncValue<String>?>(
+      smartAnalysisControllerProvider.select(
+        (state) => state.submissionFor(
+          SmartAnalysisTargetType.tv,
+          widget.guid,
+        ),
+      ),
+      (previous, next) => _showAnalysisToast(
+        SmartAnalysisTargetType.tv,
+        widget.guid,
+        previous,
+        next,
+      ),
+    );
+    for (final season in widget.state.seasonList) {
+      ref.listen<AsyncValue<String>?>(
+        smartAnalysisControllerProvider.select(
+          (state) => state.submissionFor(
+            SmartAnalysisTargetType.season,
+            season.guid,
+          ),
+        ),
+        (previous, next) => _showAnalysisToast(
+          SmartAnalysisTargetType.season,
+          season.guid,
+          previous,
+          next,
+        ),
+      );
+    }
 
     final windowHeight = MediaQuery.of(context).size.height;
     final pixelRatio = MediaQuery.of(context).devicePixelRatio;
@@ -388,6 +438,9 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                         seasons: widget.state.seasonList,
                         itemTitle: item.title,
                         scaleFactor: 1.0,
+                        showSmartAnalysis:
+                            ref.watch(settingsProvider).flyNarwhalServerEnabled,
+                        onAnalyze: _handleAnalyzeSeason,
                         onWatchedToggle: (guid, isWatched) async {
                           return _handleToggleSeasonWatched(guid, isWatched);
                         },
@@ -494,25 +547,64 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 }
 
-class _SeasonListGrid extends StatelessWidget {
+class _SeasonListGrid extends StatefulWidget {
   final List<SeasonListResponse> seasons;
   final String itemTitle;
   final double scaleFactor;
+  final bool showSmartAnalysis;
+  final ValueChanged<SeasonListResponse> onAnalyze;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
 
   const _SeasonListGrid({
     required this.seasons,
     required this.itemTitle,
     this.scaleFactor = 1.0,
+    required this.showSmartAnalysis,
+    required this.onAnalyze,
     required this.onWatchedToggle,
   });
+
+  @override
+  State<_SeasonListGrid> createState() => _SeasonListGridState();
+}
+
+class _SeasonListGridState extends State<_SeasonListGrid> {
+  late final FlyoutController _seasonMoreController = FlyoutController();
+
+  @override
+  void dispose() {
+    _seasonMoreController.dispose();
+    super.dispose();
+  }
+
+  void _showSeasonFlyout(SeasonListResponse season) {
+    if (_seasonMoreController.isOpen) {
+      _seasonMoreController.close();
+      return;
+    }
+    _seasonMoreController.showFlyout<void>(
+      placementMode: FlyoutPlacementMode.bottomCenter,
+      builder: (context) => MenuFlyout(
+        items: [
+          MenuFlyoutItem(
+            key: ValueKey('season-smart-analysis-${season.guid}'),
+            text: const Text('智能分析片头/片尾'),
+            onPressed: () {
+              Flyout.of(context).close();
+              widget.onAnalyze(season);
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       final availableWidth = constraints.maxWidth;
-      final posterMinWidth = 128.0 * scaleFactor;
-      final posterMaxWidth = 190.0 * scaleFactor;
+      final posterMinWidth = 128.0 * widget.scaleFactor;
+      final posterMaxWidth = 190.0 * widget.scaleFactor;
       const spacing = 16.0;
 
       final itemsPerRow =
@@ -532,7 +624,7 @@ class _SeasonListGrid extends StatelessWidget {
       return Wrap(
         spacing: spacing,
         runSpacing: spacing,
-        children: seasons.map((season) {
+        children: widget.seasons.map((season) {
           final episodeNumber = season.episodeNumber > 0
               ? season.episodeNumber
               : season.localNumberOfEpisodes;
@@ -552,13 +644,17 @@ class _SeasonListGrid extends StatelessWidget {
               isWatched: season.watched == 1,
               width: itemWidth,
               height: itemHeight,
-              scaleFactor: scaleFactor,
+              scaleFactor: widget.scaleFactor,
               type: season.type,
               guid: season.guid,
-              mediaTitle: itemTitle,
+              mediaTitle: widget.itemTitle,
               seasonNumber: season.seasonNumber,
+              onMoreTap: widget.showSmartAnalysis
+                  ? () => _showSeasonFlyout(season)
+                  : null,
               onWatchedToggle: (guid, currentState, callback) async {
-                final success = await onWatchedToggle(guid, currentState);
+                final success =
+                    await widget.onWatchedToggle(guid, currentState);
                 callback(success);
               },
               resolutions: season.mediaStream.resolutions,

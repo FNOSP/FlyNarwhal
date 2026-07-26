@@ -5,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
-import 'package:window_manager/window_manager.dart'
-    hide WindowCaption, DragToMoveArea;
 import '../home/home_view_model.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/global_refresh.dart';
@@ -31,41 +29,16 @@ class MainLayout extends ConsumerStatefulWidget {
   ConsumerState<MainLayout> createState() => _MainLayoutState();
 }
 
-class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
+class _MainLayoutState extends ConsumerState<MainLayout> {
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'global-search');
   final FocusNode _shortcutFocusNode =
       FocusNode(debugLabel: 'global-shortcuts');
 
   @override
-  void initState() {
-    super.initState();
-    if (!kIsWeb &&
-        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      windowManager.addListener(this);
-    }
-  }
-
-  @override
   void dispose() {
-    if (!kIsWeb &&
-        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      windowManager.removeListener(this);
-    }
     _searchFocusNode.dispose();
     _shortcutFocusNode.dispose();
     super.dispose();
-  }
-
-  @override
-  void onWindowClose() async {
-    // Keep the macOS app running in Dock when the main window is closed.
-    if (!kIsWeb && Platform.isMacOS) {
-      await windowManager.hide();
-      return;
-    }
-
-    // Preserve the existing close-to-exit behavior on other desktop platforms.
-    await windowManager.destroy();
   }
 
   @override
@@ -112,10 +85,19 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
       );
     }
 
-    Widget buildCategoryIcon(String category) {
+    Widget buildNavigationAssetIcon(String assetPath) {
       final theme = FluentTheme.of(context);
       final iconColor =
           IconTheme.of(context).color ?? theme.iconTheme.color ?? Colors.white;
+      return SvgPicture.asset(
+        assetPath,
+        width: 14,
+        height: 14,
+        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+      );
+    }
+
+    Widget buildCategoryIcon(String category) {
       String assetPath;
       switch (category) {
         case 'Movie':
@@ -134,12 +116,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
           assetPath = 'assets/images/other_media.svg';
           break;
       }
-      return SvgPicture.asset(
-        assetPath,
-        width: 16,
-        height: 16,
-        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
-      );
+      return buildNavigationAssetIcon(assetPath);
     }
 
     List<NavigationPaneItem> buildMediaDbItems() {
@@ -217,15 +194,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
     }
 
     Widget buildFavoriteIcon() {
-      final theme = FluentTheme.of(context);
-      final iconColor =
-          IconTheme.of(context).color ?? theme.iconTheme.color ?? Colors.white;
-      return SvgPicture.asset(
-        'assets/images/favorite.svg',
-        width: 16,
-        height: 16,
-        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
-      );
+      return buildNavigationAssetIcon('assets/images/favorite.svg');
     }
 
     final mediaDbPaneItems = buildMediaDbItems();
@@ -272,7 +241,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
         onTap: () => context.go('/favorites'),
       ),
       PaneItemExpander(
-        icon: const Icon(FluentIcons.library),
+        icon: buildNavigationAssetIcon('assets/images/media_library.svg'),
         title: const Text('媒体库'),
         body: const SizedBox.shrink(),
         items: mediaDbPaneItems.map((item) {
@@ -295,7 +264,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> with WindowListener {
         }).toList(),
       ),
       PaneItemExpander(
-        icon: const Icon(FluentIcons.filter),
+        icon: buildNavigationAssetIcon('assets/images/category.svg'),
         title: const Text('分类'),
         body: const SizedBox.shrink(),
         items: categoryPaneItems.map((item) {

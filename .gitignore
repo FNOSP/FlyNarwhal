@@ -38,7 +38,6 @@ migrate_working_dir/
 /dev/integration_tests/**/xcuserdata
 /dev/integration_tests/**/Pods
 /packages/flutter/coverage/
-version
 analysis_benchmark.json
 
 # Flutter/Dart/Pub related

@@ -8,14 +8,14 @@ import '../data/storage/fly_narwhal_settings.dart';
 
 class SmartAnalysisStatusState {
   final bool isPolling;
-  final AnalysisStatus status;
+  final AnalysisStatus? status;
   final EpisodeSegmentsResponse? segments;
   final String? errorMessage;
   final String? episodeGuid;
 
   const SmartAnalysisStatusState({
     this.isPolling = false,
-    this.status = AnalysisStatus.unknown,
+    this.status,
     this.segments,
     this.errorMessage,
     this.episodeGuid,
@@ -110,9 +110,13 @@ class SmartAnalysisStatusController
 
     try {
       final result = await _remoteDataSource.getStatus(type: type, guid: guid);
-      final status = result.getOrThrow().data ?? AnalysisStatus.unknown;
+      final status = result.getOrThrow().data;
       state = state.copyWith(status: status, errorMessage: null);
 
+      if (status == null) {
+        stopPolling();
+        return;
+      }
       if (status.isRunning) {
         _pollingTimer = Timer(_pollingInterval, _pollOnce);
         return;
