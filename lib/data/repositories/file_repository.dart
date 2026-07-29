@@ -92,12 +92,14 @@ class FileRepository {
   Future<SubtitleStream> downloadSubtitle({
     required String mediaGuid,
     required String trimId,
+    int syncDownload = 1,
   }) async {
     final response = await _dioClient.dio.post(
       '/v/api/v1/subtitle/download',
       data: SubtitleDownloadRequest(
         mediaGuid: mediaGuid,
         trimId: trimId,
+        syncDownload: syncDownload,
       ).toJson(),
     );
     final baseResponse = FnBaseResponse<Map<String, dynamic>>.fromJson(

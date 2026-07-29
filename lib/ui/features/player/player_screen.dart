@@ -860,7 +860,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   );
               if (!mounted) return;
               ref.read(toastManagerProvider.notifier).showToast(
-                    '字幕下载成功',
+                    '下载成功',
                     type: ToastType.success,
                     category: 'subtitle-download:${item.trimId}',
                   );
