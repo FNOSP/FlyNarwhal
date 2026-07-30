@@ -82,3 +82,20 @@ class SubtitleDownloadRequest {
         'sync_download': syncDownload,
       };
 }
+
+// Request body for POST /subtitle/predownload: queue a download of the same
+// subtitle for the other episodes of the current series.
+class SubtitlePredownloadRequest {
+  final String mediaGuid;
+  final String subtitleGuid;
+
+  const SubtitlePredownloadRequest({
+    required this.mediaGuid,
+    required this.subtitleGuid,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'media_guid': mediaGuid,
+        'subtitle_guid': subtitleGuid,
+      };
+}

@@ -839,13 +839,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       await showDialog<void>(
         context: context,
+        barrierColor: subtitleSearchScrimColor,
+        barrierDismissible: true,
         builder: (_) => SubtitleSearchDialog(
           mediaFileName: currentFile.fileName,
-          initialTrimIds:
-              (_playingInfoCache?.currentSubtitleStreamList ?? const [])
-                  .map((subtitle) => subtitle.trimId)
-                  .where((trimId) => trimId.isNotEmpty)
-                  .toList(),
+          initialSubtitleGuidByTrimId: {
+            for (final subtitle
+                in _playingInfoCache?.currentSubtitleStreamList ?? const [])
+              if (subtitle.trimId.isNotEmpty && subtitle.guid.isNotEmpty)
+                subtitle.trimId: subtitle.guid,
+          },
           onSearch: (language) {
             return ref.read(fileRepositoryProvider).searchSubtitles(
                   mediaGuid: currentFile.guid,
@@ -854,17 +857,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           },
           onDownload: (item) async {
             try {
-              await ref.read(fileRepositoryProvider).downloadSubtitle(
-                    mediaGuid: currentFile.guid,
-                    trimId: item.trimId,
-                  );
-              if (!mounted) return;
+              final subtitleStream =
+                  await ref.read(fileRepositoryProvider).downloadSubtitle(
+                        mediaGuid: currentFile.guid,
+                        trimId: item.trimId,
+                      );
+              if (!mounted) return subtitleStream.guid;
               ref.read(toastManagerProvider.notifier).showToast(
                     '下载成功',
                     type: ToastType.success,
                     category: 'subtitle-download:${item.trimId}',
                   );
               unawaited(_refreshSubtitleStreams(targetTrimId: item.trimId));
+              return subtitleStream.guid;
             } catch (error) {
               if (mounted) {
                 ref.read(toastManagerProvider.notifier).showToast(
@@ -874,6 +879,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     );
               }
               rethrow;
+            }
+          },
+          onDownloadSimilar: (item, subtitleGuid) async {
+            try {
+              await ref
+                  .read(fileRepositoryProvider)
+                  .predownloadSimilarSubtitle(
+                    mediaGuid: currentFile.guid,
+                    subtitleGuid: subtitleGuid,
+                  );
+              if (!mounted) return;
+              ref.read(toastManagerProvider.notifier).showToast(
+                    '已创建字幕下载任务',
+                    type: ToastType.success,
+                    category: 'subtitle-predownload:${item.trimId}',
+                  );
+            } catch (error) {
+              if (mounted) {
+                ref.read(toastManagerProvider.notifier).showToast(
+                      '创建字幕下载任务失败，请重试',
+                      type: ToastType.failed,
+                      category: 'subtitle-predownload:${item.trimId}',
+                    );
+              }
             }
           },
         ),

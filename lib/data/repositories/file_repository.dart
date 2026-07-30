@@ -113,6 +113,29 @@ class FileRepository {
     return SubtitleStream.fromJson(baseResponse.data!);
   }
 
+  // Queue a server-side task that downloads the same subtitle for the other
+  // episodes of the current series ("为其他集下载相似字幕").
+  Future<void> predownloadSimilarSubtitle({
+    required String mediaGuid,
+    required String subtitleGuid,
+  }) async {
+    final response = await _dioClient.dio.post(
+      '/v/api/v1/subtitle/predownload',
+      data: SubtitlePredownloadRequest(
+        mediaGuid: mediaGuid,
+        subtitleGuid: subtitleGuid,
+      ).toJson(),
+    );
+    final baseResponse = FnBaseResponse<void>.fromJson(
+      response.data,
+      (_) {},
+    );
+
+    if (baseResponse.code != 0) {
+      throw Exception(baseResponse.msg);
+    }
+  }
+
   Future<SubtitleStream> uploadSubtitle({
     required String guid,
     required List<int> bytes,
