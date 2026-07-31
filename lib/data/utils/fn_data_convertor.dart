@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import '../../data/models/file_models.dart';
 import '../../data/models/movie_detail_models.dart';
 
 class FileInfoData {
@@ -165,7 +166,8 @@ class FnDataConvertor {
     );
   }
 
-  static String getLanguageNameFromMap(String? langCode, Map<String, String> iso6391Map) {
+  static String getLanguageNameFromMap(
+      String? langCode, Map<String, String> iso6391Map) {
     if (langCode == null || langCode.isEmpty) return '未知';
     if (langCode == '_no_display_') return '无';
     return iso6391Map[langCode] ?? langCode;
@@ -185,5 +187,84 @@ class FnDataConvertor {
       return '存储空间${hasSpace ? ' ' : ''}$volumeNumber';
     }
     return path;
+  }
+
+  /// Sidebar label for an authorized directory, matching the web player's file
+  /// picker classification by `storageType`:
+  ///   0 -> 外接存储, 2 -> 远程挂载, 3 -> 存储空间 N, else -> volume name.
+  /// A path-regex alone is wrong here: a remote mount such as `/vol02/...`
+  /// would otherwise be mislabelled "存储空间 02".
+  static String getAuthDirSidebarLabel(String path, int storageType) {
+    switch (storageType) {
+      case 0:
+        return '外接存储';
+      case 2:
+        return '远程挂载';
+      case 3:
+        return getVolumeCNName(path);
+      default:
+        final name = getVolumeCNName(path);
+        return name.isEmpty ? path : name;
+    }
+  }
+
+  /// Cloud storage labels aligned with the web player enum mapping.
+  static const Map<int, String> _cloudStorageTypeLabels = {
+    1: '百度网盘',
+    2: '阿里云盘',
+    3: '115 生活',
+    4: '夸克网盘',
+    5: '123 云盘',
+    6: 'Microsoft OneDrive',
+    7: 'Google Drive',
+    8: 'Dropbox',
+    9: 'Microsoft OneDrive for Business',
+    10: 'Microsoft OneDrive',
+  };
+
+  static bool isValidCloudStorageType(int? cloudStorageType) {
+    return cloudStorageType != null &&
+        _cloudStorageTypeLabels.containsKey(cloudStorageType);
+  }
+
+  static String getCloudStorageTypeLabel(int? cloudStorageType) {
+    if (!isValidCloudStorageType(cloudStorageType)) return '';
+    return _cloudStorageTypeLabels[cloudStorageType] ?? '';
+  }
+
+  /// Build the display name for an authorized directory root node.
+  /// For cloud storage mounts, match the web player as:
+  ///   <cloud storage label> - <comment>
+  /// For other remote mounts, fall back to:
+  ///   <comment> - <username>@<address>
+  static String getAuthDirRootLabel(AuthDir dir) {
+    if (dir.storageType != 2) {
+      final segments =
+          dir.path.split('/').where((segment) => segment.isNotEmpty);
+      return segments.isEmpty ? dir.path : segments.last;
+    }
+
+    if (isValidCloudStorageType(dir.cloudStorageType)) {
+      final cloudLabel = getCloudStorageTypeLabel(dir.cloudStorageType);
+      final displayName = dir.comment.trim();
+      if (cloudLabel.isNotEmpty && displayName.isNotEmpty) {
+        return '$cloudLabel - $displayName';
+      }
+      if (cloudLabel.isNotEmpty) return cloudLabel;
+      if (displayName.isNotEmpty) return displayName;
+    }
+
+    final comment = dir.comment.trim();
+    final username = dir.username.trim();
+    final address = dir.address.trim();
+    final account =
+        [username, address].where((segment) => segment.isNotEmpty).join('@');
+    final fallback =
+        [comment, account].where((segment) => segment.isNotEmpty).join(' - ');
+
+    if (fallback.isNotEmpty) return fallback;
+
+    final segments = dir.path.split('/').where((segment) => segment.isNotEmpty);
+    return segments.isEmpty ? dir.path : segments.last;
   }
 }

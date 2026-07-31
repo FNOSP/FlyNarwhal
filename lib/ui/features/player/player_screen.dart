@@ -13,6 +13,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 import '../../../core/network/api_result.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/debug/test_hooks.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
@@ -67,6 +69,10 @@ import 'widgets/subtitle_search_dialog.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
 import '../../shared/toast.dart';
 import '../../shared/window_caption.dart';
+
+/// Maximum number of local subtitle files that can be uploaded at once,
+/// matching the web player's limit.
+const int _maxUploadableSubtitles = 20;
 
 enum _PlaybackIndicatorType { play, pause }
 
@@ -935,7 +941,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           currentPath: _resolveCurrentFilePath(),
           onConfirm: (paths) async {
             try {
-              await ref
+              final markResult = await ref
                   .read(fileRepositoryProvider)
                   .markSubtitle(mediaGuid, paths);
               if (!mounted) return;
@@ -944,14 +950,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     type: ToastType.success,
                     category: 'nas-subtitle:$mediaGuid',
                   );
-              unawaited(_refreshSubtitleStreams());
+              try {
+                await _refreshSubtitleStreams();
+              } catch (error) {
+                AppTalker.warning(
+                  'PlayerScreen',
+                  'refresh subtitle streams after NAS mark failed: $error',
+                );
+              }
+              if (!mounted) return;
+              // Switch to the newly added subtitle: the guid returned by the
+              // mark API is always the target. Prefer the entry from the
+              // refreshed stream list; fall back to the API-provided object
+              // when it is not listed yet.
+              final targetSubtitle = _streamInfo?.subtitleStreams
+                      ?.where((s) => s.guid == markResult.guid)
+                      .firstOrNull ??
+                  markResult.toSubtitleStream();
+              await _switchSubtitleWithSessionFlow(targetSubtitle);
             } catch (error) {
               if (!mounted) return;
-              ref.read(toastManagerProvider.notifier).showToast(
-                    '添加 NAS 字幕失败: $error',
-                    type: ToastType.failed,
-                    category: 'nas-subtitle:$mediaGuid',
-                  );
+              final toastManager = ref.read(toastManagerProvider.notifier);
+              if (error is FailureInfo &&
+                  error.code == ResponseCodes.subtitleAlreadyMarked) {
+                toastManager.showToast(
+                  '该文件已被添加为字幕',
+                  type: ToastType.info,
+                  category: 'nas-subtitle:$mediaGuid',
+                );
+                return;
+              }
+              toastManager.showToast(
+                '添加 NAS 字幕失败: $error',
+                type: ToastType.failed,
+                category: 'nas-subtitle:$mediaGuid',
+              );
             }
           },
         ),
@@ -977,37 +1010,97 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     const subtitleTypeGroup = XTypeGroup(
       label: '字幕文件',
-      extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa'],
+      extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'],
     );
 
+    List<XFile> files;
     try {
-      final file = await openFile(
+      files = await openFiles(
         acceptedTypeGroups: [subtitleTypeGroup],
         confirmButtonText: '选择',
       );
-      if (file == null) return;
-
-      setState(() => _isUploadingLocalSubtitle = true);
-      final bytes = await file.readAsBytes();
-      await ref.read(fileRepositoryProvider).uploadSubtitle(
-            guid: currentFile.guid,
-            bytes: bytes,
-            fileName: file.name,
-          );
-      if (!mounted) return;
-      ref.read(toastManagerProvider.notifier).showToast(
-            '电脑字幕文件上传成功',
-            type: ToastType.success,
-            category: 'local-subtitle:${currentFile.guid}',
-          );
-      unawaited(_refreshSubtitleStreams());
     } catch (error) {
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
-              '上传字幕失败: $error',
+              '选择字幕文件失败: $error',
               type: ToastType.failed,
               category: 'local-subtitle:${currentFile.guid}',
             );
+      }
+      return;
+    }
+    if (files.isEmpty) return;
+
+    if (files.length > _maxUploadableSubtitles) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            '最多选择 $_maxUploadableSubtitles 个文件',
+            type: ToastType.warning,
+            category: 'local-subtitle:${currentFile.guid}',
+          );
+      return;
+    }
+
+    const allowedExtensions = ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'];
+    final hasInvalid = files.any((file) {
+      final dot = file.name.lastIndexOf('.');
+      if (dot < 0) return true;
+      return !allowedExtensions.contains(
+        file.name.substring(dot + 1).toLowerCase(),
+      );
+    });
+    if (hasInvalid) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            '只能选择 ${allowedExtensions.join(', ')} 格式的文件',
+            type: ToastType.warning,
+            category: 'local-subtitle:${currentFile.guid}',
+          );
+      return;
+    }
+
+    setState(() => _isUploadingLocalSubtitle = true);
+    try {
+      var successCount = 0;
+      var failureCount = 0;
+      for (final file in files) {
+        try {
+          final bytes = await file.readAsBytes();
+          await ref.read(fileRepositoryProvider).uploadSubtitle(
+                guid: currentFile.guid,
+                bytes: bytes,
+                fileName: file.name,
+              );
+          successCount++;
+        } catch (error) {
+          AppTalker.warning(
+            'PlayerScreen',
+            'Failed to upload subtitle ${file.name}: $error',
+          );
+          failureCount++;
+        }
+      }
+
+      if (!mounted) return;
+      final toastManager = ref.read(toastManagerProvider.notifier);
+      if (successCount == 0) {
+        toastManager.showToast(
+          '添加字幕失败，请重试',
+          type: ToastType.failed,
+          category: 'local-subtitle:${currentFile.guid}',
+        );
+      } else if (failureCount > 0) {
+        toastManager.showToast(
+          '部分字幕添加成功，其中 $failureCount 个失败',
+          type: ToastType.warning,
+          category: 'local-subtitle:${currentFile.guid}',
+        );
+        unawaited(_refreshSubtitleStreams());
+      } else {
+        toastManager.showToast(
+          '添加字幕成功',
+          type: ToastType.success,
+          category: 'local-subtitle:${currentFile.guid}',
+        );
+        unawaited(_refreshSubtitleStreams());
       }
     } finally {
       if (mounted) {
@@ -2194,6 +2287,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ? NextEpisodeLoadPhase.loading
                 : NextEpisodeLoadPhase.unavailable;
       });
+      // Debug-only: auto-open the NAS subtitle dialog once after playback info
+      // loads, so the driver-enabled build can verify it without the
+      // hover-driven flyout. Inert in production (flag stays false).
+      if (debugAutoOpenNasDialogOnce) {
+        debugAutoOpenNasDialogOnce = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _openAddNasSubtitleDialog();
+        });
+      }
       _resolveAndDispatchSkipSegments();
       _introSkipController.dispatch(
         EpisodeSessionStarted(
@@ -4159,6 +4261,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Widget _buildBackButton() {
     return PlayerActionButton.icon(
+      key: const ValueKey('player-back-button'),
       iconData: FluentIcons.back,
       onPressed: _handleBack,
       tooltip: '返回',

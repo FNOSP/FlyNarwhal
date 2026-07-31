@@ -9,6 +9,8 @@ import '../core/utils/log/app_talker.dart';
 import '../core/utils/log/error_log_exporter.dart';
 import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
 import '../data/datasources/remote/media_remote_data_source.dart';
+import '../data/datasources/remote/file_remote_data_source.dart';
+import '../data/datasources/remote/subtitle_remote_data_source.dart';
 import '../data/datasources/remote/tag_remote_data_source.dart';
 import '../data/datasources/remote/user_remote_data_source.dart';
 import '../data/models/user_info.dart';
@@ -136,6 +138,19 @@ final mediaRemoteDataSourceProvider = Provider<MediaRemoteDataSource>((ref) {
 final userRemoteDataSourceProvider = Provider<UserRemoteDataSource>((ref) {
   final dioClient = ref.watch(dioClientProvider);
   return UserRemoteDataSource(dioClient);
+});
+
+// File browsing remote data source provider
+final fileRemoteDataSourceProvider = Provider<FileRemoteDataSource>((ref) {
+  final dioClient = ref.watch(dioClientProvider);
+  return FileRemoteDataSource(dioClient);
+});
+
+// Subtitle search / download remote data source provider
+final subtitleRemoteDataSourceProvider =
+    Provider<SubtitleRemoteDataSource>((ref) {
+  final dioClient = ref.watch(dioClientProvider);
+  return SubtitleRemoteDataSource(dioClient);
 });
 
 final flyNarwhalSettingsProvider = Provider<FlyNarwhalSettings>((ref) {

@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'movie_detail_view_model.dart';
+import '../../../core/utils/log/app_talker.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/network/api_result.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
@@ -282,16 +285,40 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         currentPath: _resolveCurrentFilePath(),
         onConfirm: (paths) async {
           try {
-            await ref
+            final markResult = await ref
                 .read(fileRepositoryProvider)
                 .markSubtitle(mediaGuid, paths);
-            if (mounted) {
-              ref
+            if (!mounted) return;
+            try {
+              await ref
                   .read(movieDetailNotifierProvider(widget.guid).notifier)
                   .refresh();
+            } catch (error) {
+              AppTalker.warning(
+                'MovieDetailScreen',
+                'refresh after NAS subtitle mark failed: $error',
+              );
             }
+            if (!mounted) return;
+            // Sync the selection to the subtitle registered by the mark API
+            // so the next playback starts with it.
+            setState(() {
+              _mediaGuidSubtitleGuidMap[_currentMediaGuid] = markResult.guid;
+              if (_currentMediaGuid == mediaGuid) {
+                _selectedSubtitleGuid = markResult.guid;
+              }
+            });
           } catch (error) {
             if (!mounted) return;
+            if (error is FailureInfo &&
+                error.code == ResponseCodes.subtitleAlreadyMarked) {
+              ref.read(toastManagerProvider.notifier).showToast(
+                    '该文件已被添加为字幕',
+                    type: ToastType.info,
+                    category: 'nas-subtitle:$mediaGuid',
+                  );
+              return;
+            }
             showDialog(
               context: context,
               builder: (errorContext) => ContentDialog(

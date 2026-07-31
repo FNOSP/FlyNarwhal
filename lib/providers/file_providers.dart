@@ -4,8 +4,12 @@ import '../data/repositories/file_repository.dart';
 import 'providers.dart';
 
 final fileRepositoryProvider = Provider<FileRepository>((ref) {
-  final dioClient = ref.watch(dioClientProvider);
-  return FileRepository(dioClient);
+  final fileDataSource = ref.watch(fileRemoteDataSourceProvider);
+  final subtitleDataSource = ref.watch(subtitleRemoteDataSourceProvider);
+  return FileRepository(
+    fileDataSource: fileDataSource,
+    subtitleDataSource: subtitleDataSource,
+  );
 });
 
 final authorizedDirsProvider = FutureProvider<List<AuthDir>>((ref) async {
