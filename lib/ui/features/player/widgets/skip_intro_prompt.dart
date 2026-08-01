@@ -25,8 +25,8 @@ class SkipIntroPrompt extends StatelessWidget {
       key: isPip ? playerSkipIntroPipPromptKey : playerSkipIntroPromptKey,
       isPip: isPip,
       onHoverChanged: onHoverChanged,
-      message: '已跳过片头',
-      actionLabel: '撤销（${countdown.clamp(0, 5)}）',
+      message: '已自动跳过片头',
+      actionLabel: '撤销 ${countdown.clamp(0, 5)}',
       actionKey: isPip ? playerSkipIntroPipUndoKey : playerSkipIntroUndoKey,
       onPressed: onUndo,
     );
@@ -82,7 +82,7 @@ class PlayerSkipPromptContainer extends StatelessWidget {
                 onPressed: onPressed,
                 style: const ButtonStyle(
                   padding: WidgetStatePropertyAll(EdgeInsets.zero),
-                  foregroundColor: WidgetStatePropertyAll(Color(0xFF3B82F6)),
+                  foregroundColor: WidgetStatePropertyAll(Colors.white),
                 ),
                 child: Text(
                   actionLabel,
