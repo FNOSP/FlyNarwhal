@@ -2,9 +2,14 @@
 
 #include <windows.h>
 
+#include <comdef.h>
+#include <shobjidl.h>
+
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <flutter/method_channel.h>
@@ -26,10 +31,83 @@ constexpr const char kIsWindowBorderlessMethod[] =
 constexpr const char kKmpPreferencesChannelName[] =
     "fly_narwhal/kmp_preferences";
 constexpr const char kReadJavaPreferencesMethod[] = "readJavaPreferences";
+constexpr const char kLocalSubtitlePickerChannelName[] =
+    "fly_narwhal/local_subtitle_picker";
+constexpr const char kOpenLocalSubtitlesMethod[] = "openLocalSubtitles";
+constexpr const UINT kLocalSubtitlePickerResultMessage = WM_APP + 1;
 constexpr const wchar_t kJavaPreferencesRegistryPath[] =
     L"Software\\JavaSoft\\Prefs";
 
 std::string Utf8FromWideString(const std::wstring& value);
+
+struct LocalSubtitlePickerResult {
+  std::unique_ptr<flutter::MethodResult<>> method_result;
+  std::vector<std::string> paths;
+  std::string error_message;
+};
+
+std::vector<std::string> ShowLocalSubtitlePicker(HWND owner_window,
+                                                  std::string* error_message) {
+  const HRESULT initialize_result =
+      CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+  if (FAILED(initialize_result)) {
+    *error_message = "Unable to initialize the Windows file picker thread.";
+    return {};
+  }
+
+  IFileOpenDialog* dialog = nullptr;
+  const HRESULT create_result = CoCreateInstance(
+      CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+      IID_PPV_ARGS(&dialog));
+  if (FAILED(create_result)) {
+    CoUninitialize();
+    *error_message = "Unable to create the Windows file picker.";
+    return {};
+  }
+
+  const COMDLG_FILTERSPEC subtitle_filter = {
+      L"字幕文件", L"*.ass;*.srt;*.vtt;*.sub;*.ssa;*.sup"};
+  dialog->SetFileTypes(1, &subtitle_filter);
+  dialog->SetOkButtonLabel(L"选择");
+
+  FILEOPENDIALOGOPTIONS options = 0;
+  if (SUCCEEDED(dialog->GetOptions(&options))) {
+    dialog->SetOptions(options | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM |
+                       FOS_PATHMUSTEXIST | FOS_FILEMUSTEXIST);
+  }
+
+  std::vector<std::string> paths;
+  const HRESULT show_result = dialog->Show(owner_window);
+  if (SUCCEEDED(show_result)) {
+    IShellItemArray* selected_items = nullptr;
+    if (SUCCEEDED(dialog->GetResults(&selected_items))) {
+      DWORD selected_item_count = 0;
+      selected_items->GetCount(&selected_item_count);
+      paths.reserve(selected_item_count);
+      for (DWORD item_index = 0; item_index < selected_item_count;
+           ++item_index) {
+        IShellItem* selected_item = nullptr;
+        if (FAILED(selected_items->GetItemAt(item_index, &selected_item))) {
+          continue;
+        }
+        wchar_t* wide_path = nullptr;
+        if (SUCCEEDED(selected_item->GetDisplayName(SIGDN_FILESYSPATH,
+                                                    &wide_path))) {
+          paths.push_back(Utf8FromWideString(wide_path));
+          CoTaskMemFree(wide_path);
+        }
+        selected_item->Release();
+      }
+      selected_items->Release();
+    }
+  } else if (show_result != HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+    *error_message = "The Windows file picker failed to open.";
+  }
+
+  dialog->Release();
+  CoUninitialize();
+  return paths;
+}
 
 flutter::EncodableMap BuildRectResponse(const RECT& bounds,
                                         double coordinate_scale_factor) {
@@ -324,6 +402,32 @@ bool FlutterWindow::OnCreate() {
         }
       });
 
+  flutter::MethodChannel<> local_subtitle_picker_channel(
+      flutter_controller_->engine()->messenger(),
+      kLocalSubtitlePickerChannelName,
+      &flutter::StandardMethodCodec::GetInstance());
+  local_subtitle_picker_channel.SetMethodCallHandler(
+      [this](const flutter::MethodCall<>& call,
+             std::unique_ptr<flutter::MethodResult<>> result) {
+        if (call.method_name() != kOpenLocalSubtitlesMethod) {
+          result->NotImplemented();
+          return;
+        }
+
+        const HWND owner_window = GetHandle();
+        std::thread([owner_window, method_result = std::move(result)]() mutable {
+          auto picker_result = std::make_unique<LocalSubtitlePickerResult>();
+          picker_result->method_result = std::move(method_result);
+          picker_result->paths = ShowLocalSubtitlePicker(
+              owner_window, &picker_result->error_message);
+          auto* message_payload = picker_result.release();
+          if (!PostMessage(owner_window, kLocalSubtitlePickerResultMessage, 0,
+                           reinterpret_cast<LPARAM>(message_payload))) {
+            delete message_payload;
+          }
+        }).detach();
+      });
+
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -357,6 +461,22 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case kLocalSubtitlePickerResultMessage: {
+      std::unique_ptr<LocalSubtitlePickerResult> picker_result(
+          reinterpret_cast<LocalSubtitlePickerResult*>(lparam));
+      if (!picker_result->error_message.empty()) {
+        picker_result->method_result->Error("local-subtitle-picker-error",
+                                            picker_result->error_message);
+        return 0;
+      }
+      flutter::EncodableList encoded_paths;
+      encoded_paths.reserve(picker_result->paths.size());
+      for (const std::string& path : picker_result->paths) {
+        encoded_paths.emplace_back(path);
+      }
+      picker_result->method_result->Success(encoded_paths);
+      return 0;
+    }
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;

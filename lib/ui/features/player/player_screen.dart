@@ -78,6 +78,26 @@ Uint8List _readFileBytesSync(String path) => File(path).readAsBytesSync();
 /// Maximum number of local subtitle files that can be uploaded at once,
 /// matching the web player's limit.
 const int _maxUploadableSubtitles = 20;
+const MethodChannel _localSubtitlePickerChannel =
+    MethodChannel('fly_narwhal/local_subtitle_picker');
+
+Future<List<XFile>> _openLocalSubtitleFiles() async {
+  if (!Platform.isWindows) {
+    const subtitleTypeGroup = XTypeGroup(
+      label: '字幕文件',
+      extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'],
+    );
+    return openFiles(
+      acceptedTypeGroups: [subtitleTypeGroup],
+      confirmButtonText: '选择',
+    );
+  }
+
+  final selectedPaths = await _localSubtitlePickerChannel
+          .invokeListMethod<String>('openLocalSubtitles') ??
+      const <String>[];
+  return selectedPaths.map(XFile.new).toList(growable: false);
+}
 
 enum _PlaybackIndicatorType { play, pause }
 
@@ -431,10 +451,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   double get _bufferedProgressRatio {
     if (_duration <= 0) return 0.0;
-    final effectiveBufferedPosition =
-        _bufferedPosition > _currentPosition
-            ? _bufferedPosition
-            : _currentPosition;
+    final effectiveBufferedPosition = _bufferedPosition > _currentPosition
+        ? _bufferedPosition
+        : _currentPosition;
     return (effectiveBufferedPosition / _duration).clamp(0.0, 1.0);
   }
 
@@ -894,9 +913,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           },
           onDownloadSimilar: (item, subtitleGuid) async {
             try {
-              await ref
-                  .read(fileRepositoryProvider)
-                  .predownloadSimilarSubtitle(
+              await ref.read(fileRepositoryProvider).predownloadSimilarSubtitle(
                     mediaGuid: currentFile.guid,
                     subtitleGuid: subtitleGuid,
                   );
@@ -1016,12 +1033,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     final toastCategory = 'local-subtitle:$mediaGuid';
 
-    const subtitleTypeGroup = XTypeGroup(
-      label: '字幕文件',
-      extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'],
-    );
-
-    List<XFile> files;
+    List<XFile> files = const <XFile>[];
     try {
       // The subtitle flyout starts its dismiss animation right after this
       // callback; let it finish before the native open panel attaches, so
@@ -1033,10 +1045,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
       );
       if (!mounted) return;
-      files = await openFiles(
-        acceptedTypeGroups: [subtitleTypeGroup],
-        confirmButtonText: '选择',
-      );
+      files = await _openLocalSubtitleFiles();
     } catch (error) {
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
@@ -1086,13 +1095,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       for (final file in files) {
         try {
           final bytes = await compute(_readFileBytesSync, file.path);
-          final uploaded = await ref
-              .read(fileRepositoryProvider)
-              .uploadSubtitle(
-                mediaGuid: mediaGuid,
-                bytes: bytes,
-                fileName: file.name,
-              );
+          final uploaded =
+              await ref.read(fileRepositoryProvider).uploadSubtitle(
+                    mediaGuid: mediaGuid,
+                    bytes: bytes,
+                    fileName: file.name,
+                  );
           successCount++;
           lastUploaded = uploaded;
         } catch (error) {
@@ -1172,9 +1180,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _iso6391Map,
       _iso6392Map,
     );
-    final format = target.format.isNotEmpty
-        ? target.format.toUpperCase()
-        : '';
+    final format = target.format.isNotEmpty ? target.format.toUpperCase() : '';
     final switchToast = format.isEmpty
         ? '字幕正在切换至：$languageName'
         : '字幕正在切换至：$languageName $format';
@@ -3969,13 +3975,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!fnSettings.isFlyNarwhalServerAvailable) {
         if (!mounted) return;
         ref.read(toastManagerProvider.notifier).showToast(
-          buildFlyNarwhalConfigWarning(
-            missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
-            missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
-          ),
-          type: ToastType.warning,
-          category: 'fly-narwhal-config',
-        );
+              buildFlyNarwhalConfigWarning(
+                missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
+                missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
+              ),
+              type: ToastType.warning,
+              category: 'fly-narwhal-config',
+            );
         return;
       }
     }
@@ -4116,14 +4122,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   final fnSettings = ref.read(settingsProvider);
                   if (!fnSettings.isFlyNarwhalServerAvailable) {
                     ref.read(toastManagerProvider.notifier).showToast(
-                      buildFlyNarwhalConfigWarning(
-                        missingUrl:
-                            fnSettings.flyNarwhalServerBaseUrl.isEmpty,
-                        missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
-                      ),
-                      type: ToastType.warning,
-                      category: 'fly-narwhal-config',
-                    );
+                          buildFlyNarwhalConfigWarning(
+                            missingUrl:
+                                fnSettings.flyNarwhalServerBaseUrl.isEmpty,
+                            missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
+                          ),
+                          type: ToastType.warning,
+                          category: 'fly-narwhal-config',
+                        );
                     return;
                   }
                 }
@@ -4202,13 +4208,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           isFlyNarwhalServerAvailable: settings.isFlyNarwhalServerAvailable,
           onFlyNarwhalConfigMissing: () {
             ref.read(toastManagerProvider.notifier).showToast(
-              buildFlyNarwhalConfigWarning(
-                missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
-                missingAuthCode: !settings.hasFlyNarwhalAuthCode,
-              ),
-              type: ToastType.warning,
-              category: 'fly-narwhal-config',
-            );
+                  buildFlyNarwhalConfigWarning(
+                    missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+                    missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+                  ),
+                  type: ToastType.warning,
+                  category: 'fly-narwhal-config',
+                );
           },
           isAutoPlay: overlayState.isAutoPlayEnabled,
           onAutoPlayChanged: _onAutoPlayChanged,
