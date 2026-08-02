@@ -409,6 +409,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     const double kTrafficLightTopPadding = 10.0;
     const double kTrafficLightAreaWidth = 70.0;
     const double kRefreshButtonLeftOffset = 10.0;
+    // Horizontal breathing room between the back / pin / refresh buttons so
+    // they don't sit flush against each other next to the traffic lights.
+    const double kCaptionButtonSpacing = 4.0;
     // Nudge the refresh button slightly lower to match the traffic lights.
     const double kRefreshButtonTopPadding = kTrafficLightTopPadding + 6.0;
 
@@ -434,7 +437,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                       ),
                       Padding(
                         padding: const EdgeInsets.only(
-                            top: kRefreshButtonTopPadding),
+                            top: kRefreshButtonTopPadding,
+                            left: kCaptionButtonSpacing,
+                            right: kCaptionButtonSpacing),
                         child: WindowCaptionBackButton.compact(
                           key: const ValueKey(
                               'macos-window-caption-back-button'),
@@ -445,7 +450,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                       ),
                       Padding(
                         padding: const EdgeInsets.only(
-                            top: kRefreshButtonTopPadding),
+                            top: kRefreshButtonTopPadding,
+                            left: kCaptionButtonSpacing,
+                            right: kCaptionButtonSpacing),
                         child: WindowCaptionPinButton.compact(
                           key:
                               const ValueKey('macos-window-caption-pin-button'),
@@ -456,7 +463,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                       if (titleBarRefreshVisibility.shouldShowRefreshAction)
                         Padding(
                           padding: const EdgeInsets.only(
-                              top: kRefreshButtonTopPadding),
+                              top: kRefreshButtonTopPadding,
+                              left: kCaptionButtonSpacing,
+                              right: kCaptionButtonSpacing),
                           child: WindowCaptionRefreshButton.compact(
                             key: const ValueKey(
                                 'macos-window-caption-refresh-button'),
