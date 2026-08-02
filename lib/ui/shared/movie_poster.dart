@@ -218,9 +218,13 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                       Positioned(
                         right: 6,
                         bottom: 6,
-                        child: PosterResolutionTags(
-                          resolutions: widget.resolutions,
-                          scaleFactor: scaleFactor,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: isHovered ? 0 : 1,
+                          child: PosterResolutionTags(
+                            resolutions: widget.resolutions,
+                            scaleFactor: scaleFactor,
+                          ),
                         ),
                       ),
                       Positioned.fill(
