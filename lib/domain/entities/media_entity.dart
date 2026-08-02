@@ -57,6 +57,8 @@ class MediaEntity {
   final String? lastAirDate;
   final int? numberOfSeasons;
   final int? numberOfEpisodes;
+  final int? localNumberOfSeasons;
+  final int? localNumberOfEpisodes;
   final String? status;
   final String? overview;
   final String? ancestorGuid;
@@ -83,8 +85,10 @@ class MediaEntity {
     this.episodeNumber = 0,
     this.firstAirDate,
     this.lastAirDate,
-    this.numberOfSeasons,
-    this.numberOfEpisodes,
+    this.numberOfSeasons = 0,
+    this.numberOfEpisodes = 0,
+    this.localNumberOfSeasons,
+    this.localNumberOfEpisodes,
     this.status,
     this.overview,
     this.ancestorGuid,
@@ -104,12 +108,14 @@ class MediaEntity {
   String? buildPosterSubtitle() {
     if (type == MediaType.tv) {
       if (!_isBlank(firstAirDate) && !_isBlank(lastAirDate)) {
-        final seasonCount = numberOfSeasons ?? 0;
+        // Use local season count (available in library) with fallback to metadata count
+        final seasonCount = localNumberOfSeasons ?? numberOfSeasons ?? 0;
         return '共 $seasonCount 季 · ${_takeYear(firstAirDate)}~${_takeYear(lastAirDate)}';
       }
-      if (numberOfSeasons == 1 && status == 'Ended') {
+      // Use local counts for single-season ended shows
+      if ((localNumberOfSeasons ?? numberOfSeasons) == 1 && status == 'Ended') {
         final year = !_isBlank(releaseDate) ? ' · ${_takeYear(releaseDate)}' : '';
-        final episodeCount = numberOfEpisodes ?? 0;
+        final episodeCount = localNumberOfEpisodes ?? numberOfEpisodes ?? 0;
         return '共 $episodeCount 集$year';
       }
       if (numberOfSeasons != null && !_isBlank(releaseDate)) {
@@ -118,32 +124,11 @@ class MediaEntity {
       return _takeYear(releaseDate);
     }
 
-    if (_isBlank(releaseDate) && type != MediaType.video) {
-      return _mediaTypeDescription();
-    }
-
     if (status == '1' && type == MediaType.video) {
       return '';
     }
 
     return _takeYear(releaseDate);
-  }
-
-  String _mediaTypeDescription() {
-    switch (type) {
-      case MediaType.movie:
-        return '电影';
-      case MediaType.tv:
-        return '电视节目';
-      case MediaType.directory:
-        return '目录';
-      case MediaType.video:
-        return '其他';
-      case MediaType.episode:
-        return '剧集';
-      case MediaType.season:
-        return '季';
-    }
   }
 
   bool _isBlank(String? value) => value == null || value.trim().isEmpty;
@@ -176,6 +161,8 @@ class MediaEntity {
     String? lastAirDate,
     int? numberOfSeasons,
     int? numberOfEpisodes,
+    int? localNumberOfSeasons,
+    int? localNumberOfEpisodes,
     String? status,
     String? overview,
     String? ancestorGuid,
@@ -204,6 +191,8 @@ class MediaEntity {
       lastAirDate: lastAirDate ?? this.lastAirDate,
       numberOfSeasons: numberOfSeasons ?? this.numberOfSeasons,
       numberOfEpisodes: numberOfEpisodes ?? this.numberOfEpisodes,
+      localNumberOfSeasons: localNumberOfSeasons ?? this.localNumberOfSeasons,
+      localNumberOfEpisodes: localNumberOfEpisodes ?? this.localNumberOfEpisodes,
       status: status ?? this.status,
       overview: overview ?? this.overview,
       ancestorGuid: ancestorGuid ?? this.ancestorGuid,

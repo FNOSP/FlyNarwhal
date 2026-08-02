@@ -30,6 +30,8 @@ class MediaMapper {
       lastAirDate: model.lastAirDate,
       numberOfSeasons: model.numberOfSeasons,
       numberOfEpisodes: model.numberOfEpisodes,
+      localNumberOfSeasons: model.localNumberOfSeasons,
+      localNumberOfEpisodes: model.localNumberOfEpisodes,
       status: model.status,
       overview: model.overview,
       ancestorGuid: model.ancestorGuid,

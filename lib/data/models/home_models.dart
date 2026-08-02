@@ -73,6 +73,10 @@ class MediaItem {
   final int? numberOfSeasons;
   @JsonKey(name: 'number_of_episodes')
   final int? numberOfEpisodes;
+  @JsonKey(name: 'local_number_of_seasons')
+  final int? localNumberOfSeasons;
+  @JsonKey(name: 'local_number_of_episodes')
+  final int? localNumberOfEpisodes;
   final String? status;
   final String? overview;
   @JsonKey(name: 'ancestor_guid')
@@ -117,6 +121,8 @@ class MediaItem {
     this.duration,
     this.genres,
     this.numberOfItem,
+    this.localNumberOfSeasons,
+    this.localNumberOfEpisodes,
   });
 
   factory MediaItem.fromJson(Map<String, dynamic> json) => _$MediaItemFromJson(json);
@@ -126,12 +132,14 @@ class MediaItem {
 String? buildPosterSubtitle(MediaItem item) {
   if (item.type == 'TV') {
     if (!_isBlank(item.firstAirDate) && !_isBlank(item.lastAirDate)) {
-      final seasonCount = item.numberOfSeasons ?? 0;
+      // Use local season count (available in library) with fallback to metadata count
+      final seasonCount = item.localNumberOfSeasons ?? item.numberOfSeasons ?? 0;
       return '共 $seasonCount 季 · ${_takeYear(item.firstAirDate)}~${_takeYear(item.lastAirDate)}';
     }
-    if (item.numberOfSeasons == 1 && item.status == 'Ended') {
+    // Use local counts for single-season ended shows
+    if ((item.localNumberOfSeasons ?? item.numberOfSeasons) == 1 && item.status == 'Ended') {
       final year = !_isBlank(item.releaseDate) ? ' · ${_takeYear(item.releaseDate)}' : '';
-      final episodeCount = item.numberOfEpisodes ?? 0;
+      final episodeCount = item.localNumberOfEpisodes ?? item.numberOfEpisodes ?? 0;
       return '共 $episodeCount 集$year';
     }
     if (item.numberOfSeasons != null && !_isBlank(item.releaseDate)) {

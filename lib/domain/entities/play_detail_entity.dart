@@ -44,35 +44,6 @@ class PlayDetailEntity {
     return title;
   }
 
-  /// Build subtitle
-  String? buildSubtitle() {
-    switch (type) {
-      case MediaType.episode:
-        return '第 $seasonNumber 季 · 第 $episodeNumber 集';
-      case MediaType.video:
-        return ' ';
-      default:
-        return _mediaTypeDescription();
-    }
-  }
-
-  String _mediaTypeDescription() {
-    switch (type) {
-      case MediaType.movie:
-        return '电影';
-      case MediaType.tv:
-        return '电视节目';
-      case MediaType.directory:
-        return '目录';
-      case MediaType.video:
-        return '其他';
-      case MediaType.episode:
-        return '剧集';
-      case MediaType.season:
-        return '季';
-    }
-  }
-
   PlayDetailEntity copyWith({
     String? guid,
     String? title,

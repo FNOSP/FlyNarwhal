@@ -73,8 +73,11 @@ class MediaLibGallery extends ConsumerWidget {
                   type: item.type,
                   guid: item.guid,
                   onTap: () {
+                    // Navigate based on media type
                     if (item.type == 'TV') {
                       context.go('/tv/${item.guid}');
+                    } else if (item.type == 'Season') {
+                      context.go('/tv/season/${item.guid}');
                     } else {
                       context.go('/movie/${item.guid}');
                     }
