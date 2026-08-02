@@ -1,7 +1,23 @@
 import Cocoa
 import FlutterMacOS
+import UniformTypeIdentifiers
 
 class MainFlutterWindow: NSWindow {
+  // Presented as a standalone floating panel instead of a window sheet: the
+  // sheet slide-in/out animation runs as a blocking animation loop on the main
+  // thread, and media_kit waits on the main thread for every video frame
+  // (DispatchQueue.main.sync in VideoOutput), so sheets freeze the picture.
+  // The panel instance is created once and reused: creating an NSOpenPanel
+  // costs a synchronous XPC round trip to the out-of-process open/save panel
+  // service on the main thread (~145ms warm, ~570ms cold), which also freezes
+  // the merged UI/platform thread. preWarmSubtitlePicker() pays that cost at
+  // startup behind an invisible, click-through panel so the first real open
+  // is cheap.
+  private var subtitlePickerPanel: NSOpenPanel?
+  private var subtitlePickerResult: FlutterResult?
+  private var didPreWarmSubtitlePicker = false
+  private var isPreWarmingPicker = false
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -9,6 +25,8 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    registerLocalSubtitlePickerChannel(messenger: flutterViewController.engine.binaryMessenger)
+    preWarmSubtitlePicker()
 
     self.titlebarAppearsTransparent = true
     self.styleMask.insert(.fullSizeContentView)
@@ -23,6 +41,117 @@ class MainFlutterWindow: NSWindow {
     DispatchQueue.main.async {
       self.relayoutWindowButtons()
     }
+  }
+
+  private func registerLocalSubtitlePickerChannel(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "fly_narwhal/local_subtitle_picker",
+      binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self = self else { return }
+      guard call.method == "openLocalSubtitles" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let initialDirectory = (call.arguments as? [String: Any])?["initialDirectory"] as? String
+      self.openLocalSubtitlePicker(initialDirectory: initialDirectory, result: result)
+    }
+  }
+
+  private func openLocalSubtitlePicker(initialDirectory: String?, result: @escaping FlutterResult) {
+    if isPreWarmingPicker {
+      // The user clicked while the invisible warm-up panel was up: end the
+      // warm-up early and fall through to a real presentation.
+      endSubtitlePickerPreWarm()
+    } else if let existingPanel = subtitlePickerPanel, existingPanel.isVisible {
+      existingPanel.makeKeyAndOrderFront(nil)
+      result(["paths": [], "directory": NSNull()])
+      return
+    }
+
+    let panel = makeSubtitlePickerPanel()
+    // Resume at the directory resolved on the Dart side (last used → nearest
+    // existing ancestor → user home). Setting directoryURL does not affect
+    // the view style / sort / grouping the panel restores from the app's
+    // defaults on a per-directory basis.
+    if let initialDirectory, !initialDirectory.isEmpty {
+      panel.directoryURL = URL(fileURLWithPath: initialDirectory, isDirectory: true)
+    }
+    subtitlePickerResult = result
+    panel.begin { [weak self] response in
+      guard let self = self, let pendingResult = self.subtitlePickerResult else {
+        return
+      }
+      self.subtitlePickerResult = nil
+      let paths = response == .OK ? panel.urls.map { $0.path } : []
+      // Report the folder shown when the panel closed — including after the
+      // user browsed somewhere and cancelled — so the Dart side can resume
+      // there next time.
+      pendingResult([
+        "paths": paths,
+        "directory": panel.directoryURL?.path ?? NSNull(),
+      ])
+    }
+  }
+
+  private func makeSubtitlePickerPanel() -> NSOpenPanel {
+    if let panel = subtitlePickerPanel {
+      return panel
+    }
+
+    let panel = NSOpenPanel()
+    panel.prompt = "选择"
+    panel.allowsMultipleSelection = true
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = false
+    panel.canCreateDirectories = false
+    let subtitleExtensions = ["ass", "srt", "vtt", "sub", "ssa", "sup"]
+    if #available(macOS 11.0, *) {
+      let allowedTypes = subtitleExtensions.compactMap { UTType(filenameExtension: $0) }
+      if !allowedTypes.isEmpty {
+        panel.allowedContentTypes = allowedTypes
+      }
+    } else {
+      panel.allowedFileTypes = subtitleExtensions
+    }
+    // Keep the panel above the player window (including fullscreen spaces)
+    // since it is not attached as a sheet.
+    panel.level = .modalPanel
+    panel.collectionBehavior.insert(.fullScreenAuxiliary)
+    panel.isReleasedWhenClosed = false
+    subtitlePickerPanel = panel
+    return panel
+  }
+
+  /// Spins up the out-of-process open/save panel service at startup so the
+  /// first real picker open doesn't stall the main thread for ~0.5s. The
+  /// panel is invisible and click-through while it warms up.
+  private func preWarmSubtitlePicker() {
+    guard !didPreWarmSubtitlePicker else { return }
+    didPreWarmSubtitlePicker = true
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+      guard let self = self,
+            self.subtitlePickerResult == nil,
+            self.subtitlePickerPanel?.isVisible != true else { return }
+      let panel = self.makeSubtitlePickerPanel()
+      self.isPreWarmingPicker = true
+      panel.alphaValue = 0
+      panel.ignoresMouseEvents = true
+      panel.begin { _ in }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        guard let self = self, self.isPreWarmingPicker else { return }
+        self.endSubtitlePickerPreWarm()
+      }
+    }
+  }
+
+  private func endSubtitlePickerPreWarm() {
+    isPreWarmingPicker = false
+    guard let panel = subtitlePickerPanel else { return }
+    panel.cancel(nil)
+    panel.alphaValue = 1
+    panel.ignoresMouseEvents = false
   }
 
   private func relayoutWindowButtons() {

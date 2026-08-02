@@ -21,6 +21,7 @@ import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/fly_narwhal/danmaku.dart';
 import '../../../data/storage/player_settings_store.dart';
+import '../../../data/storage/local_subtitle_picker_store.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../core/utils/app_fonts.dart';
@@ -81,22 +82,55 @@ const int _maxUploadableSubtitles = 20;
 const MethodChannel _localSubtitlePickerChannel =
     MethodChannel('fly_narwhal/local_subtitle_picker');
 
-Future<List<XFile>> _openLocalSubtitleFiles() async {
-  if (!Platform.isWindows) {
-    const subtitleTypeGroup = XTypeGroup(
-      label: '字幕文件',
-      extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'],
+Future<({List<XFile> files, String? directory})> _openLocalSubtitleFiles(
+  String initialDirectory,
+) async {
+  // Windows and macOS both use the native picker channel instead of
+  // file_selector: on Windows the plugin runs the dialog on the platform
+  // thread, and on macOS it presents the panel as a window sheet whose
+  // slide-in/out animation blocks the main thread — media_kit waits on the
+  // main thread for every video frame, so both freeze the picture. The
+  // native channels avoid that (worker thread on Windows, standalone
+  // non-sheet panel on macOS).
+  if (Platform.isWindows || Platform.isMacOS) {
+    final response = await _localSubtitlePickerChannel.invokeMethod<Object?>(
+      'openLocalSubtitles',
+      {'initialDirectory': initialDirectory},
     );
-    return openFiles(
-      acceptedTypeGroups: [subtitleTypeGroup],
-      confirmButtonText: '选择',
+    // macOS returns {paths, directory} — directory is the folder shown when
+    // the panel closed, recorded even on cancel after browsing. Windows
+    // still returns a plain path list (its native side is intentionally
+    // untouched), so it never contributes a remembered directory.
+    if (response is Map) {
+      final paths =
+          (response['paths'] as List?)?.cast<String>() ?? const <String>[];
+      final directory = response['directory'] as String?;
+      return (
+        files: paths.map(XFile.new).toList(growable: false),
+        directory:
+            (directory != null && directory.isNotEmpty) ? directory : null,
+      );
+    }
+    final paths = (response as List?)?.cast<String>() ?? const <String>[];
+    return (
+      files: paths.map(XFile.new).toList(growable: false),
+      directory: null,
     );
   }
 
-  final selectedPaths = await _localSubtitlePickerChannel
-          .invokeListMethod<String>('openLocalSubtitles') ??
-      const <String>[];
-  return selectedPaths.map(XFile.new).toList(growable: false);
+  const subtitleTypeGroup = XTypeGroup(
+    label: '字幕文件',
+    extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'],
+  );
+  final files = await openFiles(
+    acceptedTypeGroups: [subtitleTypeGroup],
+    initialDirectory: initialDirectory,
+    confirmButtonText: '选择',
+  );
+  return (
+    files: files,
+    directory: files.isEmpty ? null : File(files.first.path).parent.path,
+  );
 }
 
 enum _PlaybackIndicatorType { play, pause }
@@ -1045,7 +1079,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
       );
       if (!mounted) return;
-      files = await _openLocalSubtitleFiles();
+      final pickerStore =
+          LocalSubtitlePickerStore(ref.read(sharedPreferencesProvider));
+      final pickerSelection = await _openLocalSubtitleFiles(
+        pickerStore.resolveInitialDirectory(),
+      );
+      files = pickerSelection.files;
+      // Remember the shown directory for the next open (recorded by the
+      // native side even when the user browsed and cancelled).
+      final rememberedDirectory = pickerSelection.directory;
+      if (rememberedDirectory != null) {
+        unawaited(pickerStore.saveLastDirectory(rememberedDirectory));
+      }
     } catch (error) {
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
