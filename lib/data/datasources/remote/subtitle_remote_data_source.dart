@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -60,20 +63,74 @@ class SubtitleRemoteDataSource {
     );
   }
 
-  /// Upload a local subtitle file and attach it to the media item.
+  /// Upload a local subtitle file and attach it to the media item identified
+  /// by [mediaGuid] (the `media_guid` returned by /v/api/v1/play/info).
+  ///
+  /// The media guid is carried in the URL path
+  /// (`.../subtitle/upload/{mediaGuid}`); the multipart body contains only the
+  /// binary `file` part. The body is sent as a [Stream] so the main isolate
+  /// never blocks on a single large memcpy — dio writes each chunk (headers,
+  /// file bytes, trailer) to the socket incrementally via `addStream()`.
   Future<ApiResult<SubtitleStream>> uploadSubtitle({
-    required String guid,
+    required String mediaGuid,
     required List<int> bytes,
     required String fileName,
   }) async {
+    final boundary = _generateMultipartBoundary();
+    final body = _buildUploadMultipartStream(
+      boundary: boundary,
+      fileBytes: bytes,
+      fileName: fileName,
+    );
     return _dioClient.post<SubtitleStream>(
-      ApiEndpoints.subtitleUploadPrefix,
-      data: FormData.fromMap({
-        'guid': guid,
-        'file': MultipartFile.fromBytes(bytes, filename: fileName),
-      }),
+      ApiEndpoints.subtitleUploadByMediaGuid(mediaGuid),
+      data: body.stream,
+      options: Options(
+        headers: {
+          Headers.contentTypeHeader: 'multipart/form-data; boundary=$boundary',
+          'Content-Length': '${body.contentLength}',
+        },
+      ),
       converter: _parseSubtitleStreamResponse,
     );
+  }
+
+  /// Builds the multipart body as a [Stream] of three chunks (headers, file
+  /// bytes, trailer) so the main isolate performs zero memcpy. Dio's
+  /// `HttpClientRequest.addStream()` writes each chunk to the socket
+  /// incrementally.
+  ({Stream<List<int>> stream, int contentLength})
+      _buildUploadMultipartStream({
+    required String boundary,
+    required List<int> fileBytes,
+    required String fileName,
+  }) {
+    final headersChunk = utf8.encode(
+      '--$boundary\r\n'
+      'Content-Disposition: form-data; name=file; filename="$fileName"\r\n'
+      'Content-Type: application/octet-stream\r\n'
+      'Content-Length: ${fileBytes.length}\r\n'
+      '\r\n',
+    );
+    final trailerChunk = utf8.encode('\r\n--$boundary--\r\n');
+    final contentLength =
+        headersChunk.length + fileBytes.length + trailerChunk.length;
+    final stream = Stream<List<int>>.fromIterable([
+      headersChunk,
+      fileBytes,
+      trailerChunk,
+    ]);
+    return (stream: stream, contentLength: contentLength);
+  }
+
+  /// Same shape as ktor's generateBoundary(): a random hex string (≤70 chars).
+  String _generateMultipartBoundary() {
+    final random = Random.secure();
+    final buffer = StringBuffer();
+    while (buffer.length < 64) {
+      buffer.write(random.nextInt(0x7FFFFFFF).toRadixString(16));
+    }
+    return buffer.toString().substring(0, 64);
   }
 
   SubtitleSearchResponse _parseSearchResponse(dynamic data) {

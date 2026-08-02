@@ -6,6 +6,7 @@ import '../../../data/utils/fn_data_convertor.dart';
 import '../../../providers/file_providers.dart';
 import '../common/app_loading_progress_ring.dart';
 import '../toast.dart';
+import 'nas_breadcrumb_bar.dart';
 import 'nas_file_browser.dart';
 
 const Color _nasBorderColor = Color(0x1AFDFDFD);
@@ -54,6 +55,60 @@ class SidebarItem {
 class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
   SidebarItem? _selectedSidebarItem;
   Set<String> _selectedFilePaths = {};
+  List<String> _breadcrumbSegments = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Breadcrumb starts empty — only populated when user clicks a tree row.
+    _breadcrumbSegments = [];
+  }
+
+  /// Derive breadcrumb segments from [activePath] and the current sidebar item.
+  /// Strips the matched root's path prefix so the volume name appears once.
+  List<String> _deriveSegments(String activePath, SidebarItem? item) {
+    if (activePath.isEmpty) {
+      return [item?.title ?? ''];
+    }
+    final itemToUse = item ?? _selectedSidebarItem;
+    if (itemToUse == null) {
+      return activePath.split('/').where((s) => s.isNotEmpty).toList();
+    }
+
+    // Find the root whose path is a prefix of activePath (longest match).
+    NasBrowserRoot? matched;
+    for (final root in itemToUse.roots) {
+      final rootPath = root.path.endsWith('/')
+          ? root.path
+          : '${root.path}/';
+      if (activePath == root.path || activePath.startsWith(rootPath)) {
+        if (matched == null || root.path.length > matched.path.length) {
+          matched = root;
+        }
+      }
+    }
+
+    final rootLabel = matched?.displayName?.trim().isNotEmpty == true
+        ? matched!.displayName!.trim()
+        : itemToUse.title;
+
+    String remainder;
+    if (matched != null) {
+      final prefix = matched.path.endsWith('/')
+          ? matched.path
+          : '${matched.path}/';
+      remainder = activePath == matched.path
+          ? ''
+          : activePath.startsWith(prefix)
+              ? activePath.substring(prefix.length)
+              : activePath;
+    } else {
+      remainder = activePath;
+    }
+
+    final parts = remainder.split('/').where((s) => s.isNotEmpty).toList();
+    return [rootLabel, ...parts];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +140,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
                 if (mounted) {
                   setState(() {
                     _selectedSidebarItem = sidebarItems.first;
+                    _breadcrumbSegments = [sidebarItems.first.title];
                   });
                 }
               });
@@ -189,16 +245,13 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
     return SizedBox(
       height: 40,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            _selectedSidebarItem?.title ?? '',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
-            ),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: NasBreadcrumbBar(
+          segments: _breadcrumbSegments,
+          style: const TextStyle(
+            fontSize: 13,
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ),
@@ -220,6 +273,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
             setState(() {
               _selectedSidebarItem = item;
               _selectedFilePaths = {};
+              _breadcrumbSegments = [item.title];
             });
           },
         );
@@ -245,6 +299,12 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
               _selectedFilePaths = paths;
             });
           }
+        });
+      },
+      onRowActivated: (path) {
+        if (!mounted) return;
+        setState(() {
+          _breadcrumbSegments = _deriveSegments(path, sidebarItem);
         });
       },
     );

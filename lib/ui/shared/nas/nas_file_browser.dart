@@ -7,6 +7,7 @@ import '../common/app_loading_progress_ring.dart';
 
 const Color _browserTextColor = Color(0xC8FFFFFF);
 const Color _browserHoverColor = Color(0x0DFFFFFF);
+const Color _browserActiveColor = Color(0xB3002570);
 
 class NasBrowserRoot {
   final String path;
@@ -46,6 +47,10 @@ class NasFileBrowser extends ConsumerStatefulWidget {
   final List<String> allowedExtensions;
   final ValueChanged<Set<String>> onSelectionChanged;
 
+  /// Called when a row is clicked (activated), with the node's path.
+  /// This drives the breadcrumb bar — NOT hover.
+  final ValueChanged<String>? onRowActivated;
+
   const NasFileBrowser({
     super.key,
     required this.roots,
@@ -53,6 +58,7 @@ class NasFileBrowser extends ConsumerStatefulWidget {
     required this.onSelectionChanged,
     this.hideRoot = false,
     this.allowedExtensions = const [],
+    this.onRowActivated,
   });
 
   @override
@@ -62,6 +68,7 @@ class NasFileBrowser extends ConsumerStatefulWidget {
 class _NasFileBrowserState extends ConsumerState<NasFileBrowser> {
   List<TreeNode> _roots = [];
   final Set<String> _selected = {};
+  String? _activePath;
   bool _initialLoading = false;
 
   @override
@@ -81,6 +88,7 @@ class _NasFileBrowserState extends ConsumerState<NasFileBrowser> {
 
   void _initializeTree() {
     _selected.clear();
+    _activePath = null;
     widget.onSelectionChanged({});
 
     _roots = widget.roots.map((root) {
@@ -193,6 +201,17 @@ class _NasFileBrowserState extends ConsumerState<NasFileBrowser> {
     widget.onSelectionChanged(Set.of(_selected));
   }
 
+  /// Called when a row is clicked (not the checkbox).
+  /// For folders: expand/collapse + activate.
+  /// For files: activate only (does NOT toggle checkbox).
+  void _onRowTap(TreeNode node) {
+    setState(() => _activePath = node.path);
+    widget.onRowActivated?.call(node.path);
+    if (node.isDir) {
+      _toggleExpand(node);
+    }
+  }
+
   bool get _isEmptyView {
     if (_roots.isEmpty) return true;
     if (widget.hideRoot) {
@@ -261,7 +280,8 @@ class _NasFileBrowserState extends ConsumerState<NasFileBrowser> {
           depth: depth,
           index: index,
           isSelected: _selected.contains(node.path),
-          onToggleExpand: () => _toggleExpand(node),
+          isActive: _activePath == node.path,
+          onRowTap: () => _onRowTap(node),
           onToggleSelection: () => _toggleSelection(node),
         ),
         if (node.isExpanded && node.children != null)
@@ -276,7 +296,8 @@ class _TreeNodeRow extends StatefulWidget {
   final int depth;
   final int index;
   final bool isSelected;
-  final VoidCallback onToggleExpand;
+  final bool isActive;
+  final VoidCallback onRowTap;
   final VoidCallback onToggleSelection;
 
   const _TreeNodeRow({
@@ -285,7 +306,8 @@ class _TreeNodeRow extends StatefulWidget {
     required this.depth,
     required this.index,
     required this.isSelected,
-    required this.onToggleExpand,
+    required this.isActive,
+    required this.onRowTap,
     required this.onToggleSelection,
   });
 
@@ -302,19 +324,24 @@ class _TreeNodeRowState extends State<_TreeNodeRow> {
     final isSelectable = !isDir;
     final indent = widget.depth * 24.0 + 8.0;
 
+    // Active row gets the blue highlight; hover gets a subtle overlay.
+    final bgColor = widget.isActive
+        ? _browserActiveColor
+        : _isHovered
+            ? _browserHoverColor
+            : Colors.transparent;
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: isDir ? widget.onToggleExpand : widget.onToggleSelection,
+        onTap: widget.onRowTap,
         child: Container(
           height: 36,
           padding: EdgeInsets.only(left: indent, right: 12),
-          color: _isHovered || widget.isSelected
-              ? _browserHoverColor
-              : Colors.transparent,
+          color: bgColor,
           child: Row(
             children: [
               // Expand/collapse arrow (directories) or spacer (files).
@@ -339,6 +366,8 @@ class _TreeNodeRowState extends State<_TreeNodeRow> {
               ),
               const SizedBox(width: 4),
               // Checkbox: enabled only for selectable files.
+              // Its own gesture recognizer wins the arena for taps on the
+              // checkbox area, so the outer row tap won't also fire here.
               SizedBox(
                 width: 20,
                 height: 20,
