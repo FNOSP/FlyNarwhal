@@ -106,6 +106,9 @@ class ApiEndpoints {
   static String subtitleDownloadByGuid(String guid) =>
       '$apiBase/subtitle/dl/$guid';
 
+  static String subtitleUploadByMediaGuid(String mediaGuid) =>
+      '$subtitleUploadPrefix/$mediaGuid';
+
   static String tagByName(String tag) => '$apiBase/tag/$tag';
 }
 

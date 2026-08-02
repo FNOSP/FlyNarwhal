@@ -13,7 +13,7 @@ const Color _subtitleSelectedTextColor = Color(0xFF2073DF);
 const Color _subtitleDefaultTextColor = Color(0xC8FFFFFF);
 const Color _subtitleHoverBackgroundColor = Color(0x1AFFFFFF);
 const int _subtitleHideDelayMs = 200;
-const int _subtitleAnimationDurationMs = 200;
+const int subtitleFlyoutAnimationDurationMs = 200;
 const double _subtitleFlyoutWidth = 320;
 const double _subtitleFlyoutBridgeOffset = 40;
 const double _subtitleFlyoutMinBridgeWidth = 56;
@@ -87,7 +87,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
     super.initState();
     _liveSubtitleSettings = widget.subtitleSettings;
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: _subtitleAnimationDurationMs),
+      duration: const Duration(milliseconds: subtitleFlyoutAnimationDurationMs),
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(

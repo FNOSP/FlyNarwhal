@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
@@ -14,7 +15,6 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 import '../../../core/network/api_result.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/debug/test_hooks.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
@@ -22,6 +22,7 @@ import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/fly_narwhal/danmaku.dart';
 import '../../../data/storage/player_settings_store.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
+import '../../../data/utils/fn_data_convertor.dart';
 import '../../../core/utils/app_fonts.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
@@ -69,6 +70,10 @@ import 'widgets/subtitle_search_dialog.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
 import '../../shared/toast.dart';
 import '../../shared/window_caption.dart';
+
+/// Top-level function for [compute]: reads a file's bytes on a worker isolate
+/// so the UI thread is never blocked by filesystem I/O.
+Uint8List _readFileBytesSync(String path) => File(path).readAsBytesSync();
 
 /// Maximum number of local subtitle files that can be uploaded at once,
 /// matching the web player's limit.
@@ -997,9 +1002,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _pickAndUploadLocalSubtitle() async {
-    final currentFile = _playingInfoCache?.currentFileStream;
     if (_isUploadingLocalSubtitle) return;
-    if (currentFile == null || currentFile.guid.isEmpty) {
+    final mediaGuid = _playInfo?.mediaGuid ??
+        _playingInfoCache?.currentFileStream?.guid ??
+        '';
+    if (mediaGuid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
             '当前文件信息缺失，无法上传字幕',
             type: ToastType.info,
@@ -1007,6 +1014,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
       return;
     }
+    final toastCategory = 'local-subtitle:$mediaGuid';
 
     const subtitleTypeGroup = XTypeGroup(
       label: '字幕文件',
@@ -1015,6 +1023,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     List<XFile> files;
     try {
+      // The subtitle flyout starts its dismiss animation right after this
+      // callback; let it finish before the native open panel attaches, so
+      // the two don't animate on the same frames (that overlap was the
+      // visible stutter when the panel opened). Playback keeps running.
+      await Future<void>.delayed(
+        const Duration(
+          milliseconds: subtitleFlyoutAnimationDurationMs + 50,
+        ),
+      );
+      if (!mounted) return;
       files = await openFiles(
         acceptedTypeGroups: [subtitleTypeGroup],
         confirmButtonText: '选择',
@@ -1024,7 +1042,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ref.read(toastManagerProvider.notifier).showToast(
               '选择字幕文件失败: $error',
               type: ToastType.failed,
-              category: 'local-subtitle:${currentFile.guid}',
+              category: toastCategory,
             );
       }
       return;
@@ -1035,7 +1053,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref.read(toastManagerProvider.notifier).showToast(
             '最多选择 $_maxUploadableSubtitles 个文件',
             type: ToastType.warning,
-            category: 'local-subtitle:${currentFile.guid}',
+            category: toastCategory,
           );
       return;
     }
@@ -1052,24 +1070,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref.read(toastManagerProvider.notifier).showToast(
             '只能选择 ${allowedExtensions.join(', ')} 格式的文件',
             type: ToastType.warning,
-            category: 'local-subtitle:${currentFile.guid}',
+            category: toastCategory,
           );
       return;
     }
 
-    setState(() => _isUploadingLocalSubtitle = true);
+    // Re-entrancy guard only — build() never reads this field, so assign it
+    // directly instead of calling setState. A setState here rebuilds the
+    // entire player tree and drops video frames mid-playback.
+    _isUploadingLocalSubtitle = true;
     try {
       var successCount = 0;
       var failureCount = 0;
+      SubtitleStream? lastUploaded;
       for (final file in files) {
         try {
-          final bytes = await file.readAsBytes();
-          await ref.read(fileRepositoryProvider).uploadSubtitle(
-                guid: currentFile.guid,
+          final bytes = await compute(_readFileBytesSync, file.path);
+          final uploaded = await ref
+              .read(fileRepositoryProvider)
+              .uploadSubtitle(
+                mediaGuid: mediaGuid,
                 bytes: bytes,
                 fileName: file.name,
               );
           successCount++;
+          lastUploaded = uploaded;
         } catch (error) {
           AppTalker.warning(
             'PlayerScreen',
@@ -1085,28 +1110,81 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         toastManager.showToast(
           '添加字幕失败，请重试',
           type: ToastType.failed,
-          category: 'local-subtitle:${currentFile.guid}',
+          category: toastCategory,
         );
       } else if (failureCount > 0) {
         toastManager.showToast(
           '部分字幕添加成功，其中 $failureCount 个失败',
           type: ToastType.warning,
-          category: 'local-subtitle:${currentFile.guid}',
+          category: toastCategory,
         );
         unawaited(_refreshSubtitleStreams());
       } else {
         toastManager.showToast(
           '添加字幕成功',
           type: ToastType.success,
-          category: 'local-subtitle:${currentFile.guid}',
+          category: toastCategory,
         );
-        unawaited(_refreshSubtitleStreams());
+      }
+      // When at least one upload succeeded, refresh the stream list and
+      // switch playback to the most recently uploaded subtitle. The upload
+      // endpoint returns the registered SubtitleStream; we look it up by
+      // guid in the refreshed list (the entry is guaranteed to be there
+      // now) so the language/format fields line up with the cache.
+      if (successCount > 0 && lastUploaded != null) {
+        await _switchToUploadedSubtitle(
+          uploaded: lastUploaded,
+          toastCategory: toastCategory,
+        );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isUploadingLocalSubtitle = false);
-      }
+      _isUploadingLocalSubtitle = false;
     }
+  }
+
+  /// After a local subtitle upload, refresh the subtitle list and switch
+  /// playback to the most recently uploaded subtitle. Mirrors the NAS-mark
+  /// flow at [_openAddNasSubtitleDialog]: the upload endpoint returns the
+  /// registered [SubtitleStream]; we look it up by guid in the refreshed list
+  /// so its language/format fields line up with the cache that downstream
+  /// [SubtitleControlFlyout] reads.
+  Future<void> _switchToUploadedSubtitle({
+    required SubtitleStream uploaded,
+    required String toastCategory,
+  }) async {
+    try {
+      await _refreshSubtitleStreams();
+    } catch (error) {
+      AppTalker.warning(
+        'PlayerScreen',
+        'refresh subtitle streams after local upload failed: $error',
+      );
+    }
+    if (!mounted) return;
+
+    final target = _streamInfo?.subtitleStreams
+            ?.where((s) => s.guid == uploaded.guid)
+            .firstOrNull ??
+        uploaded;
+
+    final languageName = FnDataConvertor.getLanguageName(
+      target.language,
+      _iso6391Map,
+      _iso6392Map,
+    );
+    final format = target.format.isNotEmpty
+        ? target.format.toUpperCase()
+        : '';
+    final switchToast = format.isEmpty
+        ? '字幕正在切换至：$languageName'
+        : '字幕正在切换至：$languageName $format';
+    ref.read(toastManagerProvider.notifier).showToast(
+          switchToast,
+          type: ToastType.info,
+          category: toastCategory,
+        );
+
+    await _switchSubtitleWithSessionFlow(target);
   }
 
   void _syncPlaybackTargetsFromWidget() {
@@ -2287,15 +2365,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ? NextEpisodeLoadPhase.loading
                 : NextEpisodeLoadPhase.unavailable;
       });
-      // Debug-only: auto-open the NAS subtitle dialog once after playback info
-      // loads, so the driver-enabled build can verify it without the
-      // hover-driven flyout. Inert in production (flag stays false).
-      if (debugAutoOpenNasDialogOnce) {
-        debugAutoOpenNasDialogOnce = false;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _openAddNasSubtitleDialog();
-        });
-      }
       _resolveAndDispatchSkipSegments();
       _introSkipController.dispatch(
         EpisodeSessionStarted(

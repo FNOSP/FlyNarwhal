@@ -45,6 +45,35 @@ class LoggingInterceptor extends TalkerDioLogger {
   final bool printResponseBody;
   final bool printError;
 
+  /// Redacts large / stream request bodies for logging only.
+  ///
+  /// TalkerDioLogger reads [RequestOptions.data] **synchronously** inside
+  /// [super.onRequest] (via `DioRequestLog.generateTextMessage`), while dio
+  /// reads it **asynchronously** in a later event-loop tick to send the
+  /// request. We temporarily swap in a short summary string so the log shows
+  /// `[stream upload]` or `[binary N bytes]` instead of attempting to
+  /// jsonEncode / toString a multi-MB payload on the UI thread. The original
+  /// data is restored immediately after super returns, before dio ever reads
+  /// it.
+  @override
+  void onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) {
+    final originalData = options.data;
+    final needsRedaction = originalData is Stream ||
+        (originalData is List<int> && originalData.length > 4096);
+    if (needsRedaction) {
+      options.data = originalData is Stream
+          ? '[stream upload]'
+          : '[binary ${(originalData as List<int>).length} bytes]';
+    }
+    super.onRequest(options, handler);
+    if (needsRedaction) {
+      options.data = originalData;
+    }
+  }
+
   // Reuse the existing response preview logic to keep network logs compact.
   static String _formatResponseData(Response<dynamic> response) {
     return response_decoder.ResponseDecoder.formatForLogging(response.data);

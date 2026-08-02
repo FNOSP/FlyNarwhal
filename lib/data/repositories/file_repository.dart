@@ -76,12 +76,16 @@ class FileRepository {
   }
 
   Future<SubtitleStream> uploadSubtitle({
-    required String guid,
+    required String mediaGuid,
     required List<int> bytes,
     required String fileName,
   }) async {
     return (await _subtitleDataSource
-            .uploadSubtitle(guid: guid, bytes: bytes, fileName: fileName))
+            .uploadSubtitle(
+              mediaGuid: mediaGuid,
+              bytes: bytes,
+              fileName: fileName,
+            ))
         .getOrThrow();
   }
 }
