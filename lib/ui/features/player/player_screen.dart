@@ -83,8 +83,9 @@ const MethodChannel _localSubtitlePickerChannel =
     MethodChannel('fly_narwhal/local_subtitle_picker');
 
 Future<({List<XFile> files, String? directory})> _openLocalSubtitleFiles(
-  String initialDirectory,
-) async {
+  String initialDirectory, {
+  required String userGuid,
+}) async {
   // Windows and macOS both use the native picker channel instead of
   // file_selector: on Windows the plugin runs the dialog on the platform
   // thread, and on macOS it presents the panel as a window sheet whose
@@ -95,12 +96,14 @@ Future<({List<XFile> files, String? directory})> _openLocalSubtitleFiles(
   if (Platform.isWindows || Platform.isMacOS) {
     final response = await _localSubtitlePickerChannel.invokeMethod<Object?>(
       'openLocalSubtitles',
-      {'initialDirectory': initialDirectory},
+      {
+        'initialDirectory': initialDirectory,
+        if (Platform.isWindows) 'userGuid': userGuid,
+      },
     );
-    // macOS returns {paths, directory} — directory is the folder shown when
-    // the panel closed, recorded even on cancel after browsing. Windows
-    // still returns a plain path list (its native side is intentionally
-    // untouched), so it never contributes a remembered directory.
+    // macOS returns {paths, directory}; Windows returns a plain path list
+    // because its native side persists the folder and Shell view state by
+    // user GUID without exposing that state through the method channel.
     if (response is Map) {
       final paths =
           (response['paths'] as List?)?.cast<String>() ?? const <String>[];
@@ -1079,10 +1082,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
       );
       if (!mounted) return;
-      final pickerStore =
-          LocalSubtitlePickerStore(ref.read(sharedPreferencesProvider));
+      final currentUser = ref.read(userInfoProvider).valueOrNull;
+      final userGuid = currentUser?.guid.trim() ?? '';
+      if (Platform.isWindows && userGuid.isEmpty) {
+        throw StateError('当前用户信息缺失，无法恢复文件选择器状态');
+      }
+      final pickerStore = LocalSubtitlePickerStore(
+        ref.read(sharedPreferencesProvider),
+        userGuid: userGuid,
+      );
       final pickerSelection = await _openLocalSubtitleFiles(
         pickerStore.resolveInitialDirectory(),
+        userGuid: userGuid,
       );
       files = pickerSelection.files;
       // Remember the shown directory for the next open (recorded by the
