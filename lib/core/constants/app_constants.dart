@@ -89,6 +89,7 @@ class ApiEndpoints {
   static const String subtitleDownload = '/v/api/v1/subtitle/download';
   static const String subtitleMark = '/v/api/v1/subtitle/mark';
   static const String subtitlePredownload = '/v/api/v1/subtitle/predownload';
+  static const String subtitleDelete = '/v/api/v1/subtitle/del';
   static const String subtitleUploadPrefix = '/v/api/v1/subtitle/upload';
 
   static String itemByGuid(String guid) => '$itemPrefix/$guid';

@@ -63,6 +63,15 @@ class SubtitleRemoteDataSource {
     );
   }
 
+  /// Delete an external subtitle by its [subtitleGuid].
+  Future<ApiResult<bool>> deleteSubtitle(String subtitleGuid) async {
+    return _dioClient.delete<bool>(
+      ApiEndpoints.subtitleDelete,
+      data: {'subtitle_guid': subtitleGuid},
+      converter: _parseSuccessOnlyResponse,
+    );
+  }
+
   /// Upload a local subtitle file and attach it to the media item identified
   /// by [mediaGuid] (the `media_guid` returned by /v/api/v1/play/info).
   ///

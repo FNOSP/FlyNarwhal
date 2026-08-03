@@ -979,6 +979,81 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  Future<void> _handleRequestDeleteSubtitle(SubtitleStream subtitle) async {
+    final languageName = FnDataConvertor.getLanguageName(
+      subtitle.language,
+      _iso6391Map,
+      _iso6392Map,
+    );
+    final displayName = StringBuffer(languageName);
+    if (subtitle.isExternal == 1) displayName.write(' - 外挂');
+    if (subtitle.isDefault == 1) displayName.write(' - 默认');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => ContentDialog(
+        title: const Text('删除外挂字幕'),
+        content: Text('确定要删除 $displayName 外挂字幕吗？'),
+        actions: [
+          Button(
+            child: const Text('取消'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          FilledButton(
+            child: const Text('删除'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref.read(fileRepositoryProvider).deleteSubtitle(subtitle.guid);
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '删除字幕成功',
+            type: ToastType.success,
+            category: 'subtitle-delete:${subtitle.guid}',
+          );
+      unawaited(_refreshSubtitleStreams());
+    } catch (error) {
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '删除字幕失败: $error',
+            type: ToastType.failed,
+            category: 'subtitle-delete:${subtitle.guid}',
+          );
+    }
+  }
+
+  Future<void> _handlePredownloadSimilarSubtitle(
+    SubtitleStream subtitle,
+  ) async {
+    final mediaGuid = _playingInfoCache?.currentFileStream?.guid;
+    if (mediaGuid == null || mediaGuid.isEmpty) return;
+
+    try {
+      await ref.read(fileRepositoryProvider).predownloadSimilarSubtitle(
+            mediaGuid: mediaGuid,
+            subtitleGuid: subtitle.guid,
+          );
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '已创建字幕下载任务',
+            type: ToastType.success,
+            category: 'subtitle-predownload-flyout:${subtitle.guid}',
+          );
+    } catch (error) {
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '创建字幕下载任务失败，请重试',
+            type: ToastType.failed,
+            category: 'subtitle-predownload-flyout:${subtitle.guid}',
+          );
+    }
+  }
+
   Future<void> _openAddNasSubtitleDialog() async {
     if (_showAddNasSubtitleDialog) return;
     final mediaGuid = _playingInfoCache?.currentFileStream?.guid ?? '';
@@ -4245,6 +4320,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onOpenSubtitleSearch: _openSubtitleSearchDialog,
           onOpenAddNasSubtitle: _openAddNasSubtitleDialog,
           onOpenAddLocalSubtitle: _pickAndUploadLocalSubtitle,
+          onRequestDelete: _handleRequestDeleteSubtitle,
+          onPredownloadSimilar: _handlePredownloadSimilarSubtitle,
         ),
         const SizedBox(width: _trailingControlSpacing),
         PlayerSettingsMenu(

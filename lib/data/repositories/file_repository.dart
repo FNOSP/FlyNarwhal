@@ -75,6 +75,11 @@ class FileRepository {
         .getOrThrow();
   }
 
+  /// Delete an external subtitle identified by [subtitleGuid].
+  Future<void> deleteSubtitle(String subtitleGuid) async {
+    (await _subtitleDataSource.deleteSubtitle(subtitleGuid)).getOrThrow();
+  }
+
   Future<SubtitleStream> uploadSubtitle({
     required String mediaGuid,
     required List<int> bytes,

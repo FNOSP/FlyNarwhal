@@ -89,7 +89,7 @@ class MainFlutterWindow: NSWindow {
       // there next time.
       pendingResult([
         "paths": paths,
-        "directory": panel.directoryURL?.path ?? NSNull(),
+        "directory": panel.directoryURL?.path as Any,
       ])
     }
   }
