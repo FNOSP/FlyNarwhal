@@ -193,6 +193,15 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
       _dismiss();
       return KeyEventResult.handled;
     }
+    if (shortcutStore.matches(event, ShortcutActionId.searchSwitchTab)) {
+      final currentIndex = _tabs.indexOf(_selectedTab);
+      setState(() {
+        _selectedTab = _tabs[(currentIndex + 1) % _tabs.length];
+        final filteredItemsAfterTabSwitch = _filterItems(searchState.results);
+        _selectedIndex = filteredItemsAfterTabSwitch.isEmpty ? -1 : 0;
+      });
+      return KeyEventResult.handled;
+    }
     if (!dropdownVisible || items.isEmpty) {
       return KeyEventResult.ignored;
     }
@@ -219,14 +228,6 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
         _navigateToSearchItem(item);
         return KeyEventResult.handled;
       }
-    }
-    if (shortcutStore.matches(event, ShortcutActionId.searchSwitchTab)) {
-      final currentIndex = _tabs.indexOf(_selectedTab);
-      setState(() {
-        _selectedTab = _tabs[(currentIndex + 1) % _tabs.length];
-        _selectedIndex = 0;
-      });
-      return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
   }
