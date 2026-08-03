@@ -1,10 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/data/mappers/media_mapper.dart';
 import 'package:fly_narwhal/data/models/home_models.dart';
-import 'package:fly_narwhal/domain/entities/media_entity.dart';
+import 'package:fly_narwhal/domain/entities/media_type.dart';
 
 void main() {
   group('MediaMapper', () {
+    test('toEntity maps every supported media type', () {
+      for (final mediaType in MediaType.values) {
+        final model = MediaItem(
+          guid: mediaType.value,
+          title: mediaType.description,
+          type: mediaType.value,
+        );
+
+        final entity = MediaMapper.toEntity(model);
+
+        expect(entity.type, mediaType);
+      }
+    });
+
     test('toEntity should convert MediaItem to MediaEntity', () {
       final model = MediaItem(
         guid: 'test-guid',
@@ -31,11 +45,16 @@ void main() {
       expect(entity.releaseDate, equals('2023-01-01'));
     });
 
-    test('toLibraryEntity should convert MediaDbListResponse to MediaLibraryEntity', () {
+    test(
+        'toLibraryEntity should convert MediaDbListResponse to MediaLibraryEntity',
+        () {
       final model = MediaDbListResponse(
         guid: 'lib-guid',
         title: 'My Library',
-        posters: ['https://example.com/poster1.jpg', 'https://example.com/poster2.jpg'],
+        posters: [
+          'https://example.com/poster1.jpg',
+          'https://example.com/poster2.jpg'
+        ],
         category: 'movies',
         viewType: 1,
       );
@@ -49,7 +68,9 @@ void main() {
       expect(entity.viewType, equals(1));
     });
 
-    test('toPlayDetailEntity should convert PlayDetailResponse to PlayDetailEntity', () {
+    test(
+        'toPlayDetailEntity should convert PlayDetailResponse to PlayDetailEntity',
+        () {
       final model = PlayDetailResponse(
         guid: 'play-guid',
         title: 'Test Episode',
@@ -76,8 +97,18 @@ void main() {
 
     test('toEntityList should convert list of models', () {
       final models = [
-        MediaItem(guid: '1', title: 'Movie 1', type: 'Movie', seasonNumber: 0, episodeNumber: 0),
-        MediaItem(guid: '2', title: 'Movie 2', type: 'TV', seasonNumber: 0, episodeNumber: 0),
+        MediaItem(
+            guid: '1',
+            title: 'Movie 1',
+            type: 'Movie',
+            seasonNumber: 0,
+            episodeNumber: 0),
+        MediaItem(
+            guid: '2',
+            title: 'Movie 2',
+            type: 'TV',
+            seasonNumber: 0,
+            episodeNumber: 0),
       ];
 
       final entities = MediaMapper.toEntityList(models);

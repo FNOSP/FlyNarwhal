@@ -1,22 +1,4 @@
-/// Media type enumeration
-enum MediaType {
-  movie('Movie'),
-  tv('TV'),
-  directory('Directory'),
-  video('Video'),
-  episode('Episode'),
-  season('Season');
-
-  final String value;
-  const MediaType(this.value);
-
-  static MediaType fromString(String? value) {
-    return MediaType.values.firstWhere(
-      (e) => e.value == value,
-      orElse: () => MediaType.video,
-    );
-  }
-}
+import 'media_type.dart';
 
 /// Media stream information entity
 class MediaStreamEntity {
@@ -32,7 +14,8 @@ class MediaStreamEntity {
 
   bool get hasResolutions => resolutions != null && resolutions!.isNotEmpty;
   bool get hasAudioType => audioType != null && audioType!.isNotEmpty;
-  bool get hasColorRange => colorRangeType != null && colorRangeType!.isNotEmpty;
+  bool get hasColorRange =>
+      colorRangeType != null && colorRangeType!.isNotEmpty;
 }
 
 /// Media item entity (core business entity)
@@ -114,7 +97,8 @@ class MediaEntity {
       }
       // Use local counts for single-season ended shows
       if ((localNumberOfSeasons ?? numberOfSeasons) == 1 && status == 'Ended') {
-        final year = !_isBlank(releaseDate) ? ' · ${_takeYear(releaseDate)}' : '';
+        final year =
+            !_isBlank(releaseDate) ? ' · ${_takeYear(releaseDate)}' : '';
         final episodeCount = localNumberOfEpisodes ?? numberOfEpisodes ?? 0;
         return '共 $episodeCount 集$year';
       }
@@ -192,7 +176,8 @@ class MediaEntity {
       numberOfSeasons: numberOfSeasons ?? this.numberOfSeasons,
       numberOfEpisodes: numberOfEpisodes ?? this.numberOfEpisodes,
       localNumberOfSeasons: localNumberOfSeasons ?? this.localNumberOfSeasons,
-      localNumberOfEpisodes: localNumberOfEpisodes ?? this.localNumberOfEpisodes,
+      localNumberOfEpisodes:
+          localNumberOfEpisodes ?? this.localNumberOfEpisodes,
       status: status ?? this.status,
       overview: overview ?? this.overview,
       ancestorGuid: ancestorGuid ?? this.ancestorGuid,

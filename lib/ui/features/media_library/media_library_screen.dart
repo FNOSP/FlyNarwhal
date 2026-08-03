@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../domain/entities/media_type.dart';
 import '../../../domain/entities/tag_entity.dart';
 import '../../../data/models/home_models.dart';
 import '../../../data/models/media_request_models.dart';
@@ -102,17 +104,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   }
 
   List<String> _categoryTypes(String? category) {
-    switch (category) {
-      case 'movie':
-        return ['Movie'];
-      case 'tv':
-        return ['TV', 'Season'];
-      case 'video':
-        return ['Video'];
-      case 'total':
-      default:
-        return ['Movie', 'TV', 'Directory', 'Video'];
-    }
+    return MediaType.valuesFromCategory(category);
   }
 
   Future<void> _loadStaticTags() async {
@@ -142,7 +134,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     final types = List<String>.from(
       widget.id == null
           ? _categoryTypes(widget.categoryType)
-          : ['Movie', 'TV', 'Directory', 'Video'],
+          : MediaType.commonlyUsedValues,
     );
     int? genres;
     String? resolution;
@@ -333,7 +325,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       _smartAnalysisFlyoutController.close();
       return;
     }
-    final isSeason = item.type == 'Season';
+    final isSeason = MediaType.tryParse(item.type) == MediaType.season;
     final isSubmitting = ref.read(smartAnalysisControllerProvider).isSubmitting(
           isSeason
               ? SmartAnalysisTargetType.season
@@ -365,19 +357,20 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     // Guard: require full FlyNarwhal config before triggering analysis
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
-        buildFlyNarwhalConfigWarning(
-          missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
-          missingAuthCode: !settings.hasFlyNarwhalAuthCode,
-        ),
-        type: ToastType.warning,
-        category: 'fly-narwhal-config',
-      );
+            buildFlyNarwhalConfigWarning(
+              missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+              missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+            ),
+            type: ToastType.warning,
+            category: 'fly-narwhal-config',
+          );
       return;
     }
-    if (item.type == 'Season') {
+    if (MediaType.tryParse(item.type) == MediaType.season) {
       // Use ancestorName as the TV title for Season items
-      final tvTitle =
-          (item.ancestorName?.isNotEmpty == true) ? item.ancestorName! : item.title;
+      final tvTitle = (item.ancestorName?.isNotEmpty == true)
+          ? item.ancestorName!
+          : item.title;
       await ref
           .read(smartAnalysisControllerProvider.notifier)
           .analyzeSeason(item.guid, tvTitle, item.seasonNumber);
@@ -460,8 +453,11 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     final smartAnalysisEnabled =
         ref.watch(settingsProvider).flyNarwhalServerEnabled;
     for (final item in items) {
-      if (item.type != 'Season' && item.type != 'TV') continue;
-      final targetType = item.type == 'Season'
+      final mediaType = MediaType.tryParse(item.type);
+      if (mediaType != MediaType.season && mediaType != MediaType.tv) {
+        continue;
+      }
+      final targetType = mediaType == MediaType.season
           ? SmartAnalysisTargetType.season
           : SmartAnalysisTargetType.tv;
       ref.listen<AsyncValue<String>?>(
@@ -587,13 +583,15 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                               type: item.type,
                               guid: item.guid,
                               onTap: () {
-                                // Navigate based on media type
-                                if (item.type == 'TV') {
-                                  context.go('/tv/${item.guid}');
-                                } else if (item.type == 'Season') {
-                                  context.go('/tv/season/${item.guid}');
-                                } else {
-                                  context.go('/movie/${item.guid}');
+                                switch (MediaType.tryParse(item.type)) {
+                                  case MediaType.tv:
+                                    context.go('/tv/${item.guid}');
+                                    break;
+                                  case MediaType.season:
+                                    context.go('/tv/season/${item.guid}');
+                                    break;
+                                  default:
+                                    context.go('/movie/${item.guid}');
                                 }
                               },
                               onPlayTap: () {

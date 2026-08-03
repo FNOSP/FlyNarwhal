@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/scheduler.dart';
+
+import '../../../../domain/entities/media_type.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
@@ -651,7 +653,8 @@ class _MainSettingsScreen extends StatelessWidget {
         ),
         // Skip config for episodes
         if (playingInfoCache?.isEpisode == true ||
-            playingInfoCache?.item?.type == 'Episode')
+            MediaType.tryParse(playingInfoCache?.item?.type) ==
+                MediaType.episode)
           _SettingsMenuItem(
             title: '跳过片头/片尾',
             value: _getSkipText(playingInfoCache?.playConfig),

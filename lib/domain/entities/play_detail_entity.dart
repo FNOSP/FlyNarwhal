@@ -1,4 +1,5 @@
 import 'media_entity.dart';
+import 'media_type.dart';
 
 /// Play detail entity for recently watched items
 class PlayDetailEntity {

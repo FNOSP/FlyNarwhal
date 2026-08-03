@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../domain/entities/media_type.dart';
+
 import '../../../data/models/home_models.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
@@ -197,7 +199,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       _smartAnalysisFlyoutController.close();
       return;
     }
-    final isSeason = item.type == 'Season';
+    final isSeason = MediaType.tryParse(item.type) == MediaType.season;
     final isSubmitting = ref.read(smartAnalysisControllerProvider).isSubmitting(
           isSeason
               ? SmartAnalysisTargetType.season
@@ -229,19 +231,20 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     // Guard: require full FlyNarwhal config before triggering analysis
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
-        buildFlyNarwhalConfigWarning(
-          missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
-          missingAuthCode: !settings.hasFlyNarwhalAuthCode,
-        ),
-        type: ToastType.warning,
-        category: 'fly-narwhal-config',
-      );
+            buildFlyNarwhalConfigWarning(
+              missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+              missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+            ),
+            type: ToastType.warning,
+            category: 'fly-narwhal-config',
+          );
       return;
     }
-    if (item.type == 'Season') {
+    if (MediaType.tryParse(item.type) == MediaType.season) {
       // Use ancestorName as the TV title for Season items
-      final tvTitle =
-          (item.ancestorName?.isNotEmpty == true) ? item.ancestorName! : item.title;
+      final tvTitle = (item.ancestorName?.isNotEmpty == true)
+          ? item.ancestorName!
+          : item.title;
       await ref
           .read(smartAnalysisControllerProvider.notifier)
           .analyzeSeason(item.guid, tvTitle, item.seasonNumber);
@@ -315,8 +318,11 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     final smartAnalysisEnabled =
         ref.watch(settingsProvider).flyNarwhalServerEnabled;
     for (final item in items) {
-      if (item.type != 'Season' && item.type != 'TV') continue;
-      final targetType = item.type == 'Season'
+      final mediaType = MediaType.tryParse(item.type);
+      if (mediaType != MediaType.season && mediaType != MediaType.tv) {
+        continue;
+      }
+      final targetType = mediaType == MediaType.season
           ? SmartAnalysisTargetType.season
           : SmartAnalysisTargetType.tv;
       ref.listen<AsyncValue<String>?>(

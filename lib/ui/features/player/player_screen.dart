@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../domain/entities/media_type.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -789,8 +791,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final smartSkipSettings = ref.read(smartSkipSettingsControllerProvider);
     unawaited(
       ref.read(episodeAnalysisControllerProvider.notifier).updateContext(
-            isEpisode:
-                cache?.isEpisode == true || cache?.item?.type == 'Episode',
+            isEpisode: cache?.isEpisode == true ||
+                MediaType.tryParse(cache?.item?.type) == MediaType.episode,
             serviceEnabled: settings.flyNarwhalServerEnabled,
             smartSkipEnabled: smartSkipSettings.enabled,
             episodeGuid: cache?.itemGuid,
@@ -2382,7 +2384,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   DanmakuRequest _buildDanmakuRequest(PlayInfoResponse playInfo) {
     final item = playInfo.item;
-    final isSeason = playInfo.type != 'Movie';
+    final isSeason = MediaType.tryParse(playInfo.type) != MediaType.movie;
     final parentGuid =
         item.parentGuid.isNotEmpty ? item.parentGuid : playInfo.parentGuid;
     return DanmakuRequest(
@@ -2498,7 +2500,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _nextEpisode = result.nextEpisode;
         _nextEpisodeLoadPhase = result.nextEpisode != null
             ? NextEpisodeLoadPhase.available
-            : result.playInfo.item.type == 'Episode'
+            : result.playInfo.item.type == MediaType.episode.value
                 ? NextEpisodeLoadPhase.loading
                 : NextEpisodeLoadPhase.unavailable;
       });
@@ -2553,7 +2555,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _fetchEpisodeContextAsync(int requestToken) {
     final info = _playInfo;
     if (info == null ||
-        info.item.type != 'Episode' ||
+        MediaType.tryParse(info.item.type) != MediaType.episode ||
         info.parentGuid.isEmpty) {
       return;
     }
