@@ -194,17 +194,23 @@ class SmartAnalysisController
       final streamList =
           (await _mediaRemoteDataSource.getStreamList(episode.guid))
               .getOrThrow();
-      final streamPath = streamList?.files
-          ?.map((file) => file.path.trim())
-          .firstWhere((filePath) => filePath.isNotEmpty, orElse: () => '');
-      final filePath = streamPath?.isNotEmpty == true
-          ? streamPath!
+      // Use file-level guid (matching videoStream.mediaGuid) for segment queries
+      final files = streamList?.files;
+      final firstFile = (files != null && files.isNotEmpty)
+          ? files.firstWhere(
+              (f) => f.path.trim().isNotEmpty,
+              orElse: () => files.first,
+            )
+          : null;
+      final filePath = firstFile?.path.trim().isNotEmpty == true
+          ? firstFile!.path.trim()
           : episode.fileName.trim();
+      final fileGuid = firstFile?.guid ?? episode.guid;
       if (seasonPath.isEmpty && filePath.isNotEmpty) {
         seasonPath = path.dirname(filePath);
       }
       queuedEpisodes.add(QueuedEpisode(
-        guid: episode.guid,
+        guid: fileGuid,
         filePath: filePath,
         episodeNumber: episode.episodeNumber,
         seasonNumber: episode.seasonNumber,

@@ -249,6 +249,14 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
     if (!state.isIntroUndoVisible || skippedIntro == null) {
       return;
     }
+    // Restore the resumed position when the auto-skip jumped over it
+    // (start position before the intro end); otherwise fall back to the
+    // intro start for a fresh play or a resume already past the intro.
+    final startPosition = state.effectiveStartPositionMilliseconds;
+    final undoTarget =
+        startPosition > 0 && startPosition < skippedIntro.endMilliseconds
+            ? startPosition
+            : skippedIntro.startMilliseconds;
     _introUndoTimer?.cancel();
     state = state.copyWith(
       isIntroUndoVisible: false,
@@ -259,7 +267,7 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
     _emitAction(
       SeekTo(
         sessionGeneration: state.sessionGeneration,
-        milliseconds: skippedIntro.startMilliseconds,
+        milliseconds: undoTarget,
         origin: PlayerSeekOrigin.introUndo,
       ),
     );

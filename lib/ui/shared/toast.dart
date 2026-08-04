@@ -17,6 +17,16 @@ enum ToastType {
   warning,
 }
 
+// Build warning message based on missing FlyNarwhal config fields
+String buildFlyNarwhalConfigWarning({
+  required bool missingUrl,
+  required bool missingAuthCode,
+}) {
+  if (missingUrl && missingAuthCode) return '请填写飞鲸服务端 URL 和授权码';
+  if (missingUrl) return '请填写飞鲸服务端 URL';
+  return '请填写飞鲸服务端授权码';
+}
+
 @immutable
 class ToastMessage {
   const ToastMessage({
@@ -374,10 +384,6 @@ class _ToastItemState extends State<_ToastItem>
                 Flexible(
                   child: Text(
                     widget.toast.message,
-                    textHeightBehavior: const TextHeightBehavior(
-                      applyHeightToFirstAscent: false,
-                      applyHeightToLastDescent: false,
-                    ),
                     style: TextStyle(
                       color: textColor,
                       fontSize: 14,

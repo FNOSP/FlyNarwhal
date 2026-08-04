@@ -1,5 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
+import '../../domain/entities/media_type.dart';
+
 part 'home_models.g.dart';
 
 @JsonSerializable()
@@ -19,7 +21,8 @@ class MediaDbListResponse {
     this.viewType = 0,
   });
 
-  factory MediaDbListResponse.fromJson(Map<String, dynamic> json) => _$MediaDbListResponseFromJson(json);
+  factory MediaDbListResponse.fromJson(Map<String, dynamic> json) =>
+      _$MediaDbListResponseFromJson(json);
   Map<String, dynamic> toJson() => _$MediaDbListResponseToJson(this);
 }
 
@@ -33,7 +36,8 @@ class MediaStream {
 
   MediaStream({this.resolutions, this.audioType, this.colorRangeType});
 
-  factory MediaStream.fromJson(Map<String, dynamic> json) => _$MediaStreamFromJson(json);
+  factory MediaStream.fromJson(Map<String, dynamic> json) =>
+      _$MediaStreamFromJson(json);
   Map<String, dynamic> toJson() => _$MediaStreamToJson(this);
 }
 
@@ -73,6 +77,10 @@ class MediaItem {
   final int? numberOfSeasons;
   @JsonKey(name: 'number_of_episodes')
   final int? numberOfEpisodes;
+  @JsonKey(name: 'local_number_of_seasons')
+  final int? localNumberOfSeasons;
+  @JsonKey(name: 'local_number_of_episodes')
+  final int? localNumberOfEpisodes;
   final String? status;
   final String? overview;
   @JsonKey(name: 'ancestor_guid')
@@ -117,21 +125,32 @@ class MediaItem {
     this.duration,
     this.genres,
     this.numberOfItem,
+    this.localNumberOfSeasons,
+    this.localNumberOfEpisodes,
   });
 
-  factory MediaItem.fromJson(Map<String, dynamic> json) => _$MediaItemFromJson(json);
+  factory MediaItem.fromJson(Map<String, dynamic> json) =>
+      _$MediaItemFromJson(json);
   Map<String, dynamic> toJson() => _$MediaItemToJson(this);
 }
 
 String? buildPosterSubtitle(MediaItem item) {
-  if (item.type == 'TV') {
+  final mediaType = MediaType.tryParse(item.type);
+  if (mediaType == MediaType.tv) {
     if (!_isBlank(item.firstAirDate) && !_isBlank(item.lastAirDate)) {
-      final seasonCount = item.numberOfSeasons ?? 0;
+      // Use local season count (available in library) with fallback to metadata count
+      final seasonCount =
+          item.localNumberOfSeasons ?? item.numberOfSeasons ?? 0;
       return '共 $seasonCount 季 · ${_takeYear(item.firstAirDate)}~${_takeYear(item.lastAirDate)}';
     }
-    if (item.numberOfSeasons == 1 && item.status == 'Ended') {
-      final year = !_isBlank(item.releaseDate) ? ' · ${_takeYear(item.releaseDate)}' : '';
-      final episodeCount = item.numberOfEpisodes ?? 0;
+    // Use local counts for single-season ended shows
+    if ((item.localNumberOfSeasons ?? item.numberOfSeasons) == 1 &&
+        item.status == 'Ended') {
+      final year = !_isBlank(item.releaseDate)
+          ? ' · ${_takeYear(item.releaseDate)}'
+          : '';
+      final episodeCount =
+          item.localNumberOfEpisodes ?? item.numberOfEpisodes ?? 0;
       return '共 $episodeCount 集$year';
     }
     if (item.numberOfSeasons != null && !_isBlank(item.releaseDate)) {
@@ -144,7 +163,7 @@ String? buildPosterSubtitle(MediaItem item) {
     return _mediaTypeDescription(item.type);
   }
 
-  if (item.status == '1' && item.type == 'Video') {
+  if (item.status == '1' && mediaType == MediaType.video) {
     return '';
   }
 
@@ -152,22 +171,7 @@ String? buildPosterSubtitle(MediaItem item) {
 }
 
 String _mediaTypeDescription(String? type) {
-  switch (type) {
-    case 'Movie':
-      return '电影';
-    case 'TV':
-      return '电视节目';
-    case 'Directory':
-      return '目录';
-    case 'Video':
-      return '其他';
-    case 'Episode':
-      return '剧集';
-    case 'Season':
-      return '季';
-    default:
-      return '其他';
-  }
+  return MediaType.fromString(type).description;
 }
 
 bool _isBlank(String? value) {
@@ -189,7 +193,8 @@ class ItemListQueryResponse {
 
   ItemListQueryResponse({this.list = const [], this.total = 0, this.mdbName});
 
-  factory ItemListQueryResponse.fromJson(Map<String, dynamic> json) => _$ItemListQueryResponseFromJson(json);
+  factory ItemListQueryResponse.fromJson(Map<String, dynamic> json) =>
+      _$ItemListQueryResponseFromJson(json);
   Map<String, dynamic> toJson() => _$ItemListQueryResponseToJson(this);
 }
 
@@ -236,22 +241,25 @@ class PlayDetailResponse {
     this.parentGuid,
   });
 
-  factory PlayDetailResponse.fromJson(Map<String, dynamic> json) => _$PlayDetailResponseFromJson(json);
+  factory PlayDetailResponse.fromJson(Map<String, dynamic> json) =>
+      _$PlayDetailResponseFromJson(json);
   Map<String, dynamic> toJson() => _$PlayDetailResponseToJson(this);
 }
 
 String buildPlayDetailTitle(PlayDetailResponse item) {
-  if (item.type == 'Episode') {
-    return item.tvTitle?.trim().isNotEmpty == true ? item.tvTitle!.trim() : item.title;
+  if (MediaType.tryParse(item.type) == MediaType.episode) {
+    return item.tvTitle?.trim().isNotEmpty == true
+        ? item.tvTitle!.trim()
+        : item.title;
   }
   return item.title;
 }
 
 String? buildPlayDetailSubtitle(PlayDetailResponse item) {
-  switch (item.type) {
-    case 'Episode':
+  switch (MediaType.tryParse(item.type)) {
+    case MediaType.episode:
       return '第 ${item.seasonNumber} 季 · 第 ${item.episodeNumber} 集';
-    case 'Video':
+    case MediaType.video:
       return ' ';
     default:
       return _mediaTypeDescription(item.type);
@@ -301,7 +309,7 @@ class Tags {
   final String? watched;
   @JsonKey(name: 'audio_type')
   final String? audioType;
-  
+
   Tags({
     required this.type,
     this.genres,

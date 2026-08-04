@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/scheduler.dart';
+
+import '../../../../domain/entities/media_type.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
@@ -128,6 +130,10 @@ class PlayerSettingsMenu extends StatefulWidget {
   final void Function(bool enabled)? onAutoPlayChanged;
   final Map<String, String>? iso6391Map;
   final Map<String, String>? iso6392Map;
+  // Whether the FlyNarwhal server is fully configured (URL + auth code)
+  final bool isFlyNarwhalServerAvailable;
+  // Called when user tries to enable smart skip without full config
+  final VoidCallback? onFlyNarwhalConfigMissing;
 
   const PlayerSettingsMenu({
     super.key,
@@ -147,6 +153,8 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.isSavingSkipConfig = false,
     this.isAutoPlay = true,
     this.onAutoPlayChanged,
+    this.isFlyNarwhalServerAvailable = false,
+    this.onFlyNarwhalConfigMissing,
   });
 
   @override
@@ -466,6 +474,8 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
           _requestOverlayRebuild();
           widget.onAutoPlayChanged?.call(value);
         },
+        isFlyNarwhalServerAvailable: widget.isFlyNarwhalServerAvailable,
+        onFlyNarwhalConfigMissing: widget.onFlyNarwhalConfigMissing,
       ),
     );
   }
@@ -510,6 +520,10 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool)? onAutoPlayChanged;
+  // Whether the FlyNarwhal server is fully configured (URL + auth code)
+  final bool isFlyNarwhalServerAvailable;
+  // Called when user tries to enable smart skip without full config
+  final VoidCallback? onFlyNarwhalConfigMissing;
 
   const _SettingsFlyoutContent({
     super.key,
@@ -529,6 +543,8 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.isSavingSkipConfig,
     required this.isAutoPlay,
     required this.onAutoPlayChanged,
+    required this.isFlyNarwhalServerAvailable,
+    required this.onFlyNarwhalConfigMissing,
   });
 
   @override
@@ -573,6 +589,8 @@ class _SettingsFlyoutContent extends StatelessWidget {
           onSmartSkipEnabledChanged: onSmartSkipEnabledChanged,
           isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
           isSavingSkipConfig: isSavingSkipConfig,
+          isFlyNarwhalServerAvailable: isFlyNarwhalServerAvailable,
+          onFlyNarwhalConfigMissing: onFlyNarwhalConfigMissing,
         );
       default:
         return _MainSettingsScreen(
@@ -635,7 +653,8 @@ class _MainSettingsScreen extends StatelessWidget {
         ),
         // Skip config for episodes
         if (playingInfoCache?.isEpisode == true ||
-            playingInfoCache?.item?.type == 'Episode')
+            MediaType.tryParse(playingInfoCache?.item?.type) ==
+                MediaType.episode)
           _SettingsMenuItem(
             title: '跳过片头/片尾',
             value: _getSkipText(playingInfoCache?.playConfig),
@@ -1089,6 +1108,10 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
   final void Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
   final bool isSavingSkipConfig;
+  // Whether the FlyNarwhal server is fully configured (URL + auth code)
+  final bool isFlyNarwhalServerAvailable;
+  // Called when user tries to enable smart skip without full config
+  final VoidCallback? onFlyNarwhalConfigMissing;
 
   const _SkipConfigSettingsScreen({
     required this.playingInfoCache,
@@ -1100,6 +1123,8 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
     required this.onSmartSkipEnabledChanged,
     required this.isSmartAnalysisGloballyEnabled,
     required this.isSavingSkipConfig,
+    required this.isFlyNarwhalServerAvailable,
+    required this.onFlyNarwhalConfigMissing,
   });
 
   @override
@@ -1216,6 +1241,11 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                     widget.onSmartSkipEnabledChanged == null
                 ? null
                 : (value) {
+                    // Guard: block enabling smart skip when config is incomplete
+                    if (value && !widget.isFlyNarwhalServerAvailable) {
+                      widget.onFlyNarwhalConfigMissing?.call();
+                      return;
+                    }
                     setState(() => _smartSkipEnabled = value);
                     widget.onSmartSkipEnabledChanged?.call(value);
                   },

@@ -2,9 +2,18 @@
 
 #include <windows.h>
 
+#include <comdef.h>
+#include <knownfolders.h>
+#include <shlobj.h>
+#include <shobjidl.h>
+
+#include <cstdint>
+#include <filesystem>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <flutter/method_channel.h>
@@ -26,10 +35,240 @@ constexpr const char kIsWindowBorderlessMethod[] =
 constexpr const char kKmpPreferencesChannelName[] =
     "fly_narwhal/kmp_preferences";
 constexpr const char kReadJavaPreferencesMethod[] = "readJavaPreferences";
+constexpr const char kLocalSubtitlePickerChannelName[] =
+    "fly_narwhal/local_subtitle_picker";
+constexpr const char kOpenLocalSubtitlesMethod[] = "openLocalSubtitles";
+constexpr const UINT kLocalSubtitlePickerResultMessage = WM_APP + 1;
 constexpr const wchar_t kJavaPreferencesRegistryPath[] =
     L"Software\\JavaSoft\\Prefs";
 
 std::string Utf8FromWideString(const std::wstring& value);
+
+uint64_t HashUserGuid(const std::string& user_guid, uint64_t seed) {
+  uint64_t hash = seed;
+  for (const unsigned char character : user_guid) {
+    hash ^= character;
+    hash *= 1099511628211ULL;
+  }
+  return hash;
+}
+
+GUID BuildPickerClientGuid(const std::string& user_guid) {
+  const uint64_t first_hash =
+      HashUserGuid(user_guid, 1469598103934665603ULL);
+  const uint64_t second_hash =
+      HashUserGuid(user_guid, 1099511628211ULL);
+  GUID client_guid = {};
+  client_guid.Data1 = static_cast<unsigned long>(first_hash >> 32);
+  client_guid.Data2 = static_cast<unsigned short>(first_hash >> 16);
+  client_guid.Data3 = static_cast<unsigned short>(first_hash);
+  for (size_t index = 0; index < 8; ++index) {
+    client_guid.Data4[index] =
+        static_cast<unsigned char>(second_hash >> ((7 - index) * 8));
+  }
+  client_guid.Data3 = static_cast<unsigned short>(
+      (client_guid.Data3 & 0x0FFF) | 0x5000);
+  client_guid.Data4[0] =
+      static_cast<unsigned char>((client_guid.Data4[0] & 0x3F) | 0x80);
+  return client_guid;
+}
+
+std::wstring BuildPickerRegistryPath(const std::string& user_guid) {
+  const uint64_t user_hash =
+      HashUserGuid(user_guid, 1469598103934665603ULL);
+  wchar_t hash_text[17] = {};
+  swprintf_s(hash_text, L"%016llX",
+             static_cast<unsigned long long>(user_hash));
+  return std::wstring(L"Software\\FlyNarwhal\\LocalSubtitlePicker\\") +
+         hash_text;
+}
+
+std::optional<std::wstring> ReadLastPickerFolder(
+    const std::string& user_guid) {
+  HKEY user_key = nullptr;
+  const std::wstring registry_path = BuildPickerRegistryPath(user_guid);
+  if (RegOpenKeyExW(HKEY_CURRENT_USER, registry_path.c_str(), 0, KEY_READ,
+                    &user_key) != ERROR_SUCCESS) {
+    return std::nullopt;
+  }
+
+  DWORD value_type = 0;
+  DWORD value_size = 0;
+  if (RegQueryValueExW(user_key, L"LastFolder", nullptr, &value_type, nullptr,
+                       &value_size) != ERROR_SUCCESS ||
+      value_type != REG_SZ || value_size < sizeof(wchar_t)) {
+    RegCloseKey(user_key);
+    return std::nullopt;
+  }
+
+  std::vector<wchar_t> value(value_size / sizeof(wchar_t));
+  if (RegQueryValueExW(user_key, L"LastFolder", nullptr, nullptr,
+                       reinterpret_cast<BYTE*>(value.data()),
+                       &value_size) != ERROR_SUCCESS) {
+    RegCloseKey(user_key);
+    return std::nullopt;
+  }
+  RegCloseKey(user_key);
+  return std::wstring(value.data());
+}
+
+void SaveLastPickerFolder(const std::string& user_guid,
+                          const std::wstring& folder_path) {
+  HKEY user_key = nullptr;
+  DWORD disposition = 0;
+  const std::wstring registry_path = BuildPickerRegistryPath(user_guid);
+  if (RegCreateKeyExW(HKEY_CURRENT_USER, registry_path.c_str(), 0, nullptr, 0,
+                      KEY_WRITE, nullptr, &user_key,
+                      &disposition) != ERROR_SUCCESS) {
+    return;
+  }
+  const DWORD value_size = static_cast<DWORD>(
+      (folder_path.size() + 1) * sizeof(wchar_t));
+  RegSetValueExW(user_key, L"LastFolder", 0, REG_SZ,
+                 reinterpret_cast<const BYTE*>(folder_path.c_str()),
+                 value_size);
+  RegCloseKey(user_key);
+}
+
+bool IsExistingDirectory(const std::filesystem::path& path) {
+  std::error_code error;
+  return std::filesystem::exists(path, error) &&
+         std::filesystem::is_directory(path, error);
+}
+
+std::filesystem::path ResolveExistingPickerFolder(
+    const std::optional<std::wstring>& stored_folder) {
+  if (stored_folder.has_value() && !stored_folder->empty()) {
+    std::filesystem::path candidate(*stored_folder);
+    while (!candidate.empty()) {
+      if (IsExistingDirectory(candidate)) {
+        return candidate;
+      }
+      const std::filesystem::path parent = candidate.parent_path();
+      if (parent == candidate) {
+        break;
+      }
+      candidate = parent;
+    }
+  }
+
+  wchar_t* profile_path = nullptr;
+  if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Profile, KF_FLAG_DEFAULT,
+                                     nullptr, &profile_path))) {
+    const std::filesystem::path result(profile_path);
+    CoTaskMemFree(profile_path);
+    if (IsExistingDirectory(result)) {
+      return result;
+    }
+  }
+  return std::filesystem::current_path();
+}
+
+void SetPickerFolder(IFileDialog* dialog,
+                     const std::filesystem::path& folder_path) {
+  IShellItem* folder_item = nullptr;
+  if (SUCCEEDED(SHCreateItemFromParsingName(folder_path.c_str(), nullptr,
+                                            IID_PPV_ARGS(&folder_item)))) {
+    dialog->SetFolder(folder_item);
+    folder_item->Release();
+  }
+}
+
+void SaveCurrentPickerFolder(IFileDialog* dialog,
+                             const std::string& user_guid) {
+  IShellItem* folder_item = nullptr;
+  if (FAILED(dialog->GetFolder(&folder_item))) {
+    return;
+  }
+  wchar_t* folder_path = nullptr;
+  if (SUCCEEDED(folder_item->GetDisplayName(SIGDN_FILESYSPATH,
+                                            &folder_path))) {
+    SaveLastPickerFolder(user_guid, folder_path);
+    CoTaskMemFree(folder_path);
+  }
+  folder_item->Release();
+}
+
+struct LocalSubtitlePickerResult {
+  std::unique_ptr<flutter::MethodResult<>> method_result;
+  std::vector<std::string> paths;
+  std::string error_message;
+};
+
+std::vector<std::string> ShowLocalSubtitlePicker(
+    HWND owner_window,
+    const std::string& user_guid,
+    std::string* error_message) {
+  const HRESULT initialize_result =
+      CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+  if (FAILED(initialize_result)) {
+    *error_message = "Unable to initialize the Windows file picker thread.";
+    return {};
+  }
+
+  IFileOpenDialog* dialog = nullptr;
+  const HRESULT create_result = CoCreateInstance(
+      CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+      IID_PPV_ARGS(&dialog));
+  if (FAILED(create_result)) {
+    CoUninitialize();
+    *error_message = "Unable to create the Windows file picker.";
+    return {};
+  }
+
+  const std::wstring subtitle_filter_label =
+      L"\u5B57\u5E55\u6587\u4EF6";
+  const std::wstring confirmation_label = L"\u9009\u62E9";
+
+  const COMDLG_FILTERSPEC subtitle_filter = {
+      subtitle_filter_label.c_str(), L"*.ass;*.srt;*.vtt;*.sub;*.ssa;*.sup"};
+  const GUID client_guid = BuildPickerClientGuid(user_guid);
+  dialog->SetClientGuid(client_guid);
+  const std::filesystem::path initial_folder = ResolveExistingPickerFolder(
+      ReadLastPickerFolder(user_guid));
+  SetPickerFolder(dialog, initial_folder);
+  dialog->SetFileTypes(1, &subtitle_filter);
+  dialog->SetOkButtonLabel(confirmation_label.c_str());
+
+  FILEOPENDIALOGOPTIONS options = 0;
+  if (SUCCEEDED(dialog->GetOptions(&options))) {
+    dialog->SetOptions(options | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM |
+                       FOS_PATHMUSTEXIST | FOS_FILEMUSTEXIST);
+  }
+
+  std::vector<std::string> paths;
+  const HRESULT show_result = dialog->Show(owner_window);
+  SaveCurrentPickerFolder(dialog, user_guid);
+  if (SUCCEEDED(show_result)) {
+    IShellItemArray* selected_items = nullptr;
+    if (SUCCEEDED(dialog->GetResults(&selected_items))) {
+      DWORD selected_item_count = 0;
+      selected_items->GetCount(&selected_item_count);
+      paths.reserve(selected_item_count);
+      for (DWORD item_index = 0; item_index < selected_item_count;
+           ++item_index) {
+        IShellItem* selected_item = nullptr;
+        if (FAILED(selected_items->GetItemAt(item_index, &selected_item))) {
+          continue;
+        }
+        wchar_t* wide_path = nullptr;
+        if (SUCCEEDED(selected_item->GetDisplayName(SIGDN_FILESYSPATH,
+                                                    &wide_path))) {
+          paths.push_back(Utf8FromWideString(wide_path));
+          CoTaskMemFree(wide_path);
+        }
+        selected_item->Release();
+      }
+      selected_items->Release();
+    }
+  } else if (show_result != HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+    *error_message = "The Windows file picker failed to open.";
+  }
+
+  dialog->Release();
+  CoUninitialize();
+  return paths;
+}
 
 flutter::EncodableMap BuildRectResponse(const RECT& bounds,
                                         double coordinate_scale_factor) {
@@ -324,6 +563,52 @@ bool FlutterWindow::OnCreate() {
         }
       });
 
+  flutter::MethodChannel<> local_subtitle_picker_channel(
+      flutter_controller_->engine()->messenger(),
+      kLocalSubtitlePickerChannelName,
+      &flutter::StandardMethodCodec::GetInstance());
+  local_subtitle_picker_channel.SetMethodCallHandler(
+      [this](const flutter::MethodCall<>& call,
+             std::unique_ptr<flutter::MethodResult<>> result) {
+        if (call.method_name() != kOpenLocalSubtitlesMethod) {
+          result->NotImplemented();
+          return;
+        }
+
+        const auto* arguments =
+            std::get_if<flutter::EncodableMap>(call.arguments());
+        if (arguments == nullptr) {
+          result->Error("INVALID_ARGS", "Expected a map argument.");
+          return;
+        }
+        const auto user_guid_entry =
+            arguments->find(flutter::EncodableValue("userGuid"));
+        if (user_guid_entry == arguments->end()) {
+          result->Error("INVALID_ARGS", "Missing userGuid.");
+          return;
+        }
+        const auto* user_guid =
+            std::get_if<std::string>(&user_guid_entry->second);
+        if (user_guid == nullptr || user_guid->empty()) {
+          result->Error("INVALID_ARGS", "userGuid must be non-empty.");
+          return;
+        }
+
+        const HWND owner_window = GetHandle();
+        std::thread([owner_window, user_guid = *user_guid,
+                     method_result = std::move(result)]() mutable {
+          auto picker_result = std::make_unique<LocalSubtitlePickerResult>();
+          picker_result->method_result = std::move(method_result);
+          picker_result->paths = ShowLocalSubtitlePicker(
+              owner_window, user_guid, &picker_result->error_message);
+          auto* message_payload = picker_result.release();
+          if (!PostMessage(owner_window, kLocalSubtitlePickerResultMessage, 0,
+                           reinterpret_cast<LPARAM>(message_payload))) {
+            delete message_payload;
+          }
+        }).detach();
+      });
+
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -357,6 +642,22 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case kLocalSubtitlePickerResultMessage: {
+      std::unique_ptr<LocalSubtitlePickerResult> picker_result(
+          reinterpret_cast<LocalSubtitlePickerResult*>(lparam));
+      if (!picker_result->error_message.empty()) {
+        picker_result->method_result->Error("local-subtitle-picker-error",
+                                            picker_result->error_message);
+        return 0;
+      }
+      flutter::EncodableList encoded_paths;
+      encoded_paths.reserve(picker_result->paths.size());
+      for (const std::string& path : picker_result->paths) {
+        encoded_paths.emplace_back(path);
+      }
+      picker_result->method_result->Success(encoded_paths);
+      return 0;
+    }
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;

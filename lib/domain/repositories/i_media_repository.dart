@@ -20,7 +20,12 @@ class ItemListQueryParams {
 
   const ItemListQueryParams({
     this.ancestorGuid,
-    this.types = const ['Movie', 'TV', 'Directory', 'Video'],
+    this.types = const [
+      'Movie',
+      'TV',
+      'Directory',
+      'Video',
+    ],
     this.genres,
     this.resolution,
     this.colorRange,
@@ -85,8 +90,10 @@ abstract class IMediaRepository {
   Future<ApiResult<ItemListEntity>> getItemList(ItemListQueryParams params);
 
   /// Toggle favorite status
-  Future<ApiResult<ActionResult>> toggleFavorite(String guid, bool currentFavoriteState);
+  Future<ApiResult<ActionResult>> toggleFavorite(
+      String guid, bool currentFavoriteState);
 
   /// Toggle watched status
-  Future<ApiResult<ActionResult>> toggleWatched(String guid, bool currentWatchedState);
+  Future<ApiResult<ActionResult>> toggleWatched(
+      String guid, bool currentWatchedState);
 }

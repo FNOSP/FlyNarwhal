@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../domain/entities/media_type.dart';
 import '../../../domain/entities/tag_entity.dart';
 import '../../../data/models/home_models.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
+import '../../../providers/smart_analysis_controller.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/movie_poster.dart';
 import '../../shared/filter_box.dart';
@@ -37,6 +40,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   Map<String, String>? _iso3166;
 
   late final ScrollController _scrollController = ScrollController();
+  late final FlyoutController _smartAnalysisFlyoutController =
+      FlyoutController();
   final Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
   final Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
 
@@ -67,6 +72,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _smartAnalysisFlyoutController.dispose();
     super.dispose();
   }
 
@@ -98,17 +104,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   }
 
   List<String> _categoryTypes(String? category) {
-    switch (category) {
-      case 'movie':
-        return ['Movie'];
-      case 'tv':
-        return ['TV', 'Season'];
-      case 'video':
-        return ['Video'];
-      case 'total':
-      default:
-        return ['Movie', 'TV', 'Directory', 'Video'];
-    }
+    return MediaType.valuesFromCategory(category);
   }
 
   Future<void> _loadStaticTags() async {
@@ -138,7 +134,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     final types = List<String>.from(
       widget.id == null
           ? _categoryTypes(widget.categoryType)
-          : ['Movie', 'TV', 'Directory', 'Video'],
+          : MediaType.commonlyUsedValues,
     );
     int? genres;
     String? resolution;
@@ -323,6 +319,95 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     });
   }
 
+  // Show smart analysis flyout for Season/TV items
+  void _showSmartAnalysisFlyout(MediaItem item) {
+    if (_smartAnalysisFlyoutController.isOpen) {
+      _smartAnalysisFlyoutController.close();
+      return;
+    }
+    final isSeason = MediaType.tryParse(item.type) == MediaType.season;
+    final isSubmitting = ref.read(smartAnalysisControllerProvider).isSubmitting(
+          isSeason
+              ? SmartAnalysisTargetType.season
+              : SmartAnalysisTargetType.tv,
+          item.guid,
+        );
+    _smartAnalysisFlyoutController.showFlyout<void>(
+      placementMode: FlyoutPlacementMode.bottomCenter,
+      builder: (context) => MenuFlyout(
+        items: [
+          MenuFlyoutItem(
+            key: ValueKey('smart-analysis-${item.guid}'),
+            text: const Text('智能分析片头/片尾'),
+            onPressed: isSubmitting
+                ? null
+                : () {
+                    Flyout.of(context).close();
+                    _handleSmartAnalysis(item);
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Trigger smart analysis for a Season or TV item
+  Future<void> _handleSmartAnalysis(MediaItem item) async {
+    final settings = ref.read(settingsProvider);
+    // Guard: require full FlyNarwhal config before triggering analysis
+    if (!settings.isFlyNarwhalServerAvailable) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            buildFlyNarwhalConfigWarning(
+              missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+              missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+            ),
+            type: ToastType.warning,
+            category: 'fly-narwhal-config',
+          );
+      return;
+    }
+    if (MediaType.tryParse(item.type) == MediaType.season) {
+      // Use ancestorName as the TV title for Season items
+      final tvTitle = (item.ancestorName?.isNotEmpty == true)
+          ? item.ancestorName!
+          : item.title;
+      await ref
+          .read(smartAnalysisControllerProvider.notifier)
+          .analyzeSeason(item.guid, tvTitle, item.seasonNumber);
+    } else {
+      await ref
+          .read(smartAnalysisControllerProvider.notifier)
+          .analyzeTv(item.guid, item.title);
+    }
+  }
+
+  // Show toast for smart analysis submission result
+  void _showAnalysisToast(
+    SmartAnalysisTargetType targetType,
+    String targetGuid,
+    AsyncValue<String>? previous,
+    AsyncValue<String>? next,
+  ) {
+    if (next == null || next.isLoading || identical(previous, next)) return;
+    next.when(
+      data: (message) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              message,
+              type: ToastType.success,
+              category: 'smart-analysis:${targetType.name}:$targetGuid',
+            );
+      },
+      loading: () {},
+      error: (error, stackTrace) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              error.toString(),
+              type: ToastType.failed,
+              category: 'smart-analysis:${targetType.name}:$targetGuid',
+            );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.id == null && widget.categoryType == null) {
@@ -363,6 +448,26 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         ref.watch(mediaLibraryNotifierProvider(_providerGuid));
     final libraryData = mediaLibraryState.asData?.value;
     final items = libraryData?.items ?? const <MediaItem>[];
+
+    // Listen to smart analysis submission results for Season/TV items
+    final smartAnalysisEnabled =
+        ref.watch(settingsProvider).flyNarwhalServerEnabled;
+    for (final item in items) {
+      final mediaType = MediaType.tryParse(item.type);
+      if (mediaType != MediaType.season && mediaType != MediaType.tv) {
+        continue;
+      }
+      final targetType = mediaType == MediaType.season
+          ? SmartAnalysisTargetType.season
+          : SmartAnalysisTargetType.tv;
+      ref.listen<AsyncValue<String>?>(
+        smartAnalysisControllerProvider.select(
+          (state) => state.submissionFor(targetType, item.guid),
+        ),
+        (previous, next) =>
+            _showAnalysisToast(targetType, item.guid, previous, next),
+      );
+    }
     const posterHeight = 200.0;
     const posterWidth = posterHeight * 2 / 3;
     final mediaDbTitle = _resolveMediaDbTitle(mediaDbList);
@@ -478,10 +583,15 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                               type: item.type,
                               guid: item.guid,
                               onTap: () {
-                                if (item.type == 'TV') {
-                                  context.go('/tv/${item.guid}');
-                                } else {
-                                  context.go('/movie/${item.guid}');
+                                switch (MediaType.tryParse(item.type)) {
+                                  case MediaType.tv:
+                                    context.go('/tv/${item.guid}');
+                                    break;
+                                  case MediaType.season:
+                                    context.go('/tv/season/${item.guid}');
+                                    break;
+                                  default:
+                                    context.go('/movie/${item.guid}');
                                 }
                               },
                               onPlayTap: () {
@@ -489,6 +599,11 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                               },
                               onFavoriteToggle: _handleFavoriteToggle,
                               onWatchedToggle: _handleWatchedToggle,
+                              onMoreTap: smartAnalysisEnabled &&
+                                      (item.type == 'Season' ||
+                                          item.type == 'TV')
+                                  ? () => _showSmartAnalysisFlyout(item)
+                                  : null,
                             );
                           },
                         ),

@@ -4,25 +4,11 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../domain/entities/media_type.dart';
 import '../../providers/providers.dart';
 import '../shared/common/fn_cached_image.dart';
 import '../shared/common/poster_resolution_tags.dart';
-
-enum FnMediaType {
-  movie('Movie'),
-  video('Video'),
-  tv('TV'),
-  season('Season'),
-  person('Person');
-
-  final String value;
-  const FnMediaType(this.value);
-
-  static FnMediaType? fromString(String? value) {
-    if (value == null) return null;
-    return FnMediaType.values.where((e) => e.value == value).firstOrNull;
-  }
-}
 
 // Accent color for watched state
 const Color kAccentColorDefault = Color(0xFF2173DF);
@@ -128,8 +114,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
     // the image and the semi-transparent overlay at fractional DPI boundaries.
     final scaledWidth = snap(widget.width * scaleFactor);
     final scaledHeight = snap(widget.height * scaleFactor);
-    final mediaType = FnMediaType.fromString(widget.type);
-    final showFavoriteButton = mediaType != FnMediaType.season;
+    final mediaType = MediaType.tryParse(widget.type);
+    final showFavoriteButton = mediaType != MediaType.season;
     final actionInset = 8.0 * scaleFactor;
 
     // Play button sizes (matching Kotlin implementation)
@@ -165,171 +151,176 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                      if (hasValidPath)
-                        FnCachedImage(
-                          posterPath: resolvedPosterPath,
-                          fit: BoxFit.fitWidth,
-                          width: 400,
-                        )
-                      else
-                        const Center(child: Icon(FluentIcons.file_image)),
-                      if (showScore)
-                        Positioned(
-                          top: 4,
-                          left: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              formattedScore,
-                              style: const TextStyle(
-                                color: Color(0xFFFBBF24),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
+                          if (hasValidPath)
+                            FnCachedImage(
+                              posterPath: resolvedPosterPath,
+                              fit: BoxFit.fitWidth,
+                              width: 400,
+                            )
+                          else
+                            const Center(child: Icon(FluentIcons.file_image)),
+                          if (showScore)
+                            Positioned(
+                              top: 4,
+                              left: 4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  formattedScore,
+                                  style: const TextStyle(
+                                    color: Color(0xFFFBBF24),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      Align(
-                        alignment: Alignment.bottomCenter,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 200),
-                          opacity: isHovered ? 0 : 1,
-                          child: Container(
-                            height: scaledHeight / 2,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.bottomCenter,
-                                end: Alignment.topCenter,
-                                colors: [
-                                  const Color(0xFF1C1C1C)
-                                      .withValues(alpha: 0.8),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 6,
-                        bottom: 6,
-                        child: PosterResolutionTags(
-                          resolutions: widget.resolutions,
-                          scaleFactor: scaleFactor,
-                        ),
-                      ),
-                      Positioned.fill(
-                        left: -_hoverOverlayBleed,
-                        top: -_hoverOverlayBleed,
-                        right: -_hoverOverlayBleed,
-                        bottom: -_hoverOverlayBleed,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 200),
-                          opacity: isHovered ? 1 : 0,
-                          child: ColoredBox(
-                            color: const Color(0xFF1C1C1C)
-                                .withValues(alpha: 0.5),
-                          ),
-                        ),
-                      ),
-                      // Show play button for Movie and Video types
-                      if (mediaType == FnMediaType.movie ||
-                          mediaType == FnMediaType.video ||
-                          widget.onPlayTap != null)
-                        Center(
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 200),
-                            opacity: isHovered ? 1 : 0,
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              onEnter: (_) =>
-                                  setState(() => _isPlayButtonHovered = true),
-                              onExit: (_) =>
-                                  setState(() => _isPlayButtonHovered = false),
-                              child: GestureDetector(
-                                onTap: widget.onPlayTap ??
-                                    () => _handlePlay(context),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  width: playButtonSize,
-                                  height: playButtonSize,
-                                  child: SvgPicture.asset(
-                                    'assets/images/play_circle.svg',
-                                    width: playButtonSize,
-                                    height: playButtonSize,
-                                    colorFilter: const ColorFilter.mode(
-                                      Colors.white,
-                                      BlendMode.srcIn,
-                                    ),
+                          Align(
+                            alignment: Alignment.bottomCenter,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: isHovered ? 0 : 1,
+                              child: Container(
+                                height: scaledHeight / 2,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.bottomCenter,
+                                    end: Alignment.topCenter,
+                                    colors: [
+                                      const Color(0xFF1C1C1C)
+                                          .withValues(alpha: 0.8),
+                                      Colors.transparent,
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      Positioned(
-                        left: actionInset,
-                        bottom: actionInset,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 200),
-                          opacity: isHovered ? 1 : 0,
-                          child: _PosterIconButton(
-                            svgAssetPath: _isWatched
-                                ? 'assets/images/watched_fill.svg'
-                                : 'assets/images/watched.svg',
-                            isActive: _isWatched,
-                            activeColor: kAccentColorDefault,
-                            scaleFactor: scaleFactor,
-                            onPressed: _handleWatchedToggle,
-                          ),
-                        ),
-                      ),
-                      if (showFavoriteButton)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: actionInset,
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 200),
-                            opacity: isHovered ? 1 : 0,
-                            child: Center(
-                              child: _PosterIconButton(
-                                svgAssetPath: _isFavorite
-                                    ? 'assets/images/favorite_fill.svg'
-                                    : 'assets/images/favorite.svg',
-                                isActive: _isFavorite,
-                                activeColor: kDangerDefaultColor,
+                          Positioned(
+                            right: 6,
+                            bottom: 6,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: isHovered ? 0 : 1,
+                              child: PosterResolutionTags(
+                                resolutions: widget.resolutions,
                                 scaleFactor: scaleFactor,
-                                onPressed: _handleFavoriteToggle,
                               ),
                             ),
                           ),
-                        ),
-                      Positioned(
-                        right: actionInset,
-                        bottom: actionInset,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 200),
-                          opacity: isHovered ? 1 : 0,
-                          child: _PosterIconButton(
-                            icon: FluentIcons.more,
-                            isActive: false,
-                            activeColor: Colors.white,
-                            scaleFactor: scaleFactor,
-                            onPressed: widget.onMoreTap,
+                          Positioned.fill(
+                            left: -_hoverOverlayBleed,
+                            top: -_hoverOverlayBleed,
+                            right: -_hoverOverlayBleed,
+                            bottom: -_hoverOverlayBleed,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: isHovered ? 1 : 0,
+                              child: ColoredBox(
+                                color: const Color(0xFF1C1C1C)
+                                    .withValues(alpha: 0.5),
+                              ),
+                            ),
                           ),
-                        ),
+                          // Show play button for Movie and Video types
+                          if (mediaType == MediaType.movie ||
+                              mediaType == MediaType.video ||
+                              widget.onPlayTap != null)
+                            Center(
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 200),
+                                opacity: isHovered ? 1 : 0,
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  onEnter: (_) => setState(
+                                      () => _isPlayButtonHovered = true),
+                                  onExit: (_) => setState(
+                                      () => _isPlayButtonHovered = false),
+                                  child: GestureDetector(
+                                    onTap: widget.onPlayTap ??
+                                        () => _handlePlay(context),
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 200),
+                                      width: playButtonSize,
+                                      height: playButtonSize,
+                                      child: SvgPicture.asset(
+                                        'assets/images/play_circle.svg',
+                                        width: playButtonSize,
+                                        height: playButtonSize,
+                                        colorFilter: const ColorFilter.mode(
+                                          Colors.white,
+                                          BlendMode.srcIn,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          Positioned(
+                            left: actionInset,
+                            bottom: actionInset,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: isHovered ? 1 : 0,
+                              child: _PosterIconButton(
+                                svgAssetPath: _isWatched
+                                    ? 'assets/images/watched_fill.svg'
+                                    : 'assets/images/watched.svg',
+                                isActive: _isWatched,
+                                activeColor: kAccentColorDefault,
+                                scaleFactor: scaleFactor,
+                                onPressed: _handleWatchedToggle,
+                              ),
+                            ),
+                          ),
+                          if (showFavoriteButton)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: actionInset,
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 200),
+                                opacity: isHovered ? 1 : 0,
+                                child: Center(
+                                  child: _PosterIconButton(
+                                    svgAssetPath: _isFavorite
+                                        ? 'assets/images/favorite_fill.svg'
+                                        : 'assets/images/favorite.svg',
+                                    isActive: _isFavorite,
+                                    activeColor: kDangerDefaultColor,
+                                    scaleFactor: scaleFactor,
+                                    onPressed: _handleFavoriteToggle,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          Positioned(
+                            right: actionInset,
+                            bottom: actionInset,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: isHovered ? 1 : 0,
+                              child: _PosterIconButton(
+                                icon: FluentIcons.more,
+                                isActive: false,
+                                activeColor: Colors.white,
+                                scaleFactor: scaleFactor,
+                                onPressed: widget.onMoreTap,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
                 SizedBox(height: 8 * scaleFactor),
                 SizedBox(
                   width: scaledWidth,
@@ -377,26 +368,26 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
     if (widget.guid == null || widget.guid!.isEmpty) return;
 
     // 预取详情数据到缓存，使进入详情页时近乎秒开。
-    unawaited(ref.read(mediaRemoteDataSourceProvider).prefetchItemDetail(widget.guid!));
+    unawaited(ref
+        .read(mediaRemoteDataSourceProvider)
+        .prefetchItemDetail(widget.guid!));
 
-    final mediaType = FnMediaType.fromString(widget.type);
+    final mediaType = MediaType.tryParse(widget.type);
     switch (mediaType) {
-      case FnMediaType.movie:
-      case FnMediaType.video:
+      case MediaType.movie:
+      case MediaType.video:
         ref.read(navigationStackProvider.notifier).pushPath('/home');
         context.go('/movie/${widget.guid}');
         break;
-      case FnMediaType.tv:
+      case MediaType.tv:
         ref.read(navigationStackProvider.notifier).pushPath('/home');
         context.go('/tv/${widget.guid}');
         break;
-      case FnMediaType.season:
+      case MediaType.season:
         context.go('/tv/season/${widget.guid}');
         break;
-      case FnMediaType.person:
-        ref.read(navigationStackProvider.notifier).pushPath('/home');
-        context.go('/person/${widget.guid}');
-        break;
+      case MediaType.directory:
+      case MediaType.episode:
       case null:
         break;
     }
@@ -405,9 +396,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
   void _handlePlay(BuildContext context) {
     if (widget.guid == null || widget.guid!.isEmpty) return;
 
-    final mediaType = FnMediaType.fromString(widget.type);
-    // Only allow play for Movie and Video types
-    if (mediaType == FnMediaType.movie || mediaType == FnMediaType.video) {
+    final mediaType = MediaType.tryParse(widget.type);
+    if (mediaType == MediaType.movie || mediaType == MediaType.video) {
       ref.read(navigationStackProvider.notifier).pushPath('/home');
       context.go('/player/${widget.guid}');
     }

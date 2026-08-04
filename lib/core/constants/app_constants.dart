@@ -79,7 +79,18 @@ class ApiEndpoints {
   static const String tagList = '/v/api/v1/tag/list';
 
   // App
-  static const String authorizedDir = '/v/api/v1/app/authorized/dir';
+  static const String authorizedDir = '/v/api/v1/server/getAppAuthorizedDir';
+
+  // Server file browsing
+  static const String serverPath = '/v/api/v1/server/path';
+
+  // Subtitle
+  static const String subtitleSearch = '/v/api/v1/subtitle/search';
+  static const String subtitleDownload = '/v/api/v1/subtitle/download';
+  static const String subtitleMark = '/v/api/v1/subtitle/mark';
+  static const String subtitlePredownload = '/v/api/v1/subtitle/predownload';
+  static const String subtitleDelete = '/v/api/v1/subtitle/del';
+  static const String subtitleUploadPrefix = '/v/api/v1/subtitle/upload';
 
   static String itemByGuid(String guid) => '$itemPrefix/$guid';
 
@@ -96,6 +107,9 @@ class ApiEndpoints {
   static String subtitleDownloadByGuid(String guid) =>
       '$apiBase/subtitle/dl/$guid';
 
+  static String subtitleUploadByMediaGuid(String mediaGuid) =>
+      '$subtitleUploadPrefix/$mediaGuid';
+
   static String tagByName(String tag) => '$apiBase/tag/$tag';
 }
 
@@ -108,6 +122,10 @@ class ResponseCodes {
   static const int forbidden = 403;
   static const int notFound = 404;
   static const int serverError = 500;
+
+  /// Business code from /v/api/v1/subtitle/mark: every submitted file is
+  /// already registered as a subtitle, so nothing new was added.
+  static const int subtitleAlreadyMarked = -50;
 }
 
 /// Storage keys

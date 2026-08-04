@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../domain/entities/search_result_type.dart';
 
 import '../../../../data/models/home_models.dart';
 import '../../../shared/common/fn_cached_image.dart';
@@ -91,7 +92,8 @@ class SearchResultDropdown extends ConsumerWidget {
             ),
             Container(
               height: 1,
-              color: theme.resources.surfaceStrokeColorDefault.withValues(alpha: 0.1),
+              color: theme.resources.surfaceStrokeColorDefault
+                  .withValues(alpha: 0.1),
             ),
             Expanded(
               child: _buildContent(context, theme, genresMap),
@@ -231,7 +233,8 @@ class _SearchResultItemState extends State<_SearchResultItem> {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final item = widget.item;
-    final isPerson = item.type == 'Person';
+    final isPerson =
+        SearchResultType.tryParse(item.type) == SearchResultType.person;
     final highlight = widget.isSelected || _isHovered;
 
     return MouseRegion(

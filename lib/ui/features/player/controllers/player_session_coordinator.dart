@@ -1,6 +1,8 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+
+import '../../../../domain/entities/media_type.dart';
 
 import '../../../../data/models/episode_list_response.dart';
 import '../../../../data/models/movie_detail_models.dart';
@@ -225,7 +227,7 @@ class PlayerSessionCoordinator {
       isUseDirectLink: resolved.isDirectLink,
       playConfig: playInfo.playConfig,
       streamInfo: streamInfo,
-      isEpisode: playInfo.item.type == 'Episode',
+      isEpisode: MediaType.tryParse(playInfo.item.type) == MediaType.episode,
       subhead: buildDisplaySubhead(
         playInfo.item,
         episodeNumber: playInfo.item.episodeNumber,

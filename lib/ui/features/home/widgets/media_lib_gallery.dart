@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../domain/entities/media_type.dart';
 import '../home_view_model.dart';
 import '../../../../data/models/home_models.dart';
 import '../../../shared/movie_poster.dart';
@@ -11,8 +13,12 @@ class MediaLibGallery extends ConsumerWidget {
   final String title;
   final String guid;
   final VoidCallback? onTitleTap;
-  final Function(String guid, bool currentState, Function(bool success) callback)? onFavoriteToggle;
-  final Function(String guid, bool currentState, Function(bool success) callback)? onWatchedToggle;
+  final Function(
+          String guid, bool currentState, Function(bool success) callback)?
+      onFavoriteToggle;
+  final Function(
+          String guid, bool currentState, Function(bool success) callback)?
+      onWatchedToggle;
 
   const MediaLibGallery({
     super.key,
@@ -30,8 +36,14 @@ class MediaLibGallery extends ConsumerWidget {
     const posterHeight = 225.0;
     const posterWidth = posterHeight * 2 / 3;
     final scaledPosterHeight = posterHeight * scaleFactor;
-    final captionStyle = FluentTheme.of(context).typography.caption?.copyWith(fontSize: 12 * scaleFactor);
-    final subtitleStyle = FluentTheme.of(context).typography.caption?.copyWith(fontSize: 11 * scaleFactor);
+    final captionStyle = FluentTheme.of(context)
+        .typography
+        .caption
+        ?.copyWith(fontSize: 12 * scaleFactor);
+    final subtitleStyle = FluentTheme.of(context)
+        .typography
+        .caption
+        ?.copyWith(fontSize: 11 * scaleFactor);
     double lineHeight(TextStyle? style) {
       final painter = TextPainter(
         text: TextSpan(text: 'A', style: style),
@@ -40,11 +52,13 @@ class MediaLibGallery extends ConsumerWidget {
       )..layout(minWidth: 0, maxWidth: double.infinity);
       return painter.height;
     }
+
     final titleHeight = lineHeight(captionStyle);
     final subtitleLineHeight = lineHeight(subtitleStyle);
     final textSpacing = (8 + 4) * scaleFactor;
-    final rowHeight = scaledPosterHeight + textSpacing + titleHeight + subtitleLineHeight * 2;
-    
+    final rowHeight =
+        scaledPosterHeight + textSpacing + titleHeight + subtitleLineHeight * 2;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -73,10 +87,15 @@ class MediaLibGallery extends ConsumerWidget {
                   type: item.type,
                   guid: item.guid,
                   onTap: () {
-                    if (item.type == 'TV') {
-                      context.go('/tv/${item.guid}');
-                    } else {
-                      context.go('/movie/${item.guid}');
+                    switch (MediaType.tryParse(item.type)) {
+                      case MediaType.tv:
+                        context.go('/tv/${item.guid}');
+                        break;
+                      case MediaType.season:
+                        context.go('/tv/season/${item.guid}');
+                        break;
+                      default:
+                        context.go('/movie/${item.guid}');
                     }
                   },
                   onPlayTap: () {
@@ -108,7 +127,10 @@ class MediaLibGallery extends ConsumerWidget {
         padding: const EdgeInsets.only(left: 32.0, bottom: 12.0),
         child: Text(
           title,
-          style: FluentTheme.of(context).typography.subtitle?.copyWith(fontWeight: FontWeight.w600),
+          style: FluentTheme.of(context)
+              .typography
+              .subtitle
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
       );
     }
@@ -125,14 +147,18 @@ class MediaLibGallery extends ConsumerWidget {
                 Text(
                   title,
                   style: FluentTheme.of(context).typography.subtitle?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
                 const SizedBox(width: 4),
                 Icon(
                   FluentIcons.chevron_right,
                   size: 12,
-                  color: FluentTheme.of(context).typography.subtitle?.color?.withValues(alpha: 0.7),
+                  color: FluentTheme.of(context)
+                      .typography
+                      .subtitle
+                      ?.color
+                      ?.withValues(alpha: 0.7),
                 ),
               ],
             ),

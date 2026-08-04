@@ -67,13 +67,35 @@ class SubtitleDownloadRequest {
   final String mediaGuid;
   final String trimId;
 
+  // Whether the download should be performed synchronously on the server side.
+  final int syncDownload;
+
   const SubtitleDownloadRequest({
     required this.mediaGuid,
     required this.trimId,
+    this.syncDownload = 1,
   });
 
   Map<String, dynamic> toJson() => {
         'media_guid': mediaGuid,
         'trim_id': trimId,
+        'sync_download': syncDownload,
+      };
+}
+
+// Request body for POST /subtitle/predownload: queue a download of the same
+// subtitle for the other episodes of the current series.
+class SubtitlePredownloadRequest {
+  final String mediaGuid;
+  final String subtitleGuid;
+
+  const SubtitlePredownloadRequest({
+    required this.mediaGuid,
+    required this.subtitleGuid,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'media_guid': mediaGuid,
+        'subtitle_guid': subtitleGuid,
       };
 }

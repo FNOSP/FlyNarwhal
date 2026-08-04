@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../domain/entities/search_result_type.dart';
+
 import '../../../../data/models/home_models.dart';
 import '../../../../data/storage/shortcut_settings_store.dart';
 import '../../../../providers/providers.dart';
@@ -114,17 +116,18 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
   List<MediaItem> _filterItems(List<MediaItem> all) {
     if (_selectedTab == '全部') return all;
     return all.where((item) {
+      final resultType = SearchResultType.tryParse(item.type);
       switch (_selectedTab) {
         case '电影':
-          return item.type == 'Movie';
+          return resultType == SearchResultType.movie;
         case '电视剧':
-          return item.type == 'TV';
+          return resultType == SearchResultType.tv;
         case '人物':
-          return item.type == 'Person';
+          return resultType == SearchResultType.person;
         case '其他':
-          return item.type != 'Movie' &&
-              item.type != 'TV' &&
-              item.type != 'Person';
+          return resultType != SearchResultType.movie &&
+              resultType != SearchResultType.tv &&
+              resultType != SearchResultType.person;
         default:
           return true;
       }
@@ -156,15 +159,15 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
     if (guid.isEmpty) return;
     final currentPath = GoRouterState.of(context).uri.toString();
     String? target;
-    switch (item.type) {
-      case 'Movie':
-      case 'Video':
+    switch (SearchResultType.tryParse(item.type)) {
+      case SearchResultType.movie:
+      case SearchResultType.video:
         target = '/movie/$guid';
         break;
-      case 'TV':
+      case SearchResultType.tv:
         target = '/tv/$guid';
         break;
-      case 'Person':
+      case SearchResultType.person:
         target = '/person/$guid';
         break;
       default:
@@ -188,6 +191,15 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
 
     if (shortcutStore.matches(event, ShortcutActionId.searchExit)) {
       _dismiss();
+      return KeyEventResult.handled;
+    }
+    if (shortcutStore.matches(event, ShortcutActionId.searchSwitchTab)) {
+      final currentIndex = _tabs.indexOf(_selectedTab);
+      setState(() {
+        _selectedTab = _tabs[(currentIndex + 1) % _tabs.length];
+        final filteredItemsAfterTabSwitch = _filterItems(searchState.results);
+        _selectedIndex = filteredItemsAfterTabSwitch.isEmpty ? -1 : 0;
+      });
       return KeyEventResult.handled;
     }
     if (!dropdownVisible || items.isEmpty) {
@@ -216,14 +228,6 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
         _navigateToSearchItem(item);
         return KeyEventResult.handled;
       }
-    }
-    if (shortcutStore.matches(event, ShortcutActionId.searchSwitchTab)) {
-      final currentIndex = _tabs.indexOf(_selectedTab);
-      setState(() {
-        _selectedTab = _tabs[(currentIndex + 1) % _tabs.length];
-        _selectedIndex = 0;
-      });
-      return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
   }

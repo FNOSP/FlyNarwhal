@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
@@ -8,18 +9,23 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../domain/entities/media_type.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 import '../../../core/network/api_result.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/fly_narwhal/danmaku.dart';
 import '../../../data/storage/player_settings_store.dart';
+import '../../../data/storage/local_subtitle_picker_store.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
+import '../../../data/utils/fn_data_convertor.dart';
 import '../../../core/utils/app_fonts.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../providers/file_providers.dart';
@@ -67,6 +73,70 @@ import 'widgets/subtitle_search_dialog.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
 import '../../shared/toast.dart';
 import '../../shared/window_caption.dart';
+
+/// Top-level function for [compute]: reads a file's bytes on a worker isolate
+/// so the UI thread is never blocked by filesystem I/O.
+Uint8List _readFileBytesSync(String path) => File(path).readAsBytesSync();
+
+/// Maximum number of local subtitle files that can be uploaded at once,
+/// matching the web player's limit.
+const int _maxUploadableSubtitles = 20;
+const MethodChannel _localSubtitlePickerChannel =
+    MethodChannel('fly_narwhal/local_subtitle_picker');
+
+Future<({List<XFile> files, String? directory})> _openLocalSubtitleFiles(
+  String initialDirectory, {
+  required String userGuid,
+}) async {
+  // Windows and macOS both use the native picker channel instead of
+  // file_selector: on Windows the plugin runs the dialog on the platform
+  // thread, and on macOS it presents the panel as a window sheet whose
+  // slide-in/out animation blocks the main thread — media_kit waits on the
+  // main thread for every video frame, so both freeze the picture. The
+  // native channels avoid that (worker thread on Windows, standalone
+  // non-sheet panel on macOS).
+  if (Platform.isWindows || Platform.isMacOS) {
+    final response = await _localSubtitlePickerChannel.invokeMethod<Object?>(
+      'openLocalSubtitles',
+      {
+        'initialDirectory': initialDirectory,
+        if (Platform.isWindows) 'userGuid': userGuid,
+      },
+    );
+    // macOS returns {paths, directory}; Windows returns a plain path list
+    // because its native side persists the folder and Shell view state by
+    // user GUID without exposing that state through the method channel.
+    if (response is Map) {
+      final paths =
+          (response['paths'] as List?)?.cast<String>() ?? const <String>[];
+      final directory = response['directory'] as String?;
+      return (
+        files: paths.map(XFile.new).toList(growable: false),
+        directory:
+            (directory != null && directory.isNotEmpty) ? directory : null,
+      );
+    }
+    final paths = (response as List?)?.cast<String>() ?? const <String>[];
+    return (
+      files: paths.map(XFile.new).toList(growable: false),
+      directory: null,
+    );
+  }
+
+  const subtitleTypeGroup = XTypeGroup(
+    label: '字幕文件',
+    extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'],
+  );
+  final files = await openFiles(
+    acceptedTypeGroups: [subtitleTypeGroup],
+    initialDirectory: initialDirectory,
+    confirmButtonText: '选择',
+  );
+  return (
+    files: files,
+    directory: files.isEmpty ? null : File(files.first.path).parent.path,
+  );
+}
 
 enum _PlaybackIndicatorType { play, pause }
 
@@ -420,10 +490,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   double get _bufferedProgressRatio {
     if (_duration <= 0) return 0.0;
-    final effectiveBufferedPosition =
-        _bufferedPosition > _currentPosition
-            ? _bufferedPosition
-            : _currentPosition;
+    final effectiveBufferedPosition = _bufferedPosition > _currentPosition
+        ? _bufferedPosition
+        : _currentPosition;
     return (effectiveBufferedPosition / _duration).clamp(0.0, 1.0);
   }
 
@@ -722,8 +791,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final smartSkipSettings = ref.read(smartSkipSettingsControllerProvider);
     unawaited(
       ref.read(episodeAnalysisControllerProvider.notifier).updateContext(
-            isEpisode:
-                cache?.isEpisode == true || cache?.item?.type == 'Episode',
+            isEpisode: cache?.isEpisode == true ||
+                MediaType.tryParse(cache?.item?.type) == MediaType.episode,
             serviceEnabled: settings.flyNarwhalServerEnabled,
             smartSkipEnabled: smartSkipSettings.enabled,
             episodeGuid: cache?.itemGuid,
@@ -839,13 +908,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       await showDialog<void>(
         context: context,
+        barrierColor: subtitleSearchScrimColor,
+        barrierDismissible: true,
         builder: (_) => SubtitleSearchDialog(
           mediaFileName: currentFile.fileName,
-          initialTrimIds:
-              (_playingInfoCache?.currentSubtitleStreamList ?? const [])
-                  .map((subtitle) => subtitle.trimId)
-                  .where((trimId) => trimId.isNotEmpty)
-                  .toList(),
+          initialSubtitleGuidByTrimId: {
+            for (final subtitle
+                in _playingInfoCache?.currentSubtitleStreamList ?? const [])
+              if (subtitle.trimId.isNotEmpty && subtitle.guid.isNotEmpty)
+                subtitle.trimId: subtitle.guid,
+          },
           onSearch: (language) {
             return ref.read(fileRepositoryProvider).searchSubtitles(
                   mediaGuid: currentFile.guid,
@@ -854,17 +926,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           },
           onDownload: (item) async {
             try {
-              await ref.read(fileRepositoryProvider).downloadSubtitle(
-                    mediaGuid: currentFile.guid,
-                    trimId: item.trimId,
-                  );
-              if (!mounted) return;
+              final subtitleStream =
+                  await ref.read(fileRepositoryProvider).downloadSubtitle(
+                        mediaGuid: currentFile.guid,
+                        trimId: item.trimId,
+                      );
+              if (!mounted) return subtitleStream.guid;
               ref.read(toastManagerProvider.notifier).showToast(
-                    '字幕下载成功',
+                    '下载成功',
                     type: ToastType.success,
                     category: 'subtitle-download:${item.trimId}',
                   );
               unawaited(_refreshSubtitleStreams(targetTrimId: item.trimId));
+              return subtitleStream.guid;
             } catch (error) {
               if (mounted) {
                 ref.read(toastManagerProvider.notifier).showToast(
@@ -876,12 +950,109 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               rethrow;
             }
           },
+          onDownloadSimilar: (item, subtitleGuid) async {
+            try {
+              await ref.read(fileRepositoryProvider).predownloadSimilarSubtitle(
+                    mediaGuid: currentFile.guid,
+                    subtitleGuid: subtitleGuid,
+                  );
+              if (!mounted) return;
+              ref.read(toastManagerProvider.notifier).showToast(
+                    '已创建字幕下载任务',
+                    type: ToastType.success,
+                    category: 'subtitle-predownload:${item.trimId}',
+                  );
+            } catch (error) {
+              if (mounted) {
+                ref.read(toastManagerProvider.notifier).showToast(
+                      '创建字幕下载任务失败，请重试',
+                      type: ToastType.failed,
+                      category: 'subtitle-predownload:${item.trimId}',
+                    );
+              }
+            }
+          },
         ),
       );
     } finally {
       if (mounted) {
         setState(() => _showSubtitleSearchDialog = false);
       }
+    }
+  }
+
+  Future<void> _handleRequestDeleteSubtitle(SubtitleStream subtitle) async {
+    final languageName = FnDataConvertor.getLanguageName(
+      subtitle.language,
+      _iso6391Map,
+      _iso6392Map,
+    );
+    final displayName = StringBuffer(languageName);
+    if (subtitle.isExternal == 1) displayName.write(' - 外挂');
+    if (subtitle.isDefault == 1) displayName.write(' - 默认');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => ContentDialog(
+        title: const Text('删除外挂字幕'),
+        content: Text('确定要删除 $displayName 外挂字幕吗？'),
+        actions: [
+          Button(
+            child: const Text('取消'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          FilledButton(
+            child: const Text('删除'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref.read(fileRepositoryProvider).deleteSubtitle(subtitle.guid);
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '删除字幕成功',
+            type: ToastType.success,
+            category: 'subtitle-delete:${subtitle.guid}',
+          );
+      unawaited(_refreshSubtitleStreams());
+    } catch (error) {
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '删除字幕失败: $error',
+            type: ToastType.failed,
+            category: 'subtitle-delete:${subtitle.guid}',
+          );
+    }
+  }
+
+  Future<void> _handlePredownloadSimilarSubtitle(
+    SubtitleStream subtitle,
+  ) async {
+    final mediaGuid = _playingInfoCache?.currentFileStream?.guid;
+    if (mediaGuid == null || mediaGuid.isEmpty) return;
+
+    try {
+      await ref.read(fileRepositoryProvider).predownloadSimilarSubtitle(
+            mediaGuid: mediaGuid,
+            subtitleGuid: subtitle.guid,
+          );
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '已创建字幕下载任务',
+            type: ToastType.success,
+            category: 'subtitle-predownload-flyout:${subtitle.guid}',
+          );
+    } catch (error) {
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '创建字幕下载任务失败，请重试',
+            type: ToastType.failed,
+            category: 'subtitle-predownload-flyout:${subtitle.guid}',
+          );
     }
   }
 
@@ -906,7 +1077,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           currentPath: _resolveCurrentFilePath(),
           onConfirm: (paths) async {
             try {
-              await ref
+              final markResult = await ref
                   .read(fileRepositoryProvider)
                   .markSubtitle(mediaGuid, paths);
               if (!mounted) return;
@@ -915,14 +1086,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     type: ToastType.success,
                     category: 'nas-subtitle:$mediaGuid',
                   );
-              unawaited(_refreshSubtitleStreams());
+              try {
+                await _refreshSubtitleStreams();
+              } catch (error) {
+                AppTalker.warning(
+                  'PlayerScreen',
+                  'refresh subtitle streams after NAS mark failed: $error',
+                );
+              }
+              if (!mounted) return;
+              // Switch to the newly added subtitle: the guid returned by the
+              // mark API is always the target. Prefer the entry from the
+              // refreshed stream list; fall back to the API-provided object
+              // when it is not listed yet.
+              final targetSubtitle = _streamInfo?.subtitleStreams
+                      ?.where((s) => s.guid == markResult.guid)
+                      .firstOrNull ??
+                  markResult.toSubtitleStream();
+              await _switchSubtitleWithSessionFlow(targetSubtitle);
             } catch (error) {
               if (!mounted) return;
-              ref.read(toastManagerProvider.notifier).showToast(
-                    '添加 NAS 字幕失败: $error',
-                    type: ToastType.failed,
-                    category: 'nas-subtitle:$mediaGuid',
-                  );
+              final toastManager = ref.read(toastManagerProvider.notifier);
+              if (error is FailureInfo &&
+                  error.code == ResponseCodes.subtitleAlreadyMarked) {
+                toastManager.showToast(
+                  '该文件已被添加为字幕',
+                  type: ToastType.info,
+                  category: 'nas-subtitle:$mediaGuid',
+                );
+                return;
+              }
+              toastManager.showToast(
+                '添加 NAS 字幕失败: $error',
+                type: ToastType.failed,
+                category: 'nas-subtitle:$mediaGuid',
+              );
             }
           },
         ),
@@ -935,9 +1133,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _pickAndUploadLocalSubtitle() async {
-    final currentFile = _playingInfoCache?.currentFileStream;
     if (_isUploadingLocalSubtitle) return;
-    if (currentFile == null || currentFile.guid.isEmpty) {
+    final mediaGuid = _playInfo?.mediaGuid ??
+        _playingInfoCache?.currentFileStream?.guid ??
+        '';
+    if (mediaGuid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
             '当前文件信息缺失，无法上传字幕',
             type: ToastType.info,
@@ -945,46 +1145,185 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
       return;
     }
+    final toastCategory = 'local-subtitle:$mediaGuid';
 
-    const subtitleTypeGroup = XTypeGroup(
-      label: '字幕文件',
-      extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa'],
-    );
-
+    List<XFile> files = const <XFile>[];
     try {
-      final file = await openFile(
-        acceptedTypeGroups: [subtitleTypeGroup],
-        confirmButtonText: '选择',
+      // The subtitle flyout starts its dismiss animation right after this
+      // callback; let it finish before the native open panel attaches, so
+      // the two don't animate on the same frames (that overlap was the
+      // visible stutter when the panel opened). Playback keeps running.
+      await Future<void>.delayed(
+        const Duration(
+          milliseconds: subtitleFlyoutAnimationDurationMs + 50,
+        ),
       );
-      if (file == null) return;
-
-      setState(() => _isUploadingLocalSubtitle = true);
-      final bytes = await file.readAsBytes();
-      await ref.read(fileRepositoryProvider).uploadSubtitle(
-            guid: currentFile.guid,
-            bytes: bytes,
-            fileName: file.name,
-          );
       if (!mounted) return;
-      ref.read(toastManagerProvider.notifier).showToast(
-            '电脑字幕文件上传成功',
-            type: ToastType.success,
-            category: 'local-subtitle:${currentFile.guid}',
-          );
-      unawaited(_refreshSubtitleStreams());
+      final currentUser = ref.read(userInfoProvider).valueOrNull;
+      final userGuid = currentUser?.guid.trim() ?? '';
+      if (Platform.isWindows && userGuid.isEmpty) {
+        throw StateError('当前用户信息缺失，无法恢复文件选择器状态');
+      }
+      final pickerStore = LocalSubtitlePickerStore(
+        ref.read(sharedPreferencesProvider),
+        userGuid: userGuid,
+      );
+      final pickerSelection = await _openLocalSubtitleFiles(
+        pickerStore.resolveInitialDirectory(),
+        userGuid: userGuid,
+      );
+      files = pickerSelection.files;
+      // Remember the shown directory for the next open (recorded by the
+      // native side even when the user browsed and cancelled).
+      final rememberedDirectory = pickerSelection.directory;
+      if (rememberedDirectory != null) {
+        unawaited(pickerStore.saveLastDirectory(rememberedDirectory));
+      }
     } catch (error) {
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
-              '上传字幕失败: $error',
+              '选择字幕文件失败: $error',
               type: ToastType.failed,
-              category: 'local-subtitle:${currentFile.guid}',
+              category: toastCategory,
             );
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isUploadingLocalSubtitle = false);
-      }
+      return;
     }
+    if (files.isEmpty) return;
+
+    if (files.length > _maxUploadableSubtitles) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            '最多选择 $_maxUploadableSubtitles 个文件',
+            type: ToastType.warning,
+            category: toastCategory,
+          );
+      return;
+    }
+
+    const allowedExtensions = ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'];
+    final hasInvalid = files.any((file) {
+      final dot = file.name.lastIndexOf('.');
+      if (dot < 0) return true;
+      return !allowedExtensions.contains(
+        file.name.substring(dot + 1).toLowerCase(),
+      );
+    });
+    if (hasInvalid) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            '只能选择 ${allowedExtensions.join(', ')} 格式的文件',
+            type: ToastType.warning,
+            category: toastCategory,
+          );
+      return;
+    }
+
+    // Re-entrancy guard only — build() never reads this field, so assign it
+    // directly instead of calling setState. A setState here rebuilds the
+    // entire player tree and drops video frames mid-playback.
+    _isUploadingLocalSubtitle = true;
+    try {
+      var successCount = 0;
+      var failureCount = 0;
+      SubtitleStream? lastUploaded;
+      for (final file in files) {
+        try {
+          final bytes = await compute(_readFileBytesSync, file.path);
+          final uploaded =
+              await ref.read(fileRepositoryProvider).uploadSubtitle(
+                    mediaGuid: mediaGuid,
+                    bytes: bytes,
+                    fileName: file.name,
+                  );
+          successCount++;
+          lastUploaded = uploaded;
+        } catch (error) {
+          AppTalker.warning(
+            'PlayerScreen',
+            'Failed to upload subtitle ${file.name}: $error',
+          );
+          failureCount++;
+        }
+      }
+
+      if (!mounted) return;
+      final toastManager = ref.read(toastManagerProvider.notifier);
+      if (successCount == 0) {
+        toastManager.showToast(
+          '添加字幕失败，请重试',
+          type: ToastType.failed,
+          category: toastCategory,
+        );
+      } else if (failureCount > 0) {
+        toastManager.showToast(
+          '部分字幕添加成功，其中 $failureCount 个失败',
+          type: ToastType.warning,
+          category: toastCategory,
+        );
+        unawaited(_refreshSubtitleStreams());
+      } else {
+        toastManager.showToast(
+          '添加字幕成功',
+          type: ToastType.success,
+          category: toastCategory,
+        );
+      }
+      // When at least one upload succeeded, refresh the stream list and
+      // switch playback to the most recently uploaded subtitle. The upload
+      // endpoint returns the registered SubtitleStream; we look it up by
+      // guid in the refreshed list (the entry is guaranteed to be there
+      // now) so the language/format fields line up with the cache.
+      if (successCount > 0 && lastUploaded != null) {
+        await _switchToUploadedSubtitle(
+          uploaded: lastUploaded,
+          toastCategory: toastCategory,
+        );
+      }
+    } finally {
+      _isUploadingLocalSubtitle = false;
+    }
+  }
+
+  /// After a local subtitle upload, refresh the subtitle list and switch
+  /// playback to the most recently uploaded subtitle. Mirrors the NAS-mark
+  /// flow at [_openAddNasSubtitleDialog]: the upload endpoint returns the
+  /// registered [SubtitleStream]; we look it up by guid in the refreshed list
+  /// so its language/format fields line up with the cache that downstream
+  /// [SubtitleControlFlyout] reads.
+  Future<void> _switchToUploadedSubtitle({
+    required SubtitleStream uploaded,
+    required String toastCategory,
+  }) async {
+    try {
+      await _refreshSubtitleStreams();
+    } catch (error) {
+      AppTalker.warning(
+        'PlayerScreen',
+        'refresh subtitle streams after local upload failed: $error',
+      );
+    }
+    if (!mounted) return;
+
+    final target = _streamInfo?.subtitleStreams
+            ?.where((s) => s.guid == uploaded.guid)
+            .firstOrNull ??
+        uploaded;
+
+    final languageName = FnDataConvertor.getLanguageName(
+      target.language,
+      _iso6391Map,
+      _iso6392Map,
+    );
+    final format = target.format.isNotEmpty ? target.format.toUpperCase() : '';
+    final switchToast = format.isEmpty
+        ? '字幕正在切换至：$languageName'
+        : '字幕正在切换至：$languageName $format';
+    ref.read(toastManagerProvider.notifier).showToast(
+          switchToast,
+          type: ToastType.info,
+          category: toastCategory,
+        );
+
+    await _switchSubtitleWithSessionFlow(target);
   }
 
   void _syncPlaybackTargetsFromWidget() {
@@ -2045,7 +2384,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   DanmakuRequest _buildDanmakuRequest(PlayInfoResponse playInfo) {
     final item = playInfo.item;
-    final isSeason = playInfo.type != 'Movie';
+    final isSeason = MediaType.tryParse(playInfo.type) != MediaType.movie;
     final parentGuid =
         item.parentGuid.isNotEmpty ? item.parentGuid : playInfo.parentGuid;
     return DanmakuRequest(
@@ -2161,7 +2500,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _nextEpisode = result.nextEpisode;
         _nextEpisodeLoadPhase = result.nextEpisode != null
             ? NextEpisodeLoadPhase.available
-            : result.playInfo.item.type == 'Episode'
+            : result.playInfo.item.type == MediaType.episode.value
                 ? NextEpisodeLoadPhase.loading
                 : NextEpisodeLoadPhase.unavailable;
       });
@@ -2216,7 +2555,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _fetchEpisodeContextAsync(int requestToken) {
     final info = _playInfo;
     if (info == null ||
-        info.item.type != 'Episode' ||
+        MediaType.tryParse(info.item.type) != MediaType.episode ||
         info.parentGuid.isEmpty) {
       return;
     }
@@ -3763,6 +4102,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _setSmartSkipEnabled(bool enabled) async {
+    // Guard: require full FlyNarwhal config before enabling smart skip
+    if (enabled) {
+      final fnSettings = ref.read(settingsProvider);
+      if (!fnSettings.isFlyNarwhalServerAvailable) {
+        if (!mounted) return;
+        ref.read(toastManagerProvider.notifier).showToast(
+              buildFlyNarwhalConfigWarning(
+                missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
+                missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
+              ),
+              type: ToastType.warning,
+              category: 'fly-narwhal-config',
+            );
+        return;
+      }
+    }
     try {
       await ref
           .read(smartSkipSettingsControllerProvider.notifier)
@@ -3893,9 +4248,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               svgAssetPath: danmakuState.isVisible
                   ? 'assets/images/danmu_close.svg'
                   : 'assets/images/danmu_open.svg',
-              onPressed: () => ref
-                  .read(danmakuControllerProvider.notifier)
-                  .setVisibility(!danmakuState.isVisible),
+              onPressed: () {
+                final newVisibility = !danmakuState.isVisible;
+                // Guard: require full FlyNarwhal config before enabling danmaku
+                if (newVisibility) {
+                  final fnSettings = ref.read(settingsProvider);
+                  if (!fnSettings.isFlyNarwhalServerAvailable) {
+                    ref.read(toastManagerProvider.notifier).showToast(
+                          buildFlyNarwhalConfigWarning(
+                            missingUrl:
+                                fnSettings.flyNarwhalServerBaseUrl.isEmpty,
+                            missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
+                          ),
+                          type: ToastType.warning,
+                          category: 'fly-narwhal-config',
+                        );
+                    return;
+                  }
+                }
+                ref
+                    .read(danmakuControllerProvider.notifier)
+                    .setVisibility(newVisibility);
+              },
               tooltip: danmakuState.isVisible ? '关闭弹幕' : '开启弹幕',
               size: 34,
               iconSize: 24,
@@ -3948,6 +4322,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onOpenSubtitleSearch: _openSubtitleSearchDialog,
           onOpenAddNasSubtitle: _openAddNasSubtitleDialog,
           onOpenAddLocalSubtitle: _pickAndUploadLocalSubtitle,
+          onRequestDelete: _handleRequestDeleteSubtitle,
+          onPredownloadSimilar: _handlePredownloadSimilarSubtitle,
         ),
         const SizedBox(width: _trailingControlSpacing),
         PlayerSettingsMenu(
@@ -3963,6 +4339,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           isSavingSkipConfig: _isSavingSkipConfig,
           onSmartSkipEnabledChanged: (enabled) {
             unawaited(_setSmartSkipEnabled(enabled));
+          },
+          isFlyNarwhalServerAvailable: settings.isFlyNarwhalServerAvailable,
+          onFlyNarwhalConfigMissing: () {
+            ref.read(toastManagerProvider.notifier).showToast(
+                  buildFlyNarwhalConfigWarning(
+                    missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+                    missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+                  ),
+                  type: ToastType.warning,
+                  category: 'fly-narwhal-config',
+                );
           },
           isAutoPlay: overlayState.isAutoPlayEnabled,
           onAutoPlayChanged: _onAutoPlayChanged,
@@ -4084,6 +4471,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Widget _buildBackButton() {
     return PlayerActionButton.icon(
+      key: const ValueKey('player-back-button'),
       iconData: FluentIcons.back,
       onPressed: _handleBack,
       tooltip: '返回',

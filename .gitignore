@@ -120,3 +120,6 @@ release-work/
 /windows/libs/
 /docs/
 /test/
+
+# debug-mode skill runtime output
+/.claude/debug/

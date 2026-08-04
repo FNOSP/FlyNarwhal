@@ -191,12 +191,38 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 
   Future<void> _handleAnalyzeTv(ItemResponse item) async {
+    final settings = ref.read(settingsProvider);
+    // Guard: require full FlyNarwhal config before triggering analysis
+    if (!settings.isFlyNarwhalServerAvailable) {
+      ref.read(toastManagerProvider.notifier).showToast(
+        buildFlyNarwhalConfigWarning(
+          missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+          missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+        ),
+        type: ToastType.warning,
+        category: 'fly-narwhal-config',
+      );
+      return;
+    }
     await ref
         .read(smartAnalysisControllerProvider.notifier)
         .analyzeTv(widget.guid, item.title);
   }
 
   Future<void> _handleAnalyzeSeason(SeasonListResponse season) async {
+    final settings = ref.read(settingsProvider);
+    // Guard: require full FlyNarwhal config before triggering analysis
+    if (!settings.isFlyNarwhalServerAvailable) {
+      ref.read(toastManagerProvider.notifier).showToast(
+        buildFlyNarwhalConfigWarning(
+          missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+          missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+        ),
+        type: ToastType.warning,
+        category: 'fly-narwhal-config',
+      );
+      return;
+    }
     await ref
         .read(smartAnalysisControllerProvider.notifier)
         .analyzeSeason(season.guid, season.tvTitle, season.seasonNumber);
