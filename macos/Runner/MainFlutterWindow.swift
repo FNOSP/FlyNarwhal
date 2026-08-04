@@ -41,6 +41,46 @@ class MainFlutterWindow: NSWindow {
     DispatchQueue.main.async {
       self.relayoutWindowButtons()
     }
+
+    // Fix: retarget Edit ▸ Paste once the menu bar is loaded. Deferred so the
+    // xib menu is fully instantiated before we walk it.
+    DispatchQueue.main.async { [weak self] in
+      self?.rewirePasteMenuItem()
+    }
+  }
+
+  // MARK: - Paste fix
+  //
+  // The default template wires Edit ▸ Paste to the responder chain (`paste:`),
+  // but Flutter's macOS responders (FlutterViewController / FlutterTextInputPlugin)
+  // do not implement `paste:`. A physical Cmd+V still works because the engine
+  // intercepts it in `performKeyEquivalent` and forwards it to the framework, but
+  // a Cmd+V *synthesized* by a clipboard manager is routed through the menu
+  // key-equivalent path, which dispatches `paste:` and finds no responder — so
+  // nothing is inserted. Retarget the menu item here and insert the clipboard text
+  // through the active NSTextInputClient (the focused Flutter text field).
+  private func rewirePasteMenuItem() {
+    guard let topItems = NSApp.mainMenu?.items else { return }
+    for top in topItems {
+      guard let submenu = top.submenu else { continue }
+      for item in submenu.items where item.action == #selector(NSText.paste(_:)) {
+        item.target = self
+        item.action = #selector(MainFlutterWindow.flutterPaste(_:))
+      }
+    }
+  }
+
+  @objc private func flutterPaste(_ sender: Any?) {
+    let text = NSPasteboard.general.string(forType: .string) ?? ""
+    guard !text.isEmpty else { return }
+    var responder: NSResponder? = firstResponder
+    while let current = responder {
+      if let client = current as? NSTextInputClient {
+        client.insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
+        return
+      }
+      responder = current.nextResponder
+    }
   }
 
   private func registerLocalSubtitlePickerChannel(messenger: FlutterBinaryMessenger) {
