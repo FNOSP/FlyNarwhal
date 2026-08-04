@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,6 +8,7 @@ class PlayerSettingsStore {
   static const String _keySpeed = 'player_speed';
   static const String _keyAutoPlay = 'player_auto_play';
   static const String _keyWindowAspectRatio = 'player_window_aspect_ratio';
+  static const String _keyVideoFillModeCache = 'player_video_fill_mode_cache';
   static const String _keyPlayerWindowLeft = 'player_window_left';
   static const String _keyPlayerWindowTop = 'player_window_top';
   static const String _keyPlayerWindowWidth = 'player_window_width';
@@ -172,6 +174,42 @@ class PlayerSettingsManager {
       _prefs.getString(PlayerSettingsStore._keyWindowAspectRatio) ?? 'AUTO';
   Future<void> setWindowAspectRatio(String ratio) =>
       _prefs.setString(PlayerSettingsStore._keyWindowAspectRatio, ratio);
+
+  // Mirrors the web player: the video fill mode is remembered per media item.
+  String getVideoFillMode(String itemGuid) {
+    if (itemGuid.isEmpty) return 'default';
+    return _readVideoFillModeCache()[itemGuid] ?? 'default';
+  }
+
+  Future<void> setVideoFillMode(String itemGuid, String mode) async {
+    if (itemGuid.isEmpty) return;
+    final cache = _readVideoFillModeCache();
+    cache.remove(itemGuid);
+    cache[itemGuid] = mode;
+    while (cache.length > 100) {
+      cache.remove(cache.keys.first);
+    }
+    await _prefs.setString(
+      PlayerSettingsStore._keyVideoFillModeCache,
+      jsonEncode(cache),
+    );
+  }
+
+  Map<String, String> _readVideoFillModeCache() {
+    final raw = _prefs.getString(PlayerSettingsStore._keyVideoFillModeCache);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        return decoded.map(
+          (key, value) => MapEntry(key, value.toString()),
+        );
+      }
+    } catch (_) {
+      // Ignore corrupted cache and start over.
+    }
+    return {};
+  }
 
   Rect? getPlayerWindowBounds() {
     final left = _prefs.getDouble(PlayerSettingsStore._keyPlayerWindowLeft);

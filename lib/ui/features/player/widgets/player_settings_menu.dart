@@ -6,6 +6,7 @@ import '../../../../domain/entities/media_type.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
+import '../../../../tooling/driver_test_mode.dart';
 import 'player_action_button.dart';
 import 'player_settings_components.dart';
 
@@ -122,6 +123,9 @@ class PlayerSettingsMenu extends StatefulWidget {
   /// Current window aspect ratio setting ("AUTO", "4:3", "16:9", "21:9").
   final String windowAspectRatio;
   final void Function(String) onWindowAspectRatioChanged;
+  /// Current video fill mode ("default", "4:3", "16:9", "21:9").
+  final String videoFillMode;
+  final void Function(String) onVideoFillModeChanged;
   final void Function(int skipOpening, int skipEnding) onSkipConfigChanged;
   final void Function(bool isHovered)? onHoverStateChanged;
   final bool smartSkipEnabled;
@@ -148,6 +152,8 @@ class PlayerSettingsMenu extends StatefulWidget {
     required this.onAudioSelected,
     this.windowAspectRatio = 'AUTO',
     required this.onWindowAspectRatioChanged,
+    this.videoFillMode = 'default',
+    required this.onVideoFillModeChanged,
     required this.onSkipConfigChanged,
     this.onHoverStateChanged,
     this.smartSkipEnabled = true,
@@ -215,7 +221,8 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
 
   void _hideFlyoutWithDelay() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(milliseconds: _hideDelayMs), () {
+    final delay = kDriverTestMode ? 10000 : _hideDelayMs;
+    _hideTimer = Timer(Duration(milliseconds: delay), () {
       if (!_isButtonHovered && !_popupHovered && mounted) {
         _closeMenu();
       }
@@ -231,6 +238,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
     }
     if (oldWidget.popupBottomOffset != widget.popupBottomOffset ||
         oldWidget.windowAspectRatio != widget.windowAspectRatio ||
+        oldWidget.videoFillMode != widget.videoFillMode ||
         autoPlayChanged) {
       _requestOverlayRebuild();
     }
@@ -423,10 +431,18 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         key: const ValueKey('player-settings-menu'),
         child: KeyedSubtree(
           key: _buttonKey,
-          child: const PlayerActionButton.lottie(
-            lottieAssetPath: 'assets/lottie/settings_lottie.json',
-            size: 30,
-            iconSize: 22,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            // Hover shows the flyout on desktop; the tap fallback only exists
+            // for driver builds, whose synthetic taps carry no hover events.
+            onTap: kDriverTestMode
+                ? () => _isExpanded ? _closeMenu() : _showFlyout()
+                : null,
+            child: const PlayerActionButton.lottie(
+              lottieAssetPath: 'assets/lottie/settings_lottie.json',
+              size: 30,
+              iconSize: 22,
+            ),
           ),
         ),
       ),
@@ -468,6 +484,12 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
           _closeMenu();
         },
         windowAspectRatio: widget.windowAspectRatio,
+        onVideoFillModeChanged: (mode) {
+          _setPopupHovered(false);
+          widget.onVideoFillModeChanged(mode);
+          _closeMenu();
+        },
+        videoFillMode: widget.videoFillMode,
         onSkipConfigChanged: widget.onSkipConfigChanged,
         smartSkipEnabled: widget.smartSkipEnabled,
         onSmartSkipEnabledChanged: widget.onSmartSkipEnabledChanged,
@@ -519,6 +541,8 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final void Function(AudioStream) onAudioSelected;
   final String windowAspectRatio;
   final void Function(String) onWindowAspectRatioChanged;
+  final String videoFillMode;
+  final void Function(String) onVideoFillModeChanged;
   final void Function(int, int) onSkipConfigChanged;
   final bool smartSkipEnabled;
   final void Function(bool)? onSmartSkipEnabledChanged;
@@ -543,6 +567,8 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.onAudioSelected,
     required this.windowAspectRatio,
     required this.onWindowAspectRatioChanged,
+    required this.videoFillMode,
+    required this.onVideoFillModeChanged,
     required this.onSkipConfigChanged,
     required this.smartSkipEnabled,
     required this.onSmartSkipEnabledChanged,
@@ -586,6 +612,12 @@ class _SettingsFlyoutContent extends StatelessWidget {
           onBack: () => onNavigate('Main'),
           onAspectRatioSelected: onWindowAspectRatioChanged,
         );
+      case 'VideoFillMode':
+        return _VideoFillModeSettingsScreen(
+          currentMode: videoFillMode,
+          onBack: () => onNavigate('Main'),
+          onFillModeSelected: onVideoFillModeChanged,
+        );
       case 'SkipConfig':
         return _SkipConfigSettingsScreen(
           playingInfoCache: playingInfoCache,
@@ -610,8 +642,10 @@ class _SettingsFlyoutContent extends StatelessWidget {
           isAutoPlay: isAutoPlay,
           onAutoPlayChanged: onAutoPlayChanged,
           windowAspectRatio: windowAspectRatio,
+          videoFillMode: videoFillMode,
           onNavigateToAudio: () => onNavigate('Audio'),
           onNavigateToWindowAspectRatio: () => onNavigate('WindowAspectRatio'),
+          onNavigateToVideoFillMode: () => onNavigate('VideoFillMode'),
           onNavigateToSkipConfig: () => onNavigate('SkipConfig'),
         );
     }
@@ -627,8 +661,10 @@ class _MainSettingsScreen extends StatelessWidget {
   final bool isAutoPlay;
   final void Function(bool)? onAutoPlayChanged;
   final String windowAspectRatio;
+  final String videoFillMode;
   final VoidCallback onNavigateToAudio;
   final VoidCallback onNavigateToWindowAspectRatio;
+  final VoidCallback onNavigateToVideoFillMode;
   final VoidCallback onNavigateToSkipConfig;
 
   const _MainSettingsScreen({
@@ -640,8 +676,10 @@ class _MainSettingsScreen extends StatelessWidget {
     required this.isAutoPlay,
     required this.onAutoPlayChanged,
     required this.windowAspectRatio,
+    required this.videoFillMode,
     required this.onNavigateToAudio,
     required this.onNavigateToWindowAspectRatio,
+    required this.onNavigateToVideoFillMode,
     required this.onNavigateToSkipConfig,
   });
 
@@ -676,6 +714,12 @@ class _MainSettingsScreen extends StatelessWidget {
           title: '窗口比例',
           value: windowAspectRatio == 'AUTO' ? '跟随视频比例' : windowAspectRatio,
           onClick: onNavigateToWindowAspectRatio,
+        ),
+        _SettingsMenuItem(
+          key: const ValueKey('player-settings-video-fill-mode'),
+          title: '画面比例',
+          value: videoFillMode == 'default' ? '默认' : videoFillMode,
+          onClick: onNavigateToVideoFillMode,
         ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-audio'),
@@ -1057,6 +1101,71 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
             label: label,
             isSelected: option == currentRatio,
             onClick: () => onAspectRatioSelected(option),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _VideoFillModeSettingsScreen extends StatelessWidget {
+  final String currentMode;
+  final VoidCallback onBack;
+  final void Function(String) onFillModeSelected;
+
+  const _VideoFillModeSettingsScreen({
+    required this.currentMode,
+    required this.onBack,
+    required this.onFillModeSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const options = ['default', '4:3', '16:9', '21:9'];
+    const optionLabels = {
+      'default': '默认',
+      '4:3': '4:3',
+      '16:9': '16:9',
+      '21:9': '21:9',
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: onBack,
+            child: const Row(
+              children: [
+                Icon(
+                  FluentIcons.chevron_left,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  '画面比例',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Divider(),
+        const SizedBox(height: 8),
+        ...options.map((option) {
+          final label = optionLabels[option] ?? option;
+          return _AspectRatioItem(
+            key: ValueKey('player-video-fill-mode-$option'),
+            label: label,
+            isSelected: option == currentMode,
+            onClick: () => onFillModeSelected(option),
           );
         }),
       ],

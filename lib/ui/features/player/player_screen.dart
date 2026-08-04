@@ -281,6 +281,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   final PlayerWindowAspectRatioController _windowAspectRatioController =
       PlayerWindowAspectRatioController();
   String _windowAspectRatio = PlayerWindowAspectRatioController.autoSetting;
+  // Web-style forced display aspect ratio ("default", "4:3", "16:9", "21:9").
+  String _videoFillMode = 'default';
   late final EpisodeAnalysisController _episodeAnalysisController;
   bool _isPipMode = false;
   bool _isPipHovered = false;
@@ -361,6 +363,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _restoreAutoPlaySetting();
     _windowAspectRatio =
         ref.read(playerSettingsManagerProvider).getWindowAspectRatio();
+    _videoFillMode =
+        ref.read(playerSettingsManagerProvider).getVideoFillMode(widget.guid);
     unawaited(_ensureSubtitleLanguageMapsLoaded());
     _initializePlayer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3078,6 +3082,70 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     unawaited(_applyWindowAspectRatio());
   }
 
+  double? get _videoFillModeRatio {
+    switch (_videoFillMode) {
+      case '4:3':
+        return 4 / 3;
+      case '16:9':
+        return 16 / 9;
+      case '21:9':
+        return 21 / 9;
+      default:
+        return null;
+    }
+  }
+
+  /// Mirrors the web player's 画面比例: a fixed mode renders the video stretched
+  /// into a box of the selected ratio, contain-fitted inside the player area.
+  void _onVideoFillModeChanged(String mode) {
+    if (mode == _videoFillMode) return;
+    setState(() => _videoFillMode = mode);
+    unawaited(
+      ref
+          .read(playerSettingsManagerProvider)
+          .setVideoFillMode(widget.guid, mode),
+    );
+  }
+
+  Widget _buildVideoView() {
+    final controller = _videoController!;
+    final ratio = _isPipMode ? null : _videoFillModeRatio;
+    if (ratio == null) {
+      return Video(
+        controller: controller,
+        controls: NoVideoControls,
+        fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxW = constraints.maxWidth;
+        final maxH = constraints.maxHeight;
+        if (maxW <= 0 || maxH <= 0) return const SizedBox.shrink();
+        double width;
+        double height;
+        if (maxW / maxH > ratio) {
+          height = maxH;
+          width = maxH * ratio;
+        } else {
+          width = maxW;
+          height = maxW / ratio;
+        }
+        return Center(
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Video(
+              controller: controller,
+              controls: NoVideoControls,
+              fit: BoxFit.fill,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   /// Fullscreen owns the window shape: release the ratio lock while in it,
   /// re-apply the setting once back in windowed mode.
   void _syncWindowAspectRatioWithFullscreen(bool isFullscreen) {
@@ -3731,11 +3799,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             child: Container(
               color: Colors.black,
               child: _isInitialized && _videoController != null
-                  ? Video(
-                      controller: _videoController!,
-                      controls: NoVideoControls,
-                      fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
-                    )
+                  ? _buildVideoView()
                   : const Center(child: AppLoadingProgressRing()),
             ),
           ),
@@ -4509,6 +4573,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onAudioSelected: _onAudioSelected,
           windowAspectRatio: _windowAspectRatio,
           onWindowAspectRatioChanged: _onWindowAspectRatioChanged,
+          videoFillMode: _videoFillMode,
+          onVideoFillModeChanged: _onVideoFillModeChanged,
           onSkipConfigChanged: (skipOpening, skipEnding) {
             unawaited(_saveSkipConfig(skipOpening, skipEnding));
           },

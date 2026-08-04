@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../../../data/models/player_models.dart';
+import '../../../../tooling/driver_test_mode.dart';
 
 const Color _flyoutBackgroundColor = Color(0xCC000000);
 const Color _flyoutBorderColor = Color(0x80808080);
@@ -277,7 +278,8 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
 
   void _hideFlyoutWithDelay() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(milliseconds: _hideDelayMs), () {
+    final delay = kDriverTestMode ? 10000 : _hideDelayMs;
+    _hideTimer = Timer(Duration(milliseconds: delay), () {
       if (!_isButtonHovered && !_popupHovered && mounted) {
         _closeFlyout();
       }
@@ -352,12 +354,20 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
       },
       child: KeyedSubtree(
         key: _buttonKey,
-        child: Text(
-          isOriginal ? '原画质' : _formatResolution(widget.currentResolution),
-          style: TextStyle(
-            color: _isButtonHovered ? Colors.white : _defaultTextColor,
-            fontSize: 17,
-            fontWeight: FontWeight.normal,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          // Hover shows the flyout on desktop; the tap fallback only exists
+          // for driver builds, whose synthetic taps carry no hover events.
+          onTap: kDriverTestMode
+              ? () => _isExpanded ? _closeFlyout() : _showFlyout()
+              : null,
+          child: Text(
+            isOriginal ? '原画质' : _formatResolution(widget.currentResolution),
+            style: TextStyle(
+              color: _isButtonHovered ? Colors.white : _defaultTextColor,
+              fontSize: 17,
+              fontWeight: FontWeight.normal,
+            ),
           ),
         ),
       ),
