@@ -9,6 +9,8 @@ class PlayerSettingsStore {
   static const String _keyAutoPlay = 'player_auto_play';
   static const String _keyWindowAspectRatio = 'player_window_aspect_ratio';
   static const String _keyVideoFillModeCache = 'player_video_fill_mode_cache';
+  static const String _keyForceH264 = 'player_force_h264';
+  static const String _keyForceSdrColor = 'player_force_sdr_color';
   static const String _keyPlayerWindowLeft = 'player_window_left';
   static const String _keyPlayerWindowTop = 'player_window_top';
   static const String _keyPlayerWindowWidth = 'player_window_width';
@@ -210,6 +212,16 @@ class PlayerSettingsManager {
     }
     return {};
   }
+
+  bool getForceH264() =>
+      _prefs.getBool(PlayerSettingsStore._keyForceH264) ?? false;
+  Future<void> setForceH264(bool enabled) =>
+      _prefs.setBool(PlayerSettingsStore._keyForceH264, enabled);
+
+  bool getForceSdrColor() =>
+      _prefs.getBool(PlayerSettingsStore._keyForceSdrColor) ?? false;
+  Future<void> setForceSdrColor(bool enabled) =>
+      _prefs.setBool(PlayerSettingsStore._keyForceSdrColor, enabled);
 
   Rect? getPlayerWindowBounds() {
     final left = _prefs.getDouble(PlayerSettingsStore._keyPlayerWindowLeft);

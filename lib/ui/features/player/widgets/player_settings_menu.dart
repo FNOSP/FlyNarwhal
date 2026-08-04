@@ -134,6 +134,12 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool enabled)? onAutoPlayChanged;
+  final bool forceH264;
+  final void Function(bool enabled)? onForceH264Changed;
+  final String? forceH264DisabledReason;
+  final bool forceSdrColor;
+  final void Function(bool enabled)? onForceSdrColorChanged;
+  final String? forceSdrDisabledReason;
   final Map<String, String>? iso6391Map;
   final Map<String, String>? iso6392Map;
   // Whether the FlyNarwhal server is fully configured (URL + auth code)
@@ -162,6 +168,12 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.isSavingSkipConfig = false,
     this.isAutoPlay = true,
     this.onAutoPlayChanged,
+    this.forceH264 = false,
+    this.onForceH264Changed,
+    this.forceH264DisabledReason,
+    this.forceSdrColor = false,
+    this.onForceSdrColorChanged,
+    this.forceSdrDisabledReason,
     this.isFlyNarwhalServerAvailable = false,
     this.onFlyNarwhalConfigMissing,
   });
@@ -239,6 +251,10 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
     if (oldWidget.popupBottomOffset != widget.popupBottomOffset ||
         oldWidget.windowAspectRatio != widget.windowAspectRatio ||
         oldWidget.videoFillMode != widget.videoFillMode ||
+        oldWidget.forceH264 != widget.forceH264 ||
+        oldWidget.forceSdrColor != widget.forceSdrColor ||
+        oldWidget.forceH264DisabledReason != widget.forceH264DisabledReason ||
+        oldWidget.forceSdrDisabledReason != widget.forceSdrDisabledReason ||
         autoPlayChanged) {
       _requestOverlayRebuild();
     }
@@ -501,6 +517,12 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
           _requestOverlayRebuild();
           widget.onAutoPlayChanged?.call(value);
         },
+        forceH264: widget.forceH264,
+        onForceH264Changed: widget.onForceH264Changed,
+        forceH264DisabledReason: widget.forceH264DisabledReason,
+        forceSdrColor: widget.forceSdrColor,
+        onForceSdrColorChanged: widget.onForceSdrColorChanged,
+        forceSdrDisabledReason: widget.forceSdrDisabledReason,
         isFlyNarwhalServerAvailable: widget.isFlyNarwhalServerAvailable,
         onFlyNarwhalConfigMissing: widget.onFlyNarwhalConfigMissing,
       ),
@@ -550,6 +572,12 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool)? onAutoPlayChanged;
+  final bool forceH264;
+  final void Function(bool)? onForceH264Changed;
+  final String? forceH264DisabledReason;
+  final bool forceSdrColor;
+  final void Function(bool)? onForceSdrColorChanged;
+  final String? forceSdrDisabledReason;
   // Whether the FlyNarwhal server is fully configured (URL + auth code)
   final bool isFlyNarwhalServerAvailable;
   // Called when user tries to enable smart skip without full config
@@ -576,6 +604,12 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.isSavingSkipConfig,
     required this.isAutoPlay,
     required this.onAutoPlayChanged,
+    required this.forceH264,
+    required this.onForceH264Changed,
+    required this.forceH264DisabledReason,
+    required this.forceSdrColor,
+    required this.onForceSdrColorChanged,
+    required this.forceSdrDisabledReason,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
   });
@@ -598,6 +632,16 @@ class _SettingsFlyoutContent extends StatelessWidget {
 
   Widget _buildCurrentScreen() {
     switch (currentScreen) {
+      case 'Advanced':
+        return _AdvancedSettingsScreen(
+          forceH264: forceH264,
+          forceH264DisabledReason: forceH264DisabledReason,
+          onForceH264Changed: onForceH264Changed,
+          forceSdrColor: forceSdrColor,
+          forceSdrDisabledReason: forceSdrDisabledReason,
+          onForceSdrColorChanged: onForceSdrColorChanged,
+          onBack: () => onNavigate('Main'),
+        );
       case 'Audio':
         return _AudioSettingsScreen(
           playingInfoCache: playingInfoCache,
@@ -647,6 +691,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
           onNavigateToWindowAspectRatio: () => onNavigate('WindowAspectRatio'),
           onNavigateToVideoFillMode: () => onNavigate('VideoFillMode'),
           onNavigateToSkipConfig: () => onNavigate('SkipConfig'),
+          onNavigateToAdvanced: () => onNavigate('Advanced'),
         );
     }
   }
@@ -666,6 +711,7 @@ class _MainSettingsScreen extends StatelessWidget {
   final VoidCallback onNavigateToWindowAspectRatio;
   final VoidCallback onNavigateToVideoFillMode;
   final VoidCallback onNavigateToSkipConfig;
+  final VoidCallback onNavigateToAdvanced;
 
   const _MainSettingsScreen({
     required this.playingInfoCache,
@@ -681,6 +727,7 @@ class _MainSettingsScreen extends StatelessWidget {
     required this.onNavigateToWindowAspectRatio,
     required this.onNavigateToVideoFillMode,
     required this.onNavigateToSkipConfig,
+    required this.onNavigateToAdvanced,
   });
 
   @override
@@ -692,7 +739,11 @@ class _MainSettingsScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const PlayerSettingsHeader(title: '设置'),
+        PlayerSettingsHeader(
+          title: '设置',
+          actionLabel: '高级',
+          onAction: onNavigateToAdvanced,
+        ),
         const SizedBox(height: 8),
         PlayerSettingsToggleRow(
           key: const ValueKey('player-settings-autoplay-toggle'),
@@ -748,6 +799,53 @@ class _MainSettingsScreen extends StatelessWidget {
       return '已设置片尾';
     }
     return '未设置';
+  }
+}
+
+class _AdvancedSettingsScreen extends StatelessWidget {
+  final bool forceH264;
+  final String? forceH264DisabledReason;
+  final void Function(bool)? onForceH264Changed;
+  final bool forceSdrColor;
+  final String? forceSdrDisabledReason;
+  final void Function(bool)? onForceSdrColorChanged;
+  final VoidCallback onBack;
+
+  const _AdvancedSettingsScreen({
+    required this.forceH264,
+    required this.forceH264DisabledReason,
+    required this.onForceH264Changed,
+    required this.forceSdrColor,
+    required this.forceSdrDisabledReason,
+    required this.onForceSdrColorChanged,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PlayerSettingsHeader(title: '高级设置', onBack: onBack),
+        const SizedBox(height: 8),
+        PlayerSettingsToggleRow(
+          key: const ValueKey('player-advanced-force-h264'),
+          title: 'HEVC 转为 H.264',
+          description: '播放有声音无画面时可尝试开启',
+          checked: forceH264,
+          onChanged: onForceH264Changed,
+          disabledReason: forceH264DisabledReason,
+        ),
+        PlayerSettingsToggleRow(
+          key: const ValueKey('player-advanced-force-sdr'),
+          title: '色调强制映射为 SDR',
+          description: '画面偏暗时可尝试开启，适用于不支持 HDR 的设备',
+          checked: forceSdrColor,
+          onChanged: onForceSdrColorChanged,
+          disabledReason: forceSdrDisabledReason,
+        ),
+      ],
+    );
   }
 }
 

@@ -283,6 +283,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String _windowAspectRatio = PlayerWindowAspectRatioController.autoSetting;
   // Web-style forced display aspect ratio ("default", "4:3", "16:9", "21:9").
   String _videoFillMode = 'default';
+  bool _isForceH264 = false;
+  bool _isForceSdrColor = false;
   late final EpisodeAnalysisController _episodeAnalysisController;
   bool _isPipMode = false;
   bool _isPipHovered = false;
@@ -365,6 +367,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ref.read(playerSettingsManagerProvider).getWindowAspectRatio();
     _videoFillMode =
         ref.read(playerSettingsManagerProvider).getVideoFillMode(widget.guid);
+    final settingsManager = ref.read(playerSettingsManagerProvider);
+    _isForceH264 = settingsManager.getForceH264();
+    _isForceSdrColor = settingsManager.getForceSdrColor();
+    _sessionCoordinator.forceH264 = _isForceH264;
+    _sessionCoordinator.forceSdrColor = _isForceSdrColor;
     unawaited(_ensureSubtitleLanguageMapsLoaded());
     _initializePlayer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3107,6 +3114,100 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  String? get _forceH264DisabledReason {
+    final codec = _playingInfoCache?.currentVideoStream?.codecName ?? '';
+    return codec.toLowerCase() == 'h264' ? '当前视频为 H.264' : null;
+  }
+
+  String? get _forceSdrDisabledReason {
+    final colorRangeType =
+        _playingInfoCache?.currentVideoStream?.colorRangeType ?? '';
+    return colorRangeType.toLowerCase() == 'sdr' ? '当前视频为 SDR' : null;
+  }
+
+  void _onForceH264Changed(bool enabled) {
+    if (enabled == _isForceH264) return;
+    setState(() => _isForceH264 = enabled);
+    _sessionCoordinator.forceH264 = enabled;
+    unawaited(ref.read(playerSettingsManagerProvider).setForceH264(enabled));
+    unawaited(_restartPlaybackForTranscodeSettings());
+  }
+
+  void _onForceSdrColorChanged(bool enabled) {
+    if (enabled == _isForceSdrColor) return;
+    setState(() => _isForceSdrColor = enabled);
+    _sessionCoordinator.forceSdrColor = enabled;
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setForceSdrColor(enabled),
+    );
+    unawaited(_restartPlaybackForTranscodeSettings());
+  }
+
+  /// Mirrors the web player's switchURL flow: re-issue play/play with the
+  /// current position and quality so the server applies the new encoder/SDR
+  /// settings, quitting the old transcode session first.
+  Future<void> _restartPlaybackForTranscodeSettings() async {
+    final cache = _playingInfoCache;
+    final player = _player;
+    if (cache == null || player == null) return;
+    final videoStream = cache.currentVideoStream;
+    final fileStream = cache.currentFileStream;
+    if (videoStream == null || fileStream == null) return;
+
+    try {
+      setState(() => _isLoading = true);
+      final currentPosition = player.state.position.inMilliseconds;
+      final currentPlayLink = cache.playLink;
+      if (!cache.isUseDirectLink &&
+          currentPlayLink != null &&
+          currentPlayLink.isNotEmpty) {
+        await ref
+            .read(mediaPViewModelProvider.notifier)
+            .quit(MediaPRequest(playLink: currentPlayLink));
+      }
+      final audioGuid = cache.currentAudioStream?.guid ??
+          _selectedAudioGuid ??
+          _requestedAudioGuid ??
+          _playInfo?.audioGuid ??
+          '';
+      final playRequest = _sessionCoordinator.createPlayRequest(
+        videoStream: videoStream,
+        fileStream: fileStream,
+        audioGuid: audioGuid,
+        subtitleGuid: cache.currentSubtitleStream?.guid,
+      );
+      final response = await ref.read(playerServiceProvider).playVideo(
+            PlayPlayRequest(
+              mediaGuid: playRequest.mediaGuid,
+              videoGuid: playRequest.videoGuid,
+              videoEncoder: playRequest.videoEncoder,
+              resolution: _currentResolution.isNotEmpty
+                  ? _currentResolution
+                  : playRequest.resolution,
+              bitrate: _currentBitrate ?? playRequest.bitrate,
+              startTimestamp: currentPosition ~/ 1000,
+              audioEncoder: playRequest.audioEncoder,
+              audioGuid: playRequest.audioGuid,
+              subtitleGuid: playRequest.subtitleGuid,
+              channels: playRequest.channels,
+              forcedSdr: playRequest.forcedSdr,
+            ),
+          );
+      await _handlePlayPlaySuccess(response,
+          startPositionMs: currentPosition);
+      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      AppTalker.warning('Player', 'restart for transcode settings failed: $e');
+      if (mounted) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              '切换播放设置失败: $e',
+              type: ToastType.failed,
+            );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Widget _buildVideoView() {
     final controller = _videoController!;
     final ratio = _isPipMode ? null : _videoFillModeRatio;
@@ -4575,6 +4676,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onWindowAspectRatioChanged: _onWindowAspectRatioChanged,
           videoFillMode: _videoFillMode,
           onVideoFillModeChanged: _onVideoFillModeChanged,
+          forceH264: _isForceH264,
+          onForceH264Changed:
+              _forceH264DisabledReason == null ? _onForceH264Changed : null,
+          forceH264DisabledReason: _forceH264DisabledReason,
+          forceSdrColor: _isForceSdrColor,
+          onForceSdrColorChanged:
+              _forceSdrDisabledReason == null ? _onForceSdrColorChanged : null,
+          forceSdrDisabledReason: _forceSdrDisabledReason,
           onSkipConfigChanged: (skipOpening, skipEnding) {
             unawaited(_saveSkipConfig(skipOpening, skipEnding));
           },

@@ -138,16 +138,21 @@ class PlayerSettingsSlider extends StatelessWidget {
 
 class PlayerSettingsToggleRow extends StatefulWidget {
   final String title;
+  final String? description;
   final bool checked;
   final ValueChanged<bool>? onChanged;
   final EdgeInsetsGeometry padding;
+  // Shown as a tooltip over the switch when the row is disabled.
+  final String? disabledReason;
 
   const PlayerSettingsToggleRow({
     super.key,
     required this.title,
+    this.description,
     required this.checked,
     required this.onChanged,
     this.padding = const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+    this.disabledReason,
   });
 
   @override
@@ -196,6 +201,14 @@ class _PlayerSettingsToggleRowState extends State<PlayerSettingsToggleRow> {
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.onChanged != null;
+    Widget toggle = ToggleSwitch(
+      checked: widget.checked,
+      style: _toggleStyle,
+      onChanged: widget.onChanged,
+    );
+    if (!isEnabled && widget.disabledReason != null) {
+      toggle = Tooltip(message: widget.disabledReason!, child: toggle);
+    }
     return MouseRegion(
       cursor: isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _isHovered = true),
@@ -216,21 +229,36 @@ class _PlayerSettingsToggleRowState extends State<PlayerSettingsToggleRow> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text(
-                  widget.title,
-                  style: TextStyle(
-                    color: isEnabled
-                        ? playerSettingsTextColor
-                        : playerSettingsTextColor.withValues(alpha: 0.45),
-                    fontSize: 14,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: TextStyle(
+                        color: isEnabled
+                            ? playerSettingsTextColor
+                            : playerSettingsTextColor.withValues(alpha: 0.45),
+                        fontSize: 14,
+                      ),
+                    ),
+                    if (widget.description != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          widget.description!,
+                          style: TextStyle(
+                            color: playerSettingsTextColor.withValues(
+                              alpha: 0.55,
+                            ),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              ToggleSwitch(
-                checked: widget.checked,
-                style: _toggleStyle,
-                onChanged: widget.onChanged,
-              ),
+              toggle,
             ],
           ),
         ),
