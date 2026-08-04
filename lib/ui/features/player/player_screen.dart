@@ -68,6 +68,7 @@ import 'widgets/player_settings_menu.dart';
 import 'widgets/skip_intro_prompt.dart';
 import 'widgets/skip_outro_prompt.dart';
 import 'widgets/playback_end_overlay.dart';
+import 'widgets/playback_details_overlay.dart';
 import 'widgets/subtitle_control_flyout.dart';
 import 'widgets/subtitle_search_dialog.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
@@ -255,6 +256,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showAddNasSubtitleDialog = false;
   bool _isUploadingLocalSubtitle = false;
   bool _isSubtitleSwitching = false;
+  bool _isPlaybackDetailsVisible = false;
+  MediaTranscodeResponse? _playbackDetailsTranscodeStatus;
+  Timer? _playbackDetailsRefreshTimer;
+  bool _isFetchingPlaybackDetails = false;
   List<AudioTrack> _embeddedAudioTracks = const <AudioTrack>[];
   int _audioSwitchToken = 0;
   final DirectLinkAudioTrackResolver _directLinkAudioTrackResolver =
@@ -1356,6 +1361,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playInfo = null;
     _streamInfo = null;
     _playingInfoCache = null;
+    _isPlaybackDetailsVisible = false;
+    _playbackDetailsTranscodeStatus = null;
+    _playbackDetailsRefreshTimer?.cancel();
+    _playbackDetailsRefreshTimer = null;
+    _overlayController.setHovered(PlayerHoverZone.playbackDetails, false);
     _episodeList = [];
     _currentEpisode = null;
     _nextEpisode = null;
@@ -3568,6 +3578,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _introSkipController.dispose();
     _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
+    _playbackDetailsRefreshTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
     _playbackIndicatorExitController.dispose();
     _pipTransitionController?.dispose();
@@ -3687,6 +3698,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     right: 0,
                     child: _buildTopBar(),
                   ),
+                  if (_isPlaybackDetailsVisible && _playingInfoCache != null)
+                    Positioned(
+                      top: 56,
+                      right: 20,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width - 32,
+                          maxHeight: MediaQuery.of(context).size.height - 76,
+                        ),
+                        child: PlaybackDetailsPanel(
+                          key: const ValueKey(
+                            'player-playback-details-panel',
+                          ),
+                          cache: _playingInfoCache!,
+                          transcodeStatus: _playbackDetailsTranscodeStatus,
+                          bufferedSeconds: _isInitialized
+                              ? ((_bufferedPosition - _currentPosition) / 1000)
+                                  .clamp(0.0, double.infinity)
+                              : null,
+                          onClose: () => setState(
+                            () => _isPlaybackDetailsVisible = false,
+                          ),
+                        ),
+                      ),
+                    ),
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -4398,6 +4434,55 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  void _togglePlaybackDetails() {
+    final isVisible = !_isPlaybackDetailsVisible;
+    setState(() => _isPlaybackDetailsVisible = isVisible);
+    // Keep the overlay (and thus the panel) visible while it is open, the
+    // same way open flyouts hold the UI on screen.
+    _overlayController.setHovered(PlayerHoverZone.playbackDetails, isVisible);
+    if (isVisible) {
+      _showUi();
+      _refreshPlaybackDetailsTranscodeStatus();
+      // The web panel polls the transcode statistics while open, so quality
+      // or audio switches and live counters update without reopening it.
+      _playbackDetailsRefreshTimer ??= Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => _refreshPlaybackDetailsTranscodeStatus(),
+      );
+    } else {
+      _playbackDetailsRefreshTimer?.cancel();
+      _playbackDetailsRefreshTimer = null;
+    }
+  }
+
+  /// Mirrors the web player's play-type derivation: direct-link sessions are
+  /// labelled as such, otherwise the server transcode statistics decide
+  /// between transcoded and direct play.
+  Future<void> _refreshPlaybackDetailsTranscodeStatus() async {
+    final cache = _playingInfoCache;
+    final playLink = cache?.playLink;
+    if (_isFetchingPlaybackDetails ||
+        cache == null ||
+        cache.isUseDirectLink ||
+        playLink == null ||
+        playLink.isEmpty) {
+      return;
+    }
+
+    _isFetchingPlaybackDetails = true;
+    try {
+      final status = await ref
+          .read(mediaPViewModelProvider.notifier)
+          .fetchTranscodeStatus(MediaPRequest(playLink: playLink));
+      if (!mounted || !_isPlaybackDetailsVisible) return;
+      setState(() => _playbackDetailsTranscodeStatus = status);
+    } catch (e) {
+      AppTalker.warning('Player', 'fetch transcode status failed: $e');
+    } finally {
+      _isFetchingPlaybackDetails = false;
+    }
+  }
+
   Widget _buildTopBar() {
     final leftInset = _isMacOS ? 72.0 : 0.0;
     // Reduce the top inset on macOS so the custom caption content lines up
@@ -4450,14 +4535,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: WindowCaptionPinButton(
-                      key: const ValueKey(
-                        'player-window-caption-pin-button',
-                      ),
-                      brightness: Brightness.dark,
-                      buttonSize: _isMacOS ? 30 : 34,
-                      iconSize: _isMacOS ? 16 : 18,
-                      borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        PlayerActionButton.icon(
+                          key: const ValueKey(
+                            'player-playback-details-button',
+                          ),
+                          iconData: FluentIcons.info,
+                          onPressed: _togglePlaybackDetails,
+                          tooltip: '播放详细信息',
+                          size: _isMacOS ? 30 : 34,
+                          iconSize: _isMacOS ? 16 : 18,
+                          borderRadius: BorderRadius.circular(
+                            _isMacOS ? 15 : 17,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        WindowCaptionPinButton(
+                          key: const ValueKey(
+                            'player-window-caption-pin-button',
+                          ),
+                          brightness: Brightness.dark,
+                          buttonSize: _isMacOS ? 30 : 34,
+                          iconSize: _isMacOS ? 16 : 18,
+                          borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
+                        ),
+                      ],
                     ),
                   ),
                 ],
