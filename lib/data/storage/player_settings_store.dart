@@ -7,6 +7,10 @@ class PlayerSettingsStore {
   static const String _keySpeed = 'player_speed';
   static const String _keyAutoPlay = 'player_auto_play';
   static const String _keyWindowAspectRatio = 'player_window_aspect_ratio';
+  static const String _keyPlayerWindowLeft = 'player_window_left';
+  static const String _keyPlayerWindowTop = 'player_window_top';
+  static const String _keyPlayerWindowWidth = 'player_window_width';
+  static const String _keyPlayerWindowHeight = 'player_window_height';
   static const String _keyPipWindowLeft = 'pip_window_left';
   static const String _keyPipWindowTop = 'pip_window_top';
   static const String _keyPipWindowWidth = 'pip_window_width';
@@ -61,6 +65,34 @@ class PlayerSettingsStore {
   static Future<void> setWindowAspectRatio(String ratio) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyWindowAspectRatio, ratio);
+  }
+
+  /// The player route keeps its own window geometry (position and size),
+  /// separate from the rest of the app (mirrors the KMP player window's
+  /// saved position/size).
+  static Future<Rect?> getPlayerWindowBounds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final left = prefs.getDouble(_keyPlayerWindowLeft);
+    final top = prefs.getDouble(_keyPlayerWindowTop);
+    final width = prefs.getDouble(_keyPlayerWindowWidth);
+    final height = prefs.getDouble(_keyPlayerWindowHeight);
+    if (left == null ||
+        top == null ||
+        width == null ||
+        height == null ||
+        width <= 0 ||
+        height <= 0) {
+      return null;
+    }
+    return Rect.fromLTWH(left, top, width, height);
+  }
+
+  static Future<void> setPlayerWindowBounds(Rect bounds) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyPlayerWindowLeft, bounds.left);
+    await prefs.setDouble(_keyPlayerWindowTop, bounds.top);
+    await prefs.setDouble(_keyPlayerWindowWidth, bounds.width);
+    await prefs.setDouble(_keyPlayerWindowHeight, bounds.height);
   }
 
   static Future<Rect?> getPipWindowBounds() async {
@@ -140,6 +172,35 @@ class PlayerSettingsManager {
       _prefs.getString(PlayerSettingsStore._keyWindowAspectRatio) ?? 'AUTO';
   Future<void> setWindowAspectRatio(String ratio) =>
       _prefs.setString(PlayerSettingsStore._keyWindowAspectRatio, ratio);
+
+  Rect? getPlayerWindowBounds() {
+    final left = _prefs.getDouble(PlayerSettingsStore._keyPlayerWindowLeft);
+    final top = _prefs.getDouble(PlayerSettingsStore._keyPlayerWindowTop);
+    final width = _prefs.getDouble(PlayerSettingsStore._keyPlayerWindowWidth);
+    final height = _prefs.getDouble(PlayerSettingsStore._keyPlayerWindowHeight);
+    if (left == null ||
+        top == null ||
+        width == null ||
+        height == null ||
+        width <= 0 ||
+        height <= 0) {
+      return null;
+    }
+    return Rect.fromLTWH(left, top, width, height);
+  }
+
+  Future<void> setPlayerWindowBounds(Rect bounds) async {
+    await _prefs.setDouble(PlayerSettingsStore._keyPlayerWindowLeft, bounds.left);
+    await _prefs.setDouble(PlayerSettingsStore._keyPlayerWindowTop, bounds.top);
+    await _prefs.setDouble(
+      PlayerSettingsStore._keyPlayerWindowWidth,
+      bounds.width,
+    );
+    await _prefs.setDouble(
+      PlayerSettingsStore._keyPlayerWindowHeight,
+      bounds.height,
+    );
+  }
 
   Rect? getPipWindowBounds() {
     final left = _prefs.getDouble(PlayerSettingsStore._keyPipWindowLeft);

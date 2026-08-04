@@ -119,6 +119,8 @@ class PlayerSettingsMenu extends StatefulWidget {
   final int totalDurationMillis;
   final double popupBottomOffset;
   final void Function(AudioStream) onAudioSelected;
+  /// Current window aspect ratio setting ("AUTO", "4:3", "16:9", "21:9").
+  final String windowAspectRatio;
   final void Function(String) onWindowAspectRatioChanged;
   final void Function(int skipOpening, int skipEnding) onSkipConfigChanged;
   final void Function(bool isHovered)? onHoverStateChanged;
@@ -144,6 +146,7 @@ class PlayerSettingsMenu extends StatefulWidget {
     required this.totalDurationMillis,
     this.popupBottomOffset = 70,
     required this.onAudioSelected,
+    this.windowAspectRatio = 'AUTO',
     required this.onWindowAspectRatioChanged,
     required this.onSkipConfigChanged,
     this.onHoverStateChanged,
@@ -227,6 +230,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
       _isAutoPlay = widget.isAutoPlay;
     }
     if (oldWidget.popupBottomOffset != widget.popupBottomOffset ||
+        oldWidget.windowAspectRatio != widget.windowAspectRatio ||
         autoPlayChanged) {
       _requestOverlayRebuild();
     }
@@ -463,6 +467,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
           widget.onWindowAspectRatioChanged(ratio);
           _closeMenu();
         },
+        windowAspectRatio: widget.windowAspectRatio,
         onSkipConfigChanged: widget.onSkipConfigChanged,
         smartSkipEnabled: widget.smartSkipEnabled,
         onSmartSkipEnabledChanged: widget.onSmartSkipEnabledChanged,
@@ -512,6 +517,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final String currentScreen;
   final void Function(String) onNavigate;
   final void Function(AudioStream) onAudioSelected;
+  final String windowAspectRatio;
   final void Function(String) onWindowAspectRatioChanged;
   final void Function(int, int) onSkipConfigChanged;
   final bool smartSkipEnabled;
@@ -535,6 +541,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.currentScreen,
     required this.onNavigate,
     required this.onAudioSelected,
+    required this.windowAspectRatio,
     required this.onWindowAspectRatioChanged,
     required this.onSkipConfigChanged,
     required this.smartSkipEnabled,
@@ -575,6 +582,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
         );
       case 'WindowAspectRatio':
         return _WindowAspectRatioSettingsScreen(
+          currentRatio: windowAspectRatio,
           onBack: () => onNavigate('Main'),
           onAspectRatioSelected: onWindowAspectRatioChanged,
         );
@@ -601,6 +609,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
           isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
           isAutoPlay: isAutoPlay,
           onAutoPlayChanged: onAutoPlayChanged,
+          windowAspectRatio: windowAspectRatio,
           onNavigateToAudio: () => onNavigate('Audio'),
           onNavigateToWindowAspectRatio: () => onNavigate('WindowAspectRatio'),
           onNavigateToSkipConfig: () => onNavigate('SkipConfig'),
@@ -617,6 +626,7 @@ class _MainSettingsScreen extends StatelessWidget {
   final bool isSmartAnalysisGloballyEnabled;
   final bool isAutoPlay;
   final void Function(bool)? onAutoPlayChanged;
+  final String windowAspectRatio;
   final VoidCallback onNavigateToAudio;
   final VoidCallback onNavigateToWindowAspectRatio;
   final VoidCallback onNavigateToSkipConfig;
@@ -629,6 +639,7 @@ class _MainSettingsScreen extends StatelessWidget {
     required this.isSmartAnalysisGloballyEnabled,
     required this.isAutoPlay,
     required this.onAutoPlayChanged,
+    required this.windowAspectRatio,
     required this.onNavigateToAudio,
     required this.onNavigateToWindowAspectRatio,
     required this.onNavigateToSkipConfig,
@@ -661,8 +672,9 @@ class _MainSettingsScreen extends StatelessWidget {
             onClick: onNavigateToSkipConfig,
           ),
         _SettingsMenuItem(
+          key: const ValueKey('player-settings-window-ratio'),
           title: '窗口比例',
-          value: '自动',
+          value: windowAspectRatio == 'AUTO' ? '跟随视频比例' : windowAspectRatio,
           onClick: onNavigateToWindowAspectRatio,
         ),
         _SettingsMenuItem(
@@ -988,10 +1000,12 @@ class _AudioItemState extends State<_AudioItem> {
 }
 
 class _WindowAspectRatioSettingsScreen extends StatelessWidget {
+  final String currentRatio;
   final VoidCallback onBack;
   final void Function(String) onAspectRatioSelected;
 
   const _WindowAspectRatioSettingsScreen({
+    required this.currentRatio,
     required this.onBack,
     required this.onAspectRatioSelected,
   });
@@ -1000,7 +1014,7 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     const options = ['AUTO', '4:3', '16:9', '21:9'];
     const optionLabels = {
-      'AUTO': '自动',
+      'AUTO': '跟随视频比例',
       '4:3': '4:3',
       '16:9': '16:9',
       '21:9': '21:9',
@@ -1039,7 +1053,9 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
         ...options.map((option) {
           final label = optionLabels[option] ?? option;
           return _AspectRatioItem(
+            key: ValueKey('player-window-ratio-$option'),
             label: label,
+            isSelected: option == currentRatio,
             onClick: () => onAspectRatioSelected(option),
           );
         }),
@@ -1050,10 +1066,13 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
 
 class _AspectRatioItem extends StatefulWidget {
   final String label;
+  final bool isSelected;
   final VoidCallback onClick;
 
   const _AspectRatioItem({
+    super.key,
     required this.label,
+    this.isSelected = false,
     required this.onClick,
   });
 
@@ -1066,6 +1085,8 @@ class _AspectRatioItemState extends State<_AspectRatioItem> {
 
   @override
   Widget build(BuildContext context) {
+    final textColor =
+        widget.isSelected ? _selectedTextColor : _defaultTextColor;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
@@ -1084,12 +1105,18 @@ class _AspectRatioItemState extends State<_AspectRatioItem> {
             children: [
               Text(
                 widget.label,
-                style: const TextStyle(
-                  color: _defaultTextColor,
+                style: TextStyle(
+                  color: textColor,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (widget.isSelected)
+                const Icon(
+                  FluentIcons.check_mark,
+                  size: 16,
+                  color: _selectedTextColor,
+                ),
             ],
           ),
         ),

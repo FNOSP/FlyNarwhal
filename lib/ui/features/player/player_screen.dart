@@ -17,6 +17,9 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 import '../../../core/network/api_result.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/window/desktop_display_service.dart';
+import '../../../core/window/main_window_persistence_guard.dart';
+import '../../../core/window/window_geometry.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
@@ -47,6 +50,7 @@ import 'services/player_device_context_service.dart';
 import 'services/play_record_request_builder.dart';
 import 'controllers/desktop_pseudo_fullscreen_controller.dart';
 import 'controllers/pip_window_mode_controller.dart';
+import 'controllers/player_window_aspect_ratio_controller.dart';
 import 'controllers/player_manager.dart';
 import 'viewmodels/media_playback_view_model.dart';
 import 'controllers/player_overlay_controller.dart';
@@ -212,6 +216,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   StreamSubscription<bool>? _completedSubscription;
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<PlayerSkipAction>? _skipActionSubscription;
+  StreamSubscription<VideoParams>? _videoParamsSubscription;
   void Function()? _removeIntroSkipStateListener;
   late final IntroSkipController _introSkipController;
   IntroSkipState _introSkipState = IntroSkipState.initial();
@@ -273,12 +278,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   final DesktopPseudoFullscreenController _fullscreenController =
       DesktopPseudoFullscreenController();
   final PipWindowModeController _pipController = PipWindowModeController();
+  final PlayerWindowAspectRatioController _windowAspectRatioController =
+      PlayerWindowAspectRatioController();
+  String _windowAspectRatio = PlayerWindowAspectRatioController.autoSetting;
   late final EpisodeAnalysisController _episodeAnalysisController;
   bool _isPipMode = false;
   bool _isPipHovered = false;
   bool _isPipTransitioning = false;
   Timer? _pipBoundsSaveTimer;
   Timer? _pipIdleTimer;
+  // Window session separation: the player route keeps its own geometry and
+  // must not leak resizes into the app window state used by other routes.
+  Rect? _prePlayerWindowBounds;
+  bool _prePlayerWasMaximized = false;
+  bool _windowPersistenceSuspended = false;
+  bool _windowSessionCaptured = false;
+  Timer? _playerWindowSizeSaveTimer;
   bool? _lastMacOSWindowButtonsVisibility;
   bool? _pendingMacOSWindowButtonsVisibility;
   bool _pendingMacOSWindowButtonsForce = false;
@@ -326,6 +341,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_isDesktopPlatform()) {
       windowManager.addListener(this);
       unawaited(_syncFullscreenState());
+      unawaited(_captureWindowSession());
     }
     _playbackIndicatorExitController = AnimationController(
       vsync: this,
@@ -343,6 +359,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     _syncPlaybackTargetsFromWidget();
     _restoreAutoPlaySetting();
+    _windowAspectRatio =
+        ref.read(playerSettingsManagerProvider).getWindowAspectRatio();
     unawaited(_ensureSubtitleLanguageMapsLoaded());
     _initializePlayer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -393,6 +411,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _setupPlayerBufferListener();
     _setupPlayerDurationListener();
     _setupPlayerCompletedListener();
+    _setupVideoParamsListener();
     _setupProviderListeners();
 
     await _loadAndPlayMedia();
@@ -541,6 +560,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _completedSubscription = player.stream.completed.listen((completed) {
       if (!completed || !mounted) return;
       _handlePlaybackCompleted();
+    });
+  }
+
+  /// Tracks live decode-size changes so the AUTO window ratio keeps the
+  /// window locked to the actual video aspect ratio, the same way PiP mode
+  /// keeps its window matched to the video.
+  void _setupVideoParamsListener() {
+    _videoParamsSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+
+    _videoParamsSubscription = player.stream.videoParams.listen((params) {
+      if (!mounted) return;
+      final width = params.w ?? 0;
+      final height = params.h ?? 0;
+      AppTalker.info(
+        'WindowRatio',
+        'videoParams: w=$width h=$height dw=${params.dw} dh=${params.dh}',
+      );
+      if (width <= 0 || height <= 0) return;
+      if (_windowAspectRatio != PlayerWindowAspectRatioController.autoSetting) {
+        return;
+      }
+      unawaited(_applyWindowAspectRatio());
     });
   }
 
@@ -2539,6 +2582,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _showUi();
 
       _fetchEpisodeContextAsync(requestToken);
+
+      // Resize/lock the window per the window aspect ratio setting now that
+      // the new video stream is known (KMP does this on every media load).
+      unawaited(_applyWindowAspectRatio());
     } catch (e, st) {
       AppTalker.error(
         'Player',
@@ -2952,6 +2999,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
 
       setState(() => _isFullscreen = isFullscreen);
+      _syncWindowAspectRatioWithFullscreen(isFullscreen);
     } catch (error, stackTrace) {
       AppTalker.error(
         'Player',
@@ -2968,9 +3016,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Resolves the playing video's aspect ratio (width / height). Prefers the
-  /// live media_kit decode size, falling back to the negotiated stream info.
+  /// aspect-corrected decode size so anamorphic or letterboxed sources lock
+  /// the window to what is actually displayed, falling back to the raw decode
+  /// size and then to the negotiated stream info.
   double? _resolveVideoAspectRatio() {
     final state = _player?.state;
+    final params = state?.videoParams;
+    final displayWidth = params?.dw ?? 0;
+    final displayHeight = params?.dh ?? 0;
+    if (displayWidth > 0 && displayHeight > 0) {
+      return displayWidth / displayHeight;
+    }
     final liveWidth = state?.width ?? 0;
     final liveHeight = state?.height ?? 0;
     if (liveWidth > 0 && liveHeight > 0) {
@@ -2983,6 +3039,55 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return videoStream.width / videoStream.height;
     }
     return null;
+  }
+
+  /// Applies the current window aspect ratio setting to the main window,
+  /// mirroring the KMP player's dynamic resize effect (keyed on the video
+  /// stream and the ratio setting). AUTO mode follows the PiP approach by
+  /// locking the window to the video's own ratio so the video frame and the
+  /// window stay perfectly matched.
+  Future<void> _applyWindowAspectRatio() async {
+    if (!_isDesktopPlatform()) return;
+    AppTalker.info(
+      'WindowRatio',
+      'apply requested: setting=$_windowAspectRatio '
+      'captured=$_windowSessionCaptured pip=$_isPipMode '
+      'fullscreen=$_isFullscreen initialized=$_isInitialized',
+    );
+    if (!_windowSessionCaptured) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (_isFullscreen || !_isInitialized) return;
+
+    // Delay slightly so the window state has settled, matching the KMP
+    // behavior right after window creation or state transitions.
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (_isFullscreen) return;
+
+    await _windowAspectRatioController.apply(
+      setting: _windowAspectRatio,
+      videoAspectRatio: _resolveVideoAspectRatio(),
+    );
+  }
+
+  void _onWindowAspectRatioChanged(String ratio) {
+    if (ratio == _windowAspectRatio) return;
+    setState(() => _windowAspectRatio = ratio);
+    ref.read(playerSettingsManagerProvider).setWindowAspectRatio(ratio);
+    unawaited(_applyWindowAspectRatio());
+  }
+
+  /// Fullscreen owns the window shape: release the ratio lock while in it,
+  /// re-apply the setting once back in windowed mode.
+  void _syncWindowAspectRatioWithFullscreen(bool isFullscreen) {
+    if (!_isDesktopPlatform()) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (isFullscreen) {
+      unawaited(_windowAspectRatioController.release());
+    } else {
+      unawaited(_applyWindowAspectRatio());
+    }
   }
 
   Future<void> _enterPipMode() async {
@@ -3018,6 +3123,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       // Reuse the same window and the same player by switching the window into
       // a compact, borderless, always-on-top form.
+      // PiP manages its own aspect ratio lock; hand the window over cleanly.
+      await _windowAspectRatioController.release();
       await _pipController.enter(videoAspectRatio: _resolveVideoAspectRatio());
 
       if (!mounted) {
@@ -3037,6 +3144,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       } catch (_) {}
       if (mounted) {
         setState(() => _isPipMode = false);
+        // PiP exit cleared the ratio lock; restore the player's setting.
+        unawaited(_applyWindowAspectRatio());
         ref
             .read(toastManagerProvider.notifier)
             .showToast('进入画中画失败: $error', type: ToastType.failed);
@@ -3070,6 +3179,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         visible: ref.read(playerOverlayControllerProvider).isUiVisible,
         force: true,
       );
+      // PiP cleared the aspect ratio lock; restore the player's setting.
+      unawaited(_applyWindowAspectRatio());
     } catch (error, stackTrace) {
       AppTalker.error(
         'Player',
@@ -3555,24 +3666,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void dispose() {
     if (_isDesktopPlatform()) {
       windowManager.removeListener(this);
+      unawaited(_windowAspectRatioController.release());
       unawaited(_fullscreenController.exitForRouteLeave());
       // Ensure the window is restored to its normal form when leaving while in
-      // PiP mode so the next route is not stuck in a tiny borderless window.
-      if (_pipController.isPipMode) {
-        unawaited(_pipController.exit());
-      }
+      // PiP mode so the next route is not stuck in a tiny borderless window,
+      // then hand the window back to the app routes at its pre-player size.
+      unawaited(_tearDownWindowSession());
     }
     if (!_pipController.isPipMode) {
       unawaited(_syncMacOSWindowButtonsVisibility(visible: true, force: true));
     }
     _pipBoundsSaveTimer?.cancel();
     _pipIdleTimer?.cancel();
+    _playerWindowSizeSaveTimer?.cancel();
     _positionSubscription?.cancel();
     _bufferSubscription?.cancel();
     _durationSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
     _tracksSubscription?.cancel();
+    _videoParamsSubscription?.cancel();
     _skipActionSubscription?.cancel();
     _removeIntroSkipStateListener?.call();
     _introSkipController.dispose();
@@ -4394,7 +4507,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             hovered,
           ),
           onAudioSelected: _onAudioSelected,
-          onWindowAspectRatioChanged: (_) {},
+          windowAspectRatio: _windowAspectRatio,
+          onWindowAspectRatioChanged: _onWindowAspectRatioChanged,
           onSkipConfigChanged: (skipOpening, skipEnding) {
             unawaited(_saveSkipConfig(skipOpening, skipEnding));
           },
@@ -4679,12 +4793,199 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
 
+    // The player route owns the window ratio lock; release it so other routes
+    // can resize the window freely again.
+    await _windowAspectRatioController.release();
     final isFullscreen = await _fullscreenController.exitForRouteLeave();
+    await _restoreAppWindowSession();
     if (!mounted || _isFullscreen == isFullscreen) {
       return;
     }
 
     setState(() => _isFullscreen = isFullscreen);
+  }
+
+  /// The player route keeps its own window geometry, separate from the rest
+  /// of the app (the KMP player window stores its size independently too).
+  /// While the player is open, main-window persistence is suspended and
+  /// player resizes are recorded into the player-geometry store instead, so
+  /// leaving the player no longer drags the other routes along.
+  Future<void> _captureWindowSession() async {
+    if (!_isDesktopPlatform()) {
+      return;
+    }
+    Rect? bounds;
+    var wasMaximized = false;
+    try {
+      bounds = await windowManager.getBounds();
+      wasMaximized = await windowManager.isMaximized();
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'capture window session failed',
+      );
+    }
+    if (!mounted) {
+      return;
+    }
+    _prePlayerWindowBounds = bounds;
+    _prePlayerWasMaximized = wasMaximized;
+    _windowSessionCaptured = true;
+    AppTalker.info(
+      'WindowSession',
+      'captured app bounds=$bounds maximized=$wasMaximized',
+    );
+    MainWindowPersistenceGuard.suspend();
+    _windowPersistenceSuspended = true;
+    unawaited(_restorePlayerWindowBounds());
+  }
+
+  /// Restores the player window's own remembered geometry (position and
+  /// size), mirroring the KMP player window restoring its saved position and
+  /// size on open.
+  Future<void> _restorePlayerWindowBounds() async {
+    final savedBounds =
+        ref.read(playerSettingsManagerProvider).getPlayerWindowBounds();
+    if (savedBounds == null) {
+      return;
+    }
+    try {
+      if (await windowManager.isFullScreen()) {
+        return;
+      }
+      if (await windowManager.isMaximized()) {
+        await windowManager.unmaximize();
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+      }
+      final displays = await _tryGetDisplays();
+      final restored = WindowGeometry.normalizeMainWindowBounds(
+        savedBounds,
+        displays,
+        fallbackSize: savedBounds.size,
+        minimumSize: const Size(640, 360),
+      );
+      await windowManager.setBounds(restored);
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'restore player window bounds failed',
+      );
+    }
+  }
+
+  void _schedulePlayerWindowBoundsSave() {
+    if (!_isDesktopPlatform()) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    _playerWindowSizeSaveTimer?.cancel();
+    _playerWindowSizeSaveTimer =
+        Timer(const Duration(milliseconds: 500), () async {
+      if (!mounted) return;
+      if (_isPipMode || _pipController.isPipMode) return;
+      try {
+        if (await windowManager.isMaximized() ||
+            await windowManager.isFullScreen()) {
+          return;
+        }
+        final bounds = await windowManager.getBounds();
+        if (!mounted) return;
+        await ref
+            .read(playerSettingsManagerProvider)
+            .setPlayerWindowBounds(bounds);
+      } catch (_) {
+        // Persistence is best-effort; never fail a window event on it.
+      }
+    });
+  }
+
+  /// Restores the app window to its pre-player geometry and re-enables
+  /// main-window persistence, so player-driven resizes never leak into the
+  /// other routes.
+  Future<void> _restoreAppWindowSession() async {
+    if (!_windowPersistenceSuspended) {
+      return;
+    }
+    _windowPersistenceSuspended = false;
+
+    if (!_isDesktopPlatform()) {
+      MainWindowPersistenceGuard.resume();
+      return;
+    }
+
+    // Remember the player's final floating geometry for the next session.
+    if (!_isPipMode && !_pipController.isPipMode) {
+      try {
+        if (!await windowManager.isMaximized() &&
+            !await windowManager.isFullScreen()) {
+          final bounds = await windowManager.getBounds();
+          await ref
+              .read(playerSettingsManagerProvider)
+              .setPlayerWindowBounds(bounds);
+        }
+      } catch (_) {
+        // Best-effort, same as the debounced saves.
+      }
+    }
+
+    final appBounds = _prePlayerWindowBounds;
+    final wasMaximized = _prePlayerWasMaximized;
+    _prePlayerWindowBounds = null;
+
+    try {
+      await _fullscreenController.exitForRouteLeave();
+      // Native fullscreen exits animate; wait for the window to settle
+      // before restoring the captured bounds.
+      for (var attempt = 0;
+          attempt < 15 && await windowManager.isFullScreen();
+          attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      if (appBounds != null && !await windowManager.isFullScreen()) {
+        if (await windowManager.isMaximized()) {
+          await windowManager.unmaximize();
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+        }
+        final displays = await _tryGetDisplays();
+        final restored = WindowGeometry.normalizeMainWindowBounds(
+          appBounds,
+          displays,
+          fallbackSize: appBounds.size,
+          minimumSize: const Size(640, 360),
+        );
+        await windowManager.setBounds(restored);
+        if (wasMaximized) {
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+          await windowManager.maximize();
+        }
+      }
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'restore app window session failed',
+      );
+    } finally {
+      MainWindowPersistenceGuard.resume();
+    }
+  }
+
+  Future<void> _tearDownWindowSession() async {
+    if (_pipController.isPipMode) {
+      await _pipController.exit();
+    }
+    await _restoreAppWindowSession();
+  }
+
+  Future<List<DesktopDisplayGeometry>> _tryGetDisplays() async {
+    try {
+      return await const DesktopDisplayService().getDisplays();
+    } catch (_) {
+      return const [];
+    }
   }
 
   bool _isDesktopPlatform() {
@@ -4702,6 +5003,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     setState(() => _isFullscreen = true);
+    _syncWindowAspectRatioWithFullscreen(true);
   }
 
   @override
@@ -4711,13 +5013,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     setState(() => _isFullscreen = false);
+    _syncWindowAspectRatioWithFullscreen(false);
   }
 
   @override
-  void onWindowMoved() => _schedulePipBoundsSave();
+  void onWindowMoved() {
+    _schedulePipBoundsSave();
+    _schedulePlayerWindowBoundsSave();
+  }
 
   @override
-  void onWindowResized() => _schedulePipBoundsSave();
+  void onWindowResized() {
+    _schedulePipBoundsSave();
+    _schedulePlayerWindowBoundsSave();
+  }
 
   bool get _canAdjustSubtitle {
     final subtitleStream = _playingInfoCache?.currentSubtitleStream;
