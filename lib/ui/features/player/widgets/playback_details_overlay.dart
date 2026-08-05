@@ -178,9 +178,9 @@ class PlaybackDetailsPanel extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Flexible(child: _buildVideoGroup(videoStream)),
+                      Expanded(child: _buildVideoGroup(videoStream)),
                       const SizedBox(width: _columnGap),
-                      Flexible(child: _buildAudioGroup(audioStream)),
+                      Expanded(child: _buildAudioGroup(audioStream)),
                     ],
                   ),
                 ],
@@ -201,8 +201,7 @@ class PlaybackDetailsPanel extends StatelessWidget {
     final left = <Widget>[
       if (bufferedSeconds != null)
         _detailLine('缓冲时长', '${bufferedSeconds!.toStringAsFixed(2)} s'),
-      if (status.resolution.isNotEmpty)
-        _detailLine('分辨率', status.resolution),
+      if (status.resolution.isNotEmpty) _detailLine('分辨率', status.resolution),
       if (status.bitrate > 0) _detailLine('码率', _formatBitrate(status.bitrate)),
       if (_isTranscoded) ...[
         if (video.encoder.isNotEmpty) _detailLine('编码器', video.encoder),
@@ -237,15 +236,19 @@ class PlaybackDetailsPanel extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Flexible(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: left,
-        )),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: left,
+          ),
+        ),
         const SizedBox(width: _columnGap),
-        Flexible(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: right,
-        )),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: right,
+          ),
+        ),
       ],
     );
   }
