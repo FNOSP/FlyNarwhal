@@ -123,3 +123,9 @@ release-work/
 
 # debug-mode skill runtime output
 /.claude/debug/
+
+# Vendored full libmpv package build artifacts (downloaded/extracted by macos/Makefile)
+third_party/media_kit_libs_macos_video_full/macos/.cache/
+third_party/media_kit_libs_macos_video_full/macos/Frameworks/
+third_party/media_kit_libs_macos_video_full/macos/Headers/
+.cache/

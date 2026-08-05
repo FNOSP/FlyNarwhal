@@ -104,7 +104,19 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc
+          sudo apt-get install -y gcc mpv libmpv-dev
+          # Verify the runtime libmpv can decode PGS/HDMV SUP subtitles so the
+          # bundle script can rely on the system copy. mpv is built against
+          # FFmpeg, so `mpv --list-options` exposes decoder availability.
+          ffmpeg_decoders="$(ffmpeg -decoders 2>/dev/null || true)"
+          if [ -z "$ffmpeg_decoders" ]; then
+            sudo apt-get install -y ffmpeg
+          fi
+          if ! ffmpeg -decoders 2>/dev/null | grep -q 'hdmv_pgs_subtitle'; then
+            echo '::error::Installed ffmpeg/mpv does not expose hdmv_pgs_subtitle; cannot bundle a full libmpv for PGS/HDMV SUP support.'
+            ffmpeg -decoders | head -20 || true
+            exit 1
+          fi
 
       - name: Set up C toolchain (Windows arm64)
         if: matrix.platform == 'windows' && matrix.architecture == 'arm64'
