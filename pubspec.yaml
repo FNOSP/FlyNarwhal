@@ -72,6 +72,14 @@ dev_dependencies:
   flutter_driver:
     sdk: flutter
 
+# Override media_kit_libs_macos_video with a vendored copy that downloads
+# the *full* FFmpeg/mpv XCFramework (PGS/HDMV SUP bitmap subtitle support).
+# See third_party/media_kit_libs_macos_video_full/macos/Makefile for the
+# pinned upstream archive (libmpv-xcframeworks_v0.6.0_macos-universal-video-full).
+dependency_overrides:
+  media_kit_libs_macos_video:
+    path: third_party/media_kit_libs_macos_video_full
+
 flutter:
   uses-material-design: true
   assets:

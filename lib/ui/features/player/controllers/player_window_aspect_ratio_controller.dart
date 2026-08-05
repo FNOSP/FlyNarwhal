@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -9,18 +10,21 @@ import '../../../../core/window/desktop_display_service.dart';
 import '../../../../core/window/window_geometry.dart';
 
 /// Applies the player's window aspect ratio setting ("窗口比例") to the main
-/// window, mirroring the KMP player's behavior.
+/// window.
 ///
-/// Fixed settings ("4:3", "16:9", "21:9") lock the window to that ratio and
-/// perform a one-shot resize based on the KMP expansion strategy: wider
-/// targets keep the height and grow the width, narrower targets keep the
-/// width and grow the height, with the width clamped to ±50% of the current
-/// size so a distorted window cannot explode.
+/// Every setting ("AUTO", "4:3", "16:9", "21:9") locks the window to its
+/// ratio via [WindowManager.setAspectRatio] and resizes from a session-stable
+/// baseline area captured on the first apply (the window geometry the user
+/// entered the player with). The target size keeps the window area constant
+/// while adopting the target ratio, so alternating between videos or settings
+/// with different ratios oscillates between fixed sizes instead of growing
+/// the window. Resizes are anchored at the window's geometric center.
 ///
-/// The "AUTO" setting follows the PiP approach instead: the window aspect
-/// ratio is locked to the video's own aspect ratio via
-/// [WindowManager.setAspectRatio], so the video frame and the window stay
-/// perfectly matched even while the user resizes the window.
+/// The "AUTO" setting follows the video's own aspect ratio so the video frame
+/// and the window stay perfectly matched even while the user resizes the
+/// window. A user resize under the ratio lock updates the baseline area via
+/// [observeSettledBounds], so subsequent ratio changes scale from the size
+/// the user chose.
 class PlayerWindowAspectRatioController {
   static const Map<String, double> _fixedRatios = {
     '4:3': 4 / 3,
@@ -31,12 +35,26 @@ class PlayerWindowAspectRatioController {
   static const Duration _windowStateTransitionDelay =
       Duration(milliseconds: 16);
   static const Size _normalWindowMinimumSize = Size(1280, 720);
+  // Area of [_normalWindowMinimumSize]; kept as literals because Size
+  // properties are not accessible in const expressions.
+  static const double _fallbackBaselineArea = 1280 * 720;
   // Aspect ratios closer than this are considered identical, avoiding
   // redundant window resizing when repeated video-param events arrive.
   static const double _ratioEpsilon = 0.005;
+  // Width/height tolerance when recognizing programmatic setBounds echoes in
+  // [observeSettledBounds]; covers DPI scaling and OS rounding.
+  static const double _sizeEpsilonPx = 2.0;
 
   String? _appliedSetting;
   double? _lockedRatio;
+  // Session-stable window area anchoring all ratio resizes. Captured on the
+  // first apply (before any programmatic resize) and only updated by genuine
+  // user resizes; deliberately NOT cleared by [release] so fullscreen/PiP
+  // round-trips restore the exact same size.
+  double? _baselineArea;
+  // Actual size after the latest programmatic setBounds, used to tell our own
+  // resize echoes apart from user gestures in [observeSettledBounds].
+  Size? _lastProgrammaticSize;
 
   /// The setting currently locked onto the window, if any.
   String? get appliedSetting => _appliedSetting;
@@ -88,6 +106,13 @@ class PlayerWindowAspectRatioController {
       }
 
       final bounds = await windowManager.getBounds();
+      // Capture the session baseline once, before any programmatic resize:
+      // the window currently holds the user's chosen geometry (restored
+      // player bounds or the app window size), whose area anchors every
+      // ratio resize for the rest of this player session.
+      _baselineArea ??= WindowGeometry.isValidBounds(bounds)
+          ? bounds.width * bounds.height
+          : null;
       final currentRatio =
           bounds.height > 0 ? bounds.width / bounds.height : targetRatio;
       final alreadyMatching =
@@ -98,28 +123,33 @@ class PlayerWindowAspectRatioController {
         'apply($setting): target=${targetRatio.toStringAsFixed(3)} '
         'current=${currentRatio.toStringAsFixed(3)} '
         'bounds=${bounds.width.toStringAsFixed(0)}x${bounds.height.toStringAsFixed(0)} '
+        'baseline=${(_baselineArea ?? 0).toStringAsFixed(0)} '
         'resize=${!alreadyMatching}',
       );
 
       if (!alreadyMatching) {
-        final targetSize = _calculateTargetSize(
-          currentSize: bounds.size,
-          currentRatio: currentRatio,
-          targetRatio: targetRatio,
-        );
         final displays = await _tryGetDisplays();
+        final workArea =
+            WindowGeometry.selectDisplay(bounds, displays)?.workArea;
+        final targetSize = _calculateTargetSize(
+          baselineArea: _baselineArea ?? _fallbackBaselineArea,
+          targetRatio: targetRatio,
+          workArea: workArea,
+        );
+        // Anchor the resize at the window's geometric center so the window
+        // grows/shrinks symmetrically around where the user is looking.
         final targetBounds = WindowGeometry.normalizeMainWindowBounds(
-          Rect.fromLTWH(
-            bounds.left,
-            bounds.top,
-            targetSize.width,
-            targetSize.height,
+          Rect.fromCenter(
+            center: bounds.center,
+            width: targetSize.width,
+            height: targetSize.height,
           ),
           displays,
           fallbackSize: _normalWindowMinimumSize,
           minimumSize: _normalWindowMinimumSize,
         );
         await windowManager.setBounds(targetBounds);
+        _lastProgrammaticSize = await _measureSettledSize(targetBounds.size);
       }
 
       // Lock the ratio last so the resize above is not constrained by a
@@ -142,8 +172,43 @@ class PlayerWindowAspectRatioController {
     }
   }
 
+  /// Observes the window's settled bounds after move/resize gestures settle
+  /// (called from the player screen's debounced persistence callback).
+  ///
+  /// Programmatic setBounds echoes are recognized via [_lastProgrammaticSize]
+  /// and ignored; a genuine user resize under the ratio lock updates the
+  /// baseline area so subsequent ratio changes scale from the user's size.
+  void observeSettledBounds(Rect bounds) {
+    if (_lockedRatio == null) {
+      // No active ratio lock: the window shape is owned by fullscreen/PiP
+      // transitions or the plain app window; never touch the baseline.
+      return;
+    }
+    if (!WindowGeometry.isValidBounds(bounds)) {
+      return;
+    }
+    final lastProgrammaticSize = _lastProgrammaticSize;
+    if (lastProgrammaticSize != null &&
+        (bounds.width - lastProgrammaticSize.width).abs() < _sizeEpsilonPx &&
+        (bounds.height - lastProgrammaticSize.height).abs() <
+            _sizeEpsilonPx) {
+      // Echo of our own setBounds, not a user gesture.
+      return;
+    }
+    _baselineArea = bounds.width * bounds.height;
+    _lastProgrammaticSize = bounds.size;
+    AppTalker.info(
+      'WindowRatio',
+      'baseline updated from user resize: '
+      '${bounds.width.toStringAsFixed(0)}x${bounds.height.toStringAsFixed(0)}',
+    );
+  }
+
   /// Removes the aspect ratio lock, e.g. when leaving the player route or
   /// entering fullscreen/PiP where the window shape is managed elsewhere.
+  ///
+  /// The baseline area is intentionally preserved so leaving and re-entering
+  /// a mode restores the exact same window size.
   Future<void> release() async {
     _appliedSetting = null;
     _lockedRatio = null;
@@ -162,40 +227,73 @@ class PlayerWindowAspectRatioController {
     }
   }
 
-  /// KMP expansion strategy: only grow the window toward the target ratio,
-  /// never shrink the kept dimension, and clamp the resulting width to
-  /// ±50% of the current width.
+  /// Computes the target window size for [targetRatio] from the session's
+  /// stable [baselineArea]: width/height follow the ratio while the window's
+  /// on-screen area stays constant, so switching between ratios oscillates
+  /// between fixed sizes instead of growing. Target size is a pure function
+  /// of (area, ratio) — there is no feedback from the current window size.
+  ///
+  /// Clamping keeps the ratio exact by scaling uniformly: fit inside the
+  /// display work area, then scale up to satisfy the minimum window size;
+  /// when the two conflict (extreme ratios on small displays) the work area
+  /// wins and the OS minimum-size clamp may apply to one axis.
   Size _calculateTargetSize({
-    required Size currentSize,
-    required double currentRatio,
+    required double baselineArea,
     required double targetRatio,
+    required Rect? workArea,
   }) {
-    var targetWidth = currentSize.width;
-    var targetHeight = currentSize.height;
+    var width = math.sqrt(baselineArea * targetRatio);
+    var height = baselineArea / width;
 
-    if (targetRatio > currentRatio) {
-      // Wider target: keep height, expand width (e.g. 16:9 -> 21:9).
-      targetWidth = currentSize.height * targetRatio;
-    } else {
-      // Narrower target: keep width, expand height (e.g. 16:9 -> 4:3).
-      targetHeight = currentSize.width / targetRatio;
+    double fitScale() {
+      final workAreaRect = workArea!;
+      return math.min(
+        math.min(workAreaRect.width / width, workAreaRect.height / height),
+        1.0,
+      );
     }
 
-    final minWidth = currentSize.width * 0.5;
-    final maxWidth = currentSize.width * 1.5;
-    if (targetWidth < minWidth) {
-      targetWidth = minWidth;
-    } else if (targetWidth > maxWidth) {
-      targetWidth = maxWidth;
+    if (workArea != null) {
+      final scale = fitScale();
+      width *= scale;
+      height *= scale;
     }
 
-    // Keep the final shape at the exact target ratio after any clamping.
-    targetHeight = targetWidth / targetRatio;
+    final minimumScale = math.max(
+      math.max(
+        _normalWindowMinimumSize.width / width,
+        _normalWindowMinimumSize.height / height,
+      ),
+      1.0,
+    );
+    width *= minimumScale;
+    height *= minimumScale;
+
+    if (workArea != null) {
+      final scale = fitScale();
+      width *= scale;
+      height *= scale;
+    }
 
     return Size(
-      targetWidth.roundToDouble(),
-      targetHeight.roundToDouble(),
+      width.roundToDouble(),
+      height.roundToDouble(),
     );
+  }
+
+  /// Reads back the actual window size after a programmatic setBounds so the
+  /// echo comparison in [observeSettledBounds] accounts for any OS-side
+  /// clamping (e.g. the window's minimum size).
+  Future<Size> _measureSettledSize(Size requestedSize) async {
+    try {
+      final settledBounds = await windowManager.getBounds();
+      if (WindowGeometry.isValidBounds(settledBounds)) {
+        return settledBounds.size;
+      }
+    } catch (_) {
+      // Fall back to the requested size below.
+    }
+    return requestedSize;
   }
 
   double? _normalizeRatio(double? ratio) {

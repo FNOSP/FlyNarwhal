@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../data/storage/update_settings_store.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/update_providers.dart';
@@ -491,9 +492,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                           if (missingUrl ||
                                                               missingAuthCode) {
                                                             ref
-                                                                .read(
-                                                                    toastManagerProvider
-                                                                        .notifier)
+                                                                .read(toastManagerProvider
+                                                                    .notifier)
                                                                 .showToast(
                                                                   buildFlyNarwhalConfigWarning(
                                                                     missingUrl:
@@ -555,7 +555,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               const _Header(title: '关于'),
                               CardExpanderItem(
                                 key: const ValueKey('settings-check-update'),
-                                icon: const Icon(FluentIcons.update_restore),
+                                icon: const Icon(FluentIcons.info),
                                 heading: Row(
                                   children: [
                                     const Text('当前版本'),
@@ -651,7 +651,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 },
                               ),
                               CardExpanderItem(
-                                icon: const Icon(FluentIcons.info),
+                                icon: Builder(
+                                  builder: (context) {
+                                    final iconColor =
+                                        IconTheme.of(context).color;
+                                    return SvgPicture.asset(
+                                      'assets/images/statement.svg',
+                                      width: 16,
+                                      height: 16,
+                                      colorFilter: iconColor == null
+                                          ? null
+                                          : ColorFilter.mode(
+                                              iconColor,
+                                              BlendMode.srcIn,
+                                            ),
+                                    );
+                                  },
+                                ),
                                 heading: const Text('隐私声明'),
                                 caption: const Text('隐私声明'),
                                 onPressed: () {

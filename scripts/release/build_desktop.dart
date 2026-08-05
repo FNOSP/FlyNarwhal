@@ -106,6 +106,18 @@ Future<void> _runProtectedBuild({
       );
       stdout.writeln('Verify Windows bundle contract in $bundleDirectory');
     }
+    if (platform == 'linux') {
+      stdout.writeln(
+        'Bundle full libmpv into $bundleDirectory/lib '
+        '(sources: /usr/lib/<arch>-linux-gnu via scripts/linux/bundle_full_libmpv.dart).',
+      );
+    }
+    if (platform == 'macos') {
+      stdout.writeln(
+        'Verify full libmpv/FFmpeg in $bundleDirectory via '
+        'scripts/macos/verify_full_libmpv.dart.',
+      );
+    }
     return;
   }
   final nativeLibrary = File(nativeLibraryPath);
@@ -117,6 +129,12 @@ Future<void> _runProtectedBuild({
     _fail('Desktop release bundle is missing after the Flutter build');
   }
   await nativeLibrary.copy(bundleLibraryPath);
+  if (platform == 'linux') {
+    await _runLinuxFullLibmpvBundle(bundleDirectory);
+  }
+  if (platform == 'macos') {
+    await _runMacosFullLibmpvVerify(bundleDirectory);
+  }
   if (platform == 'windows') {
     await _runWindowsIdentityCheck();
     try {
@@ -207,6 +225,52 @@ Future<void> _runWindowsIdentityCheck() async {
     arguments: const <String>[
       'run',
       'scripts/windows/verify_identity_contract.dart'
+    ],
+    dryRun: false,
+  );
+}
+
+Future<void> _runLinuxFullLibmpvBundle(String bundleDirectory) async {
+  // The Ubuntu Noble runners (x64 + arm64) expose libmpv.so.2 under
+  // /usr/lib/<arch>-linux-gnu. We deliberately point the script at that root
+  // so it can resolve the full dependency closure (libass, libavcodec, ...).
+  const sourceRoots = <String>[
+    '/usr/lib/x86_64-linux-gnu',
+    '/usr/lib/aarch64-linux-gnu',
+    '/usr/lib64',
+    '/usr/lib',
+  ];
+  for (final root in sourceRoots) {
+    if (Directory(root).existsSync()) {
+      await _runProcess(
+        executable: 'dart',
+        arguments: <String>[
+          'run',
+          'scripts/linux/bundle_full_libmpv.dart',
+          bundleDirectory,
+          root,
+        ],
+        dryRun: false,
+      );
+      return;
+    }
+  }
+  _fail(
+    'Could not find a libmpv source directory under '
+    '${sourceRoots.join(', ')}. Install mpv/libmpv-dev before building Linux.',
+  );
+}
+
+Future<void> _runMacosFullLibmpvVerify(String bundleDirectory) async {
+  // bundleDirectory points at .../Contents/MacOS; the .app root is two
+  // directories up from there.
+  final appRoot = Directory(bundleDirectory).parent.path;
+  await _runProcess(
+    executable: 'dart',
+    arguments: <String>[
+      'run',
+      'scripts/macos/verify_full_libmpv.dart',
+      appRoot,
     ],
     dryRun: false,
   );

@@ -326,6 +326,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
                               ),
                             ),
                           EditableText(
+                            key: const ValueKey('search-capsule-input'),
                             controller: _controller,
                             focusNode: _focusNode,
                             onChanged: _onTextChanged,
