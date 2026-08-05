@@ -1133,13 +1133,13 @@ class _MediaInfoSection extends StatelessWidget {
               Expanded(
                 child: _TrackItem(
                   info: mediaDetails.videoTrack,
-                  iconAssetPath: 'assets/images/audio.svg',
+                  iconAssetPath: 'assets/images/vedio.svg',
                 ),
               ),
               Expanded(
                 child: _TrackItem(
                   info: mediaDetails.audioTrack,
-                  iconAssetPath: 'assets/images/vedio.svg',
+                  iconAssetPath: 'assets/images/audio.svg',
                 ),
               ),
               Expanded(

@@ -6,6 +6,7 @@ import '../../../../domain/entities/media_type.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
+import '../../../../tooling/driver_test_mode.dart';
 import 'player_action_button.dart';
 import 'player_settings_components.dart';
 
@@ -119,7 +120,12 @@ class PlayerSettingsMenu extends StatefulWidget {
   final int totalDurationMillis;
   final double popupBottomOffset;
   final void Function(AudioStream) onAudioSelected;
+  /// Current window aspect ratio setting ("AUTO", "4:3", "16:9", "21:9").
+  final String windowAspectRatio;
   final void Function(String) onWindowAspectRatioChanged;
+  /// Current video fill mode ("default", "4:3", "16:9", "21:9").
+  final String videoFillMode;
+  final void Function(String) onVideoFillModeChanged;
   final void Function(int skipOpening, int skipEnding) onSkipConfigChanged;
   final void Function(bool isHovered)? onHoverStateChanged;
   final bool smartSkipEnabled;
@@ -128,6 +134,12 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool enabled)? onAutoPlayChanged;
+  final bool forceH264;
+  final void Function(bool enabled)? onForceH264Changed;
+  final String? forceH264DisabledReason;
+  final bool forceSdrColor;
+  final void Function(bool enabled)? onForceSdrColorChanged;
+  final String? forceSdrDisabledReason;
   final Map<String, String>? iso6391Map;
   final Map<String, String>? iso6392Map;
   // Whether the FlyNarwhal server is fully configured (URL + auth code)
@@ -144,7 +156,10 @@ class PlayerSettingsMenu extends StatefulWidget {
     required this.totalDurationMillis,
     this.popupBottomOffset = 70,
     required this.onAudioSelected,
+    this.windowAspectRatio = 'AUTO',
     required this.onWindowAspectRatioChanged,
+    this.videoFillMode = 'default',
+    required this.onVideoFillModeChanged,
     required this.onSkipConfigChanged,
     this.onHoverStateChanged,
     this.smartSkipEnabled = true,
@@ -153,6 +168,12 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.isSavingSkipConfig = false,
     this.isAutoPlay = true,
     this.onAutoPlayChanged,
+    this.forceH264 = false,
+    this.onForceH264Changed,
+    this.forceH264DisabledReason,
+    this.forceSdrColor = false,
+    this.onForceSdrColorChanged,
+    this.forceSdrDisabledReason,
     this.isFlyNarwhalServerAvailable = false,
     this.onFlyNarwhalConfigMissing,
   });
@@ -212,7 +233,8 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
 
   void _hideFlyoutWithDelay() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(milliseconds: _hideDelayMs), () {
+    final delay = kDriverTestMode ? 10000 : _hideDelayMs;
+    _hideTimer = Timer(Duration(milliseconds: delay), () {
       if (!_isButtonHovered && !_popupHovered && mounted) {
         _closeMenu();
       }
@@ -227,6 +249,12 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
       _isAutoPlay = widget.isAutoPlay;
     }
     if (oldWidget.popupBottomOffset != widget.popupBottomOffset ||
+        oldWidget.windowAspectRatio != widget.windowAspectRatio ||
+        oldWidget.videoFillMode != widget.videoFillMode ||
+        oldWidget.forceH264 != widget.forceH264 ||
+        oldWidget.forceSdrColor != widget.forceSdrColor ||
+        oldWidget.forceH264DisabledReason != widget.forceH264DisabledReason ||
+        oldWidget.forceSdrDisabledReason != widget.forceSdrDisabledReason ||
         autoPlayChanged) {
       _requestOverlayRebuild();
     }
@@ -419,10 +447,18 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         key: const ValueKey('player-settings-menu'),
         child: KeyedSubtree(
           key: _buttonKey,
-          child: const PlayerActionButton.lottie(
-            lottieAssetPath: 'assets/lottie/settings_lottie.json',
-            size: 30,
-            iconSize: 22,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            // Hover shows the flyout on desktop; the tap fallback only exists
+            // for driver builds, whose synthetic taps carry no hover events.
+            onTap: kDriverTestMode
+                ? () => _isExpanded ? _closeMenu() : _showFlyout()
+                : null,
+            child: const PlayerActionButton.lottie(
+              lottieAssetPath: 'assets/lottie/settings_lottie.json',
+              size: 30,
+              iconSize: 22,
+            ),
           ),
         ),
       ),
@@ -463,6 +499,13 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
           widget.onWindowAspectRatioChanged(ratio);
           _closeMenu();
         },
+        windowAspectRatio: widget.windowAspectRatio,
+        onVideoFillModeChanged: (mode) {
+          _setPopupHovered(false);
+          widget.onVideoFillModeChanged(mode);
+          _closeMenu();
+        },
+        videoFillMode: widget.videoFillMode,
         onSkipConfigChanged: widget.onSkipConfigChanged,
         smartSkipEnabled: widget.smartSkipEnabled,
         onSmartSkipEnabledChanged: widget.onSmartSkipEnabledChanged,
@@ -474,6 +517,12 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
           _requestOverlayRebuild();
           widget.onAutoPlayChanged?.call(value);
         },
+        forceH264: widget.forceH264,
+        onForceH264Changed: widget.onForceH264Changed,
+        forceH264DisabledReason: widget.forceH264DisabledReason,
+        forceSdrColor: widget.forceSdrColor,
+        onForceSdrColorChanged: widget.onForceSdrColorChanged,
+        forceSdrDisabledReason: widget.forceSdrDisabledReason,
         isFlyNarwhalServerAvailable: widget.isFlyNarwhalServerAvailable,
         onFlyNarwhalConfigMissing: widget.onFlyNarwhalConfigMissing,
       ),
@@ -512,7 +561,10 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final String currentScreen;
   final void Function(String) onNavigate;
   final void Function(AudioStream) onAudioSelected;
+  final String windowAspectRatio;
   final void Function(String) onWindowAspectRatioChanged;
+  final String videoFillMode;
+  final void Function(String) onVideoFillModeChanged;
   final void Function(int, int) onSkipConfigChanged;
   final bool smartSkipEnabled;
   final void Function(bool)? onSmartSkipEnabledChanged;
@@ -520,6 +572,12 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool)? onAutoPlayChanged;
+  final bool forceH264;
+  final void Function(bool)? onForceH264Changed;
+  final String? forceH264DisabledReason;
+  final bool forceSdrColor;
+  final void Function(bool)? onForceSdrColorChanged;
+  final String? forceSdrDisabledReason;
   // Whether the FlyNarwhal server is fully configured (URL + auth code)
   final bool isFlyNarwhalServerAvailable;
   // Called when user tries to enable smart skip without full config
@@ -535,7 +593,10 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.currentScreen,
     required this.onNavigate,
     required this.onAudioSelected,
+    required this.windowAspectRatio,
     required this.onWindowAspectRatioChanged,
+    required this.videoFillMode,
+    required this.onVideoFillModeChanged,
     required this.onSkipConfigChanged,
     required this.smartSkipEnabled,
     required this.onSmartSkipEnabledChanged,
@@ -543,6 +604,12 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.isSavingSkipConfig,
     required this.isAutoPlay,
     required this.onAutoPlayChanged,
+    required this.forceH264,
+    required this.onForceH264Changed,
+    required this.forceH264DisabledReason,
+    required this.forceSdrColor,
+    required this.onForceSdrColorChanged,
+    required this.forceSdrDisabledReason,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
   });
@@ -565,6 +632,16 @@ class _SettingsFlyoutContent extends StatelessWidget {
 
   Widget _buildCurrentScreen() {
     switch (currentScreen) {
+      case 'Advanced':
+        return _AdvancedSettingsScreen(
+          forceH264: forceH264,
+          forceH264DisabledReason: forceH264DisabledReason,
+          onForceH264Changed: onForceH264Changed,
+          forceSdrColor: forceSdrColor,
+          forceSdrDisabledReason: forceSdrDisabledReason,
+          onForceSdrColorChanged: onForceSdrColorChanged,
+          onBack: () => onNavigate('Main'),
+        );
       case 'Audio':
         return _AudioSettingsScreen(
           playingInfoCache: playingInfoCache,
@@ -575,8 +652,15 @@ class _SettingsFlyoutContent extends StatelessWidget {
         );
       case 'WindowAspectRatio':
         return _WindowAspectRatioSettingsScreen(
+          currentRatio: windowAspectRatio,
           onBack: () => onNavigate('Main'),
           onAspectRatioSelected: onWindowAspectRatioChanged,
+        );
+      case 'VideoFillMode':
+        return _VideoFillModeSettingsScreen(
+          currentMode: videoFillMode,
+          onBack: () => onNavigate('Main'),
+          onFillModeSelected: onVideoFillModeChanged,
         );
       case 'SkipConfig':
         return _SkipConfigSettingsScreen(
@@ -601,9 +685,13 @@ class _SettingsFlyoutContent extends StatelessWidget {
           isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
           isAutoPlay: isAutoPlay,
           onAutoPlayChanged: onAutoPlayChanged,
+          windowAspectRatio: windowAspectRatio,
+          videoFillMode: videoFillMode,
           onNavigateToAudio: () => onNavigate('Audio'),
           onNavigateToWindowAspectRatio: () => onNavigate('WindowAspectRatio'),
+          onNavigateToVideoFillMode: () => onNavigate('VideoFillMode'),
           onNavigateToSkipConfig: () => onNavigate('SkipConfig'),
+          onNavigateToAdvanced: () => onNavigate('Advanced'),
         );
     }
   }
@@ -617,9 +705,13 @@ class _MainSettingsScreen extends StatelessWidget {
   final bool isSmartAnalysisGloballyEnabled;
   final bool isAutoPlay;
   final void Function(bool)? onAutoPlayChanged;
+  final String windowAspectRatio;
+  final String videoFillMode;
   final VoidCallback onNavigateToAudio;
   final VoidCallback onNavigateToWindowAspectRatio;
+  final VoidCallback onNavigateToVideoFillMode;
   final VoidCallback onNavigateToSkipConfig;
+  final VoidCallback onNavigateToAdvanced;
 
   const _MainSettingsScreen({
     required this.playingInfoCache,
@@ -629,9 +721,13 @@ class _MainSettingsScreen extends StatelessWidget {
     required this.isSmartAnalysisGloballyEnabled,
     required this.isAutoPlay,
     required this.onAutoPlayChanged,
+    required this.windowAspectRatio,
+    required this.videoFillMode,
     required this.onNavigateToAudio,
     required this.onNavigateToWindowAspectRatio,
+    required this.onNavigateToVideoFillMode,
     required this.onNavigateToSkipConfig,
+    required this.onNavigateToAdvanced,
   });
 
   @override
@@ -643,7 +739,11 @@ class _MainSettingsScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const PlayerSettingsHeader(title: '设置'),
+        PlayerSettingsHeader(
+          title: '设置',
+          actionLabel: '高级',
+          onAction: onNavigateToAdvanced,
+        ),
         const SizedBox(height: 8),
         PlayerSettingsToggleRow(
           key: const ValueKey('player-settings-autoplay-toggle'),
@@ -661,9 +761,16 @@ class _MainSettingsScreen extends StatelessWidget {
             onClick: onNavigateToSkipConfig,
           ),
         _SettingsMenuItem(
+          key: const ValueKey('player-settings-window-ratio'),
           title: '窗口比例',
-          value: '自动',
+          value: windowAspectRatio == 'AUTO' ? '跟随视频比例' : windowAspectRatio,
           onClick: onNavigateToWindowAspectRatio,
+        ),
+        _SettingsMenuItem(
+          key: const ValueKey('player-settings-video-fill-mode'),
+          title: '画面比例',
+          value: videoFillMode == 'default' ? '默认' : videoFillMode,
+          onClick: onNavigateToVideoFillMode,
         ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-audio'),
@@ -692,6 +799,53 @@ class _MainSettingsScreen extends StatelessWidget {
       return '已设置片尾';
     }
     return '未设置';
+  }
+}
+
+class _AdvancedSettingsScreen extends StatelessWidget {
+  final bool forceH264;
+  final String? forceH264DisabledReason;
+  final void Function(bool)? onForceH264Changed;
+  final bool forceSdrColor;
+  final String? forceSdrDisabledReason;
+  final void Function(bool)? onForceSdrColorChanged;
+  final VoidCallback onBack;
+
+  const _AdvancedSettingsScreen({
+    required this.forceH264,
+    required this.forceH264DisabledReason,
+    required this.onForceH264Changed,
+    required this.forceSdrColor,
+    required this.forceSdrDisabledReason,
+    required this.onForceSdrColorChanged,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PlayerSettingsHeader(title: '高级设置', onBack: onBack),
+        const SizedBox(height: 8),
+        PlayerSettingsToggleRow(
+          key: const ValueKey('player-advanced-force-h264'),
+          title: 'HEVC 转为 H.264',
+          description: '播放有声音无画面时可尝试开启',
+          checked: forceH264,
+          onChanged: onForceH264Changed,
+          disabledReason: forceH264DisabledReason,
+        ),
+        PlayerSettingsToggleRow(
+          key: const ValueKey('player-advanced-force-sdr'),
+          title: '色调强制映射为 SDR',
+          description: '画面偏暗时可尝试开启，适用于不支持 HDR 的设备',
+          checked: forceSdrColor,
+          onChanged: onForceSdrColorChanged,
+          disabledReason: forceSdrDisabledReason,
+        ),
+      ],
+    );
   }
 }
 
@@ -988,10 +1142,12 @@ class _AudioItemState extends State<_AudioItem> {
 }
 
 class _WindowAspectRatioSettingsScreen extends StatelessWidget {
+  final String currentRatio;
   final VoidCallback onBack;
   final void Function(String) onAspectRatioSelected;
 
   const _WindowAspectRatioSettingsScreen({
+    required this.currentRatio,
     required this.onBack,
     required this.onAspectRatioSelected,
   });
@@ -1000,7 +1156,7 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     const options = ['AUTO', '4:3', '16:9', '21:9'];
     const optionLabels = {
-      'AUTO': '自动',
+      'AUTO': '跟随视频比例',
       '4:3': '4:3',
       '16:9': '16:9',
       '21:9': '21:9',
@@ -1039,8 +1195,75 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
         ...options.map((option) {
           final label = optionLabels[option] ?? option;
           return _AspectRatioItem(
+            key: ValueKey('player-window-ratio-$option'),
             label: label,
+            isSelected: option == currentRatio,
             onClick: () => onAspectRatioSelected(option),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _VideoFillModeSettingsScreen extends StatelessWidget {
+  final String currentMode;
+  final VoidCallback onBack;
+  final void Function(String) onFillModeSelected;
+
+  const _VideoFillModeSettingsScreen({
+    required this.currentMode,
+    required this.onBack,
+    required this.onFillModeSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const options = ['default', '4:3', '16:9', '21:9'];
+    const optionLabels = {
+      'default': '默认',
+      '4:3': '4:3',
+      '16:9': '16:9',
+      '21:9': '21:9',
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: onBack,
+            child: const Row(
+              children: [
+                Icon(
+                  FluentIcons.chevron_left,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  '画面比例',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Divider(),
+        const SizedBox(height: 8),
+        ...options.map((option) {
+          final label = optionLabels[option] ?? option;
+          return _AspectRatioItem(
+            key: ValueKey('player-video-fill-mode-$option'),
+            label: label,
+            isSelected: option == currentMode,
+            onClick: () => onFillModeSelected(option),
           );
         }),
       ],
@@ -1050,10 +1273,13 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
 
 class _AspectRatioItem extends StatefulWidget {
   final String label;
+  final bool isSelected;
   final VoidCallback onClick;
 
   const _AspectRatioItem({
+    super.key,
     required this.label,
+    this.isSelected = false,
     required this.onClick,
   });
 
@@ -1066,6 +1292,8 @@ class _AspectRatioItemState extends State<_AspectRatioItem> {
 
   @override
   Widget build(BuildContext context) {
+    final textColor =
+        widget.isSelected ? _selectedTextColor : _defaultTextColor;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
@@ -1084,12 +1312,18 @@ class _AspectRatioItemState extends State<_AspectRatioItem> {
             children: [
               Text(
                 widget.label,
-                style: const TextStyle(
-                  color: _defaultTextColor,
+                style: TextStyle(
+                  color: textColor,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (widget.isSelected)
+                const Icon(
+                  FluentIcons.check_mark,
+                  size: 16,
+                  color: _selectedTextColor,
+                ),
             ],
           ),
         ),

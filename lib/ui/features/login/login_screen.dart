@@ -88,7 +88,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _populateFields(
+  Future<bool> _populateFields(
     LoginHistory item, {
     bool allowAutoLogin = false,
   }) async {
@@ -96,13 +96,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         .read(loginHistoryPasswordServiceProvider)
         .decryptForDisplay(item);
     if (!mounted) {
-      return;
+      return false;
     }
+    final hasRememberedPassword =
+        item.rememberPassword && (passwordResult.password?.isNotEmpty ?? false);
     if (passwordResult.shouldClear) {
       await ref.read(loginHistoryNotifierProvider.notifier).clearPassword(item);
     }
     if (!mounted) {
-      return;
+      return false;
     }
     setState(() {
       final displayHost = item.displayHost;
@@ -112,13 +114,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _usernameController.text = item.username;
       _passwordController.text = passwordResult.password ?? '';
       _isHttps = item.isHttps;
-      _rememberPassword = item.rememberPassword;
+      _rememberPassword = hasRememberedPassword;
       _isNasLogin = item.isNasLogin;
       _fnIdController.text = item.fnId;
       _displayHost = _hostController.text;
       _displayPort = displayPort;
       _autoLoginFromHistory = allowAutoLogin;
     });
+    return hasRememberedPassword;
   }
 
   void _toggleHistorySidebar() {
@@ -215,6 +218,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _allowAutoLogin = allowAutoLogin;
     _autoLoginUsername = autoLoginUsername?.trim() ?? '';
     _autoLoginPassword = autoLoginPassword ?? '';
+    _capturedUsername = '';
+    _capturedPassword = '';
+    _capturedRememberPassword = false;
     // Clear WebView cookies before opening to prevent stale login sessions.
     // This ensures every NAS login starts from a clean /login page so JS hooks
     // can reliably capture subsequent status requests and trigger the signin flow.
@@ -240,6 +246,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       loadUrl: _loadWebViewUrl,
       onLoginSuccess: _onNasLoginSuccess,
       onBaseUrlChange: (value) => _baseUrl = value,
+      encryptPassword:
+          ref.read(loginHistoryPasswordServiceProvider).encryptForStorage,
       fnId: _fnIdController.text.trim(),
       autoLoginUsername: _autoLoginUsername,
     );
@@ -596,13 +604,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           const SizedBox(height: 28),
                           if (_isNasLogin)
-                            _buildGlassField(
-                              controller: _fnIdController,
-                              placeholder: '请输入 IP:Port、域名或 FN ID',
-                              onChanged: (_) => _autoLoginFromHistory = false,
-                              suffixIcon: const Icon(material.Icons.history,
-                                  color: _hintColor, size: 20),
-                              onSuffixTap: _toggleHistorySidebar,
+                            KeyedSubtree(
+                              key: const ValueKey('login-history-button'),
+                              child: _buildGlassField(
+                                controller: _fnIdController,
+                                placeholder: '请输入 IP:Port、域名或 FN ID',
+                                onChanged: (_) =>
+                                    _autoLoginFromHistory = false,
+                                suffixIcon: const Icon(
+                                  material.Icons.history,
+                                  color: _hintColor,
+                                  size: 20,
+                                ),
+                                onSuffixTap: _toggleHistorySidebar,
+                              ),
                             )
                           else
                             Row(
@@ -790,22 +805,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             .delete(item);
                       },
                       onSelect: (item) async {
-                        final canAutoLogin = item.rememberPassword &&
-                            (item.password ?? '').isNotEmpty;
-                        // Await field population so decrypted credentials are
-                        // available before _onLogin reads them for auto-fill.
-                        await _populateFields(
+                        final hasRememberedPassword = await _populateFields(
                           item,
-                          allowAutoLogin: item.isNasLogin && canAutoLogin,
+                          allowAutoLogin: false,
                         );
                         if (!mounted) return;
+                        final allowNasAutoLogin =
+                            item.isNasLogin && hasRememberedPassword;
+                        setState(() {
+                          _autoLoginFromHistory = allowNasAutoLogin;
+                        });
                         _hideHistorySidebar();
-                        // Auto-trigger login from history.
-                        // NAS login items always open the WebView (JS auto-clicks
-                        // login/authorize only when canAutoLogin is true).
-                        // Normal login items directly login when password is saved,
-                        // otherwise just fill the form for manual submission.
-                        if (item.isNasLogin || canAutoLogin) {
+                        if (item.isNasLogin || hasRememberedPassword) {
                           _onLogin();
                         }
                       },
@@ -859,6 +870,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         onWebViewCreated: (controller) {
                           _inAppWebViewController = controller;
+                          controller.addJavaScriptHandler(
+                            handlerName: 'CaptureLoginInfo',
+                            callback: (arguments) {
+                              if (arguments.isNotEmpty) {
+                                _handleJsBridgeMessage(
+                                  'CaptureLoginInfo',
+                                  arguments.first.toString(),
+                                );
+                              }
+                              return null;
+                            },
+                          );
+                          controller.addJavaScriptHandler(
+                            handlerName: 'LogNetwork',
+                            callback: (arguments) {
+                              if (arguments.isNotEmpty) {
+                                unawaited(
+                                  _handleNetworkLog(arguments.first.toString()),
+                                );
+                              }
+                              return null;
+                            },
+                          );
                         },
                         onLoadStop: (controller, url) async {
                           if (url == null) return;
@@ -1020,6 +1054,7 @@ class _NetworkMessageProcessor {
     required this.loadUrl,
     required this.onLoginSuccess,
     required this.onBaseUrlChange,
+    required this.encryptPassword,
     required this.fnId,
     required this.autoLoginUsername,
   });
@@ -1032,6 +1067,7 @@ class _NetworkMessageProcessor {
   final Future<void> Function(String url) loadUrl;
   final Future<void> Function(_NasLoginResult result) onLoginSuccess;
   final void Function(String baseUrl) onBaseUrlChange;
+  final Future<String?> Function(String? plainPassword) encryptPassword;
   final String fnId;
   final String autoLoginUsername;
 
@@ -1260,11 +1296,14 @@ class _NetworkMessageProcessor {
           : autoLoginUsername.trim();
       final shouldRemember =
           capturedRememberPassword && capturedPassword.isNotEmpty;
+      final storedPassword =
+          shouldRemember ? await encryptPassword(capturedPassword) : null;
       final historyItem = LoginHistory(
         host: '',
         port: 0,
         username: username,
-        password: shouldRemember ? capturedPassword : null,
+        password: storedPassword,
+        passwordEncrypted: storedPassword != null,
         isHttps: isHttps,
         rememberPassword: shouldRemember,
         isNasLogin: true,

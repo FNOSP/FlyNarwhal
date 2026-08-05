@@ -75,10 +75,18 @@ class MainWindowLifecycleController with WindowListener {
   void onWindowResized() => _scheduleSave();
 
   @override
-  void onWindowMaximize() => unawaited(_settingsStore.saveMaximized(true));
+  void onWindowMaximize() {
+    if (_isDisposed || MainWindowPersistenceGuard.isSuspended) {
+      return;
+    }
+    unawaited(_settingsStore.saveMaximized(true));
+  }
 
   @override
   void onWindowUnmaximize() {
+    if (_isDisposed || MainWindowPersistenceGuard.isSuspended) {
+      return;
+    }
     unawaited(_settingsStore.saveMaximized(false));
     _scheduleSave();
   }

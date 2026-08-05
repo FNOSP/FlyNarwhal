@@ -26,6 +26,7 @@ enum PlayerHoverZone {
   danmakuControl,
   danmakuSettings,
   pipControl,
+  playbackDetails,
 }
 
 class PlayerOverlayState {

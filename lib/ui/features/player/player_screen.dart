@@ -17,6 +17,9 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 import '../../../core/network/api_result.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/window/desktop_display_service.dart';
+import '../../../core/window/main_window_persistence_guard.dart';
+import '../../../core/window/window_geometry.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
@@ -47,6 +50,7 @@ import 'services/player_device_context_service.dart';
 import 'services/play_record_request_builder.dart';
 import 'controllers/desktop_pseudo_fullscreen_controller.dart';
 import 'controllers/pip_window_mode_controller.dart';
+import 'controllers/player_window_aspect_ratio_controller.dart';
 import 'controllers/player_manager.dart';
 import 'viewmodels/media_playback_view_model.dart';
 import 'controllers/player_overlay_controller.dart';
@@ -68,6 +72,7 @@ import 'widgets/player_settings_menu.dart';
 import 'widgets/skip_intro_prompt.dart';
 import 'widgets/skip_outro_prompt.dart';
 import 'widgets/playback_end_overlay.dart';
+import 'widgets/playback_details_overlay.dart';
 import 'widgets/subtitle_control_flyout.dart';
 import 'widgets/subtitle_search_dialog.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
@@ -211,6 +216,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   StreamSubscription<bool>? _completedSubscription;
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<PlayerSkipAction>? _skipActionSubscription;
+  StreamSubscription<VideoParams>? _videoParamsSubscription;
   void Function()? _removeIntroSkipStateListener;
   late final IntroSkipController _introSkipController;
   IntroSkipState _introSkipState = IntroSkipState.initial();
@@ -255,6 +261,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showAddNasSubtitleDialog = false;
   bool _isUploadingLocalSubtitle = false;
   bool _isSubtitleSwitching = false;
+  bool _isPlaybackDetailsVisible = false;
+  MediaTranscodeResponse? _playbackDetailsTranscodeStatus;
+  Timer? _playbackDetailsRefreshTimer;
+  bool _isFetchingPlaybackDetails = false;
   List<AudioTrack> _embeddedAudioTracks = const <AudioTrack>[];
   int _audioSwitchToken = 0;
   final DirectLinkAudioTrackResolver _directLinkAudioTrackResolver =
@@ -268,12 +278,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   final DesktopPseudoFullscreenController _fullscreenController =
       DesktopPseudoFullscreenController();
   final PipWindowModeController _pipController = PipWindowModeController();
+  final PlayerWindowAspectRatioController _windowAspectRatioController =
+      PlayerWindowAspectRatioController();
+  String _windowAspectRatio = PlayerWindowAspectRatioController.autoSetting;
+  // Web-style forced display aspect ratio ("default", "4:3", "16:9", "21:9").
+  String _videoFillMode = 'default';
+  bool _isForceH264 = false;
+  bool _isForceSdrColor = false;
   late final EpisodeAnalysisController _episodeAnalysisController;
   bool _isPipMode = false;
   bool _isPipHovered = false;
   bool _isPipTransitioning = false;
   Timer? _pipBoundsSaveTimer;
   Timer? _pipIdleTimer;
+  // Window session separation: the player route keeps its own geometry and
+  // must not leak resizes into the app window state used by other routes.
+  Rect? _prePlayerWindowBounds;
+  bool _prePlayerWasMaximized = false;
+  bool _windowPersistenceSuspended = false;
+  bool _windowSessionCaptured = false;
+  Timer? _playerWindowSizeSaveTimer;
   bool? _lastMacOSWindowButtonsVisibility;
   bool? _pendingMacOSWindowButtonsVisibility;
   bool _pendingMacOSWindowButtonsForce = false;
@@ -321,6 +345,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_isDesktopPlatform()) {
       windowManager.addListener(this);
       unawaited(_syncFullscreenState());
+      unawaited(_captureWindowSession());
     }
     _playbackIndicatorExitController = AnimationController(
       vsync: this,
@@ -338,6 +363,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     _syncPlaybackTargetsFromWidget();
     _restoreAutoPlaySetting();
+    _windowAspectRatio =
+        ref.read(playerSettingsManagerProvider).getWindowAspectRatio();
+    _videoFillMode =
+        ref.read(playerSettingsManagerProvider).getVideoFillMode(widget.guid);
+    final settingsManager = ref.read(playerSettingsManagerProvider);
+    _isForceH264 = settingsManager.getForceH264();
+    _isForceSdrColor = settingsManager.getForceSdrColor();
+    _sessionCoordinator.forceH264 = _isForceH264;
+    _sessionCoordinator.forceSdrColor = _isForceSdrColor;
     unawaited(_ensureSubtitleLanguageMapsLoaded());
     _initializePlayer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -388,6 +422,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _setupPlayerBufferListener();
     _setupPlayerDurationListener();
     _setupPlayerCompletedListener();
+    _setupVideoParamsListener();
     _setupProviderListeners();
 
     await _loadAndPlayMedia();
@@ -536,6 +571,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _completedSubscription = player.stream.completed.listen((completed) {
       if (!completed || !mounted) return;
       _handlePlaybackCompleted();
+    });
+  }
+
+  /// Tracks live decode-size changes so the AUTO window ratio keeps the
+  /// window locked to the actual video aspect ratio, the same way PiP mode
+  /// keeps its window matched to the video.
+  void _setupVideoParamsListener() {
+    _videoParamsSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+
+    _videoParamsSubscription = player.stream.videoParams.listen((params) {
+      if (!mounted) return;
+      final width = params.w ?? 0;
+      final height = params.h ?? 0;
+      AppTalker.info(
+        'WindowRatio',
+        'videoParams: w=$width h=$height dw=${params.dw} dh=${params.dh}',
+      );
+      if (width <= 0 || height <= 0) return;
+      if (_windowAspectRatio != PlayerWindowAspectRatioController.autoSetting) {
+        return;
+      }
+      unawaited(_applyWindowAspectRatio());
     });
   }
 
@@ -1356,6 +1415,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playInfo = null;
     _streamInfo = null;
     _playingInfoCache = null;
+    _isPlaybackDetailsVisible = false;
+    _playbackDetailsTranscodeStatus = null;
+    _playbackDetailsRefreshTimer?.cancel();
+    _playbackDetailsRefreshTimer = null;
+    _overlayController.setHovered(PlayerHoverZone.playbackDetails, false);
     _episodeList = [];
     _currentEpisode = null;
     _nextEpisode = null;
@@ -2529,6 +2593,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _showUi();
 
       _fetchEpisodeContextAsync(requestToken);
+
+      // Resize/lock the window per the window aspect ratio setting now that
+      // the new video stream is known (KMP does this on every media load).
+      unawaited(_applyWindowAspectRatio());
     } catch (e, st) {
       AppTalker.error(
         'Player',
@@ -2942,6 +3010,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
 
       setState(() => _isFullscreen = isFullscreen);
+      _syncWindowAspectRatioWithFullscreen(isFullscreen);
     } catch (error, stackTrace) {
       AppTalker.error(
         'Player',
@@ -2958,9 +3027,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Resolves the playing video's aspect ratio (width / height). Prefers the
-  /// live media_kit decode size, falling back to the negotiated stream info.
+  /// aspect-corrected decode size so anamorphic or letterboxed sources lock
+  /// the window to what is actually displayed, falling back to the raw decode
+  /// size and then to the negotiated stream info.
   double? _resolveVideoAspectRatio() {
     final state = _player?.state;
+    final params = state?.videoParams;
+    final displayWidth = params?.dw ?? 0;
+    final displayHeight = params?.dh ?? 0;
+    if (displayWidth > 0 && displayHeight > 0) {
+      return displayWidth / displayHeight;
+    }
     final liveWidth = state?.width ?? 0;
     final liveHeight = state?.height ?? 0;
     if (liveWidth > 0 && liveHeight > 0) {
@@ -2973,6 +3050,213 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return videoStream.width / videoStream.height;
     }
     return null;
+  }
+
+  /// Applies the current window aspect ratio setting to the main window,
+  /// mirroring the KMP player's dynamic resize effect (keyed on the video
+  /// stream and the ratio setting). AUTO mode follows the PiP approach by
+  /// locking the window to the video's own ratio so the video frame and the
+  /// window stay perfectly matched.
+  Future<void> _applyWindowAspectRatio() async {
+    if (!_isDesktopPlatform()) return;
+    AppTalker.info(
+      'WindowRatio',
+      'apply requested: setting=$_windowAspectRatio '
+      'captured=$_windowSessionCaptured pip=$_isPipMode '
+      'fullscreen=$_isFullscreen initialized=$_isInitialized',
+    );
+    if (!_windowSessionCaptured) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (_isFullscreen || !_isInitialized) return;
+
+    // Delay slightly so the window state has settled, matching the KMP
+    // behavior right after window creation or state transitions.
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (_isFullscreen) return;
+
+    await _windowAspectRatioController.apply(
+      setting: _windowAspectRatio,
+      videoAspectRatio: _resolveVideoAspectRatio(),
+    );
+  }
+
+  void _onWindowAspectRatioChanged(String ratio) {
+    if (ratio == _windowAspectRatio) return;
+    setState(() => _windowAspectRatio = ratio);
+    ref.read(playerSettingsManagerProvider).setWindowAspectRatio(ratio);
+    unawaited(_applyWindowAspectRatio());
+  }
+
+  double? get _videoFillModeRatio {
+    switch (_videoFillMode) {
+      case '4:3':
+        return 4 / 3;
+      case '16:9':
+        return 16 / 9;
+      case '21:9':
+        return 21 / 9;
+      default:
+        return null;
+    }
+  }
+
+  /// Mirrors the web player's 画面比例: a fixed mode renders the video stretched
+  /// into a box of the selected ratio, contain-fitted inside the player area.
+  void _onVideoFillModeChanged(String mode) {
+    if (mode == _videoFillMode) return;
+    setState(() => _videoFillMode = mode);
+    unawaited(
+      ref
+          .read(playerSettingsManagerProvider)
+          .setVideoFillMode(widget.guid, mode),
+    );
+  }
+
+  String? get _forceH264DisabledReason {
+    final codec = _playingInfoCache?.currentVideoStream?.codecName ?? '';
+    return codec.toLowerCase() == 'h264' ? '当前视频为 H.264' : null;
+  }
+
+  String? get _forceSdrDisabledReason {
+    final colorRangeType =
+        _playingInfoCache?.currentVideoStream?.colorRangeType ?? '';
+    return colorRangeType.toLowerCase() == 'sdr' ? '当前视频为 SDR' : null;
+  }
+
+  void _onForceH264Changed(bool enabled) {
+    if (enabled == _isForceH264) return;
+    setState(() => _isForceH264 = enabled);
+    _sessionCoordinator.forceH264 = enabled;
+    unawaited(ref.read(playerSettingsManagerProvider).setForceH264(enabled));
+    unawaited(_restartPlaybackForTranscodeSettings());
+  }
+
+  void _onForceSdrColorChanged(bool enabled) {
+    if (enabled == _isForceSdrColor) return;
+    setState(() => _isForceSdrColor = enabled);
+    _sessionCoordinator.forceSdrColor = enabled;
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setForceSdrColor(enabled),
+    );
+    unawaited(_restartPlaybackForTranscodeSettings());
+  }
+
+  /// Mirrors the web player's switchURL flow: re-issue play/play with the
+  /// current position and quality so the server applies the new encoder/SDR
+  /// settings, quitting the old transcode session first.
+  Future<void> _restartPlaybackForTranscodeSettings() async {
+    final cache = _playingInfoCache;
+    final player = _player;
+    if (cache == null || player == null) return;
+    final videoStream = cache.currentVideoStream;
+    final fileStream = cache.currentFileStream;
+    if (videoStream == null || fileStream == null) return;
+
+    try {
+      setState(() => _isLoading = true);
+      final currentPosition = player.state.position.inMilliseconds;
+      final currentPlayLink = cache.playLink;
+      if (!cache.isUseDirectLink &&
+          currentPlayLink != null &&
+          currentPlayLink.isNotEmpty) {
+        await ref
+            .read(mediaPViewModelProvider.notifier)
+            .quit(MediaPRequest(playLink: currentPlayLink));
+      }
+      final audioGuid = cache.currentAudioStream?.guid ??
+          _selectedAudioGuid ??
+          _requestedAudioGuid ??
+          _playInfo?.audioGuid ??
+          '';
+      final playRequest = _sessionCoordinator.createPlayRequest(
+        videoStream: videoStream,
+        fileStream: fileStream,
+        audioGuid: audioGuid,
+        subtitleGuid: cache.currentSubtitleStream?.guid,
+      );
+      final response = await ref.read(playerServiceProvider).playVideo(
+            PlayPlayRequest(
+              mediaGuid: playRequest.mediaGuid,
+              videoGuid: playRequest.videoGuid,
+              videoEncoder: playRequest.videoEncoder,
+              resolution: _currentResolution.isNotEmpty
+                  ? _currentResolution
+                  : playRequest.resolution,
+              bitrate: _currentBitrate ?? playRequest.bitrate,
+              startTimestamp: currentPosition ~/ 1000,
+              audioEncoder: playRequest.audioEncoder,
+              audioGuid: playRequest.audioGuid,
+              subtitleGuid: playRequest.subtitleGuid,
+              channels: playRequest.channels,
+              forcedSdr: playRequest.forcedSdr,
+            ),
+          );
+      await _handlePlayPlaySuccess(response,
+          startPositionMs: currentPosition);
+      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      AppTalker.warning('Player', 'restart for transcode settings failed: $e');
+      if (mounted) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              '切换播放设置失败: $e',
+              type: ToastType.failed,
+            );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Widget _buildVideoView() {
+    final controller = _videoController!;
+    final ratio = _isPipMode ? null : _videoFillModeRatio;
+    if (ratio == null) {
+      return Video(
+        controller: controller,
+        controls: NoVideoControls,
+        fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxW = constraints.maxWidth;
+        final maxH = constraints.maxHeight;
+        if (maxW <= 0 || maxH <= 0) return const SizedBox.shrink();
+        double width;
+        double height;
+        if (maxW / maxH > ratio) {
+          height = maxH;
+          width = maxH * ratio;
+        } else {
+          width = maxW;
+          height = maxW / ratio;
+        }
+        return Center(
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Video(
+              controller: controller,
+              controls: NoVideoControls,
+              fit: BoxFit.fill,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Fullscreen owns the window shape: release the ratio lock while in it,
+  /// re-apply the setting once back in windowed mode.
+  void _syncWindowAspectRatioWithFullscreen(bool isFullscreen) {
+    if (!_isDesktopPlatform()) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (isFullscreen) {
+      unawaited(_windowAspectRatioController.release());
+    } else {
+      unawaited(_applyWindowAspectRatio());
+    }
   }
 
   Future<void> _enterPipMode() async {
@@ -3008,6 +3292,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       // Reuse the same window and the same player by switching the window into
       // a compact, borderless, always-on-top form.
+      // PiP manages its own aspect ratio lock; hand the window over cleanly.
+      await _windowAspectRatioController.release();
       await _pipController.enter(videoAspectRatio: _resolveVideoAspectRatio());
 
       if (!mounted) {
@@ -3027,6 +3313,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       } catch (_) {}
       if (mounted) {
         setState(() => _isPipMode = false);
+        // PiP exit cleared the ratio lock; restore the player's setting.
+        unawaited(_applyWindowAspectRatio());
         ref
             .read(toastManagerProvider.notifier)
             .showToast('进入画中画失败: $error', type: ToastType.failed);
@@ -3060,6 +3348,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         visible: ref.read(playerOverlayControllerProvider).isUiVisible,
         force: true,
       );
+      // PiP cleared the aspect ratio lock; restore the player's setting.
+      unawaited(_applyWindowAspectRatio());
     } catch (error, stackTrace) {
       AppTalker.error(
         'Player',
@@ -3545,29 +3835,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void dispose() {
     if (_isDesktopPlatform()) {
       windowManager.removeListener(this);
+      unawaited(_windowAspectRatioController.release());
       unawaited(_fullscreenController.exitForRouteLeave());
       // Ensure the window is restored to its normal form when leaving while in
-      // PiP mode so the next route is not stuck in a tiny borderless window.
-      if (_pipController.isPipMode) {
-        unawaited(_pipController.exit());
-      }
+      // PiP mode so the next route is not stuck in a tiny borderless window,
+      // then hand the window back to the app routes at its pre-player size.
+      unawaited(_tearDownWindowSession());
     }
     if (!_pipController.isPipMode) {
       unawaited(_syncMacOSWindowButtonsVisibility(visible: true, force: true));
     }
     _pipBoundsSaveTimer?.cancel();
     _pipIdleTimer?.cancel();
+    _playerWindowSizeSaveTimer?.cancel();
     _positionSubscription?.cancel();
     _bufferSubscription?.cancel();
     _durationSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
     _tracksSubscription?.cancel();
+    _videoParamsSubscription?.cancel();
     _skipActionSubscription?.cancel();
     _removeIntroSkipStateListener?.call();
     _introSkipController.dispose();
     _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
+    _playbackDetailsRefreshTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
     _playbackIndicatorExitController.dispose();
     _pipTransitionController?.dispose();
@@ -3607,11 +3900,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             child: Container(
               color: Colors.black,
               child: _isInitialized && _videoController != null
-                  ? Video(
-                      controller: _videoController!,
-                      controls: NoVideoControls,
-                      fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
-                    )
+                  ? _buildVideoView()
                   : const Center(child: AppLoadingProgressRing()),
             ),
           ),
@@ -3687,6 +3976,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     right: 0,
                     child: _buildTopBar(),
                   ),
+                  if (_isPlaybackDetailsVisible && _playingInfoCache != null)
+                    Positioned(
+                      top: 56,
+                      right: 20,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width - 32,
+                          maxHeight: MediaQuery.of(context).size.height - 76,
+                        ),
+                        child: PlaybackDetailsPanel(
+                          key: const ValueKey(
+                            'player-playback-details-panel',
+                          ),
+                          cache: _playingInfoCache!,
+                          transcodeStatus: _playbackDetailsTranscodeStatus,
+                          bufferedSeconds: _isInitialized
+                              ? ((_bufferedPosition - _currentPosition) / 1000)
+                                  .clamp(0.0, double.infinity)
+                              : null,
+                          onClose: () => setState(
+                            () => _isPlaybackDetailsVisible = false,
+                          ),
+                        ),
+                      ),
+                    ),
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -4358,7 +4672,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             hovered,
           ),
           onAudioSelected: _onAudioSelected,
-          onWindowAspectRatioChanged: (_) {},
+          windowAspectRatio: _windowAspectRatio,
+          onWindowAspectRatioChanged: _onWindowAspectRatioChanged,
+          videoFillMode: _videoFillMode,
+          onVideoFillModeChanged: _onVideoFillModeChanged,
+          forceH264: _isForceH264,
+          onForceH264Changed:
+              _forceH264DisabledReason == null ? _onForceH264Changed : null,
+          forceH264DisabledReason: _forceH264DisabledReason,
+          forceSdrColor: _isForceSdrColor,
+          onForceSdrColorChanged:
+              _forceSdrDisabledReason == null ? _onForceSdrColorChanged : null,
+          forceSdrDisabledReason: _forceSdrDisabledReason,
           onSkipConfigChanged: (skipOpening, skipEnding) {
             unawaited(_saveSkipConfig(skipOpening, skipEnding));
           },
@@ -4396,6 +4721,55 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
       ],
     );
+  }
+
+  void _togglePlaybackDetails() {
+    final isVisible = !_isPlaybackDetailsVisible;
+    setState(() => _isPlaybackDetailsVisible = isVisible);
+    // Keep the overlay (and thus the panel) visible while it is open, the
+    // same way open flyouts hold the UI on screen.
+    _overlayController.setHovered(PlayerHoverZone.playbackDetails, isVisible);
+    if (isVisible) {
+      _showUi();
+      _refreshPlaybackDetailsTranscodeStatus();
+      // The web panel polls the transcode statistics while open, so quality
+      // or audio switches and live counters update without reopening it.
+      _playbackDetailsRefreshTimer ??= Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => _refreshPlaybackDetailsTranscodeStatus(),
+      );
+    } else {
+      _playbackDetailsRefreshTimer?.cancel();
+      _playbackDetailsRefreshTimer = null;
+    }
+  }
+
+  /// Mirrors the web player's play-type derivation: direct-link sessions are
+  /// labelled as such, otherwise the server transcode statistics decide
+  /// between transcoded and direct play.
+  Future<void> _refreshPlaybackDetailsTranscodeStatus() async {
+    final cache = _playingInfoCache;
+    final playLink = cache?.playLink;
+    if (_isFetchingPlaybackDetails ||
+        cache == null ||
+        cache.isUseDirectLink ||
+        playLink == null ||
+        playLink.isEmpty) {
+      return;
+    }
+
+    _isFetchingPlaybackDetails = true;
+    try {
+      final status = await ref
+          .read(mediaPViewModelProvider.notifier)
+          .fetchTranscodeStatus(MediaPRequest(playLink: playLink));
+      if (!mounted || !_isPlaybackDetailsVisible) return;
+      setState(() => _playbackDetailsTranscodeStatus = status);
+    } catch (e) {
+      AppTalker.warning('Player', 'fetch transcode status failed: $e');
+    } finally {
+      _isFetchingPlaybackDetails = false;
+    }
   }
 
   Widget _buildTopBar() {
@@ -4450,14 +4824,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: WindowCaptionPinButton(
-                      key: const ValueKey(
-                        'player-window-caption-pin-button',
-                      ),
-                      brightness: Brightness.dark,
-                      buttonSize: _isMacOS ? 30 : 34,
-                      iconSize: _isMacOS ? 16 : 18,
-                      borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        PlayerActionButton.icon(
+                          key: const ValueKey(
+                            'player-playback-details-button',
+                          ),
+                          iconData: FluentIcons.info,
+                          onPressed: _togglePlaybackDetails,
+                          tooltip: '播放详细信息',
+                          size: _isMacOS ? 30 : 34,
+                          iconSize: _isMacOS ? 16 : 18,
+                          borderRadius: BorderRadius.circular(
+                            _isMacOS ? 15 : 17,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        WindowCaptionPinButton(
+                          key: const ValueKey(
+                            'player-window-caption-pin-button',
+                          ),
+                          brightness: Brightness.dark,
+                          buttonSize: _isMacOS ? 30 : 34,
+                          iconSize: _isMacOS ? 16 : 18,
+                          borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -4575,12 +4968,199 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
 
+    // The player route owns the window ratio lock; release it so other routes
+    // can resize the window freely again.
+    await _windowAspectRatioController.release();
     final isFullscreen = await _fullscreenController.exitForRouteLeave();
+    await _restoreAppWindowSession();
     if (!mounted || _isFullscreen == isFullscreen) {
       return;
     }
 
     setState(() => _isFullscreen = isFullscreen);
+  }
+
+  /// The player route keeps its own window geometry, separate from the rest
+  /// of the app (the KMP player window stores its size independently too).
+  /// While the player is open, main-window persistence is suspended and
+  /// player resizes are recorded into the player-geometry store instead, so
+  /// leaving the player no longer drags the other routes along.
+  Future<void> _captureWindowSession() async {
+    if (!_isDesktopPlatform()) {
+      return;
+    }
+    Rect? bounds;
+    var wasMaximized = false;
+    try {
+      bounds = await windowManager.getBounds();
+      wasMaximized = await windowManager.isMaximized();
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'capture window session failed',
+      );
+    }
+    if (!mounted) {
+      return;
+    }
+    _prePlayerWindowBounds = bounds;
+    _prePlayerWasMaximized = wasMaximized;
+    _windowSessionCaptured = true;
+    AppTalker.info(
+      'WindowSession',
+      'captured app bounds=$bounds maximized=$wasMaximized',
+    );
+    MainWindowPersistenceGuard.suspend();
+    _windowPersistenceSuspended = true;
+    unawaited(_restorePlayerWindowBounds());
+  }
+
+  /// Restores the player window's own remembered geometry (position and
+  /// size), mirroring the KMP player window restoring its saved position and
+  /// size on open.
+  Future<void> _restorePlayerWindowBounds() async {
+    final savedBounds =
+        ref.read(playerSettingsManagerProvider).getPlayerWindowBounds();
+    if (savedBounds == null) {
+      return;
+    }
+    try {
+      if (await windowManager.isFullScreen()) {
+        return;
+      }
+      if (await windowManager.isMaximized()) {
+        await windowManager.unmaximize();
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+      }
+      final displays = await _tryGetDisplays();
+      final restored = WindowGeometry.normalizeMainWindowBounds(
+        savedBounds,
+        displays,
+        fallbackSize: savedBounds.size,
+        minimumSize: const Size(640, 360),
+      );
+      await windowManager.setBounds(restored);
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'restore player window bounds failed',
+      );
+    }
+  }
+
+  void _schedulePlayerWindowBoundsSave() {
+    if (!_isDesktopPlatform()) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    _playerWindowSizeSaveTimer?.cancel();
+    _playerWindowSizeSaveTimer =
+        Timer(const Duration(milliseconds: 500), () async {
+      if (!mounted) return;
+      if (_isPipMode || _pipController.isPipMode) return;
+      try {
+        if (await windowManager.isMaximized() ||
+            await windowManager.isFullScreen()) {
+          return;
+        }
+        final bounds = await windowManager.getBounds();
+        if (!mounted) return;
+        await ref
+            .read(playerSettingsManagerProvider)
+            .setPlayerWindowBounds(bounds);
+      } catch (_) {
+        // Persistence is best-effort; never fail a window event on it.
+      }
+    });
+  }
+
+  /// Restores the app window to its pre-player geometry and re-enables
+  /// main-window persistence, so player-driven resizes never leak into the
+  /// other routes.
+  Future<void> _restoreAppWindowSession() async {
+    if (!_windowPersistenceSuspended) {
+      return;
+    }
+    _windowPersistenceSuspended = false;
+
+    if (!_isDesktopPlatform()) {
+      MainWindowPersistenceGuard.resume();
+      return;
+    }
+
+    // Remember the player's final floating geometry for the next session.
+    if (!_isPipMode && !_pipController.isPipMode) {
+      try {
+        if (!await windowManager.isMaximized() &&
+            !await windowManager.isFullScreen()) {
+          final bounds = await windowManager.getBounds();
+          await ref
+              .read(playerSettingsManagerProvider)
+              .setPlayerWindowBounds(bounds);
+        }
+      } catch (_) {
+        // Best-effort, same as the debounced saves.
+      }
+    }
+
+    final appBounds = _prePlayerWindowBounds;
+    final wasMaximized = _prePlayerWasMaximized;
+    _prePlayerWindowBounds = null;
+
+    try {
+      await _fullscreenController.exitForRouteLeave();
+      // Native fullscreen exits animate; wait for the window to settle
+      // before restoring the captured bounds.
+      for (var attempt = 0;
+          attempt < 15 && await windowManager.isFullScreen();
+          attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      if (appBounds != null && !await windowManager.isFullScreen()) {
+        if (await windowManager.isMaximized()) {
+          await windowManager.unmaximize();
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+        }
+        final displays = await _tryGetDisplays();
+        final restored = WindowGeometry.normalizeMainWindowBounds(
+          appBounds,
+          displays,
+          fallbackSize: appBounds.size,
+          minimumSize: const Size(640, 360),
+        );
+        await windowManager.setBounds(restored);
+        if (wasMaximized) {
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+          await windowManager.maximize();
+        }
+      }
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'Player',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'restore app window session failed',
+      );
+    } finally {
+      MainWindowPersistenceGuard.resume();
+    }
+  }
+
+  Future<void> _tearDownWindowSession() async {
+    if (_pipController.isPipMode) {
+      await _pipController.exit();
+    }
+    await _restoreAppWindowSession();
+  }
+
+  Future<List<DesktopDisplayGeometry>> _tryGetDisplays() async {
+    try {
+      return await const DesktopDisplayService().getDisplays();
+    } catch (_) {
+      return const [];
+    }
   }
 
   bool _isDesktopPlatform() {
@@ -4598,6 +5178,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     setState(() => _isFullscreen = true);
+    _syncWindowAspectRatioWithFullscreen(true);
   }
 
   @override
@@ -4607,13 +5188,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     setState(() => _isFullscreen = false);
+    _syncWindowAspectRatioWithFullscreen(false);
   }
 
   @override
-  void onWindowMoved() => _schedulePipBoundsSave();
+  void onWindowMoved() {
+    _schedulePipBoundsSave();
+    _schedulePlayerWindowBoundsSave();
+  }
 
   @override
-  void onWindowResized() => _schedulePipBoundsSave();
+  void onWindowResized() {
+    _schedulePipBoundsSave();
+    _schedulePlayerWindowBoundsSave();
+  }
 
   bool get _canAdjustSubtitle {
     final subtitleStream = _playingInfoCache?.currentSubtitleStream;

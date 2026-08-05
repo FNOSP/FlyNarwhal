@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../../../data/models/player_models.dart';
+import '../../../../tooling/driver_test_mode.dart';
 
 const Color _flyoutBackgroundColor = Color(0xCC000000);
 const Color _flyoutBorderColor = Color(0x80808080);
@@ -9,7 +10,6 @@ const Color _defaultTextColor = Color(0xC8FFFFFF);
 const Color _hoverBackgroundColor = Color(0x1AFFFFFF);
 const int _hideDelayMs = 200;
 const int _animationDurationMs = 200;
-const double _qualityFlyoutLeftOffset = -60;
 const double _qualityFlyoutBridgeOffset = 40;
 const double _qualityFlyoutMinBridgeWidth = 56;
 const double _qualityFlyoutBridgeHorizontalPadding = 12;
@@ -101,7 +101,7 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
     }
   }
 
-  double get _currentFlyoutWidth => _isCustomPage ? 360 : 240;
+  double get _currentFlyoutWidth => 320;
 
   double get _estimatedFlyoutHeight =>
       _isCustomPage
@@ -133,11 +133,13 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
     return preferredWidth.clamp(_qualityFlyoutMinBridgeWidth, flyoutWidth);
   }
 
-  double _calculateBridgeLeft(Size buttonSize, double flyoutWidth) {
-    final bridgeWidth = _calculateBridgeWidth(buttonSize, flyoutWidth);
-    final buttonCenterX =
-        (-_qualityFlyoutLeftOffset) + (buttonSize.width / 2);
-    final desiredLeft = buttonCenterX - (bridgeWidth / 2);
+  double _calculateBridgeLeft(
+    double bridgeWidth,
+    double flyoutWidth,
+    double flyoutLeft,
+    double buttonCenterX,
+  ) {
+    final desiredLeft = buttonCenterX - flyoutLeft - (bridgeWidth / 2);
     return desiredLeft.clamp(0.0, flyoutWidth - bridgeWidth);
   }
 
@@ -158,6 +160,15 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
         final buttonSize = renderObject.size;
         final flyoutWidth = _currentFlyoutWidth;
         final flyoutHeight = _flyoutSize?.height ?? _estimatedFlyoutHeight;
+        final windowWidth = MediaQuery.of(context).size.width;
+        // Like the web player, the popup is horizontally centered above the
+        // quality button, clamped to stay inside the window.
+        final buttonCenterX = buttonOffset.dx + buttonSize.width / 2;
+        final preferredLeft = buttonCenterX - flyoutWidth / 2;
+        final maxLeft = windowWidth - flyoutWidth - 8.0;
+        final left = preferredLeft > maxLeft
+            ? maxLeft
+            : (preferredLeft < 8.0 ? 8.0 : preferredLeft);
         final buttonToFlyoutGapHeight =
             widget.yOffset + _qualityFlyoutBridgeOffset - buttonSize.height;
         final bridgeHeight = buttonToFlyoutGapHeight.clamp(
@@ -165,7 +176,12 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
           double.infinity,
         );
         final bridgeWidth = _calculateBridgeWidth(buttonSize, flyoutWidth);
-        final bridgeLeft = _calculateBridgeLeft(buttonSize, flyoutWidth);
+        final bridgeLeft = _calculateBridgeLeft(
+          bridgeWidth,
+          flyoutWidth,
+          left,
+          buttonCenterX,
+        );
         final top = buttonOffset.dy - bridgeHeight - flyoutHeight;
 
         _updateFlyoutSizeAfterFrame();
@@ -173,7 +189,7 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
         return Stack(
           children: [
             Positioned(
-              left: buttonOffset.dx + _qualityFlyoutLeftOffset,
+              left: left,
               top: top,
               child: Listener(
                 behavior: HitTestBehavior.opaque,
@@ -277,7 +293,8 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
 
   void _hideFlyoutWithDelay() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(milliseconds: _hideDelayMs), () {
+    final delay = kDriverTestMode ? 10000 : _hideDelayMs;
+    _hideTimer = Timer(Duration(milliseconds: delay), () {
       if (!_isButtonHovered && !_popupHovered && mounted) {
         _closeFlyout();
       }
@@ -352,12 +369,20 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
       },
       child: KeyedSubtree(
         key: _buttonKey,
-        child: Text(
-          isOriginal ? '原画质' : _formatResolution(widget.currentResolution),
-          style: TextStyle(
-            color: _isButtonHovered ? Colors.white : _defaultTextColor,
-            fontSize: 17,
-            fontWeight: FontWeight.normal,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          // Hover shows the flyout on desktop; the tap fallback only exists
+          // for driver builds, whose synthetic taps carry no hover events.
+          onTap: kDriverTestMode
+              ? () => _isExpanded ? _closeFlyout() : _showFlyout()
+              : null,
+          child: Text(
+            isOriginal ? '原画' : _formatResolution(widget.currentResolution),
+            style: TextStyle(
+              color: _isButtonHovered ? Colors.white : _defaultTextColor,
+              fontSize: 17,
+              fontWeight: FontWeight.normal,
+            ),
           ),
         ),
       ),
@@ -419,7 +444,7 @@ class _QualityFlyoutContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: isCustomPage ? 360 : 240,
+      width: 320,
       decoration: BoxDecoration(
         color: _flyoutBackgroundColor,
         borderRadius: BorderRadius.circular(8),
@@ -508,7 +533,7 @@ class _SimpleQualityPage extends StatelessWidget {
                         ),
                         Icon(
                           FluentIcons.chevron_right,
-                          size: 16,
+                          size: 12,
                           color: _defaultTextColor,
                         ),
                       ],
@@ -518,7 +543,12 @@ class _SimpleQualityPage extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const Divider(
+            style: DividerThemeData(
+              decoration: BoxDecoration(color: Color(0x33FFFFFF)),
+            ),
+          ),
+          const SizedBox(height: 6),
           // Custom selection item if active
           if (isCustomSelection && currentBitrate != null)
             _QualityItem(
@@ -545,7 +575,7 @@ class _SimpleQualityPage extends StatelessWidget {
                 currentResolution == resolution &&
                 (isOriginal ? currentBitrate == targetQuality.bitrate : true);
 
-            final label = isOriginal ? '原画质' : _formatResolution(resolution);
+            final label = isOriginal ? '原画' : _formatResolution(resolution);
             final rightInfo = isOriginal
                 ? '${_formatResolution(targetQuality.resolution)} ${_formatBitrateSimple(targetQuality.bitrate)}'
                 : null;
@@ -656,7 +686,7 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                         children: [
                           Icon(
                             FluentIcons.chevron_left,
-                            size: 16,
+                            size: 12,
                             color: Colors.white,
                           ),
                           SizedBox(width: 8),
@@ -664,8 +694,8 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                             '自定义视频质量',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
@@ -674,29 +704,40 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                   ),
                   if (currentQ != null)
                     Text(
-                      '${_formatBitrateSimple(currentQ.bitrate)} - ${currentQ == widget.qualities.first ? '原画质' : _formatResolution(currentQ.resolution)}',
+                      '${_formatResolution(currentQ.resolution)} '
+                      '${_formatBitrateSimple(currentQ.bitrate)}'
+                      '${currentQ == widget.qualities.first ? ' - 原画' : ''}',
                       style: const TextStyle(
-                          color: _selectedTextColor, fontSize: 14),
+                        color: _selectedTextColor,
+                        fontSize: 14,
+                      ),
                     ),
                 ],
               ),
             ),
             const SizedBox(height: 10),
+            const Divider(
+              style: DividerThemeData(
+                decoration: BoxDecoration(color: Color(0x33FFFFFF)),
+              ),
+            ),
+            const SizedBox(height: 6),
             Expanded(
               child: Row(
                 children: [
-                  // Left: Resolutions
+                  // Left: resolutions
                   SizedBox(
-                    width: 100,
+                    width: 128,
                     child: ListView.builder(
                       itemCount: _resolutions.length,
                       itemBuilder: (context, index) {
                         final res = _resolutions[index];
                         final isSelected = res == _selectedResolution;
-                        return _QualityItem(
+                        return _CustomQualityItem(
+                          key: ValueKey('player-custom-quality-res-$res'),
                           label: _formatResolution(res),
                           isSelected: isSelected,
-                          showCheck: false,
+                          highlightText: true,
                           showArrow: true,
                           onClick: () =>
                               setState(() => _selectedResolution = res),
@@ -704,28 +745,28 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                       },
                     ),
                   ),
-                  // Divider
-                  Container(
-                    width: 1,
-                    color: Colors.grey.withValues(alpha: 0.2),
-                  ),
-                  // Right: Bitrates
+                  const SizedBox(width: 12),
+                  // Right: bitrates for the selected resolution
                   Expanded(
                     child: ListView.builder(
                       itemCount: _grouped[_selectedResolution]?.length ?? 0,
                       itemBuilder: (context, index) {
                         final bitrates = _grouped[_selectedResolution]!;
                         final q = bitrates[index];
-                        final isOriginal = q == widget.qualities.first;
-                        final label = isOriginal
-                            ? '${_formatBitrateSimple(q.bitrate)} - 原画质'
-                            : _formatBitrateSimple(q.bitrate);
                         final isSelected =
                             widget.currentResolution == q.resolution &&
                                 widget.currentBitrate == q.bitrate;
-                        return _QualityItem(
-                          label: label,
+                        return _CustomQualityItem(
+                          key: ValueKey(
+                            'player-custom-quality-bitrate-'
+                            '${q.resolution}-${q.bitrate}',
+                          ),
+                          label: '${_formatBitrateSimple(q.bitrate)}'
+                              '${q == widget.qualities.first ? ' - 原画' : ''}',
                           isSelected: isSelected,
+                          highlightText: false,
+                          showArrow: false,
+                          showCheck: true,
                           onClick: () => widget.onQualitySelected(q),
                         );
                       },
@@ -741,12 +782,91 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
   }
 }
 
+class _CustomQualityItem extends StatefulWidget {
+  final String label;
+  final bool isSelected;
+  final bool highlightText;
+  final bool showArrow;
+  final bool showCheck;
+  final VoidCallback onClick;
+
+  const _CustomQualityItem({
+    super.key,
+    required this.label,
+    required this.isSelected,
+    required this.highlightText,
+    required this.showArrow,
+    this.showCheck = false,
+    required this.onClick,
+  });
+
+  @override
+  State<_CustomQualityItem> createState() => _CustomQualityItemState();
+}
+
+class _CustomQualityItemState extends State<_CustomQualityItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = widget.isSelected && widget.highlightText
+        ? _selectedTextColor
+        : _defaultTextColor;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onClick,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: _isHovered || widget.isSelected
+                ? _hoverBackgroundColor
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 15,
+                    fontWeight: widget.isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+              ),
+              if (widget.showArrow)
+                const Icon(
+                  FluentIcons.chevron_right,
+                  size: 12,
+                  color: _defaultTextColor,
+                )
+              else if (widget.showCheck && widget.isSelected)
+                const Icon(
+                  FluentIcons.check_mark,
+                  size: 16,
+                  color: Colors.white,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _QualityItem extends StatefulWidget {
   final String label;
   final String? rightText;
   final bool isSelected;
   final bool showCheck;
-  final bool showArrow;
   final VoidCallback onClick;
 
   const _QualityItem({
@@ -754,7 +874,6 @@ class _QualityItem extends StatefulWidget {
     this.rightText,
     required this.isSelected,
     this.showCheck = true,
-    this.showArrow = false,
     required this.onClick,
   });
 
@@ -813,16 +932,8 @@ class _QualityItemState extends State<_QualityItem> {
                   if (widget.isSelected && widget.showCheck)
                     const Icon(
                       FluentIcons.check_mark,
-                      size: 20,
+                      size: 16,
                       color: _selectedTextColor,
-                    ),
-                  if (widget.showArrow)
-                    Icon(
-                      FluentIcons.chevron_right,
-                      size: 20,
-                      color: widget.isSelected
-                          ? _selectedTextColor
-                          : _defaultTextColor,
                     ),
                 ],
               ),

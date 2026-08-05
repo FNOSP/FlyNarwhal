@@ -143,6 +143,11 @@ class PlayerSessionCoordinator {
   final PreferencesManager _preferencesManager;
   final Dio _dio;
 
+  // Advanced playback settings (mirror the web player's 高级设置): force H.264
+  // transcoding and force HDR→SDR tone mapping on the play request.
+  bool forceH264 = false;
+  bool forceSdrColor = false;
+
   static const Duration _sessionRequestTimeout = Duration(seconds: 15);
   static const Uuid _uuid = Uuid();
 
@@ -330,10 +335,15 @@ class PlayerSessionCoordinator {
     required String audioGuid,
     required String? subtitleGuid,
   }) {
+    // Web logic: force h264 when the toggle is on or the source uses the
+    // HEVC "rext" profile; forced_sdr only applies to non-SDR sources.
+    final isSdrSource = videoStream.colorRangeType.toLowerCase() == 'sdr';
+    final useH264 =
+        forceH264 || videoStream.profile.toLowerCase() == 'rext';
     return PlayPlayRequest(
       mediaGuid: fileStream.guid,
       videoGuid: videoStream.guid,
-      videoEncoder: videoStream.codecName,
+      videoEncoder: useH264 ? 'h264' : videoStream.codecName,
       resolution: videoStream.resolutionType,
       bitrate: videoStream.bps,
       startTimestamp: 0,
@@ -341,7 +351,7 @@ class PlayerSessionCoordinator {
       audioGuid: audioGuid,
       subtitleGuid: subtitleGuid ?? '',
       channels: 2,
-      forcedSdr: 0,
+      forcedSdr: !isSdrSource && forceSdrColor ? 1 : 0,
     );
   }
 
@@ -562,7 +572,11 @@ class PlayerSessionCoordinator {
     required int startPositionMs,
     required String baseUrl,
   }) async {
-    if (supportsDirectLink(videoStream, currentQuality, qualities)) {
+    // Mirrors the web player: forcing H.264/SDR requires a transcode session,
+    // so the direct link must be skipped while either setting is on.
+    final transcodeForced = forceH264 || forceSdrColor;
+    if (!transcodeForced &&
+        supportsDirectLink(videoStream, currentQuality, qualities)) {
       final directLink = await getDirectPlayLink(
         mediaGuid: videoStream.mediaGuid,
         startPositionMs: startPositionMs,
