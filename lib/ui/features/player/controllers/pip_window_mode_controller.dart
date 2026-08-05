@@ -208,13 +208,14 @@ class PipWindowModeController {
   Future<Rect> _resolvePipBounds(Rect? preferredBounds, double ratio) async {
     final savedBounds =
         preferredBounds ?? await PlayerSettingsStore.getPipWindowBounds();
+    // Rebuild around the saved geometric center so the PiP window stays put
+    // when the video ratio changes between sessions.
     final requestedBounds = savedBounds == null
         ? _defaultBounds(null, ratio)
-        : Rect.fromLTWH(
-            savedBounds.left,
-            savedBounds.top,
-            savedBounds.width,
-            (savedBounds.width / ratio).roundToDouble(),
+        : Rect.fromCenter(
+            center: savedBounds.center,
+            width: savedBounds.width,
+            height: (savedBounds.width / ratio).roundToDouble(),
           );
     final displays = await _tryGetDisplays();
     return WindowGeometry.normalizePipBounds(

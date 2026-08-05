@@ -3062,8 +3062,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     AppTalker.info(
       'WindowRatio',
       'apply requested: setting=$_windowAspectRatio '
-      'captured=$_windowSessionCaptured pip=$_isPipMode '
-      'fullscreen=$_isFullscreen initialized=$_isInitialized',
+          'captured=$_windowSessionCaptured pip=$_isPipMode '
+          'fullscreen=$_isFullscreen initialized=$_isInitialized',
     );
     if (!_windowSessionCaptured) return;
     if (_isPipMode || _pipController.isPipMode) return;
@@ -3193,8 +3193,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               forcedSdr: playRequest.forcedSdr,
             ),
           );
-      await _handlePlayPlaySuccess(response,
-          startPositionMs: currentPosition);
+      await _handlePlayPlaySuccess(response, startPositionMs: currentPosition);
       if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       AppTalker.warning('Player', 'restart for transcode settings failed: $e');
@@ -4773,10 +4772,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildTopBar() {
-    final leftInset = _isMacOS ? 72.0 : 0.0;
-    // Reduce the top inset on macOS so the custom caption content lines up
-    // more closely with the native traffic-light buttons.
-    final topPadding = _isMacOS ? 6.0 : 12.0;
+    final leftInset = _isMacOS && !_isFullscreen ? 72.0 : 0.0;
+    final topPadding = _isMacOS && !_isFullscreen ? 12.0 : 6.0;
     final topBarContentHeight = _isMacOS ? 30.0 : 36.0;
     final topBarDragHeight = topPadding + topBarContentHeight;
 
@@ -4827,6 +4824,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        WindowCaptionPinButton(
+                          key: const ValueKey(
+                            'player-window-caption-pin-button',
+                          ),
+                          brightness: Brightness.dark,
+                          buttonSize: _isMacOS ? 30 : 34,
+                          iconSize: _isMacOS ? 16 : 18,
+                          borderRadius:
+                              BorderRadius.circular(_isMacOS ? 15 : 17),
+                        ),
+                        const SizedBox(width: 4),
                         PlayerActionButton.icon(
                           key: const ValueKey(
                             'player-playback-details-button',
@@ -4839,16 +4847,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           borderRadius: BorderRadius.circular(
                             _isMacOS ? 15 : 17,
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        WindowCaptionPinButton(
-                          key: const ValueKey(
-                            'player-window-caption-pin-button',
-                          ),
-                          brightness: Brightness.dark,
-                          buttonSize: _isMacOS ? 30 : 34,
-                          iconSize: _isMacOS ? 16 : 18,
-                          borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
                         ),
                       ],
                     ),
@@ -5067,6 +5065,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
         final bounds = await windowManager.getBounds();
         if (!mounted) return;
+        // User resizes under the ratio lock update the window-ratio
+        // baseline; programmatic setBounds echoes are ignored there.
+        _windowAspectRatioController.observeSettledBounds(bounds);
         await ref
             .read(playerSettingsManagerProvider)
             .setPlayerWindowBounds(bounds);

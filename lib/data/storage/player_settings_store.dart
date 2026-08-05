@@ -3,6 +3,8 @@ import 'dart:ui';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'centered_window_bounds_codec.dart';
+
 class PlayerSettingsStore {
   static const String _keyVolume = 'player_volume';
   static const String _keySpeed = 'player_speed';
@@ -11,14 +13,11 @@ class PlayerSettingsStore {
   static const String _keyVideoFillModeCache = 'player_video_fill_mode_cache';
   static const String _keyForceH264 = 'player_force_h264';
   static const String _keyForceSdrColor = 'player_force_sdr_color';
-  static const String _keyPlayerWindowLeft = 'player_window_left';
-  static const String _keyPlayerWindowTop = 'player_window_top';
-  static const String _keyPlayerWindowWidth = 'player_window_width';
-  static const String _keyPlayerWindowHeight = 'player_window_height';
-  static const String _keyPipWindowLeft = 'pip_window_left';
-  static const String _keyPipWindowTop = 'pip_window_top';
-  static const String _keyPipWindowWidth = 'pip_window_width';
-  static const String _keyPipWindowHeight = 'pip_window_height';
+  // Window geometry is persisted as geometric center + size (see
+  // CenteredWindowBoundsCodec); legacy top-left keys under the same prefixes
+  // are mirrored on write for downgrade compatibility.
+  static const String _playerWindowBoundsPrefix = 'player_window';
+  static const String _pipWindowBoundsPrefix = 'pip_window';
   static const String _keyDanmakuArea = 'danmaku_area';
   static const String _keyDanmakuOpacity = 'danmaku_opacity';
   static const String _keyDanmakuFontSize = 'danmaku_font_size';
@@ -73,50 +72,26 @@ class PlayerSettingsStore {
 
   /// The player route keeps its own window geometry (position and size),
   /// separate from the rest of the app (mirrors the KMP player window's
-  /// saved position/size).
+  /// saved position/size). The position is stored as the window's geometric
+  /// center; keep in sync with [PlayerSettingsManager] below.
   static Future<Rect?> getPlayerWindowBounds() async {
     final prefs = await SharedPreferences.getInstance();
-    final left = prefs.getDouble(_keyPlayerWindowLeft);
-    final top = prefs.getDouble(_keyPlayerWindowTop);
-    final width = prefs.getDouble(_keyPlayerWindowWidth);
-    final height = prefs.getDouble(_keyPlayerWindowHeight);
-    if (left == null ||
-        top == null ||
-        width == null ||
-        height == null ||
-        width <= 0 ||
-        height <= 0) {
-      return null;
-    }
-    return Rect.fromLTWH(left, top, width, height);
+    return CenteredWindowBoundsCodec.read(prefs, _playerWindowBoundsPrefix);
   }
 
   static Future<void> setPlayerWindowBounds(Rect bounds) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_keyPlayerWindowLeft, bounds.left);
-    await prefs.setDouble(_keyPlayerWindowTop, bounds.top);
-    await prefs.setDouble(_keyPlayerWindowWidth, bounds.width);
-    await prefs.setDouble(_keyPlayerWindowHeight, bounds.height);
+    await CenteredWindowBoundsCodec.write(prefs, _playerWindowBoundsPrefix, bounds);
   }
 
   static Future<Rect?> getPipWindowBounds() async {
     final prefs = await SharedPreferences.getInstance();
-    final left = prefs.getDouble(_keyPipWindowLeft);
-    final top = prefs.getDouble(_keyPipWindowTop);
-    final width = prefs.getDouble(_keyPipWindowWidth);
-    final height = prefs.getDouble(_keyPipWindowHeight);
-    if (left == null || top == null || width == null || height == null) {
-      return null;
-    }
-    return Rect.fromLTWH(left, top, width, height);
+    return CenteredWindowBoundsCodec.read(prefs, _pipWindowBoundsPrefix);
   }
 
   static Future<void> setPipWindowBounds(Rect bounds) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_keyPipWindowLeft, bounds.left);
-    await prefs.setDouble(_keyPipWindowTop, bounds.top);
-    await prefs.setDouble(_keyPipWindowWidth, bounds.width);
-    await prefs.setDouble(_keyPipWindowHeight, bounds.height);
+    await CenteredWindowBoundsCodec.write(prefs, _pipWindowBoundsPrefix, bounds);
   }
 }
 
@@ -223,53 +198,35 @@ class PlayerSettingsManager {
   Future<void> setForceSdrColor(bool enabled) =>
       _prefs.setBool(PlayerSettingsStore._keyForceSdrColor, enabled);
 
+  // Window geometry: center + size persistence, keep in sync with the static
+  // [PlayerSettingsStore] counterparts above.
   Rect? getPlayerWindowBounds() {
-    final left = _prefs.getDouble(PlayerSettingsStore._keyPlayerWindowLeft);
-    final top = _prefs.getDouble(PlayerSettingsStore._keyPlayerWindowTop);
-    final width = _prefs.getDouble(PlayerSettingsStore._keyPlayerWindowWidth);
-    final height = _prefs.getDouble(PlayerSettingsStore._keyPlayerWindowHeight);
-    if (left == null ||
-        top == null ||
-        width == null ||
-        height == null ||
-        width <= 0 ||
-        height <= 0) {
-      return null;
-    }
-    return Rect.fromLTWH(left, top, width, height);
+    return CenteredWindowBoundsCodec.read(
+      _prefs,
+      PlayerSettingsStore._playerWindowBoundsPrefix,
+    );
   }
 
-  Future<void> setPlayerWindowBounds(Rect bounds) async {
-    await _prefs.setDouble(PlayerSettingsStore._keyPlayerWindowLeft, bounds.left);
-    await _prefs.setDouble(PlayerSettingsStore._keyPlayerWindowTop, bounds.top);
-    await _prefs.setDouble(
-      PlayerSettingsStore._keyPlayerWindowWidth,
-      bounds.width,
-    );
-    await _prefs.setDouble(
-      PlayerSettingsStore._keyPlayerWindowHeight,
-      bounds.height,
+  Future<void> setPlayerWindowBounds(Rect bounds) {
+    return CenteredWindowBoundsCodec.write(
+      _prefs,
+      PlayerSettingsStore._playerWindowBoundsPrefix,
+      bounds,
     );
   }
 
   Rect? getPipWindowBounds() {
-    final left = _prefs.getDouble(PlayerSettingsStore._keyPipWindowLeft);
-    final top = _prefs.getDouble(PlayerSettingsStore._keyPipWindowTop);
-    final width = _prefs.getDouble(PlayerSettingsStore._keyPipWindowWidth);
-    final height = _prefs.getDouble(PlayerSettingsStore._keyPipWindowHeight);
-    if (left == null || top == null || width == null || height == null) {
-      return null;
-    }
-    return Rect.fromLTWH(left, top, width, height);
+    return CenteredWindowBoundsCodec.read(
+      _prefs,
+      PlayerSettingsStore._pipWindowBoundsPrefix,
+    );
   }
 
-  Future<void> setPipWindowBounds(Rect bounds) async {
-    await _prefs.setDouble(PlayerSettingsStore._keyPipWindowLeft, bounds.left);
-    await _prefs.setDouble(PlayerSettingsStore._keyPipWindowTop, bounds.top);
-    await _prefs.setDouble(PlayerSettingsStore._keyPipWindowWidth, bounds.width);
-    await _prefs.setDouble(
-      PlayerSettingsStore._keyPipWindowHeight,
-      bounds.height,
+  Future<void> setPipWindowBounds(Rect bounds) {
+    return CenteredWindowBoundsCodec.write(
+      _prefs,
+      PlayerSettingsStore._pipWindowBoundsPrefix,
+      bounds,
     );
   }
 }
