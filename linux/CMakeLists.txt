@@ -34,6 +34,17 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Profile" "Release")
 endif()
 
+# Bundle a full libmpv (with PGS/HDMV SUP bitmap subtitle support) into the
+# Linux app on every build type, not just release. When the build host does
+# not have `libmpv.so.2` installed (or the system copy lacks the PGS decoder),
+# the Dart scripts download a self-contained closure from the Ubuntu 24.04
+# apt pool into <project>/build/linux/libmpv_cache/ and use that as the
+# bundler source. Set `-DFLY_NARWHAL_FETCH_FULL_LIBMPV=OFF` to skip the
+# download attempt (system libmpv is still used when present).
+option(FLY_NARWHAL_FETCH_FULL_LIBMPV
+  "Bundle full libmpv into every Linux build (downloads when host has none)"
+  ON)
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
@@ -67,6 +78,28 @@ add_dependencies(${BINARY_NAME} flutter_assemble)
 set_target_properties(${BINARY_NAME}
   PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/intermediates_do_not_run"
+)
+
+# === Full libmpv bundling =================================================
+# Run after the runner executable is linked, on every build type. Skips
+# itself when the build host has a system libmpv.so.2 (so CI's apt-installed
+# path stays the fast path). Otherwise downloads a self-contained closure
+# from the Ubuntu 24.04 apt pool into a project-local cache and asks the
+# bundler to copy the .so files into the binary's runtime directory.
+# See linux/cmake/ensure_full_libmpv.cmake for the actual implementation.
+#
+# Note: Flutter's hot reload (`r`/`R`) only pushes a new Dart kernel and
+# does not relink the ELF, so this hook only fires on actual C++ rebuilds.
+add_custom_command(
+  TARGET ${BINARY_NAME} POST_BUILD
+  COMMAND ${CMAKE_COMMAND}
+    -DFLY_NARWHAL_FETCH_FULL_LIBMPV=${FLY_NARWHAL_FETCH_FULL_LIBMPV}
+    -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+    -DCMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+    -DCMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ensure_full_libmpv.cmake"
+  COMMENT "Bundling full libmpv (downloads from Ubuntu apt pool if needed)"
+  VERBATIM
 )
 
 
