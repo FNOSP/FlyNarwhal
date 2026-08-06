@@ -20,6 +20,7 @@ import '../../shared/common/fn_cached_image.dart';
 import 'detail_components.dart';
 import '../../shared/common/img_loading_progress_ring.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
+import '../../shared/dialogs/file_media_info_dialog.dart';
 import '../../shared/cast_scroll_row.dart';
 import '../../shared/toast.dart';
 
@@ -1128,6 +1129,16 @@ class _MediaInfoSection extends StatelessWidget {
         // Video/Audio Info Section
         _InfoSection(
           title: '视频/音频信息',
+          trailing: videoStream != null
+              ? _ViewAllMediaInfoButton(
+                  key: const ValueKey('file-media-info-view-all'),
+                  onPressed: () => _showFileMediaInfoDialog(
+                    context: context,
+                    state: state,
+                    videoStream: videoStream,
+                  ),
+                )
+              : null,
           child: Row(
             children: [
               Expanded(
@@ -1159,25 +1170,57 @@ class _MediaInfoSection extends StatelessWidget {
       ],
     );
   }
+
+  void _showFileMediaInfoDialog({
+    required BuildContext context,
+    required MovieDetailState state,
+    required VideoStream videoStream,
+  }) {
+    final mediaGuid = currentMediaGuid;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => FileMediaInfoDialog(
+        videoStream: videoStream,
+        audioStreams: (state.streamList?.audioStreams ?? const [])
+            .where((s) => s.mediaGuid == mediaGuid)
+            .toList(),
+        subtitleStreams: (state.streamList?.subtitleStreams ?? const [])
+            .where((s) => s.mediaGuid == mediaGuid)
+            .toList(),
+        iso6391Map: state.iso6391,
+        iso6392Map: state.iso6392,
+      ),
+    );
+  }
 }
 
 class _InfoSection extends StatelessWidget {
   final String title;
   final Widget child;
 
-  const _InfoSection({required this.title, required this.child});
+  /// 标题行右侧的可选控件（如"查看全部"入口）。
+  final Widget? trailing;
+
+  const _InfoSection({required this.title, required this.child, this.trailing});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: FluentTheme.of(context)
-              .typography
-              .bodyStrong
-              ?.copyWith(fontSize: 14),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: FluentTheme.of(context)
+                    .typography
+                    .bodyStrong
+                    ?.copyWith(fontSize: 14),
+              ),
+            ),
+            if (trailing != null) trailing!,
+          ],
         ),
         const SizedBox(height: 12),
         Container(
@@ -1270,6 +1313,53 @@ class _TrackItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ViewAllMediaInfoButton extends StatefulWidget {
+  const _ViewAllMediaInfoButton({super.key, required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  State<_ViewAllMediaInfoButton> createState() =>
+      _ViewAllMediaInfoButtonState();
+}
+
+class _ViewAllMediaInfoButtonState extends State<_ViewAllMediaInfoButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // 复刻飞牛影视 web：--semi-color-text-2 (白 60%)，hover 时 --semi-color-text-0 (白)。
+    final color =
+        _hovered ? const Color(0xFFFFFFFF) : const Color(0x99FFFFFF);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        child: SizedBox(
+          height: 22,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(width: 4),
+              Text(
+                '查看全部',
+                style: TextStyle(color: color, fontSize: 12),
+              ),
+              Icon(
+                FluentIcons.chevron_right,
+                size: 16,
+                color: color,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
