@@ -1083,6 +1083,7 @@ class _MediaInfoSection extends StatelessWidget {
       subtitleStream: subtitleStream.guid.isNotEmpty ? subtitleStream : null,
       imdbId: state.item?.imdbId,
       iso6391Map: iso6391Map,
+      iso6392Map: state.iso6392,
     );
 
     return Column(
