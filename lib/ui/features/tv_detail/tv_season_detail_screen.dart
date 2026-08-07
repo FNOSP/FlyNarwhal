@@ -340,8 +340,15 @@ class _TvSeasonDetailContentState
         (MediaQuery.of(context).size.width * pixelRatio).roundToDouble() /
             pixelRatio;
     final posterUrl = _buildImageUrl(widget.baseUrl, item.posters);
-    final backdropPath =
-        (item.backdrops?.isNotEmpty ?? false) ? item.backdrops! : item.posters;
+    // Header backdrop source mirrors the web season page: the parent TV item's
+    // backdrops (seasons usually have none of their own), falling back to the
+    // season's own images only if the parent has nothing.
+    final parentItem = widget.state.parentItem;
+    final backdropPath = (parentItem?.backdrops?.isNotEmpty ?? false)
+        ? parentItem!.backdrops!
+        : (item.backdrops?.isNotEmpty ?? false)
+            ? item.backdrops!
+            : item.posters;
     final backdropUrl = _buildImageUrl(widget.baseUrl, backdropPath);
     final isWatched = item.isWatched == 1;
     final textColor = FluentTheme.of(context).typography.body?.color;
@@ -398,7 +405,7 @@ class _TvSeasonDetailContentState
                           if (posterUrl.isNotEmpty)
                             Container(
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.black.withValues(alpha: 0.28),
@@ -408,7 +415,7 @@ class _TvSeasonDetailContentState
                                 ],
                               ),
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                                 child: Container(
                                   width: 180,
                                   height: 270,
@@ -417,7 +424,7 @@ class _TvSeasonDetailContentState
                                       color:
                                           Colors.white.withValues(alpha: 0.2),
                                     ),
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: CachedNetworkImage(
                                     imageUrl: posterUrl,
