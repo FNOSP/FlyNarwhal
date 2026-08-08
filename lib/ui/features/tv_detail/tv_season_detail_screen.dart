@@ -405,7 +405,7 @@ class _TvSeasonDetailContentState
                           if (posterUrl.isNotEmpty)
                             Container(
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(16),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.black.withValues(alpha: 0.28),
@@ -415,7 +415,7 @@ class _TvSeasonDetailContentState
                                 ],
                               ),
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(16),
                                 child: Container(
                                   width: 180,
                                   height: 270,
@@ -424,7 +424,7 @@ class _TvSeasonDetailContentState
                                       color:
                                           Colors.white.withValues(alpha: 0.2),
                                     ),
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: CachedNetworkImage(
                                     imageUrl: posterUrl,
