@@ -1,20 +1,36 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-// Colors sampled from the supplied reference dialogs.
-const appDialogPrimaryColor = Color(0xFF0A6CFF);
-const appDialogDangerColor = Color(0xFFE9362D);
-const appDialogSecondaryBorderColor = Color(0xFF3A3A3C);
-const appDialogSurfaceColor = Color(0xFF202022);
-const appDialogTextColor = Color(0xFFF2F2F7);
+// Colors sampled from the reference web app (飞牛影视, Semi Design dark theme).
+// Modal chrome
+const appDialogSurfaceColor = Color(0xFF202021);
+const appDialogBarrierColor = Color(0xB3101011);
+const appDialogTextColor = Color(0xFFFFFFFF);
+const appDialogBodyTextColor = Color(0xFFFFFFFF);
 
-enum AppDialogType { information, confirmation, danger, custom }
+// Secondary/cancel (ghost, tertiary-outline) — identical across dialog types.
+const appDialogSecondaryTextColor = Color(0xCCFFFFFF);
+const appDialogSecondaryBorderColor = Color(0x1AFFFFFF);
+const appDialogSecondaryHoverColor = Color(0x0AFFFFFF);
+const appDialogSecondaryPressedColor = Color(0x17FFFFFF);
+
+// Primary — normal/confirmation dialogs (blue).
+const appDialogPrimaryColor = Color(0xFF0066FF);
+const appDialogPrimaryHoverColor = Color(0xFF3388FF);
+const appDialogPrimaryPressedColor = Color(0xFF0054DB);
+
+// Danger dialogs (red).
+const appDialogDangerColor = Color(0xFFDB382C);
+const appDialogDangerHoverColor = Color(0xFFE56C5E);
+const appDialogDangerPressedColor = Color(0xFFBA312C);
+
+enum AppDialogType { confirmation, danger }
 
 class AppDialog<T> extends StatelessWidget {
   const AppDialog({
     super.key,
     required this.title,
     required this.content,
-    this.type = AppDialogType.information,
+    this.type = AppDialogType.confirmation,
     this.primaryButtonText,
     this.secondaryButtonText,
     this.tertiaryButtonText,
@@ -26,7 +42,7 @@ class AppDialog<T> extends StatelessWidget {
     this.tertiaryResult,
     this.constraints = const BoxConstraints(
       minWidth: 420,
-      maxWidth: 640,
+      maxWidth: 460,
       maxHeight: 720,
     ),
     this.titleIcon,
@@ -49,43 +65,55 @@ class AppDialog<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final actions = <Widget>[
-      if (_visible(secondaryButtonText))
-        _secondary(context, secondaryButtonText!, onSecondaryPressed,
-            secondaryResult, 'secondary'),
-      if (_visible(tertiaryButtonText))
-        _secondary(context, tertiaryButtonText!, onTertiaryPressed,
-            tertiaryResult, 'tertiary'),
-      if (_visible(primaryButtonText))
-        _primary(context, primaryButtonText!, onPrimaryPressed, primaryResult),
-    ];
+    // tertiary 通常为附加/破坏性操作(如「删除」),靠左;
+    // secondary(取消)+ primary(确定)为常规确认操作,靠右。
+    final tertiary = _visible(tertiaryButtonText)
+        ? _secondary(context, tertiaryButtonText!, onTertiaryPressed,
+            tertiaryResult, 'tertiary')
+        : null;
+    final secondary = _visible(secondaryButtonText)
+        ? _secondary(context, secondaryButtonText!, onSecondaryPressed,
+            secondaryResult, 'secondary')
+        : null;
+    final primary = _visible(primaryButtonText)
+        ? _primary(context, primaryButtonText!, onPrimaryPressed, primaryResult)
+        : null;
+
+    final hasActions =
+        tertiary != null || secondary != null || primary != null;
 
     return ContentDialog(
       constraints: constraints,
       style: ContentDialogThemeData(
         decoration: BoxDecoration(
           color: appDialogSurfaceColor,
-          border: Border.all(color: appDialogSecondaryBorderColor),
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: const [
             BoxShadow(
-                color: Color(0x66000000), blurRadius: 24, spreadRadius: 2),
+              color: Color(0x66000000),
+              blurRadius: 24,
+              spreadRadius: 2,
+            ),
           ],
         ),
-        barrierColor: const Color(0xB3000000),
-        padding: const EdgeInsets.fromLTRB(28, 26, 28, 22),
-        titlePadding: const EdgeInsets.only(bottom: 18),
+        barrierColor: appDialogBarrierColor,
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        titlePadding: const EdgeInsets.only(bottom: 24),
         bodyPadding: EdgeInsets.zero,
-        actionsSpacing: 10,
+        actionsSpacing: 12,
         actionsDecoration: const BoxDecoration(color: Colors.transparent),
-        actionsPadding: const EdgeInsets.only(top: 28),
-        titleStyle: FluentTheme.of(context).typography.title?.copyWith(
-              color: appDialogTextColor,
-              fontWeight: FontWeight.w600,
-            ),
-        bodyStyle: FluentTheme.of(context).typography.body?.copyWith(
-              color: appDialogTextColor,
-            ),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+        titleStyle: const TextStyle(
+          fontSize: 18,
+          height: 24 / 18,
+          fontWeight: FontWeight.w600,
+          color: appDialogTextColor,
+        ),
+        bodyStyle: const TextStyle(
+          fontSize: 14,
+          height: 20 / 14,
+          color: appDialogBodyTextColor,
+        ),
       ),
       title: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -95,22 +123,23 @@ class AppDialog<T> extends StatelessWidget {
         ],
       ),
       content: DefaultTextStyle.merge(
-        style: const TextStyle(color: appDialogTextColor),
+        style: const TextStyle(color: appDialogBodyTextColor),
         child: content,
       ),
-      actions: actions.isEmpty
-          ? null
-          : [
-              Align(
-                alignment: Alignment.centerRight,
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: actions,
-                ),
+      actions: hasActions
+          ? [
+              Row(
+                children: [
+                  if (tertiary != null) tertiary,
+                  const Spacer(),
+                  if (secondary != null) secondary,
+                  if (secondary != null && primary != null)
+                    const SizedBox(width: 12),
+                  if (primary != null) primary,
+                ],
               ),
-            ],
+            ]
+          : null,
     );
   }
 
@@ -120,23 +149,34 @@ class AppDialog<T> extends StatelessWidget {
     VoidCallback? callback,
     T? result,
   ) {
-    final color = type == AppDialogType.danger
-        ? appDialogDangerColor
-        : appDialogPrimaryColor;
+    final isDanger = type == AppDialogType.danger;
+    final base = isDanger ? appDialogDangerColor : appDialogPrimaryColor;
+    final hover =
+        isDanger ? appDialogDangerHoverColor : appDialogPrimaryHoverColor;
+    final pressed =
+        isDanger ? appDialogDangerPressedColor : appDialogPrimaryPressedColor;
+
     return FilledButton(
       key: const ValueKey('app-dialog-primary'),
       style: ButtonStyle(
-        backgroundColor: WidgetStatePropertyAll(color),
+        backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.pressed)) return pressed;
+          if (states.contains(WidgetState.hovered)) return hover;
+          return base;
+        }),
         foregroundColor: const WidgetStatePropertyAll(appDialogTextColor),
+        textStyle: const WidgetStatePropertyAll(
+          TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
         shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+          EdgeInsets.symmetric(horizontal: 16),
         ),
       ),
       onPressed: () => _invoke(context, callback, result),
-      child: Text(text),
+      child: _label(text),
     );
   }
 
@@ -150,22 +190,49 @@ class AppDialog<T> extends StatelessWidget {
     return Button(
       key: ValueKey('app-dialog-$name'),
       style: ButtonStyle(
-        backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
-        foregroundColor: const WidgetStatePropertyAll(appDialogTextColor),
+        backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.pressed)) {
+            return appDialogSecondaryPressedColor;
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return appDialogSecondaryHoverColor;
+          }
+          return Colors.transparent;
+        }),
+        foregroundColor: const WidgetStatePropertyAll(
+          appDialogSecondaryTextColor,
+        ),
+        textStyle: const WidgetStatePropertyAll(
+          TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
             side: const BorderSide(color: appDialogSecondaryBorderColor),
           ),
         ),
         padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+          EdgeInsets.symmetric(horizontal: 16),
         ),
       ),
       onPressed: () => _invoke(context, callback, result),
-      child: Text(text),
+      child: _label(text),
     );
   }
+
+  Widget _label(String text) => ConstrainedBox(
+        // Buttons are content-sized but never narrower than the reference
+        // (88px total = 56px label + 16px padding each side).
+        constraints: const BoxConstraints(minWidth: 56),
+        child: SizedBox(
+          height: 36,
+          child: Align(
+            alignment: Alignment.center,
+            widthFactor: 1.0,
+            child: Text(text),
+          ),
+        ),
+      );
 
   void _invoke(BuildContext context, VoidCallback? callback, T? result) {
     if (callback != null) {
@@ -182,7 +249,7 @@ Future<T?> showAppDialog<T>({
   required BuildContext context,
   required String title,
   required Widget content,
-  AppDialogType type = AppDialogType.information,
+  AppDialogType type = AppDialogType.confirmation,
   String? primaryButtonText,
   String? secondaryButtonText,
   String? tertiaryButtonText,
@@ -195,7 +262,7 @@ Future<T?> showAppDialog<T>({
   bool barrierDismissible = true,
   BoxConstraints constraints = const BoxConstraints(
     minWidth: 420,
-    maxWidth: 640,
+    maxWidth: 460,
     maxHeight: 720,
   ),
   Widget? titleIcon,

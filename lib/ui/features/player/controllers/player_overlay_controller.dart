@@ -11,6 +11,7 @@ enum PlayerFlyoutType {
   quality,
   subtitle,
   danmaku,
+  settingsMenu,
 }
 
 enum PlayerHoverZone {
@@ -138,6 +139,8 @@ class PlayerOverlayController extends StateNotifier<PlayerOverlayState> {
         return PlayerHoverZone.subtitleControl;
       case PlayerFlyoutType.danmaku:
         return PlayerHoverZone.danmakuSettings;
+      case PlayerFlyoutType.settingsMenu:
+        return PlayerHoverZone.settingsMenu;
     }
   }
 

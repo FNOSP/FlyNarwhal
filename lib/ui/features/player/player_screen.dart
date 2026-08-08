@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../domain/entities/media_type.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
+import '../../shared/dialogs/app_dialog.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
@@ -1050,22 +1051,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (subtitle.isExternal == 1) displayName.write(' - 外挂');
     if (subtitle.isDefault == 1) displayName.write(' - 默认');
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => ContentDialog(
-        title: const Text('删除外挂字幕'),
-        content: Text('确定要删除 $displayName 外挂字幕吗？'),
-        actions: [
-          Button(
-            child: const Text('取消'),
-            onPressed: () => Navigator.of(ctx).pop(false),
-          ),
-          FilledButton(
-            child: const Text('删除'),
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-      ),
+      type: AppDialogType.danger,
+      title: '删除外挂字幕',
+      content: Text('确定要删除 $displayName 外挂字幕吗？'),
+      primaryButtonText: '删除',
+      secondaryButtonText: '取消',
+      primaryResult: true,
+      secondaryResult: false,
     );
     if (confirmed != true || !mounted) return;
 
@@ -4475,7 +4469,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           size: 34,
           iconSize: 22,
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 28),
         PlayerActionButton.svg(
           svgAssetPath: 'assets/images/back10s.svg',
           onPressed: () => _seekRelative(-10000),
@@ -4483,7 +4477,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           size: 30,
           iconSize: 20,
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 28),
         PlayerActionButton.svg(
           svgAssetPath: 'assets/images/forward10s.svg',
           onPressed: () => _seekRelative(10000),
@@ -4666,8 +4660,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           },
           isAutoPlay: overlayState.isAutoPlayEnabled,
           onAutoPlayChanged: _onAutoPlayChanged,
-          onHoverStateChanged: (hovered) => _overlayController.setHovered(
-            PlayerHoverZone.settingsMenu,
+          isActiveControl:
+              overlayState.activeFlyout == PlayerFlyoutType.settingsMenu,
+          onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
+            PlayerFlyoutType.settingsMenu,
             hovered,
           ),
           onAudioSelected: _onAudioSelected,
