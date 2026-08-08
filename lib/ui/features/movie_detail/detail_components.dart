@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
+import '../player/widgets/subtitle_selection_panel.dart';
 
 const kAccentColor = Color(0xFF2173DF);
 
@@ -288,77 +289,108 @@ class MediaDescription extends StatefulWidget {
 }
 
 class _MediaDescriptionState extends State<MediaDescription> {
+  static const String _moreLabel = '更多';
+  static const double _moreGap = 4;
+
   @override
   Widget build(BuildContext context) {
     final maxLines = widget.isSeason ? 2 : 4;
     final processedOverview = widget.overview.replaceAll('\n\n', '\n');
+    final bodyStyle = TextStyle(
+      color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+      fontSize: 15,
+      height: 1.5,
+    );
+    const moreStyle = TextStyle(color: kAccentColor, fontSize: 15, height: 1.5);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final span = TextSpan(
-          text: processedOverview,
-          style: TextStyle(
-            color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
-            fontSize: 15,
-            height: 1.5,
-          ),
-        );
+        final maxWidth = constraints.maxWidth;
 
-        final tp = TextPainter(
-          text: span,
+        // 参考 Web 端:按字符截断文本为“更多”按钮留出空间,
+        // 按钮作为内联元素放在最后一行,避免渐变遮罩盖住文字造成重叠。
+        final fullPainter = TextPainter(
+          text: TextSpan(text: processedOverview, style: bodyStyle),
           maxLines: maxLines,
           textDirection: TextDirection.ltr,
         );
-        tp.layout(maxWidth: constraints.maxWidth);
+        fullPainter.layout(maxWidth: maxWidth);
 
-        final isOverflowing = tp.didExceedMaxLines;
+        if (!fullPainter.didExceedMaxLines) {
+          return Text(processedOverview, style: bodyStyle);
+        }
 
-        return Stack(
-          children: [
-            Text(
-              processedOverview,
-              style: TextStyle(
-                color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
-                fontSize: 15,
-                height: 1.5,
-              ),
-              maxLines: maxLines,
-              overflow: TextOverflow.clip,
+        final moreWidth = (TextPainter(
+          text: const TextSpan(text: _moreLabel, style: moreStyle),
+          textDirection: TextDirection.ltr,
+        )..layout()).width;
+        final reservedWidth = moreWidth + _moreGap;
+
+        bool fitsWithMore(int prefixLen) {
+          final tp = TextPainter(
+            text: TextSpan(
+              text: '${processedOverview.substring(0, prefixLen)}...',
+              style: bodyStyle,
             ),
-            if (isOverflowing)
-              Positioned(
-                bottom: 0,
-                right: -10,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        FluentTheme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.0),
-                        FluentTheme.of(context).scaffoldBackgroundColor,
-                        FluentTheme.of(context).scaffoldBackgroundColor,
-                      ],
-                      stops: const [0.0, 0.4, 1.0],
-                    ),
-                  ),
-                  padding: const EdgeInsets.only(left: 32, right: 10),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: widget.onMore,
-                      child: const Text(
-                        '  更多',
-                        style: TextStyle(
-                          color: kAccentColor,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
+            maxLines: maxLines,
+            textDirection: TextDirection.ltr,
+          );
+          tp.layout(maxWidth: maxWidth);
+          if (tp.didExceedMaxLines) return false;
+          final lines = tp.computeLineMetrics();
+          // 未占满 maxLines 时无需预留;占满则最后一行需为“更多”留出空间。
+          // 注意:此处不能用 WidgetSpan 占位——裸 TextPainter 无法布局占位组件。
+          return lines.length < maxLines ||
+              lines.last.width + reservedWidth <= maxWidth;
+        }
+
+        // 二分查找能放下“更多”按钮的最长前缀
+        int lo = 0;
+        int hi = processedOverview.length;
+        while (lo < hi) {
+          final mid = (lo + hi + 1) >> 1;
+          if (fitsWithMore(mid)) {
+            lo = mid;
+          } else {
+            hi = mid - 1;
+          }
+        }
+        final truncated = processedOverview.substring(0, lo).trimRight();
+
+        // 将“更多”按钮推到最后一行右端,与 Web 端视觉一致
+        final truncatedPainter = TextPainter(
+          text: TextSpan(text: '$truncated...', style: bodyStyle),
+          maxLines: maxLines,
+          textDirection: TextDirection.ltr,
+        );
+        truncatedPainter.layout(maxWidth: maxWidth);
+        final lastLineWidth = truncatedPainter.computeLineMetrics().last.width;
+        final spacerWidth =
+            (maxWidth - lastLineWidth - reservedWidth).clamp(0.0, maxWidth);
+
+        return Text.rich(
+          TextSpan(children: [
+            TextSpan(text: '$truncated...', style: bodyStyle),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.bottom,
+              child: SizedBox(width: spacerWidth, height: 1),
+            ),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: widget.onMore,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: _moreGap),
+                    child: const Text(_moreLabel, style: moreStyle),
                   ),
                 ),
               ),
-          ],
+            ),
+          ]),
+          maxLines: maxLines,
+          overflow: TextOverflow.clip,
         );
       },
     );
@@ -622,10 +654,6 @@ class StreamSelector<T> extends StatefulWidget {
   final T? selectedValue;
   final List<StreamOptionItem<T>> items;
   final ValueChanged<T> onChanged;
-  final bool isSubtitle;
-  final VoidCallback? onAddNasSubtitle;
-  final VoidCallback? onSearchSubtitle;
-  final VoidCallback? onAddLocalSubtitle;
 
   const StreamSelector({
     super.key,
@@ -634,10 +662,6 @@ class StreamSelector<T> extends StatefulWidget {
     required this.selectedValue,
     required this.items,
     required this.onChanged,
-    this.isSubtitle = false,
-    this.onAddNasSubtitle,
-    this.onSearchSubtitle,
-    this.onAddLocalSubtitle,
   });
 
   @override
@@ -646,18 +670,24 @@ class StreamSelector<T> extends StatefulWidget {
 
 class _StreamSelectorState<T> extends State<StreamSelector<T>> {
   final FlyoutController _controller = FlyoutController();
-  final FlyoutController _addController = FlyoutController();
   bool _isTargetHovered = false;
   bool _isFlyoutHovered = false;
   bool _isHovered = false;
   Timer? _hideTimer;
-  bool _isAddOpen = false;
 
   @override
   void initState() {
     super.initState();
     _controller.addListener(() {
       if (!mounted) return;
+      // flyout 程序化关闭时 MouseRegion 不触发 onExit，需显式复位，
+      // 否则触发器箭头保持旋转状态。
+      if (!_controller.isOpen && _isFlyoutHovered) {
+        _isFlyoutHovered = false;
+      }
+      // 关闭后 _isHovered 仍可能为 true（_handleTargetHover(false) 在
+      // flyout 仍开着时被设上去的），需要重新同步，否则箭头不会归位。
+      _syncHoveredState();
       setState(() {});
     });
   }
@@ -666,7 +696,6 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
   void dispose() {
     _hideTimer?.cancel();
     _controller.dispose();
-    _addController.dispose();
     super.dispose();
   }
 
@@ -746,122 +775,7 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
   }
 
   double _calculateFlyoutHeight() {
-    final count = widget.items.length;
-    if (widget.isSubtitle) {
-      if (count <= 1) return 317;
-      if (count > 6) return 317;
-      return 57.0 * (count - 1) + 32;
-    }
-    return 57.0 * count;
-  }
-
-  void _showAddFlyout() async {
-    if (_isAddOpen) return;
-    setState(() {
-      _isAddOpen = true;
-    });
-    try {
-      await _addController.showFlyout<void>(
-        placementMode: FlyoutPlacementMode.bottomCenter,
-        builder: (context) {
-          final items = <MenuFlyoutItem>[];
-          if (widget.onSearchSubtitle != null) {
-            items.add(
-              MenuFlyoutItem(
-                text: const Text('搜索字幕'),
-                onPressed: () {
-                  widget.onSearchSubtitle?.call();
-                  Flyout.of(context).close();
-                },
-              ),
-            );
-          }
-          if (widget.onAddNasSubtitle != null) {
-            items.add(
-              MenuFlyoutItem(
-                text: const Text('添加 NAS 字幕'),
-                onPressed: () {
-                  widget.onAddNasSubtitle?.call();
-                  Flyout.of(context).close();
-                },
-              ),
-            );
-          }
-          if (widget.onAddLocalSubtitle != null) {
-            items.add(
-              MenuFlyoutItem(
-                text: const Text('添加本地字幕'),
-                onPressed: () {
-                  widget.onAddLocalSubtitle?.call();
-                  Flyout.of(context).close();
-                },
-              ),
-            );
-          }
-          return MenuFlyout(items: items);
-        },
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isAddOpen = false;
-        });
-      }
-    }
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    final hasAddActions = widget.onAddNasSubtitle != null ||
-        widget.onSearchSubtitle != null ||
-        widget.onAddLocalSubtitle != null;
-    return Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            '字幕',
-            style: TextStyle(
-              fontSize: 16,
-              color: theme.typography.body?.color,
-            ),
-          ),
-          FlyoutTarget(
-            controller: _addController,
-            child: Button(
-              onPressed: hasAddActions ? _showAddFlyout : null,
-              style: const ButtonStyle(
-                padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-                shape: WidgetStatePropertyAll(StadiumBorder()),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '添加',
-                    style: TextStyle(
-                      color: theme.typography.body?.color,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  AnimatedRotation(
-                    turns: _isAddOpen ? -0.5 : 0,
-                    duration: const Duration(milliseconds: 160),
-                    child: Icon(
-                      FluentIcons.chevron_down_small,
-                      size: 12,
-                      color: theme.typography.body?.color?.withValues(alpha: 0.8),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return 57.0 * widget.items.length;
   }
 
   Widget _buildOptionItem(
@@ -921,10 +835,6 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
     final otherItems = widget.items.where((i) => !i.isNoDisplay).toList();
     final contentItems = <Widget>[];
 
-    if (widget.isSubtitle) {
-      contentItems.add(_buildHeader(context));
-    }
-
     if (otherItems.isNotEmpty) {
       if (noDisplayItem.isNotEmpty) {
         contentItems.add(_buildOptionItem(context, noDisplayItem.first));
@@ -966,7 +876,7 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
     final selectedItem = _findSelectedItem();
     final label = widget.selectedLabel ?? selectedItem?.title ?? widget.placeholder ?? 'Select';
 
-    if (!widget.isSubtitle && widget.items.length <= 1) {
+    if (widget.items.length <= 1) {
       return Text(
         label,
         style: TextStyle(
@@ -1002,6 +912,219 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
                   FluentIcons.chevron_down_small,
                   size: 12,
                   color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 详情页字幕选择器：复用播放器的 [SubtitleSelectionPanel]，
+/// 但不提供"调整"入口，使用 Fluent 毛玻璃背景，
+/// 滚动条在鼠标不活跃时自动隐藏。
+class SubtitleStreamSelector extends StatefulWidget {
+  final String? selectedLabel;
+  final List<SubtitleStream> subtitles;
+
+  /// 为 null 表示当前选中"关闭"。
+  final String? selectedSubtitleGuid;
+  final Map<String, String> iso6391Map;
+  final Map<String, String> iso6392Map;
+  final ValueChanged<String?> onChanged;
+  final VoidCallback? onAddNasSubtitle;
+  final VoidCallback? onSearchSubtitle;
+  final VoidCallback? onAddLocalSubtitle;
+  final ValueChanged<SubtitleStream>? onRequestDelete;
+  final ValueChanged<SubtitleStream>? onPredownloadSimilar;
+
+  const SubtitleStreamSelector({
+    super.key,
+    this.selectedLabel,
+    required this.subtitles,
+    required this.selectedSubtitleGuid,
+    required this.iso6391Map,
+    required this.iso6392Map,
+    required this.onChanged,
+    this.onAddNasSubtitle,
+    this.onSearchSubtitle,
+    this.onAddLocalSubtitle,
+    this.onRequestDelete,
+    this.onPredownloadSimilar,
+  });
+
+  @override
+  State<SubtitleStreamSelector> createState() => _SubtitleStreamSelectorState();
+}
+
+class _SubtitleStreamSelectorState extends State<SubtitleStreamSelector> {
+  final FlyoutController _controller = FlyoutController();
+  bool _isTargetHovered = false;
+  bool _isFlyoutHovered = false;
+  bool _isHovered = false;
+  Timer? _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      if (!mounted) return;
+      // flyout 被程序化关闭（如选中字幕后）时，包裹面板的 MouseRegion
+      // 随路由销毁不会触发 onExit，_isFlyoutHovered 会卡死为 true，
+      // 导致触发器箭头不复位——这里随 controller 关闭显式复位。
+      if (!_controller.isOpen && _isFlyoutHovered) {
+        _isFlyoutHovered = false;
+      }
+      // 关闭后 _isHovered 仍可能为 true（_handleTargetHover(false) 在
+      // flyout 仍开着时被设上去的），需要重新同步，否则箭头不会归位。
+      _syncHoveredState();
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _showFlyout() {
+    if (_controller.isOpen) return;
+    _controller.showFlyout<void>(
+      placementMode: FlyoutPlacementMode.auto,
+      barrierDismissible: false,
+      dismissOnPointerMoveAway: false,
+      buildTarget: true,
+      builder: (context) {
+        return MouseRegion(
+          opaque: true,
+          onEnter: (_) => _handleFlyoutHover(true),
+          onExit: (_) => _handleFlyoutHover(false),
+          child: SubtitleSelectionPanel(
+            subtitles: widget.subtitles,
+            selectedSubtitleGuid: widget.selectedSubtitleGuid,
+            iso6391Map: widget.iso6391Map,
+            iso6392Map: widget.iso6392Map,
+            onAdjustmentClicked: null,
+            onSubtitleSelected: (guid) {
+              widget.onChanged(guid);
+              _controller.close();
+            },
+            onOpenSubtitleSearch: widget.onSearchSubtitle == null
+                ? null
+                : () {
+                    _controller.close();
+                    widget.onSearchSubtitle!.call();
+                  },
+            onOpenAddNasSubtitle: widget.onAddNasSubtitle == null
+                ? null
+                : () {
+                    _controller.close();
+                    widget.onAddNasSubtitle!.call();
+                  },
+            onOpenAddLocalSubtitle: widget.onAddLocalSubtitle == null
+                ? null
+                : () {
+                    _controller.close();
+                    widget.onAddLocalSubtitle!.call();
+                  },
+            onRequestDelete: widget.onRequestDelete,
+            onPredownloadSimilar: widget.onPredownloadSimilar,
+            useAcrylicBackground: true,
+            autoHideScrollbar: true,
+          ),
+        );
+      },
+    );
+  }
+
+  void _handleTargetHover(bool hovered) {
+    _isTargetHovered = hovered;
+    if (hovered) {
+      _cancelHide();
+      _showFlyout();
+    } else {
+      _scheduleHide();
+    }
+    _syncHoveredState();
+  }
+
+  void _handleFlyoutHover(bool hovered) {
+    _isFlyoutHovered = hovered;
+    if (hovered) {
+      _cancelHide();
+    } else {
+      _scheduleHide();
+    }
+    _syncHoveredState();
+  }
+
+  void _syncHoveredState() {
+    if (!mounted) return;
+    final nextHovered =
+        _isTargetHovered || _isFlyoutHovered || _controller.isOpen;
+    if (_isHovered != nextHovered) {
+      setState(() {
+        _isHovered = nextHovered;
+      });
+    }
+  }
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 160), () {
+      if (!mounted) return;
+      if (!_isTargetHovered && !_isFlyoutHovered && _controller.isOpen) {
+        _controller.close();
+      }
+    });
+  }
+
+  void _cancelHide() {
+    _hideTimer?.cancel();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = widget.selectedLabel ?? '字幕';
+
+    return FlyoutTarget(
+      controller: _controller,
+      child: MouseRegion(
+        key: const ValueKey('movie-detail-subtitle-selector'),
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => _handleTargetHover(true),
+        onExit: (_) => _handleTargetHover(false),
+        child: GestureDetector(
+          onTap: _showFlyout,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: FluentTheme.of(context)
+                      .typography
+                      .body
+                      ?.color
+                      ?.withValues(alpha: 0.8),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(width: 4),
+              AnimatedRotation(
+                turns: _isHovered ? -0.5 : 0,
+                duration: const Duration(milliseconds: 160),
+                child: Icon(
+                  FluentIcons.chevron_down_small,
+                  size: 12,
+                  color: FluentTheme.of(context)
+                      .typography
+                      .body
+                      ?.color
+                      ?.withValues(alpha: 0.6),
                 ),
               ),
             ],

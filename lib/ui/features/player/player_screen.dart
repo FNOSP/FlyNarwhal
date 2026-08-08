@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -27,7 +25,6 @@ import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/fly_narwhal/danmaku.dart';
 import '../../../data/storage/player_settings_store.dart';
-import '../../../data/storage/local_subtitle_picker_store.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../core/utils/app_fonts.dart';
@@ -76,73 +73,10 @@ import 'widgets/playback_end_overlay.dart';
 import 'widgets/playback_details_overlay.dart';
 import 'widgets/subtitle_control_flyout.dart';
 import 'widgets/subtitle_search_dialog.dart';
+import '../../shared/local_subtitle_upload.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
 import '../../shared/toast.dart';
 import '../../shared/window_caption.dart';
-
-/// Top-level function for [compute]: reads a file's bytes on a worker isolate
-/// so the UI thread is never blocked by filesystem I/O.
-Uint8List _readFileBytesSync(String path) => File(path).readAsBytesSync();
-
-/// Maximum number of local subtitle files that can be uploaded at once,
-/// matching the web player's limit.
-const int _maxUploadableSubtitles = 20;
-const MethodChannel _localSubtitlePickerChannel =
-    MethodChannel('fly_narwhal/local_subtitle_picker');
-
-Future<({List<XFile> files, String? directory})> _openLocalSubtitleFiles(
-  String initialDirectory, {
-  required String userGuid,
-}) async {
-  // Windows and macOS both use the native picker channel instead of
-  // file_selector: on Windows the plugin runs the dialog on the platform
-  // thread, and on macOS it presents the panel as a window sheet whose
-  // slide-in/out animation blocks the main thread — media_kit waits on the
-  // main thread for every video frame, so both freeze the picture. The
-  // native channels avoid that (worker thread on Windows, standalone
-  // non-sheet panel on macOS).
-  if (Platform.isWindows || Platform.isMacOS) {
-    final response = await _localSubtitlePickerChannel.invokeMethod<Object?>(
-      'openLocalSubtitles',
-      {
-        'initialDirectory': initialDirectory,
-        if (Platform.isWindows) 'userGuid': userGuid,
-      },
-    );
-    // macOS returns {paths, directory}; Windows returns a plain path list
-    // because its native side persists the folder and Shell view state by
-    // user GUID without exposing that state through the method channel.
-    if (response is Map) {
-      final paths =
-          (response['paths'] as List?)?.cast<String>() ?? const <String>[];
-      final directory = response['directory'] as String?;
-      return (
-        files: paths.map(XFile.new).toList(growable: false),
-        directory:
-            (directory != null && directory.isNotEmpty) ? directory : null,
-      );
-    }
-    final paths = (response as List?)?.cast<String>() ?? const <String>[];
-    return (
-      files: paths.map(XFile.new).toList(growable: false),
-      directory: null,
-    );
-  }
-
-  const subtitleTypeGroup = XTypeGroup(
-    label: '字幕文件',
-    extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'],
-  );
-  final files = await openFiles(
-    acceptedTypeGroups: [subtitleTypeGroup],
-    initialDirectory: initialDirectory,
-    confirmButtonText: '选择',
-  );
-  return (
-    files: files,
-    directory: files.isEmpty ? null : File(files.first.path).parent.path,
-  );
-}
 
 enum _PlaybackIndicatorType { play, pause }
 
@@ -1198,139 +1132,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
       return;
     }
-    final toastCategory = 'local-subtitle:$mediaGuid';
-
-    List<XFile> files = const <XFile>[];
-    try {
-      // The subtitle flyout starts its dismiss animation right after this
-      // callback; let it finish before the native open panel attaches, so
-      // the two don't animate on the same frames (that overlap was the
-      // visible stutter when the panel opened). Playback keeps running.
-      await Future<void>.delayed(
-        const Duration(
-          milliseconds: subtitleFlyoutAnimationDurationMs + 50,
-        ),
-      );
-      if (!mounted) return;
-      final currentUser = ref.read(userInfoProvider).valueOrNull;
-      final userGuid = currentUser?.guid.trim() ?? '';
-      if (Platform.isWindows && userGuid.isEmpty) {
-        throw StateError('当前用户信息缺失，无法恢复文件选择器状态');
-      }
-      final pickerStore = LocalSubtitlePickerStore(
-        ref.read(sharedPreferencesProvider),
-        userGuid: userGuid,
-      );
-      final pickerSelection = await _openLocalSubtitleFiles(
-        pickerStore.resolveInitialDirectory(),
-        userGuid: userGuid,
-      );
-      files = pickerSelection.files;
-      // Remember the shown directory for the next open (recorded by the
-      // native side even when the user browsed and cancelled).
-      final rememberedDirectory = pickerSelection.directory;
-      if (rememberedDirectory != null) {
-        unawaited(pickerStore.saveLastDirectory(rememberedDirectory));
-      }
-    } catch (error) {
-      if (mounted) {
-        ref.read(toastManagerProvider.notifier).showToast(
-              '选择字幕文件失败: $error',
-              type: ToastType.failed,
-              category: toastCategory,
-            );
-      }
-      return;
-    }
-    if (files.isEmpty) return;
-
-    if (files.length > _maxUploadableSubtitles) {
-      ref.read(toastManagerProvider.notifier).showToast(
-            '最多选择 $_maxUploadableSubtitles 个文件',
-            type: ToastType.warning,
-            category: toastCategory,
-          );
-      return;
-    }
-
-    const allowedExtensions = ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'];
-    final hasInvalid = files.any((file) {
-      final dot = file.name.lastIndexOf('.');
-      if (dot < 0) return true;
-      return !allowedExtensions.contains(
-        file.name.substring(dot + 1).toLowerCase(),
-      );
-    });
-    if (hasInvalid) {
-      ref.read(toastManagerProvider.notifier).showToast(
-            '只能选择 ${allowedExtensions.join(', ')} 格式的文件',
-            type: ToastType.warning,
-            category: toastCategory,
-          );
-      return;
-    }
 
     // Re-entrancy guard only — build() never reads this field, so assign it
     // directly instead of calling setState. A setState here rebuilds the
     // entire player tree and drops video frames mid-playback.
     _isUploadingLocalSubtitle = true;
     try {
-      var successCount = 0;
-      var failureCount = 0;
-      SubtitleStream? lastUploaded;
-      for (final file in files) {
-        try {
-          final bytes = await compute(_readFileBytesSync, file.path);
-          final uploaded =
-              await ref.read(fileRepositoryProvider).uploadSubtitle(
-                    mediaGuid: mediaGuid,
-                    bytes: bytes,
-                    fileName: file.name,
-                  );
-          successCount++;
-          lastUploaded = uploaded;
-        } catch (error) {
-          AppTalker.warning(
-            'PlayerScreen',
-            'Failed to upload subtitle ${file.name}: $error',
-          );
-          failureCount++;
-        }
-      }
-
-      if (!mounted) return;
-      final toastManager = ref.read(toastManagerProvider.notifier);
-      if (successCount == 0) {
-        toastManager.showToast(
-          '添加字幕失败，请重试',
-          type: ToastType.failed,
-          category: toastCategory,
-        );
-      } else if (failureCount > 0) {
-        toastManager.showToast(
-          '部分字幕添加成功，其中 $failureCount 个失败',
-          type: ToastType.warning,
-          category: toastCategory,
-        );
-        unawaited(_refreshSubtitleStreams());
-      } else {
-        toastManager.showToast(
-          '添加字幕成功',
-          type: ToastType.success,
-          category: toastCategory,
-        );
-      }
-      // When at least one upload succeeded, refresh the stream list and
-      // switch playback to the most recently uploaded subtitle. The upload
-      // endpoint returns the registered SubtitleStream; we look it up by
-      // guid in the refreshed list (the entry is guaranteed to be there
-      // now) so the language/format fields line up with the cache.
-      if (successCount > 0 && lastUploaded != null) {
-        await _switchToUploadedSubtitle(
-          uploaded: lastUploaded,
-          toastCategory: toastCategory,
-        );
-      }
+      final uploaded = await pickAndUploadLocalSubtitles(
+        ref: ref,
+        mediaGuid: mediaGuid,
+      );
+      if (!mounted || uploaded == null) return;
+      await _switchToUploadedSubtitle(
+        uploaded: uploaded,
+        toastCategory: 'local-subtitle:$mediaGuid',
+      );
     } finally {
       _isUploadingLocalSubtitle = false;
     }
