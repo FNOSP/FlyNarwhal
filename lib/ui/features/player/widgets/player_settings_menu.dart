@@ -9,7 +9,6 @@ import '../../../../data/models/movie_detail_models.dart';
 import '../../../../tooling/driver_test_mode.dart';
 import 'player_action_button.dart';
 import 'player_settings_components.dart';
-import 'subtitle_selection_panel.dart';
 
 const Color _flyoutBackgroundColor = Color(0xCC000000);
 const Color _flyoutBorderColor = Color(0x80808080);
@@ -26,7 +25,6 @@ const double _settingsFlyoutBridgeHorizontalPadding = 12;
 const double _estimatedSettingsFlyoutHeight = 300;
 // Keep the audio flyout no taller than the subtitle selection panel; the
 // track list scrolls once its items exceed the remaining space.
-const double _audioPanelContentPadding = 32; // flyout top(16) + bottom(16)
 const double _audioPanelHeaderHeight = 46;
 const double _audioPanelMaxListHeight = 330;
 
