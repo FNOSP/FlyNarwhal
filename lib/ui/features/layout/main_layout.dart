@@ -477,7 +477,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                       Expanded(
                         child: DragToMoveArea(
                           child: Container(
-                            height: 28.0,
+                            height: double.infinity,
                             alignment: Alignment.centerLeft,
                           ),
                         ),
