@@ -13,6 +13,7 @@ import '../update/update_state.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
+import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/shortcut_settings_dialog.dart';
 
@@ -306,6 +307,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 heading: const Text('退出登录'),
                                 caption: const Text('退出当前账号'),
                                 onPressed: () async {
+                                  final confirmed = await showAppDialog<bool>(
+                                    context: context,
+                                    type: AppDialogType.confirmation,
+                                    title: '退出登录',
+                                    content: const Text('确认退出当前帐号？'),
+                                    primaryButtonText: '确定',
+                                    secondaryButtonText: '取消',
+                                    primaryResult: true,
+                                    secondaryResult: false,
+                                  );
+                                  if (confirmed != true || !mounted) return;
+
                                   final dataSource =
                                       ref.read(userRemoteDataSourceProvider);
                                   unawaited(

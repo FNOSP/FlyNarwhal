@@ -1,4 +1,5 @@
-source 'https://github.com/CocoaPods/Specs.git'
+# Use the official CDN source to avoid cloning the full Specs git repo (faster and more reliable)
+source 'https://cdn.cocoapods.org/'
 
 platform :osx, '10.15'
 

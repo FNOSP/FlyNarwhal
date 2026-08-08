@@ -535,7 +535,8 @@ class DragToMoveArea extends StatelessWidget {
         }
       },
       onDoubleTap: () async {
-        if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
+        if (!kIsWeb &&
+            (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
           final isMaximized = await windowManager.isMaximized();
           if (isMaximized) {
             windowManager.unmaximize();

@@ -7,8 +7,11 @@ class AppFonts {
     if (kIsWeb) return 'SourceHanSansSC';
     if (Platform.isWindows) return 'Microsoft YaHei';
     if (Platform.isMacOS) return 'PingFang SC';
-    return 'SourceHanSansSC';
+    // Linux: the bundled SourceHanSansSC-VF.otf is a variable font that the
+    // Flutter engine fails to render on Linux (CJK glyphs show as boxes).
+    // Use the system CJK font instead.
+    return 'Noto Sans CJK SC';
   }
 
-  static const List<String> fallback = ['SourceHanSansSC'];
+  static const List<String> fallback = ['SourceHanSansSC', 'Noto Sans CJK SC'];
 }

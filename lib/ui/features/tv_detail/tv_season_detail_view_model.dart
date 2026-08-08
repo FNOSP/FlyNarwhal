@@ -12,6 +12,7 @@ part 'tv_season_detail_view_model.g.dart';
 
 class TvSeasonDetailState {
   final ItemResponse? item;
+  final ItemResponse? parentItem;
   final PlayInfoResponse? playInfo;
   final List<EpisodeListResponse> episodeList;
   final List<PersonList> personList;
@@ -23,6 +24,7 @@ class TvSeasonDetailState {
 
   TvSeasonDetailState({
     this.item,
+    this.parentItem,
     this.playInfo,
     this.episodeList = const [],
     this.personList = const [],
@@ -35,6 +37,7 @@ class TvSeasonDetailState {
 
   TvSeasonDetailState copyWith({
     ItemResponse? item,
+    ItemResponse? parentItem,
     PlayInfoResponse? playInfo,
     List<EpisodeListResponse>? episodeList,
     List<PersonList>? personList,
@@ -46,6 +49,7 @@ class TvSeasonDetailState {
   }) {
     return TvSeasonDetailState(
       item: item ?? this.item,
+      parentItem: parentItem ?? this.parentItem,
       playInfo: playInfo ?? this.playInfo,
       episodeList: episodeList ?? this.episodeList,
       personList: personList ?? this.personList,
@@ -93,6 +97,13 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
       throw Exception(itemResult.failureOrNull?.displayMessage ?? '未找到分季信息');
     }
 
+    // The web season page renders the header backdrop from the parent TV
+    // item's backdrops, so fetch the parent alongside the other requests.
+    final parentItemFuture =
+        item.type == 'Season' && item.parentGuid.isNotEmpty
+            ? _fetchItemDetail(item.parentGuid)
+            : Future<ItemResponse?>.value(null);
+
     final results = await Future.wait([
       _fetchPlayInfo(),
       _fetchEpisodeList(),
@@ -100,6 +111,7 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
       _safeApiRequest(() => tagRepo.getTag('iso6391')),
       _safeApiRequest(() => tagRepo.getTag('iso6392')),
       _safeApiRequest(() => tagRepo.getTag('iso3166')),
+      parentItemFuture,
     ]);
 
     final playInfo = results[0] as PlayInfoResponse?;
@@ -111,9 +123,11 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
         const <String, String>{};
     final iso3166 = (results[5] as Map<String, String>?) ??
         const <String, String>{};
+    final parentItem = results[6] as ItemResponse?;
 
     return TvSeasonDetailState(
       item: item,
+      parentItem: parentItem,
       playInfo: playInfo,
       episodeList: episodes,
       personList: personList ?? const [],

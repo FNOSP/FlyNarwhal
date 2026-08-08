@@ -146,6 +146,8 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool isFlyNarwhalServerAvailable;
   // Called when user tries to enable smart skip without full config
   final VoidCallback? onFlyNarwhalConfigMissing;
+  // Whether this flyout is the currently-active one in the player overlay.
+  final bool isActiveControl;
 
   const PlayerSettingsMenu({
     super.key,
@@ -176,6 +178,7 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.forceSdrDisabledReason,
     this.isFlyNarwhalServerAvailable = false,
     this.onFlyNarwhalConfigMissing,
+    this.isActiveControl = false,
   });
 
   @override
@@ -244,6 +247,10 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
   @override
   void didUpdateWidget(covariant PlayerSettingsMenu oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActiveControl && !widget.isActiveControl) {
+      unawaited(_forceCloseMenu());
+      return;
+    }
     final autoPlayChanged = oldWidget.isAutoPlay != widget.isAutoPlay;
     if (autoPlayChanged) {
       _isAutoPlay = widget.isAutoPlay;
@@ -543,6 +550,28 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
       return;
     }
 
+    _hideOverlay();
+    setState(() {
+      _isExpanded = false;
+      _currentScreen = 'Main';
+    });
+    widget.onHoverStateChanged?.call(false);
+  }
+
+  // Force-close regardless of hover state, used when this flyout loses
+  // active control (e.g. another flyout opens or the overlay auto-hides).
+  Future<void> _forceCloseMenu() async {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+
+    _isButtonHovered = false;
+    _popupHovered = false;
+
+    if (_animationController.status != AnimationStatus.dismissed) {
+      await _animationController.reverse();
+    }
+
+    if (!mounted) return;
     _hideOverlay();
     setState(() {
       _isExpanded = false;

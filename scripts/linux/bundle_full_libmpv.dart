@@ -46,6 +46,16 @@ Future<int> main(List<String> arguments) async {
     );
     return 64;
   }
+  // Extra search roots are added on top of the system paths so the recursive
+  // dependency walk can resolve NEEDED entries (e.g. libavcodec.so.61) from
+  // a scratch directory populated by `scripts/linux/fetch_full_libmpv.dart`.
+  // They are read from the environment because CMake POST_BUILD hooks prefer
+  // env vars over extra CLI args; the CI fast path leaves this unset.
+  final extraRoots = (Platform.environment['LIBMPV_EXTRA_SEARCH_ROOTS'] ?? '')
+      .split(Platform.pathSeparator)
+      .where((p) => p.trim().isNotEmpty)
+      .map((p) => Directory(p).absolute.path)
+      .toList(growable: false);
   final bundleDir = Directory(arguments[0]);
   final libmpvSource = Directory(arguments[1]);
   if (!await bundleDir.exists()) {
@@ -55,6 +65,11 @@ Future<int> main(List<String> arguments) async {
   if (!await libmpvSource.exists()) {
     stderr.writeln('libmpv source directory does not exist: ${libmpvSource.path}');
     return 1;
+  }
+  if (extraRoots.isNotEmpty) {
+    stdout.writeln(
+      '[bundle] extra search roots: ${extraRoots.join(', ')}',
+    );
   }
   final libOut = Directory('${bundleDir.path}/lib');
   await libOut.create(recursive: true);
@@ -78,16 +93,22 @@ Future<int> main(List<String> arguments) async {
     final next = queued.removeLast();
     final resolved = await _resolveRealPath(next.path);
     if (!seen.add(resolved)) continue;
-    if (await _isSystemLoader(resolved)) continue;
-    final target = File('${libOut.path}/${next.uri.pathSegments.last}');
+    if (await _isSystemLoader(resolved, extraRoots: extraRoots)) continue;
+    // The entry point must land under its dlopen name (libmpv.so.2) so the
+    // app finds it via $ORIGIN/lib regardless of the source file's real name
+    // (which may be the versioned libmpv.so.2.2.0).
+    final targetName = identical(next.path, libmpvFile.path)
+        ? 'libmpv.so.2'
+        : next.uri.pathSegments.last;
+    final target = File('${libOut.path}/$targetName');
     if (!await target.exists()) {
       await next.copy(target.path);
     }
     final deps = await _readNeededLibs(next);
     for (final dep in deps) {
-      final resolvedDep = await _resolveDep(dep);
+      final resolvedDep = await _resolveDep(dep, extraRoots: extraRoots);
       if (resolvedDep == null) continue;
-      if (await _isSystemLoader(resolvedDep)) continue;
+      if (await _isSystemLoader(resolvedDep, extraRoots: extraRoots)) continue;
       final depFile = File(resolvedDep);
       if (await depFile.exists()) {
         queued.add(depFile);
@@ -124,12 +145,22 @@ Future<int> main(List<String> arguments) async {
 }
 
 Future<File?> _findLibmpv(Directory root) async {
+  // libmpv.so.2 is normally a relative symlink into the real versioned file
+  // (e.g. libmpv.so.2.2.0). With followLinks: false the symlink surfaces as a
+  // Link, not a File, so we inspect both and resolve a link to its target.
   final candidates = <File>[];
   await for (final entity in root.list(recursive: true, followLinks: false)) {
-    if (entity is! File) continue;
     final name = entity.uri.pathSegments.last;
     if (name == 'libmpv.so.2' || name == 'libmpv.so.1') {
-      candidates.add(entity);
+      if (entity is File) {
+        candidates.add(entity);
+      } else if (entity is Link) {
+        try {
+          candidates.add(File(entity.resolveSymbolicLinksSync()));
+        } catch (_) {
+          // Dangling link; ignore.
+        }
+      }
     }
   }
   if (candidates.isEmpty) return null;
@@ -137,7 +168,17 @@ Future<File?> _findLibmpv(Directory root) async {
   return candidates.first;
 }
 
-Future<bool> _isSystemLoader(String path) async {
+Future<bool> _isSystemLoader(
+  String path, {
+  List<String> extraRoots = const [],
+}) async {
+  // A path that lives under one of the extra roots (e.g. a downloaded scratch
+  // directory populated by fetch_full_libmpv.dart) is bundle-internal even
+  // though its components live under `…/usr/lib/…`. Skip the system-loader
+  // early-out for those paths so they get copied into the bundle.
+  for (final root in extraRoots) {
+    if (path.startsWith('$root/') || path == root) return false;
+  }
   for (final loader in _kSystemLoaderPaths) {
     if (path.endsWith('/$loader')) return true;
   }
@@ -158,10 +199,17 @@ Future<List<String>> _readNeededLibs(File file) async {
   return libs;
 }
 
-Future<String?> _resolveDep(String soname) async {
+Future<String?> _resolveDep(
+  String soname, {
+  List<String> extraRoots = const [],
+}) async {
   // 1. Try the cache. We cannot use ldconfig without invoking a binary; use
   //    the obvious multiarch paths instead, which is what CI runners expose.
-  const archDirs = <String>[
+  //    Extra roots (e.g. a downloaded scratch directory) are prepended so
+  //    NEEDED entries from a freshly-fetched libmpv resolve before falling
+  //    through to the system paths.
+  final archDirs = <String>[
+    ...extraRoots,
     '/usr/lib/x86_64-linux-gnu',
     '/usr/lib/aarch64-linux-gnu',
     '/usr/lib64',

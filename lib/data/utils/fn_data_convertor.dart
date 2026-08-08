@@ -123,6 +123,7 @@ class FnDataConvertor {
     SubtitleStream? subtitleStream,
     String? imdbId,
     required Map<String, String> iso6391Map,
+    required Map<String, String> iso6392Map,
   }) {
     final fileInfoData = fileInfo != null
         ? FileInfoData(
@@ -144,7 +145,7 @@ class FnDataConvertor {
     final audioTrack = MediaTrackInfo(
       type: '音频',
       details: audioStream != null
-          ? '${getLanguageNameFromMap(audioStream.language, iso6391Map)} ${audioStream.codecName.toUpperCase()} ${audioStream.channelLayout} · ${audioStream.sampleRate} Hz'
+          ? '${getLanguageName(audioStream.language, iso6391Map, iso6392Map)} ${audioStream.codecName.toUpperCase()} ${audioStream.channelLayout} · ${audioStream.sampleRate} Hz'
           : '',
       icon: FluentIcons.volume0,
     );
@@ -152,7 +153,7 @@ class FnDataConvertor {
     final subtitleTrack = MediaTrackInfo(
       type: '字幕',
       details: subtitleStream != null
-          ? '${getLanguageNameFromMap(subtitleStream.language, iso6391Map)} ${subtitleStream.codecName.toUpperCase()}'
+          ? '${getLanguageName(subtitleStream.language, iso6391Map, iso6392Map)} ${subtitleStream.codecName.toUpperCase()}'
           : '',
       icon: FluentIcons.reading_mode,
     );
@@ -164,13 +165,6 @@ class FnDataConvertor {
       subtitleTrack: subtitleTrack,
       imdbLink: getImdbLink(imdbId),
     );
-  }
-
-  static String getLanguageNameFromMap(
-      String? langCode, Map<String, String> iso6391Map) {
-    if (langCode == null || langCode.isEmpty) return '未知';
-    if (langCode == '_no_display_') return '无';
-    return iso6391Map[langCode] ?? langCode;
   }
 
   static String getImdbLink(String? imdbId) {
