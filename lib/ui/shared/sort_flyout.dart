@@ -1,5 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import 'semi_icons.dart';
+
 class SortItem {
   final String label;
   final String value;
@@ -28,6 +30,11 @@ class SortFlyout extends StatefulWidget {
 }
 
 class _SortFlyoutState extends State<SortFlyout> {
+  static const List<SortItem> _orderOptions = [
+    SortItem('升序', 'ASC'),
+    SortItem('降序', 'DESC'),
+  ];
+
   late SortItem selectedSortType;
   late SortItem selectedSortOrder;
   final FlyoutController _controller = FlyoutController();
@@ -42,16 +49,92 @@ class _SortFlyoutState extends State<SortFlyout> {
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool get _isDesc => selectedSortOrder.value == 'DESC';
+
+  // Clicking the label/arrow zone flips the sort direction, like the web client.
+  void _toggleSortOrder() {
+    final next = _isDesc ? _orderOptions.first : _orderOptions.last;
+    setState(() => selectedSortOrder = next);
+    widget.onSortOrderSelected(next.value);
+  }
+
+  Future<void> _showSortMenu() async {
+    if (_isFlyoutOpen) {
+      return;
+    }
+    setState(() => _isFlyoutOpen = true);
+    try {
+      await _controller.showFlyout<void>(
+        placementMode: FlyoutPlacementMode.bottomLeft,
+        builder: (context) {
+          return MenuFlyout(
+            items: [
+              ...widget.sortOptions.map(
+                (opt) => _menuItem(
+                  context,
+                  opt,
+                  opt.value == selectedSortType.value,
+                  (picked) {
+                    setState(() => selectedSortType = picked);
+                    widget.onSortTypeSelected(picked.value);
+                  },
+                ),
+              ),
+              const MenuFlyoutSeparator(),
+              ..._orderOptions.map(
+                (opt) => _menuItem(
+                  context,
+                  opt,
+                  opt.value == selectedSortOrder.value,
+                  (picked) {
+                    setState(() => selectedSortOrder = picked);
+                    widget.onSortOrderSelected(picked.value);
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isFlyoutOpen = false);
+      }
+    }
+  }
+
+  MenuFlyoutItem _menuItem(
+    BuildContext context,
+    SortItem opt,
+    bool isSelected,
+    ValueChanged<SortItem> onPick,
+  ) {
+    return MenuFlyoutItem(
+      text: Text(opt.label),
+      trailing: isSelected
+          ? Icon(
+              FluentIcons.check_mark,
+              size: 14,
+              color: FluentTheme.of(context).typography.body?.color,
+            )
+          : null,
+      onPressed: () {
+        Flyout.of(context).close();
+        onPick(opt);
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    const orderOptions = [
-      SortItem('升序', 'ASC'),
-      SortItem('降序', 'DESC'),
-    ];
     final theme = FluentTheme.of(context);
-    final backgroundColor = (_hovered || _isFlyoutOpen)
-        ? theme.resources.controlStrokeColorDefault
-        : Colors.transparent;
-    final textColor = theme.typography.body?.color;
+    final textColor = theme.typography.body?.color ?? Colors.white;
+    final active = _hovered || _isFlyoutOpen;
 
     return FlyoutTarget(
       controller: _controller,
@@ -59,97 +142,103 @@ class _SortFlyoutState extends State<SortFlyout> {
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: () async {
-            if (_isFlyoutOpen) {
-              return;
-            }
-            setState(() => _isFlyoutOpen = true);
-            try {
-              await _controller.showFlyout<void>(
-                placementMode: FlyoutPlacementMode.bottomCenter,
-                builder: (context) {
-                  return MenuFlyout(
-                    items: [
-                      ...widget.sortOptions.map((opt) {
-                        final isSelected = opt.value == selectedSortType.value;
-                        return MenuFlyoutItem(
-                          leading: isSelected ? const Icon(FluentIcons.check_mark) : null,
-                          text: Text(
-                            opt.label,
-                            style: TextStyle(
-                              color: isSelected
-                                  ? FluentTheme.of(context).typography.body?.color
-                                  : FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          onPressed: () {
-                            setState(() => selectedSortType = opt);
-                            widget.onSortTypeSelected(opt.value);
-                          },
-                        );
-                      }),
-                      const MenuFlyoutSeparator(),
-                      ...orderOptions.map((opt) {
-                        final isSelected = opt.value == selectedSortOrder.value;
-                        return MenuFlyoutItem(
-                          leading: isSelected ? const Icon(FluentIcons.check_mark) : null,
-                          text: Text(
-                            opt.label,
-                            style: TextStyle(
-                              color: isSelected
-                                  ? FluentTheme.of(context).typography.body?.color
-                                  : FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          onPressed: () {
-                            setState(() => selectedSortOrder = opt);
-                            widget.onSortOrderSelected(opt.value);
-                          },
-                        );
-                      }),
-                    ],
-                  );
-                },
-              );
-            } finally {
-              if (mounted) {
-                setState(() => _isFlyoutOpen = false);
-              }
-            }
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.grey[120].withValues(alpha: 0.4)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  selectedSortType.label,
-                  style: theme.typography.body?.copyWith(
-                    fontSize: 14,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                AnimatedRotation(
-                  turns: _isFlyoutOpen ? 0.5 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(
-                    FluentIcons.chevron_down,
-                    size: 12,
-                    color: textColor,
-                  ),
-                ),
-              ],
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          height: 36,
+          decoration: BoxDecoration(
+            color: active ? textColor.withValues(alpha: 0.06) : Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: textColor.withValues(alpha: active ? 0.2 : 0.1),
             ),
           ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(width: 16),
+              GestureDetector(
+                key: const ValueKey('sort-order-toggle'),
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleSortOrder,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      selectedSortType.label,
+                      style: theme.typography.body?.copyWith(
+                        fontSize: 16,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    _SortDirectionArrows(isDesc: _isDesc, color: textColor),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                key: const ValueKey('sort-menu-open'),
+                behavior: HitTestBehavior.opaque,
+                onTap: _showSortMenu,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(width: 4),
+                    Container(
+                      width: 1,
+                      height: 34,
+                      color: textColor.withValues(alpha: 0.1),
+                    ),
+                    const SizedBox(width: 8),
+                    AnimatedRotation(
+                      turns: _isFlyoutOpen ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: SemiIcons.chevronDown(
+                        size: 16,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _SortDirectionArrows extends StatelessWidget {
+  final bool isDesc;
+  final Color color;
+
+  const _SortDirectionArrows({required this.isDesc, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 12,
+      height: 18,
+      child: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            child: SemiIcons.caretUp(
+              size: 12,
+              color: color.withValues(alpha: isDesc ? 0.35 : 0.6),
+            ),
+          ),
+          Positioned(
+            top: 6,
+            left: 0,
+            child: SemiIcons.caretDown(
+              size: 12,
+              color: color.withValues(alpha: isDesc ? 0.6 : 0.35),
+            ),
+          ),
+        ],
       ),
     );
   }

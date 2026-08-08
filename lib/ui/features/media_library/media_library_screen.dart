@@ -506,6 +506,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                       ),
                       const SizedBox(width: 8),
                       SortFlyout(
+                        key: ValueKey('sort-$_providerGuid'),
                         onSortTypeSelected: (type) {
                           setState(() => _sortColumn = type);
                           _refresh();

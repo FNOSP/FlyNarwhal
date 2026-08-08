@@ -85,6 +85,7 @@ flutter:
   assets:
     - assets/images/
     - assets/lottie/
+    - assets/icons/semi/
   fonts:
     - family: SourceHanSansSC
       fonts:

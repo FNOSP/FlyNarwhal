@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../domain/entities/tag_entity.dart';
+import 'semi_icons.dart';
 
 class FilterItem {
   final String label;
@@ -88,11 +89,14 @@ class _FilterButtonState extends State<FilterButton> {
         onTap: widget.onClick,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          height: 36,
+          padding: const EdgeInsets.only(left: 16, right: 12),
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: Colors.grey[120].withValues(alpha: 0.4)),
+            border: Border.all(
+              color: (textColor ?? Colors.white).withValues(alpha: 0.1),
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -103,19 +107,15 @@ class _FilterButtonState extends State<FilterButton> {
                   Text(
                     '筛选',
                     style: theme.typography.body?.copyWith(
-                      fontSize: 14,
+                      fontSize: 16,
                       color: textColor,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 6),
                   AnimatedRotation(
                     turns: widget.isSelected ? 0.5 : 0.0,
                     duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      FluentIcons.chevron_down,
-                      size: 12,
-                      color: textColor,
-                    ),
+                    child: SemiIcons.chevronDown(size: 16, color: textColor),
                   ),
                 ],
               ),
