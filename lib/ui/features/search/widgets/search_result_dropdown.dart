@@ -50,55 +50,58 @@ class SearchResultDropdown extends ConsumerWidget {
       onPointerDown: (_) => onPointerInteractionStart(),
       onPointerCancel: (_) => onPointerInteractionEnd(),
       onPointerUp: (_) => onPointerInteractionEnd(),
-      child: Container(
-        width: width,
-        height: 500,
-        decoration: BoxDecoration(
-          color: theme.resources.solidBackgroundFillColorBase,
+      child: Acrylic(
+        tint: theme.resources.solidBackgroundFillColorBase,
+        tintAlpha: 0.8,
+        blurAmount: 30,
+        elevation: 8,
+        shadowColor: Colors.black,
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
+          side: BorderSide(
             color: theme.resources.surfaceStrokeColorDefault,
             width: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Category tabs
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  for (final tab in tabs) ...[
-                    _TabLabel(
-                      text: tab,
-                      isSelected: tab == selectedTab,
-                      onPointerInteractionStart: onPointerInteractionStart,
-                      onPointerInteractionEnd: onPointerInteractionEnd,
-                      onTap: () => onTabSelected(tab),
-                    ),
-                    const SizedBox(width: 24),
-                  ],
-                ],
-              ),
+        child: SizedBox(
+          width: width,
+          height: 500,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Category tabs
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      for (final tab in tabs)
+                        _TabLabel(
+                          text: tab,
+                          isSelected: tab == selectedTab,
+                          onPointerInteractionStart: onPointerInteractionStart,
+                          onPointerInteractionEnd: onPointerInteractionEnd,
+                          onTap: () => onTabSelected(tab),
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  height: 1,
+                  color: theme.resources.surfaceStrokeColorDefault
+                      .withValues(alpha: 0.1),
+                ),
+                Expanded(
+                  child: _buildContent(context, theme, genresMap),
+                ),
+              ],
             ),
-            Container(
-              height: 1,
-              color: theme.resources.surfaceStrokeColorDefault
-                  .withValues(alpha: 0.1),
-            ),
-            Expanded(
-              child: _buildContent(context, theme, genresMap),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -187,11 +190,19 @@ class _EmptyResult extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            FluentIcons.search_issue,
-            size: 48,
-            color: theme.resources.textFillColorTertiary,
-          ),
+          if (hasSearched)
+            Image.asset(
+              'assets/images/search_no_result.png',
+              width: 100,
+              height: 100,
+              fit: BoxFit.contain,
+            )
+          else
+            Icon(
+              FluentIcons.search,
+              size: 48,
+              color: theme.resources.textFillColorTertiary,
+            ),
           const SizedBox(height: 12),
           Text(
             hasSearched ? '搜索无结果' : '输入关键词搜索',
@@ -279,10 +290,13 @@ class _SearchResultItemState extends State<_SearchResultItem> {
                           width: 64,
                           placeholderSize: 16,
                         )
-                      : Icon(
-                          isPerson ? FluentIcons.contact : FluentIcons.video,
-                          size: 20,
-                          color: theme.resources.textFillColorTertiary,
+                      : Image.asset(
+                          isPerson
+                              ? 'assets/images/person_placeholder.png'
+                              : 'assets/images/video_no_cover.png',
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.contain,
                         ),
                 ),
               ),

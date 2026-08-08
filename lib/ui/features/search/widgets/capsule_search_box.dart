@@ -26,7 +26,7 @@ class CapsuleSearchBox extends ConsumerStatefulWidget {
   const CapsuleSearchBox({
     super.key,
     this.collapsedWidth = 130,
-    this.expandedWidth = 360,
+    this.expandedWidth = 480,
     this.height = 32,
     this.placeholder = '搜索片名、演员',
     this.focusNode,
@@ -48,7 +48,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
   bool _isHovered = false;
   bool _isInteractingWithDropdown = false;
   // Category tabs mirroring Compose tabs
-  static const List<String> _tabs = ['全部', '电影', '电视剧', '人物', '其他'];
+  static const List<String> _tabs = ['全部', '电影', '电视剧', '电视直播', '人物', '其他'];
   String _selectedTab = '全部';
   int _selectedIndex = -1;
 
@@ -122,11 +122,14 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
           return resultType == SearchResultType.movie;
         case '电视剧':
           return resultType == SearchResultType.tv;
+        case '电视直播':
+          return resultType == SearchResultType.liveChannel;
         case '人物':
           return resultType == SearchResultType.person;
         case '其他':
           return resultType != SearchResultType.movie &&
               resultType != SearchResultType.tv &&
+              resultType != SearchResultType.liveChannel &&
               resultType != SearchResultType.person;
         default:
           return true;
@@ -169,6 +172,9 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
         break;
       case SearchResultType.person:
         target = '/person/$guid';
+        break;
+      case SearchResultType.liveChannel:
+        target = '/player/$guid';
         break;
       default:
         target = null;

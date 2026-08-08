@@ -7,6 +7,7 @@ enum SearchResultType {
   video,
   episode,
   season,
+  liveChannel,
   person;
 
   const SearchResultType();
@@ -25,6 +26,8 @@ enum SearchResultType {
         return MediaType.episode.value;
       case SearchResultType.season:
         return MediaType.season.value;
+      case SearchResultType.liveChannel:
+        return MediaType.liveChannel.value;
       case SearchResultType.person:
         return 'Person';
     }
