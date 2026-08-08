@@ -88,6 +88,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         return '电影';
       case 'video':
         return '其他';
+      case 'live':
+        return '电视直播';
       default:
         return '媒体库';
     }

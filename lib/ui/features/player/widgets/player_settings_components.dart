@@ -70,7 +70,7 @@ class PlayerSettingsHeader extends StatelessWidget {
                         const SizedBox(width: 5),
                         const Icon(
                           FluentIcons.chevron_right,
-                          size: 15,
+                          size: 12,
                           color: playerSettingsTextColor,
                         ),
                       ],

@@ -3,6 +3,7 @@ enum MediaType {
   tv('TV', '电视节目'),
   directory('Directory', '目录'),
   video('Video', '其他'),
+  liveChannel('LiveChannel', '电视直播'),
   episode('Episode', '剧集'),
   season('Season', '季');
 
@@ -46,6 +47,8 @@ enum MediaType {
         return const [MediaType.tv];
       case 'video':
         return const [MediaType.directory, MediaType.video];
+      case 'live':
+        return const [MediaType.liveChannel];
       default:
         return commonlyUsed;
     }

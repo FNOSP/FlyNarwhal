@@ -386,6 +386,9 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
       case MediaType.season:
         context.go('/tv/season/${widget.guid}');
         break;
+      case MediaType.liveChannel:
+        context.go('/player/${widget.guid}');
+        break;
       case MediaType.directory:
       case MediaType.episode:
       case null:

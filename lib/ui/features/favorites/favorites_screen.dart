@@ -363,7 +363,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                       ...favoritesTabs.map((tab) {
                         final isSelected = tab == _selectedTab;
                         return Padding(
-                          padding: const EdgeInsets.only(right: 16),
+                          padding: const EdgeInsets.only(right: 48),
                           child: MouseRegion(
                             cursor: SystemMouseCursors.click,
                             child: HoverButton(

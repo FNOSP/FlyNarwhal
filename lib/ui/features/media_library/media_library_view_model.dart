@@ -131,6 +131,8 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
         return ["TV"];
       case 'video':
         return ["Video"];
+      case 'live':
+        return ["LiveChannel"];
       case 'total':
       default:
         return ["Movie", "TV", "Directory", "Video"];
