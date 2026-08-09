@@ -41,7 +41,7 @@ FlValue* build_display_frame_value(MyApplication* self) {
     return nullptr;
   }
 
-  GdkDisplay* display = gtk_window_get_display(window);
+  GdkDisplay* display = gdk_window_get_display(gdk_window);
   GdkMonitor* monitor = gdk_display_get_monitor_at_window(display, gdk_window);
   if (monitor == nullptr) {
     monitor = gdk_display_get_primary_monitor(display);
