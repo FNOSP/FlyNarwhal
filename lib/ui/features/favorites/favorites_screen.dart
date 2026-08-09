@@ -5,17 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../domain/entities/media_type.dart';
-
 import '../../../data/models/home_models.dart';
+import '../../../domain/entities/media_type.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/smart_analysis_controller.dart';
+import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/filter_box.dart';
 import '../../shared/movie_poster.dart';
 import '../../shared/sort_flyout.dart';
 import '../../shared/toast.dart';
-import '../../shared/common/app_loading_progress_ring.dart';
 import '../home/home_view_model.dart';
 import 'favorites_view_model.dart';
 
@@ -228,7 +227,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   // Trigger smart analysis for a Season or TV item
   Future<void> _handleSmartAnalysis(MediaItem item) async {
     final settings = ref.read(settingsProvider);
-    // Guard: require full FlyNarwhal config before triggering analysis
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
@@ -240,8 +238,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
           );
       return;
     }
+
     if (MediaType.tryParse(item.type) == MediaType.season) {
-      // Use ancestorName as the TV title for Season items
       final tvTitle = (item.ancestorName?.isNotEmpty == true)
           ? item.ancestorName!
           : item.title;
@@ -286,8 +284,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   Widget build(BuildContext context) {
     final globalRefreshManager = ref.read(globalRefreshManagerProvider);
     final favoritesState = ref.watch(favoritesBrowseNotifierProvider);
-    final favoritesNotifier =
-        ref.read(favoritesBrowseNotifierProvider.notifier);
+    final favoritesNotifier = ref.read(favoritesBrowseNotifierProvider.notifier);
 
     ref.listen<GlobalRefreshRequest?>(currentGlobalRefreshRequestProvider, (
       previous,
@@ -302,8 +299,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       unawaited(_handleGlobalRefresh(next!));
     });
 
-    ref.listen<FavoriteActionResult?>(favoriteNotifierProvider,
-        (previous, next) {
+    ref.listen<FavoriteActionResult?>(favoriteNotifierProvider, (
+      previous,
+      next,
+    ) {
       _handleFavoriteResult(next);
     });
 
@@ -314,7 +313,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     final scaleFactor = resolveWindowScaleFactor(context);
     final items = favoritesState.items;
 
-    // Listen to smart analysis submission results for Season/TV items
     final smartAnalysisEnabled =
         ref.watch(settingsProvider).flyNarwhalServerEnabled;
     for (final item in items) {
@@ -333,10 +331,17 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             _showAnalysisToast(targetType, item.guid, previous, next),
       );
     }
+
     final selectedFilters = favoritesState.query.selectedFilters;
     final headerTitle = favoritesState.mdbName ?? '收藏';
     final selectedCacheKey = favoritesState.query.selectedCacheKey;
     final scrollController = _getScrollController(selectedCacheKey);
+    final contentKey = favoritesState.isInitializing ||
+            (favoritesState.isRefreshingSelected && items.isEmpty)
+        ? ValueKey('favorites-loading-$_selectedTab')
+        : items.isEmpty
+            ? const ValueKey('favorites-empty')
+            : ValueKey('favorites-grid-$selectedCacheKey');
 
     return ScaffoldPage(
       header: PageHeader(title: Text(headerTitle)),
@@ -371,12 +376,15 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 if (_selectedTab == tab) {
                                   return;
                                 }
-                                final nextIndex = favoritesTabs.indexOf(tab);
                                 setState(() {
                                   _enableOneShotTabAnimation();
-                                  _tabSwitchDirection =
-                                      nextIndex >= _selectedTabIndex ? 1 : -1;
-                                  _selectedTabIndex = nextIndex;
+                                  final selectedTabIndex =
+                                      favoritesTabs.indexOf(tab);
+                                  _tabSwitchDirection = selectedTabIndex >=
+                                          _selectedTabIndex
+                                      ? 1
+                                      : -1;
+                                  _selectedTabIndex = selectedTabIndex;
                                   _selectedTab = tab;
                                   _isFilterOpen = false;
                                 });
@@ -471,8 +479,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                             iso3166: favoritesState.iso3166,
                             initialSelectedFilters: selectedFilters,
                             onFilterChanged: (filters) {
-                              unawaited(
-                                  favoritesNotifier.applyFilters(filters));
+                              unawaited(favoritesNotifier.applyFilters(filters));
                             },
                             onCollapse: () =>
                                 setState(() => _isFilterOpen = false),
@@ -496,21 +503,21 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         curve: Curves.easeOut,
                         reverseCurve: Curves.easeIn,
                       );
-                      final isCurrent = child.key ==
-                              ValueKey('favorites-grid-$selectedCacheKey') ||
-                          child.key ==
-                              ValueKey('favorites-loading-$_selectedTab') ||
-                          child.key == const ValueKey('favorites-empty');
-                      final baseAnimation =
-                          isCurrent ? curved : ReverseAnimation(curved);
+                      final childKey = child.key;
+                      final isIncomingChild = childKey == contentKey;
+                      final slideBeginOffset = Offset(
+                        _tabSwitchDirection.toDouble(),
+                        0,
+                      );
+
+                      if (!isIncomingChild) {
+                        return FadeTransition(opacity: curved, child: child);
+                      }
+
                       final slideAnimation = Tween<Offset>(
-                        begin: isCurrent
-                            ? Offset(_tabSwitchDirection.toDouble(), 0)
-                            : Offset.zero,
-                        end: isCurrent
-                            ? Offset.zero
-                            : Offset(-_tabSwitchDirection.toDouble(), 0),
-                      ).animate(baseAnimation);
+                        begin: slideBeginOffset,
+                        end: Offset.zero,
+                      ).animate(curved);
                       return SlideTransition(
                         position: slideAnimation,
                         child: FadeTransition(opacity: curved, child: child),
@@ -540,8 +547,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 ),
                               )
                             : GridView.builder(
-                                key: ValueKey(
-                                    'favorites-grid-$selectedCacheKey'),
+                                key: ValueKey('favorites-grid-$selectedCacheKey'),
                                 controller: scrollController,
                                 padding: EdgeInsets.all(16 * scaleFactor),
                                 gridDelegate:
@@ -570,7 +576,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                     type: item.type,
                                     guid: item.guid,
                                     onTap: () {
-                                      // Navigate based on media type
                                       if (item.type == 'TV') {
                                         context.go('/tv/${item.guid}');
                                       } else if (item.type == 'Season') {
