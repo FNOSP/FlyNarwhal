@@ -88,6 +88,10 @@ Future<void> _runProtectedBuild({
     '--release',
     '--obfuscate',
     '--split-debug-info=symbols/$platform-$architecture',
+    // flutter_tools strips prerelease suffixes from the platform version
+    // fields on Apple platforms, so carry the full pubspec version via
+    // dart-define for the in-app updater and settings display.
+    '--dart-define=APP_FULL_VERSION=${_packageVersion()}',
   ];
   await _runProcess(
     executable: 'flutter',

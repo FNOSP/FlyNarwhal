@@ -1,5 +1,6 @@
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/version/semantic_version.dart';
 import '../../domain/update/entities/update_models.dart';
 import 'platform_info.dart';
@@ -12,17 +13,22 @@ final class AppVersionService {
   final PlatformInfo _platformInfo;
 
   Future<SemanticVersion> getCurrentVersion() async {
-    final packageInfo = await PackageInfo.fromPlatform();
-    final version = SemanticVersion.tryParse(packageInfo.version);
+    final versionText = await getCurrentVersionText();
+    final version = SemanticVersion.tryParse(versionText);
     if (version == null) {
       throw FormatException(
-        '当前应用版本不是有效的 Semantic Version: ${packageInfo.version}',
+        '当前应用版本不是有效的 Semantic Version: $versionText',
       );
     }
     return version;
   }
 
   Future<String> getCurrentVersionText() async {
+    final defineVersion = AppConstants.appFullVersion.trim();
+    if (defineVersion.isNotEmpty &&
+        SemanticVersion.tryParse(defineVersion) != null) {
+      return defineVersion;
+    }
     final packageInfo = await PackageInfo.fromPlatform();
     return packageInfo.version;
   }

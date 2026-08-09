@@ -1,12 +1,15 @@
 import '../../core/utils/log/app_talker.dart';
 import '../../core/version/semantic_version.dart';
-import '../../core/version/version_parser.dart';
 import '../../domain/update/entities/update_models.dart';
 import '../../domain/update/repositories/cancellation_token.dart';
 import '../../domain/update/repositories/update_repository.dart';
 import '../../domain/update/repositories/update_repository_error.dart';
 
-/// Traverses date-descending release pages until the current version is reached.
+/// Traverses release pages until the natural end of the release list.
+///
+/// Publication dates are not guaranteed to follow version order (an older
+/// version can be republished after a newer one), so every release is
+/// collected and version filtering is left to the update policy.
 final class UpdateReleasePaginationService {
   const UpdateReleasePaginationService({
     this.pageSize = 10,
@@ -38,28 +41,12 @@ final class UpdateReleasePaginationService {
         pageSize: pageSize,
         cancellationToken: cancellationToken,
       );
-      final dateDescendingReleases = page.releases.toList(growable: false)
-        ..sort(_compareByPublishedDateDescending);
-      final firstCurrentOrOlderIndex =
-          _findFirstCurrentOrOlderIndex(dateDescendingReleases, currentVersion);
-      final relevantReleases = firstCurrentOrOlderIndex == null
-          ? dateDescendingReleases
-          : dateDescendingReleases.take(firstCurrentOrOlderIndex);
-      releases.addAll(relevantReleases);
+      releases.addAll(page.releases);
 
       AppTalker.info(
         'UpdateCheck',
-        'Fetched GitHub release page $pageNumber: received=${page.releases.length}, relevant=${relevantReleases.length}, totalRelevant=${releases.length}.',
+        'Fetched GitHub release page $pageNumber: received=${page.releases.length}, total=${releases.length}.',
       );
-
-      if (firstCurrentOrOlderIndex != null) {
-        final boundaryRelease = dateDescendingReleases[firstCurrentOrOlderIndex];
-        AppTalker.info(
-          'UpdateCheck',
-          'Stopping release pagination at ${boundaryRelease.tagName} because it is not newer than ${currentVersion.skipKey}.',
-        );
-        return List<UpdateRelease>.unmodifiable(releases);
-      }
 
       final reachedNaturalEnd = page.releases.isEmpty ||
           page.releases.length < pageSize ||
@@ -83,36 +70,5 @@ final class UpdateReleasePaginationService {
           'GitHub release pagination remained open after the maximum pages.',
       retryable: false,
     );
-  }
-
-  static int? _findFirstCurrentOrOlderIndex(
-    List<UpdateRelease> releases,
-    SemanticVersion currentVersion,
-  ) {
-    for (var releaseIndex = 0;
-        releaseIndex < releases.length;
-        releaseIndex++) {
-      final release = releases[releaseIndex];
-      final version = VersionParser.parseReleaseVersion(
-        tagName: release.tagName,
-        displayName: release.displayName,
-      );
-      if (version != null && version.compareTo(currentVersion) <= 0) {
-        return releaseIndex;
-      }
-    }
-    return null;
-  }
-
-  static int _compareByPublishedDateDescending(
-    UpdateRelease left,
-    UpdateRelease right,
-  ) {
-    final leftPublishedAt = left.publishedAt;
-    final rightPublishedAt = right.publishedAt;
-    if (leftPublishedAt == null && rightPublishedAt == null) return 0;
-    if (leftPublishedAt == null) return 1;
-    if (rightPublishedAt == null) return -1;
-    return rightPublishedAt.compareTo(leftPublishedAt);
   }
 }
