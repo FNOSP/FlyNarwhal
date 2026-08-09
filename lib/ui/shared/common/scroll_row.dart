@@ -173,7 +173,7 @@ class _ScrollButtonState extends State<_ScrollButton> {
               onTap: widget.onTap,
               child: Container(
                 width: 30,
-                color: Colors.black.withValues(alpha: 0.45),
+                color: const Color(0xFF282828).withValues(alpha: 0.6),
                 alignment: Alignment.center,
                 child: AnimatedScale(
                   scale: _hovered ? 1.2 : 1,
