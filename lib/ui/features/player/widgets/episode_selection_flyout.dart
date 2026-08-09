@@ -7,6 +7,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 
 import '../../../../core/utils/date_utils.dart';
 import '../../../../data/models/episode_list_response.dart';
+import '../../../../domain/entities/media_type.dart';
+import '../../../shared/common/media_poster_placeholder.dart';
 
 const Color _episodeFlyoutBackgroundColor = Color(0xCC000000);
 const Color _episodeFlyoutBorderColor = Color(0x33FFFFFF);
@@ -683,10 +685,9 @@ class _EpisodeListRowState extends State<_EpisodeListRow> {
                         child: Container(
                           color: Colors.white.withValues(alpha: 0.06),
                           child: imageUrl == null
-                              ? const Icon(
-                                  FluentIcons.file_image,
-                                  color: _episodeSecondaryTextColor,
-                                  size: 22,
+                              ? const MediaPosterPlaceholder(
+                                  type: MediaType.episode,
+                                  size: 28,
                                 )
                               : CachedNetworkImage(
                                   imageUrl: imageUrl,

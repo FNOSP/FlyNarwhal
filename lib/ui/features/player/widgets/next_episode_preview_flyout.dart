@@ -6,6 +6,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     as cache_manager;
 
 import '../../../../data/models/episode_list_response.dart';
+import '../../../../domain/entities/media_type.dart';
+import '../../../shared/common/media_poster_placeholder.dart';
 import 'player_action_button.dart';
 
 const Color _flyoutBackgroundColor = Color(0xCC000000);
@@ -345,10 +347,9 @@ class _NextEpisodeFlyoutContent extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.06),
                   child: imageUrl == null
                       ? const Center(
-                          child: Icon(
-                            FluentIcons.file_image,
-                            color: _secondaryTextColor,
-                            size: 24,
+                          child: MediaPosterPlaceholder(
+                            type: MediaType.episode,
+                            size: 36,
                           ),
                         )
                       : CachedNetworkImage(

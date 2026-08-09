@@ -425,19 +425,19 @@ class _SubtitleAddMenu extends StatelessWidget {
         if (onSearch != null)
           _SubtitleAddMenuItem(
             label: '搜索字幕',
-            icon: FluentIcons.search,
+            iconAsset: 'assets/images/subtitle_search.svg',
             onTap: onSearch!,
           ),
         if (onAddNas != null)
           _SubtitleAddMenuItem(
             label: '添加 NAS 字幕文件',
-            icon: FluentIcons.storage_optical,
+            iconAsset: 'assets/images/subtitle_add_nas.svg',
             onTap: onAddNas!,
           ),
         if (onAddLocal != null)
           _SubtitleAddMenuItem(
             label: '添加电脑字幕文件',
-            icon: FluentIcons.devices3,
+            iconAsset: 'assets/images/subtitle_add_local.svg',
             onTap: onAddLocal!,
           ),
       ],
@@ -473,12 +473,12 @@ class _SubtitleAddMenu extends StatelessWidget {
 
 class _SubtitleAddMenuItem extends StatefulWidget {
   final String label;
-  final IconData icon;
+  final String iconAsset;
   final VoidCallback onTap;
 
   const _SubtitleAddMenuItem({
     required this.label,
-    required this.icon,
+    required this.iconAsset,
     required this.onTap,
   });
 
@@ -506,7 +506,15 @@ class _SubtitleAddMenuItemState extends State<_SubtitleAddMenuItem> {
           ),
           child: Row(
             children: [
-              Icon(widget.icon, size: 16, color: Colors.white),
+              SvgPicture.asset(
+                widget.iconAsset,
+                width: 16,
+                height: 16,
+                colorFilter: const ColorFilter.mode(
+                  Colors.white,
+                  BlendMode.srcIn,
+                ),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
