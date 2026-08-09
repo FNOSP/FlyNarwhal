@@ -22,12 +22,6 @@ jobs:
             goarch: amd64
             libname: fly_narwhal_obfuscator.dll
             artifact: windows-x64
-          - runner: windows-11-arm
-            platform: windows
-            architecture: arm64
-            goarch: arm64
-            libname: fly_narwhal_obfuscator.dll
-            artifact: windows-arm64
           - runner: macos-15-intel
             platform: macos
             architecture: x64
@@ -46,12 +40,6 @@ jobs:
             goarch: amd64
             libname: libfly_narwhal_obfuscator.so
             artifact: linux-x64
-          - runner: ubuntu-24.04-arm
-            platform: linux
-            architecture: arm64
-            goarch: arm64
-            libname: libfly_narwhal_obfuscator.so
-            artifact: linux-arm64
     runs-on: ${{ matrix.runner }}
     environment: release
     steps:
@@ -123,12 +111,6 @@ jobs:
             ffmpeg -decoders | head -20 || true
             exit 1
           fi
-
-      - name: Set up C toolchain (Windows arm64)
-        if: matrix.platform == 'windows' && matrix.architecture == 'arm64'
-        shell: pwsh
-        run: |
-          Write-Host 'The windows-11-arm runner must provide an ARM64 MSVC or LLVM-MinGW C toolchain.'
 
       - name: Check out verified private obfuscator
         uses: actions/checkout@v4
