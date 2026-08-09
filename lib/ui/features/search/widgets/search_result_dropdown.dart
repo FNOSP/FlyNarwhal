@@ -9,9 +9,13 @@ import '../../../shared/common/app_loading_progress_ring.dart';
 import '../../../shared/movie_poster.dart' show formatVoteAverage;
 import '../search_view_model.dart';
 
+/// Fixed height of each result row; the scroll-follow math in
+/// [_SearchResultDropdownState] depends on it.
+const double _kResultItemHeight = 80.0;
+
 /// Dropdown panel showing search results with category tabs.
 /// Replicates Compose SearchResultDropdown styling and layout.
-class SearchResultDropdown extends ConsumerWidget {
+class SearchResultDropdown extends ConsumerStatefulWidget {
   final double width;
   final bool isLoading;
   final bool hasSearched;
@@ -40,16 +44,65 @@ class SearchResultDropdown extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SearchResultDropdown> createState() =>
+      _SearchResultDropdownState();
+}
+
+class _SearchResultDropdownState extends ConsumerState<SearchResultDropdown> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchResultDropdown oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final selectionChanged = oldWidget.selectedIndex != widget.selectedIndex;
+    final itemsChanged = !identical(oldWidget.items, widget.items);
+    if (!selectionChanged && !itemsChanged) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToSelected();
+    });
+  }
+
+  /// Scrolls the minimal distance so [widget.selectedIndex] is fully visible,
+  /// mirroring Compose's bringIntoView on keyboard navigation. Does nothing
+  /// when the selected item is already within the viewport.
+  void _scrollToSelected() {
+    final index = widget.selectedIndex;
+    if (index < 0 || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final itemTop = index * _kResultItemHeight;
+    final itemBottom = itemTop + _kResultItemHeight;
+    final viewportTop = position.pixels;
+    final viewportBottom = viewportTop + position.viewportDimension;
+    double? target;
+    if (itemBottom > viewportBottom) {
+      target = itemBottom - position.viewportDimension;
+    } else if (itemTop < viewportTop) {
+      target = itemTop;
+    }
+    if (target == null) return;
+    target = target.clamp(0.0, position.maxScrollExtent);
+    if ((target - position.pixels).abs() < 0.5) return;
+    position.jumpTo(target);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final genresAsync = ref.watch(searchGenresProvider);
     final genresMap = genresAsync.valueOrNull ?? const <int, String>{};
 
     return Listener(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => onPointerInteractionStart(),
-      onPointerCancel: (_) => onPointerInteractionEnd(),
-      onPointerUp: (_) => onPointerInteractionEnd(),
+      onPointerDown: (_) => widget.onPointerInteractionStart(),
+      onPointerCancel: (_) => widget.onPointerInteractionEnd(),
+      onPointerUp: (_) => widget.onPointerInteractionEnd(),
       child: Acrylic(
         tint: theme.resources.solidBackgroundFillColorBase,
         tintAlpha: 0.8,
@@ -64,7 +117,7 @@ class SearchResultDropdown extends ConsumerWidget {
           ),
         ),
         child: SizedBox(
-          width: width,
+          width: widget.width,
           height: 500,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -80,13 +133,15 @@ class SearchResultDropdown extends ConsumerWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      for (final tab in tabs)
+                      for (final tab in widget.tabs)
                         _TabLabel(
                           text: tab,
-                          isSelected: tab == selectedTab,
-                          onPointerInteractionStart: onPointerInteractionStart,
-                          onPointerInteractionEnd: onPointerInteractionEnd,
-                          onTap: () => onTabSelected(tab),
+                          isSelected: tab == widget.selectedTab,
+                          onPointerInteractionStart:
+                              widget.onPointerInteractionStart,
+                          onPointerInteractionEnd:
+                              widget.onPointerInteractionEnd,
+                          onTap: () => widget.onTabSelected(tab),
                         ),
                     ],
                   ),
@@ -112,23 +167,24 @@ class SearchResultDropdown extends ConsumerWidget {
     FluentThemeData theme,
     Map<int, String> genresMap,
   ) {
-    if (isLoading && items.isEmpty) {
+    if (widget.isLoading && widget.items.isEmpty) {
       return const Center(child: AppLoadingProgressRing());
     }
-    if (items.isEmpty) {
-      return _EmptyResult(hasSearched: hasSearched);
+    if (widget.items.isEmpty) {
+      return _EmptyResult(hasSearched: widget.hasSearched);
     }
     return ListView.builder(
+      controller: _scrollController,
       padding: EdgeInsets.zero,
-      itemCount: items.length,
+      itemCount: widget.items.length,
       itemBuilder: (context, index) {
         return _SearchResultItem(
-          item: items[index],
-          isSelected: index == selectedIndex,
+          item: widget.items[index],
+          isSelected: index == widget.selectedIndex,
           genresMap: genresMap,
-          onPointerInteractionStart: onPointerInteractionStart,
-          onPointerInteractionEnd: onPointerInteractionEnd,
-          onTap: () => onItemSelected(items[index]),
+          onPointerInteractionStart: widget.onPointerInteractionStart,
+          onPointerInteractionEnd: widget.onPointerInteractionEnd,
+          onTap: () => widget.onItemSelected(widget.items[index]),
         );
       },
     );
@@ -262,7 +318,7 @@ class _SearchResultItemState extends State<_SearchResultItem> {
           widget.onPointerInteractionEnd();
         },
         child: Container(
-          height: 80,
+          height: _kResultItemHeight,
           color: highlight
               ? theme.resources.subtleFillColorSecondary
               : Colors.transparent,
