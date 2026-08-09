@@ -3748,6 +3748,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // video.
           if (_isLoading && !_isSubtitleSwitching)
             const Center(child: AppLoadingProgressRing()),
+          // The normal top bar (and its back button) is only rendered once the
+          // player is initialized. Show a standalone back button during the
+          // initial load — and after a failed load — so the user can always
+          // return to the previous screen instead of being stuck.
+          if (!_isInitialized && !_isPipMode)
+            Positioned(
+              top: _isMacOS && !_isFullscreen ? 12.0 : 6.0,
+              left: 16 + (_isMacOS && !_isFullscreen ? 72.0 : 0.0),
+              child: _buildBackButton(),
+            ),
           Positioned.fill(
             child: IgnorePointer(
               child: Center(
