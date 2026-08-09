@@ -117,6 +117,9 @@ Future<void> _runProtectedBuild({
         'Verify full libmpv/FFmpeg in $bundleDirectory via '
         'scripts/macos/verify_full_libmpv.dart.',
       );
+      stdout.writeln(
+        'Package .app into a distributable .dmg via hdiutil.',
+      );
     }
     return;
   }
@@ -134,6 +137,10 @@ Future<void> _runProtectedBuild({
   }
   if (platform == 'macos') {
     await _runMacosFullLibmpvVerify(bundleDirectory);
+    await _runMacosPackageDmg(
+      bundleDirectory: bundleDirectory,
+      architecture: architecture,
+    );
   }
   if (platform == 'windows') {
     await _runWindowsIdentityCheck();
@@ -274,6 +281,60 @@ Future<void> _runMacosFullLibmpvVerify(String bundleDirectory) async {
     ],
     dryRun: false,
   );
+}
+
+Future<void> _runMacosPackageDmg({
+  required String bundleDirectory,
+  required String architecture,
+}) async {
+  // bundleDirectory points at .../FlyNarwhal.app/Contents/MacOS; the .app root
+  // is two directories up, and the release products dir (where the update
+  // workflow expects *_*.dmg) is one further up.
+  final appRoot = Directory(bundleDirectory).parent.parent.path;
+  final releaseDir = Directory(bundleDirectory).parent.parent.parent.path;
+  if (!Directory(appRoot).existsSync()) {
+    _fail('FlyNarwhal.app is missing; cannot build a DMG');
+  }
+
+  // Archive naming must match the app's update-asset regex
+  // (^FlyNarwhal_Setup_(Windows|MacOS|Linux)_(amd64|aarch64)_([^/]+)\.dmg$)
+  // so the in-app auto-updater can discover and install it.
+  final archTag = architecture == 'arm64' ? 'aarch64' : 'amd64';
+  final version = _packageVersion();
+  final dmgName = 'FlyNarwhal_Setup_MacOS_${archTag}_$version.dmg';
+  final dmgPath = '$releaseDir/$dmgName';
+
+  // Package the .app into a distributable disk image. Passing the .app root
+  // directly as -srcfolder places the bundle at the top level of the mounted
+  // volume (no wrapped parent folder).
+  await _runProcess(
+    executable: 'hdiutil',
+    arguments: <String>[
+      'create',
+      '-volname',
+      'FlyNarwhal',
+      '-srcfolder',
+      appRoot,
+      '-ov',
+      '-format',
+      'UDZO',
+      dmgPath,
+    ],
+    dryRun: false,
+  );
+  stdout.writeln('Created macOS disk image: $dmgPath');
+}
+
+String _packageVersion() {
+  final pubspec = File('pubspec.yaml');
+  for (final line in pubspec.readAsLinesSync()) {
+    final match = RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)')
+        .firstMatch(line.trim());
+    if (match != null) {
+      return match.group(1)!;
+    }
+  }
+  _fail('Could not read version from pubspec.yaml');
 }
 
 _BuildArguments _parseArguments(List<String> arguments) {
