@@ -109,6 +109,10 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
         case 'Mix':
           assetPath = 'assets/images/mix_media.svg';
           break;
+        case 'IPTV':
+          // Live TV media library (e.g. 国内电视台).
+          assetPath = 'assets/images/live_tv.svg';
+          break;
         case 'Others':
           assetPath = 'assets/images/other_media.svg';
           break;

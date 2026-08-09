@@ -136,7 +136,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     final types = List<String>.from(
       widget.id == null
           ? _categoryTypes(widget.categoryType)
-          : MediaType.commonlyUsedValues,
+          : MediaType.libraryBrowseValues,
     );
     int? genres;
     String? resolution;

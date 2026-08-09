@@ -14,6 +14,12 @@ class AuthInterceptor extends Interceptor {
   static const String _userAgent =
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
+  // Trim media client identifiers. These mirror the FnOfficial web client.
+  // The server gates library types (e.g. the IPTV/live-TV media library) on
+  // the presence of x-trim-client-version, so omitting it hides live channels
+  // from the media library list.
+  static const String _trimClient = "web";
+  static const String _trimClientVersion = "616";
 
   final String Function()? getToken;
   final String Function()? getCookie;
@@ -44,6 +50,12 @@ class AuthInterceptor extends Interceptor {
 
     // Add User-Agent
     options.headers.putIfAbsent('User-Agent', () => _userAgent);
+
+    // Add Trim media client identifiers so the server returns all library
+    // types (e.g. the IPTV/live-TV media library), matching the web client.
+    options.headers.putIfAbsent('x-trim-client', () => _trimClient);
+    options.headers.putIfAbsent(
+        'x-trim-client-version', () => _trimClientVersion);
 
     // Set base URL if not already set
     final baseUrl = getBaseUrl?.call();
