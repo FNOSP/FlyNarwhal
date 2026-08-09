@@ -183,11 +183,14 @@ jobs:
         shell: bash
         run: |
           cd artifacts
-          sha256sum * > SHA256SUMS
+          # Artifacts keep their source directory structure (build/..., dist/...),
+          # so walk recursively and hash every file rather than the top-level
+          # entries alone.
+          find . -type f -exec sha256sum {} + > SHA256SUMS
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
+          files: artifacts/**/*
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
