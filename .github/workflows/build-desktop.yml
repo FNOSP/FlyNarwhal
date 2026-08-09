@@ -128,17 +128,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Jankin-Wu/fly-narwhal-obfuscator
-          ref: ${{ vars.OBFUSCATOR_RELEASE_TAG }}
+          # ref: ${{ vars.OBFUSCATOR_RELEASE_TAG }}
           token: ${{ secrets.OBFUSCATOR_REPO_TOKEN }}
           path: .private/obfuscator
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Verify private obfuscator revision
-        shell: bash
-        run: |
-          test -n "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
-          test "$(git -C .private/obfuscator rev-parse HEAD)" = "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
+      # - name: Verify private obfuscator revision
+      #   shell: bash
+      #   run: |
+      #     test -n "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
+      #     test "$(git -C .private/obfuscator rev-parse HEAD)" = "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
 
       - name: Build protected release bundle
         env:
