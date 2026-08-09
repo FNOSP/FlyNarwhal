@@ -26,6 +26,7 @@ import 'data/storage/kmp_preferences_migration_service.dart';
 import 'data/storage/kmp_windows_preferences_reader.dart';
 import 'data/storage/update_settings_store.dart';
 import 'providers/providers.dart';
+import 'providers/reporting_providers.dart';
 import 'providers/update_providers.dart';
 import 'services/update/update_scheduler.dart';
 import 'services/window/main_window_lifecycle_controller.dart';
@@ -177,8 +178,7 @@ void _syncMigratedLoginHistory(
   if (preferences.getString(targetKey) != null) {
     return;
   }
-  final migratedJson =
-      accountSettingsStore.readGlobal<String>('loginHistory');
+  final migratedJson = accountSettingsStore.readGlobal<String>('loginHistory');
   if (migratedJson == null || migratedJson.isEmpty) {
     return;
   }
@@ -214,7 +214,17 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
       final scheduler = ref.read(updateSchedulerProvider);
       scheduler.start();
       _scheduler = scheduler;
+      unawaited(_reportLaunch());
     });
+  }
+
+  Future<void> _reportLaunch() async {
+    try {
+      await ref.read(reportingServiceProvider).reportLaunch();
+    } catch (error, stackTrace) {
+      AppTalker.warning('Reporting', 'Launch reporting failed: $error');
+      AppTalker.instance.handle(error, stackTrace);
+    }
   }
 
   @override
