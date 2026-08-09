@@ -446,7 +446,11 @@ Future<void> _runMacosPackageDmg({
 String _packageVersion() {
   final pubspec = File('pubspec.yaml');
   for (final line in pubspec.readAsLinesSync()) {
-    final match = RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)')
+    // Match the full major.minor.patch plus any prerelease suffix (e.g. -Alpha),
+    // stopping before +build metadata. Asset filenames must embed the same
+    // version the in-app updater parses from the release tag, so a prerelease
+    // tag like v2.0.2-Alpha must produce _2.0.2-Alpha.dmg, not _2.0.2.dmg.
+    final match = RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)')
         .firstMatch(line.trim());
     if (match != null) {
       return match.group(1)!;
