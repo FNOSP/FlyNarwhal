@@ -104,7 +104,13 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc mpv libmpv-dev
+          # Flutter's Linux desktop build requires the GTK3 dev headers and
+          # toolchain (clang/cmake/ninja/pkg-config) in addition to the
+          # libmpv runtime used for the full PGS/HDMV SUP bundle.
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev \
+            gcc mpv libmpv-dev
           # Verify the runtime libmpv can decode PGS/HDMV SUP subtitles so the
           # bundle script can rely on the system copy. mpv is built against
           # FFmpeg, so `mpv --list-options` exposes decoder availability.

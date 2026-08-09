@@ -263,8 +263,8 @@ Future<void> _runLinuxFullLibmpvBundle(String bundleDirectory) async {
 
 Future<void> _runMacosFullLibmpvVerify(String bundleDirectory) async {
   // bundleDirectory points at .../Contents/MacOS; the .app root is two
-  // directories up from there.
-  final appRoot = Directory(bundleDirectory).parent.path;
+  // directories up from there (Contents/MacOS -> Contents -> FlyNarwhal.app).
+  final appRoot = Directory(bundleDirectory).parent.parent.path;
   await _runProcess(
     executable: 'dart',
     arguments: <String>[
