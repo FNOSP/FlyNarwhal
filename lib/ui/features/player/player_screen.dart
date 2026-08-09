@@ -238,7 +238,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _pendingMacOSWindowButtonsForce = false;
   bool _macOSWindowButtonsSyncQueued = false;
   static const Duration _pipIdleHideDuration = Duration(seconds: 3);
-  AnimationController? _pipTransitionController;
 
   PlayerOverlayController get _overlayController =>
       ref.read(playerOverlayControllerProvider.notifier);
@@ -292,10 +291,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         setState(() => _isPlaybackIndicatorVisible = false);
         _playbackIndicatorExitController.value = 0;
       });
-    _pipTransitionController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 240),
-    );
     _syncPlaybackTargetsFromWidget();
     _restoreAutoPlaySetting();
     _windowAspectRatio =
@@ -3132,7 +3127,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) {
         return;
       }
-      _pipTransitionController?.forward(from: 0);
     } catch (error, stackTrace) {
       AppTalker.error(
         'Player',
@@ -3176,7 +3170,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isPipMode = false;
         _isPipHovered = false;
       });
-      _pipTransitionController?.reverse(from: 1);
       _scheduleMacOSWindowButtonsSync(
         visible: ref.read(playerOverlayControllerProvider).isUiVisible,
         force: true,
@@ -3699,7 +3692,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playbackDetailsRefreshTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
     _playbackIndicatorExitController.dispose();
-    _pipTransitionController?.dispose();
     _playerFocusNode.dispose();
     _player?.dispose();
     _hlsSubtitleTexts.dispose();
@@ -3715,7 +3707,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _scheduleMacOSWindowButtonsSync(
       visible: overlayState.isUiVisible,
     );
-    final pipTransition = _pipTransitionController;
     final playerCursor =
         _isInitialized && !_isPipMode && !overlayState.isUiVisible
             ? SystemMouseCursors.none
@@ -3918,22 +3909,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
     }
 
-    if (pipTransition == null || _isPipMode) {
-      return focusedPlayer(playerStack);
-    }
-    return focusedPlayer(
-      AnimatedBuilder(
-        animation: pipTransition,
-        builder: (context, child) {
-          final t = Curves.easeInOutCubic.transform(pipTransition.value);
-          return Transform.scale(
-            scale: 1.0 - t * 0.08,
-            child: child,
-          );
-        },
-        child: playerStack,
-      ),
-    );
+    return focusedPlayer(playerStack);
   }
 
   List<Widget> _buildSkipAndEndOverlays() {
