@@ -111,6 +111,9 @@ Future<void> _runProtectedBuild({
         'Bundle full libmpv into $bundleDirectory/lib '
         '(sources: /usr/lib/<arch>-linux-gnu via scripts/linux/bundle_full_libmpv.dart).',
       );
+      stdout.writeln(
+        'Package the bundle into a .deb under dist/ via dpkg-deb.',
+      );
     }
     if (platform == 'macos') {
       stdout.writeln(
@@ -134,6 +137,10 @@ Future<void> _runProtectedBuild({
   await nativeLibrary.copy(bundleLibraryPath);
   if (platform == 'linux') {
     await _runLinuxFullLibmpvBundle(bundleDirectory);
+    await _runLinuxPackageDeb(
+      bundleDirectory: bundleDirectory,
+      architecture: architecture,
+    );
   }
   if (platform == 'macos') {
     await _runMacosFullLibmpvVerify(bundleDirectory);
@@ -266,6 +273,117 @@ Future<void> _runLinuxFullLibmpvBundle(String bundleDirectory) async {
     'Could not find a libmpv source directory under '
     '${sourceRoots.join(', ')}. Install mpv/libmpv-dev before building Linux.',
   );
+}
+
+Future<void> _runLinuxPackageDeb({
+  required String bundleDirectory,
+  required String architecture,
+}) async {
+  // bundleDirectory points at .../bundle; the Flutter bundle is laid out as
+  //   bundle/fly_narwhal   (ELF binary)
+  //   bundle/lib/          (shared libs + native assets)
+  //   bundle/data/         (flutter_assets)
+  // The ELF links against $ORIGIN/lib, so the whole tree must be installed
+  // together. We place it under /opt/fly_narwhal and push a /usr/bin symlink.
+
+  final version = _packageVersion();
+  final debArch = architecture == 'arm64' ? 'arm64' : 'amd64';
+
+  // Match the in-app updater's asset regex so the release is discoverable:
+  // FlyNarwhal_Setup_Linux_(amd64|aarch64)_<version>.deb
+  final debName = 'FlyNarwhal_Setup_Linux_${_updateArch(architecture)}_$version.deb';
+  final distDir = Directory('dist');
+  await distDir.create(recursive: true);
+  final debPath = '${distDir.path}/$debName';
+
+  // Stage the .deb payload under a temp tree using dpkg-deb's required layout.
+  final stagingRoot = Directory('build/linux/$architecture/deb-staging');
+  if (await stagingRoot.exists()) {
+    await stagingRoot.delete(recursive: true);
+  }
+  final optDir = Directory('${stagingRoot.path}/opt/fly_narwhal');
+  await optDir.create(recursive: true);
+
+  final bundle = Directory(bundleDirectory);
+  await _copyDirectory(bundle, optDir);
+
+  // /usr/bin/fly_narwhal -> /opt/fly_narwhal/fly_narwhal
+  final usrBin = Directory('${stagingRoot.path}/usr/bin');
+  await usrBin.create(recursive: true);
+  await Process.run('ln', <String>[
+    '-s',
+    '/opt/fly_narwhal/fly_narwhal',
+    '${usrBin.path}/fly_narwhal',
+  ]);
+
+  // /usr/share/applications/fly-narwhal.desktop launcher
+  final desktopDir = Directory('${stagingRoot.path}/usr/share/applications');
+  await desktopDir.create(recursive: true);
+  final desktopFile = File('${desktopDir.path}/fly-narwhal.desktop');
+  await desktopFile.writeAsString('''
+[Desktop Entry]
+Type=Application
+Name=FlyNarwhal
+Name[zh_CN]=飞鲸影视
+Comment=Flutter desktop media player
+Exec=/opt/fly_narwhal/fly_narwhal
+Terminal=false
+Categories=AudioVideo;Player;
+''');
+
+  // /usr/share/icons/hicolor/.../apps/fly-narwhal.png (from the Linux runner)
+  final iconSource = File('linux/runner/resources/app_icon.png');
+  if (await iconSource.exists()) {
+    final iconDir = Directory('${stagingRoot.path}/usr/share/icons/hicolor/512x512/apps');
+    await iconDir.create(recursive: true);
+    await iconSource.copy('${iconDir.path}/fly-narwhal.png');
+    desktopFile.writeAsStringSync(
+      '${await desktopFile.readAsString()}'
+      'Icon=/usr/share/icons/hicolor/512x512/apps/fly-narwhal.png\n',
+    );
+  }
+
+  // dpkg-deb control file
+  final controlDir = Directory('${stagingRoot.path}/DEBIAN');
+  await controlDir.create(recursive: true);
+  await File('${controlDir.path}/control').writeAsString('''
+Package: fly-narwhal
+Version: $version
+Section: video
+Priority: optional
+Architecture: $debArch
+Maintainer: FlyNarwhal <dev@flynarwhal.app>
+Description: FlyNarwhal desktop media player
+ Flutter-based desktop media player for FlyNarwhal.
+''');
+
+  await _runProcess(
+    executable: 'dpkg-deb',
+    arguments: <String>[
+      '--build',
+      '--root-owner-group',
+      stagingRoot.path,
+      debPath,
+    ],
+    dryRun: false,
+  );
+  await stagingRoot.delete(recursive: true);
+  stdout.writeln('Created Debian package: $debPath');
+}
+
+String _updateArch(String architecture) =>
+    architecture == 'arm64' ? 'aarch64' : 'amd64';
+
+Future<void> _copyDirectory(Directory source, Directory target) async {
+  for (final entity in source.listSync(recursive: true)) {
+    final relative = entity.path.substring(source.path.length + 1);
+    final destination = '${target.path}/$relative';
+    if (entity is File) {
+      await File(entity.path).copy(destination);
+    } else if (entity is Directory) {
+      await Directory(destination).create(recursive: true);
+    }
+  }
 }
 
 Future<void> _runMacosFullLibmpvVerify(String bundleDirectory) async {
