@@ -26,7 +26,8 @@ class SkipIntroPrompt extends StatelessWidget {
       isPip: isPip,
       onHoverChanged: onHoverChanged,
       message: '已自动跳过片头',
-      actionLabel: '撤销 ${countdown.clamp(0, 5)}',
+      undoLabel: '撤销',
+      countdown: countdown,
       actionKey: isPip ? playerSkipIntroPipUndoKey : playerSkipIntroUndoKey,
       onPressed: onUndo,
     );
@@ -38,7 +39,8 @@ class PlayerSkipPromptContainer extends StatelessWidget {
     super.key,
     required this.isPip,
     required this.message,
-    required this.actionLabel,
+    required this.undoLabel,
+    required this.countdown,
     required this.actionKey,
     required this.onPressed,
     this.onHoverChanged,
@@ -46,7 +48,8 @@ class PlayerSkipPromptContainer extends StatelessWidget {
 
   final bool isPip;
   final String message;
-  final String actionLabel;
+  final String undoLabel;
+  final int countdown;
   final Key actionKey;
   final VoidCallback onPressed;
   final ValueChanged<bool>? onHoverChanged;
@@ -84,9 +87,21 @@ class PlayerSkipPromptContainer extends StatelessWidget {
                   padding: WidgetStatePropertyAll(EdgeInsets.zero),
                   foregroundColor: WidgetStatePropertyAll(Colors.white),
                 ),
-                child: Text(
-                  actionLabel,
-                  style: const TextStyle(fontSize: 14),
+                child: Text.rich(
+                  TextSpan(
+                    style: const TextStyle(
+                      color: Color(0xFF3B82F6),
+                      fontSize: 14,
+                    ),
+                    children: [
+                      TextSpan(text: undoLabel),
+                      if (countdown > 0)
+                        TextSpan(
+                          text: ' ${countdown.clamp(0, 5)}',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],
