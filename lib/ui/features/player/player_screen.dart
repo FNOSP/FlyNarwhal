@@ -1633,13 +1633,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player == null || startPositionMs <= 0) return;
 
-    // Wait for the player to be in a playing/paused state and have some
-    // duration so position reporting is meaningful.
-    for (int attempt = 0; attempt < 5; attempt++) {
+    // Wait until the media is actually ready before deciding whether to seek.
+    // - Direct links: the mpv `start` property already applied the resume, so
+    //   bail out as soon as position matches the target.
+    // - HLS/transcode streams: the `start` property is ignored and a seek
+    //   issued before the stream reports a real duration is dropped by mpv.
+    //   So wait for duration > 0 (stream loaded) before the correction seek.
+    for (int attempt = 0; attempt < 30; attempt++) {
       await Future<void>.delayed(const Duration(milliseconds: 300));
       final state = player.state;
-      if (state.position.inMilliseconds > 0 ||
-          state.duration.inMilliseconds > 0) {
+      final positionMs = state.position.inMilliseconds;
+      final durationMs = state.duration.inMilliseconds;
+      if (positionMs > 0 &&
+          (positionMs - startPositionMs).abs() <= 3000) {
+        return;
+      }
+      if (durationMs > 0) {
         break;
       }
     }
@@ -1647,7 +1656,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final currentPosition = player.state.position.inMilliseconds;
     final deviation = (currentPosition - startPositionMs).abs();
 
-    if (deviation <= 3000) return;
+    if (deviation <= 3000) {
+      return;
+    }
 
     // mpv start property didn't fully apply. Correct through the runtime seek
     // executor without classifying the correction as a user interaction.
@@ -1655,7 +1666,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       targetMilliseconds: startPositionMs,
       origin: PlayerSeekOrigin.resumeCorrection,
     );
-    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+
+    // If the seek was still dropped (stream not fully ready), retry once now
+    // that duration is known so the correction is not silently lost.
+    final afterSeekPosition = player.state.position.inMilliseconds;
+    final afterSeekDeviation = (afterSeekPosition - startPositionMs).abs();
+    if (afterSeekDeviation > 3000 &&
+        player.state.duration.inMilliseconds > 0) {
+      await _seekExecutor.performSeek(
+        targetMilliseconds: startPositionMs,
+        origin: PlayerSeekOrigin.resumeCorrection,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
   }
 
   bool _isSupportedExternalSubtitle(SubtitleStream? subtitleStream) {
