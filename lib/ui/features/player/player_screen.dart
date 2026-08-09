@@ -3294,6 +3294,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _currentResolution = quality.resolution;
         _currentBitrate = quality.bitrate;
       });
+      _refreshPlaybackDetailsImmediately();
     } catch (e) {
       AppTalker.warning('Player', 'switch quality failed: $e');
       ref
@@ -3363,6 +3364,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _selectedAudioGuid = audio.guid;
         _isLoading = false;
       });
+      _refreshPlaybackDetailsImmediately();
     } catch (error, stackTrace) {
       if (_isCurrentAudioSwitch(switchToken)) {
         _requestedAudioGuid = null;
@@ -3579,6 +3581,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           });
         }
       }
+      _refreshPlaybackDetailsImmediately();
     } catch (e) {
       _playingInfoCache = cache.copyWith(
         currentSubtitleStream: previousSubtitle,
@@ -4556,7 +4559,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // The web panel polls the transcode statistics while open, so quality
       // or audio switches and live counters update without reopening it.
       _playbackDetailsRefreshTimer ??= Timer.periodic(
-        const Duration(seconds: 3),
+        const Duration(seconds: 30),
         (_) => _refreshPlaybackDetailsTranscodeStatus(),
       );
     } else {
@@ -4571,13 +4574,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _refreshPlaybackDetailsTranscodeStatus() async {
     final cache = _playingInfoCache;
     final playLink = cache?.playLink;
-    if (_isFetchingPlaybackDetails ||
-        cache == null ||
+    final hasNoTranscodeSession = cache == null ||
         cache.isUseDirectLink ||
         playLink == null ||
-        playLink.isEmpty) {
+        playLink.isEmpty;
+
+    // A direct-link / original session has no server-side transcode session,
+    // so any previously fetched transcode status is stale (e.g. left over
+    // after switching back to 原画). Clear it so the panel reports 直接播放
+    // rather than the old 转码播放 statistics.
+    if (hasNoTranscodeSession) {
+      if (mounted && _playbackDetailsTranscodeStatus != null) {
+        setState(() => _playbackDetailsTranscodeStatus = null);
+      }
       return;
     }
+    if (_isFetchingPlaybackDetails) return;
 
     _isFetchingPlaybackDetails = true;
     try {
@@ -4585,12 +4597,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .read(mediaPViewModelProvider.notifier)
           .fetchTranscodeStatus(MediaPRequest(playLink: playLink));
       if (!mounted || !_isPlaybackDetailsVisible) return;
+      // Re-check the session is still the same transcode session before
+      // applying, since it may have switched to direct-link while fetching.
+      final currentCache = _playingInfoCache;
+      if (currentCache == null ||
+          currentCache.isUseDirectLink ||
+          currentCache.playLink != playLink) {
+        return;
+      }
       setState(() => _playbackDetailsTranscodeStatus = status);
     } catch (e) {
       AppTalker.warning('Player', 'fetch transcode status failed: $e');
     } finally {
       _isFetchingPlaybackDetails = false;
     }
+  }
+
+  /// Quality/subtitle/audio switches change the server-side playback session,
+  /// so the open details panel refreshes immediately instead of waiting for
+  /// the next poll tick.
+  void _refreshPlaybackDetailsImmediately() {
+    unawaited(_refreshPlaybackDetailsTranscodeStatus());
   }
 
   Widget _buildTopBar() {
