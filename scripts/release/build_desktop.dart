@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:fly_narwhal/tooling/windows_bundle_contract.dart';
@@ -141,6 +142,10 @@ Future<void> _runProtectedBuild({
   }
   await nativeLibrary.copy(bundleLibraryPath);
   if (platform == 'linux') {
+    await _applyLinuxArm64EnginePatch(
+      bundleDirectory: bundleDirectory,
+      architecture: architecture,
+    );
     await _runLinuxFullLibmpvBundle(bundleDirectory);
     await _runLinuxPackaging(
       bundleDirectory: bundleDirectory,
@@ -247,6 +252,58 @@ Future<void> _runWindowsIdentityCheck() async {
     ],
     dryRun: false,
   );
+}
+
+/// The official Flutter linux-arm64 release engine is built without
+/// fontconfig, so it cannot discover system CJK fonts and Chinese text
+/// renders as boxes (the bundled SourceHanSansSC variable font also fails to
+/// render on Linux). A fontconfig-enabled libflutter_linux_gtk.so is committed
+/// per Flutter version under scripts/linux/patched-engine/ and swapped into
+/// the bundle before packaging. The linux-x64 engine already ships fontconfig
+/// and needs no patch.
+Future<void> _applyLinuxArm64EnginePatch({
+  required String bundleDirectory,
+  required String architecture,
+}) async {
+  if (architecture != 'arm64') {
+    return;
+  }
+  final flutterVersion = await _flutterFrameworkVersion();
+  final patchedEngine = File(
+    'scripts/linux/patched-engine/linux-arm64-$flutterVersion/'
+    'libflutter_linux_gtk.so',
+  );
+  if (!await patchedEngine.exists()) {
+    _fail(
+      'No fontconfig-patched engine for Flutter $flutterVersion at '
+      '${patchedEngine.path}. The official linux-arm64 engine cannot render '
+      'CJK text; build a patched libflutter_linux_gtk.so (--enable-fontconfig) '
+      'for this Flutter version and commit it under '
+      'scripts/linux/patched-engine/.',
+    );
+  }
+  final target = File('$bundleDirectory/lib/libflutter_linux_gtk.so');
+  await patchedEngine.copy(target.path);
+  stdout.writeln(
+    'Applied fontconfig-patched linux-arm64 engine for Flutter '
+    '$flutterVersion.',
+  );
+}
+
+Future<String> _flutterFrameworkVersion() async {
+  final result = await Process.run(
+    _resolveExecutable('flutter'),
+    const <String>['--version', '--machine'],
+  );
+  if (result.exitCode != 0) {
+    _fail('flutter --version --machine failed: ${result.stderr}');
+  }
+  final info = jsonDecode(result.stdout as String) as Map<String, dynamic>;
+  final version = info['frameworkVersion'] as String?;
+  if (version == null || version.isEmpty) {
+    _fail('Could not parse frameworkVersion from flutter --version --machine');
+  }
+  return version;
 }
 
 Future<void> _runLinuxFullLibmpvBundle(String bundleDirectory) async {

@@ -56,28 +56,32 @@ jobs:
 
       # Flutter publishes no prebuilt Linux arm64 host SDK in its release
       # manifest (subosito/flutter-action cannot resolve a stable version for
-      # arm64), so the ubuntu-24.04-arm runner installs Flutter via the snap,
-      # which ships an arm64-compatible SDK. The snap is the officially
-      # documented way to run Flutter on aarch64 Linux.
-      - name: Set up Flutter (Linux ARM64 via snap)
+      # arm64), and the flutter snap only tracks latest/stable. The release
+      # build swaps a fontconfig-patched linux-arm64 engine into the bundle
+      # (scripts/release/build_desktop.dart), which is only compatible with
+      # the exact Flutter version it was built for (see
+      # scripts/linux/patched-engine/), so the arm64 runner must use a pinned
+      # git checkout instead of the drifting snap. A git checkout bootstraps
+      # its own arm64 host toolchain on first run.
+      - name: Set up Flutter (Linux ARM64, pinned checkout)
         if: matrix.platform == 'linux' && matrix.architecture == 'arm64'
         shell: bash
         run: |
-          sudo snap install flutter --classic --channel=stable
-          if [ ! -x /snap/bin/flutter ]; then
-            echo '::error::Flutter snap did not install.'
-            exit 1
-          fi
-          # The snap installs Flutter under the runner's home snap dir. The
-          # standalone `dart` (used by the release build script) resolves the
-          # `flutter from sdk` packages only when FLUTTER_ROOT points at the
-          # SDK, so export it for the rest of the job.
-          echo "FLUTTER_ROOT=/home/runner/snap/flutter/common/flutter" >> "$GITHUB_ENV"
-          flutter --version
-          dart --version
+          set -euo pipefail
+          # Keep in sync with the directories under scripts/linux/patched-engine/.
+          flutter_pin_version='3.44.8'
+          git clone --depth 1 --branch "$flutter_pin_version" \
+            https://github.com/flutter/flutter.git "$HOME/flutter-pinned"
+          echo "$HOME/flutter-pinned/bin" >> "$GITHUB_PATH"
+          # The standalone `dart` (used by the release build script) resolves
+          # the `flutter from sdk` packages only when FLUTTER_ROOT points at
+          # the SDK, so export it for the rest of the job.
+          echo "FLUTTER_ROOT=$HOME/flutter-pinned" >> "$GITHUB_ENV"
+          "$HOME/flutter-pinned/bin/flutter" --version
+          "$HOME/flutter-pinned/bin/dart" --version
           # Materialize the Flutter SDK's sky_engine SDK package so the later
           # `dart run scripts/release/build_desktop.dart` can resolve it.
-          flutter pub get
+          "$HOME/flutter-pinned/bin/flutter" pub get
 
       - name: Set up Flutter
         if: ${{ !(matrix.platform == 'linux' && matrix.architecture == 'arm64') }}
