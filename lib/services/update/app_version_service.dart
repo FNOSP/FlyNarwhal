@@ -1,3 +1,9 @@
+// #region DEBUG
+import 'dart:io';
+// #endregion DEBUG
+import 'dart:convert';
+
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/constants/app_constants.dart';
@@ -24,13 +30,75 @@ final class AppVersionService {
   }
 
   Future<String> getCurrentVersionText() async {
+    // #region DEBUG
+    const debugLogPath =
+        '/Users/jankinwu/Library/Containers/com.jankinwu.flyNarwhal/Data/Library/Application Support/debug/debug_f4684447.log';
+    void debugLog(String message) {
+      try {
+        File(debugLogPath).writeAsStringSync(
+          '${DateTime.now().toIso8601String()} $message\n',
+          mode: FileMode.append,
+        );
+      } catch (_) {}
+    }
+
+    debugLog(
+      '[DEBUG H1/H2] APP_FULL_VERSION raw="${AppConstants.appFullVersion}" '
+      'trimmed="${AppConstants.appFullVersion.trim()}" '
+      'parseOk=${SemanticVersion.tryParse(AppConstants.appFullVersion.trim()) != null}',
+    );
+    // #endregion DEBUG
     final defineVersion = AppConstants.appFullVersion.trim();
     if (defineVersion.isNotEmpty &&
         SemanticVersion.tryParse(defineVersion) != null) {
+      // #region DEBUG
+      debugLog('[DEBUG H1] branch=define result="$defineVersion"');
+      // #endregion DEBUG
       return defineVersion;
     }
+    final pubspecVersion = await _readPubspecVersion();
+    // #region DEBUG
+    debugLog('[DEBUG FIX] branch=pubspec-asset result="$pubspecVersion"');
+    // #endregion DEBUG
+    if (pubspecVersion != null) {
+      return pubspecVersion;
+    }
     final packageInfo = await PackageInfo.fromPlatform();
+    // #region DEBUG
+    debugLog(
+      '[DEBUG H1/H3] branch=packageInfo version="${packageInfo.version}" '
+      'buildNumber="${packageInfo.buildNumber}" '
+      'appName="${packageInfo.appName}" packageName="${packageInfo.packageName}"',
+    );
+    // #endregion DEBUG
     return packageInfo.version;
+  }
+
+  /// Reads the full version (including prerelease suffix) from the bundled
+  /// pubspec.yaml asset.
+  ///
+  /// flutter_tools strips prerelease suffixes from the Apple platform version
+  /// fields, and the APP_FULL_VERSION dart-define is only injected by the
+  /// release build script, so any other build mode (local `flutter run`,
+  /// manual `flutter build`) silently loses the suffix. The bundled pubspec
+  /// is always in sync with the source version and works in every build mode.
+  Future<String?> _readPubspecVersion() async {
+    try {
+      final content = await rootBundle.loadString('pubspec.yaml');
+      for (final line in const LineSplitter().convert(content)) {
+        final match = RegExp(
+          r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)',
+        ).firstMatch(line.trim());
+        if (match == null) {
+          continue;
+        }
+        final version = match.group(1)!;
+        return SemanticVersion.tryParse(version) != null ? version : null;
+      }
+    } catch (_) {
+      // Asset missing (e.g. stripped build) — fall back to PackageInfo.
+    }
+    return null;
   }
 
   Future<UpdatePlatform> detectCurrentPlatform() async {
