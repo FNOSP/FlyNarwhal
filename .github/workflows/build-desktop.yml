@@ -189,22 +189,91 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      # Checked out so the committed minisign.pub acts as the trust anchor.
       - uses: actions/checkout@v4
-        # CHANGELOG.md lives in the repo; it must be on disk for the release body.
 
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - name: Generate checksums
+      - name: Install minisign
         shell: bash
         run: |
-          cd artifacts
-          # Artifacts keep their source directory structure (build/..., dist/...),
-          # so walk recursively and hash every file rather than the top-level
-          # entries alone.
-          find . -type f -exec sha256sum {} + > SHA256SUMS
+          # Pinned static binary keeps the signing toolchain reproducible.
+          curl -fsSL -o /tmp/minisign.tar.gz \
+            https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz
+          mkdir -p /tmp/minisign
+          tar -xzf /tmp/minisign.tar.gz -C /tmp/minisign
+          BIN=$(find /tmp/minisign -type f -name minisign | head -n1)
+          sudo install -m 0755 "$BIN" /usr/local/bin/minisign
+          minisign -v
+
+      - name: Prepare minisign secret key
+        shell: bash
+        env:
+          RAW_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          # Fail fast with setup hints when the signing secret is missing.
+          if [ -z "$RAW_KEY" ]; then
+            echo '::error::MINISIGN_SECRET_KEY secret is empty. Generate a key pair with `minisign -G -W` and store the secret key file content in this repo secret.'
+            exit 1
+          fi
+          KEY_PATH="$RUNNER_TEMP/minisign.key"
+          # Accept either the raw two-line key file or its base64 encoding.
+          if printf '%s' "$RAW_KEY" | head -n1 | grep -q '^untrusted comment:'; then
+            printf '%s\n' "$RAW_KEY" > "$KEY_PATH"
+          elif DECODED=$(printf '%s' "$RAW_KEY" | base64 -d 2>/dev/null) \
+            && printf '%s' "$DECODED" | head -n1 | grep -q '^untrusted comment:'; then
+            printf '%s\n' "$DECODED" > "$KEY_PATH"
+          else
+            echo '::error::MINISIGN_SECRET_KEY must be the minisign secret key file (two lines starting with "untrusted comment:") or its base64 encoding.'
+            exit 1
+          fi
+          echo "MINISIGN_SECRET_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Stage release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          # Flatten installers so published asset names match SHA256SUMS entries.
+          find artifacts -type f \( -name 'FlyNarwhal_Setup_*.exe' -o -name 'FlyNarwhal_Setup_*.dmg' -o -name 'FlyNarwhal_Setup_*.deb' \) \
+            -exec cp -f {} release-assets/ \;
+          count=$(find release-assets -type f | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo '::error::No FlyNarwhal installers found in the build artifacts.'
+            exit 1
+          fi
+          ls -l release-assets
+
+      - name: Sign installers with minisign
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The committed public key is the trust anchor for verification.
+          if [ ! -f minisign.pub ]; then
+            echo '::error::minisign.pub is missing at the repository root. Commit the public key generated with `minisign -G -W`.'
+            exit 1
+          fi
+          cd release-assets
+          shopt -s nullglob
+          # Emit a same-name .sig detached signature for every installer.
+          for file in FlyNarwhal_Setup_*.exe FlyNarwhal_Setup_*.dmg FlyNarwhal_Setup_*.deb; do
+            minisign -S -s "$MINISIGN_SECRET_KEY_PATH" -m "$file" -x "$file.sig" -t "file=$file tag=$GITHUB_REF_NAME"
+            minisign -Vm "$file" -x "$file.sig" -p ../minisign.pub
+          done
+          rm -f "$MINISIGN_SECRET_KEY_PATH"
+
+      - name: Generate checksums
+        shell: bash
+        working-directory: release-assets
+        run: |
+          # Flat asset names let users run `sha256sum -c SHA256SUMS` right
+          # next to the downloaded files; SHA256SUMS itself is excluded.
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' | LC_ALL=C sort | xargs -d '\n' sha256sum > SHA256SUMS
+          cat SHA256SUMS
 
       - name: Extract changelog section for release body
         id: extract-changelog
@@ -234,7 +303,7 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: release-assets/*
           prerelease: ${{ contains(github.ref_name, '-') }}
           # release_body.md is always written (empty when no CHANGELOG section
           # matches), so generate_release_notes fills the gap as a fallback.
