@@ -68,8 +68,16 @@ jobs:
             echo '::error::Flutter snap did not install.'
             exit 1
           fi
+          # The snap installs Flutter under the runner's home snap dir. The
+          # standalone `dart` (used by the release build script) resolves the
+          # `flutter from sdk` packages only when FLUTTER_ROOT points at the
+          # SDK, so export it for the rest of the job.
+          echo "FLUTTER_ROOT=/home/runner/snap/flutter/common/flutter" >> "$GITHUB_ENV"
           flutter --version
           dart --version
+          # Materialize the Flutter SDK's sky_engine SDK package so the later
+          # `dart run scripts/release/build_desktop.dart` can resolve it.
+          flutter pub get
 
       - name: Set up Flutter
         if: ${{ !(matrix.platform == 'linux' && matrix.architecture == 'arm64') }}
