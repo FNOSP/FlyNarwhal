@@ -23,13 +23,6 @@ jobs:
             installer-arch: amd64
             libname: fly_narwhal_obfuscator.dll
             artifact: windows-x64
-          - runner: windows-11-arm
-            platform: windows
-            architecture: arm64
-            goarch: arm64
-            installer-arch: aarch64
-            libname: fly_narwhal_obfuscator.dll
-            artifact: windows-arm64
           - runner: macos-15-intel
             platform: macos
             architecture: x64
@@ -61,7 +54,25 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Flutter publishes no prebuilt Linux arm64 host SDK in its release
+      # manifest (subosito/flutter-action cannot resolve a stable version for
+      # arm64), so the ubuntu-24.04-arm runner installs Flutter via the snap,
+      # which ships an arm64-compatible SDK. The snap is the officially
+      # documented way to run Flutter on aarch64 Linux.
+      - name: Set up Flutter (Linux ARM64 via snap)
+        if: matrix.platform == 'linux' && matrix.architecture == 'arm64'
+        shell: bash
+        run: |
+          sudo snap install flutter --classic --channel=stable
+          if [ ! -x /snap/bin/flutter ]; then
+            echo '::error::Flutter snap did not install.'
+            exit 1
+          fi
+          flutter --version
+          dart --version
+
       - name: Set up Flutter
+        if: ${{ !(matrix.platform == 'linux' && matrix.architecture == 'arm64') }}
         uses: subosito/flutter-action@v2
         with:
           channel: stable
