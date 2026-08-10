@@ -55,6 +55,22 @@
 
 前往 [Releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载对应平台的安装包或发行产物。
 
+#### macOS 安装被系统阻止的处理
+
+从网上下载的安装包首次启动时，macOS 可能会弹出“已阻止打开”的提示。这是因为系统给下载的文件打上了隔离标记，属于正常的系统安全机制。
+
+如果你已经开启了“系统设置 → 隐私与安全性”中的“任何来源”仍无法解决，可以通过手动移除隔离标记来处理。将 FlyNarwhal.app 拖入“应用程序”后，在终端执行：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/FlyNarwhal.app
+```
+
+注意事项：
+
+- 请在 app 已放入 `/Applications` **之后**再执行。
+- 每次重新下载安装包并重装后，都需要重新执行一次（新拷贝的 app 会带上新的隔离标记）。
+- 该命令只影响当前这台电脑。
+
 ### 从源码运行
 
 #### 准备环境

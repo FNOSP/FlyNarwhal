@@ -187,6 +187,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        # CHANGELOG.md lives in the repo; it must be on disk for the release body.
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -201,9 +204,37 @@ jobs:
           # entries alone.
           find . -type f -exec sha256sum {} + > SHA256SUMS
 
+      - name: Extract changelog section for release body
+        id: extract-changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The release tag (e.g. v2.0.3-Alpha) maps 1:1 to a CHANGELOG section
+          # header by stripping only the leading 'v' (the -Alpha suffix is kept,
+          # so section [2.0.3-Alpha] matches tag v2.0.3-Alpha).
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            $0 ~ /^## / {
+              if (found) { exit }
+              if ($0 ~ "^## \\[" ver "\\]") { found=1 }
+              next
+            }
+            found { print }
+          ' CHANGELOG.md > release_body.md
+          if [ -s release_body.md ]; then
+            echo "has_section=true" >> "$GITHUB_OUTPUT"
+            echo "Extracted CHANGELOG section for $GITHUB_REF_NAME"
+          else
+            echo "has_section=false" >> "$GITHUB_OUTPUT"
+            echo "No matching CHANGELOG section for $GITHUB_REF_NAME; falling back to generated notes"
+          fi
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
           prerelease: ${{ contains(github.ref_name, '-') }}
-          generate_release_notes: true
+          # release_body.md is always written (empty when no CHANGELOG section
+          # matches), so generate_release_notes fills the gap as a fallback.
+          body_path: release_body.md
+          generate_release_notes: ${{ steps.extract-changelog.outputs.has_section != 'true' }}
