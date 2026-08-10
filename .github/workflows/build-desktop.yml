@@ -283,7 +283,13 @@ jobs:
             https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz
           mkdir -p /tmp/minisign
           tar -xzf /tmp/minisign.tar.gz -C /tmp/minisign
-          BIN=$(find /tmp/minisign -type f -name minisign | head -n1)
+          # The 0.12 linux tarball ships both x86_64 and aarch64 binaries under
+          # per-arch subdirs; pick the one matching this runner instead of
+          # grabbing the first (aarch64 sorts first and breaks x64 runners).
+          BIN=$(find /tmp/minisign -type f -name minisign -path "*/$(uname -m)/minisign" | head -n1)
+          if [ -z "$BIN" ]; then
+            BIN=$(find /tmp/minisign -type f -name minisign | head -n1)
+          fi
           sudo install -m 0755 "$BIN" /usr/local/bin/minisign
           minisign -v
 
