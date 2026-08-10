@@ -116,7 +116,8 @@ Future<void> _runProtectedBuild({
         '(sources: /usr/lib/<arch>-linux-gnu via scripts/linux/bundle_full_libmpv.dart).',
       );
       stdout.writeln(
-        'Package the bundle into a .deb under dist/ via dpkg-deb.',
+        'Package the bundle into a .deb via dpkg-deb, a .rpm via fpm, and '
+        'an .AppImage via appimagetool under dist/.',
       );
     }
     if (platform == 'macos') {
@@ -141,7 +142,7 @@ Future<void> _runProtectedBuild({
   await nativeLibrary.copy(bundleLibraryPath);
   if (platform == 'linux') {
     await _runLinuxFullLibmpvBundle(bundleDirectory);
-    await _runLinuxPackageDeb(
+    await _runLinuxPackaging(
       bundleDirectory: bundleDirectory,
       architecture: architecture,
     );
@@ -279,29 +280,52 @@ Future<void> _runLinuxFullLibmpvBundle(String bundleDirectory) async {
   );
 }
 
-Future<void> _runLinuxPackageDeb({
+Future<void> _runLinuxPackaging({
   required String bundleDirectory,
   required String architecture,
 }) async {
-  // bundleDirectory points at .../bundle; the Flutter bundle is laid out as
-  //   bundle/fly_narwhal   (ELF binary)
-  //   bundle/lib/          (shared libs + native assets)
-  //   bundle/data/         (flutter_assets)
-  // The ELF links against $ORIGIN/lib, so the whole tree must be installed
-  // together. We place it under /opt/fly_narwhal and push a /usr/bin symlink.
+  // The .deb and the .rpm share the same staged payload; the AppImage is
+  // assembled separately from the raw bundle because it needs a relative
+  // Exec/Icon layout instead of absolute /opt paths.
+  final stagingRoot = await _stageLinuxPackageTree(
+    bundleDirectory: bundleDirectory,
+    architecture: architecture,
+  );
+  try {
+    // Build the rpm before the deb control file is written into the staging
+    // tree, otherwise fpm would package the DEBIAN/ directory as payload.
+    await _runLinuxPackageRpm(
+      stagingRoot: stagingRoot,
+      architecture: architecture,
+    );
+    await _runLinuxPackageDeb(
+      stagingRoot: stagingRoot,
+      architecture: architecture,
+    );
+  } finally {
+    if (await stagingRoot.exists()) {
+      await stagingRoot.delete(recursive: true);
+    }
+  }
+  await _runLinuxPackageAppImage(
+    bundleDirectory: bundleDirectory,
+    architecture: architecture,
+  );
+}
 
-  final version = _packageVersion();
-  final debArch = architecture == 'arm64' ? 'arm64' : 'amd64';
-
-  // Match the in-app updater's asset regex so the release is discoverable:
-  // FlyNarwhal_Setup_Linux_(amd64|aarch64)_<version>.deb
-  final debName = 'FlyNarwhal_Setup_Linux_${_updateArch(architecture)}_$version.deb';
-  final distDir = Directory('dist');
-  await distDir.create(recursive: true);
-  final debPath = '${distDir.path}/$debName';
-
-  // Stage the .deb payload under a temp tree using dpkg-deb's required layout.
-  final stagingRoot = Directory('build/linux/$architecture/deb-staging');
+/// Stages the Linux bundle as a filesystem payload shared by the .deb and
+/// .rpm packages. bundleDirectory points at .../bundle; the Flutter bundle is
+/// laid out as
+///   bundle/fly_narwhal   (ELF binary)
+///   bundle/lib/          (shared libs + native assets)
+///   bundle/data/         (flutter_assets)
+/// The ELF links against $ORIGIN/lib, so the whole tree must be installed
+/// together. We place it under /opt/fly_narwhal and push a /usr/bin symlink.
+Future<Directory> _stageLinuxPackageTree({
+  required String bundleDirectory,
+  required String architecture,
+}) async {
+  final stagingRoot = Directory('build/linux/$architecture/pkg-staging');
   if (await stagingRoot.exists()) {
     await stagingRoot.delete(recursive: true);
   }
@@ -338,7 +362,8 @@ Categories=AudioVideo;Player;
   // /usr/share/icons/hicolor/.../apps/fly-narwhal.png (from the Linux runner)
   final iconSource = File('linux/runner/resources/app_icon.png');
   if (await iconSource.exists()) {
-    final iconDir = Directory('${stagingRoot.path}/usr/share/icons/hicolor/512x512/apps');
+    final iconDir =
+        Directory('${stagingRoot.path}/usr/share/icons/hicolor/512x512/apps');
     await iconDir.create(recursive: true);
     await iconSource.copy('${iconDir.path}/fly-narwhal.png');
     desktopFile.writeAsStringSync(
@@ -346,6 +371,23 @@ Categories=AudioVideo;Player;
       'Icon=/usr/share/icons/hicolor/512x512/apps/fly-narwhal.png\n',
     );
   }
+  return stagingRoot;
+}
+
+Future<void> _runLinuxPackageDeb({
+  required Directory stagingRoot,
+  required String architecture,
+}) async {
+  final version = _packageVersion();
+  final debArch = architecture == 'arm64' ? 'arm64' : 'amd64';
+
+  // Match the in-app updater's asset regex so the release is discoverable:
+  // FlyNarwhal_Setup_Linux_(amd64|aarch64)_<version>.deb
+  final debName =
+      'FlyNarwhal_Setup_Linux_${_updateArch(architecture)}_$version.deb';
+  final distDir = Directory('dist');
+  await distDir.create(recursive: true);
+  final debPath = '${distDir.path}/$debName';
 
   // dpkg-deb control file
   final controlDir = Directory('${stagingRoot.path}/DEBIAN');
@@ -371,8 +413,145 @@ Description: FlyNarwhal desktop media player
     ],
     dryRun: false,
   );
-  await stagingRoot.delete(recursive: true);
   stdout.writeln('Created Debian package: $debPath');
+}
+
+Future<void> _runLinuxPackageRpm({
+  required Directory stagingRoot,
+  required String architecture,
+}) async {
+  final version = _packageVersion();
+  // RPM versions cannot contain '-', so a prerelease suffix such as
+  // 2.0.3-Alpha moves into the Release/iteration field (2.0.3 / Alpha) while
+  // the published filename keeps the full version for the updater contract.
+  final dashIndex = version.indexOf('-');
+  final rpmVersion = dashIndex < 0 ? version : version.substring(0, dashIndex);
+  final rpmIteration = dashIndex < 0 ? '1' : version.substring(dashIndex + 1);
+  final rpmArch = architecture == 'arm64' ? 'aarch64' : 'x86_64';
+
+  // Match the in-app updater's asset regex so the release is discoverable:
+  // FlyNarwhal_Setup_Linux_(amd64|aarch64)_<version>.rpm
+  final rpmName =
+      'FlyNarwhal_Setup_Linux_${_updateArch(architecture)}_$version.rpm';
+  final distDir = Directory('dist');
+  await distDir.create(recursive: true);
+  final rpmPath = '${distDir.path}/$rpmName';
+
+  // fpm packages the staged payload (opt/, usr/) from the staging root using
+  // the paths as-is, mirroring the .deb layout.
+  await _runProcess(
+    executable: 'fpm',
+    arguments: <String>[
+      '--force',
+      '-s',
+      'dir',
+      '-t',
+      'rpm',
+      '-n',
+      'fly-narwhal',
+      '-v',
+      rpmVersion,
+      '--iteration',
+      rpmIteration,
+      '-a',
+      rpmArch,
+      '--category',
+      'video',
+      '--maintainer',
+      'FlyNarwhal <dev@flynarwhal.app>',
+      '--description',
+      'FlyNarwhal desktop media player',
+      '-C',
+      stagingRoot.path,
+      'opt',
+      'usr',
+    ],
+    dryRun: false,
+  );
+  final builtRpm = File('fly-narwhal-$rpmVersion-$rpmIteration.$rpmArch.rpm');
+  if (!await builtRpm.exists()) {
+    _fail('fpm did not produce the expected rpm: ${builtRpm.path}');
+  }
+  await builtRpm.rename(rpmPath);
+  stdout.writeln('Created RPM package: $rpmPath');
+}
+
+Future<void> _runLinuxPackageAppImage({
+  required String bundleDirectory,
+  required String architecture,
+}) async {
+  final version = _packageVersion();
+
+  // Match the in-app updater's asset regex so the release is discoverable:
+  // FlyNarwhal_Setup_Linux_(amd64|aarch64)_<version>.AppImage
+  final appImageName =
+      'FlyNarwhal_Setup_Linux_${_updateArch(architecture)}_$version.AppImage';
+  final distDir = Directory('dist');
+  await distDir.create(recursive: true);
+  final appImagePath = '${distDir.path}/$appImageName';
+
+  // AppDir layout: the Flutter bundle sits at the AppDir root. The ELF binary
+  // resolves its libraries via the $ORIGIN/lib rpath, so no relocation is
+  // needed and AppRun can simply exec the binary from its own directory.
+  final stagingRoot = Directory('build/linux/$architecture/appimage-staging');
+  if (await stagingRoot.exists()) {
+    await stagingRoot.delete(recursive: true);
+  }
+  final appDirRoot = Directory('${stagingRoot.path}/FlyNarwhal.AppDir');
+  await appDirRoot.create(recursive: true);
+  await _copyDirectory(Directory(bundleDirectory), appDirRoot);
+
+  // appimagetool requires a root-level .desktop whose Exec/Icon entries are
+  // relative to the AppDir (unlike the absolute paths in the deb/rpm payload).
+  await File('${appDirRoot.path}/fly-narwhal.desktop').writeAsString('''
+[Desktop Entry]
+Type=Application
+Name=FlyNarwhal
+Name[zh_CN]=飞鲸影视
+Comment=Flutter desktop media player
+Exec=fly_narwhal
+Icon=fly-narwhal
+Terminal=false
+Categories=AudioVideo;Player;
+X-AppImage-Version=$version
+''');
+
+  final iconSource = File('linux/runner/resources/app_icon.png');
+  if (!await iconSource.exists()) {
+    _fail('Linux app icon is missing: ${iconSource.path}');
+  }
+  await iconSource.copy('${appDirRoot.path}/fly-narwhal.png');
+  await iconSource.copy('${appDirRoot.path}/.DirIcon');
+
+  final appRun = File('${appDirRoot.path}/AppRun');
+  await appRun.writeAsString('''
+#!/bin/sh
+SELF="\$(readlink -f "\$0")"
+HERE="\$(dirname "\$SELF")"
+export LD_LIBRARY_PATH="\$HERE/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+exec "\$HERE/fly_narwhal" "\$@"
+''');
+  final chmodResult = await Process.run('chmod', <String>['+x', appRun.path]);
+  if (chmodResult.exitCode != 0) {
+    _fail('Failed to make AppRun executable: ${chmodResult.stderr}');
+  }
+
+  await _runProcess(
+    executable: 'appimagetool',
+    arguments: <String>[
+      '--appimage-extract-and-run',
+      appDirRoot.path,
+      appImagePath,
+    ],
+    // appimagetool picks the embedded runtime by architecture; make the
+    // choice explicit instead of relying on its ELF sniffing.
+    environment: <String, String>{
+      'ARCH': architecture == 'arm64' ? 'aarch64' : 'x86_64',
+    },
+    dryRun: false,
+  );
+  await stagingRoot.delete(recursive: true);
+  stdout.writeln('Created AppImage: $appImagePath');
 }
 
 String _updateArch(String architecture) =>
@@ -469,8 +648,9 @@ String _packageVersion() {
     // stopping before +build metadata. Asset filenames must embed the same
     // version the in-app updater parses from the release tag, so a prerelease
     // tag like v2.0.2-Alpha must produce _2.0.2-Alpha.dmg, not _2.0.2.dmg.
-    final match = RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)')
-        .firstMatch(line.trim());
+    final match =
+        RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)')
+            .firstMatch(line.trim());
     if (match != null) {
       return match.group(1)!;
     }

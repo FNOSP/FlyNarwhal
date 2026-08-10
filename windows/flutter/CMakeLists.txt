@@ -6,11 +6,22 @@ set(EPHEMERAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ephemeral")
 # Configuration provided via flutter tool.
 include(${EPHEMERAL_DIR}/generated_config.cmake)
 
-set(FLUTTER_ENGINE_ARTIFACT_DIR_NAME "windows-x64")
+# The flutter tool passes -DFLUTTER_TARGET_PLATFORM=windows-x64|windows-arm64
+# on the cmake command line; keep a fallback for older tool invocations.
+if (NOT DEFINED FLUTTER_TARGET_PLATFORM)
+  set(FLUTTER_TARGET_PLATFORM "windows-x64")
+endif()
+
+if (FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
+  set(FLUTTER_ENGINE_ARTIFACT_BASE "windows-arm64")
+else()
+  set(FLUTTER_ENGINE_ARTIFACT_BASE "windows-x64")
+endif()
+set(FLUTTER_ENGINE_ARTIFACT_DIR_NAME "${FLUTTER_ENGINE_ARTIFACT_BASE}")
 if (CMAKE_BUILD_TYPE STREQUAL "Profile")
-  set(FLUTTER_ENGINE_ARTIFACT_DIR_NAME "windows-x64-profile")
+  set(FLUTTER_ENGINE_ARTIFACT_DIR_NAME "${FLUTTER_ENGINE_ARTIFACT_BASE}-profile")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-  set(FLUTTER_ENGINE_ARTIFACT_DIR_NAME "windows-x64-release")
+  set(FLUTTER_ENGINE_ARTIFACT_DIR_NAME "${FLUTTER_ENGINE_ARTIFACT_BASE}-release")
 endif()
 
 # TODO: Move the rest of this into files in ephemeral. See
@@ -53,11 +64,6 @@ if (NOT EXISTS "${WRAPPER_ROOT}/core_implementations.cc")
   file(COPY "${WRAPPER_FALLBACK_ROOT}/" DESTINATION "${WRAPPER_ROOT}")
 endif()
 
-# Set fallback configurations for older versions of the flutter tool.
-if (NOT DEFINED FLUTTER_TARGET_PLATFORM)
-  set(FLUTTER_TARGET_PLATFORM "windows-x64")
-endif()
-
 # Keep a lightweight repair step available for tool invocations that recreate
 # the ephemeral directory with incomplete runtime or wrapper files.
 set(FLUTTER_EPHEMERAL_REPAIR_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ensure_ephemeral_artifacts.cmake")
@@ -65,7 +71,7 @@ set(FLUTTER_EPHEMERAL_REPAIR_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ensure_ep
 # Multi-config generators (Visual Studio) leave CMAKE_BUILD_TYPE empty, so the
 # repair step resolves the mode-specific engine payload from the build-time
 # configuration instead of falling back to the debug artifact directory.
-set(FLUTTER_RUNTIME_REPAIR_FALLBACK_ROOT "$<IF:$<STREQUAL:$<LOWER_CASE:$<CONFIG>>,debug>,${FLUTTER_ENGINE_FALLBACK_ROOT},$<IF:$<STREQUAL:$<LOWER_CASE:$<CONFIG>>,profile>,${FLUTTER_ROOT}/bin/cache/artifacts/engine/windows-x64-profile,${FLUTTER_ROOT}/bin/cache/artifacts/engine/windows-x64-release>>")
+set(FLUTTER_RUNTIME_REPAIR_FALLBACK_ROOT "$<IF:$<STREQUAL:$<LOWER_CASE:$<CONFIG>>,debug>,${FLUTTER_ENGINE_FALLBACK_ROOT},$<IF:$<STREQUAL:$<LOWER_CASE:$<CONFIG>>,profile>,${FLUTTER_ROOT}/bin/cache/artifacts/engine/${FLUTTER_ENGINE_ARTIFACT_BASE}-profile,${FLUTTER_ROOT}/bin/cache/artifacts/engine/${FLUTTER_ENGINE_ARTIFACT_BASE}-release>>")
 
 # === Flutter Library ===
 # Use the stable engine cache for runtime headers and library references because

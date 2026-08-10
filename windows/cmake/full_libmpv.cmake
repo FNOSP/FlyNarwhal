@@ -4,10 +4,18 @@
   # it changes on every upstream release, so it is computed dynamically at
   # build time (see NEEDS_EXTRACT). If the pinned release is ever removed,
   # bump ARCHIVE_NAME/URL to the newest release and refresh ARCHIVE_SHA256
-  # from its sha256.txt.
-  set(ARCHIVE_NAME "mpv-dev-x86_64-20260808-git-dd5d17d328.7z")
+  # from its sha256.txt (one hash per architecture).
+  #
+  # FLUTTER_TARGET_PLATFORM is defined by the flutter tool via -D on the
+  # cmake command line, so it is available at configure time.
+  if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
+    set(ARCHIVE_NAME "mpv-dev-aarch64-20260808-git-dd5d17d328.7z")
+    set(ARCHIVE_SHA256 "edf1418d21339aa526bf6f3939f09029b637746296e69f9818a128522a16ed5b")
+  else()
+    set(ARCHIVE_NAME "mpv-dev-x86_64-20260808-git-dd5d17d328.7z")
+    set(ARCHIVE_SHA256 "67039d30a242aff684e2c89ddc6f5a9f7270d99afe9c26db76f7da26bda63e8a")
+  endif()
   set(ARCHIVE_URL  "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-08-08-dd5d17d328/${ARCHIVE_NAME}")
-  set(ARCHIVE_SHA256 "67039d30a242aff684e2c89ddc6f5a9f7270d99afe9c26db76f7da26bda63e8a")
 
   set(LIBMPV_DIR     "${CMAKE_BINARY_DIR}/full_libmpv")
   set(LIBMPV_ARCHIVE "${LIBMPV_DIR}/${ARCHIVE_NAME}")

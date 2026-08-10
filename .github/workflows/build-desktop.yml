@@ -20,8 +20,16 @@ jobs:
             platform: windows
             architecture: x64
             goarch: amd64
+            installer-arch: amd64
             libname: fly_narwhal_obfuscator.dll
             artifact: windows-x64
+          - runner: windows-11-arm
+            platform: windows
+            architecture: arm64
+            goarch: arm64
+            installer-arch: aarch64
+            libname: fly_narwhal_obfuscator.dll
+            artifact: windows-arm64
           - runner: macos-15-intel
             platform: macos
             architecture: x64
@@ -40,6 +48,12 @@ jobs:
             goarch: amd64
             libname: libfly_narwhal_obfuscator.so
             artifact: linux-x64
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            architecture: arm64
+            goarch: arm64
+            libname: libfly_narwhal_obfuscator.so
+            artifact: linux-arm64
     runs-on: ${{ matrix.runner }}
     environment: release
     steps:
@@ -88,17 +102,62 @@ jobs:
         shell: pwsh
         run: go version
 
+      - name: Set up cgo toolchain (Windows ARM64)
+        if: matrix.platform == 'windows' && matrix.architecture == 'arm64'
+        shell: pwsh
+        run: |
+          # Go builds the obfuscator library with CGO_ENABLED=1, which needs a
+          # GCC-compatible C compiler for the target. The windows-11-arm runner
+          # ships no MinGW, so install the native aarch64 llvm-mingw toolchain
+          # and point cgo's CC at it.
+          $ErrorActionPreference = 'Stop'
+          $llvmMingwVersion = '20260616'
+          $archiveName = "llvm-mingw-$llvmMingwVersion-ucrt-aarch64.zip"
+          $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/$llvmMingwVersion/$archiveName"
+          $zip = Join-Path $env:RUNNER_TEMP $archiveName
+          $installRoot = Join-Path $env:RUNNER_TEMP 'llvm-mingw'
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
+          # bsdtar is orders of magnitude faster than Expand-Archive for the
+          # ~400 MB toolchain zip and handles zip extraction natively.
+          tar.exe -xf $zip -C $installRoot
+          if ($LASTEXITCODE -ne 0) { throw "Failed to extract $archiveName" }
+          $binDir = Join-Path $installRoot "llvm-mingw-$llvmMingwVersion-ucrt-aarch64\bin"
+          if (-not (Test-Path (Join-Path $binDir 'aarch64-w64-mingw32-clang.exe'))) {
+            throw "llvm-mingw aarch64 toolchain not found under $binDir"
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $binDir
+          Add-Content -Path $env:GITHUB_ENV -Value 'CC=aarch64-w64-mingw32-clang'
+          Add-Content -Path $env:GITHUB_ENV -Value 'CXX=aarch64-w64-mingw32-clang++'
+          & (Join-Path $binDir 'aarch64-w64-mingw32-clang.exe') --version
+
       - name: Set up C toolchain (Linux)
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           # Flutter's Linux desktop build requires the GTK3 dev headers and
           # toolchain (clang/cmake/ninja/pkg-config) in addition to the
-          # libmpv runtime used for the full PGS/HDMV SUP bundle.
+          # libmpv runtime used for the full PGS/HDMV SUP bundle. The release
+          # packaging additionally needs dpkg-deb (preinstalled), fpm for the
+          # .rpm, and appimagetool for the .AppImage.
           sudo apt-get install -y \
             clang cmake ninja-build pkg-config \
             libgtk-3-dev liblzma-dev \
-            gcc mpv libmpv-dev
+            gcc mpv libmpv-dev \
+            rpm ruby-dev
+          sudo gem install fpm --no-document
+          # appimagetool is distributed as an AppImage per architecture; run it
+          # with --appimage-extract-and-run so no FUSE is required on runners.
+          case "$(uname -m)" in
+            aarch64) appimagetool_arch=aarch64 ;;
+            x86_64)  appimagetool_arch=x86_64 ;;
+            *) echo "::error::Unsupported architecture for appimagetool: $(uname -m)"; exit 1 ;;
+          esac
+          curl -fsSL -o /tmp/appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-${appimagetool_arch}.AppImage"
+          chmod +x /tmp/appimagetool
+          sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
+          appimagetool --appimage-extract-and-run --version
           # Verify the runtime libmpv can decode PGS/HDMV SUP subtitles so the
           # bundle script can rely on the system copy. mpv is built against
           # FFmpeg, so `mpv --list-options` exposes decoder availability.
@@ -167,7 +226,7 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
           $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([^+]+)').Matches[0].Groups[1].Value
-          iscc "/DMyAppArch=${{ matrix.goarch }}" "/DMyAppVersion=$version" "/DFlutterBundleDir=$PWD\\build\\windows\\${{ matrix.architecture }}\\runner\\Release" installer/setup.iss
+          iscc "/DMyAppArch=${{ matrix.installer-arch }}" "/DMyAppVersion=$version" "/DFlutterBundleDir=$PWD\\build\\windows\\${{ matrix.architecture }}\\runner\\Release" installer/setup.iss
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

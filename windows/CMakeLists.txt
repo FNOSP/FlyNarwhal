@@ -316,6 +316,34 @@ install(FILES "${FLUTTER_INSTALL_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_D
 install(FILES "${FLUTTER_INSTALL_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
+# media_kit_libs_windows_video ships only x86_64 prebuilts (a stripped libmpv
+# plus ANGLE/DirectX support DLLs). On an arm64 target those binaries cannot
+# load and would shadow the system arm64 copies (e.g. d3dcompiler_47.dll), so
+# drop them from the install set: libmpv-2.dll is reinstalled below from the
+# full arm64 build, and the flutter engine (Impeller/D3D11) does not require
+# the bundled ANGLE set.
+if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64" AND PLUGIN_BUNDLED_LIBRARIES)
+  set(FLYNARWHAL_X64_ONLY_BUNDLED_LIBRARY_NAMES
+    "libmpv-2.dll"
+    "d3dcompiler_47.dll"
+    "libEGL.dll"
+    "libGLESv2.dll"
+    "vk_swiftshader.dll"
+    "vulkan-1.dll"
+    "zlib.dll"
+  )
+  set(FLYNARWHAL_FILTERED_BUNDLED_LIBRARIES "")
+  foreach(FLYNARWHAL_BUNDLED_LIBRARY IN LISTS PLUGIN_BUNDLED_LIBRARIES)
+    get_filename_component(FLYNARWHAL_BUNDLED_LIBRARY_NAME "${FLYNARWHAL_BUNDLED_LIBRARY}" NAME)
+    if(FLYNARWHAL_BUNDLED_LIBRARY_NAME IN_LIST FLYNARWHAL_X64_ONLY_BUNDLED_LIBRARY_NAMES)
+      message(STATUS "Skipping x86_64-only bundled library for arm64: ${FLYNARWHAL_BUNDLED_LIBRARY_NAME}")
+    else()
+      list(APPEND FLYNARWHAL_FILTERED_BUNDLED_LIBRARIES "${FLYNARWHAL_BUNDLED_LIBRARY}")
+    endif()
+  endforeach()
+  set(PLUGIN_BUNDLED_LIBRARIES "${FLYNARWHAL_FILTERED_BUNDLED_LIBRARIES}")
+endif()
+
 if(PLUGIN_BUNDLED_LIBRARIES)
   install(FILES "${PLUGIN_BUNDLED_LIBRARIES}"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"

@@ -16,9 +16,12 @@
 
 import 'dart:io';
 
+// Only the lib64 roots are treated as system-library locations. The generic
+// '/lib' and '/usr/lib' prefixes are deliberately NOT listed: on Debian/Ubuntu
+// the full libmpv + FFmpeg closure lives under /usr/lib/<arch>-linux-gnu and
+// must be copied into the bundle. True low-level system loaders (ld-linux,
+// libc, libm, ...) are excluded via the soname allowlist below instead.
 const _kSystemLibPrefixes = <String>[
-  '/lib',
-  '/usr/lib',
   '/lib64',
   '/usr/lib64',
 ];
