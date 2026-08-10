@@ -318,7 +318,7 @@ final class MacOSUpdateInstaller implements PlatformUpdateInstaller {
         validatedInput.currentAppBundlePath,
         validatedInput.bundleIdentifier,
         validatedInput.installRecordPath,
-        _macOSPath.dirname(validatedInput.installRecordPath),
+        validatedInput.cacheRootPath,
         request.operationId,
         request.candidate.version.toString(),
         expectedSha256,
@@ -424,7 +424,7 @@ final class MacOSUpdateInstaller implements PlatformUpdateInstaller {
       );
     }
     final resolvedParent = await _fileSystem.resolvePath(recordParent);
-    if (!_pathsEqual(recordParent, resolvedParent) ||
+    if (!_pathsEqual(input.cacheRootPath, resolvedParent) &&
         !_macOSPath.isWithin(input.cacheRootPath, resolvedParent)) {
       throw const MacOSInstallerValidationException(
         'macos_record_parent_unsafe',
@@ -504,7 +504,6 @@ final class MacOSUpdateInstaller implements PlatformUpdateInstaller {
       return null;
     }
 
-    // Consume a matching terminal record to prevent repeated stale failures.
     await _fileSystem.deleteFile(installRecordPath);
     final failureCode = launchedTimedOut
         ? 'macos_install_record_timeout'
