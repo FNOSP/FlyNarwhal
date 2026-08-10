@@ -275,7 +275,11 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      # Signing is temporarily disabled: the repo has no MINISIGN_SECRET_KEY
+      # secret or committed minisign.pub yet, so the signing steps below are
+      # skipped until the key is configured. Re-enable by removing `if: false`.
       - name: Install minisign
+        if: false
         shell: bash
         run: |
           # Pinned static binary keeps the signing toolchain reproducible.
@@ -294,6 +298,7 @@ jobs:
           minisign -v
 
       - name: Prepare minisign secret key
+        if: false
         shell: bash
         env:
           RAW_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
@@ -333,6 +338,7 @@ jobs:
           ls -l release-assets
 
       - name: Sign installers with minisign
+        if: false
         shell: bash
         run: |
           set -euo pipefail
