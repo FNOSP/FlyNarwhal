@@ -195,8 +195,6 @@ final class UpdateDownloader implements UpdateDownloaderContract {
           rethrow;
         }
       }
-    } on UpdateDownloadException {
-      rethrow;
     } on UpdateOperationCancelledException catch (error) {
       throw _failure(
         UpdateDownloadFailureType.cancelled,

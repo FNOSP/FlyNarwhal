@@ -1,5 +1,7 @@
-import 'dart:convert';
+import 'dart:ffi' as ffi;
 import 'dart:io';
+
+import 'package:ffi/ffi.dart' as ffi_pkg;
 
 /// Replaceable free-space query used before creating a partial download.
 abstract interface class UpdateDiskSpaceProbe {
@@ -15,25 +17,7 @@ final class IoUpdateDiskSpaceProbe implements UpdateDiskSpaceProbe {
     final directory = Directory(directoryPath);
     await directory.create(recursive: true);
     if (Platform.isWindows) {
-      final absolutePath = directory.absolute.path;
-      final volume = absolutePath.length >= 2 && absolutePath[1] == ':'
-          ? absolutePath.substring(0, 2)
-          : absolutePath;
-      final result = await Process.run(
-        'fsutil',
-        <String>['volume', 'diskfree', volume],
-        stdoutEncoding: utf8,
-      );
-      if (result.exitCode == 0) {
-        final availableBytes = parseFsutilAvailableBytes(
-          result.stdout.toString(),
-        );
-        if (availableBytes != null) return availableBytes;
-      }
-      throw FileSystemException(
-        'Unable to query available disk space.',
-        directoryPath,
-      );
+      return _getWindowsAvailableBytes(directory.absolute.path);
     }
 
     final result = await Process.run('df', <String>['-Pk', directoryPath]);
@@ -63,6 +47,48 @@ final class FixedUpdateDiskSpaceProbe implements UpdateDiskSpaceProbe {
 
   @override
   Future<int> getAvailableBytes(String directoryPath) async => availableBytes;
+}
+
+int _getWindowsAvailableBytes(String directoryPath) {
+  final kernel32 = ffi.DynamicLibrary.open('kernel32.dll');
+  final getDiskFreeSpaceEx = kernel32.lookupFunction<
+      ffi.Int32 Function(
+        ffi.Pointer<ffi.Uint16> directoryName,
+        ffi.Pointer<ffi.Uint64> freeBytesAvailableToCaller,
+        ffi.Pointer<ffi.Uint64> totalNumberOfBytes,
+        ffi.Pointer<ffi.Uint64> totalNumberOfFreeBytes,
+      ),
+      int Function(
+        ffi.Pointer<ffi.Uint16> directoryName,
+        ffi.Pointer<ffi.Uint64> freeBytesAvailableToCaller,
+        ffi.Pointer<ffi.Uint64> totalNumberOfBytes,
+        ffi.Pointer<ffi.Uint64> totalNumberOfFreeBytes,
+      )>('GetDiskFreeSpaceExW');
+
+  final nativeDirectoryPath = directoryPath.toNativeUtf16().cast<ffi.Uint16>();
+  final freeBytesAvailableToCaller = ffi_pkg.calloc<ffi.Uint64>();
+  final totalNumberOfBytes = ffi_pkg.calloc<ffi.Uint64>();
+  final totalNumberOfFreeBytes = ffi_pkg.calloc<ffi.Uint64>();
+  try {
+    final succeeded = getDiskFreeSpaceEx(
+      nativeDirectoryPath,
+      freeBytesAvailableToCaller,
+      totalNumberOfBytes,
+      totalNumberOfFreeBytes,
+    );
+    if (succeeded == 0) {
+      throw FileSystemException(
+        'Unable to query available disk space through GetDiskFreeSpaceExW.',
+        directoryPath,
+      );
+    }
+    return freeBytesAvailableToCaller.value;
+  } finally {
+    ffi_pkg.calloc.free(nativeDirectoryPath);
+    ffi_pkg.calloc.free(freeBytesAvailableToCaller);
+    ffi_pkg.calloc.free(totalNumberOfBytes);
+    ffi_pkg.calloc.free(totalNumberOfFreeBytes);
+  }
 }
 
 int? parseFsutilAvailableBytes(String output) {

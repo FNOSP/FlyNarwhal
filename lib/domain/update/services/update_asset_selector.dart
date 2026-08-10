@@ -252,7 +252,8 @@ final class UpdateAssetSelector {
     return switch (packageType) {
       UpdatePackageType.exe =>
         normalized == 'application/vnd.microsoft.portable-executable' ||
-            normalized == 'application/x-msdownload',
+            normalized == 'application/x-msdownload' ||
+            normalized == 'application/x-msdos-program',
       UpdatePackageType.dmg => normalized == 'application/x-apple-diskimage',
       UpdatePackageType.deb =>
         normalized == 'application/vnd.debian.binary-package' ||
