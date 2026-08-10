@@ -25,7 +25,7 @@ dependencies:
   riverpod_annotation: ^2.3.5
   
   # Networking
-  dio: ^5.4.3
+  dio: 5.9.2
   talker: ^5.1.17
   talker_dio_logger: ^5.1.17
   talker_flutter: ^5.1.17
