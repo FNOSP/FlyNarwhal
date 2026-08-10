@@ -1,6 +1,3 @@
-// #region DEBUG
-import 'dart:io';
-// #endregion DEBUG
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -30,47 +27,16 @@ final class AppVersionService {
   }
 
   Future<String> getCurrentVersionText() async {
-    // #region DEBUG
-    const debugLogPath =
-        '/Users/jankinwu/Library/Containers/com.jankinwu.flyNarwhal/Data/Library/Application Support/debug/debug_f4684447.log';
-    void debugLog(String message) {
-      try {
-        File(debugLogPath).writeAsStringSync(
-          '${DateTime.now().toIso8601String()} $message\n',
-          mode: FileMode.append,
-        );
-      } catch (_) {}
-    }
-
-    debugLog(
-      '[DEBUG H1/H2] APP_FULL_VERSION raw="${AppConstants.appFullVersion}" '
-      'trimmed="${AppConstants.appFullVersion.trim()}" '
-      'parseOk=${SemanticVersion.tryParse(AppConstants.appFullVersion.trim()) != null}',
-    );
-    // #endregion DEBUG
     final defineVersion = AppConstants.appFullVersion.trim();
     if (defineVersion.isNotEmpty &&
         SemanticVersion.tryParse(defineVersion) != null) {
-      // #region DEBUG
-      debugLog('[DEBUG H1] branch=define result="$defineVersion"');
-      // #endregion DEBUG
       return defineVersion;
     }
     final pubspecVersion = await _readPubspecVersion();
-    // #region DEBUG
-    debugLog('[DEBUG FIX] branch=pubspec-asset result="$pubspecVersion"');
-    // #endregion DEBUG
     if (pubspecVersion != null) {
       return pubspecVersion;
     }
     final packageInfo = await PackageInfo.fromPlatform();
-    // #region DEBUG
-    debugLog(
-      '[DEBUG H1/H3] branch=packageInfo version="${packageInfo.version}" '
-      'buildNumber="${packageInfo.buildNumber}" '
-      'appName="${packageInfo.appName}" packageName="${packageInfo.packageName}"',
-    );
-    // #endregion DEBUG
     return packageInfo.version;
   }
 
