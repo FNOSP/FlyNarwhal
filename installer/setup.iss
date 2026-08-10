@@ -21,6 +21,7 @@
 #define MyUpdaterExecutable "updater.exe"
 #define MyPreviousUpdaterExecutable "flynarwhal-updater.exe"
 #define MyLegacyUpdaterExecutable "fntv-updater.exe"
+#define MyInstallerIcon "..\\windows\\runner\\resources\\app_icon.ico"
 
 #if !DirExists(FlutterBundleDir)
   #error FlutterBundleDir does not exist.
@@ -37,6 +38,9 @@
 #if FileExists(FlutterBundleDir + "\\" + MyLegacyUpdaterExecutable)
   #error Flutter bundle still contains the legacy updater executable.
 #endif
+#if !FileExists(MyInstallerIcon)
+  #error Installer icon file does not exist.
+#endif
 
 [Setup]
 AppId={#MyAppId}
@@ -48,6 +52,8 @@ PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
 OutputDir=..\build\installer
 OutputBaseFilename=FlyNarwhal_Setup_Windows_{#MyAppArch}_{#MyAppVersion}
+SetupIconFile={#MyInstallerIcon}
+UninstallDisplayIcon={app}\{#MyAppExecutable}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
