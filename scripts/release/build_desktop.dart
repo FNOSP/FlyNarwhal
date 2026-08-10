@@ -413,6 +413,7 @@ Description: FlyNarwhal desktop media player
     ],
     dryRun: false,
   );
+  await _validateDebPackage(File(debPath));
   stdout.writeln('Created Debian package: $debPath');
 }
 
@@ -438,7 +439,8 @@ Future<void> _runLinuxPackageRpm({
   final rpmPath = '${distDir.path}/$rpmName';
 
   // fpm packages the staged payload (opt/, usr/) from the staging root using
-  // the paths as-is, mirroring the .deb layout.
+  // the paths as-is, mirroring the .deb layout. The output path is pinned with
+  // --package so the filename is deterministic regardless of fpm's defaults.
   await _runProcess(
     executable: 'fpm',
     arguments: <String>[
@@ -463,16 +465,14 @@ Future<void> _runLinuxPackageRpm({
       'FlyNarwhal desktop media player',
       '-C',
       stagingRoot.path,
+      '--package',
+      rpmPath,
       'opt',
       'usr',
     ],
     dryRun: false,
   );
-  final builtRpm = File('fly-narwhal-$rpmVersion-$rpmIteration.$rpmArch.rpm');
-  if (!await builtRpm.exists()) {
-    _fail('fpm did not produce the expected rpm: ${builtRpm.path}');
-  }
-  await builtRpm.rename(rpmPath);
+  await _validateRpmPackage(File(rpmPath), architecture);
   stdout.writeln('Created RPM package: $rpmPath');
 }
 
@@ -551,11 +551,90 @@ exec "\$HERE/fly_narwhal" "\$@"
     dryRun: false,
   );
   await stagingRoot.delete(recursive: true);
+  await _validateAppImagePackage(File(appImagePath));
   stdout.writeln('Created AppImage: $appImagePath');
 }
 
 String _updateArch(String architecture) =>
     architecture == 'arm64' ? 'aarch64' : 'amd64';
+
+/// Verifies that a built package exists and is non-empty.
+Future<void> _validatePackageExists(File package) async {
+  if (!await package.exists()) {
+    _fail('Package is missing: ${package.path}');
+  }
+  final size = await package.length();
+  if (size == 0) {
+    _fail('Package is empty: ${package.path}');
+  }
+}
+
+/// Validates a Debian package with dpkg-deb.
+Future<void> _validateDebPackage(File deb) async {
+  await _validatePackageExists(deb);
+  // dpkg-deb is only guaranteed to exist on Debian/Ubuntu hosts. On other
+  // platforms this is a warning rather than a hard failure because the real
+  // release builds always run on Ubuntu.
+  if (!Platform.isLinux) {
+    stdout.writeln('Skipping dpkg-deb validation on non-Linux host');
+    return;
+  }
+  final result = await Process.run(
+    'dpkg-deb',
+    <String>['--info', deb.path],
+  );
+  if (result.exitCode != 0) {
+    _fail('dpkg-deb validation failed for ${deb.path}: ${result.stderr}');
+  }
+}
+
+/// Validates an RPM package with rpm -qpi and checks the architecture field.
+Future<void> _validateRpmPackage(File rpm, String architecture) async {
+  await _validatePackageExists(rpm);
+  if (!Platform.isLinux) {
+    stdout.writeln('Skipping rpm validation on non-Linux host');
+    return;
+  }
+  final result = await Process.run(
+    'rpm',
+    <String>['-qpi', rpm.path],
+  );
+  if (result.exitCode != 0) {
+    _fail('rpm validation failed for ${rpm.path}: ${result.stderr}');
+  }
+  final expectedArch = _updateArch(architecture) == 'aarch64' ? 'aarch64' : 'x86_64';
+  final output = result.stdout.toString();
+  if (!output.contains('Architecture: $expectedArch')) {
+    _fail(
+      'RPM architecture mismatch for ${rpm.path}: expected $expectedArch, '
+      'rpm output was:\n$output',
+    );
+  }
+}
+
+/// Validates an AppImage by checking it is executable and can report its own
+/// version without FUSE (uses --appimage-extract-and-run internally).
+Future<void> _validateAppImagePackage(File appImage) async {
+  await _validatePackageExists(appImage);
+  final stat = await appImage.stat();
+  if (stat.mode & 0x111 == 0) {
+    _fail('AppImage is not executable: ${appImage.path}');
+  }
+  if (!Platform.isLinux) {
+    stdout.writeln('Skipping AppImage runtime validation on non-Linux host');
+    return;
+  }
+  final result = await Process.run(
+    appImage.path,
+    <String>['--appimage-extract-and-run', '--appimage-version'],
+    environment: <String, String>{...Platform.environment},
+  );
+  if (result.exitCode != 0) {
+    _fail(
+      'AppImage runtime validation failed for ${appImage.path}: ${result.stderr}',
+    );
+  }
+}
 
 Future<void> _copyDirectory(Directory source, Directory target) async {
   for (final entity in source.listSync(recursive: true)) {

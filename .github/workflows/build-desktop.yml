@@ -328,8 +328,9 @@ jobs:
           set -euo pipefail
           mkdir -p release-assets
           # Flatten installers so published asset names match SHA256SUMS entries.
-          find artifacts -type f \( -name 'FlyNarwhal_Setup_*.exe' -o -name 'FlyNarwhal_Setup_*.dmg' -o -name 'FlyNarwhal_Setup_*.deb' \) \
-            -exec cp -f {} release-assets/ \;
+          # Include all desktop packages produced by the build matrix:
+          # Windows (.exe), macOS (.dmg), Linux (.deb, .rpm, .AppImage).
+          find artifacts -type f -name 'FlyNarwhal_Setup_*' -exec cp -f {} release-assets/ \;
           count=$(find release-assets -type f | wc -l)
           if [ "$count" -eq 0 ]; then
             echo '::error::No FlyNarwhal installers found in the build artifacts.'
@@ -350,7 +351,7 @@ jobs:
           cd release-assets
           shopt -s nullglob
           # Emit a same-name .sig detached signature for every installer.
-          for file in FlyNarwhal_Setup_*.exe FlyNarwhal_Setup_*.dmg FlyNarwhal_Setup_*.deb; do
+          for file in FlyNarwhal_Setup_*.exe FlyNarwhal_Setup_*.dmg FlyNarwhal_Setup_*.deb FlyNarwhal_Setup_*.rpm FlyNarwhal_Setup_*.AppImage; do
             minisign -S -s "$MINISIGN_SECRET_KEY_PATH" -m "$file" -x "$file.sig" -t "file=$file tag=$GITHUB_REF_NAME"
             minisign -Vm "$file" -x "$file.sig" -p ../minisign.pub
           done
