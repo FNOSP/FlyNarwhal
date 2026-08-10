@@ -669,8 +669,9 @@ Future<void> _validateRpmPackage(File rpm, String architecture) async {
   }
 }
 
-/// Validates an AppImage by checking it is executable and can report its own
-/// version without FUSE (uses --appimage-extract-and-run internally).
+/// Validates an AppImage by checking it is executable and the embedded runtime
+/// can report its own version (a headless-safe operation that does not launch
+/// the payload).
 Future<void> _validateAppImagePackage(File appImage) async {
   await _validatePackageExists(appImage);
   final stat = await appImage.stat();
@@ -683,7 +684,7 @@ Future<void> _validateAppImagePackage(File appImage) async {
   }
   final result = await Process.run(
     appImage.path,
-    <String>['--appimage-extract-and-run', '--appimage-version'],
+    <String>['--appimage-version'],
     environment: <String, String>{...Platform.environment},
   );
   if (result.exitCode != 0) {
