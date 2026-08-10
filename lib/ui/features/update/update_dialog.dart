@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../domain/update/entities/update_models.dart';
+import '../../../domain/update/repositories/update_repository_error.dart';
 import '../../../providers/update_providers.dart';
 import '../../shared/toast.dart';
 import 'update_markdown_view.dart';
@@ -432,6 +433,10 @@ String _failureSummary(
   UpdateWorkflowFailure? failure,
   UpdateDialogPhase phase,
 ) {
+  if (failure is UpdateCheckFailure &&
+      failure.code == UpdateRepositoryErrorCode.rateLimited.name) {
+    return 'GitHub 接口访问频率超限，通常稍后会自动恢复，请稍后再试。';
+  }
   if (failure is UpdateVerificationFailure) {
     return switch (failure.reason) {
       _ => '更新包未通过安全校验，请重新下载。',

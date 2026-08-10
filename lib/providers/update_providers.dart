@@ -1,19 +1,25 @@
-import 'dart:io' show File, Platform;
+import 'dart:io' show Directory, File, Platform, exit, pid;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../data/datasources/remote/github_release_data_source.dart';
 import '../data/repositories/update_repository_impl.dart';
+import '../data/storage/github_release_response_cache.dart';
 import '../data/storage/update_settings_store.dart';
+import '../domain/update/entities/update_models.dart';
 import '../domain/update/repositories/update_repository.dart';
 import '../domain/update/services/update_asset_selector.dart';
 import '../domain/update/services/update_policy.dart';
 import '../services/update/app_version_service.dart';
 import '../services/update/download_url_resolver.dart';
+import '../services/update/linux_package_identity.dart';
+import '../services/update/linux_update_installer.dart';
+import '../services/update/macos_update_installer.dart';
 import '../services/update/platform_update_installer.dart';
 import '../services/update/sha256_verifier.dart';
 import '../services/update/update_downloader.dart';
@@ -44,11 +50,18 @@ final updateDioProvider = Provider<Dio>((ref) {
   );
 });
 
+/// Provides the ETag cache that keeps conditional-request quota usage low.
+final githubReleaseResponseCacheProvider =
+    Provider<GitHubReleaseResponseCache>((ref) {
+  return const FileGitHubReleaseResponseCache();
+});
+
 final githubReleaseDataSourceProvider =
     Provider<GitHubReleaseDataSource>((ref) {
   return GitHubReleaseDataSource(
     dio: ref.watch(updateDioProvider),
     userAgent: 'FlyNarwhal desktop client',
+    responseCache: ref.watch(githubReleaseResponseCacheProvider),
   );
 });
 
@@ -81,17 +94,105 @@ final updateDownloaderProvider = Provider<UpdateDownloader>((ref) {
   );
 });
 
+/// Shared update cache root, matching UpdateFileStore._defaultUpdatesDirectory.
+Future<Directory> _defaultUpdateCacheDirectory() async {
+  final temporaryRoot = await getTemporaryDirectory();
+  return Directory(path.join(temporaryRoot.path, 'updates'));
+}
+
+/// macOS install record path, kept inside the update cache root.
+String _macOSInstallRecordPath(String cacheRoot) {
+  return path.join(cacheRoot, 'macos-install-record.json');
+}
+
+/// Linux install record path, kept inside the update cache root.
+String _linuxInstallRecordPath(String cacheRoot) {
+  return path.join(cacheRoot, 'linux-install-record.json');
+}
+
 final platformUpdateInstallerProvider =
     Provider<PlatformUpdateInstaller>((ref) {
-  if (kIsWeb || !Platform.isWindows) {
+  if (kIsWeb) {
     return const UnsupportedPlatformUpdateInstaller();
   }
-  final currentExecutable = File(Platform.resolvedExecutable);
-  final updaterPath = path.join(
-    currentExecutable.parent.path,
-    WindowsUpdateInstaller.updaterExecutableName,
+  if (Platform.isWindows) {
+    final currentExecutable = File(Platform.resolvedExecutable);
+    final updaterPath = path.join(
+      currentExecutable.parent.path,
+      WindowsUpdateInstaller.updaterExecutableName,
+    );
+    return WindowsUpdateInstaller(updaterExecutable: File(updaterPath));
+  }
+  if (Platform.isMacOS) {
+    return ref.watch(macOSUpdateInstallerProvider);
+  }
+  if (Platform.isLinux) {
+    return ref.watch(linuxUpdateInstallerProvider);
+  }
+  return const UnsupportedPlatformUpdateInstaller();
+});
+
+final macOSUpdateInstallerProvider = Provider<MacOSUpdateInstaller>((ref) {
+  return MacOSUpdateInstaller(
+    inputFactory: (request) async {
+      final cacheRootDir = await _defaultUpdateCacheDirectory();
+      final cacheRoot = cacheRootDir.path;
+      await cacheRootDir.create(recursive: true);
+      final appBundlePath = ref
+              .watch(appVersionServiceProvider)
+              .getCurrentPlatform()
+              .appBundlePath ??
+          '';
+      return MacOSUpdateInstallInput(
+        processId: pid,
+        dmgFilePath: request.packageFile.path,
+        currentAppBundlePath: appBundlePath,
+        expectedAppBundlePath: appBundlePath,
+        bundleIdentifier: macOSBundleIdentifier,
+        cacheRootPath: cacheRoot,
+        installRecordPath: _macOSInstallRecordPath(cacheRoot),
+      );
+    },
   );
-  return WindowsUpdateInstaller(updaterExecutable: File(updaterPath));
+});
+
+final linuxUpdateInstallerProvider = Provider<LinuxUpdateInstaller>((ref) {
+  final identity = LinuxPackageIdentity.fromConfiguration(
+    configurations: const <LinuxPackageIdentityConfiguration>[
+      LinuxPackageIdentityConfiguration(
+        source: FlutterLinuxRunnerIdentity.source,
+        packageName: FlutterLinuxRunnerIdentity.executableName,
+        desktopId: FlutterLinuxRunnerIdentity.applicationId,
+        executableName: FlutterLinuxRunnerIdentity.executableName,
+        installedExecutablePath:
+            '/usr/bin/${FlutterLinuxRunnerIdentity.executableName}',
+      ),
+    ],
+  );
+  return LinuxUpdateInstaller(
+    identity: identity,
+    inputFactory: (request) async {
+      final cacheRootDir = await _defaultUpdateCacheDirectory();
+      final cacheRoot = cacheRootDir.path;
+      await cacheRootDir.create(recursive: true);
+      final platform =
+          ref.watch(appVersionServiceProvider).getCurrentPlatform();
+      final packageType =
+          const CanonicalUpdateAssetNameParser().tryParse(request.candidate.asset.name)?.packageType ??
+              UpdatePackageType.appImage;
+      return LinuxUpdateInstallInput(
+        processId: pid,
+        packageType: packageType,
+        packageFilePath: request.packageFile.path,
+        cacheRootPath: cacheRoot,
+        installRecordPath: _linuxInstallRecordPath(cacheRoot),
+        distributionFamily: platform.linuxFamily ?? LinuxDistributionFamily.other,
+        distributionId: null,
+        currentExecutablePath: platform.executablePath ?? '',
+        appImageEnvironmentPath: platform.appImagePath,
+      );
+    },
+  );
 });
 
 final windowsInstallResultStoreProvider = Provider<WindowsInstallResultStore?>(
@@ -105,25 +206,52 @@ final windowsInstallResultStoreProvider = Provider<WindowsInstallResultStore?>(
 
 final updateInstallFailureRecoveryProvider =
     Provider<UpdateInstallFailureRecovery>((ref) {
-  final store = ref.watch(windowsInstallResultStoreProvider);
-  if (store == null) {
+  if (kIsWeb) {
     return () async => null;
   }
-  return () async {
-    try {
-      final result = await store.consume();
-      return result?.toFailure();
-    } on FormatException {
-      return null;
-    }
-  };
+  if (Platform.isWindows) {
+    final store = ref.watch(windowsInstallResultStoreProvider);
+    return () async {
+      try {
+        final result = await store?.consume();
+        return result?.toFailure();
+      } on FormatException {
+        return null;
+      }
+    };
+  }
+  if (Platform.isMacOS) {
+    final installer = ref.watch(macOSUpdateInstallerProvider);
+    return () async {
+      final cacheRootDir = await _defaultUpdateCacheDirectory();
+      return installer.recoverFailure(
+        _macOSInstallRecordPath(cacheRootDir.path),
+      );
+    };
+  }
+  if (Platform.isLinux) {
+    final installer = ref.watch(linuxUpdateInstallerProvider);
+    return () async {
+      final cacheRootDir = await _defaultUpdateCacheDirectory();
+      return installer.recoverFailure(_linuxInstallRecordPath(cacheRootDir.path));
+    };
+  }
+  return () async => null;
 });
 
 final updateExitRequesterProvider = Provider<UpdateExitRequester>((ref) {
-  if (kIsWeb || !Platform.isWindows) {
+  if (kIsWeb) {
     return () async {};
   }
-  return () => windowManager.destroy();
+  if (Platform.isWindows) {
+    return () => windowManager.destroy();
+  }
+  if (Platform.isMacOS || Platform.isLinux) {
+    // The detached platform helper waits for the current process to exit
+    // before replacing the running app bundle or package.
+    return () async => exit(0);
+  }
+  return () async {};
 });
 
 /// Provides global update discovery state for title bars and settings.
