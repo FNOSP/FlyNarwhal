@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../domain/update/entities/update_models.dart';
 import '../../../domain/update/repositories/update_repository_error.dart';
 import '../../../providers/update_providers.dart';
+import '../../shared/dialogs/app_dialog.dart';
 import '../../shared/toast.dart';
 import 'update_markdown_view.dart';
 import 'update_state.dart';
@@ -21,24 +24,44 @@ Future<void> showUpdateDialog(BuildContext context) {
       builder: (context, ref, child) {
         final updateState = ref.watch(updateControllerProvider);
         final controller = ref.read(updateControllerProvider.notifier);
+
+        void popDialog() => Navigator.maybePop(dialogContext);
+
         return UpdateDialog(
           state: updateState,
           onClose: () {
             controller.closeDialog();
-            Navigator.maybePop(dialogContext);
+            popDialog();
           },
-          onSkip: controller.skipCandidate,
-          onDownload: controller.startForegroundDownload,
-          onCancelDownload: controller.cancelDownload,
-          onRetryDownload: controller.retryManualDownload,
-          onInstall: controller.installDownloadedUpdate,
-          onRetryInstall: controller.retryInstallation,
+          onSkip: () {
+            unawaited(controller.skipCandidate());
+            popDialog();
+          },
+          onDownload: () {
+            unawaited(controller.startForegroundDownload());
+          },
+          onCancelDownload: () {
+            unawaited(controller.cancelDownload());
+            popDialog();
+          },
+          onRetryDownload: () {
+            unawaited(controller.retryManualDownload());
+          },
+          onInstall: () {
+            unawaited(controller.installDownloadedUpdate());
+            popDialog();
+          },
+          onRetryInstall: () {
+            unawaited(controller.retryInstallation());
+            popDialog();
+          },
           onManualDownload: () async {
             final releaseUrl = updateState.candidate?.releasePageUrl;
+            popDialog();
             if (releaseUrl == null) return;
             final opened = await _launchReleasePage(releaseUrl);
             if (!opened) {
-              ref.read(toastManagerProvider.notifier).showToast(
+              container.read(toastManagerProvider.notifier).showToast(
                     '无法打开手动下载页面，请稍后重试。',
                     type: ToastType.failed,
                     category: 'update-link',
@@ -46,7 +69,7 @@ Future<void> showUpdateDialog(BuildContext context) {
             }
           },
           onLinkFailure: (_) {
-            ref.read(toastManagerProvider.notifier).showToast(
+            container.read(toastManagerProvider.notifier).showToast(
                   '无法打开链接，请稍后重试。',
                   type: ToastType.failed,
                   category: 'update-link',
@@ -82,29 +105,29 @@ class UpdateDialog extends StatelessWidget {
   final UpdateState state;
   final String currentVersion;
   final VoidCallback onClose;
-  final Future<void> Function()? onSkip;
-  final Future<void> Function()? onDownload;
-  final Future<void> Function()? onCancelDownload;
-  final Future<void> Function()? onRetryDownload;
-  final Future<void> Function()? onInstall;
-  final Future<void> Function()? onRetryInstall;
-  final Future<void> Function()? onManualDownload;
+  final VoidCallback? onSkip;
+  final VoidCallback? onDownload;
+  final VoidCallback? onCancelDownload;
+  final VoidCallback? onRetryDownload;
+  final VoidCallback? onInstall;
+  final VoidCallback? onRetryInstall;
+  final VoidCallback? onManualDownload;
   final UpdateLinkFailureCallback? onLinkFailure;
 
   @override
   Widget build(BuildContext context) {
     final dialogPhase = state.presentation.dialogPhase;
-    final actions = _buildActions(context, dialogPhase);
-    final closeIntent = CallbackShortcuts(
+    final actions = _actionsFor(dialogPhase);
+    return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.escape): onClose,
       },
       child: FocusTraversalGroup(
         policy: OrderedTraversalPolicy(),
-        child: ContentDialog(
+        child: AppDialog<void>(
           key: const ValueKey('update-dialog'),
           constraints: const BoxConstraints(minWidth: 520, maxWidth: 600),
-          title: Text(_titleFor(dialogPhase)),
+          title: _titleFor(dialogPhase),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 390),
             child: SingleChildScrollView(
@@ -112,22 +135,15 @@ class UpdateDialog extends StatelessWidget {
               child: _buildContent(context, dialogPhase),
             ),
           ),
-          actions: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: Wrap(
-                key: const ValueKey('update-dialog-actions'),
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
-                children: actions,
-              ),
-            ),
-          ],
+          tertiaryButtonText: actions.tertiaryText,
+          secondaryButtonText: actions.secondaryText,
+          primaryButtonText: actions.primaryText,
+          onTertiaryPressed: actions.onTertiaryPressed,
+          onSecondaryPressed: actions.onSecondaryPressed,
+          onPrimaryPressed: actions.onPrimaryPressed,
         ),
       ),
     );
-    return closeIntent;
   }
 
   String _titleFor(UpdateDialogPhase phase) {
@@ -146,6 +162,75 @@ class UpdateDialog extends StatelessWidget {
       UpdateDialogPhase.installFailed => '启动安装失败',
       UpdateDialogPhase.automaticDownloadExhausted => '自动下载未完成',
       UpdateDialogPhase.none => '应用更新',
+    };
+  }
+
+  _UpdateDialogActions _actionsFor(UpdateDialogPhase phase) {
+    return switch (phase) {
+      UpdateDialogPhase.checking => _UpdateDialogActions(
+          secondaryText: '后台检查',
+          onSecondaryPressed: onClose,
+        ),
+      UpdateDialogPhase.available => _UpdateDialogActions(
+          tertiaryText: '跳过此版本',
+          onTertiaryPressed: onSkip,
+          secondaryText: '稍后再说',
+          onSecondaryPressed: onClose,
+          primaryText: '下载更新',
+          onPrimaryPressed: onDownload,
+        ),
+      UpdateDialogPhase.downloading => _UpdateDialogActions(
+          secondaryText: '后台下载',
+          onSecondaryPressed: onClose,
+          primaryText: '取消下载',
+          onPrimaryPressed: onCancelDownload,
+        ),
+      UpdateDialogPhase.downloaded => _UpdateDialogActions(
+          secondaryText: '稍后安装',
+          onSecondaryPressed: onClose,
+          primaryText: '退出并安装',
+          onPrimaryPressed: onInstall,
+        ),
+      UpdateDialogPhase.readyToInstall => _UpdateDialogActions(
+          tertiaryText: '跳过此版本',
+          onTertiaryPressed: onSkip,
+          secondaryText: '稍后安装',
+          onSecondaryPressed: onClose,
+          primaryText: '退出并安装',
+          onPrimaryPressed: onInstall,
+        ),
+      UpdateDialogPhase.verifying ||
+      UpdateDialogPhase.installing =>
+        _UpdateDialogActions(
+          secondaryText: '后台运行',
+          onSecondaryPressed: onClose,
+        ),
+      UpdateDialogPhase.downloadFailed ||
+      UpdateDialogPhase.verificationFailed =>
+        _UpdateDialogActions(
+          secondaryText: '稍后再说',
+          onSecondaryPressed: onClose,
+          primaryText: '重新下载',
+          onPrimaryPressed: onRetryDownload,
+        ),
+      UpdateDialogPhase.installFailed => _UpdateDialogActions(
+          secondaryText: '稍后再说',
+          onSecondaryPressed: onClose,
+          primaryText: '重试安装',
+          onPrimaryPressed: onRetryInstall,
+        ),
+      UpdateDialogPhase.automaticDownloadExhausted => _UpdateDialogActions(
+          tertiaryText: '跳过此版本',
+          onTertiaryPressed: onSkip,
+          secondaryText: '稍后再说',
+          onSecondaryPressed: onClose,
+          primaryText: '手动下载',
+          onPrimaryPressed: onManualDownload,
+        ),
+      _ => _UpdateDialogActions(
+          secondaryText: '关闭',
+          onSecondaryPressed: onClose,
+        ),
     };
   }
 
@@ -217,93 +302,28 @@ class UpdateDialog extends StatelessWidget {
         ),
     };
   }
+}
 
-  List<Widget> _buildActions(BuildContext context, UpdateDialogPhase phase) {
-    Button closeButton({String label = '稍后再说', bool autofocus = false}) {
-      return Button(
-        key: const ValueKey('update-action-later'),
-        autofocus: autofocus,
-        onPressed: onClose,
-        child: Text(label),
-      );
-    }
+/// Button-slot configuration for one update dialog phase.
+///
+/// Maps onto [AppDialog]'s three action slots: tertiary sits on the left,
+/// secondary and primary on the right.
+class _UpdateDialogActions {
+  const _UpdateDialogActions({
+    this.tertiaryText,
+    this.secondaryText,
+    this.primaryText,
+    this.onTertiaryPressed,
+    this.onSecondaryPressed,
+    this.onPrimaryPressed,
+  });
 
-    Button skipButton() => Button(
-          key: const ValueKey('update-action-skip'),
-          onPressed: onSkip == null ? null : () => onSkip!(),
-          child: const Text('跳过此版本'),
-        );
-
-    FilledButton installButton() => FilledButton(
-          key: const ValueKey('update-action-install'),
-          onPressed: onInstall == null ? null : () => onInstall!(),
-          child: const Text('退出并安装'),
-        );
-
-    return switch (phase) {
-      UpdateDialogPhase.checking => [closeButton(label: '后台检查')],
-      UpdateDialogPhase.available => [
-          skipButton(),
-          closeButton(autofocus: true),
-          FilledButton(
-            key: const ValueKey('update-action-download'),
-            onPressed: onDownload == null ? null : () => onDownload!(),
-            child: const Text('下载更新'),
-          ),
-        ],
-      UpdateDialogPhase.downloading => [
-          closeButton(label: '后台下载'),
-          Button(
-            key: const ValueKey('update-action-cancel-download'),
-            onPressed:
-                onCancelDownload == null ? null : () => onCancelDownload!(),
-            child: const Text('取消下载'),
-          ),
-        ],
-      UpdateDialogPhase.downloaded => [
-          closeButton(label: '稍后安装', autofocus: true),
-          installButton(),
-        ],
-      UpdateDialogPhase.readyToInstall => [
-          skipButton(),
-          closeButton(label: '稍后安装', autofocus: true),
-          installButton(),
-        ],
-      UpdateDialogPhase.verifying || UpdateDialogPhase.installing => [
-          closeButton(label: '后台运行'),
-        ],
-      UpdateDialogPhase.downloadFailed ||
-      UpdateDialogPhase.verificationFailed =>
-        [
-          closeButton(),
-          FilledButton(
-            key: const ValueKey('update-action-retry-download'),
-            onPressed:
-                onRetryDownload == null ? null : () => onRetryDownload!(),
-            child: const Text('重新下载'),
-          ),
-        ],
-      UpdateDialogPhase.installFailed => [
-          closeButton(),
-          FilledButton(
-            key: const ValueKey('update-action-retry-install'),
-            onPressed: onRetryInstall == null ? null : () => onRetryInstall!(),
-            child: const Text('重试安装'),
-          ),
-        ],
-      UpdateDialogPhase.automaticDownloadExhausted => [
-          skipButton(),
-          closeButton(autofocus: true),
-          FilledButton(
-            key: const ValueKey('update-action-manual-download'),
-            onPressed:
-                onManualDownload == null ? null : () => onManualDownload!(),
-            child: const Text('手动下载'),
-          ),
-        ],
-      _ => [closeButton(label: '关闭', autofocus: true)],
-    };
-  }
+  final String? tertiaryText;
+  final String? secondaryText;
+  final String? primaryText;
+  final VoidCallback? onTertiaryPressed;
+  final VoidCallback? onSecondaryPressed;
+  final VoidCallback? onPrimaryPressed;
 }
 
 class _StatusContent extends StatelessWidget {

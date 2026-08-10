@@ -689,25 +689,33 @@ ROLLBACK_ATTEMPTED=false
 ROLLBACK_SUCCEEDED=false
 ROLLBACK_ERROR=""
 
+json_string() {
+  printf '%s' "$1" | /usr/bin/sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
 write_record() {
   RECORD_PARENT=$(dirname -- "$RECORD_PATH")
   REAL_RECORD_PARENT=$(CDPATH= cd -- "$RECORD_PARENT" 2>/dev/null && pwd -P) || return 1
   [ "$REAL_RECORD_PARENT" = "$EXPECTED_RECORD_PARENT" ] || return 1
   [ ! -L "$RECORD_PATH" ] && [ ! -L "$RECORD_PATH.tmp" ] || return 1
   CREATED_AT=$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')
-  /usr/bin/plutil -create json "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert schemaVersion -integer 2 "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert operationId -string "$OPERATION_ID" "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert version -string "$VERSION" "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert expectedSha256 -string "$EXPECTED_SHA256" "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert stage -string "$1" "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert exitCode -integer "$2" "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert primaryError -string "$3" "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert rollbackAttempted -bool "$ROLLBACK_ATTEMPTED" "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert rollbackSucceeded -bool "$ROLLBACK_SUCCEEDED" "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert rollbackError -string "$ROLLBACK_ERROR" "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert backupPath -string "$BACKUP_APP" "$RECORD_PATH.tmp" || return 1
-  /usr/bin/plutil -insert createdAt -string "$CREATED_AT" "$RECORD_PATH.tmp" || return 1
+  cat > "$RECORD_PATH.tmp" <<RECORD_EOF
+{
+  "schemaVersion": 2,
+  "operationId": "$(json_string "$OPERATION_ID")",
+  "version": "$(json_string "$VERSION")",
+  "expectedSha256": "$(json_string "$EXPECTED_SHA256")",
+  "stage": "$(json_string "$1")",
+  "exitCode": $2,
+  "primaryError": "$(json_string "$3")",
+  "rollbackAttempted": $ROLLBACK_ATTEMPTED,
+  "rollbackSucceeded": $ROLLBACK_SUCCEEDED,
+  "rollbackError": "$(json_string "$ROLLBACK_ERROR")",
+  "backupPath": "$(json_string "$BACKUP_APP")",
+  "createdAt": "$CREATED_AT"
+}
+RECORD_EOF
+  [ -s "$RECORD_PATH.tmp" ] || return 1
   /bin/chmod 0600 "$RECORD_PATH.tmp" || return 1
   /bin/mv -f "$RECORD_PATH.tmp" "$RECORD_PATH" || return 1
   /bin/chmod 0600 "$RECORD_PATH"
@@ -755,7 +763,7 @@ finish() {
   fi
 }
 trap finish EXIT HUP INT TERM
-write_record launched 0 "" || exit 36
+write_record launched 0 "" || { fail 36 macos_record_write_failed; exit "$PRIMARY_CODE"; }
 
 case "$PID" in ''|*[!0-9]*) fail 20 macos_invalid_pid ;; *) [ "$PID" -gt 0 ] || fail 20 macos_invalid_pid ;; esac
 [ "$PRIMARY_CODE" -eq 0 ] || exit "$PRIMARY_CODE"
@@ -792,7 +800,7 @@ BACKUP_CREATED=1
 MOUNTED=0
 /usr/bin/open "$TARGET_APP" || { fail 34 macos_open_failed; exit "$PRIMARY_CODE"; }
 BACKUP_CREATED=0
-write_record completed 0 "" || exit 36
+write_record completed 0 "" || { fail 36 macos_record_write_failed; exit "$PRIMARY_CODE"; }
 /bin/rm -f -- "$DMG_PATH"
 /bin/rm -rf "$BACKUP_APP" "$MOUNT_POINT"
 /bin/rm -f -- "$0"
