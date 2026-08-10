@@ -50,20 +50,9 @@ func color(_ hex: Int, alpha: CGFloat = 1) -> CGColor {
     )
 }
 
-// Dark vertical gradient matching the app's dark theme.
-let colorSpace = CGColorSpaceCreateDeviceRGB()
-guard let gradient = CGGradient(
-    colorsSpace: colorSpace,
-    colors: [color(0x26282d), color(0x181a1e)] as CFArray,
-    locations: [0, 1]
-) else { fatalError("failed to create gradient") }
-// cg origin is bottom-left: start at the top so the lighter stop is on top.
-ctx.drawLinearGradient(
-    gradient,
-    start: CGPoint(x: 0, y: logicalHeight),
-    end: CGPoint(x: 0, y: 0),
-    options: []
-)
+// White background so the app name and instructions remain readable.
+ctx.setFillColor(NSColor.white.cgColor)
+ctx.fill(CGRect(x: 0, y: 0, width: logicalWidth, height: logicalHeight))
 
 func drawCenteredText(_ text: String, topY: CGFloat, fontSize: CGFloat, weight: NSFont.Weight, color: NSColor) {
     let attributes: [NSAttributedString.Key: Any] = {
@@ -80,19 +69,19 @@ func drawCenteredText(_ text: String, topY: CGFloat, fontSize: CGFloat, weight: 
     (text as NSString).draw(in: rect, withAttributes: attributes)
 }
 
-drawCenteredText("FlyNarwhal", topY: 52, fontSize: 30, weight: .semibold, color: NSColor(white: 0.95, alpha: 1))
+drawCenteredText("FlyNarwhal", topY: 52, fontSize: 30, weight: .semibold, color: NSColor(white: 0.1, alpha: 1))
 drawCenteredText(
     "Drag FlyNarwhal to the Applications folder to install",
     topY: 102,
     fontSize: 13,
     weight: .regular,
-    color: NSColor(white: 1, alpha: 0.55)
+    color: NSColor(white: 0, alpha: 0.55)
 )
 
 // Arrow spanning the gap between the app icon (center 150,210, right edge 198)
 // and the Applications link (center 450,210, left edge 402).
 let arrowY = logicalHeight - 210
-let arrowColor = color(0x8aa0d8, alpha: 0.5)
+let arrowColor = color(0x333333, alpha: 0.4)
 ctx.setStrokeColor(arrowColor)
 ctx.setFillColor(arrowColor)
 ctx.setLineWidth(2.5)
