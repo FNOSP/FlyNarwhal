@@ -10,6 +10,8 @@ import 'talker_file_history.dart';
 import 'talker_formatter.dart';
 import 'talker_log_sanitizer.dart';
 import 'talker_log_types.dart';
+import 'talker_windows_log_directory_stub.dart'
+    if (dart.library.io) 'talker_windows_log_directory_io.dart';
 
 /// Shared talker entrypoint used across the whole app.
 class AppTalker {
@@ -142,6 +144,14 @@ class AppTalker {
 
     if (kIsWeb || !_isDesktopPlatform()) {
       return null;
+    }
+
+    // Keep Windows logs under %APPDATA%\com.jankinwu\FlyNarwhal\logs.
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      final windowsLogDirectory = resolveWindowsLogDirectoryPath();
+      if (windowsLogDirectory != null) {
+        return windowsLogDirectory;
+      }
     }
 
     final supportDirectory = await getApplicationSupportDirectory();
