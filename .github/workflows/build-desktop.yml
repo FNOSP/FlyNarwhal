@@ -139,7 +139,9 @@ jobs:
           tar -xzf /tmp/create-dmg.tar.gz -C /tmp
           chmod +x /tmp/create-dmg-1.3.0/create-dmg
           echo "/tmp/create-dmg-1.3.0" >> "$GITHUB_PATH"
-          create-dmg --version
+          # $GITHUB_PATH only affects subsequent steps, so verify using the full
+          # path here rather than relying on PATH within the same step.
+          /tmp/create-dmg-1.3.0/create-dmg --version
 
       - name: Build protected release bundle
         env:
