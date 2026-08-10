@@ -22,19 +22,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-## [2.0.2-alpha] - 2026-08-09
+## [2.0.1-alpha] - 2026-08-09
 
 > ⚠️ **此版本为测试版本（Alpha），仅供内部验证，禁止下载安装使用。**
 > ⚠️ **This is a test (Alpha) build for internal verification only. Do NOT download or install.**
-
-2.0.x 系列桌面端重写的首个 Alpha 测试构建，用于验证播放器能力与跨平台打包流程。
 
 ### Added
 
 - **完整应用版本号支持**：实现应用完整版本号（含预发布后缀）的读取与展示。
 - **发布分页优化**：优化更新检查的发布分页逻辑。
 
-## [2.0.3-alpha] - 2026-08-10
+## [2.0.0-alpha] - 2026-08-10
+
+> ⚠️ **此版本为测试版本（Alpha），仅供内部验证，禁止下载安装使用。**
+> ⚠️ **This is a test (Alpha) build for internal verification only. Do NOT download or install.**
 
 2.0.x 系列桌面端重写，聚焦播放器能力与跨平台构建稳定性。
 
