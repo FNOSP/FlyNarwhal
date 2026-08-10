@@ -128,6 +128,19 @@ jobs:
       #     test -n "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
       #     test "$(git -C .private/obfuscator rev-parse HEAD)" = "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
 
+      - name: Set up create-dmg (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          # Pinned release tarball (not brew) so packaging is deterministic.
+          # create-dmg locates its support/ directory next to the script, so
+          # the whole extracted directory goes on PATH.
+          curl -fsSL -o /tmp/create-dmg.tar.gz \
+            https://github.com/create-dmg/create-dmg/archive/refs/tags/v1.3.0.tar.gz
+          tar -xzf /tmp/create-dmg.tar.gz -C /tmp
+          chmod +x /tmp/create-dmg-1.3.0/create-dmg
+          echo "/tmp/create-dmg-1.3.0" >> "$GITHUB_PATH"
+          create-dmg --version
+
       - name: Build protected release bundle
         env:
           FLY_NARWHAL_API_SECRET: ${{ secrets.FLY_NARWHAL_API_SECRET }}
