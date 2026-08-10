@@ -1,7 +1,7 @@
 name: fly_narwhal
 description: "A new Flutter project."
 publish_to: 'none'
-version: 2.0.3-alpha
+version: 2.0.0-alpha
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -83,6 +83,7 @@ dependency_overrides:
 flutter:
   uses-material-design: true
   assets:
+    - pubspec.yaml
     - assets/images/
     - assets/lottie/
     - assets/icons/semi/
