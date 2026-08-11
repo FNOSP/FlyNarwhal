@@ -154,14 +154,13 @@
         file(COPY "${LIBMPV_DIR}/include" DESTINATION "${LIBMPV_STAGING_DIR}")
         # media_kit_video includes <client.h>, not <mpv/client.h>, so flatten
         # the libmpv include layout from include/mpv/... to include/...
-        file(TO_NATIVE_PATH "${LIBMPV_STAGING_DIR}/include" _include_native)
-        execute_process(
-          COMMAND powershell -NoProfile -ExecutionPolicy Bypass -Command
-            "$d = '${_include_native}'; if (Test-Path (Join-Path $d 'mpv')) { Move-Item -Path (Join-Path $d 'mpv\*') -Destination $d -Force; Remove-Item -Path (Join-Path $d 'mpv') -Recurse -Force }"
-          RESULT_VARIABLE _flatten_result
-        )
-        if(NOT _flatten_result EQUAL 0)
-          message(FATAL_ERROR "[full_libmpv] Failed to flatten mpv include directory")
+        if(EXISTS "${LIBMPV_STAGING_DIR}/include/mpv")
+          file(GLOB _mpv_includes "${LIBMPV_STAGING_DIR}/include/mpv/*")
+          foreach(_h IN LISTS _mpv_includes)
+            get_filename_component(_h_name "${_h}" NAME)
+            file(RENAME "${_h}" "${LIBMPV_STAGING_DIR}/include/${_h_name}")
+          endforeach()
+          file(REMOVE_RECURSE "${LIBMPV_STAGING_DIR}/include/mpv")
         endif()
       endif()
       foreach(_item IN ITEMS "${LIBMPV_DIR}/libmpv.dll.a" "${LIBMPV_DIR}/libmpv-2.dll")

@@ -108,7 +108,7 @@ if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
   # CMAKE_CURRENT_SOURCE_DIR.
   set(ANGLE "ANGLE-arm64.tar.gz")
   set(ANGLE_LOCAL "${CMAKE_CURRENT_SOURCE_DIR}/../assets/${ANGLE}")
-  set(ANGLE_MD5 "e6a246f7e6a36b78286ef35a8e371732")
+  set(ANGLE_MD5 "49025d08e2b8fdf32baae9cb9f532618")
 else()
   message(STATUS "media_kit_libs_windows_video: using x86_64 prebuilt libraries")
 
