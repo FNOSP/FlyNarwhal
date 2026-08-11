@@ -58,7 +58,7 @@ class PreferencesManager {
   }
 
   bool getFollowSystemTheme() {
-    return _prefs.getBool(_keyFollowSystemTheme) ?? true;
+    return _prefs.getBool(_keyFollowSystemTheme) ?? false;
   }
 
   Future<void> saveFollowSystemTheme(bool value) async {

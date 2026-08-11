@@ -95,12 +95,12 @@ class PreferencesLocalDataSource {
 
   // Theme settings
   bool getFollowSystemTheme() =>
-      _storage.getBool(StorageKeys.followSystemTheme) ?? true;
+      _storage.getBool(StorageKeys.followSystemTheme) ?? false;
 
   Future<void> saveFollowSystemTheme(bool value) =>
       _storage.setBool(StorageKeys.followSystemTheme, value);
 
-  bool getDarkMode() => _storage.getBool(StorageKeys.darkMode) ?? false;
+  bool getDarkMode() => _storage.getBool(StorageKeys.darkMode) ?? true;
 
   Future<void> saveDarkMode(bool value) =>
       _storage.setBool(StorageKeys.darkMode, value);
