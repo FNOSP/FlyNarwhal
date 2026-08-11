@@ -21,6 +21,7 @@ Future<void> main(List<String> arguments) async {
   final goArchitecture = _requiredEnvironmentValue('OBFUSCATOR_GOARCH');
   final libraryName = _requiredEnvironmentValue('OBFUSCATOR_LIBNAME');
   final dryRun = parsedArguments.dryRun;
+  _validateGitHubTagVersion(_packageVersion());
 
   try {
     await _runProtectedBuild(
@@ -808,6 +809,25 @@ Future<void> _runMacosPackageDmg({
     dryRun: false,
   );
   stdout.writeln('Created macOS disk image: $dmgPath');
+}
+
+void _validateGitHubTagVersion(String packageVersion) {
+  final referenceName = Platform.environment['GITHUB_REF_NAME']?.trim();
+  if (referenceName == null || referenceName.isEmpty) {
+    return;
+  }
+  if (!referenceName.startsWith('v')) {
+    return;
+  }
+  final tagVersion = referenceName.substring(1);
+  if (tagVersion == packageVersion) {
+    return;
+  }
+  _fail(
+    'Release tag version ($tagVersion) must match pubspec.yaml version '
+    '($packageVersion). Update pubspec.yaml before publishing the tag so '
+    'installer asset names match the GitHub release version.',
+  );
 }
 
 String _packageVersion() {
