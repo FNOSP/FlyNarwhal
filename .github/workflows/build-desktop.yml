@@ -23,6 +23,13 @@ jobs:
             installer-arch: amd64
             libname: fly_narwhal_obfuscator.dll
             artifact: windows-x64
+          - runner: windows-11-arm
+            platform: windows
+            architecture: arm64
+            goarch: arm64
+            installer-arch: aarch64
+            libname: fly_narwhal_obfuscator.dll
+            artifact: windows-arm64
           - runner: macos-15-intel
             platform: macos
             architecture: x64
@@ -84,11 +91,47 @@ jobs:
           "$HOME/flutter-pinned/bin/flutter" pub get
 
       - name: Set up Flutter
-        if: ${{ !(matrix.platform == 'linux' && matrix.architecture == 'arm64') }}
+        if: ${{ matrix.architecture != 'arm64' || matrix.platform == 'macos' }}
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+
+      # Flutter does not publish a prebuilt Windows arm64 host SDK in its stable
+      # release manifest, and subosito/flutter-action cannot resolve one. The
+      # windows-11-arm runner is itself arm64, so install the framework from git
+      # and seed the cache with the matching arm64 Dart SDK. Once the bundled
+      # `dart` is arm64, the Flutter tool reports host platform windows-arm64 and
+      # downloads the correct windows-arm64 engine artifacts.
+      - name: Set up Flutter (Windows ARM64, pinned checkout + arm64 Dart)
+        if: matrix.platform == 'windows' && matrix.architecture == 'arm64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $flutterPinVersion = '3.44.8'
+          $dartPinVersion = '3.12.2'
+          $flutterRoot = Join-Path $env:USERPROFILE 'flutter-pinned'
+          $dartSdkDir = Join-Path $flutterRoot 'bin/cache/dart-sdk'
+          $dartExtractDir = Join-Path $env:RUNNER_TEMP 'dart-sdk-extract'
+
+          git clone --depth 1 --branch $flutterPinVersion `
+            https://github.com/flutter/flutter.git $flutterRoot
+
+          New-Item -ItemType Directory -Force -Path $dartSdkDir | Out-Null
+          $dartZip = Join-Path $env:RUNNER_TEMP 'dartsdk-windows-arm64-release.zip'
+          Invoke-WebRequest -Uri "https://storage.googleapis.com/dart-archive/channels/stable/release/$dartPinVersion/sdk/dartsdk-windows-arm64-release.zip" -OutFile $dartZip
+          if (Test-Path $dartExtractDir) { Remove-Item -Recurse -Force $dartExtractDir }
+          Expand-Archive -Path $dartZip -DestinationPath $dartExtractDir -Force
+          Get-ChildItem -Path (Join-Path $dartExtractDir 'dart-sdk') | Move-Item -Destination $dartSdkDir -Force
+
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $flutterRoot 'bin')
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $dartSdkDir 'bin')
+          Add-Content -Path $env:GITHUB_ENV -Value "FLUTTER_ROOT=$flutterRoot"
+
+          & (Join-Path $flutterRoot 'bin/flutter.bat') --version
+          & (Join-Path $dartSdkDir 'bin/dart.exe') --version
+          & (Join-Path $flutterRoot 'bin/flutter.bat') config --enable-windows-desktop
+          & (Join-Path $flutterRoot 'bin/flutter.bat') pub get
 
       - name: Probe Go toolchain
         id: probe-go
