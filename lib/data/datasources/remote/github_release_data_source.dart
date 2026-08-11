@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
 
 import '../../../core/utils/log/app_talker.dart';
+import '../../storage/github_release_response_cache.dart';
 
 import '../../../domain/update/entities/update_models.dart';
 import '../../../domain/update/repositories/cancellation_token.dart';
@@ -51,15 +53,22 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
     UpdateRetryDelay? retryDelay,
     UpdateRetryJitter? retryJitter,
     DateTime Function()? currentTime,
+    GitHubReleaseResponseCache? responseCache,
+    Duration responseCacheTimeToLive = defaultResponseCacheTimeToLive,
   })  : _dio = dio,
         _userAgent = _normalizeUserAgent(userAgent),
         _warningSink = warningSink ?? _ignoreWarning,
         _retryDelay = retryDelay ?? Future<void>.delayed,
         _retryJitter = retryJitter ?? _defaultJitter,
-        _currentTime = currentTime ?? DateTime.now;
+        _currentTime = currentTime ?? DateTime.now,
+        _responseCache = responseCache,
+        _responseCacheTimeToLive = responseCacheTimeToLive;
 
   static const int maximumRetryCount = 3;
   static const Duration maximumRetryAfter = Duration(seconds: 60);
+
+  /// Fresh cache entries are served without contacting GitHub at all.
+  static const Duration defaultResponseCacheTimeToLive = Duration(minutes: 15);
   static const List<Duration> _retryBackoff = <Duration>[
     Duration(seconds: 1),
     Duration(seconds: 2),
@@ -76,6 +85,8 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
   final UpdateRetryDelay _retryDelay;
   final UpdateRetryJitter _retryJitter;
   final DateTime Function() _currentTime;
+  final GitHubReleaseResponseCache? _responseCache;
+  final Duration _responseCacheTimeToLive;
 
   @override
   Future<List<UpdateRelease>> fetchReleases({
@@ -98,6 +109,28 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
         'Requesting GitHub releases: page=$page, pageSize=$pageSize, attempt=${attempt + 1}.',
       );
       try {
+        final cachedEntry = await _responseCache?.load(page);
+        // A fresh entry is served without contacting GitHub at all.
+        if (cachedEntry != null && _isCacheFresh(cachedEntry.fetchedAt)) {
+          final freshReleases = _parseCachedPayload(cachedEntry);
+          if (freshReleases != null) {
+            AppTalker.info(
+              'UpdateCheck',
+              'Served GitHub releases from fresh cache (TTL ${_responseCacheTimeToLive.inMinutes} min): page=$page, count=${freshReleases.length}.',
+            );
+            return freshReleases;
+          }
+          await _responseCache?.remove(page);
+        }
+        final requestHeaders = <String, String>{
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': _userAgent,
+        };
+        // An expired entry still supplies its ETag for a conditional request.
+        if (cachedEntry != null) {
+          requestHeaders['If-None-Match'] = cachedEntry.etag;
+        }
         final response = await _dio.get<Object?>(
           releasesEndpoint.toString(),
           queryParameters: <String, Object>{
@@ -106,14 +139,46 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
           },
           options: Options(
             responseType: ResponseType.json,
-            headers: <String, String>{
-              'Accept': 'application/vnd.github+json',
-              'X-GitHub-Api-Version': '2022-11-28',
-              'User-Agent': _userAgent,
-            },
+            headers: requestHeaders,
+            // A 304 response is a success path for conditional requests.
+            validateStatus: (status) =>
+                status != null && (status < 300 || status == 304),
           ),
         );
+        if (response.statusCode == 304) {
+          final cachedReleases = _parseCachedPayload(cachedEntry);
+          if (cachedReleases != null) {
+            // Touch the entry so the TTL restarts after a confirmed 304.
+            await _responseCache?.save(
+              page,
+              GitHubReleaseCacheEntry(
+                etag: cachedEntry!.etag,
+                payload: cachedEntry.payload,
+                fetchedAt: _currentTime(),
+              ),
+            );
+            AppTalker.info(
+              'UpdateCheck',
+              'Resolved GitHub releases from cache via HTTP 304: page=$page, count=${cachedReleases.length}.',
+            );
+            return cachedReleases;
+          }
+          // Corrupt cache entry: drop it and retry without If-None-Match.
+          await _responseCache?.remove(page);
+          continue;
+        }
         final releases = _parseRoot(response.data);
+        final etag = response.headers.value('etag');
+        if (etag != null && etag.isNotEmpty) {
+          await _responseCache?.save(
+            page,
+            GitHubReleaseCacheEntry(
+              etag: etag,
+              payload: jsonEncode(response.data),
+              fetchedAt: _currentTime(),
+            ),
+          );
+        }
         AppTalker.info(
           'UpdateCheck',
           'Received GitHub releases: page=$page, status=${response.statusCode}, count=${releases.length}.',
@@ -123,7 +188,12 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
         throw _cancelledFailure();
       } on DioException catch (error) {
         final failure = _mapDioException(error);
-        if (!failure.retryable || attempt == maximumRetryCount) {
+        // Rate limits reset on a fixed schedule; immediate retries are futile.
+        final isRateLimited =
+            failure.code == UpdateRepositoryErrorCode.rateLimited;
+        if (isRateLimited ||
+            !failure.retryable ||
+            attempt == maximumRetryCount) {
           throw failure;
         }
         final retryAfter = _parseRetryAfter(error.response?.headers);
@@ -294,6 +364,17 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
     }
     final statusCode = error.response?.statusCode;
     if (statusCode != null) {
+      if (_isRateLimited(statusCode, error.response)) {
+        final resetAt = _parseRateLimitResetAt(error.response?.headers);
+        return UpdateRepositoryException(
+          code: UpdateRepositoryErrorCode.rateLimited,
+          technicalDetails: 'GitHub API rate limit exceeded (HTTP $statusCode).'
+              '${resetAt == null ? '' : ' Quota resets at ${resetAt.toLocal()}. '}'
+              'Unauthenticated requests share a limit of 60 per hour per IP.',
+          retryable: true,
+          httpStatusCode: statusCode,
+        );
+      }
       return UpdateRepositoryException(
         code: UpdateRepositoryErrorCode.http,
         technicalDetails: 'GitHub API returned HTTP $statusCode.',
@@ -306,6 +387,45 @@ final class GitHubReleaseDataSource implements GitHubReleaseDataSourceContract {
       technicalDetails: error.message ?? 'GitHub API connection failed.',
       retryable: error.type == DioExceptionType.connectionError ||
           error.type == DioExceptionType.unknown,
+    );
+  }
+
+  List<UpdateRelease>? _parseCachedPayload(GitHubReleaseCacheEntry? entry) {
+    if (entry == null) return null;
+    try {
+      return _parseRoot(jsonDecode(entry.payload));
+    } on Object {
+      return null;
+    }
+  }
+
+  bool _isCacheFresh(DateTime fetchedAt) {
+    final age = _currentTime().difference(fetchedAt);
+    return age >= Duration.zero && age < _responseCacheTimeToLive;
+  }
+
+  static bool _isRateLimited(int statusCode, Response<dynamic>? response) {
+    if (statusCode == 429) return true;
+    if (statusCode != 403) return false;
+    if (response?.headers.value('x-ratelimit-remaining') == '0') return true;
+    final data = response?.data;
+    if (data is Map) {
+      final message = data['message'];
+      if (message is String && message.toLowerCase().contains('rate limit')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static DateTime? _parseRateLimitResetAt(Headers? headers) {
+    final rawValue = headers?.value('x-ratelimit-reset');
+    if (rawValue == null) return null;
+    final epochSeconds = int.tryParse(rawValue.trim());
+    if (epochSeconds == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(
+      epochSeconds * 1000,
+      isUtc: true,
     );
   }
 

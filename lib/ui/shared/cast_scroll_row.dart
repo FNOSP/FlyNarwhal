@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/models/movie_detail_models.dart';
 import '../../providers/providers.dart';
-import '../shared/common/img_loading_progress_ring.dart';
 import '../shared/common/scroll_row.dart';
 
 class CastScrollRow extends StatelessWidget {
@@ -121,9 +120,9 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
                   Container(
                     width: 64,
                     height: 64,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                      // border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
                     ),
                     child: ClipOval(
                       child: imageUrl.isNotEmpty
@@ -132,12 +131,12 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
                               httpHeaders: widget.httpHeaders,
                               cacheManager: widget.cacheManager,
                               fit: BoxFit.cover,
-                              placeholder: (context, url) => const ImgLoadingProgressRing(size: 24),
+                              placeholder: (context, url) =>
+                                  const _PersonPlaceholder(),
+                              errorWidget: (context, url, error) =>
+                                  const _PersonPlaceholder(),
                             )
-                          : Container(
-                              color: Colors.grey[160],
-                              child: const Icon(FluentIcons.contact, size: 28),
-                            ),
+                          : const _PersonPlaceholder(),
                     ),
                   ),
                   AnimatedOpacity(
@@ -179,6 +178,26 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 无头像时的占位图,与 Web 端一致:深色圆底 + 居中人形剪影(剪影尺寸
+/// 约为圆直径的 53%,对应 Web 端 90px 圆内的 48px 图片)。
+class _PersonPlaceholder extends StatelessWidget {
+  const _PersonPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xCC202021),
+      alignment: Alignment.center,
+      child: Image.asset(
+        'assets/images/person_placeholder.png',
+        width: 34,
+        height: 34,
+        fit: BoxFit.contain,
       ),
     );
   }

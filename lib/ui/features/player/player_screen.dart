@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -27,7 +25,6 @@ import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/fly_narwhal/danmaku.dart';
 import '../../../data/storage/player_settings_store.dart';
-import '../../../data/storage/local_subtitle_picker_store.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../core/utils/app_fonts.dart';
@@ -76,73 +73,10 @@ import 'widgets/playback_end_overlay.dart';
 import 'widgets/playback_details_overlay.dart';
 import 'widgets/subtitle_control_flyout.dart';
 import 'widgets/subtitle_search_dialog.dart';
+import '../../shared/local_subtitle_upload.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
 import '../../shared/toast.dart';
 import '../../shared/window_caption.dart';
-
-/// Top-level function for [compute]: reads a file's bytes on a worker isolate
-/// so the UI thread is never blocked by filesystem I/O.
-Uint8List _readFileBytesSync(String path) => File(path).readAsBytesSync();
-
-/// Maximum number of local subtitle files that can be uploaded at once,
-/// matching the web player's limit.
-const int _maxUploadableSubtitles = 20;
-const MethodChannel _localSubtitlePickerChannel =
-    MethodChannel('fly_narwhal/local_subtitle_picker');
-
-Future<({List<XFile> files, String? directory})> _openLocalSubtitleFiles(
-  String initialDirectory, {
-  required String userGuid,
-}) async {
-  // Windows and macOS both use the native picker channel instead of
-  // file_selector: on Windows the plugin runs the dialog on the platform
-  // thread, and on macOS it presents the panel as a window sheet whose
-  // slide-in/out animation blocks the main thread — media_kit waits on the
-  // main thread for every video frame, so both freeze the picture. The
-  // native channels avoid that (worker thread on Windows, standalone
-  // non-sheet panel on macOS).
-  if (Platform.isWindows || Platform.isMacOS) {
-    final response = await _localSubtitlePickerChannel.invokeMethod<Object?>(
-      'openLocalSubtitles',
-      {
-        'initialDirectory': initialDirectory,
-        if (Platform.isWindows) 'userGuid': userGuid,
-      },
-    );
-    // macOS returns {paths, directory}; Windows returns a plain path list
-    // because its native side persists the folder and Shell view state by
-    // user GUID without exposing that state through the method channel.
-    if (response is Map) {
-      final paths =
-          (response['paths'] as List?)?.cast<String>() ?? const <String>[];
-      final directory = response['directory'] as String?;
-      return (
-        files: paths.map(XFile.new).toList(growable: false),
-        directory:
-            (directory != null && directory.isNotEmpty) ? directory : null,
-      );
-    }
-    final paths = (response as List?)?.cast<String>() ?? const <String>[];
-    return (
-      files: paths.map(XFile.new).toList(growable: false),
-      directory: null,
-    );
-  }
-
-  const subtitleTypeGroup = XTypeGroup(
-    label: '字幕文件',
-    extensions: ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'],
-  );
-  final files = await openFiles(
-    acceptedTypeGroups: [subtitleTypeGroup],
-    initialDirectory: initialDirectory,
-    confirmButtonText: '选择',
-  );
-  return (
-    files: files,
-    directory: files.isEmpty ? null : File(files.first.path).parent.path,
-  );
-}
 
 enum _PlaybackIndicatorType { play, pause }
 
@@ -304,7 +238,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _pendingMacOSWindowButtonsForce = false;
   bool _macOSWindowButtonsSyncQueued = false;
   static const Duration _pipIdleHideDuration = Duration(seconds: 3);
-  AnimationController? _pipTransitionController;
 
   PlayerOverlayController get _overlayController =>
       ref.read(playerOverlayControllerProvider.notifier);
@@ -358,10 +291,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         setState(() => _isPlaybackIndicatorVisible = false);
         _playbackIndicatorExitController.value = 0;
       });
-    _pipTransitionController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 240),
-    );
     _syncPlaybackTargetsFromWidget();
     _restoreAutoPlaySetting();
     _windowAspectRatio =
@@ -1198,139 +1127,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
       return;
     }
-    final toastCategory = 'local-subtitle:$mediaGuid';
-
-    List<XFile> files = const <XFile>[];
-    try {
-      // The subtitle flyout starts its dismiss animation right after this
-      // callback; let it finish before the native open panel attaches, so
-      // the two don't animate on the same frames (that overlap was the
-      // visible stutter when the panel opened). Playback keeps running.
-      await Future<void>.delayed(
-        const Duration(
-          milliseconds: subtitleFlyoutAnimationDurationMs + 50,
-        ),
-      );
-      if (!mounted) return;
-      final currentUser = ref.read(userInfoProvider).valueOrNull;
-      final userGuid = currentUser?.guid.trim() ?? '';
-      if (Platform.isWindows && userGuid.isEmpty) {
-        throw StateError('当前用户信息缺失，无法恢复文件选择器状态');
-      }
-      final pickerStore = LocalSubtitlePickerStore(
-        ref.read(sharedPreferencesProvider),
-        userGuid: userGuid,
-      );
-      final pickerSelection = await _openLocalSubtitleFiles(
-        pickerStore.resolveInitialDirectory(),
-        userGuid: userGuid,
-      );
-      files = pickerSelection.files;
-      // Remember the shown directory for the next open (recorded by the
-      // native side even when the user browsed and cancelled).
-      final rememberedDirectory = pickerSelection.directory;
-      if (rememberedDirectory != null) {
-        unawaited(pickerStore.saveLastDirectory(rememberedDirectory));
-      }
-    } catch (error) {
-      if (mounted) {
-        ref.read(toastManagerProvider.notifier).showToast(
-              '选择字幕文件失败: $error',
-              type: ToastType.failed,
-              category: toastCategory,
-            );
-      }
-      return;
-    }
-    if (files.isEmpty) return;
-
-    if (files.length > _maxUploadableSubtitles) {
-      ref.read(toastManagerProvider.notifier).showToast(
-            '最多选择 $_maxUploadableSubtitles 个文件',
-            type: ToastType.warning,
-            category: toastCategory,
-          );
-      return;
-    }
-
-    const allowedExtensions = ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'];
-    final hasInvalid = files.any((file) {
-      final dot = file.name.lastIndexOf('.');
-      if (dot < 0) return true;
-      return !allowedExtensions.contains(
-        file.name.substring(dot + 1).toLowerCase(),
-      );
-    });
-    if (hasInvalid) {
-      ref.read(toastManagerProvider.notifier).showToast(
-            '只能选择 ${allowedExtensions.join(', ')} 格式的文件',
-            type: ToastType.warning,
-            category: toastCategory,
-          );
-      return;
-    }
 
     // Re-entrancy guard only — build() never reads this field, so assign it
     // directly instead of calling setState. A setState here rebuilds the
     // entire player tree and drops video frames mid-playback.
     _isUploadingLocalSubtitle = true;
     try {
-      var successCount = 0;
-      var failureCount = 0;
-      SubtitleStream? lastUploaded;
-      for (final file in files) {
-        try {
-          final bytes = await compute(_readFileBytesSync, file.path);
-          final uploaded =
-              await ref.read(fileRepositoryProvider).uploadSubtitle(
-                    mediaGuid: mediaGuid,
-                    bytes: bytes,
-                    fileName: file.name,
-                  );
-          successCount++;
-          lastUploaded = uploaded;
-        } catch (error) {
-          AppTalker.warning(
-            'PlayerScreen',
-            'Failed to upload subtitle ${file.name}: $error',
-          );
-          failureCount++;
-        }
-      }
-
-      if (!mounted) return;
-      final toastManager = ref.read(toastManagerProvider.notifier);
-      if (successCount == 0) {
-        toastManager.showToast(
-          '添加字幕失败，请重试',
-          type: ToastType.failed,
-          category: toastCategory,
-        );
-      } else if (failureCount > 0) {
-        toastManager.showToast(
-          '部分字幕添加成功，其中 $failureCount 个失败',
-          type: ToastType.warning,
-          category: toastCategory,
-        );
-        unawaited(_refreshSubtitleStreams());
-      } else {
-        toastManager.showToast(
-          '添加字幕成功',
-          type: ToastType.success,
-          category: toastCategory,
-        );
-      }
-      // When at least one upload succeeded, refresh the stream list and
-      // switch playback to the most recently uploaded subtitle. The upload
-      // endpoint returns the registered SubtitleStream; we look it up by
-      // guid in the refreshed list (the entry is guaranteed to be there
-      // now) so the language/format fields line up with the cache.
-      if (successCount > 0 && lastUploaded != null) {
-        await _switchToUploadedSubtitle(
-          uploaded: lastUploaded,
-          toastCategory: toastCategory,
-        );
-      }
+      final uploaded = await pickAndUploadLocalSubtitles(
+        ref: ref,
+        mediaGuid: mediaGuid,
+      );
+      if (!mounted || uploaded == null) return;
+      await _switchToUploadedSubtitle(
+        uploaded: uploaded,
+        toastCategory: 'local-subtitle:$mediaGuid',
+      );
     } finally {
       _isUploadingLocalSubtitle = false;
     }
@@ -1817,13 +1628,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player == null || startPositionMs <= 0) return;
 
-    // Wait for the player to be in a playing/paused state and have some
-    // duration so position reporting is meaningful.
-    for (int attempt = 0; attempt < 5; attempt++) {
+    // Wait until the media is actually ready before deciding whether to seek.
+    // - Direct links: the mpv `start` property already applied the resume, so
+    //   bail out as soon as position matches the target.
+    // - HLS/transcode streams: the `start` property is ignored and a seek
+    //   issued before the stream reports a real duration is dropped by mpv.
+    //   So wait for duration > 0 (stream loaded) before the correction seek.
+    for (int attempt = 0; attempt < 30; attempt++) {
       await Future<void>.delayed(const Duration(milliseconds: 300));
       final state = player.state;
-      if (state.position.inMilliseconds > 0 ||
-          state.duration.inMilliseconds > 0) {
+      final positionMs = state.position.inMilliseconds;
+      final durationMs = state.duration.inMilliseconds;
+      if (positionMs > 0 &&
+          (positionMs - startPositionMs).abs() <= 3000) {
+        return;
+      }
+      if (durationMs > 0) {
         break;
       }
     }
@@ -1831,7 +1651,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final currentPosition = player.state.position.inMilliseconds;
     final deviation = (currentPosition - startPositionMs).abs();
 
-    if (deviation <= 3000) return;
+    if (deviation <= 3000) {
+      return;
+    }
 
     // mpv start property didn't fully apply. Correct through the runtime seek
     // executor without classifying the correction as a user interaction.
@@ -1839,7 +1661,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       targetMilliseconds: startPositionMs,
       origin: PlayerSeekOrigin.resumeCorrection,
     );
-    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+
+    // If the seek was still dropped (stream not fully ready), retry once now
+    // that duration is known so the correction is not silently lost.
+    final afterSeekPosition = player.state.position.inMilliseconds;
+    final afterSeekDeviation = (afterSeekPosition - startPositionMs).abs();
+    if (afterSeekDeviation > 3000 &&
+        player.state.duration.inMilliseconds > 0) {
+      await _seekExecutor.performSeek(
+        targetMilliseconds: startPositionMs,
+        origin: PlayerSeekOrigin.resumeCorrection,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
   }
 
   bool _isSupportedExternalSubtitle(SubtitleStream? subtitleStream) {
@@ -3292,7 +3127,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) {
         return;
       }
-      _pipTransitionController?.forward(from: 0);
     } catch (error, stackTrace) {
       AppTalker.error(
         'Player',
@@ -3336,7 +3170,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isPipMode = false;
         _isPipHovered = false;
       });
-      _pipTransitionController?.reverse(from: 1);
       _scheduleMacOSWindowButtonsSync(
         visible: ref.read(playerOverlayControllerProvider).isUiVisible,
         force: true,
@@ -3478,6 +3311,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _currentResolution = quality.resolution;
         _currentBitrate = quality.bitrate;
       });
+      _refreshPlaybackDetailsImmediately();
     } catch (e) {
       AppTalker.warning('Player', 'switch quality failed: $e');
       ref
@@ -3547,6 +3381,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _selectedAudioGuid = audio.guid;
         _isLoading = false;
       });
+      _refreshPlaybackDetailsImmediately();
     } catch (error, stackTrace) {
       if (_isCurrentAudioSwitch(switchToken)) {
         _requestedAudioGuid = null;
@@ -3763,6 +3598,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           });
         }
       }
+      _refreshPlaybackDetailsImmediately();
     } catch (e) {
       _playingInfoCache = cache.copyWith(
         currentSubtitleStream: previousSubtitle,
@@ -3856,7 +3692,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playbackDetailsRefreshTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
     _playbackIndicatorExitController.dispose();
-    _pipTransitionController?.dispose();
     _playerFocusNode.dispose();
     _player?.dispose();
     _hlsSubtitleTexts.dispose();
@@ -3872,7 +3707,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _scheduleMacOSWindowButtonsSync(
       visible: overlayState.isUiVisible,
     );
-    final pipTransition = _pipTransitionController;
     final playerCursor =
         _isInitialized && !_isPipMode && !overlayState.isUiVisible
             ? SystemMouseCursors.none
@@ -3932,6 +3766,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // video.
           if (_isLoading && !_isSubtitleSwitching)
             const Center(child: AppLoadingProgressRing()),
+          // The normal top bar (and its back button) is only rendered once the
+          // player is initialized. Show a standalone back button during the
+          // initial load — and after a failed load — so the user can always
+          // return to the previous screen instead of being stuck.
+          if (!_isInitialized && !_isPipMode)
+            Positioned(
+              top: _isMacOS && !_isFullscreen ? 12.0 : 6.0,
+              left: 16 + (_isMacOS && !_isFullscreen ? 72.0 : 0.0),
+              child: _buildBackButton(),
+            ),
           Positioned.fill(
             child: IgnorePointer(
               child: Center(
@@ -4065,22 +3909,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
     }
 
-    if (pipTransition == null || _isPipMode) {
-      return focusedPlayer(playerStack);
-    }
-    return focusedPlayer(
-      AnimatedBuilder(
-        animation: pipTransition,
-        builder: (context, child) {
-          final t = Curves.easeInOutCubic.transform(pipTransition.value);
-          return Transform.scale(
-            scale: 1.0 - t * 0.08,
-            child: child,
-          );
-        },
-        child: playerStack,
-      ),
-    );
+    return focusedPlayer(playerStack);
   }
 
   List<Widget> _buildSkipAndEndOverlays() {
@@ -4730,7 +4559,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // The web panel polls the transcode statistics while open, so quality
       // or audio switches and live counters update without reopening it.
       _playbackDetailsRefreshTimer ??= Timer.periodic(
-        const Duration(seconds: 3),
+        const Duration(seconds: 30),
         (_) => _refreshPlaybackDetailsTranscodeStatus(),
       );
     } else {
@@ -4745,13 +4574,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _refreshPlaybackDetailsTranscodeStatus() async {
     final cache = _playingInfoCache;
     final playLink = cache?.playLink;
-    if (_isFetchingPlaybackDetails ||
-        cache == null ||
+    final hasNoTranscodeSession = cache == null ||
         cache.isUseDirectLink ||
         playLink == null ||
-        playLink.isEmpty) {
+        playLink.isEmpty;
+
+    // A direct-link / original session has no server-side transcode session,
+    // so any previously fetched transcode status is stale (e.g. left over
+    // after switching back to 原画). Clear it so the panel reports 直接播放
+    // rather than the old 转码播放 statistics.
+    if (hasNoTranscodeSession) {
+      if (mounted && _playbackDetailsTranscodeStatus != null) {
+        setState(() => _playbackDetailsTranscodeStatus = null);
+      }
       return;
     }
+    if (_isFetchingPlaybackDetails) return;
 
     _isFetchingPlaybackDetails = true;
     try {
@@ -4759,12 +4597,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .read(mediaPViewModelProvider.notifier)
           .fetchTranscodeStatus(MediaPRequest(playLink: playLink));
       if (!mounted || !_isPlaybackDetailsVisible) return;
+      // Re-check the session is still the same transcode session before
+      // applying, since it may have switched to direct-link while fetching.
+      final currentCache = _playingInfoCache;
+      if (currentCache == null ||
+          currentCache.isUseDirectLink ||
+          currentCache.playLink != playLink) {
+        return;
+      }
       setState(() => _playbackDetailsTranscodeStatus = status);
     } catch (e) {
       AppTalker.warning('Player', 'fetch transcode status failed: $e');
     } finally {
       _isFetchingPlaybackDetails = false;
     }
+  }
+
+  /// Quality/subtitle/audio switches change the server-side playback session,
+  /// so the open details panel refreshes immediately instead of waiting for
+  /// the next poll tick.
+  void _refreshPlaybackDetailsImmediately() {
+    unawaited(_refreshPlaybackDetailsTranscodeStatus());
   }
 
   Widget _buildTopBar() {

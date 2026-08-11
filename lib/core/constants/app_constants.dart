@@ -13,6 +13,13 @@ class AppConstants {
   static const String userAgent =
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
+  // Build
+  /// Full pubspec version injected via `--dart-define=APP_FULL_VERSION=<v>`.
+  /// flutter_tools strips prerelease suffixes from CFBundleShortVersionString
+  /// on Apple platforms, so PackageInfo alone cannot recover the suffix.
+  static const String appFullVersion =
+      String.fromEnvironment('APP_FULL_VERSION');
+
   // Timeouts
   static const Duration defaultConnectTimeout = Duration(seconds: 10);
   static const Duration defaultReceiveTimeout = Duration(seconds: 10);

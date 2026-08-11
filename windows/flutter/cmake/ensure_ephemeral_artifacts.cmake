@@ -82,17 +82,28 @@ set(RUNTIME_FILES
   "icudtl.dat"
 )
 
-# Validate the fallback runtime payload before copying any files into the
-# ephemeral directory.
-foreach(RUNTIME_FILE ${RUNTIME_FILES})
-  if (NOT EXISTS "${FLUTTER_ENGINE_FALLBACK_ROOT}/${RUNTIME_FILE}")
-    message(FATAL_ERROR "Flutter runtime fallback file is missing: ${FLUTTER_ENGINE_FALLBACK_ROOT}/${RUNTIME_FILE}")
-  endif()
-endforeach()
+# Default to the base engine artifact directory when no mode-specific root is
+# provided by the caller.
+if (NOT DEFINED RUNTIME_FALLBACK_ROOT)
+  set(RUNTIME_FALLBACK_ROOT "${FLUTTER_ENGINE_FALLBACK_ROOT}")
+endif()
 
 file(MAKE_DIRECTORY "${EPHEMERAL_DIR}")
 foreach(RUNTIME_FILE ${RUNTIME_FILES})
-  file(COPY "${FLUTTER_ENGINE_FALLBACK_ROOT}/${RUNTIME_FILE}" DESTINATION "${EPHEMERAL_DIR}")
+  # Repair only missing files so the mode-specific engine payload staged by
+  # the flutter tool is never overwritten by a fallback copy.
+  if (EXISTS "${EPHEMERAL_DIR}/${RUNTIME_FILE}")
+    continue()
+  endif()
+  set(RUNTIME_SOURCE_FILE "${RUNTIME_FALLBACK_ROOT}/${RUNTIME_FILE}")
+  if (NOT EXISTS "${RUNTIME_SOURCE_FILE}")
+    # ICU data ships only in the base engine artifact directory.
+    set(RUNTIME_SOURCE_FILE "${FLUTTER_ENGINE_FALLBACK_ROOT}/${RUNTIME_FILE}")
+  endif()
+  if (NOT EXISTS "${RUNTIME_SOURCE_FILE}")
+    message(FATAL_ERROR "Flutter runtime fallback file is missing: ${RUNTIME_FILE}")
+  endif()
+  file(COPY "${RUNTIME_SOURCE_FILE}" DESTINATION "${EPHEMERAL_DIR}")
 endforeach()
 
 # Fail immediately when the runtime repair step still leaves missing files.

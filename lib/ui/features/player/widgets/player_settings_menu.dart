@@ -23,6 +23,10 @@ const double _settingsFlyoutWidth = 320;
 const double _settingsFlyoutMinBridgeWidth = 56;
 const double _settingsFlyoutBridgeHorizontalPadding = 12;
 const double _estimatedSettingsFlyoutHeight = 300;
+// Keep the audio flyout no taller than the subtitle selection panel; the
+// track list scrolls once its items exceed the remaining space.
+const double _audioPanelHeaderHeight = 46;
+const double _audioPanelMaxListHeight = 330;
 
 class PlayerAudioDisplayTexts {
   final String summaryText;
@@ -940,7 +944,7 @@ class _SettingsMenuItemState extends State<_SettingsMenuItem> {
                       const SizedBox(width: 4),
                       const Icon(
                         FluentIcons.chevron_right,
-                        size: 16,
+                        size: 12,
                         color: _defaultTextColor,
                       ),
                     ],
@@ -976,6 +980,7 @@ class _AudioSettingsScreen extends StatefulWidget {
 
 class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
   AudioStream? _selectedAudioStream;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -995,6 +1000,12 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
   }
 
   @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final audioList = widget.playingInfoCache?.currentAudioStreamList ?? [];
     final currentAudioStream =
@@ -1002,61 +1013,90 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: widget.onBack,
-            child: const Row(
-              children: [
-                Icon(
-                  FluentIcons.chevron_left,
-                  size: 16,
-                  color: Colors.white,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  '音频',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+        SizedBox(
+          height: _audioPanelHeaderHeight,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: widget.onBack,
+                  child: const Row(
+                    children: [
+                      Icon(
+                        FluentIcons.chevron_left,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        '音频',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+        ConstrainedBox(
+          constraints:
+              const BoxConstraints(maxHeight: _audioPanelMaxListHeight),
+          child: Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: true,
+            child: ListView(
+              key: const ValueKey('player-audio-list'),
+              controller: _scrollController,
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              children: [
+                ...audioList.map((audio) {
+                  final isSelected =
+                      _isSameAudioStream(currentAudioStream, audio);
+                  final audioDisplayTexts = buildPlayerAudioDisplayTexts(
+                    audio,
+                    widget.iso6391Map,
+                    widget.iso6392Map,
+                  );
+
+                  return KeyedSubtree(
+                    key: ValueKey(
+                      audio.guid.isNotEmpty
+                          ? 'player-audio-option-${audio.guid}'
+                          : 'player-audio-option-index-${audio.index}',
+                    ),
+                    child: _AudioItem(
+                      primaryText: audioDisplayTexts.primaryText,
+                      secondaryLeadingText:
+                          audioDisplayTexts.secondaryLeadingText,
+                      secondaryTrailingText:
+                          audioDisplayTexts.secondaryTrailingText,
+                      isSelected: isSelected,
+                      onClick: () {
+                        // Update selection immediately before async state
+                        // flows back.
+                        setState(() => _selectedAudioStream = audio);
+                        widget.onAudioSelected(audio);
+                      },
+                    ),
+                  );
+                }),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        const Divider(),
-        const SizedBox(height: 10),
-        ...audioList.map((audio) {
-          final isSelected = _isSameAudioStream(currentAudioStream, audio);
-          final audioDisplayTexts = buildPlayerAudioDisplayTexts(
-            audio,
-            widget.iso6391Map,
-            widget.iso6392Map,
-          );
-
-          return KeyedSubtree(
-            key: ValueKey(
-              audio.guid.isNotEmpty
-                  ? 'player-audio-option-${audio.guid}'
-                  : 'player-audio-option-index-${audio.index}',
-            ),
-            child: _AudioItem(
-              primaryText: audioDisplayTexts.primaryText,
-              secondaryLeadingText: audioDisplayTexts.secondaryLeadingText,
-              secondaryTrailingText: audioDisplayTexts.secondaryTrailingText,
-              isSelected: isSelected,
-              onClick: () {
-                // Update selection immediately before async state flows back.
-                setState(() => _selectedAudioStream = audio);
-                widget.onAudioSelected(audio);
-              },
-            ),
-          );
-        }),
       ],
     );
   }
@@ -1202,7 +1242,7 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
               children: [
                 Icon(
                   FluentIcons.chevron_left,
-                  size: 16,
+                  size: 12,
                   color: Colors.white,
                 ),
                 SizedBox(width: 8),
@@ -1267,7 +1307,7 @@ class _VideoFillModeSettingsScreen extends StatelessWidget {
               children: [
                 Icon(
                   FluentIcons.chevron_left,
-                  size: 16,
+                  size: 12,
                   color: Colors.white,
                 ),
                 SizedBox(width: 8),
@@ -1435,7 +1475,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                   children: [
                     Icon(
                       FluentIcons.chevron_left,
-                      size: 16,
+                      size: 12,
                       color: Colors.white,
                     ),
                     SizedBox(width: 8),

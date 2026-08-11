@@ -88,6 +88,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         return '电影';
       case 'video':
         return '其他';
+      case 'live':
+        return '电视直播';
       default:
         return '媒体库';
     }
@@ -134,7 +136,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     final types = List<String>.from(
       widget.id == null
           ? _categoryTypes(widget.categoryType)
-          : MediaType.commonlyUsedValues,
+          : MediaType.libraryBrowseValues,
     );
     int? genres;
     String? resolution;
@@ -506,6 +508,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                       ),
                       const SizedBox(width: 8),
                       SortFlyout(
+                        key: ValueKey('sort-$_providerGuid'),
                         onSortTypeSelected: (type) {
                           setState(() => _sortColumn = type);
                           _refresh();

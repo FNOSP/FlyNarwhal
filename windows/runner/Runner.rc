@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "JankinWu" "\0"
+            VALUE "CompanyName", "com.jankinwu" "\0"
             VALUE "FileDescription", "飞鲸影视" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "FlyNarwhal" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 JankinWu. All rights reserved." "\0"
             VALUE "OriginalFilename", "FlyNarwhal.exe" "\0"
-            VALUE "ProductName", "飞鲸影视" "\0"
+            VALUE "ProductName", "FlyNarwhal" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

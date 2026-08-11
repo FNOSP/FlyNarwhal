@@ -3,6 +3,7 @@ enum UpdateRepositoryErrorCode {
   network,
   timeout,
   http,
+  rateLimited,
   tls,
   invalidJson,
   domainMapping,

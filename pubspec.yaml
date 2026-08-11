@@ -1,7 +1,7 @@
 name: fly_narwhal
 description: "A new Flutter project."
 publish_to: 'none'
-version: 2.0.0
+version: 2.0.0-alpha
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -25,7 +25,7 @@ dependencies:
   riverpod_annotation: ^2.3.5
   
   # Networking
-  dio: ^5.4.3
+  dio: 5.9.2
   talker: ^5.1.17
   talker_dio_logger: ^5.1.17
   talker_flutter: ^5.1.17
@@ -79,12 +79,16 @@ dev_dependencies:
 dependency_overrides:
   media_kit_libs_macos_video:
     path: third_party/media_kit_libs_macos_video_full
+  media_kit_libs_windows_video:
+    path: third_party/media_kit_libs_windows_video
 
 flutter:
   uses-material-design: true
   assets:
+    - pubspec.yaml
     - assets/images/
     - assets/lottie/
+    - assets/icons/semi/
   fonts:
     - family: SourceHanSansSC
       fonts:

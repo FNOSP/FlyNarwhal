@@ -104,7 +104,17 @@ class PlaybackDetailsPanel extends StatelessWidget {
 
   bool get _hasPlaybackInfo {
     final status = transcodeStatus;
-    return status != null && status.result == 'succ';
+    if (status != null && status.result == 'succ') return true;
+    // Direct-link sessions have no server-side transcode statistics, so the
+    // playback info falls back to the client buffer duration and the media
+    // source stream's resolution / bitrate.
+    if (!cache.isUseDirectLink) return false;
+    final video = cache.currentVideoStream;
+    if (video != null &&
+        (video.width > 0 && video.height > 0 || video.bps > 0)) {
+      return true;
+    }
+    return bufferedSeconds != null;
   }
 
   @override
@@ -196,36 +206,57 @@ class PlaybackDetailsPanel extends StatelessWidget {
   /// stream info on the left, GPU/codec methods and frame counters on the
   /// right.
   Widget _buildPlaybackInfoRows() {
-    final status = transcodeStatus!;
-    final video = status.video;
+    final status = transcodeStatus;
+    final hasServerStats = status != null && status.result == 'succ';
+    final videoStream = cache.currentVideoStream;
+
+    // Transcoded/server sessions report the effective output resolution and
+    // bitrate; direct play falls back to the media source stream's values.
+    final resolution = hasServerStats && status.resolution.isNotEmpty
+        ? status.resolution
+        : videoStream != null &&
+                videoStream.width > 0 &&
+                videoStream.height > 0
+            ? '${videoStream.width} x ${videoStream.height}'
+            : '';
+    final bitrate = hasServerStats && status.bitrate > 0
+        ? status.bitrate
+        : videoStream?.bps ?? 0;
+
     final left = <Widget>[
       if (bufferedSeconds != null)
         _detailLine('缓冲时长', '${bufferedSeconds!.toStringAsFixed(2)} s'),
-      if (status.resolution.isNotEmpty) _detailLine('分辨率', status.resolution),
-      if (status.bitrate > 0) _detailLine('码率', _formatBitrate(status.bitrate)),
-      if (_isTranscoded) ...[
-        if (video.encoder.isNotEmpty) _detailLine('编码器', video.encoder),
-        if (video.dynamicRange.isNotEmpty)
-          _detailLine('视频动态范围', video.dynamicRange),
-        if (status.audio.encoder.isNotEmpty)
-          _detailLine('音频编码', status.audio.encoder),
-        _detailLine('声道', '${status.audio.channels}'),
-      ],
+      if (resolution.isNotEmpty) _detailLine('分辨率', resolution),
+      if (bitrate > 0) _detailLine('码率', _formatBitrate(bitrate)),
     ];
-    final right = <Widget>[
-      if (video.selectedGpu.isNotEmpty)
-        _detailLine('启用 GPU', video.selectedGpu),
-      if (_decodeMethodLabels[video.decodeMethod] != null)
-        _detailLine('解码方式', _decodeMethodLabels[video.decodeMethod]!),
-      if (_encodeMethodLabels[video.encodeMethod] != null)
-        _detailLine('编码方式', _encodeMethodLabels[video.encodeMethod]!),
-      if (_isTranscoded) ...[
-        if (video.transcodingRate.isNotEmpty)
-          _detailLine('转码帧率', video.transcodingRate),
-        _detailLine('丢帧', '${video.droppedFrames}'),
-        _detailLine('坏帧', '${video.corruptedFrames}'),
-      ],
-    ];
+    final right = <Widget>[];
+    if (hasServerStats) {
+      final video = status.video;
+      if (_isTranscoded) {
+        left.addAll([
+          if (video.encoder.isNotEmpty) _detailLine('编码器', video.encoder),
+          if (video.dynamicRange.isNotEmpty)
+            _detailLine('视频动态范围', video.dynamicRange),
+          if (status.audio.encoder.isNotEmpty)
+            _detailLine('音频编码', status.audio.encoder),
+          _detailLine('声道', '${status.audio.channels}'),
+        ]);
+      }
+      right.addAll([
+        if (video.selectedGpu.isNotEmpty)
+          _detailLine('启用 GPU', video.selectedGpu),
+        if (_decodeMethodLabels[video.decodeMethod] != null)
+          _detailLine('解码方式', _decodeMethodLabels[video.decodeMethod]!),
+        if (_encodeMethodLabels[video.encodeMethod] != null)
+          _detailLine('编码方式', _encodeMethodLabels[video.encodeMethod]!),
+        if (_isTranscoded) ...[
+          if (video.transcodingRate.isNotEmpty)
+            _detailLine('转码帧率', video.transcodingRate),
+          _detailLine('丢帧', '${video.droppedFrames}'),
+          _detailLine('坏帧', '${video.corruptedFrames}'),
+        ],
+      ]);
+    }
 
     if (right.isEmpty) {
       return Column(

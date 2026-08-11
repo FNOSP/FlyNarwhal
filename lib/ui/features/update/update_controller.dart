@@ -347,7 +347,7 @@ final class UpdateController extends StateNotifier<UpdateState> {
       final platform = await _platformLoader();
       AppTalker.info(
         'UpdateCheck',
-        'Selecting update candidate from ${releases.length} newer releases for ${platform.operatingSystem.name}/${platform.architecture.name}.',
+        'Selecting update candidate from ${releases.length} fetched releases for ${platform.operatingSystem.name}/${platform.architecture.name}.',
       );
       final candidate = _policy.selectCandidate(
         releases: releases,

@@ -3,6 +3,7 @@ enum MediaType {
   tv('TV', '电视节目'),
   directory('Directory', '目录'),
   video('Video', '其他'),
+  liveChannel('LiveChannel', '电视直播'),
   episode('Episode', '剧集'),
   season('Season', '季');
 
@@ -20,6 +21,20 @@ enum MediaType {
 
   static List<String> get commonlyUsedValues =>
       commonlyUsed.map((mediaType) => mediaType.value).toList(growable: false);
+
+  /// 浏览某个具体媒体库（ancestor guid）时使用的类型全量，含直播频道。
+  /// 直播库（IPTV，如"国内电视台"）的条目 type 为 LiveChannel，不在
+  /// [commonlyUsed] 中，查询时需显式包含，否则该库只显示标题、无内容。
+  static const List<MediaType> libraryBrowse = [
+    MediaType.movie,
+    MediaType.tv,
+    MediaType.directory,
+    MediaType.video,
+    MediaType.liveChannel,
+  ];
+
+  static List<String> get libraryBrowseValues =>
+      libraryBrowse.map((mediaType) => mediaType.value).toList(growable: false);
 
   static MediaType fromString(String? value) {
     return tryParse(value) ?? MediaType.video;
@@ -46,6 +61,8 @@ enum MediaType {
         return const [MediaType.tv];
       case 'video':
         return const [MediaType.directory, MediaType.video];
+      case 'live':
+        return const [MediaType.liveChannel];
       default:
         return commonlyUsed;
     }

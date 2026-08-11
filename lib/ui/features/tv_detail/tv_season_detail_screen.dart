@@ -13,11 +13,13 @@ import '../../shared/common/app_loading_progress_ring.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/fly_narwhal/index.dart';
+import '../../../domain/entities/media_type.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/season_analysis_status_controller.dart';
 import '../../../providers/smart_analysis_controller.dart';
 import '../../shared/common/fn_cached_image.dart';
+import '../../shared/common/media_poster_placeholder.dart';
 import '../../shared/cast_scroll_row.dart';
 import '../../shared/common/poster_resolution_tags.dart';
 import '../../shared/common/scroll_row.dart';
@@ -405,7 +407,7 @@ class _TvSeasonDetailContentState
                           if (posterUrl.isNotEmpty)
                             Container(
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(16),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.black.withValues(alpha: 0.28),
@@ -415,7 +417,7 @@ class _TvSeasonDetailContentState
                                 ],
                               ),
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(16),
                                 child: Container(
                                   width: 180,
                                   height: 270,
@@ -424,7 +426,7 @@ class _TvSeasonDetailContentState
                                       color:
                                           Colors.white.withValues(alpha: 0.2),
                                     ),
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: CachedNetworkImage(
                                     imageUrl: posterUrl,
@@ -434,8 +436,10 @@ class _TvSeasonDetailContentState
                                     errorWidget: (context, url, error) =>
                                         Container(
                                       color: Colors.grey[40],
-                                      child: const Icon(FluentIcons.photo2,
-                                          size: 48),
+                                      alignment: Alignment.center,
+                                      child: const MediaPosterPlaceholder(
+                                        type: MediaType.episode,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -967,13 +971,18 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                                 fit: BoxFit.cover,
                                 errorWidget: (context, url, error) => Container(
                                   color: Colors.grey[40],
-                                  child:
-                                      const Icon(FluentIcons.photo2, size: 32),
+                                  alignment: Alignment.center,
+                                  child: const MediaPosterPlaceholder(
+                                    type: MediaType.episode,
+                                  ),
                                 ),
                               )
                             : Container(
                                 color: Colors.grey[40],
-                                child: const Icon(FluentIcons.photo2, size: 32),
+                                alignment: Alignment.center,
+                                child: const MediaPosterPlaceholder(
+                                  type: MediaType.episode,
+                                ),
                               ),
                       ),
                     ),

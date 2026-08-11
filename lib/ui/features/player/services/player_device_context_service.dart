@@ -13,10 +13,12 @@ typedef ProcessRunner = Future<ProcessResult> Function(
 
 class PlayerDeviceContext {
   final String deviceId;
+  final String deviceIdType;
   final String deviceName;
 
   const PlayerDeviceContext({
     required this.deviceId,
+    required this.deviceIdType,
     required this.deviceName,
   });
 }
@@ -53,38 +55,52 @@ class PlayerDeviceContextService {
   };
 
   Future<PlayerDeviceContext> loadContext() async {
+    final deviceIdResult = await _resolveDeviceId();
     return PlayerDeviceContext(
-      deviceId: await _resolveDeviceId(),
+      deviceId: deviceIdResult.id,
+      deviceIdType: deviceIdResult.type,
       deviceName: await _resolveDeviceName(),
     );
   }
 
-  Future<String> _resolveDeviceId() async {
+  Future<({String id, String type})> _resolveDeviceId() async {
     // Follow the KMP priority: hardware serial, hardware UUID, baseboard,
     // then fall back to a persisted UUID.
-    final candidates = <Future<String?>>[
-      _queryWindowsValue('(Get-CimInstance Win32_BIOS).SerialNumber'),
-      _queryWindowsValue('(Get-CimInstance Win32_ComputerSystemProduct).UUID'),
-      _queryWindowsValue('(Get-CimInstance Win32_BaseBoard).SerialNumber'),
+    final candidates = <({Future<String?> value, String type})>[
+      (
+        value: _queryWindowsValue('(Get-CimInstance Win32_BIOS).SerialNumber'),
+        type: 'hardware_serial',
+      ),
+      (
+        value: _queryWindowsValue(
+          '(Get-CimInstance Win32_ComputerSystemProduct).UUID',
+        ),
+        type: 'hardware_uuid',
+      ),
+      (
+        value: _queryWindowsValue(
+            '(Get-CimInstance Win32_BaseBoard).SerialNumber'),
+        type: 'baseboard_serial',
+      ),
     ];
 
     for (final candidate in candidates) {
-      final value = await candidate;
+      final value = await candidate.value;
       if (_isValidId(value)) {
-        return value!.trim();
+        return (id: value!.trim(), type: candidate.type);
       }
     }
 
     // Reuse the persisted fallback device id once hardware identifiers fail.
     final savedId = _preferencesManager.getFallbackDeviceId();
     if (savedId != null && savedId.isNotEmpty) {
-      return savedId;
+      return (id: savedId, type: 'persisted_uuid');
     }
 
     // Persist a generated id so subsequent requests stay stable.
     final generatedId = 'jvm_${_uuid.v4()}';
     await _preferencesManager.saveFallbackDeviceId(generatedId);
-    return generatedId;
+    return (id: generatedId, type: 'generated_uuid');
   }
 
   Future<String> _resolveDeviceName() async {

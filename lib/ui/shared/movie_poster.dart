@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../domain/entities/media_type.dart';
 import '../../providers/providers.dart';
 import '../shared/common/fn_cached_image.dart';
+import '../shared/common/media_poster_placeholder.dart';
 import '../shared/common/poster_resolution_tags.dart';
 
 // Accent color for watched state
@@ -156,9 +157,14 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                               posterPath: resolvedPosterPath,
                               fit: BoxFit.fitWidth,
                               width: 400,
+                              errorWidget: MediaPosterPlaceholder(
+                                type: mediaType,
+                              ),
                             )
                           else
-                            const Center(child: Icon(FluentIcons.file_image)),
+                            Center(
+                              child: MediaPosterPlaceholder(type: mediaType),
+                            ),
                           if (showScore)
                             Positioned(
                               top: 4,
@@ -385,6 +391,9 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
         break;
       case MediaType.season:
         context.go('/tv/season/${widget.guid}');
+        break;
+      case MediaType.liveChannel:
+        context.go('/player/${widget.guid}');
         break;
       case MediaType.directory:
       case MediaType.episode:

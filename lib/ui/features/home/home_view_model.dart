@@ -1,4 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../../domain/entities/media_type.dart';
 import '../../../data/models/home_models.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../providers/providers.dart';
@@ -48,7 +49,7 @@ class ItemListNotifier extends _$ItemListNotifier {
   FutureOr<ItemListQueryResponse> build(String guid) async {
     final request = ItemListQueryRequest(
       ancestorGuid: guid,
-      tags: Tags(type: ["Movie", "TV", "Directory", "Video"]),
+      tags: Tags(type: MediaType.libraryBrowseValues),
     );
     final remote = ref.read(mediaRemoteDataSourceProvider);
     try {

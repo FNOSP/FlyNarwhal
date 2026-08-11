@@ -1,6 +1,7 @@
 import 'package:canvas_danmaku/canvas_danmaku.dart' as canvas;
 import 'package:flutter/material.dart';
 
+import '../../../../core/utils/app_fonts.dart';
 import '../../../../data/models/fly_narwhal/index.dart';
 import '../../../../providers/danmaku_controller.dart';
 
@@ -384,7 +385,7 @@ class CanvasPlayerDanmakuRenderController
     return canvas.DanmakuOption(
       fontSize: options.fontSize,
       fontWeight: 5,
-      fontFamily: 'SourceHanSansSC',
+      fontFamily: AppFonts.primary,
       area: options.area,
       duration: options.durationSeconds,
       staticDuration: options.staticDurationSeconds,

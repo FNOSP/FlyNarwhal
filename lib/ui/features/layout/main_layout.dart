@@ -109,6 +109,10 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
         case 'Mix':
           assetPath = 'assets/images/mix_media.svg';
           break;
+        case 'IPTV':
+          // Live TV media library (e.g. 国内电视台).
+          assetPath = 'assets/images/live_tv.svg';
+          break;
         case 'Others':
           assetPath = 'assets/images/other_media.svg';
           break;
@@ -166,28 +170,35 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
           key: const ValueKey('category-total'),
           title: const Text('全部'),
           body: const SizedBox.shrink(),
-          icon: const Icon(FluentIcons.list),
+          icon: buildNavigationAssetIcon('assets/images/category_all.svg'),
           trailing: buildCountText(mediaSum['total']),
-        ),
-        PaneItem(
-          key: const ValueKey('category-tv'),
-          title: const Text('电视节目'),
-          body: const SizedBox.shrink(),
-          icon: const Icon(FluentIcons.play),
-          trailing: buildCountText(mediaSum['tv']),
         ),
         PaneItem(
           key: const ValueKey('category-movie'),
           title: const Text('电影'),
           body: const SizedBox.shrink(),
-          icon: const Icon(FluentIcons.video),
+          icon: buildNavigationAssetIcon('assets/images/movie.svg'),
           trailing: buildCountText(mediaSum['movie']),
+        ),
+        PaneItem(
+          key: const ValueKey('category-tv'),
+          title: const Text('电视节目'),
+          body: const SizedBox.shrink(),
+          icon: buildNavigationAssetIcon('assets/images/tv.svg'),
+          trailing: buildCountText(mediaSum['tv']),
+        ),
+        PaneItem(
+          key: const ValueKey('category-live'),
+          title: const Text('电视直播'),
+          body: const SizedBox.shrink(),
+          icon: buildNavigationAssetIcon('assets/images/live_tv.svg'),
+          trailing: buildCountText(mediaSum['live']),
         ),
         PaneItem(
           key: const ValueKey('category-video'),
           title: const Text('其他'),
           body: const SizedBox.shrink(),
-          icon: const Icon(FluentIcons.bulleted_list),
+          icon: buildNavigationAssetIcon('assets/images/other_media.svg'),
           trailing: buildCountText(mediaSum['video']),
         ),
       ];
@@ -217,6 +228,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
             return '/category/tv';
           case 'category-movie':
             return '/category/movie';
+          case 'category-live':
+            return '/category/live';
           case 'category-video':
             return '/category/video';
         }
@@ -302,6 +315,16 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                     enabled: item.enabled,
                     onTap: () => context.go('/category/movie'),
                   );
+                case 'category-live':
+                  return PaneItem(
+                    key: item.key,
+                    title: item.title,
+                    body: item.body,
+                    icon: item.icon,
+                    trailing: item.trailing,
+                    enabled: item.enabled,
+                    onTap: () => context.go('/category/live'),
+                  );
                 case 'category-video':
                   return PaneItem(
                     key: item.key,
@@ -346,6 +369,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
           return 'category-tv';
         case '/category/movie':
           return 'category-movie';
+        case '/category/live':
+          return 'category-live';
         case '/category/video':
           return 'category-video';
       }
@@ -477,7 +502,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                       Expanded(
                         child: DragToMoveArea(
                           child: Container(
-                            height: 28.0,
+                            height: double.infinity,
                             alignment: Alignment.centerLeft,
                           ),
                         ),

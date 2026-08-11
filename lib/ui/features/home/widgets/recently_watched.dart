@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../data/models/home_models.dart';
+import '../../../../domain/entities/media_type.dart';
 import '../../../../providers/providers.dart';
 import '../../../shared/common/fn_cached_image.dart';
+import '../../../shared/common/media_poster_placeholder.dart';
 import '../../../shared/common/scroll_row.dart';
 
 // Accent color for watched state
@@ -267,9 +269,16 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                 posterPath: resolvedPosterPath,
                                 fit: BoxFit.cover,
                                 width: 400,
+                                errorWidget: MediaPosterPlaceholder(
+                                  type: MediaType.fromString(widget.item.type),
+                                ),
                               )
                             else
-                              const Center(child: Icon(FluentIcons.file_image)),
+                              Center(
+                                child: MediaPosterPlaceholder(
+                                  type: MediaType.fromString(widget.item.type),
+                                ),
+                              ),
                             Align(
                               alignment: Alignment.bottomLeft,
                               child: SizedBox(

@@ -20,7 +20,10 @@ import '../../shared/common/fn_cached_image.dart';
 import 'detail_components.dart';
 import '../../shared/common/img_loading_progress_ring.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
+import '../../shared/dialogs/app_dialog.dart';
 import '../../shared/dialogs/file_media_info_dialog.dart';
+import '../../shared/local_subtitle_upload.dart';
+import '../player/widgets/subtitle_search_dialog.dart';
 import '../../shared/cast_scroll_row.dart';
 import '../../shared/toast.dart';
 
@@ -162,6 +165,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   // Maps to track selection per media guid
   final Map<String, String> _mediaGuidAudioGuidMap = {};
   final Map<String, String> _mediaGuidSubtitleGuidMap = {};
+
+  bool _showSubtitleSearchDialog = false;
+  bool _isUploadingLocalSubtitle = false;
 
   @override
   void initState() {
@@ -337,6 +343,224 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         },
       ),
     );
+  }
+
+  /// 字幕变更（下载/上传/标记）后刷新详情，并把选中状态同步到新字幕。
+  Future<void> _refreshDetailAndSelectSubtitle(String guid) async {
+    try {
+      await ref
+          .read(movieDetailNotifierProvider(widget.guid).notifier)
+          .refresh();
+    } catch (error) {
+      AppTalker.warning(
+        'MovieDetailScreen',
+        'refresh after subtitle change failed: $error',
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _mediaGuidSubtitleGuidMap[_currentMediaGuid] = guid;
+      _selectedSubtitleGuid = guid;
+    });
+  }
+
+  Future<void> _openSubtitleSearchDialog() async {
+    if (_showSubtitleSearchDialog) return;
+    final files = widget.state.streamList?.files ?? [];
+    final currentFile =
+        files.where((f) => f.guid == _currentMediaGuid).firstOrNull ??
+            files.firstOrNull;
+    if (currentFile == null || currentFile.guid.isEmpty) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            '当前文件信息缺失，无法搜索字幕',
+            type: ToastType.info,
+            category: 'subtitle-search:${widget.guid}',
+          );
+      return;
+    }
+    final mediaGuid = currentFile.guid;
+
+    setState(() => _showSubtitleSearchDialog = true);
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierColor: subtitleSearchScrimColor,
+        barrierDismissible: true,
+        builder: (_) => SubtitleSearchDialog(
+          mediaFileName: currentFile.fileName,
+          initialSubtitleGuidByTrimId: {
+            for (final subtitle
+                in widget.state.streamList?.subtitleStreams ??
+                    const <SubtitleStream>[])
+              if (subtitle.mediaGuid == mediaGuid &&
+                  subtitle.trimId.isNotEmpty &&
+                  subtitle.guid.isNotEmpty)
+                subtitle.trimId: subtitle.guid,
+          },
+          onSearch: (language) {
+            return ref.read(fileRepositoryProvider).searchSubtitles(
+                  mediaGuid: mediaGuid,
+                  language: language,
+                );
+          },
+          onDownload: (item) async {
+            try {
+              final subtitleStream =
+                  await ref.read(fileRepositoryProvider).downloadSubtitle(
+                        mediaGuid: mediaGuid,
+                        trimId: item.trimId,
+                      );
+              if (!mounted) return subtitleStream.guid;
+              ref.read(toastManagerProvider.notifier).showToast(
+                    '下载成功',
+                    type: ToastType.success,
+                    category: 'subtitle-download:${item.trimId}',
+                  );
+              unawaited(
+                _refreshDetailAndSelectSubtitle(subtitleStream.guid),
+              );
+              return subtitleStream.guid;
+            } catch (error) {
+              if (mounted) {
+                ref.read(toastManagerProvider.notifier).showToast(
+                      '下载字幕失败: $error',
+                      type: ToastType.failed,
+                      category: 'subtitle-download:${item.trimId}',
+                    );
+              }
+              rethrow;
+            }
+          },
+          onDownloadSimilar: (item, subtitleGuid) async {
+            try {
+              await ref
+                  .read(fileRepositoryProvider)
+                  .predownloadSimilarSubtitle(
+                    mediaGuid: mediaGuid,
+                    subtitleGuid: subtitleGuid,
+                  );
+              if (!mounted) return;
+              ref.read(toastManagerProvider.notifier).showToast(
+                    '已创建字幕下载任务',
+                    type: ToastType.success,
+                    category: 'subtitle-predownload:${item.trimId}',
+                  );
+            } catch (error) {
+              if (mounted) {
+                ref.read(toastManagerProvider.notifier).showToast(
+                      '创建字幕下载任务失败，请重试',
+                      type: ToastType.failed,
+                      category: 'subtitle-predownload:${item.trimId}',
+                    );
+              }
+            }
+          },
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _showSubtitleSearchDialog = false);
+      }
+    }
+  }
+
+  Future<void> _pickAndUploadLocalSubtitle() async {
+    if (_isUploadingLocalSubtitle) return;
+    if (_currentMediaGuid.isEmpty) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            '当前文件信息缺失，无法上传字幕',
+            type: ToastType.info,
+            category: 'local-subtitle:${widget.guid}',
+          );
+      return;
+    }
+
+    _isUploadingLocalSubtitle = true;
+    try {
+      final uploaded = await pickAndUploadLocalSubtitles(
+        ref: ref,
+        mediaGuid: _currentMediaGuid,
+      );
+      if (!mounted || uploaded == null) return;
+      await _refreshDetailAndSelectSubtitle(uploaded.guid);
+    } finally {
+      _isUploadingLocalSubtitle = false;
+    }
+  }
+
+  Future<void> _handleDeleteSubtitle(SubtitleStream subtitle) async {
+    final languageName = FnDataConvertor.getLanguageName(
+      subtitle.language,
+      widget.state.iso6391,
+      widget.state.iso6392,
+    );
+    final displayName = StringBuffer(languageName);
+    if (subtitle.isExternal == 1) displayName.write(' - 外挂');
+    if (subtitle.isDefault == 1) displayName.write(' - 默认');
+
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      type: AppDialogType.danger,
+      title: '删除外挂字幕',
+      content: Text('确定要删除 $displayName 外挂字幕吗？'),
+      primaryButtonText: '删除',
+      secondaryButtonText: '取消',
+      primaryResult: true,
+      secondaryResult: false,
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref.read(fileRepositoryProvider).deleteSubtitle(subtitle.guid);
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '删除字幕成功',
+            type: ToastType.success,
+            category: 'subtitle-delete:${subtitle.guid}',
+          );
+      try {
+        await ref
+            .read(movieDetailNotifierProvider(widget.guid).notifier)
+            .refresh();
+      } catch (error) {
+        AppTalker.warning(
+          'MovieDetailScreen',
+          'refresh after subtitle delete failed: $error',
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '删除字幕失败: $error',
+            type: ToastType.failed,
+            category: 'subtitle-delete:${subtitle.guid}',
+          );
+    }
+  }
+
+  Future<void> _handlePredownloadSimilarSubtitle(
+    SubtitleStream subtitle,
+  ) async {
+    if (_currentMediaGuid.isEmpty) return;
+    try {
+      await ref.read(fileRepositoryProvider).predownloadSimilarSubtitle(
+            mediaGuid: _currentMediaGuid,
+            subtitleGuid: subtitle.guid,
+          );
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '已创建字幕下载任务',
+            type: ToastType.success,
+            category: 'subtitle-predownload-flyout:${subtitle.guid}',
+          );
+    } catch (error) {
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            '创建字幕下载任务失败，请重试',
+            type: ToastType.failed,
+            category: 'subtitle-predownload-flyout:${subtitle.guid}',
+          );
+    }
   }
 
   void _onVideoStreamSelected(int index) {
@@ -598,47 +822,34 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                               '_no_display_'
                                           ? '无字幕'
                                           : '${FnDataConvertor.getLanguageName(currentSubtitle?.language ?? '', widget.state.iso6391, widget.state.iso6392)}字幕';
-                                      final subtitleItems = [
-                                        StreamOptionItem<String>(
-                                          title: '无',
-                                          value: '_no_display_',
-                                          isNoDisplay: true,
-                                        ),
-                                        ...subtitleStreams.map((s) {
-                                          final lang =
-                                              FnDataConvertor.getLanguageName(
-                                                  s.language,
-                                                  widget.state.iso6391,
-                                                  widget.state.iso6392);
-                                          final title = s.isExternal == 1
-                                              ? '$lang - 外挂'
-                                              : lang;
-                                          return StreamOptionItem<String>(
-                                            title: title,
-                                            value: s.guid,
-                                            subtitle1: s.format.toUpperCase(),
-                                            subtitle3: s.title,
-                                            isDefault: s.isDefault == 1,
-                                            isExternal: s.isExternal == 1,
-                                          );
-                                        }),
-                                      ];
-                                      return StreamSelector<String>(
-                                        placeholder: '字幕',
+                                      return SubtitleStreamSelector(
                                         selectedLabel: subtitleLabel,
-                                        selectedValue: _selectedSubtitleGuid,
-                                        items: subtitleItems,
-                                        isSubtitle: true,
+                                        subtitles: subtitleStreams,
+                                        selectedSubtitleGuid:
+                                            _selectedSubtitleGuid ==
+                                                    '_no_display_'
+                                                ? null
+                                                : _selectedSubtitleGuid,
+                                        iso6391Map: widget.state.iso6391,
+                                        iso6392Map: widget.state.iso6392,
+                                        onChanged: (guid) {
+                                          final value = guid ?? '_no_display_';
+                                          setState(() {
+                                            _selectedSubtitleGuid = value;
+                                            _mediaGuidSubtitleGuidMap[
+                                                _currentMediaGuid] = value;
+                                          });
+                                        },
                                         onAddNasSubtitle: () =>
                                             _showAddNasSubtitleDialog(
                                                 _currentMediaGuid),
-                                        onChanged: (val) {
-                                          setState(() {
-                                            _selectedSubtitleGuid = val;
-                                            _mediaGuidSubtitleGuidMap[
-                                                _currentMediaGuid] = val;
-                                          });
-                                        },
+                                        onSearchSubtitle:
+                                            _openSubtitleSearchDialog,
+                                        onAddLocalSubtitle:
+                                            _pickAndUploadLocalSubtitle,
+                                        onRequestDelete: _handleDeleteSubtitle,
+                                        onPredownloadSimilar:
+                                            _handlePredownloadSimilarSubtitle,
                                       );
                                     }),
                                     const SizedBox(width: 12),
@@ -1352,9 +1563,10 @@ class _ViewAllMediaInfoButtonState extends State<_ViewAllMediaInfoButton> {
                 '查看全部',
                 style: TextStyle(color: color, fontSize: 12),
               ),
+              const SizedBox(width: 8),
               Icon(
                 FluentIcons.chevron_right,
-                size: 16,
+                size: 10,
                 color: color,
               ),
             ],

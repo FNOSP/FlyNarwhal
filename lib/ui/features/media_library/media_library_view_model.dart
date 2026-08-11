@@ -1,4 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../../domain/entities/media_type.dart';
 import '../../../data/models/home_models.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../providers/providers.dart';
@@ -94,13 +95,13 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
     if (guid == 'favorite') {
       return MediaLibraryBrowseRequest(
         favoriteOnly: true,
-        tags: Tags(type: ["Movie", "TV", "Directory", "Video"]),
+        tags: Tags(type: MediaType.libraryBrowseValues),
       );
     }
 
     return MediaLibraryBrowseRequest(
       ancestorGuid: guid,
-      tags: Tags(type: ["Movie", "TV", "Directory", "Video"]),
+      tags: Tags(type: MediaType.libraryBrowseValues),
     );
   }
 
@@ -131,6 +132,8 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
         return ["TV"];
       case 'video':
         return ["Video"];
+      case 'live':
+        return ["LiveChannel"];
       case 'total':
       default:
         return ["Movie", "TV", "Directory", "Video"];

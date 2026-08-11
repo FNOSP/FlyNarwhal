@@ -24,3 +24,28 @@ target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
 
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+
+# === Full libmpv bundling =================================================
+# Run after the runner executable is linked, on every build type. Skips
+# itself when the build host has a system libmpv.so.2 (so CI's apt-installed
+# path stays the fast path). Otherwise downloads a self-contained closure
+# from the Ubuntu 24.04 apt pool into a project-local cache and asks the
+# bundler to copy the .so files into the binary's runtime directory.
+# See linux/cmake/ensure_full_libmpv.cmake for the actual implementation.
+#
+# Note: this must live in the same directory scope as the target (`fly_narwhal`
+# is created above), because add_custom_command(TARGET ... POST_BUILD) is
+# rejected otherwise. Flutter's hot reload (`r`/`R`) only pushes a new Dart
+# kernel and does not relink the ELF, so this hook only fires on actual C++
+# rebuilds.
+add_custom_command(
+  TARGET ${BINARY_NAME} POST_BUILD
+  COMMAND ${CMAKE_COMMAND}
+    -DFLY_NARWHAL_FETCH_FULL_LIBMPV=${FLY_NARWHAL_FETCH_FULL_LIBMPV}
+    -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+    -DCMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+    -DCMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/ensure_full_libmpv.cmake"
+  COMMENT "Bundling full libmpv (downloads from Ubuntu apt pool if needed)"
+  VERBATIM
+)

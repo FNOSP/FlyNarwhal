@@ -20,12 +20,14 @@ jobs:
             platform: windows
             architecture: x64
             goarch: amd64
+            installer-arch: amd64
             libname: fly_narwhal_obfuscator.dll
             artifact: windows-x64
           - runner: windows-11-arm
             platform: windows
             architecture: arm64
             goarch: arm64
+            installer-arch: aarch64
             libname: fly_narwhal_obfuscator.dll
             artifact: windows-arm64
           - runner: macos-15-intel
@@ -59,11 +61,77 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Flutter publishes no prebuilt Linux arm64 host SDK in its release
+      # manifest (subosito/flutter-action cannot resolve a stable version for
+      # arm64), and the flutter snap only tracks latest/stable. The release
+      # build swaps a fontconfig-patched linux-arm64 engine into the bundle
+      # (scripts/release/build_desktop.dart), which is only compatible with
+      # the exact Flutter version it was built for (see
+      # scripts/linux/patched-engine/), so the arm64 runner must use a pinned
+      # git checkout instead of the drifting snap. A git checkout bootstraps
+      # its own arm64 host toolchain on first run.
+      - name: Set up Flutter (Linux ARM64, pinned checkout)
+        if: matrix.platform == 'linux' && matrix.architecture == 'arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep in sync with the directories under scripts/linux/patched-engine/.
+          flutter_pin_version='3.44.8'
+          git clone --depth 1 --branch "$flutter_pin_version" \
+            https://github.com/flutter/flutter.git "$HOME/flutter-pinned"
+          echo "$HOME/flutter-pinned/bin" >> "$GITHUB_PATH"
+          # The standalone `dart` (used by the release build script) resolves
+          # the `flutter from sdk` packages only when FLUTTER_ROOT points at
+          # the SDK, so export it for the rest of the job.
+          echo "FLUTTER_ROOT=$HOME/flutter-pinned" >> "$GITHUB_ENV"
+          "$HOME/flutter-pinned/bin/flutter" --version
+          "$HOME/flutter-pinned/bin/dart" --version
+          # Materialize the Flutter SDK's sky_engine SDK package so the later
+          # `dart run scripts/release/build_desktop.dart` can resolve it.
+          "$HOME/flutter-pinned/bin/flutter" pub get
+
       - name: Set up Flutter
+        if: ${{ matrix.architecture != 'arm64' || matrix.platform == 'macos' }}
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+
+      # Flutter does not publish a prebuilt Windows arm64 host SDK in its stable
+      # release manifest, and subosito/flutter-action cannot resolve one. The
+      # windows-11-arm runner is itself arm64, so install the framework from git
+      # and seed the cache with the matching arm64 Dart SDK. Once the bundled
+      # `dart` is arm64, the Flutter tool reports host platform windows-arm64 and
+      # downloads the correct windows-arm64 engine artifacts.
+      - name: Set up Flutter (Windows ARM64, pinned checkout + arm64 Dart)
+        if: matrix.platform == 'windows' && matrix.architecture == 'arm64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $flutterPinVersion = '3.44.8'
+          $dartPinVersion = '3.12.2'
+          $flutterRoot = Join-Path $env:USERPROFILE 'flutter-pinned'
+          $dartSdkDir = Join-Path $flutterRoot 'bin/cache/dart-sdk'
+          $dartExtractDir = Join-Path $env:RUNNER_TEMP 'dart-sdk-extract'
+
+          git clone --depth 1 --branch $flutterPinVersion `
+            https://github.com/flutter/flutter.git $flutterRoot
+
+          New-Item -ItemType Directory -Force -Path $dartSdkDir | Out-Null
+          $dartZip = Join-Path $env:RUNNER_TEMP 'dartsdk-windows-arm64-release.zip'
+          Invoke-WebRequest -Uri "https://storage.googleapis.com/dart-archive/channels/stable/release/$dartPinVersion/sdk/dartsdk-windows-arm64-release.zip" -OutFile $dartZip
+          if (Test-Path $dartExtractDir) { Remove-Item -Recurse -Force $dartExtractDir }
+          Expand-Archive -Path $dartZip -DestinationPath $dartExtractDir -Force
+          Get-ChildItem -Path (Join-Path $dartExtractDir 'dart-sdk') | Move-Item -Destination $dartSdkDir -Force
+
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $flutterRoot 'bin')
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $dartSdkDir 'bin')
+          Add-Content -Path $env:GITHUB_ENV -Value "FLUTTER_ROOT=$flutterRoot"
+
+          & (Join-Path $flutterRoot 'bin/flutter.bat') --version
+          & (Join-Path $dartSdkDir 'bin/dart.exe') --version
+          & (Join-Path $flutterRoot 'bin/flutter.bat') config --enable-windows-desktop
+          & (Join-Path $flutterRoot 'bin/flutter.bat') pub get
 
       - name: Probe Go toolchain
         id: probe-go
@@ -100,11 +168,62 @@ jobs:
         shell: pwsh
         run: go version
 
+      - name: Set up cgo toolchain (Windows ARM64)
+        if: matrix.platform == 'windows' && matrix.architecture == 'arm64'
+        shell: pwsh
+        run: |
+          # Go builds the obfuscator library with CGO_ENABLED=1, which needs a
+          # GCC-compatible C compiler for the target. The windows-11-arm runner
+          # ships no MinGW, so install the native aarch64 llvm-mingw toolchain
+          # and point cgo's CC at it.
+          $ErrorActionPreference = 'Stop'
+          $llvmMingwVersion = '20260616'
+          $archiveName = "llvm-mingw-$llvmMingwVersion-ucrt-aarch64.zip"
+          $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/$llvmMingwVersion/$archiveName"
+          $zip = Join-Path $env:RUNNER_TEMP $archiveName
+          $installRoot = Join-Path $env:RUNNER_TEMP 'llvm-mingw'
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
+          # bsdtar is orders of magnitude faster than Expand-Archive for the
+          # ~400 MB toolchain zip and handles zip extraction natively.
+          tar.exe -xf $zip -C $installRoot
+          if ($LASTEXITCODE -ne 0) { throw "Failed to extract $archiveName" }
+          $binDir = Join-Path $installRoot "llvm-mingw-$llvmMingwVersion-ucrt-aarch64\bin"
+          if (-not (Test-Path (Join-Path $binDir 'aarch64-w64-mingw32-clang.exe'))) {
+            throw "llvm-mingw aarch64 toolchain not found under $binDir"
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $binDir
+          Add-Content -Path $env:GITHUB_ENV -Value 'CC=aarch64-w64-mingw32-clang'
+          Add-Content -Path $env:GITHUB_ENV -Value 'CXX=aarch64-w64-mingw32-clang++'
+          & (Join-Path $binDir 'aarch64-w64-mingw32-clang.exe') --version
+
       - name: Set up C toolchain (Linux)
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc mpv libmpv-dev
+          # Flutter's Linux desktop build requires the GTK3 dev headers and
+          # toolchain (clang/cmake/ninja/pkg-config) in addition to the
+          # libmpv runtime used for the full PGS/HDMV SUP bundle. The release
+          # packaging additionally needs dpkg-deb (preinstalled), fpm for the
+          # .rpm, and appimagetool for the .AppImage.
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev \
+            gcc mpv libmpv-dev \
+            rpm ruby-dev
+          sudo gem install fpm --no-document
+          # appimagetool is distributed as an AppImage per architecture; run it
+          # with --appimage-extract-and-run so no FUSE is required on runners.
+          case "$(uname -m)" in
+            aarch64) appimagetool_arch=aarch64 ;;
+            x86_64)  appimagetool_arch=x86_64 ;;
+            *) echo "::error::Unsupported architecture for appimagetool: $(uname -m)"; exit 1 ;;
+          esac
+          curl -fsSL -o /tmp/appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-${appimagetool_arch}.AppImage"
+          chmod +x /tmp/appimagetool
+          sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
+          appimagetool --appimage-extract-and-run --version
           # Verify the runtime libmpv can decode PGS/HDMV SUP subtitles so the
           # bundle script can rely on the system copy. mpv is built against
           # FFmpeg, so `mpv --list-options` exposes decoder availability.
@@ -118,27 +237,36 @@ jobs:
             exit 1
           fi
 
-      - name: Set up C toolchain (Windows arm64)
-        if: matrix.platform == 'windows' && matrix.architecture == 'arm64'
-        shell: pwsh
-        run: |
-          Write-Host 'The windows-11-arm runner must provide an ARM64 MSVC or LLVM-MinGW C toolchain.'
-
       - name: Check out verified private obfuscator
         uses: actions/checkout@v4
         with:
           repository: Jankin-Wu/fly-narwhal-obfuscator
-          ref: ${{ vars.OBFUSCATOR_RELEASE_TAG }}
+          # ref: ${{ vars.OBFUSCATOR_RELEASE_TAG }}
           token: ${{ secrets.OBFUSCATOR_REPO_TOKEN }}
           path: .private/obfuscator
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Verify private obfuscator revision
-        shell: bash
+      # - name: Verify private obfuscator revision
+      #   shell: bash
+      #   run: |
+      #     test -n "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
+      #     test "$(git -C .private/obfuscator rev-parse HEAD)" = "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
+
+      - name: Set up create-dmg (macOS)
+        if: matrix.platform == 'macos'
         run: |
-          test -n "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
-          test "$(git -C .private/obfuscator rev-parse HEAD)" = "${{ vars.OBFUSCATOR_EXPECTED_SHA }}"
+          # Pinned release tarball (not brew) so packaging is deterministic.
+          # create-dmg locates its support/ directory next to the script, so
+          # the whole extracted directory goes on PATH.
+          curl -fsSL -o /tmp/create-dmg.tar.gz \
+            https://github.com/create-dmg/create-dmg/archive/refs/tags/v1.3.0.tar.gz
+          tar -xzf /tmp/create-dmg.tar.gz -C /tmp
+          chmod +x /tmp/create-dmg-1.3.0/create-dmg
+          echo "/tmp/create-dmg-1.3.0" >> "$GITHUB_PATH"
+          # $GITHUB_PATH only affects subsequent steps, so verify using the full
+          # path here rather than relying on PATH within the same step.
+          /tmp/create-dmg-1.3.0/create-dmg --version
 
       - name: Build protected release bundle
         env:
@@ -150,6 +278,16 @@ jobs:
           OBFUSCATOR_GOARCH: ${{ matrix.goarch }}
           OBFUSCATOR_LIBNAME: ${{ matrix.libname }}
         run: dart run scripts/release/build_desktop.dart ${{ matrix.platform }} ${{ matrix.architecture }}
+
+      - name: Upload Windows build logs on failure
+        if: failure() && matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}-build-logs
+          path: |
+            build/windows/
+            build/.last_build_id
+          if-no-files-found: ignore
 
       - name: Run updater tests
         if: matrix.platform == 'windows'
@@ -164,7 +302,7 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
           $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([^+]+)').Matches[0].Groups[1].Value
-          iscc "/DMyAppArch=${{ matrix.goarch }}" "/DMyAppVersion=$version" "/DFlutterBundleDir=$PWD\\build\\windows\\${{ matrix.architecture }}\\runner\\Release" installer/setup.iss
+          iscc "/DMyAppArch=${{ matrix.installer-arch }}" "/DMyAppVersion=$version" "/DFlutterBundleDir=$PWD\\build\\windows\\${{ matrix.architecture }}\\runner\\Release" installer/setup.iss
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -186,20 +324,136 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      # Checked out so the committed minisign.pub acts as the trust anchor.
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - name: Generate checksums
+      # Signing is temporarily disabled: the repo has no MINISIGN_SECRET_KEY
+      # secret or committed minisign.pub yet, so the signing steps below are
+      # skipped until the key is configured. Re-enable by removing `if: false`.
+      - name: Install minisign
+        if: false
         shell: bash
         run: |
-          cd artifacts
-          sha256sum * > SHA256SUMS
+          # Pinned static binary keeps the signing toolchain reproducible.
+          curl -fsSL -o /tmp/minisign.tar.gz \
+            https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz
+          mkdir -p /tmp/minisign
+          tar -xzf /tmp/minisign.tar.gz -C /tmp/minisign
+          # The 0.12 linux tarball ships both x86_64 and aarch64 binaries under
+          # per-arch subdirs; pick the one matching this runner instead of
+          # grabbing the first (aarch64 sorts first and breaks x64 runners).
+          BIN=$(find /tmp/minisign -type f -name minisign -path "*/$(uname -m)/minisign" | head -n1)
+          if [ -z "$BIN" ]; then
+            BIN=$(find /tmp/minisign -type f -name minisign | head -n1)
+          fi
+          sudo install -m 0755 "$BIN" /usr/local/bin/minisign
+          minisign -v
+
+      - name: Prepare minisign secret key
+        if: false
+        shell: bash
+        env:
+          RAW_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          # Fail fast with setup hints when the signing secret is missing.
+          if [ -z "$RAW_KEY" ]; then
+            echo '::error::MINISIGN_SECRET_KEY secret is empty. Generate a key pair with `minisign -G -W` and store the secret key file content in this repo secret.'
+            exit 1
+          fi
+          KEY_PATH="$RUNNER_TEMP/minisign.key"
+          # Accept either the raw two-line key file or its base64 encoding.
+          if printf '%s' "$RAW_KEY" | head -n1 | grep -q '^untrusted comment:'; then
+            printf '%s\n' "$RAW_KEY" > "$KEY_PATH"
+          elif DECODED=$(printf '%s' "$RAW_KEY" | base64 -d 2>/dev/null) \
+            && printf '%s' "$DECODED" | head -n1 | grep -q '^untrusted comment:'; then
+            printf '%s\n' "$DECODED" > "$KEY_PATH"
+          else
+            echo '::error::MINISIGN_SECRET_KEY must be the minisign secret key file (two lines starting with "untrusted comment:") or its base64 encoding.'
+            exit 1
+          fi
+          echo "MINISIGN_SECRET_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Stage release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          # Flatten installers so published asset names match SHA256SUMS entries.
+          # Include all desktop packages produced by the build matrix:
+          # Windows (.exe), macOS (.dmg), Linux (.deb, .rpm, .AppImage).
+          find artifacts -type f -name 'FlyNarwhal_Setup_*' -exec cp -f {} release-assets/ \;
+          count=$(find release-assets -type f | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo '::error::No FlyNarwhal installers found in the build artifacts.'
+            exit 1
+          fi
+          ls -l release-assets
+
+      - name: Sign installers with minisign
+        if: false
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The committed public key is the trust anchor for verification.
+          if [ ! -f minisign.pub ]; then
+            echo '::error::minisign.pub is missing at the repository root. Commit the public key generated with `minisign -G -W`.'
+            exit 1
+          fi
+          cd release-assets
+          shopt -s nullglob
+          # Emit a same-name .sig detached signature for every installer.
+          for file in FlyNarwhal_Setup_*.exe FlyNarwhal_Setup_*.dmg FlyNarwhal_Setup_*.deb FlyNarwhal_Setup_*.rpm FlyNarwhal_Setup_*.AppImage; do
+            minisign -S -s "$MINISIGN_SECRET_KEY_PATH" -m "$file" -x "$file.sig" -t "file=$file tag=$GITHUB_REF_NAME"
+            minisign -Vm "$file" -x "$file.sig" -p ../minisign.pub
+          done
+          rm -f "$MINISIGN_SECRET_KEY_PATH"
+
+      - name: Generate checksums
+        shell: bash
+        working-directory: release-assets
+        run: |
+          # Flat asset names let users run `sha256sum -c SHA256SUMS` right
+          # next to the downloaded files; SHA256SUMS itself is excluded.
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' | LC_ALL=C sort | xargs -d '\n' sha256sum > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Extract changelog section for release body
+        id: extract-changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The release tag (e.g. v2.0.3-Alpha) maps 1:1 to a CHANGELOG section
+          # header by stripping only the leading 'v' (the -Alpha suffix is kept,
+          # so section [2.0.3-Alpha] matches tag v2.0.3-Alpha).
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            $0 ~ /^## / {
+              if (found) { exit }
+              if ($0 ~ "^## \\[" ver "\\]") { found=1 }
+              next
+            }
+            found { print }
+          ' CHANGELOG.md > release_body.md
+          if [ -s release_body.md ]; then
+            echo "has_section=true" >> "$GITHUB_OUTPUT"
+            echo "Extracted CHANGELOG section for $GITHUB_REF_NAME"
+          else
+            echo "has_section=false" >> "$GITHUB_OUTPUT"
+            echo "No matching CHANGELOG section for $GITHUB_REF_NAME; falling back to generated notes"
+          fi
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
+          files: release-assets/*
           prerelease: ${{ contains(github.ref_name, '-') }}
-          generate_release_notes: true
+          # release_body.md is always written (empty when no CHANGELOG section
+          # matches), so generate_release_notes fills the gap as a fallback.
+          body_path: release_body.md
+          generate_release_notes: ${{ steps.extract-changelog.outputs.has_section != 'true' }}

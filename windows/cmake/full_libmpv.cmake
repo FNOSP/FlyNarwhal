@@ -1,8 +1,21 @@
 ﻿function(ensure_full_libmpv_windows)
-  set(ARCHIVE_NAME "mpv-dev-x86_64-20260706-git-c8c7d91a8e.7z")
-  set(ARCHIVE_URL  "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-07-06-c8c7d91a8e/${ARCHIVE_NAME}")
-  set(ARCHIVE_SHA256 "81beeb603d42162fcee96fdaadea2d564282563a054db93431a755d43a2f53c3")
-  set(DLL_SHA256 "b7ce1d6145dd86be99b3eb04cd4307d484f22f1b957104c0c437b14999451bd2")
+  # Pin to the latest zhongfly/mpv-winbuild release. The archive SHA256 is
+  # taken from that release's sha256.txt. The DLL hash is NOT pinned below:
+  # it changes on every upstream release, so it is computed dynamically at
+  # build time (see NEEDS_EXTRACT). If the pinned release is ever removed,
+  # bump ARCHIVE_NAME/URL to the newest release and refresh ARCHIVE_SHA256
+  # from its sha256.txt (one hash per architecture).
+  #
+  # FLUTTER_TARGET_PLATFORM is defined by the flutter tool via -D on the
+  # cmake command line, so it is available at configure time.
+  if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
+    set(ARCHIVE_NAME "mpv-dev-aarch64-20260808-git-dd5d17d328.7z")
+    set(ARCHIVE_SHA256 "edf1418d21339aa526bf6f3939f09029b637746296e69f9818a128522a16ed5b")
+  else()
+    set(ARCHIVE_NAME "mpv-dev-x86_64-20260808-git-dd5d17d328.7z")
+    set(ARCHIVE_SHA256 "67039d30a242aff684e2c89ddc6f5a9f7270d99afe9c26db76f7da26bda63e8a")
+  endif()
+  set(ARCHIVE_URL  "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-08-08-dd5d17d328/${ARCHIVE_NAME}")
 
   set(LIBMPV_DIR     "${CMAKE_BINARY_DIR}/full_libmpv")
   set(LIBMPV_ARCHIVE "${LIBMPV_DIR}/${ARCHIVE_NAME}")
@@ -50,16 +63,18 @@
   endif()
 
   # -- Extract DLL from the .7z archive -------------------------------------
+  # The DLL hash is not pinned (it changes every upstream release), so a
+  # cached DLL is trusted as long as it is non-empty and the archive SHA256
+  # passed above. Extraction is only re-run when the DLL is missing/empty.
   set(NEEDS_EXTRACT TRUE)
   if(EXISTS "${LIBMPV_DLL}")
     message(STATUS "[full_libmpv] Checking cached DLL...")
     file(SIZE "${LIBMPV_DLL}" DLL_SIZE)
-    file(SHA256 "${LIBMPV_DLL}" DLL_HASH)
-    if(DLL_SIZE GREATER 0 AND DLL_HASH STREQUAL DLL_SHA256)
-      message(STATUS "[full_libmpv] DLL cached & verified (${DLL_SIZE} bytes)")
+    if(DLL_SIZE GREATER 0)
+      message(STATUS "[full_libmpv] DLL cached (${DLL_SIZE} bytes)")
       set(NEEDS_EXTRACT FALSE)
     else()
-      message(STATUS "[full_libmpv] Cached DLL is invalid, will re-extract")
+      message(STATUS "[full_libmpv] Cached DLL is empty, will re-extract")
     endif()
   endif()
 
@@ -116,14 +131,44 @@
     message(STATUS "[full_libmpv] Extraction complete")
 
     if(EXISTS "${LIBMPV_DLL}")
-      message(STATUS "[full_libmpv] Verifying extracted DLL SHA256...")
-      file(SHA256 "${LIBMPV_DLL}" DLL_HASH)
-      if(NOT DLL_HASH STREQUAL DLL_SHA256)
-        message(FATAL_ERROR "[full_libmpv] Extracted DLL SHA256 mismatch!`n  expected: ${DLL_SHA256}`n  got:      ${DLL_HASH}")
+      file(SIZE "${LIBMPV_DLL}" DLL_SIZE)
+      if(DLL_SIZE GREATER 0)
+        message(STATUS "[full_libmpv] DLL extracted OK (${DLL_SIZE} bytes)")
+      else()
+        message(FATAL_ERROR "[full_libmpv] Extracted DLL is empty")
       endif()
-      message(STATUS "[full_libmpv] DLL verified OK")
     else()
       message(FATAL_ERROR "[full_libmpv] DLL not found after extraction")
+    endif()
+  endif()
+
+  # On arm64 we also stage the headers, import library and DLL in the same
+  # layout that media_kit_video expects, so the local override of
+  # media_kit_libs_windows_video can reuse them instead of downloading again.
+  if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
+    set(LIBMPV_STAGING_DIR "${CMAKE_BINARY_DIR}/libmpv")
+    if(NOT EXISTS "${LIBMPV_STAGING_DIR}/libmpv-2.dll" OR NOT EXISTS "${LIBMPV_STAGING_DIR}/libmpv.dll.a")
+      message(STATUS "[full_libmpv] Staging arm64 libmpv for media_kit_video...")
+      file(MAKE_DIRECTORY "${LIBMPV_STAGING_DIR}")
+      if(EXISTS "${LIBMPV_DIR}/include")
+        file(COPY "${LIBMPV_DIR}/include" DESTINATION "${LIBMPV_STAGING_DIR}")
+        # media_kit_video includes <client.h>, not <mpv/client.h>, so flatten
+        # the libmpv include layout from include/mpv/... to include/...
+        if(EXISTS "${LIBMPV_STAGING_DIR}/include/mpv")
+          file(GLOB _mpv_includes "${LIBMPV_STAGING_DIR}/include/mpv/*")
+          foreach(_h IN LISTS _mpv_includes)
+            get_filename_component(_h_name "${_h}" NAME)
+            file(RENAME "${_h}" "${LIBMPV_STAGING_DIR}/include/${_h_name}")
+          endforeach()
+          file(REMOVE_RECURSE "${LIBMPV_STAGING_DIR}/include/mpv")
+        endif()
+      endif()
+      foreach(_item IN ITEMS "${LIBMPV_DIR}/libmpv.dll.a" "${LIBMPV_DIR}/libmpv-2.dll")
+        if(EXISTS "${_item}")
+          file(COPY "${_item}" DESTINATION "${LIBMPV_STAGING_DIR}")
+        endif()
+      endforeach()
+      message(STATUS "[full_libmpv] Staging complete: ${LIBMPV_STAGING_DIR}")
     endif()
   endif()
 

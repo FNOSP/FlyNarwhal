@@ -54,6 +54,7 @@ class MediaLibCardRow extends ConsumerWidget {
             return MouseRegion(
               cursor: SystemMouseCursors.click,
               child: HoverButton(
+                key: ValueKey('media-lib-card-${item.title}'),
                 onPressed: () => onItemClick(item),
                 builder: (context, states) {
                   return MediaLibraryCard(

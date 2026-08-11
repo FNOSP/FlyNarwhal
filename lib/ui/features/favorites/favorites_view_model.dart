@@ -9,7 +9,14 @@ import '../../shared/filter_box.dart';
 
 part 'favorites_view_model.g.dart';
 
-const List<String> favoritesTabs = <String>['全部', '电影', '电视节目', '单集', '人物'];
+const List<String> favoritesTabs = <String>[
+  '全部',
+  '电影',
+  '电视节目',
+  '电视直播',
+  '单集',
+  '人物',
+];
 
 const String _personTab = '人物';
 const String _defaultSortColumn = 'create_time';
@@ -534,6 +541,8 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
         return 'Movie';
       case '电视节目':
         return 'TV';
+      case '电视直播':
+        return 'LiveChannel';
       case '单集':
         return 'Episode';
       default:
@@ -547,6 +556,8 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
         return <String>['Movie'];
       case '电视节目':
         return <String>['TV', 'Season'];
+      case '电视直播':
+        return <String>['LiveChannel'];
       case '单集':
         return <String>['Episode'];
       case '人物':

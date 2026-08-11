@@ -5,21 +5,14 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
-import '../../../../data/utils/fn_data_convertor.dart';
+import 'subtitle_selection_panel.dart';
 
-const Color _subtitleFlyoutBackgroundColor = Color(0xCC000000);
-const Color _subtitleFlyoutBorderColor = Color(0x80808080);
-const Color _subtitleSelectedTextColor = Color(0xFF2073DF);
-const Color _subtitleDefaultTextColor = Color(0xC8FFFFFF);
-const Color _subtitleHoverBackgroundColor = Color(0x1AFFFFFF);
 const int _subtitleHideDelayMs = 200;
 const int subtitleFlyoutAnimationDurationMs = 200;
-const double _subtitleFlyoutWidth = 320;
 const double _subtitleFlyoutBridgeOffset = 40;
 const double _subtitleFlyoutMinBridgeWidth = 56;
 const double _subtitleFlyoutBridgeHorizontalPadding = 12;
-const double _subtitleFlyoutPanelHeight = 390;
-const double _estimatedSubtitleFlyoutHeight = _subtitleFlyoutPanelHeight;
+const double _estimatedSubtitleFlyoutHeight = subtitleFlyoutPanelHeight;
 const double _subtitleSliderCenterSnapThreshold = 0.08;
 
 class SubtitleControlFlyout extends StatefulWidget {
@@ -72,7 +65,6 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
   bool _isButtonHovered = false;
   bool _popupHovered = false;
   bool _isAdjustmentMode = false;
-  bool _isAddMenuExpanded = false;
   late SubtitleSettings _liveSubtitleSettings;
   final GlobalKey _buttonKey = GlobalKey();
   final GlobalKey _flyoutKey = GlobalKey();
@@ -201,7 +193,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
         buttonSize.width + (_subtitleFlyoutBridgeHorizontalPadding * 2);
     return preferredWidth.clamp(
       _subtitleFlyoutMinBridgeWidth,
-      _subtitleFlyoutWidth,
+      subtitleFlyoutWidth,
     );
   }
 
@@ -209,7 +201,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
     final bridgeWidth = _calculateBridgeWidth(buttonSize);
     final buttonCenterX = buttonSize.width / 2 - flyoutLeft;
     final desiredLeft = buttonCenterX - (bridgeWidth / 2);
-    return desiredLeft.clamp(0.0, _subtitleFlyoutWidth - bridgeWidth);
+    return desiredLeft.clamp(0.0, subtitleFlyoutWidth - bridgeWidth);
   }
 
   OverlayEntry _buildOverlayEntry() {
@@ -231,9 +223,9 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
         final flyoutHeight =
             _flyoutSize?.height ?? _estimatedSubtitleFlyoutHeight;
         final bridgeHeight = widget.yOffset + _subtitleFlyoutBridgeOffset;
-        final flyoutLeft = (buttonSize.width - _subtitleFlyoutWidth) / 2;
+        final flyoutLeft = (buttonSize.width - subtitleFlyoutWidth) / 2;
         final left = (buttonOffset.dx + flyoutLeft)
-            .clamp(8.0, overlaySize.width - _subtitleFlyoutWidth - 8.0);
+            .clamp(8.0, overlaySize.width - subtitleFlyoutWidth - 8.0);
         final bridgeWidth = _calculateBridgeWidth(buttonSize);
         final bridgeLeft = _calculateBridgeLeft(
           buttonSize,
@@ -252,7 +244,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
               child: Listener(
                 behavior: HitTestBehavior.opaque,
                 child: SizedBox(
-                  width: _subtitleFlyoutWidth,
+                  width: subtitleFlyoutWidth,
                   height: flyoutHeight + bridgeHeight,
                   child: Stack(
                     clipBehavior: Clip.none,
@@ -374,7 +366,6 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
     setState(() {
       _isExpanded = false;
       _isAdjustmentMode = false;
-      _isAddMenuExpanded = false;
     });
     widget.onHoverStateChanged?.call(false);
   }
@@ -395,7 +386,6 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
     setState(() {
       _isExpanded = false;
       _isAdjustmentMode = false;
-      _isAddMenuExpanded = false;
     });
     widget.onHoverStateChanged?.call(false);
   }
@@ -450,23 +440,17 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
                   _updateOverlayState(() => _isAdjustmentMode = false),
               onSettingsChanged: _handleSubtitleSettingsChanged,
             )
-          : _SubtitleFlyoutContent(
+          : SubtitleSelectionPanel(
               subtitles: widget.subtitles,
               selectedSubtitleGuid: widget.selectedSubtitleGuid,
               iso6391Map: widget.iso6391Map,
               iso6392Map: widget.iso6392Map,
               canAdjustSubtitle: widget.canAdjustSubtitle,
-              isAddMenuExpanded: _isAddMenuExpanded,
-              onAddMenuExpandedChanged: (expanded) =>
-                  _updateOverlayState(() => _isAddMenuExpanded = expanded),
               onAdjustmentClicked: () => _updateOverlayState(() {
                 _liveSubtitleSettings = widget.subtitleSettings;
                 _isAdjustmentMode = true;
-                _isAddMenuExpanded = false;
               }),
-              onSubtitleSelected: (guid) {
-                widget.onSubtitleSelected(guid);
-              },
+              onSubtitleSelected: widget.onSubtitleSelected,
               onOpenSubtitleSearch: () {
                 widget.onOpenSubtitleSearch();
                 _closeAfterAction();
@@ -482,430 +466,6 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
               onRequestDelete: widget.onRequestDelete,
               onPredownloadSimilar: widget.onPredownloadSimilar,
             ),
-    );
-  }
-}
-
-class _SubtitleFlyoutContent extends StatefulWidget {
-  final List<SubtitleStream> subtitles;
-  final String? selectedSubtitleGuid;
-  final Map<String, String> iso6391Map;
-  final Map<String, String> iso6392Map;
-  final bool canAdjustSubtitle;
-  final bool isAddMenuExpanded;
-  final ValueChanged<bool> onAddMenuExpandedChanged;
-  final VoidCallback onAdjustmentClicked;
-  final ValueChanged<String?> onSubtitleSelected;
-  final VoidCallback onOpenSubtitleSearch;
-  final VoidCallback onOpenAddNasSubtitle;
-  final VoidCallback onOpenAddLocalSubtitle;
-  final ValueChanged<SubtitleStream>? onRequestDelete;
-  final ValueChanged<SubtitleStream>? onPredownloadSimilar;
-
-  const _SubtitleFlyoutContent({
-    required this.subtitles,
-    required this.selectedSubtitleGuid,
-    required this.iso6391Map,
-    required this.iso6392Map,
-    required this.canAdjustSubtitle,
-    required this.isAddMenuExpanded,
-    required this.onAddMenuExpandedChanged,
-    required this.onAdjustmentClicked,
-    required this.onSubtitleSelected,
-    required this.onOpenSubtitleSearch,
-    required this.onOpenAddNasSubtitle,
-    required this.onOpenAddLocalSubtitle,
-    required this.onRequestDelete,
-    required this.onPredownloadSimilar,
-  });
-
-  @override
-  State<_SubtitleFlyoutContent> createState() => _SubtitleFlyoutContentState();
-}
-
-class _SubtitleFlyoutContentState extends State<_SubtitleFlyoutContent> {
-  late final ScrollController _scrollController = ScrollController();
-  final Map<int, GlobalKey> _itemKeys = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _scheduleScrollToSelection();
-  }
-
-  @override
-  void didUpdateWidget(covariant _SubtitleFlyoutContent oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedSubtitleGuid != widget.selectedSubtitleGuid ||
-        oldWidget.subtitles != widget.subtitles) {
-      _scheduleScrollToSelection();
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _scheduleScrollToSelection() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      final selectedIndex = widget.selectedSubtitleGuid == null ||
-              widget.selectedSubtitleGuid!.isEmpty
-          ? 0
-          : widget.subtitles.indexWhere(
-                (subtitle) => subtitle.guid == widget.selectedSubtitleGuid,
-              ) +
-              1;
-      final safeIndex = selectedIndex < 0 ? 0 : selectedIndex;
-      final key = _itemKeys.putIfAbsent(safeIndex, () => GlobalKey());
-      final ctx = key.currentContext;
-      if (ctx != null) {
-        Scrollable.ensureVisible(
-          ctx,
-          alignment: 0.3,
-          duration: const Duration(milliseconds: 200),
-        );
-      }
-    });
-  }
-
-  bool _hasPredownloadButton(SubtitleStream subtitle) {
-    return subtitle.isExternal == 1 &&
-        subtitle.sourceId.isNotEmpty &&
-        widget.onPredownloadSimilar != null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: _subtitleFlyoutWidth,
-      height: _subtitleFlyoutPanelHeight,
-      decoration: BoxDecoration(
-        color: _subtitleFlyoutBackgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _subtitleFlyoutBorderColor),
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                _SubtitleFlyoutHeader(
-                  canAdjustSubtitle: widget.canAdjustSubtitle,
-                  isAddMenuExpanded: widget.isAddMenuExpanded,
-                  onAdjustmentClicked: widget.onAdjustmentClicked,
-                  onAddMenuExpandedChanged: widget.onAddMenuExpandedChanged,
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Divider(size: 1),
-                ),
-                Expanded(
-                  child: Scrollbar(
-                    controller: _scrollController,
-                    child: ListView.builder(
-                      controller: _scrollController,
-                      padding: EdgeInsets.zero,
-                      itemCount: widget.subtitles.length + 1,
-                      itemBuilder: (context, index) {
-                        final key =
-                            _itemKeys.putIfAbsent(index, () => GlobalKey());
-                        if (index == 0) {
-                          return KeyedSubtree(
-                            key: key,
-                            child: _SubtitleItem(
-                              title: '关闭',
-                              subtitle: '',
-                              isSelected:
-                                  widget.selectedSubtitleGuid == null ||
-                                      widget.selectedSubtitleGuid!.isEmpty,
-                              onTap: () => widget.onSubtitleSelected(null),
-                            ),
-                          );
-                        }
-
-                        final subtitle = widget.subtitles[index - 1];
-                        final showPredownload =
-                            _hasPredownloadButton(subtitle);
-                        return KeyedSubtree(
-                          key: key,
-                          child: _SubtitleItem(
-                            title: _buildTitle(subtitle),
-                            subtitle: _buildSubtitle(subtitle),
-                            isSelected:
-                                widget.selectedSubtitleGuid == subtitle.guid,
-                            isExternal: subtitle.isExternal == 1,
-                            showPredownloadSimilar: showPredownload,
-                            onDelete: widget.onRequestDelete == null
-                                ? null
-                                : () =>
-                                    widget.onRequestDelete!.call(subtitle),
-                            onPredownloadSimilar: showPredownload
-                                ? () => widget.onPredownloadSimilar!
-                                    .call(subtitle)
-                                : null,
-                            onTap: () =>
-                                widget.onSubtitleSelected(subtitle.guid),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (widget.isAddMenuExpanded)
-            Positioned(
-              top: 48,
-              right: 12,
-              child: _SubtitleAddMenu(
-                onSearch: widget.onOpenSubtitleSearch,
-                onAddNas: widget.onOpenAddNasSubtitle,
-                onAddLocal: widget.onOpenAddLocalSubtitle,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  String _buildTitle(SubtitleStream subtitle) {
-    final languageName = FnDataConvertor.getLanguageName(
-      subtitle.language,
-      widget.iso6391Map,
-      widget.iso6392Map,
-    );
-    final buffer = StringBuffer(languageName);
-    if (subtitle.isExternal == 1) {
-      buffer.write(' - 外挂');
-    }
-    if (subtitle.isDefault == 1) {
-      buffer.write(' - 默认');
-    }
-    return buffer.toString();
-  }
-
-  String _buildSubtitle(SubtitleStream subtitle) {
-    final parts = <String>[
-      subtitle.format.toUpperCase(),
-      if (subtitle.title.isNotEmpty) subtitle.title,
-    ];
-    return parts.join('  ');
-  }
-}
-
-class _SubtitleFlyoutHeader extends StatelessWidget {
-  final bool canAdjustSubtitle;
-  final bool isAddMenuExpanded;
-  final VoidCallback onAdjustmentClicked;
-  final ValueChanged<bool> onAddMenuExpandedChanged;
-
-  const _SubtitleFlyoutHeader({
-    required this.canAdjustSubtitle,
-    required this.isAddMenuExpanded,
-    required this.onAdjustmentClicked,
-    required this.onAddMenuExpandedChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Expanded(
-          child: Text(
-            '字幕',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        _HeaderPillButton(
-          label: '调整',
-          enabled: canAdjustSubtitle,
-          onPressed: onAdjustmentClicked,
-        ),
-        const SizedBox(width: 8),
-        _HeaderPillButton(
-          label: '添加',
-          trailing: Icon(
-            isAddMenuExpanded
-                ? FluentIcons.chevron_up_small
-                : FluentIcons.chevron_down_small,
-            size: 12,
-            color: _subtitleDefaultTextColor,
-          ),
-          onPressed: () => onAddMenuExpandedChanged(!isAddMenuExpanded),
-        ),
-      ],
-    );
-  }
-}
-
-class _HeaderPillButton extends StatefulWidget {
-  final String label;
-  final bool enabled;
-  final Widget? trailing;
-  final VoidCallback onPressed;
-
-  const _HeaderPillButton({
-    required this.label,
-    required this.onPressed,
-    this.enabled = true,
-    this.trailing,
-  });
-
-  @override
-  State<_HeaderPillButton> createState() => _HeaderPillButtonState();
-}
-
-class _HeaderPillButtonState extends State<_HeaderPillButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: widget.enabled ? 1 : 0.4,
-      child: MouseRegion(
-        cursor: widget.enabled
-            ? SystemMouseCursors.click
-            : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.enabled ? widget.onPressed : null,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: _isHovered
-                  ? _subtitleHoverBackgroundColor
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _subtitleFlyoutBorderColor),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.label,
-                  style: const TextStyle(
-                    color: _subtitleDefaultTextColor,
-                    fontSize: 12,
-                  ),
-                ),
-                if (widget.trailing != null) ...[
-                  const SizedBox(width: 4),
-                  widget.trailing!,
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SubtitleAddMenu extends StatelessWidget {
-  final VoidCallback onSearch;
-  final VoidCallback onAddNas;
-  final VoidCallback onAddLocal;
-
-  const _SubtitleAddMenu({
-    required this.onSearch,
-    required this.onAddNas,
-    required this.onAddLocal,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 210,
-      decoration: BoxDecoration(
-        color: _subtitleFlyoutBackgroundColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _subtitleFlyoutBorderColor),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _SubtitleAddMenuItem(
-            label: '搜索字幕',
-            icon: FluentIcons.search,
-            onTap: onSearch,
-          ),
-          _SubtitleAddMenuItem(
-            label: '添加 NAS 字幕文件',
-            icon: FluentIcons.storage_optical,
-            onTap: onAddNas,
-          ),
-          _SubtitleAddMenuItem(
-            label: '添加电脑字幕文件',
-            icon: FluentIcons.devices3,
-            onTap: onAddLocal,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SubtitleAddMenuItem extends StatefulWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _SubtitleAddMenuItem({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  State<_SubtitleAddMenuItem> createState() => _SubtitleAddMenuItemState();
-}
-
-class _SubtitleAddMenuItemState extends State<_SubtitleAddMenuItem> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color:
-                _isHovered ? _subtitleHoverBackgroundColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(widget.icon, size: 16, color: Colors.white),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  widget.label,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -926,12 +486,12 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: _subtitleFlyoutWidth,
-      height: _subtitleFlyoutPanelHeight,
+      width: subtitleFlyoutWidth,
+      height: subtitleFlyoutPanelHeight,
       decoration: BoxDecoration(
-        color: _subtitleFlyoutBackgroundColor,
+        color: subtitleFlyoutBackgroundColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _subtitleFlyoutBorderColor),
+        border: Border.all(color: subtitleFlyoutBorderColor),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
@@ -955,7 +515,7 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                     ),
                   ),
                 ),
-                _HeaderPillButton(
+                SubtitleHeaderPillButton(
                   label: '重置',
                   onPressed: () => onSettingsChanged(const SubtitleSettings()),
                 ),
@@ -1199,7 +759,7 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
               Text(
                 widget.suffix!,
                 style: const TextStyle(
-                  color: _subtitleDefaultTextColor,
+                  color: subtitleDefaultTextColor,
                   fontSize: 12,
                 ),
               ),
@@ -1211,7 +771,7 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
             Text(
               widget.leftLabel,
               style: const TextStyle(
-                color: _subtitleDefaultTextColor,
+                color: subtitleDefaultTextColor,
                 fontSize: 12,
               ),
             ),
@@ -1219,7 +779,7 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
             Text(
               widget.rightLabel,
               style: const TextStyle(
-                color: _subtitleDefaultTextColor,
+                color: subtitleDefaultTextColor,
                 fontSize: 12,
               ),
             ),
@@ -1236,219 +796,6 @@ class _AdjustmentSliderSectionState extends State<_AdjustmentSliderSection> {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _SubtitleItem extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final bool isSelected;
-  final bool isExternal;
-  final bool showPredownloadSimilar;
-  final VoidCallback onTap;
-  final VoidCallback? onDelete;
-  final VoidCallback? onPredownloadSimilar;
-
-  const _SubtitleItem({
-    required this.title,
-    required this.subtitle,
-    required this.isSelected,
-    required this.onTap,
-    this.isExternal = false,
-    this.showPredownloadSimilar = false,
-    this.onDelete,
-    this.onPredownloadSimilar,
-  });
-
-  @override
-  State<_SubtitleItem> createState() => _SubtitleItemState();
-}
-
-class _SubtitleItemState extends State<_SubtitleItem> {
-  bool _isHovered = false;
-  bool _isDeleteHovered = false;
-  bool _isPredownloadHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() {
-        _isHovered = false;
-        _isDeleteHovered = false;
-        _isPredownloadHovered = false;
-      }),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            color: _isHovered || widget.isSelected
-                ? _subtitleHoverBackgroundColor
-                : Colors.transparent,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          widget.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: widget.isSelected
-                                ? _subtitleSelectedTextColor
-                                : Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (widget.subtitle.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: widget.isSelected
-                                  ? _subtitleSelectedTextColor.withValues(
-                                      alpha: 0.8)
-                                  : _subtitleDefaultTextColor.withValues(
-                                      alpha: 0.8),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (widget.isSelected)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 8),
-                      child: Icon(
-                        FluentIcons.check_mark,
-                        size: 14,
-                        color: _subtitleSelectedTextColor,
-                      ),
-                    )
-                  else if (widget.isExternal &&
-                      widget.onDelete != null &&
-                      _isHovered)
-                    MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      onEnter: (_) =>
-                          setState(() => _isDeleteHovered = true),
-                      onExit: (_) =>
-                          setState(() => _isDeleteHovered = false),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: widget.onDelete,
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: _isDeleteHovered
-                                ? _subtitleHoverBackgroundColor
-                                : Colors.transparent,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            FluentIcons.delete,
-                            size: 12,
-                            color: _subtitleDefaultTextColor,
-                          ),
-                        ),
-                      ),
-                    )
-                  else
-                    const SizedBox(width: 28),
-                ],
-              ),
-              if (widget.showPredownloadSimilar &&
-                  widget.onPredownloadSimilar != null) ...[
-                const SizedBox(height: 6),
-                _PredownloadSimilarButton(
-                  isHovered: _isPredownloadHovered,
-                  onHoverChanged: (hovered) =>
-                      setState(() => _isPredownloadHovered = hovered),
-                  onTap: widget.onPredownloadSimilar!,
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PredownloadSimilarButton extends StatelessWidget {
-  final bool isHovered;
-  final ValueChanged<bool> onHoverChanged;
-  final VoidCallback onTap;
-
-  const _PredownloadSimilarButton({
-    required this.isHovered,
-    required this.onHoverChanged,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => onHoverChanged(true),
-      onExit: (_) => onHoverChanged(false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _subtitleFlyoutBorderColor),
-            color: isHovered ? _subtitleHoverBackgroundColor : Colors.transparent,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SvgPicture.asset(
-                'assets/images/subtitle_predownload.svg',
-                width: 16,
-                height: 16,
-                colorFilter: const ColorFilter.mode(
-                  _subtitleDefaultTextColor,
-                  BlendMode.srcIn,
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Flexible(
-                child: Text(
-                  '为其他集下载相似字幕',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: _subtitleDefaultTextColor,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

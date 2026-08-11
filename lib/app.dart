@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +26,7 @@ import 'data/storage/kmp_preferences_migration_service.dart';
 import 'data/storage/kmp_windows_preferences_reader.dart';
 import 'data/storage/update_settings_store.dart';
 import 'providers/providers.dart';
+import 'providers/reporting_providers.dart';
 import 'providers/update_providers.dart';
 import 'services/update/update_scheduler.dart';
 import 'services/window/main_window_lifecycle_controller.dart';
@@ -32,6 +34,8 @@ import 'ui/navigation/app_router.dart';
 import 'ui/shared/toast.dart';
 
 MainWindowLifecycleController? mainWindowLifecycleController;
+
+const _windowChannel = MethodChannel('fly_narwhal/window');
 
 Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
@@ -174,8 +178,7 @@ void _syncMigratedLoginHistory(
   if (preferences.getString(targetKey) != null) {
     return;
   }
-  final migratedJson =
-      accountSettingsStore.readGlobal<String>('loginHistory');
+  final migratedJson = accountSettingsStore.readGlobal<String>('loginHistory');
   if (migratedJson == null || migratedJson.isEmpty) {
     return;
   }
@@ -211,7 +214,17 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
       final scheduler = ref.read(updateSchedulerProvider);
       scheduler.start();
       _scheduler = scheduler;
+      unawaited(_reportLaunch());
     });
+  }
+
+  Future<void> _reportLaunch() async {
+    try {
+      await ref.read(reportingServiceProvider).reportLaunch();
+    } catch (error, stackTrace) {
+      AppTalker.warning('Reporting', 'Launch reporting failed: $error');
+      AppTalker.instance.handle(error, stackTrace);
+    }
   }
 
   @override
@@ -256,6 +269,25 @@ class MyApp extends ConsumerWidget {
         : settings.darkMode;
 
     final router = ref.watch(routerProvider);
+
+    // Push the caption background color to the native top-edge cover strip
+    // (see MainFlutterWindow) so it matches the app theme, which follows app
+    // settings rather than the system appearance.
+    if (!kIsWeb && Platform.isMacOS) {
+      final captionBackground =
+          isDark ? const Color(0xFF202020) : const Color(0xFFF3F3F3);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(
+          _windowChannel.invokeMethod('setTopEdgeColor', {
+            'a': (captionBackground.a * 255).round(),
+            'r': (captionBackground.r * 255).round(),
+            'g': (captionBackground.g * 255).round(),
+            'b': (captionBackground.b * 255).round(),
+          }),
+        );
+      });
+    }
+
     return FluentApp.router(
       title: '飞鲸影视',
       debugShowCheckedModeBanner: false,
