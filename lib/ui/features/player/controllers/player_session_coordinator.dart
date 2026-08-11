@@ -355,6 +355,11 @@ class PlayerSessionCoordinator {
     );
   }
 
+  /// Whether the current force settings require a server transcode session.
+  /// While either toggle is on the direct link must be skipped; once both
+  /// are off a previously direct-link session can be restored.
+  bool get transcodeForced => forceH264 || forceSdrColor;
+
   bool supportsDirectLink(
     VideoStream videoStream,
     QualityResponse? quality,
@@ -574,7 +579,6 @@ class PlayerSessionCoordinator {
   }) async {
     // Mirrors the web player: forcing H.264/SDR requires a transcode session,
     // so the direct link must be skipped while either setting is on.
-    final transcodeForced = forceH264 || forceSdrColor;
     if (!transcodeForced &&
         supportsDirectLink(videoStream, currentQuality, qualities)) {
       final directLink = await getDirectPlayLink(

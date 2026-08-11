@@ -2974,7 +2974,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// Mirrors the web player's switchURL flow: re-issue play/play with the
   /// current position and quality so the server applies the new encoder/SDR
-  /// settings, quitting the old transcode session first.
+  /// settings, quitting the old transcode session first. When both force
+  /// settings are off again, a session that was originally direct-link is
+  /// restored to direct-link playback instead of staying on the transcode
+  /// session created for the toggles.
   Future<void> _restartPlaybackForTranscodeSettings() async {
     final cache = _playingInfoCache;
     final player = _player;
@@ -2987,43 +2990,82 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() => _isLoading = true);
       final currentPosition = player.state.position.inMilliseconds;
       final currentPlayLink = cache.playLink;
-      if (!cache.isUseDirectLink &&
+      final hasTranscodeSession = !cache.isUseDirectLink &&
           currentPlayLink != null &&
-          currentPlayLink.isNotEmpty) {
-        await ref
-            .read(mediaPViewModelProvider.notifier)
-            .quit(MediaPRequest(playLink: currentPlayLink));
-      }
-      final audioGuid = cache.currentAudioStream?.guid ??
-          _selectedAudioGuid ??
-          _requestedAudioGuid ??
-          _playInfo?.audioGuid ??
-          '';
-      final playRequest = _sessionCoordinator.createPlayRequest(
-        videoStream: videoStream,
-        fileStream: fileStream,
-        audioGuid: audioGuid,
-        subtitleGuid: cache.currentSubtitleStream?.guid,
-      );
-      final response = await ref.read(playerServiceProvider).playVideo(
-            PlayPlayRequest(
-              mediaGuid: playRequest.mediaGuid,
-              videoGuid: playRequest.videoGuid,
-              videoEncoder: playRequest.videoEncoder,
-              resolution: _currentResolution.isNotEmpty
-                  ? _currentResolution
-                  : playRequest.resolution,
-              bitrate: _currentBitrate ?? playRequest.bitrate,
-              startTimestamp: currentPosition ~/ 1000,
-              audioEncoder: playRequest.audioEncoder,
-              audioGuid: playRequest.audioGuid,
-              subtitleGuid: playRequest.subtitleGuid,
-              channels: playRequest.channels,
-              forcedSdr: playRequest.forcedSdr,
-            ),
+          currentPlayLink.isNotEmpty;
+      // Direct link is only available for the original quality (and never
+      // for Dolby Vision profile 5, which must stay on HLS), so restoring it
+      // must not silently change a quality the user picked while forcing.
+      final restoreDirectLink = !_sessionCoordinator.transcodeForced &&
+          hasTranscodeSession &&
+          _sessionCoordinator.supportsDirectLink(
+            videoStream,
+            cache.currentQuality,
+            cache.currentQualities,
           );
-      await _handlePlayPlaySuccess(response, startPositionMs: currentPosition);
+      if (restoreDirectLink) {
+        // updateState: false — this flow drives the direct-link restore
+        // itself, so the quit-response listener must not reopen the direct
+        // link in parallel.
+        await ref.read(mediaPViewModelProvider.notifier).quit(
+              MediaPRequest(playLink: currentPlayLink!),
+              updateState: false,
+            );
+        await _reopenPlaybackWithDirectLink(startPositionMs: currentPosition);
+        final verified = await _verifyPlaybackStarted();
+        if (!verified && mounted) {
+          await _fallbackToHlsFromDirectLink(
+            startPositionMs: currentPosition,
+          );
+        }
+      } else {
+        if (hasTranscodeSession) {
+          // updateState: false — this flow reopens playback itself via
+          // play/play below, so the quit-response listener must not reopen
+          // the direct link in parallel.
+          await ref
+              .read(mediaPViewModelProvider.notifier)
+              .quit(
+                MediaPRequest(playLink: currentPlayLink!),
+                updateState: false,
+              );
+        }
+        final audioGuid = cache.currentAudioStream?.guid ??
+            _selectedAudioGuid ??
+            _requestedAudioGuid ??
+            _playInfo?.audioGuid ??
+            '';
+        final playRequest = _sessionCoordinator.createPlayRequest(
+          videoStream: videoStream,
+          fileStream: fileStream,
+          audioGuid: audioGuid,
+          subtitleGuid: cache.currentSubtitleStream?.guid,
+        );
+        final response = await ref.read(playerServiceProvider).playVideo(
+              PlayPlayRequest(
+                mediaGuid: playRequest.mediaGuid,
+                videoGuid: playRequest.videoGuid,
+                videoEncoder: playRequest.videoEncoder,
+                resolution: _currentResolution.isNotEmpty
+                    ? _currentResolution
+                    : playRequest.resolution,
+                bitrate: _currentBitrate ?? playRequest.bitrate,
+                startTimestamp: currentPosition ~/ 1000,
+                audioEncoder: playRequest.audioEncoder,
+                audioGuid: playRequest.audioGuid,
+                subtitleGuid: playRequest.subtitleGuid,
+                channels: playRequest.channels,
+                forcedSdr: playRequest.forcedSdr,
+              ),
+            );
+        await _handlePlayPlaySuccess(response,
+            startPositionMs: currentPosition);
+      }
       if (mounted) setState(() => _isLoading = false);
+      // The server-side playback session was recreated (or restored to
+      // direct link), so any transcode statistics held by the details panel
+      // are stale; re-query the media/p endpoint immediately.
+      _refreshPlaybackDetailsImmediately();
     } catch (e) {
       AppTalker.warning('Player', 'restart for transcode settings failed: $e');
       if (mounted) {
