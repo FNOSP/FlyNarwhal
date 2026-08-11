@@ -103,9 +103,11 @@ if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
 
   # ANGLE archive assembled from MSYS2 clangarm64 packages and bundled inside
   # this local override. Use a local copy instead of file(DOWNLOAD), which can
-  # produce an empty file for file:// URLs.
+  # produce an empty file for file:// URLs. The assets/ directory lives next to
+  # this windows/ directory, so reference it through the parent of
+  # CMAKE_CURRENT_SOURCE_DIR.
   set(ANGLE "ANGLE-arm64.tar.gz")
-  set(ANGLE_LOCAL "${CMAKE_CURRENT_SOURCE_DIR}/assets/${ANGLE}")
+  set(ANGLE_LOCAL "${CMAKE_CURRENT_SOURCE_DIR}/../assets/${ANGLE}")
   set(ANGLE_MD5 "b802623416c8c81772e212ddd715cbdd")
 else()
   message(STATUS "media_kit_libs_windows_video: using x86_64 prebuilt libraries")
