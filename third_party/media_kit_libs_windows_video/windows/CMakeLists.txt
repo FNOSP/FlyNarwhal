@@ -45,6 +45,32 @@ function(download_and_verify url md5 locationForArchive)
   endif()
 endfunction()
 
+function(copy_local_archive_and_verify src md5 locationForArchive)
+  # Copy a bundled local archive into the build tree, then verify its MD5.
+  # CMake's file(DOWNLOAD) does not reliably handle file:// URLs, so we use a
+  # normal file copy for local assets and validate the checksum afterwards.
+  if(EXISTS "${locationForArchive}")
+    file(MD5 "${locationForArchive}" ARCHIVE_MD5)
+    if(NOT md5 STREQUAL ARCHIVE_MD5)
+      file(REMOVE "${locationForArchive}")
+      message(STATUS "MD5 mismatch. Local copy deleted.")
+    endif()
+  endif()
+
+  if(NOT EXISTS "${locationForArchive}")
+    message(STATUS "Copying bundled archive from ${src}...")
+    configure_file("${src}" "${locationForArchive}" COPYONLY)
+    message(STATUS "Copied bundled archive to ${locationForArchive}.")
+
+    file(MD5 "${locationForArchive}" ARCHIVE_MD5)
+    if(md5 STREQUAL ARCHIVE_MD5)
+      message(STATUS "${locationForArchive} Verification successful.")
+    else()
+      message(FATAL_ERROR "${locationForArchive} Integrity check failed, please try to re-build project again.")
+    endif()
+  endif()
+endfunction()
+
 function(check_directory_exists_and_not_empty dir result_var)
   # Check if the directory exists
   if(EXISTS "${dir}")
@@ -75,10 +101,11 @@ if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
   set(LIBMPV_SRC "${CMAKE_BINARY_DIR}/libmpv")
   set(LIBMPV_SRC_VALID TRUE)
 
-  # ANGLE archive assembled from MSYS2 clangarm64 packages.
-  # Bundled inside this local override so arm64 CI and local builds are self-contained.
+  # ANGLE archive assembled from MSYS2 clangarm64 packages and bundled inside
+  # this local override. Use a local copy instead of file(DOWNLOAD), which can
+  # produce an empty file for file:// URLs.
   set(ANGLE "ANGLE-arm64.tar.gz")
-  set(ANGLE_URL "file:///${CMAKE_CURRENT_SOURCE_DIR}/assets/${ANGLE}")
+  set(ANGLE_LOCAL "${CMAKE_CURRENT_SOURCE_DIR}/assets/${ANGLE}")
   set(ANGLE_MD5 "b802623416c8c81772e212ddd715cbdd")
 else()
   message(STATUS "media_kit_libs_windows_video: using x86_64 prebuilt libraries")
@@ -131,12 +158,19 @@ endif()
 set(ANGLE_ARCHIVE "${CMAKE_BINARY_DIR}/${ANGLE}")
 set(ANGLE_SRC "${CMAKE_BINARY_DIR}/ANGLE")
 
-download_and_verify(
-  ${ANGLE_URL}
-  ${ANGLE_MD5}
-  ${ANGLE_ARCHIVE}
-)
-
+if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
+  copy_local_archive_and_verify(
+    ${ANGLE_LOCAL}
+    ${ANGLE_MD5}
+    ${ANGLE_ARCHIVE}
+  )
+else()
+  download_and_verify(
+    ${ANGLE_URL}
+    ${ANGLE_MD5}
+    ${ANGLE_ARCHIVE}
+  )
+endif()
 check_directory_exists_and_not_empty(${ANGLE_SRC} ANGLE_SRC_VALID)
 
 # Extract the ANGLE archive.
