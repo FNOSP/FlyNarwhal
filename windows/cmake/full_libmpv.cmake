@@ -157,7 +157,7 @@
         file(TO_NATIVE_PATH "${LIBMPV_STAGING_DIR}/include" _include_native)
         execute_process(
           COMMAND powershell -NoProfile -ExecutionPolicy Bypass -Command
-            "$d = '${_include_native}'; if (Test-Path (Join-Path $d 'mpv')) { Move-Item -Path (Join-Path $d 'mpv\*') -Destination $d -Force; Remove-Item -Path (Join-Path $d 'mpv') -Reurse -Force }"
+            "$d = '${_include_native}'; if (Test-Path (Join-Path $d 'mpv')) { Move-Item -Path (Join-Path $d 'mpv\*') -Destination $d -Force; Remove-Item -Path (Join-Path $d 'mpv') -Recurse -Force }"
           RESULT_VARIABLE _flatten_result
         )
         if(NOT _flatten_result EQUAL 0)
