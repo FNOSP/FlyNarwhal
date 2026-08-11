@@ -164,6 +164,7 @@
           message(FATAL_ERROR "[full_libmpv] Failed to flatten mpv include directory")
         endif()
       endif()
+      foreach(_item IN ITEMS "${LIBMPV_DIR}/libmpv.dll.a" "${LIBMPV_DIR}/libmpv-2.dll")
         if(EXISTS "${_item}")
           file(COPY "${_item}" DESTINATION "${LIBMPV_STAGING_DIR}")
         endif()
