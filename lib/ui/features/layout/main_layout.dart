@@ -499,6 +499,15 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                             onPressed: triggerWindowRefresh,
                           ),
                         ),
+                      const Padding(
+                        padding: EdgeInsets.only(
+                            top: kRefreshButtonTopPadding,
+                            left: kCaptionButtonSpacing,
+                            right: kCaptionButtonSpacing),
+                        child: SharedUpdateBadge(
+                          key: ValueKey('macos-titlebar-update-badge'),
+                        ),
+                      ),
                       Expanded(
                         child: DragToMoveArea(
                           child: Container(
@@ -522,17 +531,12 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
           else
             WindowCaption(
               title: const Text('飞鲸影视'),
-              center: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CapsuleSearchBox(
-                    focusNode: _searchFocusNode,
-                    onDismissed: _shortcutFocusNode.requestFocus,
-                  ),
-                  const SharedUpdateBadge(
-                    key: ValueKey('titlebar-update-badge'),
-                  ),
-                ],
+              titleTrailing: const SharedUpdateBadge(
+                key: ValueKey('titlebar-update-badge'),
+              ),
+              center: CapsuleSearchBox(
+                focusNode: _searchFocusNode,
+                onDismissed: _shortcutFocusNode.requestFocus,
               ),
               brightness: isDark ? Brightness.dark : Brightness.light,
               backgroundColor: theme.resources.solidBackgroundFillColorBase,

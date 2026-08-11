@@ -11,6 +11,7 @@ const double kWindowTitleBarHeight = 48.0;
 class WindowCaption extends StatefulWidget {
   final Widget? title;
   final Widget? center;
+  final Widget? titleTrailing;
   final Color? backgroundColor;
   final Brightness? brightness;
   final bool showRefreshAction;
@@ -26,6 +27,7 @@ class WindowCaption extends StatefulWidget {
     super.key,
     this.title,
     this.center,
+    this.titleTrailing,
     this.backgroundColor,
     this.brightness,
     this.showRefreshAction = false,
@@ -77,14 +79,20 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
                     height: double.infinity,
                     padding: const EdgeInsets.only(left: 16),
                     alignment: Alignment.centerLeft,
-                    child: DefaultTextStyle(
-                      style: TextStyle(
-                        color: isDark
-                            ? Colors.white
-                            : Colors.black.withValues(alpha: 0.8956),
-                        fontSize: 14,
-                      ),
-                      child: widget.title ?? const SizedBox.shrink(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        DefaultTextStyle(
+                          style: TextStyle(
+                            color: isDark
+                                ? Colors.white
+                                : Colors.black.withValues(alpha: 0.8956),
+                            fontSize: 14,
+                          ),
+                          child: widget.title ?? const SizedBox.shrink(),
+                        ),
+                        if (widget.titleTrailing != null) widget.titleTrailing!,
+                      ],
                     ),
                   ),
                 ),
