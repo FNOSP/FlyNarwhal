@@ -119,16 +119,21 @@ if (WIN32)
   # The extracted DLL overrides media_kit's stripped build during install.
   # -------------------------------------------------------------------------
   ensure_full_libmpv_windows()
-  ensure_verified_windows_archive(
-    "mpv-dev-x86_64-20230924-git-652a1dd.7z"
-    "https://github.com/media-kit/libmpv-win32-video-build/releases/download/2023-09-24/mpv-dev-x86_64-20230924-git-652a1dd.7z"
-    "a832ef24b3a6ff97cd2560b5b9d04cd8"
-  )
-  ensure_verified_windows_archive(
-    "ANGLE.7z"
-    "https://github.com/alexmercerind/flutter-windows-ANGLE-OpenGL-ES/releases/download/v1.0.1/ANGLE.7z"
-    "e866f13e8d552348058afaafe869b1ed"
-  )
+
+  # media_kit_libs_windows_video is overridden locally and downloads its own
+  # arm64 archives, so the x86_64 helper pre-downloads are only useful on x64.
+  if(NOT FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
+    ensure_verified_windows_archive(
+      "mpv-dev-x86_64-20230924-git-652a1dd.7z"
+      "https://github.com/media-kit/libmpv-win32-video-build/releases/download/2023-09-24/mpv-dev-x86_64-20230924-git-652a1dd.7z"
+      "a832ef24b3a6ff97cd2560b5b9d04cd8"
+    )
+    ensure_verified_windows_archive(
+      "ANGLE.7z"
+      "https://github.com/alexmercerind/flutter-windows-ANGLE-OpenGL-ES/releases/download/v1.0.1/ANGLE.7z"
+      "e866f13e8d552348058afaafe869b1ed"
+    )
+  endif()
 
   set(FLUTTER_PLUGIN_DEPENDENCIES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../.flutter-plugins-dependencies")
   set(FLUTTER_PLUGIN_LINKS_DIR "${FLUTTER_MANAGED_DIR}/ephemeral/.plugin_symlinks")
@@ -316,18 +321,14 @@ install(FILES "${FLUTTER_INSTALL_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_D
 install(FILES "${FLUTTER_INSTALL_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
-# media_kit_libs_windows_video ships only x86_64 prebuilts (a stripped libmpv
-# plus ANGLE/DirectX support DLLs). On an arm64 target those binaries cannot
-# load and would shadow the system arm64 copies (e.g. d3dcompiler_47.dll), so
-# drop them from the install set: libmpv-2.dll is reinstalled below from the
-# full arm64 build, and the flutter engine (Impeller/D3D11) does not require
-# the bundled ANGLE set.
+# media_kit_libs_windows_video ships x86_64 prebuilts by default; on arm64 we
+# use a local override with arm64 binaries. Strip the binaries that are not
+# provided (or not needed) on arm64, but keep the arm64 ANGLE DLLs that the
+# video plugin links against at runtime.
 if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64" AND PLUGIN_BUNDLED_LIBRARIES)
   set(FLYNARWHAL_X64_ONLY_BUNDLED_LIBRARY_NAMES
     "libmpv-2.dll"
     "d3dcompiler_47.dll"
-    "libEGL.dll"
-    "libGLESv2.dll"
     "vk_swiftshader.dll"
     "vulkan-1.dll"
     "zlib.dll"

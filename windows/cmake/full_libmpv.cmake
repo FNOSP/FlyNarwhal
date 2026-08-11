@@ -142,6 +142,26 @@
     endif()
   endif()
 
+  # On arm64 we also stage the headers, import library and DLL in the same
+  # layout that media_kit_video expects, so the local override of
+  # media_kit_libs_windows_video can reuse them instead of downloading again.
+  if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
+    set(LIBMPV_STAGING_DIR "${CMAKE_BINARY_DIR}/libmpv")
+    if(NOT EXISTS "${LIBMPV_STAGING_DIR}/libmpv-2.dll" OR NOT EXISTS "${LIBMPV_STAGING_DIR}/libmpv.dll.a")
+      message(STATUS "[full_libmpv] Staging arm64 libmpv for media_kit_video...")
+      file(MAKE_DIRECTORY "${LIBMPV_STAGING_DIR}")
+      if(EXISTS "${LIBMPV_DIR}/include")
+        file(COPY "${LIBMPV_DIR}/include" DESTINATION "${LIBMPV_STAGING_DIR}")
+      endif()
+      foreach(_item IN ITEMS "${LIBMPV_DIR}/libmpv.dll.a" "${LIBMPV_DIR}/libmpv-2.dll")
+        if(EXISTS "${_item}")
+          file(COPY "${_item}" DESTINATION "${LIBMPV_STAGING_DIR}")
+        endif()
+      endforeach()
+      message(STATUS "[full_libmpv] Staging complete: ${LIBMPV_STAGING_DIR}")
+    endif()
+  endif()
+
   message(STATUS "[full_libmpv] Ready: ${LIBMPV_DLL}")
   # Export for install() in parent scope
   set(FULL_LIBMPV_DLL "${LIBMPV_DLL}" PARENT_SCOPE)

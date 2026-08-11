@@ -79,6 +79,8 @@ dev_dependencies:
 dependency_overrides:
   media_kit_libs_macos_video:
     path: third_party/media_kit_libs_macos_video_full
+  media_kit_libs_windows_video:
+    path: third_party/media_kit_libs_windows_video
 
 flutter:
   uses-material-design: true
