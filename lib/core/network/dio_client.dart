@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import '../error/error_handler.dart';
 import '../network/api_result.dart';
 import 'response_decoder.dart' as response_decoder;
@@ -24,7 +23,7 @@ class DioClientConfig {
     this.sendTimeout = const Duration(seconds: 10),
     this.maxRetries = 3,
     this.retryDelay = const Duration(seconds: 1),
-    this.enableLogging = kDebugMode,
+    this.enableLogging = true,
     this.enableRetry = true,
     this.enableErrorHandling = true,
   });
@@ -87,8 +86,8 @@ class DioClient {
     // 4. Logging interceptor (debug logging)
     if (_config.enableLogging) {
       _dio.interceptors.add(LoggingInterceptor(
-        printRequestBody: kDebugMode,
-        printResponseBody: kDebugMode,
+        printRequestBody: true,
+        printResponseBody: true,
         printError: true,
       ));
     }
