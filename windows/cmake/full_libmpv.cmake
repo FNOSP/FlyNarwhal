@@ -1,21 +1,25 @@
-﻿function(ensure_full_libmpv_windows)
-  # Pin to the latest zhongfly/mpv-winbuild release. The archive SHA256 is
-  # taken from that release's sha256.txt. The DLL hash is NOT pinned below:
-  # it changes on every upstream release, so it is computed dynamically at
-  # build time (see NEEDS_EXTRACT). If the pinned release is ever removed,
-  # bump ARCHIVE_NAME/URL to the newest release and refresh ARCHIVE_SHA256
-  # from its sha256.txt (one hash per architecture).
+function(ensure_full_libmpv_windows)
+  # x86_64: pinned to the vendored mpv-winbuild 20260706-git-c8c7d91a8e
+  # archive hosted by this repo (release vendor-libmpv-20260706), because
+  # upstream zhongfly/mpv-winbuild deletes old releases and the newer
+  # 20260808-git-dd5d17d328 build renders a green bar at the bottom of the
+  # video on Windows. Do NOT bump this pin without runtime-verifying that
+  # regression is gone.
+  #
+  # arm64: no verified-good aarch64 archive is available (upstream deleted
+  # the old release), so it stays on the last pinned upstream build.
   #
   # FLUTTER_TARGET_PLATFORM is defined by the flutter tool via -D on the
   # cmake command line, so it is available at configure time.
   if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
     set(ARCHIVE_NAME "mpv-dev-aarch64-20260808-git-dd5d17d328.7z")
     set(ARCHIVE_SHA256 "edf1418d21339aa526bf6f3939f09029b637746296e69f9818a128522a16ed5b")
+    set(ARCHIVE_URL "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-08-08-dd5d17d328/${ARCHIVE_NAME}")
   else()
-    set(ARCHIVE_NAME "mpv-dev-x86_64-20260808-git-dd5d17d328.7z")
-    set(ARCHIVE_SHA256 "67039d30a242aff684e2c89ddc6f5a9f7270d99afe9c26db76f7da26bda63e8a")
+    set(ARCHIVE_NAME "mpv-dev-x86_64-20260706-git-c8c7d91a8e.7z")
+    set(ARCHIVE_SHA256 "81beeb603d42162fcee96fdaadea2d564282563a054db93431a755d43a2f53c3")
+    set(ARCHIVE_URL "https://github.com/FNOSP/FlyNarwhal/releases/download/vendor-libmpv-20260706/${ARCHIVE_NAME}")
   endif()
-  set(ARCHIVE_URL  "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-08-08-dd5d17d328/${ARCHIVE_NAME}")
 
   set(LIBMPV_DIR     "${CMAKE_BINARY_DIR}/full_libmpv")
   set(LIBMPV_ARCHIVE "${LIBMPV_DIR}/${ARCHIVE_NAME}")
@@ -63,18 +67,26 @@
   endif()
 
   # -- Extract DLL from the .7z archive -------------------------------------
-  # The DLL hash is not pinned (it changes every upstream release), so a
-  # cached DLL is trusted as long as it is non-empty and the archive SHA256
-  # passed above. Extraction is only re-run when the DLL is missing/empty.
+  # The DLL hash is not pinned (it changes every upstream release). A stamp
+  # file records which archive the cached DLL was extracted from, so the DLL
+  # is re-extracted whenever ARCHIVE_NAME changes. Without this guard a
+  # stale cached DLL from a previous pin would silently keep being used.
+  set(LIBMPV_STAMP "${LIBMPV_DIR}/extracted-archive.txt")
   set(NEEDS_EXTRACT TRUE)
-  if(EXISTS "${LIBMPV_DLL}")
+  if(EXISTS "${LIBMPV_DLL}" AND EXISTS "${LIBMPV_STAMP}")
     message(STATUS "[full_libmpv] Checking cached DLL...")
-    file(SIZE "${LIBMPV_DLL}" DLL_SIZE)
-    if(DLL_SIZE GREATER 0)
-      message(STATUS "[full_libmpv] DLL cached (${DLL_SIZE} bytes)")
-      set(NEEDS_EXTRACT FALSE)
+    file(READ "${LIBMPV_STAMP}" STAMP_ARCHIVE)
+    string(STRIP "${STAMP_ARCHIVE}" STAMP_ARCHIVE)
+    if(STAMP_ARCHIVE STREQUAL ARCHIVE_NAME)
+      file(SIZE "${LIBMPV_DLL}" DLL_SIZE)
+      if(DLL_SIZE GREATER 0)
+        message(STATUS "[full_libmpv] DLL cached (${DLL_SIZE} bytes) and matches ${ARCHIVE_NAME}")
+        set(NEEDS_EXTRACT FALSE)
+      else()
+        message(STATUS "[full_libmpv] Cached DLL is empty, will re-extract")
+      endif()
     else()
-      message(STATUS "[full_libmpv] Cached DLL is empty, will re-extract")
+      message(STATUS "[full_libmpv] Cached DLL is stale (from ${STAMP_ARCHIVE}), will re-extract")
     endif()
   endif()
 
@@ -134,6 +146,8 @@
       file(SIZE "${LIBMPV_DLL}" DLL_SIZE)
       if(DLL_SIZE GREATER 0)
         message(STATUS "[full_libmpv] DLL extracted OK (${DLL_SIZE} bytes)")
+        # Record the source archive so the stale-cache guard can detect pin changes.
+        file(WRITE "${LIBMPV_STAMP}" "${ARCHIVE_NAME}")
       else()
         message(FATAL_ERROR "[full_libmpv] Extracted DLL is empty")
       endif()
