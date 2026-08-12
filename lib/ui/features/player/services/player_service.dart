@@ -68,6 +68,12 @@ class PlayerService {
     _unwrapResult(result);
   }
 
+  // Update live-channel (IPTV) play record.
+  Future<void> updateLivePlayRecord(LivePlayRecordRequest request) async {
+    final result = await _mediaRemoteDataSource.updateLivePlayRecord(request);
+    _unwrapResult(result);
+  }
+
   // Set skip config for intro and outro.
   Future<void> setSkipConfig({
     required String guid,

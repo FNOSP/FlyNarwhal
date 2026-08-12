@@ -15,7 +15,7 @@ ItemResponse _$ItemResponseFromJson(Map<String, dynamic> json) => ItemResponse(
       title: json['title'] as String,
       originalTitle: json['original_title'] as String?,
       backdrops: json['backdrops'] as String?,
-      posters: json['posters'] as String,
+      posters: json['posters'] as String? ?? '',
       posterWidth: (json['poster_width'] as num?)?.toInt() ?? 0,
       posterHeight: (json['poster_height'] as num?)?.toInt() ?? 0,
       voteAverage: json['vote_average'] as String,
@@ -326,6 +326,26 @@ Map<String, dynamic> _$PlayConfigToJson(PlayConfig instance) =>
       'skip_ending': instance.skipEnding,
     };
 
+LiveChannelSource _$LiveChannelSourceFromJson(Map<String, dynamic> json) =>
+    LiveChannelSource(
+      guid: json['guid'] as String,
+      path: json['path'] as String,
+      fileName: json['file_name'] as String,
+      sortNum: (json['sort_num'] as num?)?.toInt() ?? 0,
+      canPlay: (json['can_play'] as num?)?.toInt() ?? 1,
+      playError: json['play_error'] as String?,
+    );
+
+Map<String, dynamic> _$LiveChannelSourceToJson(LiveChannelSource instance) =>
+    <String, dynamic>{
+      'guid': instance.guid,
+      'path': instance.path,
+      'file_name': instance.fileName,
+      'sort_num': instance.sortNum,
+      'can_play': instance.canPlay,
+      'play_error': instance.playError,
+    };
+
 PlayInfoResponse _$PlayInfoResponseFromJson(Map<String, dynamic> json) =>
     PlayInfoResponse(
       grandGuid: json['grand_guid'] as String,
@@ -341,6 +361,9 @@ PlayInfoResponse _$PlayInfoResponseFromJson(Map<String, dynamic> json) =>
       subtitleGuid: json['subtitle_guid'] as String,
       mediaGuid: json['media_guid'] as String,
       item: ItemResponse.fromJson(json['item'] as Map<String, dynamic>),
+      liveChannels: (json['live_channels'] as List<dynamic>?)
+          ?.map((e) => LiveChannelSource.fromJson(e as Map<String, dynamic>))
+          .toList(),
       directLinkAudioIndex: (json['direct_link_audio_index'] as num).toInt(),
     );
 
@@ -357,6 +380,7 @@ Map<String, dynamic> _$PlayInfoResponseToJson(PlayInfoResponse instance) =>
       'subtitle_guid': instance.subtitleGuid,
       'media_guid': instance.mediaGuid,
       'item': instance.item,
+      'live_channels': instance.liveChannels,
       'direct_link_audio_index': instance.directLinkAudioIndex,
     };
 

@@ -598,7 +598,11 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                 }
                               },
                               onPlayTap: () {
-                                context.go('/player/${item.guid}');
+                                if (item.type == MediaType.liveChannel.value) {
+                                  context.go('/live/${item.guid}');
+                                } else {
+                                  context.go('/player/${item.guid}');
+                                }
                               },
                               onFavoriteToggle: _handleFavoriteToggle,
                               onWatchedToggle: _handleWatchedToggle,

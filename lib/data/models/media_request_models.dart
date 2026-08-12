@@ -81,6 +81,25 @@ class PlayRecordRequest {
   Map<String, dynamic> toJson() => _$PlayRecordRequestToJson(this);
 }
 
+/// Lightweight play/record payload for live channels (IPTV). The web client
+/// only reports {item_guid, media_guid, ts} for LiveChannel playback.
+@JsonSerializable(createFactory: false)
+class LivePlayRecordRequest {
+  @JsonKey(name: 'item_guid')
+  final String itemGuid;
+  @JsonKey(name: 'media_guid')
+  final String mediaGuid;
+  final int ts;
+
+  const LivePlayRecordRequest({
+    required this.itemGuid,
+    required this.mediaGuid,
+    this.ts = 0,
+  });
+
+  Map<String, dynamic> toJson() => _$LivePlayRecordRequestToJson(this);
+}
+
 @JsonSerializable(createFactory: false)
 class MediaLibraryBrowseRequest {
   @JsonKey(name: 'ancestor_guid')

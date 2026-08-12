@@ -11,6 +11,7 @@ import '../features/tv_detail/tv_detail_screen.dart';
 import '../features/tv_detail/tv_season_detail_screen.dart';
 import '../features/person_detail/person_detail_screen.dart';
 import '../features/player/player_screen.dart';
+import '../features/player/live_player_screen.dart';
 import '../../core/utils/log/app_talker.dart';
 import '../../providers/providers.dart';
 
@@ -49,6 +50,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           mediaGuid: state.uri.queryParameters['media_guid'],
           audioGuid: state.uri.queryParameters['audio_guid'],
           subtitleGuid: state.uri.queryParameters['subtitle_guid'],
+        ),
+      ),
+      // IPTV live-channel player route.
+      GoRoute(
+        path: '/live/:guid',
+        builder: (context, state) => LivePlayerScreen(
+          guid: state.pathParameters['guid'] ?? '',
         ),
       ),
       ShellRoute(

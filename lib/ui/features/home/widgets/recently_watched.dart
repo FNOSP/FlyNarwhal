@@ -345,7 +345,13 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                           .read(
                                               navigationStackProvider.notifier)
                                           .pushPath('/home');
-                                      context.go('/player/${widget.item.guid}');
+                                      if (widget.item.type ==
+                                          MediaType.liveChannel.value) {
+                                        context.go('/live/${widget.item.guid}');
+                                      } else {
+                                        context.go(
+                                            '/player/${widget.item.guid}');
+                                      }
                                     },
                                     child: AnimatedContainer(
                                       duration:

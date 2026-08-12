@@ -340,6 +340,17 @@ class MediaRemoteDataSource {
     return result;
   }
 
+  /// Persist live-channel (IPTV) playback progress.
+  Future<ApiResult<bool>> updateLivePlayRecord(
+      LivePlayRecordRequest request) async {
+    final result = await _dioClient.post<bool>(
+      ApiEndpoints.playRecord,
+      data: request.toJson(),
+      converter: (data) => _parseSuccessResponse(data),
+    );
+    return result;
+  }
+
   /// Save intro and outro skip settings for an item.
   Future<ApiResult<bool>> setSkipConfig(SetConfigByItemRequest request) async {
     final result = await _dioClient.post<bool>(

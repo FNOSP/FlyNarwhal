@@ -17,6 +17,7 @@ class ItemResponse {
   @JsonKey(name: 'original_title')
   final String? originalTitle;
   final String? backdrops;
+  @JsonKey(defaultValue: '')
   final String posters;
   @JsonKey(name: 'poster_width', defaultValue: 0)
   final int posterWidth;
@@ -500,6 +501,33 @@ class PlayConfig {
 }
 
 @JsonSerializable()
+class LiveChannelSource {
+  final String guid;
+  final String path;
+  @JsonKey(name: 'file_name')
+  final String fileName;
+  @JsonKey(name: 'sort_num', defaultValue: 0)
+  final int sortNum;
+  @JsonKey(name: 'can_play', defaultValue: 1)
+  final int canPlay;
+  @JsonKey(name: 'play_error')
+  final String? playError;
+
+  LiveChannelSource({
+    required this.guid,
+    required this.path,
+    required this.fileName,
+    this.sortNum = 0,
+    this.canPlay = 1,
+    this.playError,
+  });
+
+  factory LiveChannelSource.fromJson(Map<String, dynamic> json) =>
+      _$LiveChannelSourceFromJson(json);
+  Map<String, dynamic> toJson() => _$LiveChannelSourceToJson(this);
+}
+
+@JsonSerializable()
 class PlayInfoResponse {
   @JsonKey(name: 'grand_guid')
   final String grandGuid;
@@ -519,6 +547,8 @@ class PlayInfoResponse {
   @JsonKey(name: 'media_guid')
   final String mediaGuid;
   final ItemResponse item;
+  @JsonKey(name: 'live_channels')
+  final List<LiveChannelSource>? liveChannels;
   @JsonKey(name: 'direct_link_audio_index')
   final int directLinkAudioIndex;
 
@@ -534,6 +564,7 @@ class PlayInfoResponse {
     required this.subtitleGuid,
     required this.mediaGuid,
     required this.item,
+    this.liveChannels,
     required this.directLinkAudioIndex,
   });
 
