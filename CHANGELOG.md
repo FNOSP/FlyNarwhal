@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-## [2.0.1-alpha] - 2026-08-09
+## [2.0.1-alpha] - 2026-08-11
 
 > ⚠️ **此版本为测试版本（Alpha），仅供内部验证，禁止下载安装使用。**
 > ⚠️ **This is a test (Alpha) build for internal verification only. Do NOT download or install.**
@@ -30,7 +30,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **完整应用版本号支持**：实现应用完整版本号（含预发布后缀）的读取与展示。
-- **发布分页优化**：优化更新检查的发布分页逻辑。
+- **Windows ARM64 支持**：新增 Windows arm64 构建流程与本地 media_kit 依赖覆盖。
+- **安装器图标与文件校验**：Windows 安装程序配置自定义图标，并增加构建产物文件存在性校验。
+
+### Changed
+
+- **发布分页优化**：优化更新检查的发布分页逻辑与版本解析算法。
+- **更新器健壮性提升**：改用 FFI 查询 Windows 磁盘剩余空间，减少外部命令依赖；增强可执行文件类型兼容性。
+- **主布局更新角标**：在主导航添加更新提示角标，并优化窗口标题栏结构。
+- **播放器设置菜单**：新增播放器设置菜单高度测量能力。
+
+### Fixed
+
+- **主题默认值**：修复主题设置默认值异常。
 
 ## [2.0.0-alpha] - 2026-08-10
 
@@ -51,4 +63,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Liquid Glass 视觉设计**：登录页引入 Liquid Glass 设计语言，配合 Acrylic 毛玻璃质感与更现代的布局，整体视觉更通透、更贴近原生系统美学。
 - **登录密码加密存储**：登录历史中的密码不再明文落盘：基于 AES-256-GCM 认证加密 + HKDF 派生密钥，配合随机 salt/nonce、认证标签与密文完整性校验；加密完成后对敏感内存进行零化，密钥异常或密文被篡改时自动清除旧密码，避免本地持久化泄露风险。
 - **支持更多平台与 CPU 架构**：1.x 仅覆盖 Windows 与 macOS；2.0.0-alpha 新增 Linux，完整覆盖 Windows x64、macOS x64 / arm64（Intel / Apple Silicon）、Linux x64 / arm64，安装包格式包括 .exe、.dmg、.deb、.rpm 与 .AppImage。
-- **功能更完整**：新增 Live TV、本地字幕选择器、文件媒体信息对话框、播放详情面板、按媒体持久化的画面比例与窗口几何管理，以及强制 H.264 / SDR 色调映射等进阶播放选项。
+- **功能更完整**：新增 Live TV、媒体信息面板、播放详细信息面板，以及强制 H.264 / SDR 色调映射等进阶播放选项。

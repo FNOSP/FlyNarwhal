@@ -124,9 +124,11 @@ class PlayerSettingsMenu extends StatefulWidget {
   final int totalDurationMillis;
   final double popupBottomOffset;
   final void Function(AudioStream) onAudioSelected;
+
   /// Current window aspect ratio setting ("AUTO", "4:3", "16:9", "21:9").
   final String windowAspectRatio;
   final void Function(String) onWindowAspectRatioChanged;
+
   /// Current video fill mode ("default", "4:3", "16:9", "21:9").
   final String videoFillMode;
   final void Function(String) onVideoFillModeChanged;
@@ -201,6 +203,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
   Timer? _hideTimer;
   String _currentScreen = 'Main';
   bool _overlayRebuildScheduled = false;
+  double? _mainSettingsMeasuredHeight;
   late bool _isAutoPlay;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -497,6 +500,13 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         currentPositionMillis: widget.currentPositionMillis,
         totalDurationMillis: widget.totalDurationMillis,
         currentScreen: _currentScreen,
+        minContentHeight: _mainSettingsMeasuredHeight,
+        onMainSettingsHeightMeasured: (height) {
+          if (_mainSettingsMeasuredHeight != height) {
+            setState(() => _mainSettingsMeasuredHeight = height);
+            _requestOverlayRebuild();
+          }
+        },
         onNavigate: (screen) {
           setState(() => _currentScreen = screen);
           _requestOverlayRebuild();
@@ -592,6 +602,8 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final int currentPositionMillis;
   final int totalDurationMillis;
   final String currentScreen;
+  final double? minContentHeight;
+  final void Function(double)? onMainSettingsHeightMeasured;
   final void Function(String) onNavigate;
   final void Function(AudioStream) onAudioSelected;
   final String windowAspectRatio;
@@ -624,6 +636,8 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.currentPositionMillis,
     required this.totalDurationMillis,
     required this.currentScreen,
+    required this.minContentHeight,
+    required this.onMainSettingsHeightMeasured,
     required this.onNavigate,
     required this.onAudioSelected,
     required this.windowAspectRatio,
@@ -658,7 +672,12 @@ class _SettingsFlyoutContent extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.only(left: 8, top: 16, bottom: 16, right: 8),
-        child: _buildCurrentScreen(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: minContentHeight ?? 0,
+          ),
+          child: _buildCurrentScreen(),
+        ),
       ),
     );
   }
@@ -710,21 +729,25 @@ class _SettingsFlyoutContent extends StatelessWidget {
           onFlyNarwhalConfigMissing: onFlyNarwhalConfigMissing,
         );
       default:
-        return _MainSettingsScreen(
-          playingInfoCache: playingInfoCache,
-          iso6391Map: iso6391Map,
-          iso6392Map: iso6392Map,
-          smartSkipEnabled: smartSkipEnabled,
-          isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
-          isAutoPlay: isAutoPlay,
-          onAutoPlayChanged: onAutoPlayChanged,
-          windowAspectRatio: windowAspectRatio,
-          videoFillMode: videoFillMode,
-          onNavigateToAudio: () => onNavigate('Audio'),
-          onNavigateToWindowAspectRatio: () => onNavigate('WindowAspectRatio'),
-          onNavigateToVideoFillMode: () => onNavigate('VideoFillMode'),
-          onNavigateToSkipConfig: () => onNavigate('SkipConfig'),
-          onNavigateToAdvanced: () => onNavigate('Advanced'),
+        return MeasureSize(
+          onChange: (size) => onMainSettingsHeightMeasured?.call(size.height),
+          child: _MainSettingsScreen(
+            playingInfoCache: playingInfoCache,
+            iso6391Map: iso6391Map,
+            iso6392Map: iso6392Map,
+            smartSkipEnabled: smartSkipEnabled,
+            isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
+            isAutoPlay: isAutoPlay,
+            onAutoPlayChanged: onAutoPlayChanged,
+            windowAspectRatio: windowAspectRatio,
+            videoFillMode: videoFillMode,
+            onNavigateToAudio: () => onNavigate('Audio'),
+            onNavigateToWindowAspectRatio: () =>
+                onNavigate('WindowAspectRatio'),
+            onNavigateToVideoFillMode: () => onNavigate('VideoFillMode'),
+            onNavigateToSkipConfig: () => onNavigate('SkipConfig'),
+            onNavigateToAdvanced: () => onNavigate('Advanced'),
+          ),
         );
     }
   }
@@ -1703,5 +1726,56 @@ class _SkipSlider extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Reports the size of [child] after it has been laid out.
+///
+/// Used to keep the advanced settings panel the same height as the main
+/// settings panel even when their intrinsic content heights differ.
+class MeasureSize extends StatefulWidget {
+  final Widget child;
+  final void Function(Size size) onChange;
+
+  const MeasureSize({
+    super.key,
+    required this.child,
+    required this.onChange,
+  });
+
+  @override
+  State<MeasureSize> createState() => _MeasureSizeState();
+}
+
+class _MeasureSizeState extends State<MeasureSize> {
+  Size? _size;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _notifySize());
+  }
+
+  @override
+  void didUpdateWidget(covariant MeasureSize oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _notifySize());
+  }
+
+  void _notifySize() {
+    if (!mounted) return;
+    final renderObject = context.findRenderObject();
+    if (renderObject is RenderBox && renderObject.hasSize) {
+      final size = renderObject.size;
+      if (_size != size) {
+        _size = size;
+        widget.onChange(size);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }

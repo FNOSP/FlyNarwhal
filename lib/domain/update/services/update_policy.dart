@@ -46,6 +46,11 @@ final class UpdatePolicy {
         <({UpdateRelease release, SemanticVersion version})>[];
 
     for (final release in releases) {
+      final parsedVersion = VersionParser.parseReleaseVersion(
+        tagName: release.tagName,
+        displayName: release.displayName,
+      );
+
       if (release.isDraft) {
         diagnostics.add(const UpdateSelectionDiagnostic(
           reason: UpdateSelectionDiagnosticReason.draftRelease,
@@ -58,10 +63,7 @@ final class UpdatePolicy {
         ));
         continue;
       }
-      final version = VersionParser.parseReleaseVersion(
-        tagName: release.tagName,
-        displayName: release.displayName,
-      );
+      final version = parsedVersion;
       if (version == null) {
         diagnostics.add(const UpdateSelectionDiagnostic(
           reason: UpdateSelectionDiagnosticReason.invalidVersion,
