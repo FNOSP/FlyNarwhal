@@ -1224,7 +1224,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playbackDetailsTranscodeStatus = null;
     _playbackDetailsRefreshTimer?.cancel();
     _playbackDetailsRefreshTimer = null;
-    _overlayController.setHovered(PlayerHoverZone.playbackDetails, false);
     _episodeList = [];
     _currentEpisode = null;
     _nextEpisode = null;
@@ -3749,10 +3748,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _scheduleMacOSWindowButtonsSync(
       visible: overlayState.isUiVisible,
     );
-    final playerCursor =
-        _isInitialized && !_isPipMode && !overlayState.isUiVisible
-            ? SystemMouseCursors.none
-            : SystemMouseCursors.click;
+    final playerCursor = _isInitialized &&
+            !_isPipMode &&
+            !overlayState.isUiVisible &&
+            // Keep the cursor clickable while the “播放详细信息” panel is open
+            // even after the transport controls auto-hide, so the user can
+            // still scroll it / press its close button.
+            !_isPlaybackDetailsVisible
+        ? SystemMouseCursors.none
+        : SystemMouseCursors.click;
 
     final playerStack = MouseRegion(
       cursor: playerCursor,
@@ -3855,31 +3859,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     right: 0,
                     child: _buildTopBar(),
                   ),
-                  if (_isPlaybackDetailsVisible && _playingInfoCache != null)
-                    Positioned(
-                      top: 56,
-                      right: 20,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width - 32,
-                          maxHeight: MediaQuery.of(context).size.height - 76,
-                        ),
-                        child: PlaybackDetailsPanel(
-                          key: const ValueKey(
-                            'player-playback-details-panel',
-                          ),
-                          cache: _playingInfoCache!,
-                          transcodeStatus: _playbackDetailsTranscodeStatus,
-                          bufferedSeconds: _isInitialized
-                              ? ((_bufferedPosition - _currentPosition) / 1000)
-                                  .clamp(0.0, double.infinity)
-                              : null,
-                          onClose: () => setState(
-                            () => _isPlaybackDetailsVisible = false,
-                          ),
-                        ),
-                      ),
-                    ),
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -3934,6 +3913,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
                 ],
+              ),
+            ),
+          // The “播放详细信息” panel is deliberately rendered OUTSIDE the
+          // AnimatedOpacity that fades the transport controls, so it stays on
+          // screen when the controls auto-hide. Its open state is independent
+          // of the overlay's auto-hide: moving the mouse arms the 3s control
+          // hide timer even while hovering the panel, and the panel itself
+          // remains until explicitly closed.
+          if (_isInitialized &&
+              !_isPipMode &&
+              _isPlaybackDetailsVisible &&
+              _playingInfoCache != null)
+            Positioned(
+              top: 56,
+              right: 20,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width - 32,
+                  maxHeight: MediaQuery.of(context).size.height - 76,
+                ),
+                child: PlaybackDetailsPanel(
+                  key: const ValueKey('player-playback-details-panel'),
+                  cache: _playingInfoCache!,
+                  transcodeStatus: _playbackDetailsTranscodeStatus,
+                  bufferedSeconds: _isInitialized
+                      ? ((_bufferedPosition - _currentPosition) / 1000)
+                          .clamp(0.0, double.infinity)
+                      : null,
+                  onClose: _closePlaybackDetails,
+                ),
               ),
             ),
           if (_isInitialized && _isPipMode) _buildPipOverlay(),
@@ -4590,24 +4599,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _togglePlaybackDetails() {
-    final isVisible = !_isPlaybackDetailsVisible;
-    setState(() => _isPlaybackDetailsVisible = isVisible);
-    // Keep the overlay (and thus the panel) visible while it is open, the
-    // same way open flyouts hold the UI on screen.
-    _overlayController.setHovered(PlayerHoverZone.playbackDetails, isVisible);
-    if (isVisible) {
-      _showUi();
-      _refreshPlaybackDetailsTranscodeStatus();
-      // The web panel polls the transcode statistics while open, so quality
-      // or audio switches and live counters update without reopening it.
-      _playbackDetailsRefreshTimer ??= Timer.periodic(
-        const Duration(seconds: 30),
-        (_) => _refreshPlaybackDetailsTranscodeStatus(),
-      );
-    } else {
-      _playbackDetailsRefreshTimer?.cancel();
-      _playbackDetailsRefreshTimer = null;
+    if (_isPlaybackDetailsVisible) {
+      _closePlaybackDetails();
+      return;
     }
+    setState(() => _isPlaybackDetailsVisible = true);
+    _showUi();
+    _refreshPlaybackDetailsTranscodeStatus();
+    // The web panel polls the transcode statistics while open, so quality
+    // or audio switches and live counters update without reopening it.
+    _playbackDetailsRefreshTimer ??= Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refreshPlaybackDetailsTranscodeStatus(),
+    );
+  }
+
+  /// Closes the “播放详细信息” panel. Kept a single code path so the panel's
+  /// close button and the top-bar toggle run the exact same cleanup. The panel
+  /// is rendered independently of the control overlay, so closing it simply
+  /// flips the visibility flag, stops the transcode polling and re-arms the
+  /// control auto-hide timer.
+  void _closePlaybackDetails() {
+    if (_isPlaybackDetailsVisible) {
+      setState(() => _isPlaybackDetailsVisible = false);
+    }
+    _playbackDetailsRefreshTimer?.cancel();
+    _playbackDetailsRefreshTimer = null;
+    _showUi();
   }
 
   /// Mirrors the web player's play-type derivation: direct-link sessions are
