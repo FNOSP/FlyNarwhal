@@ -8,6 +8,7 @@ import '../../../core/version/semantic_version.dart';
 import '../../../data/storage/update_download_record_store.dart';
 import '../../../data/storage/update_settings_store.dart';
 import '../../../domain/update/entities/update_download_record.dart';
+import '../../../domain/update/entities/verified_update_artifact.dart';
 import '../../../domain/update/entities/update_models.dart';
 import '../../../domain/update/repositories/cancellation_token.dart';
 import '../../../domain/update/repositories/update_repository.dart';
@@ -26,8 +27,8 @@ import 'update_state.dart';
 typedef CurrentVersionLoader = Future<SemanticVersion> Function();
 typedef UpdatePlatformLoader = Future<UpdatePlatform> Function();
 typedef UpdateExitRequester = Future<void> Function();
-typedef UpdateInstallFailureRecovery =
-    Future<PlatformUpdateInstallFailure?> Function();
+typedef UpdateInstallFailureRecovery = Future<PlatformUpdateInstallFailure?>
+    Function();
 typedef UpdateClock = DateTime Function();
 
 /// Coordinates update work without coupling background tasks to presentation.
@@ -383,14 +384,42 @@ final class UpdateController extends StateNotifier<UpdateState> {
         'Update check found version ${candidate.version.skipKey}.',
       );
       final activeDownloadCandidate = state.task.downloadCandidate;
-      final task = activeDownloadCandidate == null
-          ? UpdateTaskState(
-              phase: UpdateTaskPhase.available,
-              candidate: candidate,
-            )
-          : state.task.copyWith(candidate: state.task.candidate);
+      if (activeDownloadCandidate != null) {
+        state = state.copyWith(
+          task: state.task.copyWith(candidate: state.task.candidate),
+          lastSuccessfulCheckAt: successfulCheckAt,
+          clearFailure: true,
+        );
+        return;
+      }
+
+      // Revalidate the durable cache before replacing the current task.
+      final cachedFile = await _resolveVerifiedCachedFile(candidate);
+      if (_isDisposed) return;
+      if (cachedFile != null) {
+        state = state.copyWith(
+          task: UpdateTaskState(
+            phase: UpdateTaskPhase.readyToInstall,
+            candidate: candidate,
+            localFile: cachedFile,
+            verificationSource: VerificationSource.cacheRecovery,
+          ),
+          presentation: UpdatePresentationState(
+            dialogPhase: UpdateDialogPhase.readyToInstall,
+            isDialogVisible: manual,
+            isUpdatePromptVisible: true,
+          ),
+          lastSuccessfulCheckAt: successfulCheckAt,
+          clearFailure: true,
+        );
+        return;
+      }
+
       state = state.copyWith(
-        task: task,
+        task: UpdateTaskState(
+          phase: UpdateTaskPhase.available,
+          candidate: candidate,
+        ),
         presentation: manual
             ? const UpdatePresentationState(
                 dialogPhase: UpdateDialogPhase.available,
@@ -690,8 +719,12 @@ final class UpdateController extends StateNotifier<UpdateState> {
 
   Future<void> _performInstallation(String operationId) async {
     final candidate = state.task.candidate;
-    final file = state.task.localFile;
-    if (candidate == null || file == null) return;
+    var file = state.task.localFile;
+    if (candidate == null) return;
+    if (file == null) {
+      file = await _recoverMissingInstallFile(candidate);
+      if (file == null) return;
+    }
     state = state.copyWith(
       task: state.task.copyWith(
         phase: UpdateTaskPhase.verifying,
@@ -705,11 +738,21 @@ final class UpdateController extends StateNotifier<UpdateState> {
     );
     final verification =
         await _verify(candidate, file, VerificationSource.preInstall);
-    if (verification is VerificationFailure) {
-      await _handleVerificationFailure(candidate, verification);
+    if (verification is! VerificationSuccess) {
+      await _handleVerificationFailure(
+        candidate,
+        verification as VerificationFailure,
+      );
       return;
     }
     if (_isDisposed) return;
+    final verifiedArtifact = VerifiedUpdateArtifact(
+      candidate: candidate,
+      file: verification.file,
+      length: candidate.asset.sizeInBytes,
+      sha256: verification.sha256,
+      verifiedAt: _clock().toUtc(),
+    );
     state = state.copyWith(
       task: state.task.copyWith(phase: UpdateTaskPhase.installing),
       presentation: state.presentation.copyWith(
@@ -718,8 +761,7 @@ final class UpdateController extends StateNotifier<UpdateState> {
     );
     final result = await _installer.launch(PlatformUpdateInstallRequest(
       operationId: operationId,
-      candidate: candidate,
-      packageFile: file,
+      artifact: verifiedArtifact,
     ));
     if (result is PlatformUpdateHelperLaunched) {
       await _exitRequester();
@@ -742,6 +784,51 @@ final class UpdateController extends StateNotifier<UpdateState> {
         cause: failure.cause,
       ),
     );
+  }
+
+  Future<File?> _resolveVerifiedCachedFile(UpdateCandidate candidate) async {
+    if (!await _fileStore.hasValidCachedFile(candidate)) return null;
+    final cachedFile = await _fileStore.getFinalFile(candidate);
+    final verification = await _verify(
+      candidate,
+      cachedFile,
+      VerificationSource.cacheRecovery,
+    );
+    return verification is VerificationSuccess ? cachedFile : null;
+  }
+
+  Future<File?> _recoverMissingInstallFile(
+    UpdateCandidate candidate,
+  ) async {
+    final hasCachedFile = await _fileStore.hasValidCachedFile(candidate);
+    if (!hasCachedFile) {
+      if (_isDisposed) return null;
+      state = state.copyWith(
+        task: state.task.copyWith(phase: UpdateTaskPhase.available),
+        presentation: const UpdatePresentationState(
+          dialogPhase: UpdateDialogPhase.available,
+          isDialogVisible: true,
+          isUpdatePromptVisible: true,
+        ),
+      );
+      return null;
+    }
+    final recoveredFile = await _fileStore.getFinalFile(candidate);
+    if (_isDisposed) return null;
+    state = state.copyWith(
+      task: state.task.copyWith(
+        phase: UpdateTaskPhase.readyToInstall,
+        localFile: recoveredFile,
+        verificationSource: VerificationSource.cacheRecovery,
+      ),
+      presentation: state.presentation.copyWith(
+        dialogPhase: UpdateDialogPhase.readyToInstall,
+        isDialogVisible: true,
+        isUpdatePromptVisible: true,
+      ),
+      clearFailure: true,
+    );
+    return recoveredFile;
   }
 
   Future<VerificationResult> _verify(

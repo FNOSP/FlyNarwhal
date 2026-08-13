@@ -140,19 +140,31 @@ final class UpdateAssetSelector {
       for (final asset in assets) {
         final parsedName = _parser.tryParse(asset.name);
         if (parsedName == null) {
-          observedReason = UpdateAssetExclusionReason.malformedAssetName;
+          observedReason = _selectMoreSpecificReason(
+            observedReason,
+            UpdateAssetExclusionReason.malformedAssetName,
+          );
           continue;
         }
         if (parsedName.operatingSystem != platform.operatingSystem) {
-          observedReason = UpdateAssetExclusionReason.operatingSystemMismatch;
+          observedReason = _selectMoreSpecificReason(
+            observedReason,
+            UpdateAssetExclusionReason.operatingSystemMismatch,
+          );
           continue;
         }
         if (parsedName.architecture != platform.architecture) {
-          observedReason = UpdateAssetExclusionReason.architectureMismatch;
+          observedReason = _selectMoreSpecificReason(
+            observedReason,
+            UpdateAssetExclusionReason.architectureMismatch,
+          );
           continue;
         }
         if (parsedName.version.compareTo(releaseVersion) != 0) {
-          observedReason = UpdateAssetExclusionReason.assetVersionMismatch;
+          observedReason = _selectMoreSpecificReason(
+            observedReason,
+            UpdateAssetExclusionReason.assetVersionMismatch,
+          );
           continue;
         }
         if (parsedName.packageType != packageType) {
@@ -216,6 +228,31 @@ final class UpdateAssetSelector {
       return UpdateAssetExclusionReason.invalidPackageType;
     }
     return null;
+  }
+
+  UpdateAssetExclusionReason _selectMoreSpecificReason(
+    UpdateAssetExclusionReason currentReason,
+    UpdateAssetExclusionReason candidateReason,
+  ) {
+    return _reasonPriority(candidateReason) >= _reasonPriority(currentReason)
+        ? candidateReason
+        : currentReason;
+  }
+
+  int _reasonPriority(UpdateAssetExclusionReason reason) {
+    return switch (reason) {
+      UpdateAssetExclusionReason.packageMissing => 0,
+      UpdateAssetExclusionReason.malformedAssetName => 1,
+      UpdateAssetExclusionReason.operatingSystemMismatch => 2,
+      UpdateAssetExclusionReason.architectureMismatch => 3,
+      UpdateAssetExclusionReason.assetVersionMismatch => 4,
+      UpdateAssetExclusionReason.invalidSize => 5,
+      UpdateAssetExclusionReason.invalidDigest => 6,
+      UpdateAssetExclusionReason.invalidOfficialUrl => 7,
+      UpdateAssetExclusionReason.invalidPackageType => 8,
+      UpdateAssetExclusionReason.duplicateCanonicalAsset => 9,
+      UpdateAssetExclusionReason.unsupportedArchitecture => 10,
+    };
   }
 
   bool _isOfficialReleaseAssetUrl(Uri url) {

@@ -3,28 +3,31 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 
 import '../../domain/update/entities/update_models.dart';
+import '../../domain/update/entities/verified_update_artifact.dart';
 import 'update_path_safety.dart';
 
 final class PlatformUpdateInstallRequest {
   const PlatformUpdateInstallRequest({
     required this.operationId,
-    required this.candidate,
-    required this.packageFile,
+    required this.artifact,
   });
 
   final String operationId;
-  final UpdateCandidate candidate;
-  final File packageFile;
+  final VerifiedUpdateArtifact artifact;
+
+  UpdateCandidate get candidate => artifact.candidate;
+  File get packageFile => artifact.file;
 }
 
 sealed class PlatformUpdateInstallResult {
   const PlatformUpdateInstallResult();
 }
 
-/// Indicates that the detached platform helper process was created.
 final class PlatformUpdateHelperLaunched extends PlatformUpdateInstallResult {
   const PlatformUpdateHelperLaunched();
 }
@@ -45,7 +48,6 @@ final class PlatformUpdateInstallFailure extends PlatformUpdateInstallResult {
   final Object? cause;
 }
 
-/// Common launcher contract implemented by platform-specific modules.
 abstract interface class PlatformUpdateInstaller {
   Future<PlatformUpdateInstallResult> launch(
     PlatformUpdateInstallRequest request,
@@ -71,6 +73,7 @@ final class UnsupportedPlatformUpdateInstaller
 
 typedef UpdateDirectoryLoader = Future<Directory> Function();
 typedef CurrentExecutableLoader = Future<File> Function();
+typedef CurrentProcessIdLoader = int Function();
 typedef UpdateProcessStarter = Future<void> Function(
   String executable,
   List<String> arguments,
@@ -82,6 +85,7 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
     UpdateDirectoryLoader? updateCacheDirectoryLoader,
     UpdateDirectoryLoader? installDirectoryLoader,
     CurrentExecutableLoader? currentExecutableLoader,
+    CurrentProcessIdLoader? currentProcessIdLoader,
     UpdateProcessStarter? processStarter,
     String? trustedLocalAppDataPath,
   })  : _updateCacheDirectoryLoader =
@@ -90,6 +94,8 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
             installDirectoryLoader ?? _loadDefaultInstallDirectory,
         _currentExecutableLoader =
             currentExecutableLoader ?? _loadCurrentExecutable,
+        _currentProcessIdLoader =
+            currentProcessIdLoader ?? _loadCurrentProcessId,
         _processStarter = processStarter ?? _startDetachedProcess,
         _trustedLocalAppDataPath = trustedLocalAppDataPath;
 
@@ -102,6 +108,7 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
   final UpdateDirectoryLoader _updateCacheDirectoryLoader;
   final UpdateDirectoryLoader _installDirectoryLoader;
   final CurrentExecutableLoader _currentExecutableLoader;
+  final CurrentProcessIdLoader _currentProcessIdLoader;
   final UpdateProcessStarter _processStarter;
   final String? _trustedLocalAppDataPath;
 
@@ -113,38 +120,58 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
       final cacheDirectory = await _updateCacheDirectoryLoader();
       final installDirectory = await _installDirectoryLoader();
       final currentExecutable = await _currentExecutableLoader();
-      if (!_isTrustedInstallDirectory(installDirectory)) {
+
+      await _ensureDirectoryExists(cacheDirectory);
+      await _ensureDirectoryExists(installDirectory);
+
+      final installDirectoryTrusted = _isTrustedInstallDirectory(
+        installDirectory,
+      );
+      if (!installDirectoryTrusted) {
         return _failure(
           code: 'install_directory_rejected',
           detail: 'The installation directory is not trusted.',
           retryable: false,
         );
       }
-      if (!await UpdatePathSafety.isSafeDirectoryTree(cacheDirectory.path) ||
-          !await UpdatePathSafety.isSafeDirectoryTree(installDirectory.path)) {
+
+      final cacheDirectorySafe = await UpdatePathSafety.isSafeDirectoryTree(
+        cacheDirectory.path,
+      );
+      final installDirectorySafe = await UpdatePathSafety.isSafeDirectoryTree(
+        installDirectory.path,
+      );
+      if (!cacheDirectorySafe || !installDirectorySafe) {
         return _failure(
           code: 'reparse_path_rejected',
           detail: 'A trusted update path contains a link or reparse point.',
           retryable: false,
         );
       }
-      if (!await _isTrustedCurrentExecutable(
+
+      final currentExecutableTrusted = await _isTrustedCurrentExecutable(
         currentExecutable,
         installDirectory,
-      )) {
+      );
+      if (!currentExecutableTrusted) {
         return _failure(
           code: 'application_identity_invalid',
           detail: 'The running executable is not the trusted FlyNarwhal.exe.',
           retryable: false,
         );
       }
-      if (!await _isTrustedUpdater(installDirectory)) {
+
+      final updaterTrusted = await _isTrustedUpdater(
+        currentExecutable.parent,
+      );
+      if (!updaterTrusted) {
         return _failure(
           code: 'updater_missing',
           detail: 'The Windows updater executable is missing or invalid.',
           retryable: false,
         );
       }
+
       if (!await _isSafeInstallerSource(request.packageFile, cacheDirectory)) {
         return _failure(
           code: 'installer_invalid',
@@ -153,15 +180,16 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
         );
       }
 
-      // Copy the verified package into a private, unpredictable staging directory.
       final stagedInstaller = await _stageInstaller(
         source: request.packageFile,
         cacheDirectory: cacheDirectory,
         operationId: request.operationId,
       );
+      final runningApplicationProcessId = _currentProcessIdLoader();
       await _processStarter(updaterExecutable.path, <String>[
         stagedInstaller.path,
         installDirectory.path,
+        runningApplicationProcessId.toString(),
       ]);
       return const PlatformUpdateHelperLaunched();
     } on Object catch (error) {
@@ -173,6 +201,13 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
         cause: error,
       );
     }
+  }
+
+  Future<void> _ensureDirectoryExists(Directory directory) async {
+    if (await directory.exists()) {
+      return;
+    }
+    await directory.create(recursive: true);
   }
 
   Future<bool> _isTrustedUpdater(Directory installDirectory) async {
@@ -191,14 +226,21 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
     File currentExecutable,
     Directory installDirectory,
   ) async {
-    if (path.basename(currentExecutable.path) != applicationExecutable ||
-        !UpdatePathSafety.sameWindowsPath(
-          firstPath: currentExecutable.parent.path,
-          secondPath: installDirectory.path,
-        )) {
-      return false;
-    }
-    return UpdatePathSafety.isSafeRegularFile(currentExecutable.path);
+    final executableNameMatches =
+        path.basename(currentExecutable.path) == applicationExecutable;
+    final executableInsideTrustedDirectory = UpdatePathSafety.sameWindowsPath(
+      firstPath: currentExecutable.parent.path,
+      secondPath: installDirectory.path,
+    );
+    final isSafeFile = await UpdatePathSafety.isSafeRegularFile(
+      currentExecutable.path,
+    );
+    final relaxedForDebugBuild =
+        kDebugMode && !executableInsideTrustedDirectory;
+    final isTrusted = executableNameMatches &&
+        isSafeFile &&
+        (executableInsideTrustedDirectory || relaxedForDebugBuild);
+    return isTrusted;
   }
 
   Future<bool> _isSafeInstallerSource(
@@ -257,11 +299,16 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
   bool _isTrustedInstallDirectory(Directory installDirectory) {
     final localAppData =
         _trustedLocalAppDataPath ?? Platform.environment['LOCALAPPDATA'];
-    if (localAppData == null || localAppData.trim().isEmpty) return false;
-    return UpdatePathSafety.sameWindowsPath(
-      firstPath: installDirectory.path,
-      secondPath: path.join(localAppData, 'FlyNarwhal'),
-    );
+    final trustedInstallDirectory =
+        localAppData == null || localAppData.trim().isEmpty
+            ? null
+            : path.join(localAppData, 'FlyNarwhal');
+    final isTrusted = trustedInstallDirectory != null &&
+        UpdatePathSafety.sameWindowsPath(
+          firstPath: installDirectory.path,
+          secondPath: trustedInstallDirectory,
+        );
+    return isTrusted;
   }
 
   String _randomToken() {
@@ -308,15 +355,23 @@ final class WindowsUpdateInstaller implements PlatformUpdateInstaller {
     return File(Platform.resolvedExecutable);
   }
 
+  static int _loadCurrentProcessId() {
+    return pid;
+  }
+
+  static const MethodChannel _updaterProcessChannel =
+      MethodChannel('fly_narwhal/updater_process');
+
   static Future<void> _startDetachedProcess(
     String executable,
     List<String> arguments,
   ) async {
-    await Process.start(
-      executable,
-      arguments,
-      mode: ProcessStartMode.detached,
-      runInShell: false,
+    await _updaterProcessChannel.invokeMethod<void>(
+      'launchUpdaterDetached',
+      <String, Object>{
+        'executable': executable,
+        'arguments': arguments,
+      },
     );
   }
 }

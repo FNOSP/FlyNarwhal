@@ -214,6 +214,17 @@ final class UpdateFileStore implements UpdateFileStoreContract {
   @override
   Future<bool> hasValidCachedFile(UpdateCandidate candidate) async {
     final finalFile = await getFinalFile(candidate);
+    final digest = candidate.asset.digest;
+    if (digest == null ||
+        !await _validateFile(
+          finalFile,
+          expectedSize: candidate.asset.sizeInBytes,
+          expectedDigest: digest,
+        )) {
+      await deleteCachedFile(candidate);
+      return false;
+    }
+
     UpdateDownloadRecord? record;
     try {
       record = await _downloadRecordStore.load();
@@ -221,25 +232,24 @@ final class UpdateFileStore implements UpdateFileStoreContract {
       await deleteCachedFile(candidate);
       return false;
     }
-    final digest = candidate.asset.digest;
-    final recordMatchesCandidate = record != null &&
+    if (record == null) {
+      // A cache file without its durable receipt has no trusted provenance.
+      await deleteCachedFile(candidate);
+      return false;
+    }
+
+    final recordMatchesCandidate =
         record.stage == UpdateDownloadStage.verified &&
-        record.version == candidate.version.toString() &&
-        record.assetName == candidate.asset.name &&
-        record.officialDownloadUrl == candidate.asset.officialDownloadUrl &&
-        record.expectedSize == candidate.asset.sizeInBytes &&
-        record.expectedSha256.toLowerCase() == digest?.toLowerCase() &&
-        path.equals(
-          path.normalize(record.finalFilePath),
-          path.normalize(finalFile.path),
-        );
-    if (!recordMatchesCandidate ||
-        digest == null ||
-        !await _validateFile(
-          finalFile,
-          expectedSize: candidate.asset.sizeInBytes,
-          expectedDigest: digest,
-        )) {
+            record.version == candidate.version.toString() &&
+            record.assetName == candidate.asset.name &&
+            record.officialDownloadUrl == candidate.asset.officialDownloadUrl &&
+            record.expectedSize == candidate.asset.sizeInBytes &&
+            record.expectedSha256.toLowerCase() == digest.toLowerCase() &&
+            path.equals(
+              path.normalize(record.finalFilePath),
+              path.normalize(finalFile.path),
+            );
+    if (!recordMatchesCandidate) {
       await deleteCachedFile(candidate);
       await _downloadRecordStore.delete();
       return false;

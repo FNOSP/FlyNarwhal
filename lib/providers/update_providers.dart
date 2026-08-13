@@ -244,7 +244,10 @@ final updateExitRequesterProvider = Provider<UpdateExitRequester>((ref) {
     return () async {};
   }
   if (Platform.isWindows) {
-    return () => windowManager.destroy();
+    return () async {
+      await windowManager.setPreventClose(false);
+      await windowManager.close();
+    };
   }
   if (Platform.isMacOS || Platform.isLinux) {
     // The detached platform helper waits for the current process to exit

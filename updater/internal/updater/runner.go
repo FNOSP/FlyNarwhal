@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"updater/internal/lang"
@@ -17,7 +18,7 @@ const (
 )
 
 type ProcessController interface {
-	WaitForExit(context.Context, string) error
+	WaitForExit(context.Context, string, int) error
 	Run(context.Context, string, []string) (int, error)
 	Start(string, []string) error
 }
@@ -70,9 +71,26 @@ func (runner Runner) verifyInstaller(paths Paths) error {
 	return VerifyInstallerIdentity(paths)
 }
 
+func (runner Runner) expectedApplicationPath(paths Paths) (string, error) {
+	if runner.ValidateApplication != nil {
+		return runner.ValidateApplication(paths)
+	}
+	return ExpectedApplicationExecutablePath(paths)
+}
+
 func (runner Runner) validateApplication(paths Paths) (string, error) {
 	if runner.ValidateApplication != nil {
 		return runner.ValidateApplication(paths)
+	}
+	if paths.RunningApplicationPath != "" {
+		canonicalApplicationPath, err := canonicalExistingFile(paths.RunningApplicationPath)
+		if err != nil {
+			return "", lang.Wrap(err, "invalid_application_executable")
+		}
+		if !isWithinRoot(filepath.Dir(canonicalApplicationPath), canonicalApplicationPath) {
+			return "", lang.Error("application_executable_outside_trusted_root")
+		}
+		return canonicalApplicationPath, nil
 	}
 	return ValidateApplicationExecutable(paths)
 }
@@ -96,11 +114,13 @@ func (runner Runner) Execute(paths Paths) error {
 	// Wait only for the executable installed in the trusted application directory.
 	applicationPath, err := runner.validateApplication(paths)
 	if err != nil {
+		runner.logStep("H4", "application_validation_failed", err.Error())
 		return runner.recordFailure(paths, now, "application_identity_invalid", err)
 	}
-	waitContext, cancelWait := context.WithTimeout(context.Background(), processExitTimeout)
-	defer cancelWait()
-	if err := runner.Processes.WaitForExit(waitContext, applicationPath); err != nil {
+	runner.logStep("H4", "application_validated", applicationPath)
+	processExitContext, cancelProcessExitWait := context.WithTimeout(context.Background(), processExitTimeout)
+	defer cancelProcessExitWait()
+	if err := runner.Processes.WaitForExit(processExitContext, applicationPath, paths.RunningApplicationPID); err != nil {
 		return runner.recordFailure(paths, now, "application_exit_timeout", err)
 	}
 	if err := runner.cleanupLegacyFiles(paths); err != nil {
@@ -173,6 +193,10 @@ func (runner Runner) recordFailure(paths Paths, now func() time.Time, code strin
 	}
 	runner.log(code, cause.Error())
 	return lang.Error(code)
+}
+
+func (runner Runner) logStep(_ string, code string, detail string) {
+	runner.log(code, detail)
 }
 
 func (runner Runner) log(code string, detail string) {

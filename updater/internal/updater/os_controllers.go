@@ -7,17 +7,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
+	"syscall"
 	"time"
 )
 
 type OSProcessController struct{}
 
-func (OSProcessController) WaitForExit(contextValue context.Context, applicationPath string) error {
+func (OSProcessController) WaitForExit(contextValue context.Context, applicationPath string, processID int) error {
 	pollTimer := time.NewTicker(250 * time.Millisecond)
 	defer pollTimer.Stop()
 	for {
-		running, err := isApplicationRunning(contextValue, applicationPath)
+		running, err := isApplicationRunning(contextValue, applicationPath, processID)
 		if err != nil {
 			return err
 		}
@@ -50,40 +50,24 @@ func (OSProcessController) Start(executable string, arguments []string) error {
 	return command.Start()
 }
 
-func isApplicationRunning(contextValue context.Context, applicationPath string) (bool, error) {
-	const processQuery = "Get-CimInstance Win32_Process -Filter \"Name = 'FlyNarwhal.exe'\" | Select-Object -ExpandProperty ExecutablePath | ConvertTo-Json -Compress"
-	command := exec.CommandContext(
-		contextValue,
-		"powershell.exe",
-		"-NoProfile",
-		"-NonInteractive",
-		"-Command",
-		processQuery,
-	)
-	output, err := command.Output()
+func isApplicationRunning(contextValue context.Context, applicationPath string, processID int) (bool, error) {
+	if processID <= 0 {
+		return false, nil
+	}
+	processHandle, err := syscall.OpenProcess(syscall.SYNCHRONIZE, false, uint32(processID))
+	if err != nil {
+		if errors.Is(err, syscall.Errno(87)) {
+			return false, nil
+		}
+		return false, err
+	}
+	defer syscall.CloseHandle(processHandle)
+
+	waitResult, err := syscall.WaitForSingleObject(processHandle, 0)
 	if err != nil {
 		return false, err
 	}
-	var executablePaths []string
-	if err := json.Unmarshal(output, &executablePaths); err != nil {
-		var executablePath string
-		if singlePathError := json.Unmarshal(output, &executablePath); singlePathError != nil {
-			if strings.TrimSpace(string(output)) == "" || strings.TrimSpace(string(output)) == "null" {
-				return false, nil
-			}
-			return false, err
-		}
-		executablePaths = []string{executablePath}
-	}
-	for _, executablePath := range executablePaths {
-		if executablePath == "" {
-			continue
-		}
-		if samePath(filepath.Clean(executablePath), filepath.Clean(applicationPath)) {
-			return true, nil
-		}
-	}
-	return false, nil
+	return waitResult == syscall.WAIT_TIMEOUT, nil
 }
 
 type OSFileController struct{}

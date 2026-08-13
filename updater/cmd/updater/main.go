@@ -10,17 +10,29 @@ import (
 )
 
 func main() {
-	installerPath, installDir, err := updater.ParseArguments(os.Args[1:])
+	installerPath, installDir, runningApplicationPID, err := updater.ParseArguments(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		fmt.Fprintln(os.Stderr, lang.Msg("usage", filepath.Base(os.Args[0])))
 		os.Exit(2)
 	}
+
 	paths, err := updater.ValidatePaths(installerPath, installDir, environmentMap())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
+	resolvedExecutablePath, err := os.Executable()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	paths.RunningApplicationPath = filepath.Join(
+		filepath.Dir(resolvedExecutablePath),
+		updater.ApplicationExecutable,
+	)
+	paths.RunningApplicationPID = runningApplicationPID
+
 	if err := os.MkdirAll(filepath.Dir(paths.LogPath), 0o700); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

@@ -38,11 +38,73 @@ constexpr const char kReadJavaPreferencesMethod[] = "readJavaPreferences";
 constexpr const char kLocalSubtitlePickerChannelName[] =
     "fly_narwhal/local_subtitle_picker";
 constexpr const char kOpenLocalSubtitlesMethod[] = "openLocalSubtitles";
+constexpr const char kUpdaterProcessChannelName[] =
+    "fly_narwhal/updater_process";
+constexpr const char kLaunchUpdaterDetachedMethod[] =
+    "launchUpdaterDetached";
 constexpr const UINT kLocalSubtitlePickerResultMessage = WM_APP + 1;
 constexpr const wchar_t kJavaPreferencesRegistryPath[] =
     L"Software\\JavaSoft\\Prefs";
 
 std::string Utf8FromWideString(const std::wstring& value);
+std::wstring WideStringFromUtf8(const std::string& value);
+
+std::wstring QuoteWindowsCommandLineArgument(const std::wstring& argument) {
+  if (argument.find_first_of(L" \t\"") == std::wstring::npos) {
+    return argument;
+  }
+  std::wstring quoted = L"\"";
+  size_t backslash_count = 0;
+  for (const wchar_t character : argument) {
+    if (character == L'\\') {
+      ++backslash_count;
+      continue;
+    }
+    if (character == L'\"') {
+      quoted.append(backslash_count * 2 + 1, L'\\');
+      quoted.push_back(character);
+      backslash_count = 0;
+      continue;
+    }
+    quoted.append(backslash_count, L'\\');
+    backslash_count = 0;
+    quoted.push_back(character);
+  }
+  quoted.append(backslash_count * 2, L'\\');
+  quoted.push_back(L'\"');
+  return quoted;
+}
+
+void LaunchUpdaterDetached(const std::string& executable,
+                           const std::vector<std::string>& arguments) {
+  const std::wstring wide_executable = WideStringFromUtf8(executable);
+  std::wstring command_line = QuoteWindowsCommandLineArgument(wide_executable);
+  for (const std::string& argument : arguments) {
+    command_line.push_back(L' ');
+    command_line.append(
+        QuoteWindowsCommandLineArgument(WideStringFromUtf8(argument)));
+  }
+
+  std::vector<wchar_t> mutable_command_line(command_line.begin(),
+                                             command_line.end());
+  mutable_command_line.push_back(L'\0');
+  STARTUPINFOW startup_info = {};
+  startup_info.cb = sizeof(startup_info);
+  PROCESS_INFORMATION process_information = {};
+  const DWORD creation_flags = CREATE_BREAKAWAY_FROM_JOB |
+                               CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS;
+  if (!CreateProcessW(
+          wide_executable.c_str(), mutable_command_line.data(), nullptr,
+          nullptr, FALSE, creation_flags, nullptr,
+          std::filesystem::path(wide_executable).parent_path().c_str(),
+          &startup_info, &process_information)) {
+    throw std::runtime_error(
+        "Unable to launch updater outside the application job object. Error " +
+        std::to_string(GetLastError()));
+  }
+  CloseHandle(process_information.hThread);
+  CloseHandle(process_information.hProcess);
+}
 
 uint64_t HashUserGuid(const std::string& user_guid, uint64_t seed) {
   uint64_t hash = seed;
@@ -390,6 +452,23 @@ std::string Utf8FromWideString(const std::wstring& value) {
   return result;
 }
 
+std::wstring WideStringFromUtf8(const std::string& value) {
+  if (value.empty()) {
+    return L"";
+  }
+  const int required_size = MultiByteToWideChar(
+      CP_UTF8, MB_ERR_INVALID_CHARS, value.data(),
+      static_cast<int>(value.size()), nullptr, 0);
+  if (required_size <= 0) {
+    throw std::runtime_error("Unable to decode UTF-8 process argument.");
+  }
+  std::wstring result(required_size, L'\0');
+  MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.data(),
+                      static_cast<int>(value.size()), result.data(),
+                      required_size);
+  return result;
+}
+
 std::string DecodeJavaPreferenceName(const std::wstring& encoded_name) {
   std::wstring decoded_name;
   bool uppercase_next = false;
@@ -560,6 +639,62 @@ bool FlutterWindow::OnCreate() {
           result->Success(ReadJavaPreferences());
         } catch (const std::exception& exception) {
           result->Error("kmp-preferences-error", exception.what());
+        }
+      });
+
+  flutter::MethodChannel<> updater_process_channel(
+      flutter_controller_->engine()->messenger(),
+      kUpdaterProcessChannelName,
+      &flutter::StandardMethodCodec::GetInstance());
+  updater_process_channel.SetMethodCallHandler(
+      [](const flutter::MethodCall<>& call,
+         std::unique_ptr<flutter::MethodResult<>> result) {
+        if (call.method_name() != kLaunchUpdaterDetachedMethod) {
+          result->NotImplemented();
+          return;
+        }
+        const auto* arguments =
+            std::get_if<flutter::EncodableMap>(call.arguments());
+        if (arguments == nullptr) {
+          result->Error("INVALID_ARGS", "Expected a map argument.");
+          return;
+        }
+        const auto executable_entry =
+            arguments->find(flutter::EncodableValue("executable"));
+        const auto process_arguments_entry =
+            arguments->find(flutter::EncodableValue("arguments"));
+        if (executable_entry == arguments->end() ||
+            process_arguments_entry == arguments->end()) {
+          result->Error("INVALID_ARGS", "Missing process launch fields.");
+          return;
+        }
+        const auto* executable =
+            std::get_if<std::string>(&executable_entry->second);
+        const auto* encoded_arguments =
+            std::get_if<flutter::EncodableList>(
+                &process_arguments_entry->second);
+        if (executable == nullptr || executable->empty() ||
+            encoded_arguments == nullptr) {
+          result->Error("INVALID_ARGS", "Invalid process launch fields.");
+          return;
+        }
+        std::vector<std::string> process_arguments;
+        process_arguments.reserve(encoded_arguments->size());
+        for (const flutter::EncodableValue& encoded_argument :
+             *encoded_arguments) {
+          const auto* argument = std::get_if<std::string>(&encoded_argument);
+          if (argument == nullptr) {
+            result->Error("INVALID_ARGS",
+                          "Process arguments must be strings.");
+            return;
+          }
+          process_arguments.push_back(*argument);
+        }
+        try {
+          LaunchUpdaterDetached(*executable, process_arguments);
+          result->Success();
+        } catch (const std::exception& exception) {
+          result->Error("updater-launch-error", exception.what());
         }
       });
 

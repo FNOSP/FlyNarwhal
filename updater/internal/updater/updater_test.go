@@ -15,14 +15,14 @@ import (
 
 func TestParseArgumentsRequiresExactlyTwoBusinessArguments(t *testing.T) {
 	t.Parallel()
-	for _, arguments := range [][]string{nil, {"one"}, {"one", "two", "three"}} {
-		if _, _, err := ParseArguments(arguments); err == nil {
+	for _, arguments := range [][]string{nil, {"one"}, {"one", "two", "three", "four"}} {
+		if _, _, _, err := ParseArguments(arguments); err == nil {
 			t.Fatalf("ParseArguments(%q) accepted invalid count", arguments)
 		}
 	}
-	installerPath, installDir, err := ParseArguments([]string{"安装 包.exe", "安装 目录"})
-	if err != nil || installerPath != "安装 包.exe" || installDir != "安装 目录" {
-		t.Fatalf("ParseArguments did not preserve Unicode paths: %q %q %v", installerPath, installDir, err)
+	installerPath, installDir, runningApplicationPID, err := ParseArguments([]string{"安装 包.exe", "安装 目录", "1234"})
+	if err != nil || installerPath != "安装 包.exe" || installDir != "安装 目录" || runningApplicationPID != 1234 {
+		t.Fatalf("ParseArguments did not preserve Unicode paths and PID: %q %q %d %v", installerPath, installDir, runningApplicationPID, err)
 	}
 }
 
@@ -371,7 +371,7 @@ type fakeProcesses struct {
 	startError        error
 }
 
-func (processes *fakeProcesses) WaitForExit(_ context.Context, executablePath string) error {
+func (processes *fakeProcesses) WaitForExit(_ context.Context, executablePath string, _ int) error {
 	if filepath.Base(executablePath) != ApplicationExecutable {
 		return errors.New("unexpected executable name")
 	}

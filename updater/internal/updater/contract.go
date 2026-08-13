@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"updater/internal/lang"
@@ -19,9 +20,7 @@ const (
 )
 
 var baseSilentInstallerArguments = []string{
-	"/SILENT",
 	"/SP-",
-	"/SUPPRESSMSGBOXES",
 	"/NORESTART",
 	"/CLOSEAPPLICATIONS",
 }
@@ -32,14 +31,16 @@ func SilentInstallerArguments(installDir string) []string {
 }
 
 type Paths struct {
-	InstallerPath     string
-	InstallDir        string
-	CacheRoot         string
-	UpdatesDir        string
-	ResultPath        string
-	LogPath           string
-	InstallerIdentity FileIdentity
-	InstallerManifest string
+	InstallerPath          string
+	InstallDir             string
+	CacheRoot              string
+	UpdatesDir             string
+	ResultPath             string
+	LogPath                string
+	InstallerIdentity      FileIdentity
+	InstallerManifest      string
+	RunningApplicationPath string
+	RunningApplicationPID  int
 }
 
 type FileIdentity struct {
@@ -59,11 +60,19 @@ type installerManifest struct {
 	Installer     FileIdentity `json:"installer"`
 }
 
-func ParseArguments(arguments []string) (string, string, error) {
-	if len(arguments) != 2 {
-		return "", "", lang.Error("expected_exactly_two_arguments", len(arguments))
+func ParseArguments(arguments []string) (string, string, int, error) {
+	if len(arguments) != 2 && len(arguments) != 3 {
+		return "", "", 0, lang.Error("expected_two_or_three_arguments", len(arguments))
 	}
-	return arguments[0], arguments[1], nil
+	runningApplicationPID := 0
+	if len(arguments) == 3 {
+		parsedProcessID, err := strconv.Atoi(strings.TrimSpace(arguments[2]))
+		if err != nil || parsedProcessID <= 0 {
+			return "", "", 0, lang.Error("invalid_running_application_pid")
+		}
+		runningApplicationPID = parsedProcessID
+	}
+	return arguments[0], arguments[1], runningApplicationPID, nil
 }
 
 func ValidatePaths(installerPath string, installDir string, environment map[string]string) (Paths, error) {
@@ -149,10 +158,25 @@ func VerifyInstallerIdentity(paths Paths) error {
 	return validateInstallerManifest(paths.InstallerManifest, currentIdentity)
 }
 
-func ValidateApplicationExecutable(paths Paths) (string, error) {
+func ExpectedApplicationExecutablePath(paths Paths) (string, error) {
 	applicationPath := filepath.Join(paths.InstallDir, ApplicationExecutable)
 	if err := validatePathComponents(paths.InstallDir, filepath.Dir(applicationPath)); err != nil {
 		return "", lang.Wrap(err, "unsafe_application_directory")
+	}
+	canonicalApplicationPath, err := filepath.Abs(filepath.Clean(applicationPath))
+	if err != nil {
+		return "", lang.Wrap(err, "resolve_application_executable")
+	}
+	if !isWithinRoot(paths.InstallDir, canonicalApplicationPath) {
+		return "", lang.Error("application_executable_outside_trusted_root")
+	}
+	return canonicalApplicationPath, nil
+}
+
+func ValidateApplicationExecutable(paths Paths) (string, error) {
+	applicationPath, err := ExpectedApplicationExecutablePath(paths)
+	if err != nil {
+		return "", err
 	}
 	canonicalApplicationPath, err := canonicalExistingFile(applicationPath)
 	if err != nil {
