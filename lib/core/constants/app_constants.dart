@@ -44,6 +44,8 @@ class ApiEndpoints {
   // User
   static const String userInfo = '/v/api/v1/user/info';
   static const String userLogout = '/v/api/v1/user/logout';
+  static const String userGetData = '/v/api/v1/user/getData';
+  static const String userSetData = '/v/api/v1/user/setData';
 
   // Media
   static const String mediaDbList = '/v/api/v1/mediadb/list';

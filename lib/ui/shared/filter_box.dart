@@ -218,6 +218,9 @@ class FilterBox extends StatefulWidget {
   final ValueChanged<Map<String, FilterItem>> onFilterChanged;
   final VoidCallback? onCollapse;
 
+  /// 直播库（IPTV）页只展示“类型”一行，与 Web 端一致。
+  final bool liveOnly;
+
   const FilterBox({
     super.key,
     this.tagList,
@@ -226,6 +229,7 @@ class FilterBox extends StatefulWidget {
     this.initialSelectedFilters = const {},
     required this.onFilterChanged,
     this.onCollapse,
+    this.liveOnly = false,
   });
 
   @override
@@ -260,6 +264,7 @@ class _FilterBoxState extends State<FilterBox> {
       tagList: widget.tagList,
       genres: widget.genres,
       iso3166: widget.iso3166,
+      liveOnly: widget.liveOnly,
     );
     for (final group in groups) {
       _selectedOptions.putIfAbsent(group.title, () => group.options.first);
@@ -394,18 +399,21 @@ List<FilterGroup> _buildFilterGroups({
   TagListEntity? tagList,
   List<GenreEntity>? genres,
   Map<String, String>? iso3166,
+  bool liveOnly = false,
 }) {
   final groups = <FilterGroup>[];
-  groups.add(
-    const FilterGroup(
-      '影视类型',
-      [
-        FilterItem('全部', null),
-        FilterItem('电影', 'Movie'),
-        FilterItem('电视剧', 'TV'),
-      ],
-    ),
-  );
+  if (!liveOnly) {
+    groups.add(
+      const FilterGroup(
+        '影视类型',
+        [
+          FilterItem('全部', null),
+          FilterItem('电影', 'Movie'),
+          FilterItem('电视剧', 'TV'),
+        ],
+      ),
+    );
+  }
 
   if (tagList != null && genres != null) {
     final genreMap = {for (final g in genres) g.id: g};
@@ -419,6 +427,10 @@ List<FilterGroup> _buildFilterGroups({
     groups.add(FilterGroup('类型', options));
   } else {
     groups.add(const FilterGroup('类型', [FilterItem('全部', null)]));
+  }
+
+  if (liveOnly) {
+    return groups;
   }
 
   if (tagList != null) {

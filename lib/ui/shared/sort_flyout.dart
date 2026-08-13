@@ -12,6 +12,11 @@ class SortFlyout extends StatefulWidget {
   final ValueChanged<String> onSortTypeSelected;
   final ValueChanged<String> onSortOrderSelected;
   final List<SortItem> sortOptions;
+  final String initialSortColumn;
+  final String initialSortOrder;
+
+  /// 直播库等排序字段固定的页面隐藏字段下拉，只保留方向切换，与 Web 端一致。
+  final bool hideSortMenu;
 
   const SortFlyout({
     super.key,
@@ -23,6 +28,9 @@ class SortFlyout extends StatefulWidget {
       SortItem('标题', 'sort_title'),
       SortItem('评分', 'vote_average'),
     ],
+    this.initialSortColumn = 'create_time',
+    this.initialSortOrder = 'DESC',
+    this.hideSortMenu = false,
   });
 
   @override
@@ -44,8 +52,13 @@ class _SortFlyoutState extends State<SortFlyout> {
   @override
   void initState() {
     super.initState();
-    selectedSortType = widget.sortOptions.first;
-    selectedSortOrder = const SortItem('降序', 'DESC');
+    selectedSortType = widget.sortOptions.firstWhere(
+      (opt) => opt.value == widget.initialSortColumn,
+      orElse: () => widget.sortOptions.first,
+    );
+    selectedSortOrder = widget.initialSortOrder == 'ASC'
+        ? _orderOptions.first
+        : _orderOptions.last;
   }
 
   @override
@@ -178,26 +191,29 @@ class _SortFlyoutState extends State<SortFlyout> {
               GestureDetector(
                 key: const ValueKey('sort-menu-open'),
                 behavior: HitTestBehavior.opaque,
-                onTap: _showSortMenu,
+                onTap: widget.hideSortMenu ? null : _showSortMenu,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const SizedBox(width: 4),
-                    Container(
-                      width: 1,
-                      height: 34,
-                      color: textColor.withValues(alpha: 0.1),
-                    ),
-                    const SizedBox(width: 8),
-                    AnimatedRotation(
-                      turns: _isFlyoutOpen ? 0.5 : 0.0,
-                      duration: const Duration(milliseconds: 200),
-                      child: SemiIcons.chevronDown(
-                        size: 16,
-                        color: textColor,
+                    if (!widget.hideSortMenu) ...[
+                      Container(
+                        width: 1,
+                        height: 34,
+                        color: textColor.withValues(alpha: 0.1),
                       ),
-                    ),
-                    const SizedBox(width: 12),
+                      const SizedBox(width: 8),
+                      AnimatedRotation(
+                        turns: _isFlyoutOpen ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 200),
+                        child: SemiIcons.chevronDown(
+                          size: 16,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ] else
+                      const SizedBox(width: 12),
                   ],
                 ),
               ),
