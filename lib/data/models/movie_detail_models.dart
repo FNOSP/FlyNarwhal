@@ -13,6 +13,8 @@ class ItemResponse {
   final String tvTitle;
   @JsonKey(name: 'parent_title')
   final String parentTitle;
+  // The play/info response omits `title` for episode items; default to ''.
+  @JsonKey(defaultValue: '')
   final String title;
   @JsonKey(name: 'original_title')
   final String? originalTitle;

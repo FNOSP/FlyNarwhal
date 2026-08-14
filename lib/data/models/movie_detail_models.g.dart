@@ -12,7 +12,7 @@ ItemResponse _$ItemResponseFromJson(Map<String, dynamic> json) => ItemResponse(
       trimId: json['trim_id'] as String,
       tvTitle: json['tv_title'] as String,
       parentTitle: json['parent_title'] as String,
-      title: json['title'] as String,
+      title: json['title'] as String? ?? '',
       originalTitle: json['original_title'] as String?,
       backdrops: json['backdrops'] as String?,
       posters: json['posters'] as String? ?? '',
