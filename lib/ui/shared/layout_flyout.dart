@@ -3,17 +3,25 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../../domain/entities/live_library_settings.dart';
 import 'semi_icons.dart';
 
-/// 布局切换胶囊，镜像 Web 端直播库的布局菜单：
-/// 第一组 海报墙/列表，第二组 竖幅海报/横幅海报（仅海报墙下可用）。
+/// 布局菜单形态：
+/// [live]    直播库：海报墙/列表 + 竖幅/横幅（仅海报墙下可用），镜像 Web 直播库。
+/// [compact] 普通媒体库：仅 竖幅海报/横幅海报 两项，镜像 Web `/library/:id`。
+enum LayoutMenuVariant { live, compact }
+
+/// 布局切换胶囊，镜像 Web 端直播库的布局菜单。
+/// [LayoutMenuVariant.live]：第一组 海报墙/列表，第二组 竖幅海报/横幅海报（仅海报墙下可用）。
+/// [LayoutMenuVariant.compact]：仅 竖幅海报/横幅海报（普通媒体库用）。
 /// 样式沿用筛选/排序胶囊。
 class LayoutFlyout extends StatefulWidget {
   final LiveViewType viewType;
   final ValueChanged<LiveViewType> onLayoutSelected;
+  final LayoutMenuVariant variant;
 
   const LayoutFlyout({
     super.key,
     required this.viewType,
     required this.onLayoutSelected,
+    this.variant = LayoutMenuVariant.live,
   });
 
   @override
@@ -33,6 +41,97 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
 
   bool get _isPosterWall => widget.viewType != LiveViewType.list;
 
+  // 普通媒体库(compact)菜单：仅 竖幅海报/横幅海报 两项，均可切换，镜像 Web `/library/:id`。
+  List<MenuFlyoutItemBase> _buildCompactItems(
+      BuildContext context, Color checkColor) {
+    return [
+      MenuFlyoutItem(
+        key: const ValueKey('layout-vertical-poster'),
+        leading: const _PosterShapeIcon(vertical: true),
+        text: const Text('竖幅海报'),
+        trailing: widget.viewType == LiveViewType.verticalPoster
+            ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
+            : null,
+        onPressed: () {
+          Flyout.of(context).close();
+          widget.onLayoutSelected(LiveViewType.verticalPoster);
+        },
+      ),
+      MenuFlyoutItem(
+        key: const ValueKey('layout-horizontal-poster'),
+        leading: const _PosterShapeIcon(vertical: false),
+        text: const Text('横幅海报'),
+        trailing: widget.viewType == LiveViewType.horizontalPoster
+            ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
+            : null,
+        onPressed: () {
+          Flyout.of(context).close();
+          widget.onLayoutSelected(LiveViewType.horizontalPoster);
+        },
+      ),
+    ];
+  }
+
+  // 直播库(live)菜单：海报墙/列表分组 + 竖幅/横幅海报。
+  List<MenuFlyoutItemBase> _buildLiveItems(
+      BuildContext context, Color checkColor) {
+    return [
+      MenuFlyoutItem(
+        key: const ValueKey('layout-poster-wall'),
+        leading: const Icon(FluentIcons.grid_view_medium, size: 16),
+        text: const Text('海报墙'),
+        trailing: _isPosterWall
+            ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
+            : null,
+        onPressed: () {
+          Flyout.of(context).close();
+          widget.onLayoutSelected(LiveViewType.verticalPoster);
+        },
+      ),
+      MenuFlyoutItem(
+        key: const ValueKey('layout-list'),
+        leading: const Icon(FluentIcons.bulleted_list, size: 16),
+        text: const Text('列表'),
+        trailing: !_isPosterWall
+            ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
+            : null,
+        onPressed: () {
+          Flyout.of(context).close();
+          widget.onLayoutSelected(LiveViewType.list);
+        },
+      ),
+      const MenuFlyoutSeparator(),
+      MenuFlyoutItem(
+        key: const ValueKey('layout-vertical-poster'),
+        leading: const _PosterShapeIcon(vertical: true),
+        text: const Text('竖幅海报'),
+        trailing: widget.viewType == LiveViewType.verticalPoster
+            ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
+            : null,
+        onPressed: _isPosterWall
+            ? () {
+                Flyout.of(context).close();
+                widget.onLayoutSelected(LiveViewType.verticalPoster);
+              }
+            : null,
+      ),
+      MenuFlyoutItem(
+        key: const ValueKey('layout-horizontal-poster'),
+        leading: const _PosterShapeIcon(vertical: false),
+        text: const Text('横幅海报'),
+        trailing: widget.viewType == LiveViewType.horizontalPoster
+            ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
+            : null,
+        onPressed: _isPosterWall
+            ? () {
+                Flyout.of(context).close();
+                widget.onLayoutSelected(LiveViewType.horizontalPoster);
+              }
+            : null,
+      ),
+    ];
+  }
+
   Future<void> _showMenu() async {
     if (_isFlyoutOpen) {
       return;
@@ -43,64 +142,11 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
         placementMode: FlyoutPlacementMode.bottomLeft,
         builder: (context) {
           final theme = FluentTheme.of(context);
-          final checkColor = theme.typography.body?.color;
+          final checkColor = theme.typography.body?.color ?? Colors.white;
           return MenuFlyout(
-            items: [
-              MenuFlyoutItem(
-                key: const ValueKey('layout-poster-wall'),
-                leading: const Icon(FluentIcons.grid_view_medium, size: 16),
-                text: const Text('海报墙'),
-                trailing: _isPosterWall
-                    ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
-                    : null,
-                onPressed: () {
-                  Flyout.of(context).close();
-                  widget.onLayoutSelected(LiveViewType.verticalPoster);
-                },
-              ),
-              MenuFlyoutItem(
-                key: const ValueKey('layout-list'),
-                leading: const Icon(FluentIcons.bulleted_list, size: 16),
-                text: const Text('列表'),
-                trailing: !_isPosterWall
-                    ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
-                    : null,
-                onPressed: () {
-                  Flyout.of(context).close();
-                  widget.onLayoutSelected(LiveViewType.list);
-                },
-              ),
-              const MenuFlyoutSeparator(),
-              MenuFlyoutItem(
-                key: const ValueKey('layout-vertical-poster'),
-                leading: const _PosterShapeIcon(vertical: true),
-                text: const Text('竖幅海报'),
-                trailing: widget.viewType == LiveViewType.verticalPoster
-                    ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
-                    : null,
-                onPressed: _isPosterWall
-                    ? () {
-                        Flyout.of(context).close();
-                        widget.onLayoutSelected(LiveViewType.verticalPoster);
-                      }
-                    : null,
-              ),
-              MenuFlyoutItem(
-                key: const ValueKey('layout-horizontal-poster'),
-                leading: const _PosterShapeIcon(vertical: false),
-                text: const Text('横幅海报'),
-                trailing: widget.viewType == LiveViewType.horizontalPoster
-                    ? Icon(FluentIcons.check_mark, size: 14, color: checkColor)
-                    : null,
-                onPressed: _isPosterWall
-                    ? () {
-                        Flyout.of(context).close();
-                        widget.onLayoutSelected(
-                            LiveViewType.horizontalPoster);
-                      }
-                    : null,
-              ),
-            ],
+            items: widget.variant == LayoutMenuVariant.compact
+                ? _buildCompactItems(context, checkColor)
+                : _buildLiveItems(context, checkColor),
           );
         },
       );
