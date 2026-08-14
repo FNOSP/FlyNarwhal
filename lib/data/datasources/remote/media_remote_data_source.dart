@@ -143,16 +143,14 @@ class MediaRemoteDataSource {
   /// Get play info by item guid
   Future<ApiResult<PlayInfoResponse?>> getPlayInfo(
       ItemGuidRequest request) async {
-    final key = 'playInfo:${request.itemGuid}';
-    final cached = _cache.get(key);
-    if (cached is ApiResult<PlayInfoResponse?>) return cached;
-    final result = await _dioClient.post<PlayInfoResponse?>(
+    // Playback position is volatile state that changes as soon as any episode
+    // is played; even a short-lived cache makes detail pages position the
+    // episode list on a stale episode. Always fetch fresh.
+    return _dioClient.post<PlayInfoResponse?>(
       ApiEndpoints.playInfo,
       data: request.toJson(),
       converter: (data) => _parseOptionalPlayInfoResponse(data),
     );
-    if (result.isSuccess) _cache.set(key, result);
-    return result;
   }
 
   /// Get play info with an optional media override for player startup.
