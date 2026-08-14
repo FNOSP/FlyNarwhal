@@ -34,8 +34,39 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
   final FocusNode _shortcutFocusNode =
       FocusNode(debugLabel: 'global-shortcuts');
 
+  /// macOS standard "open preferences" shortcut (⌘,).
+  static final ShortcutKeyBinding _openSettingsBinding =
+      ShortcutKeyBinding(LogicalKeyboardKey.comma.keyId, meta: true);
+
+  @override
+  void initState() {
+    super.initState();
+    // Register the macOS "open preferences" shortcut as a global
+    // hardware-keyboard handler so it fires no matter which widget owns the
+    // focus (including right after launch, when nothing is focused yet).
+    // The player pages (/player/:guid, /live/:guid) live outside the
+    // ShellRoute, so MainLayout is not mounted there and the handler stays
+    // inactive.
+    if (!kIsWeb && Platform.isMacOS) {
+      HardwareKeyboard.instance.addHandler(_handleOpenSettingsKey);
+    }
+  }
+
+  bool _handleOpenSettingsKey(KeyEvent event) {
+    // Only react to the initial key-down so holding the keys navigates
+    // once instead of on every key repeat.
+    if (event is! KeyDownEvent || !_openSettingsBinding.matches(event)) {
+      return false;
+    }
+    context.go('/settings');
+    return true;
+  }
+
   @override
   void dispose() {
+    if (!kIsWeb && Platform.isMacOS) {
+      HardwareKeyboard.instance.removeHandler(_handleOpenSettingsKey);
+    }
     _searchFocusNode.dispose();
     _shortcutFocusNode.dispose();
     super.dispose();
