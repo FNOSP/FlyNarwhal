@@ -28,6 +28,16 @@ const double _estimatedSettingsFlyoutHeight = 300;
 const double _audioPanelHeaderHeight = 46;
 const double _audioPanelMaxListHeight = 330;
 
+// A hardware decoder API that mpv probed as usable for the current file,
+// shown in the 指定硬件解码器 sub-menu. [api] is the value passed to
+// `hwdec=...`; [label] is its human-readable name.
+class HwdecOption {
+  final String api;
+  final String label;
+
+  const HwdecOption({required this.api, required this.label});
+}
+
 class PlayerAudioDisplayTexts {
   final String summaryText;
   final String primaryText;
@@ -118,6 +128,28 @@ String _joinAudioParts(List<String?> parts) {
       .join(' ');
 }
 
+// Chinese label for a decode mode value. Values are the mpv hwdec options
+// "auto" / "no" / "auto-copy" plus a concrete hardware-decoder API name chosen
+// from the probed list (e.g. "videotoolbox"). `availableHwdec` maps an api to
+// its display label so a concrete selection renders its friendly name.
+String decodeModeLabel(String mode, List<HwdecOption> availableHwdec) {
+  switch (mode) {
+    case 'no':
+      return '软件解码';
+    case 'auto-copy':
+      return '回拷模式';
+    case 'auto':
+      return '自动';
+    default:
+      for (final option in availableHwdec) {
+        if (option.api == mode) {
+          return option.label;
+        }
+      }
+      return mode;
+  }
+}
+
 class PlayerSettingsMenu extends StatefulWidget {
   final PlayingInfoCache? playingInfoCache;
   final int currentPositionMillis;
@@ -146,6 +178,11 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool forceSdrColor;
   final void Function(bool enabled)? onForceSdrColorChanged;
   final String? forceSdrDisabledReason;
+  // Current decode mode: 'auto' | 'no' | 'auto-copy' | '<api>'.
+  final String decodeMode;
+  final void Function(String) onDecodeModeChanged;
+  // Hardware decoder APIs probed as usable, shown in 指定硬件解码器 sub-menu.
+  final List<HwdecOption> availableHwdec;
   final Map<String, String>? iso6391Map;
   final Map<String, String>? iso6392Map;
   // Whether the FlyNarwhal server is fully configured (URL + auth code)
@@ -182,6 +219,9 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.forceSdrColor = false,
     this.onForceSdrColorChanged,
     this.forceSdrDisabledReason,
+    this.decodeMode = 'auto',
+    required this.onDecodeModeChanged,
+    this.availableHwdec = const [],
     this.isFlyNarwhalServerAvailable = false,
     this.onFlyNarwhalConfigMissing,
     this.isActiveControl = false,
@@ -267,6 +307,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         oldWidget.videoFillMode != widget.videoFillMode ||
         oldWidget.forceH264 != widget.forceH264 ||
         oldWidget.forceSdrColor != widget.forceSdrColor ||
+        oldWidget.decodeMode != widget.decodeMode ||
         oldWidget.forceH264DisabledReason != widget.forceH264DisabledReason ||
         oldWidget.forceSdrDisabledReason != widget.forceSdrDisabledReason ||
         autoPlayChanged) {
@@ -544,6 +585,13 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         forceSdrColor: widget.forceSdrColor,
         onForceSdrColorChanged: widget.onForceSdrColorChanged,
         forceSdrDisabledReason: widget.forceSdrDisabledReason,
+        decodeMode: widget.decodeMode,
+        onDecodeModeChanged: (mode) {
+          _setPopupHovered(false);
+          widget.onDecodeModeChanged(mode);
+          _closeMenu();
+        },
+        availableHwdec: widget.availableHwdec,
         isFlyNarwhalServerAvailable: widget.isFlyNarwhalServerAvailable,
         onFlyNarwhalConfigMissing: widget.onFlyNarwhalConfigMissing,
       ),
@@ -623,6 +671,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool forceSdrColor;
   final void Function(bool)? onForceSdrColorChanged;
   final String? forceSdrDisabledReason;
+  final String decodeMode;
+  final void Function(String) onDecodeModeChanged;
+  final List<HwdecOption> availableHwdec;
   // Whether the FlyNarwhal server is fully configured (URL + auth code)
   final bool isFlyNarwhalServerAvailable;
   // Called when user tries to enable smart skip without full config
@@ -657,6 +708,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.forceSdrColor,
     required this.onForceSdrColorChanged,
     required this.forceSdrDisabledReason,
+    required this.decodeMode,
+    required this.onDecodeModeChanged,
+    required this.availableHwdec,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
   });
@@ -714,6 +768,21 @@ class _SettingsFlyoutContent extends StatelessWidget {
           onBack: () => onNavigate('Main'),
           onFillModeSelected: onVideoFillModeChanged,
         );
+      case 'DecodeMode':
+        return _DecodeModeSettingsScreen(
+          currentMode: decodeMode,
+          availableHwdec: availableHwdec,
+          onBack: () => onNavigate('Main'),
+          onDecodeModeSelected: onDecodeModeChanged,
+          onNavigateToSpecify: () => onNavigate('DecodeApi'),
+        );
+      case 'DecodeApi':
+        return _SpecifyDecodeScreen(
+          currentApi: decodeMode,
+          availableHwdec: availableHwdec,
+          onBack: () => onNavigate('DecodeMode'),
+          onApiSelected: onDecodeModeChanged,
+        );
       case 'SkipConfig':
         return _SkipConfigSettingsScreen(
           playingInfoCache: playingInfoCache,
@@ -741,10 +810,13 @@ class _SettingsFlyoutContent extends StatelessWidget {
             onAutoPlayChanged: onAutoPlayChanged,
             windowAspectRatio: windowAspectRatio,
             videoFillMode: videoFillMode,
+            decodeMode: decodeMode,
+            availableHwdec: availableHwdec,
             onNavigateToAudio: () => onNavigate('Audio'),
             onNavigateToWindowAspectRatio: () =>
                 onNavigate('WindowAspectRatio'),
             onNavigateToVideoFillMode: () => onNavigate('VideoFillMode'),
+            onNavigateToDecodeMode: () => onNavigate('DecodeMode'),
             onNavigateToSkipConfig: () => onNavigate('SkipConfig'),
             onNavigateToAdvanced: () => onNavigate('Advanced'),
           ),
@@ -763,9 +835,12 @@ class _MainSettingsScreen extends StatelessWidget {
   final void Function(bool)? onAutoPlayChanged;
   final String windowAspectRatio;
   final String videoFillMode;
+  final String decodeMode;
+  final List<HwdecOption> availableHwdec;
   final VoidCallback onNavigateToAudio;
   final VoidCallback onNavigateToWindowAspectRatio;
   final VoidCallback onNavigateToVideoFillMode;
+  final VoidCallback onNavigateToDecodeMode;
   final VoidCallback onNavigateToSkipConfig;
   final VoidCallback onNavigateToAdvanced;
 
@@ -779,9 +854,12 @@ class _MainSettingsScreen extends StatelessWidget {
     required this.onAutoPlayChanged,
     required this.windowAspectRatio,
     required this.videoFillMode,
+    required this.decodeMode,
+    required this.availableHwdec,
     required this.onNavigateToAudio,
     required this.onNavigateToWindowAspectRatio,
     required this.onNavigateToVideoFillMode,
+    required this.onNavigateToDecodeMode,
     required this.onNavigateToSkipConfig,
     required this.onNavigateToAdvanced,
   });
@@ -827,6 +905,12 @@ class _MainSettingsScreen extends StatelessWidget {
           title: '画面比例',
           value: videoFillMode == 'default' ? '默认' : videoFillMode,
           onClick: onNavigateToVideoFillMode,
+        ),
+        _SettingsMenuItem(
+          key: const ValueKey('player-settings-decode-mode'),
+          title: '解码模式',
+          value: decodeModeLabel(decodeMode, availableHwdec),
+          onClick: onNavigateToDecodeMode,
         ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-audio'),
@@ -908,13 +992,16 @@ class _AdvancedSettingsScreen extends StatelessWidget {
 class _SettingsMenuItem extends StatefulWidget {
   final String title;
   final String? value;
-  final VoidCallback onClick;
+
+  /// When null the row renders disabled (greyed out, no hover, no tap).
+  /// Used e.g. for 指定硬件解码器 when no hardware decoder was probed.
+  final VoidCallback? onClick;
 
   const _SettingsMenuItem({
     super.key,
     required this.title,
     this.value,
-    required this.onClick,
+    this.onClick,
   });
 
   @override
@@ -926,23 +1013,30 @@ class _SettingsMenuItemState extends State<_SettingsMenuItem> {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = widget.onClick != null;
+    final textColor = enabled
+        ? _defaultTextColor
+        : _defaultTextColor.withValues(alpha: 0.4);
+
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: enabled ? (_) => setState(() => _isHovered = true) : null,
+      onExit: enabled ? (_) => setState(() => _isHovered = false) : null,
       child: GestureDetector(
         onTap: widget.onClick,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
           decoration: BoxDecoration(
-            color: _isHovered ? _hoverBackgroundColor : Colors.transparent,
+            color: _isHovered && enabled
+                ? _hoverBackgroundColor
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(4),
           ),
           child: Row(
             children: [
               Text(
                 widget.title,
-                style: const TextStyle(color: _defaultTextColor, fontSize: 14),
+                style: TextStyle(color: textColor, fontSize: 14),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -958,17 +1052,17 @@ class _SettingsMenuItemState extends State<_SettingsMenuItem> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.end,
-                            style: const TextStyle(
-                              color: _defaultTextColor,
+                            style: TextStyle(
+                              color: textColor,
                               fontSize: 14,
                             ),
                           ),
                         ),
                       const SizedBox(width: 4),
-                      const Icon(
+                      Icon(
                         FluentIcons.chevron_right,
                         size: 12,
-                        color: _defaultTextColor,
+                        color: textColor,
                       ),
                     ],
                   ),
@@ -1358,6 +1452,193 @@ class _VideoFillModeSettingsScreen extends StatelessWidget {
             onClick: () => onFillModeSelected(option),
           );
         }),
+      ],
+    );
+  }
+}
+
+class _DecodeModeSettingsScreen extends StatelessWidget {
+  final String currentMode;
+  final List<HwdecOption> availableHwdec;
+  final VoidCallback onBack;
+  final void Function(String) onDecodeModeSelected;
+  final VoidCallback onNavigateToSpecify;
+
+  const _DecodeModeSettingsScreen({
+    required this.currentMode,
+    required this.availableHwdec,
+    required this.onBack,
+    required this.onDecodeModeSelected,
+    required this.onNavigateToSpecify,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // 回拷模式暂时不展示在菜单里,保留映射以便日后恢复。
+    const baseOptions = ['auto', 'no' /* , 'auto-copy' */];
+    const optionLabels = {
+      'auto': '自动',
+      'no': '软件解码',
+      'auto-copy': '回拷模式',
+    };
+    const optionTips = {
+      'auto': '自动选择硬件解码,失败时回退到软件解码。推荐。',
+      'no': '强制使用软件解码,兼容性最好;硬解花屏/黑屏时的兜底方案。',
+      'auto-copy': '硬件解码但将帧拷回内存,可与所有滤镜/弹幕/截图功能共存;略费 CPU。',
+    };
+    // A concrete hardware-decoder API from the probed list is stored in
+    // decodeMode when 指定硬件解码器 is active.
+    final isSpecifySelected = currentMode != 'auto' &&
+        currentMode != 'no' &&
+        currentMode != 'auto-copy' &&
+        currentMode != 'auto-unsafe';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: onBack,
+            child: const Row(
+              children: [
+                Icon(
+                  FluentIcons.chevron_left,
+                  size: 12,
+                  color: Colors.white,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  '解码模式',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Divider(),
+        const SizedBox(height: 8),
+        // Base modes: 自动 / 软件解码(回拷模式暂不展示).
+        ...baseOptions.map((option) {
+          final label = optionLabels[option] ?? option;
+          // Show a tips box matching the settings flyout's background on
+          // hover, briefly explaining the decode mode.
+          return Tooltip(
+            message: optionTips[option] ?? label,
+            // Anchor to the option row instead of the cursor, and float the
+            // tips box above it so the hovered option stays visible.
+            // verticalOffset is measured from the row center, so it must
+            // exceed half the row height (~18) to clear the row entirely.
+            useMousePosition: false,
+            style: TooltipThemeData(
+              waitDuration: Duration.zero,
+              showDuration: const Duration(seconds: 5),
+              preferBelow: false,
+              verticalOffset: 28,
+              textStyle: const TextStyle(
+                color: _defaultTextColor,
+                fontSize: 12,
+              ),
+              decoration: BoxDecoration(
+                color: _flyoutBackgroundColor,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _flyoutBorderColor),
+              ),
+            ),
+            child: _AspectRatioItem(
+              key: ValueKey('player-decode-mode-$option'),
+              label: label,
+              isSelected: option == currentMode,
+              onClick: () => onDecodeModeSelected(option),
+            ),
+          );
+        }),
+        // 指定硬件解码器 opens a third-level list of probed APIs. It follows
+        // the "entry into a sub-menu" style (selected value + chevron); the
+        // value only shows the decoder picked inside that sub-menu and stays
+        // empty otherwise. Greyed out when no hardware decoder was probed.
+        _SettingsMenuItem(
+          key: const ValueKey('player-decode-mode-specify'),
+          title: '指定硬件解码器',
+          value: isSpecifySelected
+              ? decodeModeLabel(currentMode, availableHwdec)
+              : null,
+          onClick: availableHwdec.isEmpty
+              ? null
+              : onNavigateToSpecify,
+        ),
+      ],
+    );
+  }
+}
+
+class _SpecifyDecodeScreen extends StatelessWidget {
+  final String currentApi;
+  final List<HwdecOption> availableHwdec;
+  final VoidCallback onBack;
+  final void Function(String) onApiSelected;
+
+  const _SpecifyDecodeScreen({
+    required this.currentApi,
+    required this.availableHwdec,
+    required this.onBack,
+    required this.onApiSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: onBack,
+            child: const Row(
+              children: [
+                Icon(
+                  FluentIcons.chevron_left,
+                  size: 12,
+                  color: Colors.white,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  '指定硬件解码器',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Divider(),
+        const SizedBox(height: 8),
+        if (availableHwdec.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            child: Text(
+              '未探测到可用的硬件解码器',
+              style: TextStyle(color: _defaultTextColor, fontSize: 14),
+            ),
+          )
+        else
+          ...availableHwdec.map((option) {
+            return _AspectRatioItem(
+              key: ValueKey('player-decode-api-${option.api}'),
+              label: option.label,
+              isSelected: option.api == currentApi,
+              onClick: () => onApiSelected(option.api),
+            );
+          }),
       ],
     );
   }

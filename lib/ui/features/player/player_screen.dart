@@ -220,6 +220,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String _videoFillMode = 'default';
   bool _isForceH264 = false;
   bool _isForceSdrColor = false;
+   // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | <concrete hwdec api>.
+  String _decodeMode = 'auto';
+  // Hardware decoders shown in the 指定硬件解码器 menu. Initialized with the
+  // platform's known candidates so the menu is never empty, then refined by
+  // the background probe once a file is loaded.
+  late List<HwdecOption> _availableHwdec;
+  bool _hwdecProbeDone = false;
   late final EpisodeAnalysisController _episodeAnalysisController;
   bool _isPipMode = false;
   bool _isPipHovered = false;
@@ -248,6 +255,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    // Pre-populate the 指定硬件解码器 menu with the platform's known
+    // hardware-decoder APIs so it is never empty while the background probe
+    // is still running (or cannot run at all, e.g. no media loaded yet).
+    _availableHwdec = _platformHwdecCandidates();
     _episodeAnalysisController =
         ref.read(episodeAnalysisControllerProvider.notifier);
     _introSkipController = IntroSkipController();
@@ -300,6 +311,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final settingsManager = ref.read(playerSettingsManagerProvider);
     _isForceH264 = settingsManager.getForceH264();
     _isForceSdrColor = settingsManager.getForceSdrColor();
+    _decodeMode = settingsManager.getDecodeMode();
     _sessionCoordinator.forceH264 = _isForceH264;
     _sessionCoordinator.forceSdrColor = _isForceSdrColor;
     unawaited(_ensureSubtitleLanguageMapsLoaded());
@@ -346,6 +358,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       configuration: const PlayerConfiguration(libass: true),
     );
     await _applyDefaultMpvSubtitleSettings(_player!);
+    await _applyDecodeMode(_player!);
     _videoController = VideoController(_player!);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
@@ -375,6 +388,181 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       'sub-pos',
       _defaultMpvSubtitlePosition,
     );
+  }
+
+  /// Applies the user's decode mode to mpv via the [hwdec] property. mpv
+  /// re-initializes the video decoder on change, so this takes effect for the
+  /// currently playing stream without reopening.
+  Future<void> _applyDecodeMode(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer) {
+      return;
+    }
+    await platform.setProperty('hwdec', _decodeMode);
+  }
+
+  /// Probes which hardware decoders (hwdec APIs) actually work for the current
+  /// file on this machine, without disturbing the active player. Because mpv's
+  /// `hwdec-current` does not reliably update when `hwdec` is changed live on
+  /// a playing instance (mpv issue #4289), each candidate is tried by opening
+  /// the same [playUri] on a short-lived, picture-less dedicated [Player] and
+  /// reading back `hwdec-current`. Runs once, in the background, with a
+  /// timeout. The menu is pre-populated with the platform's known candidates
+  /// in [initState], so a probe failure never leaves the list empty; the probe
+  /// only confirms candidates and may add APIs reported by the active player.
+  Future<void> _probeAvailableHwdec({required String playUri}) async {
+    if (_hwdecProbeDone || playUri.isEmpty) {
+      return;
+    }
+    _hwdecProbeDone = true;
+
+    final candidates =
+        _platformHwdecCandidates().map((option) => option.api).toList();
+
+    // Show the platform's known hardware-decoder APIs immediately so the
+    // "指定硬件解码器" menu is never empty. The background probe below is
+    // only used to *confirm* and possibly add extra APIs detected from the
+    // active player; it never removes candidates, because the dedicated probe
+    // player has no render context and can time out even on working APIs.
+    final found = <HwdecOption>[
+      ...candidates.map(
+        (api) => HwdecOption(api: api, label: _hwdecApiLabel(api)),
+      ),
+    ];
+
+    // Share the same referrer/origin headers as the real playback so the
+    // source is reachable during the probe.
+    final headers = _sessionCoordinator.buildPlayerHeaders();
+    Player? probePlayer;
+    try {
+      probePlayer = Player(
+        configuration: const PlayerConfiguration(libass: false),
+      );
+      final platform = probePlayer.platform;
+      for (final api in candidates) {
+        if (platform is! NativePlayer) {
+          break;
+        }
+        try {
+          if (probePlayer.state.playing) {
+            await probePlayer.stop();
+          }
+          // Apply hwdec before opening so the decoder initializes with it
+          // from the start. Setting `hwdec` on an already-playing instance
+          // doesn't reliably update `hwdec-current` (mpv issue #4289), which
+          // is exactly the path the old open-then-set ordering exercised.
+          await platform.setProperty('hwdec', api);
+          await probePlayer.open(Media(playUri, httpHeaders: headers));
+          // A non-empty result means the api engaged (possibly copy-back).
+          // The probe player has no render context, so some sources never
+          // converge here; a timeout just leaves the candidate listed.
+          await _waitForHwdecCurrent(platform, api);
+        } catch (_) {
+          // A candidate needs its own decoder and file support (e.g. HEVC
+          // vs. AVC); fallthrough to the next one.
+        }
+      }
+
+      // Also read `hwdec-current` from the active player, which already has a
+      // render context. If it reports a concrete API not already listed, add
+      // it (e.g. an API outside the platform's default candidate list).
+      final activePlayer = _player;
+      final activePlatform = activePlayer?.platform;
+      if (activePlatform is NativePlayer) {
+        try {
+          final activeCurrent =
+              await activePlatform.getProperty('hwdec-current');
+          if (activeCurrent.isNotEmpty &&
+              activeCurrent != 'no' &&
+              activeCurrent != 'auto' &&
+              !found.any(
+                (o) =>
+                    o.api == activeCurrent ||
+                    activeCurrent == '${o.api}-copy',
+              )) {
+            final normalizedApi = activeCurrent.endsWith('-copy')
+                ? activeCurrent.substring(0, activeCurrent.length - 5)
+                : activeCurrent;
+            found.add(
+              HwdecOption(api: normalizedApi, label: _hwdecApiLabel(normalizedApi)),
+            );
+          }
+        } catch (_) {
+          // The active player may have been disposed mid-probe; ignore.
+        }
+      }
+
+      if (mounted) {
+        setState(() => _availableHwdec = List.unmodifiable(found));
+      }
+    } catch (e, st) {
+      AppTalker.error(
+        'Player',
+        error: e,
+        stackTrace: st,
+        message: 'hwdec probe failed',
+      );
+    } finally {
+      try {
+        await probePlayer?.dispose();
+      } catch (_) {}
+    }
+  }
+
+  /// Polls mpv's `hwdec-current` after switching [api] on a probe player. The
+  /// value only becomes non-empty/reflecting the api once the decoder for the
+  /// current stream has been re-initialized; a decoupled read would falsely
+  /// report the fallback. Returns empty if it never converges within the
+  /// timeout.
+  ///
+  /// MediaKit renders via libmpv's OpenGL render API (`mpv_render_context`),
+  /// where hardware frames cannot be handed to the renderer zero-copy; mpv
+  /// falls back to copy-back and reports `hwdec-current` with a `-copy`
+  /// suffix (e.g. `videotoolbox-copy`). So an api both exact- and `-copy`-
+  /// matched counts as usable. `hwdec` is still stored/returned as the plain
+  /// api (mpv accepts it and just uses the copy variant).
+  Future<String> _waitForHwdecCurrent(
+    NativePlayer platform,
+    String api,
+  ) async {
+    const attempts = 40;
+    const step = Duration(milliseconds: 100);
+    for (var i = 0; i < attempts; i++) {
+      if (!mounted) {
+        return '';
+      }
+      final current = await platform.getProperty('hwdec-current');
+      if (current == api || current == '$api-copy') {
+        return current;
+      }
+      await Future<void>.delayed(step);
+    }
+    return '';
+  }
+
+  /// Human-readable label for a hwdec API probe candidate.
+  String _hwdecApiLabel(String api) {
+    return switch (api) {
+      'videotoolbox' => 'VideoToolbox',
+      'd3d11va' => 'Windows D3D11',
+      'nvdec' => 'NVIDIA NVDEC',
+      'cuda' => 'CUDA',
+      'vaapi' => 'Linux VAAPI',
+      'vdpau' => 'VDPAU',
+      _ => api.toUpperCase(),
+    };
+  }
+
+  /// The platform's known hardware-decoder APIs, in probe order. Shared by
+  /// [initState] (to pre-populate the 指定硬件解码器 menu) and
+  /// [_probeAvailableHwdec] (to drive the background probe).
+  List<HwdecOption> _platformHwdecCandidates() {
+    final apis = switch (defaultTargetPlatform) {
+      TargetPlatform.windows => const ['d3d11va', 'nvdec', 'cuda'],
+      TargetPlatform.linux => const ['vaapi', 'nvdec', 'vdpau'],
+      _ => const ['videotoolbox'],
+    };
+    return apis.map((api) => HwdecOption(api: api, label: _hwdecApiLabel(api))).toList();
   }
 
   Future<void> _applyDirectLinkCachePolicy(Player player) async {
@@ -2420,6 +2608,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Start the initial idle countdown after playback state is finalized.
       _showUi();
 
+      // Probe which hardware decoders actually work for this file (in the
+      // background, without touching the active player) so the
+      // 指定硬件解码器 menu can list them.
+      unawaited(
+        _probeAvailableHwdec(playUri: result.preparedPlaySource.playUri),
+      );
+
       _fetchEpisodeContextAsync(requestToken);
 
       // Resize/lock the window per the window aspect ratio setting now that
@@ -2969,6 +3164,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref.read(playerSettingsManagerProvider).setForceSdrColor(enabled),
     );
     unawaited(_restartPlaybackForTranscodeSettings());
+  }
+
+  void _onDecodeModeChanged(String mode) {
+    if (mode == _decodeMode) return;
+    setState(() => _decodeMode = mode);
+    unawaited(ref.read(playerSettingsManagerProvider).setDecodeMode(mode));
+    final player = _player;
+    if (player != null) {
+      unawaited(_applyDecodeMode(player));
+    }
   }
 
   /// Mirrors the web player's switchURL flow: re-issue play/play with the
@@ -4559,6 +4764,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onForceSdrColorChanged:
               _forceSdrDisabledReason == null ? _onForceSdrColorChanged : null,
           forceSdrDisabledReason: _forceSdrDisabledReason,
+          decodeMode: _decodeMode,
+          onDecodeModeChanged: _onDecodeModeChanged,
+          availableHwdec: _availableHwdec,
           onSkipConfigChanged: (skipOpening, skipEnding) {
             unawaited(_saveSkipConfig(skipOpening, skipEnding));
           },

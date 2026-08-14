@@ -13,6 +13,8 @@ class PlayerSettingsStore {
   static const String _keyVideoFillModeCache = 'player_video_fill_mode_cache';
   static const String _keyForceH264 = 'player_force_h264';
   static const String _keyForceSdrColor = 'player_force_sdr_color';
+  // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | 'auto-unsafe'.
+  static const String _keyDecodeMode = 'player_decode_mode';
   // Window geometry is persisted as geometric center + size (see
   // CenteredWindowBoundsCodec); legacy top-left keys under the same prefixes
   // are mirrored on write for downgrade compatibility.
@@ -68,6 +70,16 @@ class PlayerSettingsStore {
   static Future<void> setWindowAspectRatio(String ratio) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyWindowAspectRatio, ratio);
+  }
+
+  static Future<String> getDecodeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyDecodeMode) ?? 'auto';
+  }
+
+  static Future<void> setDecodeMode(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyDecodeMode, mode);
   }
 
   /// The player route keeps its own window geometry (position and size),
@@ -151,6 +163,12 @@ class PlayerSettingsManager {
       _prefs.getString(PlayerSettingsStore._keyWindowAspectRatio) ?? 'AUTO';
   Future<void> setWindowAspectRatio(String ratio) =>
       _prefs.setString(PlayerSettingsStore._keyWindowAspectRatio, ratio);
+
+  // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | 'auto-unsafe'.
+  String getDecodeMode() =>
+      _prefs.getString(PlayerSettingsStore._keyDecodeMode) ?? 'auto';
+  Future<void> setDecodeMode(String mode) =>
+      _prefs.setString(PlayerSettingsStore._keyDecodeMode, mode);
 
   // Mirrors the web player: the video fill mode is remembered per media item.
   String getVideoFillMode(String itemGuid) {
