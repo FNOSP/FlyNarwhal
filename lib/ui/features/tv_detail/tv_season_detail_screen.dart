@@ -537,7 +537,7 @@ class _TvSeasonDetailContentState
                     // Navigate to player screen for this episode
                     ref
                         .read(navigationStackProvider.notifier)
-                        .pushPath('/home');
+                        .playerSourcePath = '/tv/season/${widget.guid}';
                     context.go('/player/${episode.guid}');
                   },
                   onFavoriteToggle: (guid, isFavorite) {
@@ -660,7 +660,8 @@ class _TvSeasonDetailContentState
               final targetGuid = playInfo.item.guid.isNotEmpty
                   ? playInfo.item.guid
                   : widget.guid;
-              ref.read(navigationStackProvider.notifier).pushPath('/home');
+              ref.read(navigationStackProvider.notifier).playerSourcePath =
+                  '/tv/season/${widget.guid}';
               context.go('/player/$targetGuid');
             }
           },

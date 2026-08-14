@@ -407,7 +407,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
 
     final mediaType = MediaType.tryParse(widget.type);
     if (mediaType == MediaType.movie || mediaType == MediaType.video) {
-      ref.read(navigationStackProvider.notifier).pushPath('/home');
+      ref.read(navigationStackProvider.notifier).playerSourcePath =
+          ref.read(navigationStackProvider).lastOrNull ?? '/home';
       context.go('/player/${widget.guid}');
     }
   }

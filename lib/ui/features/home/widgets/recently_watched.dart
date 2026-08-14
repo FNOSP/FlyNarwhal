@@ -344,7 +344,7 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                       ref
                                           .read(
                                               navigationStackProvider.notifier)
-                                          .pushPath('/home');
+                                          .playerSourcePath = '/home';
                                       if (widget.item.type ==
                                           MediaType.liveChannel.value) {
                                         context.go('/live/${widget.item.guid}');

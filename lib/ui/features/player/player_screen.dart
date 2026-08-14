@@ -3872,7 +3872,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (context.canPop()) {
         context.pop();
       } else {
-        context.go('/home');
+        // Return to the page the player was entered from. The player route
+        // sits outside the ShellRoute, so it is never on the navigation
+        // stack itself and the entry `go` replaced it.
+        final stack = ref.read(navigationStackProvider.notifier);
+        final sourcePath = stack.playerSourcePath;
+        stack.playerSourcePath = null;
+        context.go(sourcePath ?? '/home');
       }
     });
   }

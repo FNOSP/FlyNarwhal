@@ -92,6 +92,12 @@ final navigationStackProvider =
 class NavigationStackNotifier extends StateNotifier<List<String>> {
   NavigationStackNotifier() : super(const []);
 
+  /// The page the player was entered from. The player routes live outside the
+  /// [ShellRoute] so they never reach the stack; remember the current top
+  /// separately when navigating into the player so exiting the player can
+  /// return to the originating page.
+  String? playerSourcePath;
+
   void pushPath(String path) {
     if (path.isEmpty) return;
     if (state.isNotEmpty && state.last == path) return;
