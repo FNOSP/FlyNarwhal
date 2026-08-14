@@ -60,7 +60,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     _loadStaticTags(
       type: widget.categoryType == 'live' ? 'LiveChannel' : null,
     );
-    _bootstrapLiveLibrary();
+    _bootstrapLibrarySettings();
   }
 
   @override
@@ -81,7 +81,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       _loadStaticTags(
         type: widget.categoryType == 'live' ? 'LiveChannel' : null,
       );
-      _bootstrapLiveLibrary();
+      _bootstrapLibrarySettings();
     }
   }
 
@@ -226,61 +226,60 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     return false;
   }
 
-  // 首帧 mediaDbList 可能尚未加载，等待其就绪后再判定，避免选错设置键。
-  Future<bool> _resolveIsIptvLibrary() async {
-    if (widget.id == null) {
-      return false;
-    }
-    var list = ref.read(mediaDbListNotifierProvider).asData?.value;
-    if (list == null || list.isEmpty) {
-      try {
-        list = await ref.read(mediaDbListNotifierProvider.future);
-      } catch (_) {
-        list = const [];
-      }
-    }
-    for (final item in list ?? const <MediaDbListResponse>[]) {
-      if (item.guid == widget.id) {
-        return item.category == 'IPTV';
-      }
-    }
-    return false;
-  }
+  // Web 端设置键：具体库（/library/:id，含 IPTV 与普通库）按库隔离存
+  // `mdb:list:setting`；分类直播页（无 id）全局共享 `iptv:list:setting`。
+  String _settingsKeyFor() =>
+      widget.id != null ? 'mdb:list:setting' : 'iptv:list:setting';
 
-  // Web 端直播页设置键：具体 IPTV 库按库隔离，分类直播页全局共享。
-  String _liveSettingsKeyFor({required bool isIptvLibrary}) =>
-      isIptvLibrary ? 'mdb:list:setting' : 'iptv:list:setting';
+  // 是否持久化布局/排序：直播库（含分类页）或有 id 的具体库都持久化；
+  // 普通分类页（无 id 且非直播）不持久化，保持现状。
+  bool get _supportsLibrarySettings => widget.id != null;
 
-  Future<void> _bootstrapLiveLibrary() async {
-    if (!_isLiveLibrary) {
+  Future<void> _bootstrapLibrarySettings() async {
+    if (!_isLiveLibrary && !_supportsLibrarySettings) {
       return;
     }
-    final isIptvLibrary = await _resolveIsIptvLibrary();
     final dataSource = ref.read(userRemoteDataSourceProvider);
     try {
       final result = await dataSource.getUserData(UserDataGetRequest(
-        key: _liveSettingsKeyFor(isIptvLibrary: isIptvLibrary),
-        mdbGuid: isIptvLibrary ? widget.id : null,
+        key: _settingsKeyFor(),
+        mdbGuid: widget.id,
       ));
-      final settings =
-          LiveLibrarySettings.fromJsonString(result.getOrThrow().value);
+      final raw = result.getOrThrow().value;
+      final settings = LiveLibrarySettings.fromJsonString(raw);
+      // 仅在确有存值时套用其排序字段；无存值沿用各库默认排序
+      //（直播库标题升序，普通库当前组件默认 create_time 降序）。
+      final hasStored = raw != null && raw.isNotEmpty;
       if (!mounted) {
         return;
       }
       setState(() {
         _liveSettings = settings;
-        _sortColumn = settings.sortField;
-        _sortOrder = settings.sortType;
+        if (hasStored) {
+          _sortColumn = settings.sortField;
+          _sortOrder = settings.sortType;
+        } else if (_isLiveLibrary) {
+          _sortColumn = settings.sortField;
+          _sortOrder = settings.sortType;
+        } else {
+          _sortColumn = 'create_time';
+          _sortOrder = 'DESC';
+        }
       });
       await ref
           .read(mediaLibraryNotifierProvider(_providerGuid).notifier)
           .refreshWithQuery(_buildBrowseRequest());
     } catch (_) {
-      // 读取失败时沿用 live 默认值（标题升序），与 Web 端行为一致。
+      // 读取失败时沿用各库默认：直播库标题升序，普通库保持桌面默认。
       if (mounted) {
         setState(() {
-          _sortColumn = _liveSettings.sortField;
-          _sortOrder = _liveSettings.sortType;
+          if (_isLiveLibrary) {
+            _sortColumn = _liveSettings.sortField;
+            _sortOrder = _liveSettings.sortType;
+          } else {
+            _sortColumn = 'create_time';
+            _sortOrder = 'DESC';
+          }
         });
         await ref
             .read(mediaLibraryNotifierProvider(_providerGuid).notifier)
@@ -289,17 +288,22 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     }
   }
 
-  Future<void> _saveLiveSettings(LiveLibrarySettings next) async {
+  /// 把当前布局/排序写入 user data（镜像 Web `/library/:id` 的 mdb:list:setting）。
+  /// [viewType] 传 null 表示仅排序变更（布局不变）。
+  Future<void> _saveLibrarySettings({LiveViewType? viewType}) async {
+    final next = _liveSettings.copyWith(
+      sortType: _sortOrder,
+      sortField: _sortColumn,
+      viewType: viewType,
+    );
     setState(() {
       _liveSettings = next;
-      _sortColumn = next.sortField;
-      _sortOrder = next.sortType;
     });
     final dataSource = ref.read(userRemoteDataSourceProvider);
     try {
       await dataSource.setUserData(UserDataSetRequest(
-        key: _liveSettingsKeyFor(isIptvLibrary: _isIptvLibrary),
-        mdbGuid: _isIptvLibrary ? widget.id : null,
+        key: _settingsKeyFor(),
+        mdbGuid: widget.id,
         value: next.toJsonString(),
       ));
     } catch (_) {}
@@ -307,11 +311,12 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   }
 
   void _toggleLiveSortOrder(String order) {
-    _saveLiveSettings(_liveSettings.copyWith(sortType: order));
+    setState(() => _sortOrder = order);
+    _saveLibrarySettings();
   }
 
-  void _selectLiveLayout(LiveViewType viewType) {
-    _saveLiveSettings(_liveSettings.copyWith(viewType: viewType));
+  void _selectLibraryLayout(LiveViewType viewType) {
+    _saveLibrarySettings(viewType: viewType);
   }
 
   MediaLibraryBrowseRequest _buildBrowseRequest() {
@@ -478,88 +483,23 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        final hasPoster = item.poster?.trim().isNotEmpty == true;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AspectRatio(
               aspectRatio: 16 / 9,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
+              child: BannerPoster(
+                posterPath: item.poster,
+                type: item.type,
+                guid: item.guid,
+                isFavorite: item.isFavorite == 1,
+                scaleFactor: scaleFactor,
+                contentPadding: 12 * scaleFactor,
                 onTap: () => context.go('/live/${item.guid}'),
-                // 边框圈住整个横幅卡，保证「有封面图」时也跟占位卡一致有框。
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.grey[160].withValues(alpha: 0.6),
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(7),
-                    child: Stack(
-                      children: [
-                        // 占位底 + 居中的封面图：直播台标多为方形 logo，
-                        // 用 contain 保持原比例居中，避免被拉满 16:9 变形。
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            // 无封面占位图与 Web 端一致，约占横幅高的 0.55，
-                            // 相对横幅高度等比缩放，避免固定尺寸在不同窗口下过小。
-                            final fixH = constraints.maxHeight;
-                            return Container(
-                              color: theme
-                                  .resources.controlStrokeColorSecondary,
-                              child: hasPoster
-                                  ? Center(
-                                      child: Padding(
-                                        padding: EdgeInsets.all(
-                                            12 * scaleFactor),
-                                        child: FnCachedImage(
-                                          posterPath: item.poster!,
-                                          fit: BoxFit.contain,
-                                        ),
-                                      ),
-                                    )
-                                  : Center(
-                                      child: MediaPosterPlaceholder(
-                                        type: MediaType.liveChannel,
-                                        size: fixH * 0.55,
-                                      ),
-                                    ),
-                            );
-                          },
-                        ),
-                        Positioned(
-                          right: 8 * scaleFactor,
-                          bottom: 8 * scaleFactor,
-                          child: HoverButton(
-                            onPressed: () => _handleFavoriteToggle(
-                              item.guid,
-                              item.isFavorite == 1,
-                              (_) {},
-                            ),
-                            builder: (context, states) {
-                              final favorite = item.isFavorite == 1;
-                              return SvgPicture.asset(
-                                favorite
-                                    ? 'assets/images/favorite_fill.svg'
-                                    : 'assets/images/favorite.svg',
-                                width: 16 * scaleFactor,
-                                height: 16 * scaleFactor,
-                                colorFilter: ColorFilter.mode(
-                                  favorite
-                                      ? kDangerDefaultColor
-                                      : Colors.white.withValues(alpha: 0.8),
-                                  BlendMode.srcIn,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                onPlayTap: () => context.go('/live/${item.guid}'),
+                onFavoriteToggle: _handleFavoriteToggle,
+                // 直播台无“已观看”/智能分析状态，故不传 onWatchedToggle /
+                // onMoreTap → 遮罩上仅显示播放按钮与收藏按钮（与 Web 一致）。
               ),
             ),
             SizedBox(height: 8 * scaleFactor),
@@ -577,6 +517,86 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         );
       },
     );
+  }
+
+  // 普通媒体库“横幅海报”布局：16:10 横幅卡 + 居中标题，镜像 Web `/library/:id`。
+  Widget _buildGeneralHorizontalGrid(
+      List<MediaItem> items, double scaleFactor) {
+    final theme = FluentTheme.of(context);
+    return GridView.builder(
+      controller: _scrollController,
+      padding: EdgeInsets.all(16 * scaleFactor),
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 264 * scaleFactor,
+        mainAxisSpacing: 24,
+        crossAxisSpacing: 16,
+        // 格高须容纳 16:9 图 + 8px 间距 + 单行标题。标题用 body.copyWith(15)，
+        // 继承 fluent body 的 line-height(20/14→15pt≈21.4px)，旧 16/11 在列宽
+        // <235px 时会 RenderFlex 溢出；16/13(=0.8125) 安全下限放宽到 ~118px，
+        // 即便窄列/缩放/高 DPI 也留足余量。
+        childAspectRatio: 16 / 13,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        final smartAnalysisEnabled =
+            ref.watch(settingsProvider).flyNarwhalServerEnabled;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: BannerPoster(
+                posterPath: item.poster,
+                score: item.voteAverage,
+                type: item.type,
+                guid: item.guid,
+                isFavorite: item.isFavorite == 1,
+                isWatched: (item.watched ?? 0) == 1,
+                scaleFactor: scaleFactor,
+                onTap: () => _navigateGeneralLibraryItem(item),
+                onPlayTap: () {
+                  if (item.type == MediaType.liveChannel.value) {
+                    context.go('/live/${item.guid}');
+                  } else {
+                    context.go('/player/${item.guid}');
+                  }
+                },
+                onFavoriteToggle: _handleFavoriteToggle,
+                onWatchedToggle: _handleWatchedToggle,
+                onMoreTap: smartAnalysisEnabled &&
+                        (item.type == 'Season' || item.type == 'TV')
+                    ? () => _showSmartAnalysisFlyout(item)
+                    : null,
+              ),
+            ),
+            SizedBox(height: 8 * scaleFactor),
+            Center(
+              child: Text(
+                item.title,
+                textAlign: TextAlign.center,
+                style: theme.typography.body?.copyWith(fontSize: 15),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _navigateGeneralLibraryItem(MediaItem item) {
+    switch (MediaType.tryParse(item.type)) {
+      case MediaType.tv:
+        context.go('/tv/${item.guid}');
+        break;
+      case MediaType.season:
+        context.go('/tv/season/${item.guid}');
+        break;
+      default:
+        context.go('/movie/${item.guid}');
+    }
   }
 
   // Handle favorite toggle
@@ -838,20 +858,40 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                           key: ValueKey(
                               'layout-$_providerGuid-${_liveSettings.viewType.value}'),
                           viewType: _liveSettings.viewType,
-                          onLayoutSelected: _selectLiveLayout,
+                          onLayoutSelected: _selectLibraryLayout,
                         ),
-                      ] else
+                      ] else ...[
                         SortFlyout(
                           key: ValueKey('sort-$_providerGuid'),
                           onSortTypeSelected: (type) {
                             setState(() => _sortColumn = type);
-                            _refresh();
+                            if (_supportsLibrarySettings) {
+                              _saveLibrarySettings();
+                            } else {
+                              _refresh();
+                            }
                           },
                           onSortOrderSelected: (order) {
                             setState(() => _sortOrder = order);
-                            _refresh();
+                            if (_supportsLibrarySettings) {
+                              _saveLibrarySettings();
+                            } else {
+                              _refresh();
+                            }
                           },
                         ),
+                        // 普通媒体库也复刻 Web 的「布局」按钮（仅 竖幅/横幅 两项）。
+                        if (_supportsLibrarySettings) ...[
+                          const SizedBox(width: 8),
+                          LayoutFlyout(
+                            key: ValueKey(
+                                'layout-$_providerGuid-${_liveSettings.viewType.value}'),
+                            variant: LayoutMenuVariant.compact,
+                            viewType: _liveSettings.viewType,
+                            onLayoutSelected: _selectLibraryLayout,
+                          ),
+                        ],
+                      ],
                     ],
                   ),
                 ),
@@ -901,7 +941,12 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                   _liveSettings.viewType ==
                                       LiveViewType.horizontalPoster
                               ? _buildLiveHorizontalGrid(items, scaleFactor)
-                              : GridView.builder(
+                              : (widget.id != null) &&
+                                      _liveSettings.viewType ==
+                                          LiveViewType.horizontalPoster
+                                  ? _buildGeneralHorizontalGrid(
+                                      items, scaleFactor)
+                                  : GridView.builder(
                                   controller: _scrollController,
                                   padding: EdgeInsets.all(16 * scaleFactor),
                                   gridDelegate:

@@ -275,7 +275,7 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                             child: AnimatedOpacity(
                               duration: const Duration(milliseconds: 200),
                               opacity: isHovered ? 1 : 0,
-                              child: _PosterIconButton(
+                              child: PosterIconButton(
                                 svgAssetPath: _isWatched
                                     ? 'assets/images/watched_fill.svg'
                                     : 'assets/images/watched.svg',
@@ -295,7 +295,7 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                                 duration: const Duration(milliseconds: 200),
                                 opacity: isHovered ? 1 : 0,
                                 child: Center(
-                                  child: _PosterIconButton(
+                                  child: PosterIconButton(
                                     svgAssetPath: _isFavorite
                                         ? 'assets/images/favorite_fill.svg'
                                         : 'assets/images/favorite.svg',
@@ -313,7 +313,7 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                             child: AnimatedOpacity(
                               duration: const Duration(milliseconds: 200),
                               opacity: isHovered ? 1 : 0,
-                              child: _PosterIconButton(
+                              child: PosterIconButton(
                                 icon: FluentIcons.more,
                                 isActive: false,
                                 activeColor: Colors.white,
@@ -445,8 +445,275 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
   }
 }
 
-// Poster icon button with hover effect
-class _PosterIconButton extends StatefulWidget {
+// 媒体库“横幅海报”组件：16:9 横幅封面卡，普通媒体库与直播（IPTV）库共用，
+// 镜像 Web `/library/:id` 的横幅布局。封面用 contain 保持原比例（与 Web 的
+// object-contain 一致，不裁剪、不变形）；悬停时叠加半透明遮罩 + 居中播放按钮，
+// 遮罩右下角按场景显示 已观看/收藏/更多 按钮——普通库三者齐全，直播库仅 收藏
+// （直播台无已观看/智能分析状态）。标题不在组件内渲染，由调用方在横幅下方居中展示。
+class BannerPoster extends StatefulWidget {
+  final String? posterPath;
+  final String? score;
+  final String? type;
+  final String? guid;
+  final bool isFavorite;
+  final bool isWatched;
+  final double scaleFactor;
+  // 封面图四周内边距：直播库台标传 12*scaleFactor 让方形 logo 不贴边，普通库传 0。
+  final double contentPadding;
+  final VoidCallback? onTap;
+  final VoidCallback? onPlayTap;
+  final VoidCallback? onMoreTap;
+  final Function(
+          String guid, bool currentState, Function(bool success) callback)?
+      onFavoriteToggle;
+  // 直播台没有“已观看”概念，直播库不传 → 不渲染已观看按钮。
+  final Function(
+          String guid, bool currentState, Function(bool success) callback)?
+      onWatchedToggle;
+
+  const BannerPoster({
+    super.key,
+    this.posterPath,
+    this.score,
+    this.type,
+    this.guid,
+    this.isFavorite = false,
+    this.isWatched = false,
+    this.scaleFactor = 1,
+    this.contentPadding = 0,
+    this.onTap,
+    this.onPlayTap,
+    this.onMoreTap,
+    this.onFavoriteToggle,
+    this.onWatchedToggle,
+  });
+
+  @override
+  State<BannerPoster> createState() => _BannerPosterState();
+}
+
+class _BannerPosterState extends State<BannerPoster> {
+  bool _isPlayButtonHovered = false;
+  bool _isFavorite = false;
+  bool _isWatched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.isFavorite;
+    _isWatched = widget.isWatched;
+  }
+
+  @override
+  void didUpdateWidget(covariant BannerPoster oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isFavorite != widget.isFavorite) {
+      _isFavorite = widget.isFavorite;
+    }
+    if (oldWidget.isWatched != widget.isWatched) {
+      _isWatched = widget.isWatched;
+    }
+  }
+
+  void _handleFavoriteToggle() {
+    if (widget.guid == null) return;
+    widget.onFavoriteToggle?.call(widget.guid!, _isFavorite, (success) {
+      if (success && mounted) {
+        setState(() => _isFavorite = !_isFavorite);
+      }
+    });
+  }
+
+  void _handleWatchedToggle() {
+    if (widget.guid == null) return;
+    widget.onWatchedToggle?.call(widget.guid!, _isWatched, (success) {
+      if (success && mounted) {
+        setState(() => _isWatched = !_isWatched);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final scaleFactor = widget.scaleFactor;
+    final hasPoster = widget.posterPath?.trim().isNotEmpty == true;
+    final mediaType = MediaType.tryParse(widget.type);
+    final formattedScore = formatVoteAverage(widget.score);
+    final showScore = formattedScore != '0.0';
+    final showFavoriteButton = mediaType != MediaType.season;
+    final showWatchedButton = widget.onWatchedToggle != null;
+    final showMoreButton = widget.onMoreTap != null;
+    final actionInset = 8.0 * scaleFactor;
+    final playButtonSize =
+        _isPlayButtonHovered ? 56.0 * scaleFactor : 48.0 * scaleFactor;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: HoverButton(
+        onPressed: widget.onTap,
+        builder: (context, states) {
+          final isHovered = states.isHovered;
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8 * scaleFactor),
+              border: Border.all(
+                color: Colors.grey[160].withValues(alpha: 0.6),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(7 * scaleFactor),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // 占位底 + 封面图：封面保持原比例居中（contain），
+                  // 与 Web 端 object-contain 一致，不裁剪、不变形。
+                  Container(
+                    color: theme.resources.controlStrokeColorSecondary,
+                    child: hasPoster
+                        ? (widget.contentPadding > 0
+                            ? Padding(
+                                padding:
+                                    EdgeInsets.all(widget.contentPadding),
+                                child: FnCachedImage(
+                                  posterPath: widget.posterPath!,
+                                  fit: BoxFit.contain,
+                                  errorWidget:
+                                      MediaPosterPlaceholder(type: mediaType),
+                                ),
+                              )
+                            : FnCachedImage(
+                                posterPath: widget.posterPath!,
+                                fit: BoxFit.contain,
+                                errorWidget:
+                                    MediaPosterPlaceholder(type: mediaType),
+                              ))
+                        : Center(
+                            child: MediaPosterPlaceholder(type: mediaType),
+                          ),
+                  ),
+                  if (showScore)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          formattedScore,
+                          style: const TextStyle(
+                            color: Color(0xFFFBBF24),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // 悬停半透明遮罩。
+                  Positioned.fill(
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: isHovered ? 1 : 0,
+                      child: ColoredBox(
+                        color:
+                            const Color(0xFF1C1C1C).withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                  // 居中播放按钮（悬停时放大）。
+                  if (widget.onPlayTap != null)
+                    Center(
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: isHovered ? 1 : 0,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) =>
+                              setState(() => _isPlayButtonHovered = true),
+                          onExit: (_) =>
+                              setState(() => _isPlayButtonHovered = false),
+                          child: GestureDetector(
+                            onTap: widget.onPlayTap,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: playButtonSize,
+                              height: playButtonSize,
+                              child: SvgPicture.asset(
+                                'assets/images/play_circle.svg',
+                                width: playButtonSize,
+                                height: playButtonSize,
+                                colorFilter: const ColorFilter.mode(
+                                  Colors.white,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  // 遮罩右下角：已观看 / 收藏 / 更多。
+                  Positioned(
+                    right: actionInset,
+                    bottom: actionInset,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: isHovered ? 1 : 0,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (showWatchedButton)
+                            PosterIconButton(
+                              svgAssetPath: _isWatched
+                                  ? 'assets/images/watched_fill.svg'
+                                  : 'assets/images/watched.svg',
+                              isActive: _isWatched,
+                              activeColor: kAccentColorDefault,
+                              scaleFactor: scaleFactor,
+                              onPressed: _handleWatchedToggle,
+                            ),
+                          if (showFavoriteButton)
+                            PosterIconButton(
+                              svgAssetPath: _isFavorite
+                                  ? 'assets/images/favorite_fill.svg'
+                                  : 'assets/images/favorite.svg',
+                              isActive: _isFavorite,
+                              activeColor: kDangerDefaultColor,
+                              scaleFactor: scaleFactor,
+                              onPressed: _handleFavoriteToggle,
+                            ),
+                          if (showMoreButton)
+                            PosterIconButton(
+                              icon: FluentIcons.more,
+                              isActive: false,
+                              activeColor: Colors.white,
+                              scaleFactor: scaleFactor,
+                              onPressed: widget.onMoreTap,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Poster icon button with hover effect. Shared with the media-library
+// banner poster card and the home "recently watched" row so all hover
+// overlays use the same circular icon-button styling.
+class PosterIconButton extends StatefulWidget {
   final IconData? icon;
   final String? svgAssetPath;
   final bool isActive;
@@ -454,7 +721,7 @@ class _PosterIconButton extends StatefulWidget {
   final double scaleFactor;
   final VoidCallback? onPressed;
 
-  const _PosterIconButton({
+  const PosterIconButton({
     this.icon,
     this.svgAssetPath,
     required this.isActive,
@@ -464,10 +731,10 @@ class _PosterIconButton extends StatefulWidget {
   });
 
   @override
-  State<_PosterIconButton> createState() => _PosterIconButtonState();
+  State<PosterIconButton> createState() => PosterIconButtonState();
 }
 
-class _PosterIconButtonState extends State<_PosterIconButton> {
+class PosterIconButtonState extends State<PosterIconButton> {
   bool _isHovered = false;
 
   @override
