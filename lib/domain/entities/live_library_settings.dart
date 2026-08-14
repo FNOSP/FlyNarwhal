@@ -42,6 +42,8 @@ class LiveLibrarySettings {
         return LiveLibrarySettings(
           sortType:
               json['sort_type'] is String ? json['sort_type'] as String : 'ASC',
+          sortField:
+              json['sort_field'] is String ? json['sort_field'] as String : 'sort_title',
           viewType: LiveViewType.parse(json['view_type'] as String?),
         );
       }

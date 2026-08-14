@@ -34,6 +34,13 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
   final FocusNode _shortcutFocusNode =
       FocusNode(debugLabel: 'global-shortcuts');
 
+  /// Direct handle to the [NavigationView] so the title bar's hamburger
+  /// button (which lives outside the [NavigationView]'s subtree) can call
+  /// [NavigationViewState.togglePane] without going through an inherited
+  /// widget lookup.
+  final GlobalKey<NavigationViewState> _navigationViewKey =
+      GlobalKey<NavigationViewState>();
+
   /// macOS standard "open preferences" shortcut (⌘,).
   static final ShortcutKeyBinding _openSettingsBinding =
       ShortcutKeyBinding(LogicalKeyboardKey.comma.keyId, meta: true);
@@ -445,6 +452,29 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
 
     final isMacOS = !kIsWeb && Platform.isMacOS;
 
+    // The hamburger toggle is only mounted when the effective display mode
+    // is minimal — other layouts (top / expanded / compact) keep their own
+    // built-in affordances. Mirrors fluent_ui's _resolveDisplayMode:
+    // PaneDisplayMode.auto falls back to the window width
+    // (<=640 minimal, >=1008 expanded, else compact).
+    PaneDisplayMode resolveEffectiveDisplayMode() {
+      final configured = NavigationDisplayModeMapper.fromValue(
+        settings.navigationDisplayMode,
+      );
+      if (configured != PaneDisplayMode.auto) return configured;
+      final width = MediaQuery.of(context).size.width;
+      if (width <= 640) return PaneDisplayMode.minimal;
+      if (width >= 1008) return PaneDisplayMode.expanded;
+      return PaneDisplayMode.compact;
+    }
+
+    final isMinimalDisplayMode =
+        resolveEffectiveDisplayMode() == PaneDisplayMode.minimal;
+
+    void handleNavToggle() {
+      _navigationViewKey.currentState?.togglePane();
+    }
+
     KeyEventResult handleGlobalKeyEvent(FocusNode node, KeyEvent event) {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
         return KeyEventResult.ignored;
@@ -491,6 +521,25 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                             kTrafficLightAreaWidth -
                             kRefreshButtonLeftOffset,
                       ),
+                      if (isMinimalDisplayMode)
+                        Padding(
+                          // Center the 28px compact button on the same
+                          // vertical axis as the 20px caption buttons
+                          // (back/pin/refresh): their top padding plus half
+                          // the height difference, 16 + (20 - 28) / 2 = 12.
+                          padding: const EdgeInsets.only(
+                            top: kRefreshButtonTopPadding + (20 - 28) / 2,
+                            left: kCaptionButtonSpacing,
+                            right: kCaptionButtonSpacing,
+                          ),
+                          child: WindowCaptionNavToggleButton.compact(
+                            key: const ValueKey(
+                                'macos-window-caption-nav-toggle-button'),
+                            brightness:
+                                isDark ? Brightness.dark : Brightness.light,
+                            onPressed: handleNavToggle,
+                          ),
+                        ),
                       Padding(
                         padding: const EdgeInsets.only(
                             top: kRefreshButtonTopPadding,
@@ -576,9 +625,12 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
               onRefreshPressed: triggerWindowRefresh,
               showBackButton: true,
               onBack: canGoBack ? handleBackNavigation : null,
+              showNavToggle: isMinimalDisplayMode,
+              onNavToggle: isMinimalDisplayMode ? handleNavToggle : null,
             ),
           Expanded(
             child: NavigationView(
+              key: _navigationViewKey,
               pane: NavigationPane(
                 header: pane.header,
                 selected: selectedIndex >= 0 ? selectedIndex : null,
