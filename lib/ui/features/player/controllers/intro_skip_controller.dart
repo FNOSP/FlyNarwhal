@@ -201,8 +201,18 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
       return false;
     }
 
+    // If this session resumed at or past the intro end, the intro was already
+    // watched — never auto-skip it again. Without this guard, a quality switch
+    // that reopens an HLS stream transiently reports position ~0 (the mpv
+    // `start` property is ignored for HLS until the correction seek applies),
+    // and the crossing detection below mistakes that 0->small jump for natural
+    // playback crossing the intro start.
+    if (state.effectiveStartPositionMilliseconds >= intro.endMilliseconds) {
+      return false;
+    }
+
     if (previousPosition == null) {
-      return state.effectiveStartPositionMilliseconds < intro.endMilliseconds;
+      return true;
     }
     return previousPosition <= intro.startMilliseconds &&
         currentPosition >= intro.startMilliseconds;
