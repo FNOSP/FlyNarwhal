@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,8 @@ typedef ProcessRunner = Future<ProcessResult> Function(
   List<String> arguments,
 );
 
+typedef FileExists = bool Function(String path);
+
 class PlayerDeviceContext {
   final String deviceId;
   final String deviceIdType;
@@ -23,17 +26,103 @@ class PlayerDeviceContext {
   });
 }
 
+class WindowsVideoAdapterInfo {
+  final String name;
+  final String vendor;
+  final String pnpDeviceId;
+
+  const WindowsVideoAdapterInfo({
+    required this.name,
+    required this.vendor,
+    required this.pnpDeviceId,
+  });
+}
+
+// Keep base decode modes intact and only sanitize concrete hwdec APIs.
+String sanitizePlayerDecodeMode(String mode, List<String> supportedHwdecApis) {
+  switch (mode) {
+    case 'auto':
+    case 'no':
+    case 'auto-copy':
+    case 'auto-unsafe':
+      return mode;
+    default:
+      return supportedHwdecApis.contains(mode) ? mode : 'auto';
+  }
+}
+
+// Resolve Windows hwdec APIs from both hardware presence and runtime support.
+List<String> resolveSupportedWindowsHwdecApis({
+  required List<WindowsVideoAdapterInfo> adapters,
+  required bool hasD3d11Runtime,
+  required bool hasCudaRuntime,
+  required bool hasNvdecRuntime,
+}) {
+  final hasHardwareAdapter = adapters.any(_isUsableWindowsVideoAdapter);
+  final hasNvidiaAdapter = adapters.any(_isNvidiaWindowsVideoAdapter);
+  final apis = <String>[];
+
+  if (hasHardwareAdapter && hasD3d11Runtime) {
+    apis.add('d3d11va');
+  }
+  if (hasNvidiaAdapter && hasNvdecRuntime) {
+    apis.add('nvdec');
+  }
+  if (hasNvidiaAdapter && hasCudaRuntime) {
+    apis.add('cuda');
+  }
+
+  return apis;
+}
+
+bool _isUsableWindowsVideoAdapter(WindowsVideoAdapterInfo adapter) {
+  final combined = [
+    adapter.name,
+    adapter.vendor,
+    adapter.pnpDeviceId,
+  ].join(' ').toLowerCase();
+
+  if (combined.trim().isEmpty) {
+    return false;
+  }
+
+  const softwareMarkers = <String>[
+    'microsoft basic display',
+    'microsoft basic render',
+    'remote display',
+    'hyper-v',
+    'vmware',
+    'virtualbox',
+    'parallels',
+    'citrix',
+  ];
+
+  return !softwareMarkers.any(combined.contains);
+}
+
+bool _isNvidiaWindowsVideoAdapter(WindowsVideoAdapterInfo adapter) {
+  final combined = [
+    adapter.name,
+    adapter.vendor,
+    adapter.pnpDeviceId,
+  ].join(' ').toLowerCase();
+  return combined.contains('nvidia') || combined.contains('ven_10de');
+}
+
 class PlayerDeviceContextService {
   PlayerDeviceContextService(
     this._preferencesManager, {
     ProcessRunner? processRunner,
     Uuid? uuid,
+    FileExists? fileExists,
   })  : _processRunner = processRunner ?? Process.run,
-        _uuid = uuid ?? const Uuid();
+        _uuid = uuid ?? const Uuid(),
+        _fileExists = fileExists ?? ((path) => File(path).existsSync());
 
   final PreferencesManager _preferencesManager;
   final ProcessRunner _processRunner;
   final Uuid _uuid;
+  final FileExists _fileExists;
 
   static const Set<String> _invalidValues = {
     'unknown',
@@ -53,6 +142,19 @@ class PlayerDeviceContextService {
     'not applicable',
     'standard',
   };
+
+  Future<List<String>> loadSupportedHwdecApis() async {
+    if (Platform.isWindows) {
+      return _loadWindowsSupportedHwdecApis();
+    }
+    if (Platform.isLinux) {
+      return const ['vaapi', 'vdpau', 'nvdec'];
+    }
+    if (Platform.isMacOS) {
+      return const ['videotoolbox'];
+    }
+    return const [];
+  }
 
   Future<PlayerDeviceContext> loadContext() async {
     final deviceIdResult = await _resolveDeviceId();
@@ -148,6 +250,99 @@ class PlayerDeviceContextService {
     } catch (_) {
       return null;
     }
+  }
+
+  // Combine GPU vendor detection with required runtime DLL checks so the UI
+  // only shows Windows hwdec APIs that the current machine can actually use.
+  Future<List<String>> _loadWindowsSupportedHwdecApis() async {
+    final adapters = await _queryWindowsVideoAdapters();
+    final hasD3d11Runtime = _hasWindowsRuntimeFile('d3d11.dll');
+    final hasCudaRuntime = _hasWindowsRuntimeFile('nvcuda.dll');
+    final hasNvdecRuntime =
+        hasCudaRuntime && _hasWindowsRuntimeFile('nvcuvid.dll');
+
+    return resolveSupportedWindowsHwdecApis(
+      adapters: adapters,
+      hasD3d11Runtime: hasD3d11Runtime,
+      hasCudaRuntime: hasCudaRuntime,
+      hasNvdecRuntime: hasNvdecRuntime,
+    );
+  }
+
+  Future<List<WindowsVideoAdapterInfo>> _queryWindowsVideoAdapters() async {
+    final raw = await _queryWindowsValue(
+      'Get-CimInstance Win32_VideoController | '
+      'Select-Object Name,AdapterCompatibility,PNPDeviceID | '
+      'ConvertTo-Json -Compress',
+    );
+    if (raw == null || raw.isEmpty) {
+      return const [];
+    }
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded.map(_mapWindowsVideoAdapterInfo).toList();
+      }
+      return [_mapWindowsVideoAdapterInfo(decoded)];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  WindowsVideoAdapterInfo _mapWindowsVideoAdapterInfo(dynamic raw) {
+    if (raw is! Map) {
+      return const WindowsVideoAdapterInfo(
+        name: '',
+        vendor: '',
+        pnpDeviceId: '',
+      );
+    }
+
+    return WindowsVideoAdapterInfo(
+      name: raw['Name']?.toString() ?? '',
+      vendor: raw['AdapterCompatibility']?.toString() ?? '',
+      pnpDeviceId: raw['PNPDeviceID']?.toString() ?? '',
+    );
+  }
+
+  bool _hasWindowsRuntimeFile(String fileName) {
+    final candidatePaths = <String>{
+      ..._windowsSystemDirectories()
+          .map((directory) => '$directory\\$fileName'),
+      ..._windowsPathDirectories().map((directory) => '$directory\\$fileName'),
+    };
+
+    for (final path in candidatePaths) {
+      if (_fileExists(path)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  List<String> _windowsSystemDirectories() {
+    final windir = Platform.environment['WINDIR'];
+    if (windir == null || windir.isEmpty) {
+      return const [];
+    }
+    return [
+      '$windir\\System32',
+      '$windir\\SysWOW64',
+    ];
+  }
+
+  List<String> _windowsPathDirectories() {
+    final rawPath = Platform.environment['PATH'];
+    if (rawPath == null || rawPath.isEmpty) {
+      return const [];
+    }
+
+    return rawPath
+        .split(';')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
   }
 
   bool _isValidId(String? value) {

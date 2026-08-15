@@ -220,7 +220,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String _videoFillMode = 'default';
   bool _isForceH264 = false;
   bool _isForceSdrColor = false;
-   // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | <concrete hwdec api>.
+  // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | <concrete hwdec api>.
   String _decodeMode = 'auto';
   // Hardware decoders shown in the 指定硬件解码器 menu. Initialized with the
   // platform's known candidates so the menu is never empty, then refined by
@@ -255,10 +255,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void initState() {
     super.initState();
-    // Pre-populate the 指定硬件解码器 menu with the platform's known
-    // hardware-decoder APIs so it is never empty while the background probe
-    // is still running (or cannot run at all, e.g. no media loaded yet).
-    _availableHwdec = _platformHwdecCandidates();
+    // Start with an empty list until device-level hwdec support is resolved.
+    _availableHwdec = const [];
     _episodeAnalysisController =
         ref.read(episodeAnalysisControllerProvider.notifier);
     _introSkipController = IntroSkipController();
@@ -315,7 +313,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _sessionCoordinator.forceH264 = _isForceH264;
     _sessionCoordinator.forceSdrColor = _isForceSdrColor;
     unawaited(_ensureSubtitleLanguageMapsLoaded());
-    _initializePlayer();
+    unawaited(_initializePlayerSession());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_isMacOS) {
         return;
@@ -374,6 +372,55 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  // Resolve supported hwdec APIs before player startup so an old persisted
+  // concrete decoder never gets applied on unsupported hardware.
+  Future<void> _initializePlayerSession() async {
+    await _restoreSupportedHwdecState();
+    await _initializePlayer();
+  }
+
+  // Keep the settings menu and persisted decode mode aligned with the current
+  // machine's confirmed hardware/runtime support.
+  Future<void> _restoreSupportedHwdecState() async {
+    final settingsManager = ref.read(playerSettingsManagerProvider);
+    final savedDecodeMode = _decodeMode;
+
+    try {
+      final supportedApis = await ref
+          .read(playerDeviceContextServiceProvider)
+          .loadSupportedHwdecApis();
+      final supportedOptions = List<HwdecOption>.unmodifiable(
+        supportedApis
+            .map((api) => HwdecOption(api: api, label: _hwdecApiLabel(api)))
+            .toList(),
+      );
+      final sanitizedDecodeMode =
+          sanitizePlayerDecodeMode(savedDecodeMode, supportedApis);
+
+      if (mounted) {
+        setState(() {
+          _availableHwdec = supportedOptions;
+          _decodeMode = sanitizedDecodeMode;
+        });
+      } else {
+        _availableHwdec = supportedOptions;
+        _decodeMode = sanitizedDecodeMode;
+      }
+
+      if (sanitizedDecodeMode != savedDecodeMode) {
+        await settingsManager.setDecodeMode(sanitizedDecodeMode);
+      }
+    } catch (error, stackTrace) {
+      AppTalker.warning('Player', 'Failed to resolve hwdec support: $error');
+      AppTalker.instance.handle(error, stackTrace);
+      _availableHwdec = const [];
+      _decodeMode = sanitizePlayerDecodeMode(savedDecodeMode, const []);
+      if (_decodeMode != savedDecodeMode) {
+        await settingsManager.setDecodeMode(_decodeMode);
+      }
+    }
+  }
+
   Future<void> _applyDefaultMpvSubtitleSettings(Player player) async {
     final platform = player.platform;
     if (platform is! NativePlayer) {
@@ -407,28 +454,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// a playing instance (mpv issue #4289), each candidate is tried by opening
   /// the same [playUri] on a short-lived, picture-less dedicated [Player] and
   /// reading back `hwdec-current`. Runs once, in the background, with a
-  /// timeout. The menu is pre-populated with the platform's known candidates
-  /// in [initState], so a probe failure never leaves the list empty; the probe
-  /// only confirms candidates and may add APIs reported by the active player.
+  /// timeout. The candidate list is already filtered by device/runtime support;
+  /// this probe only narrows it down further for the current stream when mpv
+  /// can confirm a concrete API.
   Future<void> _probeAvailableHwdec({required String playUri}) async {
     if (_hwdecProbeDone || playUri.isEmpty) {
       return;
     }
     _hwdecProbeDone = true;
 
-    final candidates =
-        _platformHwdecCandidates().map((option) => option.api).toList();
+    final fallbackOptions = List<HwdecOption>.from(_availableHwdec);
+    final candidates = fallbackOptions.map((option) => option.api).toList();
+    if (candidates.isEmpty) {
+      return;
+    }
 
-    // Show the platform's known hardware-decoder APIs immediately so the
-    // "指定硬件解码器" menu is never empty. The background probe below is
-    // only used to *confirm* and possibly add extra APIs detected from the
-    // active player; it never removes candidates, because the dedicated probe
-    // player has no render context and can time out even on working APIs.
-    final found = <HwdecOption>[
-      ...candidates.map(
-        (api) => HwdecOption(api: api, label: _hwdecApiLabel(api)),
-      ),
-    ];
+    final found = <HwdecOption>[];
 
     // Share the same referrer/origin headers as the real playback so the
     // source is reachable during the probe.
@@ -453,19 +494,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // is exactly the path the old open-then-set ordering exercised.
           await platform.setProperty('hwdec', api);
           await probePlayer.open(Media(playUri, httpHeaders: headers));
-          // A non-empty result means the api engaged (possibly copy-back).
-          // The probe player has no render context, so some sources never
-          // converge here; a timeout just leaves the candidate listed.
-          await _waitForHwdecCurrent(platform, api);
+          // A non-empty result means the api engaged for this stream.
+          final current = await _waitForHwdecCurrent(platform, api);
+          if (current.isNotEmpty && !found.any((option) => option.api == api)) {
+            found.add(HwdecOption(api: api, label: _hwdecApiLabel(api)));
+          }
         } catch (_) {
           // A candidate needs its own decoder and file support (e.g. HEVC
           // vs. AVC); fallthrough to the next one.
         }
       }
 
-      // Also read `hwdec-current` from the active player, which already has a
-      // render context. If it reports a concrete API not already listed, add
-      // it (e.g. an API outside the platform's default candidate list).
+      // Also read the active player's chosen hwdec so current-stream success
+      // can still narrow the list even if the probe player times out.
       final activePlayer = _player;
       final activePlatform = activePlayer?.platform;
       if (activePlatform is NativePlayer) {
@@ -477,22 +518,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               activeCurrent != 'auto' &&
               !found.any(
                 (o) =>
-                    o.api == activeCurrent ||
-                    activeCurrent == '${o.api}-copy',
+                    o.api == activeCurrent || activeCurrent == '${o.api}-copy',
               )) {
             final normalizedApi = activeCurrent.endsWith('-copy')
                 ? activeCurrent.substring(0, activeCurrent.length - 5)
                 : activeCurrent;
-            found.add(
-              HwdecOption(api: normalizedApi, label: _hwdecApiLabel(normalizedApi)),
-            );
+            if (candidates.contains(normalizedApi)) {
+              found.add(
+                HwdecOption(
+                  api: normalizedApi,
+                  label: _hwdecApiLabel(normalizedApi),
+                ),
+              );
+            }
           }
         } catch (_) {
           // The active player may have been disposed mid-probe; ignore.
         }
       }
 
-      if (mounted) {
+      if (mounted && found.isNotEmpty) {
         setState(() => _availableHwdec = List.unmodifiable(found));
       }
     } catch (e, st) {
@@ -551,18 +596,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       'vdpau' => 'VDPAU',
       _ => api.toUpperCase(),
     };
-  }
-
-  /// The platform's known hardware-decoder APIs, in probe order. Shared by
-  /// [initState] (to pre-populate the 指定硬件解码器 menu) and
-  /// [_probeAvailableHwdec] (to drive the background probe).
-  List<HwdecOption> _platformHwdecCandidates() {
-    final apis = switch (defaultTargetPlatform) {
-      TargetPlatform.windows => const ['d3d11va', 'nvdec', 'cuda'],
-      TargetPlatform.linux => const ['vaapi', 'nvdec', 'vdpau'],
-      _ => const ['videotoolbox'],
-    };
-    return apis.map((api) => HwdecOption(api: api, label: _hwdecApiLabel(api))).toList();
   }
 
   Future<void> _applyDirectLinkCachePolicy(Player player) async {
@@ -1826,8 +1859,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final state = player.state;
       final positionMs = state.position.inMilliseconds;
       final durationMs = state.duration.inMilliseconds;
-      if (positionMs > 0 &&
-          (positionMs - startPositionMs).abs() <= 3000) {
+      if (positionMs > 0 && (positionMs - startPositionMs).abs() <= 3000) {
         return;
       }
       if (durationMs > 0) {
@@ -1854,8 +1886,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // that duration is known so the correction is not silently lost.
     final afterSeekPosition = player.state.position.inMilliseconds;
     final afterSeekDeviation = (afterSeekPosition - startPositionMs).abs();
-    if (afterSeekDeviation > 3000 &&
-        player.state.duration.inMilliseconds > 0) {
+    if (afterSeekDeviation > 3000 && player.state.duration.inMilliseconds > 0) {
       await _seekExecutor.performSeek(
         targetMilliseconds: startPositionMs,
         origin: PlayerSeekOrigin.resumeCorrection,
@@ -3212,7 +3243,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // itself, so the quit-response listener must not reopen the direct
         // link in parallel.
         await ref.read(mediaPViewModelProvider.notifier).quit(
-              MediaPRequest(playLink: currentPlayLink!),
+              MediaPRequest(playLink: currentPlayLink),
               updateState: false,
             );
         await _reopenPlaybackWithDirectLink(startPositionMs: currentPosition);
@@ -3227,10 +3258,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // updateState: false — this flow reopens playback itself via
           // play/play below, so the quit-response listener must not reopen
           // the direct link in parallel.
-          await ref
-              .read(mediaPViewModelProvider.notifier)
-              .quit(
-                MediaPRequest(playLink: currentPlayLink!),
+          await ref.read(mediaPViewModelProvider.notifier).quit(
+                MediaPRequest(playLink: currentPlayLink),
                 updateState: false,
               );
         }
