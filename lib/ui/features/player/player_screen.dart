@@ -2475,6 +2475,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       audioGuid: audioGuid,
       subtitleGuid: subtitleGuid,
       startPositionMs: startPositionMs,
+      quality: cache.currentQuality,
     );
     if (!mounted) return;
 
@@ -2524,6 +2525,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           mediaGuid: _currentMediaGuid,
           audioGuid: _requestedAudioGuid,
           subtitleGuid: _requestedSubtitleGuid,
+          userGuid: ref.read(userInfoProvider).valueOrNull?.guid,
         ),
       );
       if (!mounted || requestToken != _loadRequestToken) {
@@ -3505,6 +3507,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final fileStream = cache.currentFileStream;
     final currentAudio = cache.currentAudioStream;
     if (videoStream == null || fileStream == null) return;
+    // Persist the selected quality so the next playback session can restore it.
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setQuality(
+            quality.resolution,
+            quality.bitrate,
+            userGuid: ref.read(userInfoProvider).valueOrNull?.guid,
+          ),
+    );
 
     try {
       setState(() => _isLoading = true);

@@ -8,6 +8,8 @@ import 'centered_window_bounds_codec.dart';
 class PlayerSettingsStore {
   static const String _keyVolume = 'player_volume';
   static const String _keySpeed = 'player_speed';
+  static const String _keyQualityResolution = 'player_quality_resolution';
+  static const String _keyQualityBitrate = 'player_quality_bitrate';
   static const String _keyAutoPlay = 'player_auto_play';
   static const String _keyWindowAspectRatio = 'player_window_aspect_ratio';
   static const String _keyVideoFillModeCache = 'player_video_fill_mode_cache';
@@ -93,7 +95,8 @@ class PlayerSettingsStore {
 
   static Future<void> setPlayerWindowBounds(Rect bounds) async {
     final prefs = await SharedPreferences.getInstance();
-    await CenteredWindowBoundsCodec.write(prefs, _playerWindowBoundsPrefix, bounds);
+    await CenteredWindowBoundsCodec.write(
+        prefs, _playerWindowBoundsPrefix, bounds);
   }
 
   static Future<Rect?> getPipWindowBounds() async {
@@ -103,8 +106,19 @@ class PlayerSettingsStore {
 
   static Future<void> setPipWindowBounds(Rect bounds) async {
     final prefs = await SharedPreferences.getInstance();
-    await CenteredWindowBoundsCodec.write(prefs, _pipWindowBoundsPrefix, bounds);
+    await CenteredWindowBoundsCodec.write(
+        prefs, _pipWindowBoundsPrefix, bounds);
   }
+}
+
+class PlayerSavedQuality {
+  final String resolution;
+  final int? bitrate;
+
+  const PlayerSavedQuality({
+    required this.resolution,
+    required this.bitrate,
+  });
 }
 
 // Async version for use with providers
@@ -113,6 +127,14 @@ class PlayerSettingsManager {
 
   PlayerSettingsManager(this._prefs);
 
+  String _scopedKey(String rawKey, {String? userGuid}) {
+    final normalizedUserGuid = userGuid?.trim() ?? '';
+    if (normalizedUserGuid.isEmpty) {
+      return rawKey;
+    }
+    return '$normalizedUserGuid::$rawKey';
+  }
+
   double getVolume() => _prefs.getDouble(PlayerSettingsStore._keyVolume) ?? 1.0;
   Future<void> setVolume(double volume) =>
       _prefs.setDouble(PlayerSettingsStore._keyVolume, volume);
@@ -120,6 +142,48 @@ class PlayerSettingsManager {
   double getSpeed() => _prefs.getDouble(PlayerSettingsStore._keySpeed) ?? 1.0;
   Future<void> setSpeed(double speed) =>
       _prefs.setDouble(PlayerSettingsStore._keySpeed, speed);
+
+  PlayerSavedQuality? getQuality({String? userGuid}) {
+    final scopedResolutionKey = _scopedKey(
+      PlayerSettingsStore._keyQualityResolution,
+      userGuid: userGuid,
+    );
+    final scopedBitrateKey = _scopedKey(
+      PlayerSettingsStore._keyQualityBitrate,
+      userGuid: userGuid,
+    );
+    final resolution = _prefs.getString(scopedResolutionKey) ??
+        _prefs.getString(PlayerSettingsStore._keyQualityResolution);
+    if (resolution == null || resolution.isEmpty) {
+      return null;
+    }
+    return PlayerSavedQuality(
+      resolution: resolution,
+      bitrate: _prefs.getInt(scopedBitrateKey) ??
+          _prefs.getInt(PlayerSettingsStore._keyQualityBitrate),
+    );
+  }
+
+  Future<void> setQuality(
+    String resolution,
+    int? bitrate, {
+    String? userGuid,
+  }) async {
+    final resolutionKey = _scopedKey(
+      PlayerSettingsStore._keyQualityResolution,
+      userGuid: userGuid,
+    );
+    final bitrateKey = _scopedKey(
+      PlayerSettingsStore._keyQualityBitrate,
+      userGuid: userGuid,
+    );
+    await _prefs.setString(resolutionKey, resolution);
+    if (bitrate != null) {
+      await _prefs.setInt(bitrateKey, bitrate);
+      return;
+    }
+    await _prefs.remove(bitrateKey);
+  }
 
   double getDanmakuArea() =>
       _prefs.getDouble(PlayerSettingsStore._keyDanmakuArea) ?? 1.0;

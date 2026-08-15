@@ -7,6 +7,7 @@ import '../../../../domain/entities/media_type.dart';
 import '../../../../data/models/episode_list_response.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
+import '../../../../data/storage/player_settings_store.dart';
 import '../../../../data/storage/preferences_manager.dart';
 import '../../../../providers/providers.dart';
 import '../services/hls_playlist_resolver.dart';
@@ -29,12 +30,14 @@ class PlayerRouteTarget {
   final String? mediaGuid;
   final String? audioGuid;
   final String? subtitleGuid;
+  final String? userGuid;
 
   const PlayerRouteTarget({
     required this.guid,
     this.mediaGuid,
     this.audioGuid,
     this.subtitleGuid,
+    this.userGuid,
   });
 }
 
@@ -134,13 +137,16 @@ class PlayerSessionCoordinator {
   PlayerSessionCoordinator({
     required PlayerService playerService,
     required PreferencesManager preferencesManager,
+    required PlayerSettingsManager playerSettingsManager,
     required Dio dio,
   })  : _playerService = playerService,
         _preferencesManager = preferencesManager,
+        _playerSettingsManager = playerSettingsManager,
         _dio = dio;
 
   final PlayerService _playerService;
   final PreferencesManager _preferencesManager;
+  final PlayerSettingsManager _playerSettingsManager;
   final Dio _dio;
 
   // Advanced playback settings (mirror the web player's 高级设置): force H.264
@@ -195,7 +201,12 @@ class PlayerSessionCoordinator {
     final subtitleGuid = target.subtitleGuid ?? currentSubtitleStream?.guid;
 
     final qualities = streamInfo.qualities ?? [];
-    final currentQuality = qualities.isNotEmpty ? qualities.first : null;
+    // Restore the previously saved quality using the KMP matching strategy:
+    // exact match first, then resolution-only fallback, then original quality.
+    final currentQuality = initializeQuality(
+      qualities,
+      userGuid: target.userGuid,
+    );
     final historyMs = playInfo.ts * 1000;
 
     final resolved = await _resolvePlayLink(
@@ -334,19 +345,20 @@ class PlayerSessionCoordinator {
     required FileInfo fileStream,
     required String audioGuid,
     required String? subtitleGuid,
+    QualityResponse? quality,
+    int startTimestamp = 0,
   }) {
     // Web logic: force h264 when the toggle is on or the source uses the
     // HEVC "rext" profile; forced_sdr only applies to non-SDR sources.
     final isSdrSource = videoStream.colorRangeType.toLowerCase() == 'sdr';
-    final useH264 =
-        forceH264 || videoStream.profile.toLowerCase() == 'rext';
+    final useH264 = forceH264 || videoStream.profile.toLowerCase() == 'rext';
     return PlayPlayRequest(
       mediaGuid: fileStream.guid,
       videoGuid: videoStream.guid,
       videoEncoder: useH264 ? 'h264' : videoStream.codecName,
-      resolution: videoStream.resolutionType,
-      bitrate: videoStream.bps,
-      startTimestamp: 0,
+      resolution: quality?.resolution ?? videoStream.resolutionType,
+      bitrate: quality?.bitrate ?? videoStream.bps,
+      startTimestamp: startTimestamp,
       audioEncoder: 'aac',
       audioGuid: audioGuid,
       subtitleGuid: subtitleGuid ?? '',
@@ -374,6 +386,37 @@ class PlayerSessionCoordinator {
         quality.resolution == originalQuality.resolution &&
         quality.bitrate == originalQuality.bitrate;
     return isOriginalQuality;
+  }
+
+  QualityResponse? initializeQuality(
+    List<QualityResponse> qualities, {
+    String? userGuid,
+  }) {
+    if (qualities.isEmpty) {
+      return null;
+    }
+
+    final savedQuality = _playerSettingsManager.getQuality(userGuid: userGuid);
+    QualityResponse? result;
+    if (savedQuality != null) {
+      result = qualities
+          .where(
+            (quality) =>
+                quality.resolution == savedQuality.resolution &&
+                (savedQuality.bitrate == null ||
+                    quality.bitrate == savedQuality.bitrate),
+          )
+          .firstOrNull;
+      if (result == null) {
+        // Keep the selected resolution when the exact bitrate is unavailable.
+        final sameResolution = qualities
+            .where((quality) => quality.resolution == savedQuality.resolution)
+            .toList()
+          ..sort((left, right) => right.bitrate.compareTo(left.bitrate));
+        result = sameResolution.firstOrNull;
+      }
+    }
+    return result ?? qualities.firstOrNull;
   }
 
   bool _requiresHlsPlayback(VideoStream videoStream) {
@@ -475,6 +518,7 @@ class PlayerSessionCoordinator {
     required String audioGuid,
     required String? subtitleGuid,
     required int startPositionMs,
+    QualityResponse? quality,
   }) async {
     final baseUrl = _preferencesManager.getBaseUrl() ?? '';
     final request = createPlayRequest(
@@ -482,21 +526,11 @@ class PlayerSessionCoordinator {
       fileStream: fileStream,
       audioGuid: audioGuid,
       subtitleGuid: subtitleGuid,
+      quality: quality,
+      startTimestamp: startPositionMs ~/ 1000,
     );
     final response = await _playerService.playVideo(
-      PlayPlayRequest(
-        mediaGuid: request.mediaGuid,
-        videoGuid: request.videoGuid,
-        videoEncoder: request.videoEncoder,
-        resolution: videoStream.resolutionType,
-        bitrate: videoStream.bps,
-        startTimestamp: startPositionMs ~/ 1000,
-        audioEncoder: request.audioEncoder,
-        audioGuid: request.audioGuid,
-        subtitleGuid: request.subtitleGuid,
-        channels: request.channels,
-        forcedSdr: request.forcedSdr,
-      ),
+      request,
     );
     final playUri = absolutePlayUrl(baseUrl, response.playLink);
     return HlsPlayLinkResult(
@@ -599,6 +633,8 @@ class PlayerSessionCoordinator {
         fileStream: fileStream,
         audioGuid: audioGuid,
         subtitleGuid: subtitleGuid,
+        quality: currentQuality,
+        startTimestamp: startPositionMs ~/ 1000,
       );
       final response = await _playerService.playVideo(request);
       return _ResolvedPlayLink(
@@ -632,6 +668,7 @@ final playerSessionCoordinatorProvider =
   return PlayerSessionCoordinator(
     playerService: ref.watch(playerServiceProvider),
     preferencesManager: ref.watch(preferencesManagerProvider),
+    playerSettingsManager: ref.watch(playerSettingsManagerProvider),
     dio: ref.watch(dioClientProvider).dio,
   );
 });
