@@ -1,17 +1,54 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 // Colors sampled from the reference web app (飞牛影视, Semi Design dark theme).
-// Modal chrome
-const appDialogSurfaceColor = Color(0xFF202021);
-const appDialogBarrierColor = Color(0xB3101011);
-const appDialogTextColor = Color(0xFFFFFFFF);
-const appDialogBodyTextColor = Color(0xFFFFFFFF);
+// The web app only ships a dark theme, so dark keeps the sampled palette and
+// light derives an equivalent neutral palette from the same alpha ramps.
 
-// Secondary/cancel (ghost, tertiary-outline) — identical across dialog types.
-const appDialogSecondaryTextColor = Color(0xCCFFFFFF);
-const appDialogSecondaryBorderColor = Color(0x1AFFFFFF);
-const appDialogSecondaryHoverColor = Color(0x0AFFFFFF);
-const appDialogSecondaryPressedColor = Color(0x17FFFFFF);
+// Dark-only pieces reused by dialogs that replicate the web app's dark-only
+// surfaces (e.g. file media info).
+const appDialogDarkSurfaceColor = Color(0xFF202021);
+const appDialogDarkSecondaryBorderColor = Color(0x1AFFFFFF);
+
+const appDialogBarrierColor = Color(0xB3101011);
+
+// Text on the filled primary/danger buttons — white in both themes.
+const appDialogOnAccentTextColor = Color(0xFFFFFFFF);
+
+class _AppDialogPalette {
+  const _AppDialogPalette({
+    required this.surface,
+    required this.text,
+    required this.secondaryText,
+    required this.secondaryBorder,
+    required this.secondaryHover,
+    required this.secondaryPressed,
+  });
+
+  static const dark = _AppDialogPalette(
+    surface: appDialogDarkSurfaceColor,
+    text: Color(0xFFFFFFFF),
+    secondaryText: Color(0xCCFFFFFF),
+    secondaryBorder: appDialogDarkSecondaryBorderColor,
+    secondaryHover: Color(0x0AFFFFFF),
+    secondaryPressed: Color(0x17FFFFFF),
+  );
+
+  static const light = _AppDialogPalette(
+    surface: Color(0xFFFFFFFF),
+    text: Color(0xFF1F1F1F),
+    secondaryText: Color(0xCC000000),
+    secondaryBorder: Color(0x1A000000),
+    secondaryHover: Color(0x0A000000),
+    secondaryPressed: Color(0x17000000),
+  );
+
+  final Color surface;
+  final Color text;
+  final Color secondaryText;
+  final Color secondaryBorder;
+  final Color secondaryHover;
+  final Color secondaryPressed;
+}
 
 // Primary — normal/confirmation dialogs (blue).
 const appDialogPrimaryColor = Color(0xFF0066FF);
@@ -65,15 +102,18 @@ class AppDialog<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = FluentTheme.of(context).brightness == Brightness.dark
+        ? _AppDialogPalette.dark
+        : _AppDialogPalette.light;
     // tertiary 通常为附加/破坏性操作(如「删除」),靠左;
     // secondary(取消)+ primary(确定)为常规确认操作,靠右。
     final tertiary = _visible(tertiaryButtonText)
-        ? _secondary(context, tertiaryButtonText!, onTertiaryPressed,
+        ? _secondary(context, palette, tertiaryButtonText!, onTertiaryPressed,
             tertiaryResult, 'tertiary')
         : null;
     final secondary = _visible(secondaryButtonText)
-        ? _secondary(context, secondaryButtonText!, onSecondaryPressed,
-            secondaryResult, 'secondary')
+        ? _secondary(context, palette, secondaryButtonText!,
+            onSecondaryPressed, secondaryResult, 'secondary')
         : null;
     final primary = _visible(primaryButtonText)
         ? _primary(context, primaryButtonText!, onPrimaryPressed, primaryResult)
@@ -86,7 +126,7 @@ class AppDialog<T> extends StatelessWidget {
       constraints: constraints,
       style: ContentDialogThemeData(
         decoration: BoxDecoration(
-          color: appDialogSurfaceColor,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(24),
           boxShadow: const [
             BoxShadow(
@@ -103,16 +143,16 @@ class AppDialog<T> extends StatelessWidget {
         actionsSpacing: 12,
         actionsDecoration: const BoxDecoration(color: Colors.transparent),
         actionsPadding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-        titleStyle: const TextStyle(
+        titleStyle: TextStyle(
           fontSize: 18,
           height: 24 / 18,
           fontWeight: FontWeight.w600,
-          color: appDialogTextColor,
+          color: palette.text,
         ),
-        bodyStyle: const TextStyle(
+        bodyStyle: TextStyle(
           fontSize: 14,
           height: 20 / 14,
-          color: appDialogBodyTextColor,
+          color: palette.text,
         ),
       ),
       title: Row(
@@ -123,7 +163,7 @@ class AppDialog<T> extends StatelessWidget {
         ],
       ),
       content: DefaultTextStyle.merge(
-        style: const TextStyle(color: appDialogBodyTextColor),
+        style: TextStyle(color: palette.text),
         child: content,
       ),
       actions: hasActions
@@ -164,7 +204,8 @@ class AppDialog<T> extends StatelessWidget {
           if (states.contains(WidgetState.hovered)) return hover;
           return base;
         }),
-        foregroundColor: const WidgetStatePropertyAll(appDialogTextColor),
+        foregroundColor:
+            const WidgetStatePropertyAll(appDialogOnAccentTextColor),
         textStyle: const WidgetStatePropertyAll(
           TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
@@ -182,6 +223,7 @@ class AppDialog<T> extends StatelessWidget {
 
   Widget _secondary(
     BuildContext context,
+    _AppDialogPalette palette,
     String text,
     VoidCallback? callback,
     T? result,
@@ -192,23 +234,21 @@ class AppDialog<T> extends StatelessWidget {
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
           if (states.contains(WidgetState.pressed)) {
-            return appDialogSecondaryPressedColor;
+            return palette.secondaryPressed;
           }
           if (states.contains(WidgetState.hovered)) {
-            return appDialogSecondaryHoverColor;
+            return palette.secondaryHover;
           }
           return Colors.transparent;
         }),
-        foregroundColor: const WidgetStatePropertyAll(
-          appDialogSecondaryTextColor,
-        ),
+        foregroundColor: WidgetStatePropertyAll(palette.secondaryText),
         textStyle: const WidgetStatePropertyAll(
           TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
-            side: const BorderSide(color: appDialogSecondaryBorderColor),
+            side: BorderSide(color: palette.secondaryBorder),
           ),
         ),
         padding: const WidgetStatePropertyAll(
