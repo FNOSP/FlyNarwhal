@@ -1,7 +1,7 @@
 name: fly_narwhal
 description: "A new Flutter project."
 publish_to: 'none'
-version: 2.0.1-alpha
+version: 2.1.0-alpha
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
