@@ -908,7 +908,7 @@ class _MainSettingsScreen extends StatelessWidget {
         ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-decode-mode'),
-          title: '解码模式',
+          title: '客户端解码模式',
           value: decodeModeLabel(decodeMode, availableHwdec),
           onClick: onNavigateToDecodeMode,
         ),
@@ -1509,7 +1509,7 @@ class _DecodeModeSettingsScreen extends StatelessWidget {
                 ),
                 SizedBox(width: 8),
                 Text(
-                  '解码模式',
+                  '客户端解码模式',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
