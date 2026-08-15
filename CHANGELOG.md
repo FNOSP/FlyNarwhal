@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > ⚠️ **此版本为测试版本（Alpha），仅供内部验证，禁止下载安装使用。**
 > ⚠️ **This is a test (Alpha) build for internal verification only. Do NOT download or install.**
+>
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
 
 ### Added
 
@@ -55,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **播放器退出导航**：退出播放器后返回到进入前的页面。
 - **播放信息 title 字段兼容**：兼容服务端 play/info 接口剧集缺少 `title` 字段的情况。
 - **播放详情面板自动隐藏**：将播放信息面板与控制条自动隐藏逻辑解耦，避免关闭面板后自动隐藏失效。
+- **更新弹窗浅色模式适配**：更新弹窗跟随应用主题使用浅色配色，不再固定深色外观。
+- **更新说明引用块对比度**：修复深色模式下更新弹窗中引用块（如 Alpha 警告）背景与文字颜色相近导致难以阅读的问题。
+
 ## [2.0.1-alpha] - 2026-08-11
 
 > ⚠️ **此版本为测试版本（Alpha），仅供内部验证，禁止下载安装使用。**
