@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **日志策略**：控制台日志保持截断，文件日志保留完整内容；Release 构建中启用完整的 Dio 请求/响应日志。
 - **macOS 签名**：DMG 打包前对 macOS bundle 进行 ad-hoc 签名。
-- **Windows libmpv 固定**：Windows 打包固定使用 vendored 20260706 构建的 libmpv，修复底部绿边问题。
+- **Windows libmpv 固定**：Windows 构建改从自托管仓库 `Jankin-Wu/fly-narwhal-libmpv` 的 latest release 获取 libmpv，避免上游 zhongfly release 删除导致构建失败；继续固定无底部绿边问题的 2026-05-31 构建。
 - **README 文档**：补充 2.0 核心功能说明章节。
 - **快捷键设置弹窗**：使用统一的 `AppDialog` 重构快捷键设置弹窗。
 
