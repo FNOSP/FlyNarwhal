@@ -325,11 +325,16 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
       },
       child: KeyedSubtree(
         key: _buttonKey,
-        child: Text(
-          '选集',
-          style: TextStyle(
-            color: _isButtonHovered ? Colors.white : _episodeDefaultTextColor,
-            fontSize: 17,
+        // Match the icon action buttons, whose 30x30 tap area carries 4px of
+        // transparent padding per side; bare text would look cramped next to them.
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            '选集',
+            style: TextStyle(
+              color: _isButtonHovered ? Colors.white : _episodeDefaultTextColor,
+              fontSize: 17,
+            ),
           ),
         ),
       ),
