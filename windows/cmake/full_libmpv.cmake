@@ -1,31 +1,76 @@
 function(ensure_full_libmpv_windows)
-  # x86_64: pinned to the vendored mpv-winbuild 20260706-git-c8c7d91a8e
-  # archive hosted by this repo (release vendor-libmpv-20260706), because
-  # upstream zhongfly/mpv-winbuild deletes old releases and the newer
-  # 20260808-git-dd5d17d328 build renders a green bar at the bottom of the
-  # video on Windows. Do NOT bump this pin without runtime-verifying that
-  # regression is gone.
+  # Self-hosted libmpv archive mirror.
+  # Repository: Jankin-Wu/fly-narwhal-libmpv
   #
-  # arm64: no verified-good aarch64 archive is available (upstream deleted
-  # the old release), so it stays on the last pinned upstream build.
+  # Release asset names are fixed so that CMake can always fetch the latest
+  # release via GitHub's /releases/latest/download/<asset> redirect:
+  #   mpv-dev-x86_64.7z
+  #   mpv-dev-aarch64.7z
   #
-  # FLUTTER_TARGET_PLATFORM is defined by the flutter tool via -D on the
-  # cmake command line, so it is available at configure time.
+  # The matching SHA256 checksums are stored in the same repository under
+  # mpv-sha256.txt (one entry per architecture) so the checksum is updated
+  # atomically when a new release is published.
+  #
+  # To publish a new libmpv version:
+  #   1. Upload mpv-dev-x86_64.7z and/or mpv-dev-aarch64.7z to a new release.
+  #   2. Update mpv-sha256.txt in the repository with the new SHA256 values.
+
   if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
-    set(ARCHIVE_NAME "mpv-dev-aarch64-20260808-git-dd5d17d328.7z")
-    set(ARCHIVE_SHA256 "edf1418d21339aa526bf6f3939f09029b637746296e69f9818a128522a16ed5b")
-    set(ARCHIVE_URL "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-08-08-dd5d17d328/${ARCHIVE_NAME}")
+    set(ARCH_TAG "aarch64")
+    set(ARCHIVE_NAME "mpv-dev-aarch64.7z")
   else()
-    set(ARCHIVE_NAME "mpv-dev-x86_64-20260706-git-c8c7d91a8e.7z")
-    set(ARCHIVE_SHA256 "81beeb603d42162fcee96fdaadea2d564282563a054db93431a755d43a2f53c3")
-    set(ARCHIVE_URL "https://github.com/FNOSP/FlyNarwhal/releases/download/vendor-libmpv-20260706/${ARCHIVE_NAME}")
+    set(ARCH_TAG "x86_64")
+    set(ARCHIVE_NAME "mpv-dev-x86_64.7z")
   endif()
+
+  set(MIRROR_OWNER "Jankin-Wu")
+  set(MIRROR_REPO  "fly-narwhal-libmpv")
+  set(MIRROR_URL   "https://github.com/${MIRROR_OWNER}/${MIRROR_REPO}")
+
+  # Fixed asset URL; GitHub redirects /releases/latest/download to the
+  # most recent non-draft release that has this asset name.
+  set(ARCHIVE_URL  "${MIRROR_URL}/releases/latest/download/${ARCHIVE_NAME}")
+  # Fallback to the raw git content when the release asset has not been
+  # uploaded yet (e.g. immediately after creating the repository).
+  set(ARCHIVE_URL_RAW "https://raw.githubusercontent.com/${MIRROR_OWNER}/${MIRROR_REPO}/master/${ARCHIVE_NAME}")
+
+  # Checksums are stored in the git repo so they update atomically with releases.
+  set(SHA256_URL "https://raw.githubusercontent.com/${MIRROR_OWNER}/${MIRROR_REPO}/master/mpv-sha256.txt")
 
   set(LIBMPV_DIR     "${CMAKE_BINARY_DIR}/full_libmpv")
   set(LIBMPV_ARCHIVE "${LIBMPV_DIR}/${ARCHIVE_NAME}")
   set(LIBMPV_DLL     "${LIBMPV_DIR}/libmpv-2.dll")
 
   file(MAKE_DIRECTORY "${LIBMPV_DIR}")
+
+  # -- Fetch and parse the checksum file ------------------------------------
+  set(SHA256_FILE "${LIBMPV_DIR}/mpv-sha256.txt")
+  if(EXISTS "${SHA256_FILE}")
+    file(REMOVE "${SHA256_FILE}")
+  endif()
+  message(STATUS "[full_libmpv] Fetching SHA256 from ${SHA256_URL}")
+  file(DOWNLOAD "${SHA256_URL}" "${SHA256_FILE}" STATUS DL_STATUS)
+  list(GET DL_STATUS 0 DL_STATUS_CODE)
+  if(NOT DL_STATUS_CODE EQUAL 0)
+    list(GET DL_STATUS 1 DL_STATUS_MSG)
+    message(FATAL_ERROR "[full_libmpv] Failed to download SHA256 file: ${DL_STATUS_MSG}")
+  endif()
+
+  # Expected format (one line per architecture, whitespace separated):
+  #   x86_64  <sha256>
+  #   aarch64 <sha256>
+  set(ARCHIVE_SHA256 "")
+  file(STRINGS "${SHA256_FILE}" _sha_lines)
+  foreach(_line IN LISTS _sha_lines)
+    string(REGEX MATCH "^${ARCH_TAG}[ \t]+([a-fA-F0-9]+)" _match "${_line}")
+    if(_match)
+      string(REGEX REPLACE "^${ARCH_TAG}[ \t]+([a-fA-F0-9]+).*" "\\1" ARCHIVE_SHA256 "${_line}")
+      break()
+    endif()
+  endforeach()
+  if(ARCHIVE_SHA256 STREQUAL "")
+    message(FATAL_ERROR "[full_libmpv] Could not find SHA256 for ${ARCH_TAG} in ${SHA256_FILE}")
+  endif()
 
   # -- Validate or download the .7z archive ----------------------------------
   set(NEEDS_DOWNLOAD TRUE)
@@ -50,7 +95,7 @@ function(ensure_full_libmpv_windows)
     # never throws would otherwise hang the whole CMake configure step.
     execute_process(
       COMMAND powershell -NoProfile -ExecutionPolicy Bypass -Command
-        "Write-Host '[full_libmpv] Downloading ~30 MB ...'; $orig = '${ARCHIVE_URL}'; $out = '${OUT_NATIVE}'; $urls = @($orig, \"https://ghfast.top/$orig\", \"https://gh-proxy.com/$orig\", \"https://ghproxy.net/$orig\"); $ok = $false; foreach ($url in $urls) { Write-Host \"[full_libmpv] trying source: $url\"; if (Test-Path $out) { Remove-Item $out -Force }; $job = Start-Job -ScriptBlock { param($u, $o) $ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri $u -OutFile $o -MaximumRedirection 10 -UseBasicParsing -TimeoutSec 30 } -ArgumentList $url, $out; if (Wait-Job $job -Timeout 90) { Receive-Job $job -ErrorAction SilentlyContinue | Out-Null; Remove-Job $job -Force -ErrorAction SilentlyContinue; if ((Test-Path $out) -and ((Get-Item $out).Length -gt 0)) { $size = (Get-Item $out).Length; Write-Host \"[full_libmpv] Download complete: $size bytes\"; $ok = $true; break } else { Write-Host \"[full_libmpv] source produced no file, next\" } } else { Write-Host \"[full_libmpv] source stalled >90s, killing, next\"; Stop-Job $job -ErrorAction SilentlyContinue; Remove-Job $job -Force -ErrorAction SilentlyContinue; if (Test-Path $out) { Remove-Item $out -Force } }; Start-Sleep -Seconds 1 }; if ($ok) { exit 0 } else { Write-Host '[full_libmpv] Download failed from all sources'; exit 1 }"
+        "Write-Host '[full_libmpv] Downloading ~30 MB ...'; $orig = '${ARCHIVE_URL}'; $raw = '${ARCHIVE_URL_RAW}'; $out = '${OUT_NATIVE}'; $urls = @($orig, $raw, \"https://ghfast.top/$orig\", \"https://gh-proxy.com/$orig\", \"https://ghproxy.net/$orig\", \"https://ghfast.top/$raw\", \"https://gh-proxy.com/$raw\", \"https://ghproxy.net/$raw\"); $ok = $false; foreach ($url in $urls) { Write-Host \"[full_libmpv] trying source: $url\"; if (Test-Path $out) { Remove-Item $out -Force }; $job = Start-Job -ScriptBlock { param($u, $o) $ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri $u -OutFile $o -MaximumRedirection 10 -UseBasicParsing -TimeoutSec 30 } -ArgumentList $url, $out; if (Wait-Job $job -Timeout 90) { Receive-Job $job -ErrorAction SilentlyContinue | Out-Null; Remove-Job $job -Force -ErrorAction SilentlyContinue; if ((Test-Path $out) -and ((Get-Item $out).Length -gt 0)) { $size = (Get-Item $out).Length; Write-Host \"[full_libmpv] Download complete: $size bytes\"; $ok = $true; break } else { Write-Host \"[full_libmpv] source produced no file, next\" } } else { Write-Host \"[full_libmpv] source stalled >90s, killing, next\"; Stop-Job $job -ErrorAction SilentlyContinue; Remove-Job $job -Force -ErrorAction SilentlyContinue; if (Test-Path $out) { Remove-Item $out -Force } }; Start-Sleep -Seconds 1 }; if ($ok) { exit 0 } else { Write-Host '[full_libmpv] Download failed from all sources'; exit 1 }"
       RESULT_VARIABLE DL_RESULT
       ERROR_VARIABLE DL_ERROR
     )
@@ -61,7 +106,7 @@ function(ensure_full_libmpv_windows)
     message(STATUS "[full_libmpv] Verifying SHA256...")
     file(SHA256 "${LIBMPV_ARCHIVE}" HASH_AFTER)
     if(NOT HASH_AFTER STREQUAL ARCHIVE_SHA256)
-      message(FATAL_ERROR "[full_libmpv] Archive SHA256 mismatch!`n  expected: ${ARCHIVE_SHA256}`n  got:      ${HASH_AFTER}")
+      message(FATAL_ERROR "[full_libmpv] Archive SHA256 mismatch!\n  expected: ${ARCHIVE_SHA256}\n  got:      ${HASH_AFTER}")
     endif()
     message(STATUS "[full_libmpv] SHA256 verified OK")
   endif()
@@ -138,7 +183,7 @@ function(ensure_full_libmpv_windows)
       ERROR_VARIABLE EXTRACT_ERROR
     )
     if(NOT EXTRACT_RESULT EQUAL 0)
-      message(FATAL_ERROR "[full_libmpv] Extraction failed:`n${EXTRACT_OUTPUT}`n${EXTRACT_ERROR}")
+      message(FATAL_ERROR "[full_libmpv] Extraction failed:\n${EXTRACT_OUTPUT}\n${EXTRACT_ERROR}")
     endif()
     message(STATUS "[full_libmpv] Extraction complete")
 
