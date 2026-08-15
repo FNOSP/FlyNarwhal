@@ -51,6 +51,12 @@ class UpdateBadge extends StatelessWidget {
         child: IconButton(
           key: const ValueKey('update-badge'),
           autofocus: false,
+          // The default IconButton padding yields a ~34px-tall button, which
+          // sits off-center in the 48px title bar next to the 20px compact
+          // caption buttons. Shrink it to match their 20px height.
+          style: const ButtonStyle(
+            padding: WidgetStatePropertyAll(EdgeInsets.all((20 - 18) / 2)),
+          ),
           icon: SvgPicture.asset(
             'assets/images/update.svg',
             key: const ValueKey('update-badge-icon'),
