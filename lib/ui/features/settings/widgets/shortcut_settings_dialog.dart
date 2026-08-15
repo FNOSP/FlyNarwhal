@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../data/storage/shortcut_settings_store.dart';
 import '../../../../providers/providers.dart';
+import '../../../shared/dialogs/app_dialog.dart';
 
 class ShortcutSettingsDialog extends ConsumerStatefulWidget {
   const ShortcutSettingsDialog({super.key});
@@ -75,61 +76,60 @@ class _ShortcutSettingsDialogState
     return KeyEventResult.handled;
   }
 
+  void _onConfirm() {
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ContentDialog(
-      title: const Text('快捷键设置'),
+    return AppDialog(
+      title: '快捷键设置',
+      constraints: const BoxConstraints(
+        minWidth: 520,
+        maxWidth: 560,
+        maxHeight: 480,
+      ),
+      primaryButtonText: '确定',
+      onPrimaryPressed: _onConfirm,
+      secondaryButtonText: '恢复默认',
+      onSecondaryPressed: _resetToDefaults,
       content: Focus(
         autofocus: true,
         onKeyEvent: _handleCaptureKeyEvent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 480),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Row(
-                children: [
-                  Expanded(child: Text('说明')),
-                  SizedBox(
-                    width: _shortcutColumnWidth,
-                    child: Text('快捷键'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Flexible(
-                child: ScrollbarTheme.merge(
-                  data: const ScrollbarThemeData(
-                    crossAxisMargin: -_scrollbarOffset,
-                    hoveringCrossAxisMargin: -_scrollbarOffset,
-                  ),
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      _buildCategorySection(ShortcutCategory.search),
-                      const SizedBox(height: 12),
-                      _buildCategorySection(ShortcutCategory.playback),
-                    ],
-                  ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Expanded(child: Text('说明')),
+                SizedBox(
+                  width: _shortcutColumnWidth,
+                  child: Text('快捷键'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: ScrollbarTheme.merge(
+                data: const ScrollbarThemeData(
+                  crossAxisMargin: -_scrollbarOffset,
+                  hoveringCrossAxisMargin: -_scrollbarOffset,
+                ),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    _buildCategorySection(ShortcutCategory.search),
+                    const SizedBox(height: 12),
+                    _buildCategorySection(ShortcutCategory.playback),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        Button(
-          key: const ValueKey('shortcut-settings-reset'),
-          onPressed: _resetToDefaults,
-          child: const Text('恢复默认'),
-        ),
-        FilledButton(
-          key: const ValueKey('shortcut-settings-confirm'),
-          onPressed: () => Navigator.pop(context),
-          child: const Text('确定'),
-        ),
-      ],
     );
   }
 

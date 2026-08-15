@@ -72,15 +72,15 @@ class ResponseDecoder {
         .join(' ');
   }
 
-  static String previewText(String value, {int limit = 1000}) {
+  static String previewText(String value, {int? limit}) {
     final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (normalized.length <= limit) {
+    if (limit == null || normalized.length <= limit) {
       return normalized;
     }
     return '${normalized.substring(0, limit)}...';
   }
 
-  static String formatForLogging(dynamic data, {int limit = 1000}) {
+  static String formatForLogging(dynamic data, {int? limit}) {
     final bytes = extractBytes(data);
     if (bytes != null) {
       final text = decodeBytes(bytes);

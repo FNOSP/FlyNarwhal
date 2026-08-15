@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:talker/talker.dart';
 import 'package:talker_dio_logger/talker_dio_logger.dart';
 
@@ -18,8 +17,8 @@ const _hiddenHeaders = {
 class LoggingInterceptor extends TalkerDioLogger {
   LoggingInterceptor({
     Talker? talker,
-    this.printRequestBody = false,
-    this.printResponseBody = false,
+    this.printRequestBody = true,
+    this.printResponseBody = true,
     this.printError = true,
   }) : super(
           talker: talker ?? AppTalker.instance,
@@ -27,10 +26,10 @@ class LoggingInterceptor extends TalkerDioLogger {
             enabled: true,
             logLevel: LogLevel.info,
             printRequestData: printRequestBody,
-            printRequestHeaders: kDebugMode,
+            printRequestHeaders: true,
             printRequestExtra: false,
             printResponseData: printResponseBody,
-            printResponseHeaders: false,
+            printResponseHeaders: true,
             printResponseMessage: true,
             printResponseTime: true,
             printErrorData: printError,

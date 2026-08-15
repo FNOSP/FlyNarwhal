@@ -12,6 +12,7 @@ enum PlayerFlyoutType {
   subtitle,
   danmaku,
   settingsMenu,
+  liveChannel,
 }
 
 enum PlayerHoverZone {
@@ -28,6 +29,7 @@ enum PlayerHoverZone {
   danmakuSettings,
   pipControl,
   playbackDetails,
+  liveChannelControl,
 }
 
 class PlayerOverlayState {
@@ -141,6 +143,8 @@ class PlayerOverlayController extends StateNotifier<PlayerOverlayState> {
         return PlayerHoverZone.danmakuSettings;
       case PlayerFlyoutType.settingsMenu:
         return PlayerHoverZone.settingsMenu;
+      case PlayerFlyoutType.liveChannel:
+        return PlayerHoverZone.liveChannelControl;
     }
   }
 

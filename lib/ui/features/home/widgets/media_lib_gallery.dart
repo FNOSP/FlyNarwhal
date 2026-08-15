@@ -99,7 +99,11 @@ class MediaLibGallery extends ConsumerWidget {
                     }
                   },
                   onPlayTap: () {
-                    context.go('/player/${item.guid}');
+                    if (item.type == MediaType.liveChannel.value) {
+                      context.go('/live/${item.guid}');
+                    } else {
+                      context.go('/player/${item.guid}');
+                    }
                   },
                   onFavoriteToggle: onFavoriteToggle,
                   onWatchedToggle: onWatchedToggle,

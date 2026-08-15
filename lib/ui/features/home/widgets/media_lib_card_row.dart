@@ -3,8 +3,10 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../data/models/home_models.dart';
+import '../../../../domain/entities/media_type.dart';
 import '../../../../providers/providers.dart';
 import '../../../shared/common/img_loading_progress_ring.dart';
+import '../../../shared/common/media_poster_placeholder.dart';
 import '../../../shared/common/scroll_row.dart';
 
 class MediaLibCardRow extends ConsumerWidget {
@@ -60,6 +62,7 @@ class MediaLibCardRow extends ConsumerWidget {
                   return MediaLibraryCard(
                     title: item.title,
                     posters: item.posters,
+                    category: item.category,
                     baseUrl: baseUrl,
                     httpHeaders: httpHeaders,
                     scaleFactor: scaleFactor,
@@ -79,6 +82,7 @@ class MediaLibCardRow extends ConsumerWidget {
 class MediaLibraryCard extends StatelessWidget {
   final String title;
   final List<String> posters;
+  final String category;
   final String? baseUrl;
   final Map<String, String>? httpHeaders;
   final double scaleFactor;
@@ -89,6 +93,7 @@ class MediaLibraryCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.posters,
+    required this.category,
     required this.baseUrl,
     required this.httpHeaders,
     required this.scaleFactor,
@@ -98,7 +103,12 @@ class MediaLibraryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visiblePosters = posters.take(4).toList();
+    // 与 Web 首页媒体库卡片一致：IPTV 库无封面时显示直播占位图，
+    // 其余库显示通用"无封面"占位图。
+    final placeholderType =
+        category == 'IPTV' ? MediaType.liveChannel : MediaType.video;
+    final visiblePosters =
+        posters.where((p) => p.trim().isNotEmpty).take(4).toList();
     final borderRadius = 12 * scaleFactor;
     final innerRadius = (borderRadius - 2).clamp(0.0, double.infinity);
     final width = 240 * scaleFactor;
@@ -132,6 +142,7 @@ class MediaLibraryCard extends StatelessWidget {
                             flex: 7,
                             child: _PosterRow(
                               posters: visiblePosters,
+                              placeholderType: placeholderType,
                               baseUrl: baseUrl,
                               httpHeaders: httpHeaders,
                               cacheManager: cacheManager,
@@ -144,6 +155,7 @@ class MediaLibraryCard extends StatelessWidget {
                               transform: Matrix4.identity()..scaleByDouble(1.0, -1.0, 1.0, 1.0),
                               child: _PosterRow(
                                 posters: visiblePosters,
+                                placeholderType: placeholderType,
                                 baseUrl: baseUrl,
                                 httpHeaders: httpHeaders,
                                 cacheManager: cacheManager,
@@ -194,12 +206,14 @@ class MediaLibraryCard extends StatelessWidget {
 
 class _PosterRow extends StatelessWidget {
   final List<String> posters;
+  final MediaType placeholderType;
   final String? baseUrl;
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
 
   const _PosterRow({
     required this.posters,
+    required this.placeholderType,
     required this.baseUrl,
     required this.httpHeaders,
     required this.cacheManager,
@@ -211,7 +225,7 @@ class _PosterRow extends StatelessWidget {
       return Container(
         color: Colors.grey[140].withValues(alpha: 0.2),
         alignment: Alignment.center,
-        child: const Icon(FluentIcons.file_image),
+        child: MediaPosterPlaceholder(type: placeholderType),
       );
     }
 
@@ -227,6 +241,7 @@ class _PosterRow extends StatelessWidget {
               return Expanded(
                 child: _PosterImage(
                   poster: poster,
+                  placeholderType: placeholderType,
                   baseUrl: baseUrl,
                   httpHeaders: httpHeaders,
                   cacheManager: cacheManager,
@@ -242,12 +257,14 @@ class _PosterRow extends StatelessWidget {
 
 class _PosterImage extends StatelessWidget {
   final String poster;
+  final MediaType placeholderType;
   final String? baseUrl;
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
 
   const _PosterImage({
     required this.poster,
+    required this.placeholderType,
     required this.baseUrl,
     required this.httpHeaders,
     required this.cacheManager,
@@ -260,7 +277,7 @@ class _PosterImage extends StatelessWidget {
       return Container(
         color: Colors.grey[140].withValues(alpha: 0.2),
         alignment: Alignment.center,
-        child: const Icon(FluentIcons.file_image),
+        child: MediaPosterPlaceholder(type: placeholderType),
       );
     }
 

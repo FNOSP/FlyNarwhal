@@ -220,6 +220,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String _videoFillMode = 'default';
   bool _isForceH264 = false;
   bool _isForceSdrColor = false;
+  // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | <concrete hwdec api>.
+  String _decodeMode = 'auto';
+  // Hardware decoders shown in the 指定硬件解码器 menu. Initialized with the
+  // platform's known candidates so the menu is never empty, then refined by
+  // the background probe once a file is loaded.
+  late List<HwdecOption> _availableHwdec;
+  bool _hwdecProbeDone = false;
   late final EpisodeAnalysisController _episodeAnalysisController;
   bool _isPipMode = false;
   bool _isPipHovered = false;
@@ -248,6 +255,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    // Start with an empty list until device-level hwdec support is resolved.
+    _availableHwdec = const [];
     _episodeAnalysisController =
         ref.read(episodeAnalysisControllerProvider.notifier);
     _introSkipController = IntroSkipController();
@@ -300,10 +309,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final settingsManager = ref.read(playerSettingsManagerProvider);
     _isForceH264 = settingsManager.getForceH264();
     _isForceSdrColor = settingsManager.getForceSdrColor();
+    _decodeMode = settingsManager.getDecodeMode();
     _sessionCoordinator.forceH264 = _isForceH264;
     _sessionCoordinator.forceSdrColor = _isForceSdrColor;
     unawaited(_ensureSubtitleLanguageMapsLoaded());
-    _initializePlayer();
+    unawaited(_initializePlayerSession());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_isMacOS) {
         return;
@@ -346,6 +356,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       configuration: const PlayerConfiguration(libass: true),
     );
     await _applyDefaultMpvSubtitleSettings(_player!);
+    await _applyDecodeMode(_player!);
     _videoController = VideoController(_player!);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
@@ -358,6 +369,55 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await _loadAndPlayMedia();
     if (mounted) {
       _playerFocusNode.requestFocus();
+    }
+  }
+
+  // Resolve supported hwdec APIs before player startup so an old persisted
+  // concrete decoder never gets applied on unsupported hardware.
+  Future<void> _initializePlayerSession() async {
+    await _restoreSupportedHwdecState();
+    await _initializePlayer();
+  }
+
+  // Keep the settings menu and persisted decode mode aligned with the current
+  // machine's confirmed hardware/runtime support.
+  Future<void> _restoreSupportedHwdecState() async {
+    final settingsManager = ref.read(playerSettingsManagerProvider);
+    final savedDecodeMode = _decodeMode;
+
+    try {
+      final supportedApis = await ref
+          .read(playerDeviceContextServiceProvider)
+          .loadSupportedHwdecApis();
+      final supportedOptions = List<HwdecOption>.unmodifiable(
+        supportedApis
+            .map((api) => HwdecOption(api: api, label: _hwdecApiLabel(api)))
+            .toList(),
+      );
+      final sanitizedDecodeMode =
+          sanitizePlayerDecodeMode(savedDecodeMode, supportedApis);
+
+      if (mounted) {
+        setState(() {
+          _availableHwdec = supportedOptions;
+          _decodeMode = sanitizedDecodeMode;
+        });
+      } else {
+        _availableHwdec = supportedOptions;
+        _decodeMode = sanitizedDecodeMode;
+      }
+
+      if (sanitizedDecodeMode != savedDecodeMode) {
+        await settingsManager.setDecodeMode(sanitizedDecodeMode);
+      }
+    } catch (error, stackTrace) {
+      AppTalker.warning('Player', 'Failed to resolve hwdec support: $error');
+      AppTalker.instance.handle(error, stackTrace);
+      _availableHwdec = const [];
+      _decodeMode = sanitizePlayerDecodeMode(savedDecodeMode, const []);
+      if (_decodeMode != savedDecodeMode) {
+        await settingsManager.setDecodeMode(_decodeMode);
+      }
     }
   }
 
@@ -375,6 +435,167 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       'sub-pos',
       _defaultMpvSubtitlePosition,
     );
+  }
+
+  /// Applies the user's decode mode to mpv via the [hwdec] property. mpv
+  /// re-initializes the video decoder on change, so this takes effect for the
+  /// currently playing stream without reopening.
+  Future<void> _applyDecodeMode(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer) {
+      return;
+    }
+    await platform.setProperty('hwdec', _decodeMode);
+  }
+
+  /// Probes which hardware decoders (hwdec APIs) actually work for the current
+  /// file on this machine, without disturbing the active player. Because mpv's
+  /// `hwdec-current` does not reliably update when `hwdec` is changed live on
+  /// a playing instance (mpv issue #4289), each candidate is tried by opening
+  /// the same [playUri] on a short-lived, picture-less dedicated [Player] and
+  /// reading back `hwdec-current`. Runs once, in the background, with a
+  /// timeout. The candidate list is already filtered by device/runtime support;
+  /// this probe only narrows it down further for the current stream when mpv
+  /// can confirm a concrete API.
+  Future<void> _probeAvailableHwdec({required String playUri}) async {
+    if (_hwdecProbeDone || playUri.isEmpty) {
+      return;
+    }
+    _hwdecProbeDone = true;
+
+    final fallbackOptions = List<HwdecOption>.from(_availableHwdec);
+    final candidates = fallbackOptions.map((option) => option.api).toList();
+    if (candidates.isEmpty) {
+      return;
+    }
+
+    final found = <HwdecOption>[];
+
+    // Share the same referrer/origin headers as the real playback so the
+    // source is reachable during the probe.
+    final headers = _sessionCoordinator.buildPlayerHeaders();
+    Player? probePlayer;
+    try {
+      probePlayer = Player(
+        configuration: const PlayerConfiguration(libass: false),
+      );
+      final platform = probePlayer.platform;
+      for (final api in candidates) {
+        if (platform is! NativePlayer) {
+          break;
+        }
+        try {
+          if (probePlayer.state.playing) {
+            await probePlayer.stop();
+          }
+          // Apply hwdec before opening so the decoder initializes with it
+          // from the start. Setting `hwdec` on an already-playing instance
+          // doesn't reliably update `hwdec-current` (mpv issue #4289), which
+          // is exactly the path the old open-then-set ordering exercised.
+          await platform.setProperty('hwdec', api);
+          await probePlayer.open(Media(playUri, httpHeaders: headers));
+          // A non-empty result means the api engaged for this stream.
+          final current = await _waitForHwdecCurrent(platform, api);
+          if (current.isNotEmpty && !found.any((option) => option.api == api)) {
+            found.add(HwdecOption(api: api, label: _hwdecApiLabel(api)));
+          }
+        } catch (_) {
+          // A candidate needs its own decoder and file support (e.g. HEVC
+          // vs. AVC); fallthrough to the next one.
+        }
+      }
+
+      // Also read the active player's chosen hwdec so current-stream success
+      // can still narrow the list even if the probe player times out.
+      final activePlayer = _player;
+      final activePlatform = activePlayer?.platform;
+      if (activePlatform is NativePlayer) {
+        try {
+          final activeCurrent =
+              await activePlatform.getProperty('hwdec-current');
+          if (activeCurrent.isNotEmpty &&
+              activeCurrent != 'no' &&
+              activeCurrent != 'auto' &&
+              !found.any(
+                (o) =>
+                    o.api == activeCurrent || activeCurrent == '${o.api}-copy',
+              )) {
+            final normalizedApi = activeCurrent.endsWith('-copy')
+                ? activeCurrent.substring(0, activeCurrent.length - 5)
+                : activeCurrent;
+            if (candidates.contains(normalizedApi)) {
+              found.add(
+                HwdecOption(
+                  api: normalizedApi,
+                  label: _hwdecApiLabel(normalizedApi),
+                ),
+              );
+            }
+          }
+        } catch (_) {
+          // The active player may have been disposed mid-probe; ignore.
+        }
+      }
+
+      if (mounted && found.isNotEmpty) {
+        setState(() => _availableHwdec = List.unmodifiable(found));
+      }
+    } catch (e, st) {
+      AppTalker.error(
+        'Player',
+        error: e,
+        stackTrace: st,
+        message: 'hwdec probe failed',
+      );
+    } finally {
+      try {
+        await probePlayer?.dispose();
+      } catch (_) {}
+    }
+  }
+
+  /// Polls mpv's `hwdec-current` after switching [api] on a probe player. The
+  /// value only becomes non-empty/reflecting the api once the decoder for the
+  /// current stream has been re-initialized; a decoupled read would falsely
+  /// report the fallback. Returns empty if it never converges within the
+  /// timeout.
+  ///
+  /// MediaKit renders via libmpv's OpenGL render API (`mpv_render_context`),
+  /// where hardware frames cannot be handed to the renderer zero-copy; mpv
+  /// falls back to copy-back and reports `hwdec-current` with a `-copy`
+  /// suffix (e.g. `videotoolbox-copy`). So an api both exact- and `-copy`-
+  /// matched counts as usable. `hwdec` is still stored/returned as the plain
+  /// api (mpv accepts it and just uses the copy variant).
+  Future<String> _waitForHwdecCurrent(
+    NativePlayer platform,
+    String api,
+  ) async {
+    const attempts = 40;
+    const step = Duration(milliseconds: 100);
+    for (var i = 0; i < attempts; i++) {
+      if (!mounted) {
+        return '';
+      }
+      final current = await platform.getProperty('hwdec-current');
+      if (current == api || current == '$api-copy') {
+        return current;
+      }
+      await Future<void>.delayed(step);
+    }
+    return '';
+  }
+
+  /// Human-readable label for a hwdec API probe candidate.
+  String _hwdecApiLabel(String api) {
+    return switch (api) {
+      'videotoolbox' => 'VideoToolbox',
+      'd3d11va' => 'Windows D3D11',
+      'nvdec' => 'NVIDIA NVDEC',
+      'cuda' => 'CUDA',
+      'vaapi' => 'Linux VAAPI',
+      'vdpau' => 'VDPAU',
+      _ => api.toUpperCase(),
+    };
   }
 
   Future<void> _applyDirectLinkCachePolicy(Player player) async {
@@ -1224,7 +1445,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playbackDetailsTranscodeStatus = null;
     _playbackDetailsRefreshTimer?.cancel();
     _playbackDetailsRefreshTimer = null;
-    _overlayController.setHovered(PlayerHoverZone.playbackDetails, false);
     _episodeList = [];
     _currentEpisode = null;
     _nextEpisode = null;
@@ -1639,8 +1859,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final state = player.state;
       final positionMs = state.position.inMilliseconds;
       final durationMs = state.duration.inMilliseconds;
-      if (positionMs > 0 &&
-          (positionMs - startPositionMs).abs() <= 3000) {
+      if (positionMs > 0 && (positionMs - startPositionMs).abs() <= 3000) {
         return;
       }
       if (durationMs > 0) {
@@ -1667,8 +1886,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // that duration is known so the correction is not silently lost.
     final afterSeekPosition = player.state.position.inMilliseconds;
     final afterSeekDeviation = (afterSeekPosition - startPositionMs).abs();
-    if (afterSeekDeviation > 3000 &&
-        player.state.duration.inMilliseconds > 0) {
+    if (afterSeekDeviation > 3000 && player.state.duration.inMilliseconds > 0) {
       await _seekExecutor.performSeek(
         targetMilliseconds: startPositionMs,
         origin: PlayerSeekOrigin.resumeCorrection,
@@ -2257,6 +2475,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       audioGuid: audioGuid,
       subtitleGuid: subtitleGuid,
       startPositionMs: startPositionMs,
+      quality: cache.currentQuality,
     );
     if (!mounted) return;
 
@@ -2306,6 +2525,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           mediaGuid: _currentMediaGuid,
           audioGuid: _requestedAudioGuid,
           subtitleGuid: _requestedSubtitleGuid,
+          userGuid: ref.read(userInfoProvider).valueOrNull?.guid,
         ),
       );
       if (!mounted || requestToken != _loadRequestToken) {
@@ -2420,6 +2640,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       // Start the initial idle countdown after playback state is finalized.
       _showUi();
+
+      // Probe which hardware decoders actually work for this file (in the
+      // background, without touching the active player) so the
+      // 指定硬件解码器 menu can list them.
+      unawaited(
+        _probeAvailableHwdec(playUri: result.preparedPlaySource.playUri),
+      );
 
       _fetchEpisodeContextAsync(requestToken);
 
@@ -2972,9 +3199,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     unawaited(_restartPlaybackForTranscodeSettings());
   }
 
+  void _onDecodeModeChanged(String mode) {
+    if (mode == _decodeMode) return;
+    setState(() => _decodeMode = mode);
+    unawaited(ref.read(playerSettingsManagerProvider).setDecodeMode(mode));
+    final player = _player;
+    if (player != null) {
+      unawaited(_applyDecodeMode(player));
+    }
+  }
+
   /// Mirrors the web player's switchURL flow: re-issue play/play with the
   /// current position and quality so the server applies the new encoder/SDR
-  /// settings, quitting the old transcode session first.
+  /// settings, quitting the old transcode session first. When both force
+  /// settings are off again, a session that was originally direct-link is
+  /// restored to direct-link playback instead of staying on the transcode
+  /// session created for the toggles.
   Future<void> _restartPlaybackForTranscodeSettings() async {
     final cache = _playingInfoCache;
     final player = _player;
@@ -2987,43 +3227,80 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() => _isLoading = true);
       final currentPosition = player.state.position.inMilliseconds;
       final currentPlayLink = cache.playLink;
-      if (!cache.isUseDirectLink &&
+      final hasTranscodeSession = !cache.isUseDirectLink &&
           currentPlayLink != null &&
-          currentPlayLink.isNotEmpty) {
-        await ref
-            .read(mediaPViewModelProvider.notifier)
-            .quit(MediaPRequest(playLink: currentPlayLink));
-      }
-      final audioGuid = cache.currentAudioStream?.guid ??
-          _selectedAudioGuid ??
-          _requestedAudioGuid ??
-          _playInfo?.audioGuid ??
-          '';
-      final playRequest = _sessionCoordinator.createPlayRequest(
-        videoStream: videoStream,
-        fileStream: fileStream,
-        audioGuid: audioGuid,
-        subtitleGuid: cache.currentSubtitleStream?.guid,
-      );
-      final response = await ref.read(playerServiceProvider).playVideo(
-            PlayPlayRequest(
-              mediaGuid: playRequest.mediaGuid,
-              videoGuid: playRequest.videoGuid,
-              videoEncoder: playRequest.videoEncoder,
-              resolution: _currentResolution.isNotEmpty
-                  ? _currentResolution
-                  : playRequest.resolution,
-              bitrate: _currentBitrate ?? playRequest.bitrate,
-              startTimestamp: currentPosition ~/ 1000,
-              audioEncoder: playRequest.audioEncoder,
-              audioGuid: playRequest.audioGuid,
-              subtitleGuid: playRequest.subtitleGuid,
-              channels: playRequest.channels,
-              forcedSdr: playRequest.forcedSdr,
-            ),
+          currentPlayLink.isNotEmpty;
+      // Direct link is only available for the original quality (and never
+      // for Dolby Vision profile 5, which must stay on HLS), so restoring it
+      // must not silently change a quality the user picked while forcing.
+      final restoreDirectLink = !_sessionCoordinator.transcodeForced &&
+          hasTranscodeSession &&
+          _sessionCoordinator.supportsDirectLink(
+            videoStream,
+            cache.currentQuality,
+            cache.currentQualities,
           );
-      await _handlePlayPlaySuccess(response, startPositionMs: currentPosition);
+      if (restoreDirectLink) {
+        // updateState: false — this flow drives the direct-link restore
+        // itself, so the quit-response listener must not reopen the direct
+        // link in parallel.
+        await ref.read(mediaPViewModelProvider.notifier).quit(
+              MediaPRequest(playLink: currentPlayLink),
+              updateState: false,
+            );
+        await _reopenPlaybackWithDirectLink(startPositionMs: currentPosition);
+        final verified = await _verifyPlaybackStarted();
+        if (!verified && mounted) {
+          await _fallbackToHlsFromDirectLink(
+            startPositionMs: currentPosition,
+          );
+        }
+      } else {
+        if (hasTranscodeSession) {
+          // updateState: false — this flow reopens playback itself via
+          // play/play below, so the quit-response listener must not reopen
+          // the direct link in parallel.
+          await ref.read(mediaPViewModelProvider.notifier).quit(
+                MediaPRequest(playLink: currentPlayLink),
+                updateState: false,
+              );
+        }
+        final audioGuid = cache.currentAudioStream?.guid ??
+            _selectedAudioGuid ??
+            _requestedAudioGuid ??
+            _playInfo?.audioGuid ??
+            '';
+        final playRequest = _sessionCoordinator.createPlayRequest(
+          videoStream: videoStream,
+          fileStream: fileStream,
+          audioGuid: audioGuid,
+          subtitleGuid: cache.currentSubtitleStream?.guid,
+        );
+        final response = await ref.read(playerServiceProvider).playVideo(
+              PlayPlayRequest(
+                mediaGuid: playRequest.mediaGuid,
+                videoGuid: playRequest.videoGuid,
+                videoEncoder: playRequest.videoEncoder,
+                resolution: _currentResolution.isNotEmpty
+                    ? _currentResolution
+                    : playRequest.resolution,
+                bitrate: _currentBitrate ?? playRequest.bitrate,
+                startTimestamp: currentPosition ~/ 1000,
+                audioEncoder: playRequest.audioEncoder,
+                audioGuid: playRequest.audioGuid,
+                subtitleGuid: playRequest.subtitleGuid,
+                channels: playRequest.channels,
+                forcedSdr: playRequest.forcedSdr,
+              ),
+            );
+        await _handlePlayPlaySuccess(response,
+            startPositionMs: currentPosition);
+      }
       if (mounted) setState(() => _isLoading = false);
+      // The server-side playback session was recreated (or restored to
+      // direct link), so any transcode statistics held by the details panel
+      // are stale; re-query the media/p endpoint immediately.
+      _refreshPlaybackDetailsImmediately();
     } catch (e) {
       AppTalker.warning('Player', 'restart for transcode settings failed: $e');
       if (mounted) {
@@ -3230,6 +3507,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final fileStream = cache.currentFileStream;
     final currentAudio = cache.currentAudioStream;
     if (videoStream == null || fileStream == null) return;
+    // Persist the selected quality so the next playback session can restore it.
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setQuality(
+            quality.resolution,
+            quality.bitrate,
+            userGuid: ref.read(userInfoProvider).valueOrNull?.guid,
+          ),
+    );
 
     try {
       setState(() => _isLoading = true);
@@ -3626,7 +3911,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (context.canPop()) {
         context.pop();
       } else {
-        context.go('/home');
+        // Return to the page the player was entered from. The player route
+        // sits outside the ShellRoute, so it is never on the navigation
+        // stack itself and the entry `go` replaced it.
+        final stack = ref.read(navigationStackProvider.notifier);
+        final sourcePath = stack.playerSourcePath;
+        stack.playerSourcePath = null;
+        context.go(sourcePath ?? '/home');
       }
     });
   }
@@ -3707,10 +3998,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _scheduleMacOSWindowButtonsSync(
       visible: overlayState.isUiVisible,
     );
-    final playerCursor =
-        _isInitialized && !_isPipMode && !overlayState.isUiVisible
-            ? SystemMouseCursors.none
-            : SystemMouseCursors.click;
+    final playerCursor = _isInitialized &&
+            !_isPipMode &&
+            !overlayState.isUiVisible &&
+            // Keep the cursor clickable while the “播放详细信息” panel is open
+            // even after the transport controls auto-hide, so the user can
+            // still scroll it / press its close button.
+            !_isPlaybackDetailsVisible
+        ? SystemMouseCursors.none
+        : SystemMouseCursors.click;
 
     final playerStack = MouseRegion(
       cursor: playerCursor,
@@ -3813,31 +4109,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     right: 0,
                     child: _buildTopBar(),
                   ),
-                  if (_isPlaybackDetailsVisible && _playingInfoCache != null)
-                    Positioned(
-                      top: 56,
-                      right: 20,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width - 32,
-                          maxHeight: MediaQuery.of(context).size.height - 76,
-                        ),
-                        child: PlaybackDetailsPanel(
-                          key: const ValueKey(
-                            'player-playback-details-panel',
-                          ),
-                          cache: _playingInfoCache!,
-                          transcodeStatus: _playbackDetailsTranscodeStatus,
-                          bufferedSeconds: _isInitialized
-                              ? ((_bufferedPosition - _currentPosition) / 1000)
-                                  .clamp(0.0, double.infinity)
-                              : null,
-                          onClose: () => setState(
-                            () => _isPlaybackDetailsVisible = false,
-                          ),
-                        ),
-                      ),
-                    ),
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -3892,6 +4163,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
                 ],
+              ),
+            ),
+          // The “播放详细信息” panel is deliberately rendered OUTSIDE the
+          // AnimatedOpacity that fades the transport controls, so it stays on
+          // screen when the controls auto-hide. Its open state is independent
+          // of the overlay's auto-hide: moving the mouse arms the 3s control
+          // hide timer even while hovering the panel, and the panel itself
+          // remains until explicitly closed.
+          if (_isInitialized &&
+              !_isPipMode &&
+              _isPlaybackDetailsVisible &&
+              _playingInfoCache != null)
+            Positioned(
+              top: 56,
+              right: 20,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width - 32,
+                  maxHeight: MediaQuery.of(context).size.height - 76,
+                ),
+                child: PlaybackDetailsPanel(
+                  key: const ValueKey('player-playback-details-panel'),
+                  cache: _playingInfoCache!,
+                  transcodeStatus: _playbackDetailsTranscodeStatus,
+                  bufferedSeconds: _isInitialized
+                      ? ((_bufferedPosition - _currentPosition) / 1000)
+                          .clamp(0.0, double.infinity)
+                      : null,
+                  onClose: _closePlaybackDetails,
+                ),
               ),
             ),
           if (_isInitialized && _isPipMode) _buildPipOverlay(),
@@ -4508,6 +4809,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onForceSdrColorChanged:
               _forceSdrDisabledReason == null ? _onForceSdrColorChanged : null,
           forceSdrDisabledReason: _forceSdrDisabledReason,
+          decodeMode: _decodeMode,
+          onDecodeModeChanged: _onDecodeModeChanged,
+          availableHwdec: _availableHwdec,
           onSkipConfigChanged: (skipOpening, skipEnding) {
             unawaited(_saveSkipConfig(skipOpening, skipEnding));
           },
@@ -4548,24 +4852,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _togglePlaybackDetails() {
-    final isVisible = !_isPlaybackDetailsVisible;
-    setState(() => _isPlaybackDetailsVisible = isVisible);
-    // Keep the overlay (and thus the panel) visible while it is open, the
-    // same way open flyouts hold the UI on screen.
-    _overlayController.setHovered(PlayerHoverZone.playbackDetails, isVisible);
-    if (isVisible) {
-      _showUi();
-      _refreshPlaybackDetailsTranscodeStatus();
-      // The web panel polls the transcode statistics while open, so quality
-      // or audio switches and live counters update without reopening it.
-      _playbackDetailsRefreshTimer ??= Timer.periodic(
-        const Duration(seconds: 30),
-        (_) => _refreshPlaybackDetailsTranscodeStatus(),
-      );
-    } else {
-      _playbackDetailsRefreshTimer?.cancel();
-      _playbackDetailsRefreshTimer = null;
+    if (_isPlaybackDetailsVisible) {
+      _closePlaybackDetails();
+      return;
     }
+    setState(() => _isPlaybackDetailsVisible = true);
+    _showUi();
+    _refreshPlaybackDetailsTranscodeStatus();
+    // The web panel polls the transcode statistics while open, so quality
+    // or audio switches and live counters update without reopening it.
+    _playbackDetailsRefreshTimer ??= Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refreshPlaybackDetailsTranscodeStatus(),
+    );
+  }
+
+  /// Closes the “播放详细信息” panel. Kept a single code path so the panel's
+  /// close button and the top-bar toggle run the exact same cleanup. The panel
+  /// is rendered independently of the control overlay, so closing it simply
+  /// flips the visibility flag, stops the transcode polling and re-arms the
+  /// control auto-hide timer.
+  void _closePlaybackDetails() {
+    if (_isPlaybackDetailsVisible) {
+      setState(() => _isPlaybackDetailsVisible = false);
+    }
+    _playbackDetailsRefreshTimer?.cancel();
+    _playbackDetailsRefreshTimer = null;
+    _showUi();
   }
 
   /// Mirrors the web player's play-type derivation: direct-link sessions are

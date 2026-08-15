@@ -53,8 +53,8 @@ class FileMediaInfoDialog extends StatelessWidget {
       constraints: _dialogConstraints,
       style: ContentDialogThemeData(
         decoration: BoxDecoration(
-          color: appDialogSurfaceColor,
-          border: Border.all(color: appDialogSecondaryBorderColor),
+          color: appDialogDarkSurfaceColor,
+          border: Border.all(color: appDialogDarkSecondaryBorderColor),
           borderRadius: BorderRadius.circular(24),
           boxShadow: const [
             BoxShadow(

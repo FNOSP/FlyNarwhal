@@ -177,22 +177,24 @@ class AppTalker {
   }
 
   static void _outputToConsole(String message) {
+    final truncatedMessage = _truncateForConsole(message);
+
     if (kIsWeb) {
       // ignore: avoid_print
-      print(message);
+      print(truncatedMessage);
       return;
     }
 
     // Route desktop logs through the async worker when it is available.
     if (_isDesktopPlatform() &&
         _desktopAsyncOutputEnabled &&
-        _dispatcher.enqueueDesktopConsoleLine(message)) {
+        _dispatcher.enqueueDesktopConsoleLine(truncatedMessage)) {
       return;
     }
 
     switch (defaultTargetPlatform) {
       case TargetPlatform.iOS:
-        developer.log(message, name: 'Talker');
+        developer.log(truncatedMessage, name: 'Talker');
         break;
       case TargetPlatform.windows:
         // Windows debug output can synchronously block when the debugger pipe
@@ -200,13 +202,25 @@ class AppTalker {
         break;
       case TargetPlatform.android:
       case TargetPlatform.fuchsia:
-        debugPrint(message);
+        debugPrint(truncatedMessage);
         break;
       case TargetPlatform.macOS:
       case TargetPlatform.linux:
-        debugPrint(message);
+        debugPrint(truncatedMessage);
         break;
     }
+  }
+
+  /// Console output keeps each line bounded so verbose network payloads don't
+  /// flood the terminal. File history is not affected: the full untruncated
+  /// message is still persisted by [TalkerFileHistory].
+  static const int _consoleLineLimit = 1000;
+
+  static String _truncateForConsole(String message) {
+    if (message.length <= _consoleLineLimit) {
+      return message;
+    }
+    return '${message.substring(0, _consoleLineLimit)}...';
   }
 
   @visibleForTesting

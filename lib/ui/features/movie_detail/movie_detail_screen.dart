@@ -1004,7 +1004,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
 
   Future<void> _playMedia() async {
     // Navigate to player screen
-    ref.read(navigationStackProvider.notifier).pushPath('/home');
+    ref.read(navigationStackProvider.notifier).playerSourcePath =
+        '/movie/${widget.guid}';
     context.go(
       '/player/${widget.guid}'
       '?media_guid=$_currentMediaGuid'

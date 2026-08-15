@@ -174,7 +174,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
         target = '/person/$guid';
         break;
       case SearchResultType.liveChannel:
-        target = '/player/$guid';
+        target = '/live/$guid';
         break;
       default:
         target = null;

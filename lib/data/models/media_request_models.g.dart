@@ -28,3 +28,11 @@ Map<String, dynamic> _$PlayRecordRequestToJson(PlayRecordRequest instance) =>
       'lan': instance.lan,
       'device_name': instance.deviceName,
     };
+
+Map<String, dynamic> _$LivePlayRecordRequestToJson(
+        LivePlayRecordRequest instance) =>
+    <String, dynamic>{
+      'item_guid': instance.itemGuid,
+      'media_guid': instance.mediaGuid,
+      'ts': instance.ts,
+    };

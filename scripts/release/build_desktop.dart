@@ -127,6 +127,10 @@ Future<void> _runProtectedBuild({
         'scripts/macos/verify_full_libmpv.dart.',
       );
       stdout.writeln(
+        'Ad-hoc sign .app with codesign to avoid "app is damaged" on '
+        'first launch.',
+      );
+      stdout.writeln(
         'Package .app into a distributable .dmg via hdiutil.',
       );
     }
@@ -154,6 +158,7 @@ Future<void> _runProtectedBuild({
   }
   if (platform == 'macos') {
     await _runMacosFullLibmpvVerify(bundleDirectory);
+    await _runMacosAdHocSign(bundleDirectory);
     await _runMacosPackageDmg(
       bundleDirectory: bundleDirectory,
       architecture: architecture,
@@ -659,7 +664,8 @@ Future<void> _validateRpmPackage(File rpm, String architecture) async {
   if (result.exitCode != 0) {
     _fail('rpm validation failed for ${rpm.path}: ${result.stderr}');
   }
-  final expectedArch = _updateArch(architecture) == 'aarch64' ? 'aarch64' : 'x86_64';
+  final expectedArch =
+      _updateArch(architecture) == 'aarch64' ? 'aarch64' : 'x86_64';
   final output = result.stdout.toString();
   if (!output.contains('Architecture: $expectedArch')) {
     _fail(
@@ -715,6 +721,32 @@ Future<void> _runMacosFullLibmpvVerify(String bundleDirectory) async {
     arguments: <String>[
       'run',
       'scripts/macos/verify_full_libmpv.dart',
+      appRoot,
+    ],
+    dryRun: false,
+  );
+}
+
+Future<void> _runMacosAdHocSign(String bundleDirectory) async {
+  // bundleDirectory points at .../Contents/MacOS; the .app root is two
+  // directories up from there (Contents/MacOS -> Contents -> FlyNarwhal.app).
+  final appRoot = Directory(bundleDirectory).parent.parent.path;
+  if (!Directory(appRoot).existsSync()) {
+    _fail('FlyNarwhal.app is missing; cannot ad-hoc sign');
+  }
+
+  // Ad-hoc signing does not require an Apple Developer certificate and is
+  // sufficient to prevent the "app is damaged" Gatekeeper prompt on first
+  // launch. Users will still see an "unidentified developer" warning that can
+  // be bypassed via System Settings or xattr (see README).
+  stdout.writeln('Ad-hoc signing $appRoot...');
+  await _runProcess(
+    executable: 'codesign',
+    arguments: <String>[
+      '--force',
+      '--deep',
+      '--sign',
+      '-',
       appRoot,
     ],
     dryRun: false,

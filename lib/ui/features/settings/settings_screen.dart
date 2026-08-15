@@ -16,6 +16,7 @@ import '../../shared/toast.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/shortcut_settings_dialog.dart';
+import 'widgets/support_author_item.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -663,6 +664,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   }
                                 },
                               ),
+                              const SupportAuthorItem(),
                               CardExpanderItem(
                                 icon: Builder(
                                   builder: (context) {

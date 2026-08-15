@@ -23,6 +23,13 @@ class WindowCaption extends StatefulWidget {
   final bool showBackButton;
   final VoidCallback? onBack;
 
+  /// When provided, a three-line "hamburger" button is rendered to the left
+  /// of the back button. Tapping it invokes [onNavToggle] so callers can
+  /// open/close the side navigation pane. Used in the minimal layout to
+  /// mirror the [NavigationView]'s built-in toggle.
+  final VoidCallback? onNavToggle;
+  final bool showNavToggle;
+
   const WindowCaption({
     super.key,
     this.title,
@@ -35,6 +42,8 @@ class WindowCaption extends StatefulWidget {
     this.onRefreshPressed,
     this.showBackButton = false,
     this.onBack,
+    this.onNavToggle,
+    this.showNavToggle = false,
   });
 
   @override
@@ -67,6 +76,12 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
         children: [
           Row(
             children: [
+              if (widget.showNavToggle || widget.onNavToggle != null)
+                WindowCaptionNavToggleButton(
+                  key: const ValueKey('window-caption-nav-toggle-button'),
+                  brightness: widget.brightness,
+                  onPressed: widget.onNavToggle,
+                ),
               if (widget.showBackButton || widget.onBack != null)
                 WindowCaptionBackButton(
                   key: const ValueKey('window-caption-back-button'),
@@ -259,6 +274,104 @@ class _WindowCaptionBackButtonState extends State<WindowCaptionBackButton> {
                 FluentIcons.back,
                 size: iconSize,
                 color: iconColor,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A three-line "hamburger" button rendered to the left of the back button in
+/// the [WindowCaption] when the navigation pane is in minimal mode. Tapping
+/// it invokes [onPressed] so the caller can open/close the side pane, which
+/// mirrors the [NavigationView]'s built-in [PaneToggleButton] behavior.
+class WindowCaptionNavToggleButton extends StatefulWidget {
+  // Null means the button is shown but disabled (grayed out, non-interactive).
+  final VoidCallback? onPressed;
+  final Brightness? brightness;
+  final bool compact;
+  final String semanticLabel;
+
+  const WindowCaptionNavToggleButton({
+    super.key,
+    this.onPressed,
+    this.brightness,
+    this.compact = false,
+    this.semanticLabel = '切换导航栏',
+  });
+
+  const WindowCaptionNavToggleButton.compact({
+    super.key,
+    this.onPressed,
+    this.brightness,
+    this.semanticLabel = '切换导航栏',
+  }) : compact = true;
+
+  @override
+  State<WindowCaptionNavToggleButton> createState() =>
+      _WindowCaptionNavToggleButtonState();
+}
+
+class _WindowCaptionNavToggleButtonState
+    extends State<WindowCaptionNavToggleButton> {
+  bool _isHovered = false;
+
+  bool get _isEnabled => widget.onPressed != null;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black;
+    // Dim the icon when the button is disabled.
+    final iconColor = _isEnabled
+        ? baseColor
+        : baseColor.withValues(alpha: 0.3);
+    final buttonSize = widget.compact ? 28.0 : 46.0;
+    // menu.svg's glyph only fills ~78% of its viewBox, so the nominal size
+    // runs larger than a font icon for the same visual weight.
+    final iconSize = widget.compact ? 16.0 : 18.0;
+    final hoverBackground = widget.compact
+        ? (isDark
+            ? Colors.white.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.06))
+        : (isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.black.withValues(alpha: 0.05));
+    // Only apply hover background when enabled.
+    final backgroundColor =
+        (_isHovered && _isEnabled) ? hoverBackground : Colors.transparent;
+    final borderRadius = BorderRadius.circular(widget.compact ? 14 : 0);
+
+    return Semantics(
+      button: true,
+      enabled: _isEnabled,
+      label: widget.semanticLabel,
+      child: Tooltip(
+        message: widget.semanticLabel,
+        child: MouseRegion(
+          cursor: _isEnabled
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _isEnabled ? widget.onPressed : null,
+            child: Container(
+              width: buttonSize,
+              height: widget.compact ? buttonSize : kWindowTitleBarHeight,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: borderRadius,
+              ),
+              child: SvgPicture.asset(
+                'assets/images/menu.svg',
+                width: iconSize,
+                height: iconSize,
+                colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
               ),
             ),
           ),

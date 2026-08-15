@@ -80,6 +80,12 @@ class UpdateMarkdownView extends StatelessWidget {
   MarkdownStyleSheet _buildStyleSheet(BuildContext context) {
     final theme = FluentTheme.of(context);
     final bodyStyle = theme.typography.body?.copyWith(fontSize: 16);
+    // The package default paints blockquotes/code blocks with a fixed light
+    // blue/card background, which is unreadable under the dark theme; derive
+    // both from the fluent palette instead.
+    final quoteSurface = theme.brightness == Brightness.dark
+        ? theme.resources.cardBackgroundFillColorSecondary
+        : theme.resources.cardBackgroundFillColorDefault;
     return MarkdownStyleSheet(
       p: bodyStyle,
       a: bodyStyle?.copyWith(
@@ -91,6 +97,14 @@ class UpdateMarkdownView extends StatelessWidget {
         backgroundColor: theme.resources.cardBackgroundFillColorSecondary,
       ),
       blockquote: bodyStyle,
+      blockquoteDecoration: BoxDecoration(
+        color: quoteSurface,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: quoteSurface,
+        borderRadius: BorderRadius.circular(4),
+      ),
       listBullet: bodyStyle,
       tableBody: bodyStyle,
       tableHead: bodyStyle?.copyWith(fontWeight: FontWeight.w600),
