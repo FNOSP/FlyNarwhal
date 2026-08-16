@@ -387,6 +387,13 @@ final class UpdateController extends StateNotifier<UpdateState> {
       if (activeDownloadCandidate != null) {
         state = state.copyWith(
           task: state.task.copyWith(candidate: state.task.candidate),
+          presentation: manual
+              ? const UpdatePresentationState(
+                  dialogPhase: UpdateDialogPhase.available,
+                  isDialogVisible: true,
+                  isUpdatePromptVisible: true,
+                )
+              : state.presentation,
           lastSuccessfulCheckAt: successfulCheckAt,
           clearFailure: true,
         );
@@ -763,11 +770,34 @@ final class UpdateController extends StateNotifier<UpdateState> {
       operationId: operationId,
       artifact: verifiedArtifact,
     ));
-    if (result is PlatformUpdateHelperLaunched) {
+    if (result is PlatformUpdateCommitAccepted ||
+        result is PlatformUpdateHelperLaunched) {
       await _exitRequester();
       return;
     }
-    final failure = result as PlatformUpdateInstallFailure;
+    final failure = switch (result) {
+      PlatformUpdateRecoveryRequired(:final technicalDetail) =>
+        PlatformUpdateInstallFailure(
+          code: 'windows_recovery_required',
+          userMessageKey: 'update.install.error.windows_recovery_required',
+          technicalDetail: technicalDetail,
+          isRetryable: true,
+        ),
+      PlatformUpdateManualActionRequired(:final technicalDetail) =>
+        PlatformUpdateInstallFailure(
+          code: 'windows_manual_action_required',
+          userMessageKey: 'update.install.error.windows_manual_action_required',
+          technicalDetail: technicalDetail,
+          isRetryable: false,
+        ),
+      PlatformUpdateInstallFailure() => result,
+      _ => const PlatformUpdateInstallFailure(
+          code: 'installer_result_invalid',
+          userMessageKey: 'update.install.error.installerResultInvalid',
+          technicalDetail: 'The platform installer returned an invalid result.',
+          isRetryable: false,
+        ),
+    };
     if (_isDisposed) return;
     state = state.copyWith(
       task: state.task.copyWith(phase: UpdateTaskPhase.installFailed),
@@ -866,9 +896,16 @@ final class UpdateController extends StateNotifier<UpdateState> {
 
   Future<int> _loadFailureCount(UpdateCandidate candidate) async {
     final record = await _downloadRecordStore.load();
-    if (record?.version == candidate.version.skipKey &&
-        record?.assetName == candidate.asset.name) {
-      return record!.automaticFailureCount;
+    if (record != null &&
+        record.version == candidate.version.skipKey &&
+        record.operatingSystem == candidate.operatingSystem &&
+        record.architecture == candidate.architecture &&
+        record.packageType == candidate.packageType &&
+        record.assetName == candidate.asset.name &&
+        record.officialDownloadUrl == candidate.asset.officialDownloadUrl &&
+        record.expectedSize == candidate.asset.sizeInBytes &&
+        record.expectedSha256 == 'sha256:${candidate.canonicalSha256}') {
+      return record.automaticFailureCount;
     }
     return 0;
   }
@@ -882,10 +919,13 @@ final class UpdateController extends StateNotifier<UpdateState> {
     await _downloadRecordStore.save(UpdateDownloadRecord(
       schemaVersion: UpdateDownloadRecord.currentSchemaVersion,
       version: candidate.version.skipKey,
+      operatingSystem: candidate.operatingSystem,
+      architecture: candidate.architecture,
+      packageType: candidate.packageType,
       assetName: candidate.asset.name,
       officialDownloadUrl: candidate.asset.officialDownloadUrl,
       expectedSize: candidate.asset.sizeInBytes,
-      expectedSha256: candidate.asset.digest!,
+      expectedSha256: 'sha256:${candidate.canonicalSha256}',
       finalFilePath: file.path,
       stage: UpdateDownloadStage.failed,
       automaticFailureCount: failureCount,
@@ -902,10 +942,13 @@ final class UpdateController extends StateNotifier<UpdateState> {
     await _downloadRecordStore.save(UpdateDownloadRecord(
       schemaVersion: UpdateDownloadRecord.currentSchemaVersion,
       version: candidate.version.skipKey,
+      operatingSystem: candidate.operatingSystem,
+      architecture: candidate.architecture,
+      packageType: candidate.packageType,
       assetName: candidate.asset.name,
       officialDownloadUrl: candidate.asset.officialDownloadUrl,
       expectedSize: candidate.asset.sizeInBytes,
-      expectedSha256: candidate.asset.digest!,
+      expectedSha256: 'sha256:${candidate.canonicalSha256}',
       finalFilePath: file.path,
       stage: UpdateDownloadStage.verified,
       automaticFailureCount: 0,

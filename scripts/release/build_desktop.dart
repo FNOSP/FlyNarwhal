@@ -108,7 +108,7 @@ Future<void> _runProtectedBuild({
     stdout.writeln('Copy $nativeLibraryPath -> $bundleLibraryPath');
     if (platform == 'windows') {
       stdout.writeln(
-        'CMake will build $windowsUpdaterExecutable during flutter build windows.',
+        'CMake will build $windowsNativeHelperExecutable during flutter build windows.',
       );
       stdout.writeln('Verify Windows bundle contract in $bundleDirectory');
     }
@@ -166,7 +166,10 @@ Future<void> _runProtectedBuild({
     );
   }
   if (platform == 'windows') {
-    await _runWindowsIdentityCheck();
+    await _runWindowsIdentityCheck(
+      architecture: architecture,
+      bundleDirectory: bundleDirectory,
+    );
     try {
       final summary = await verifyWindowsBundleContract(
         architecture: architecture,
@@ -249,12 +252,17 @@ String _bundleDirectory(String platform, String architecture) {
   };
 }
 
-Future<void> _runWindowsIdentityCheck() async {
+Future<void> _runWindowsIdentityCheck({
+  required String architecture,
+  required String bundleDirectory,
+}) async {
   await _runProcess(
     executable: 'dart',
-    arguments: const <String>[
+    arguments: <String>[
       'run',
-      'scripts/windows/verify_identity_contract.dart'
+      'scripts/windows/verify_identity_contract.dart',
+      architecture,
+      bundleDirectory,
     ],
     dryRun: false,
   );

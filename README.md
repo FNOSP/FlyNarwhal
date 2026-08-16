@@ -31,7 +31,7 @@
 .
 ├─ lib/                  Flutter 主应用代码
 ├─ assets/               字体、图片、动画资源
-├─ updater/              Windows 自更新器（Go）
+├─ windows/native/       Windows 原生安装 helper
 ├─ scripts/release/      正式发布构建脚本
 ├─ .github/workflows/    GitHub Actions 发布流程
 ├─ windows/              Windows Runner / CMake 构建配置
@@ -102,12 +102,9 @@ xattr -dr com.apple.quarantine /Applications/FlyNarwhal.app
   flutter config --enable-linux-desktop
   ```
 
-- Windows 开发建议安装 Visual Studio 2022 的“Desktop development with C++”
+- Windows 本地运行与构建需要 Visual Studio 2022 的“Desktop development with C++”。`windows/CMakeLists.txt` 默认构建并仅打包原生 `FlyNarwhalInstallHelper.exe`；`updater.exe` 与旧 helper 不属于发行 bundle。
 
-- Windows 本地运行与构建还需要 [Go](https://go.dev/dl/) 1.23 或以上版本
-  
-  - 当前 `windows/CMakeLists.txt` 会在构建时同步编译 `updater.exe`
-  - 请确保 `go version` 可在 PATH 中正常执行
+- Windows 原生安装 helper 的事务、provenance、journal 与 policy 行为参考 `desktop_updater` 3.1.4，许可与范围见 `third_party/desktop_updater.NOTICE`；未复制其检查更新、下载、UI、Linux 或 macOS 实现，也不声明上游签名。
 
 - macOS 需要安装 Xcode 与 Command Line Tools
 

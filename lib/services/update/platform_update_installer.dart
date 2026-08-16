@@ -32,6 +32,34 @@ final class PlatformUpdateHelperLaunched extends PlatformUpdateInstallResult {
   const PlatformUpdateHelperLaunched();
 }
 
+/// Indicates that the Windows helper durably accepted commit-after-exit.
+final class PlatformUpdateCommitAccepted extends PlatformUpdateInstallResult {
+  const PlatformUpdateCommitAccepted();
+}
+
+/// Indicates that the existing Windows transaction must be recovered.
+final class PlatformUpdateRecoveryRequired extends PlatformUpdateInstallResult {
+  const PlatformUpdateRecoveryRequired({
+    required this.transactionId,
+    required this.technicalDetail,
+  });
+
+  final String transactionId;
+  final String technicalDetail;
+}
+
+/// Indicates that automatic mutation and cleanup must stop for manual action.
+final class PlatformUpdateManualActionRequired
+    extends PlatformUpdateInstallResult {
+  const PlatformUpdateManualActionRequired({
+    required this.transactionId,
+    required this.technicalDetail,
+  });
+
+  final String transactionId;
+  final String technicalDetail;
+}
+
 final class PlatformUpdateInstallFailure extends PlatformUpdateInstallResult {
   const PlatformUpdateInstallFailure({
     required this.code,

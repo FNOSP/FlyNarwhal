@@ -7,8 +7,9 @@ import 'package:fly_narwhal/services/update/update_path_safety.dart';
 import 'package:path/path.dart' as path;
 
 const windowsAppExecutable = 'FlyNarwhal.exe';
-const windowsUpdaterExecutable = 'updater.exe';
-const legacyWindowsUpdaterExecutables = <String>[
+const windowsNativeHelperExecutable = 'FlyNarwhalInstallHelper.exe';
+const forbiddenWindowsHelperExecutables = <String>[
+  'updater.exe',
   'flynarwhal-updater.exe',
   'fntv-updater.exe',
 ];
@@ -41,31 +42,31 @@ final class WindowsBundleSummary {
     required this.architecture,
     required this.bundleDirectory,
     required this.applicationPath,
-    required this.updaterPath,
-    required this.updaterMachine,
-    required this.updaterSize,
-    required this.updaterSha256,
+    required this.helperPath,
+    required this.helperMachine,
+    required this.helperSize,
+    required this.helperSha256,
   });
 
   final String architecture;
   final String bundleDirectory;
   final String applicationPath;
-  final String updaterPath;
-  final int updaterMachine;
-  final int updaterSize;
-  final String updaterSha256;
+  final String helperPath;
+  final int helperMachine;
+  final int helperSize;
+  final String helperSha256;
 
   Map<String, Object> toJson() {
     return <String, Object>{
       'architecture': architecture,
       'bundleDirectory': bundleDirectory,
       'applicationPath': applicationPath,
-      'bundleArtifact': windowsUpdaterExecutable,
-      'updaterPath': updaterPath,
-      'updaterMachine':
-          PortableExecutableInfo(machine: updaterMachine).machineName,
-      'size': updaterSize,
-      'sha256': updaterSha256,
+      'bundleArtifact': windowsNativeHelperExecutable,
+      'helperPath': helperPath,
+      'helperMachine':
+          PortableExecutableInfo(machine: helperMachine).machineName,
+      'helperSize': helperSize,
+      'helperSha256': helperSha256,
     };
   }
 }
@@ -87,61 +88,65 @@ Future<WindowsBundleSummary> verifyWindowsBundleContract({
   }
 
   final appFile = File(path.join(bundle.path, windowsAppExecutable));
-  final updaterFile = File(path.join(bundle.path, windowsUpdaterExecutable));
+  final helperFile = File(
+    path.join(bundle.path, windowsNativeHelperExecutable),
+  );
   await _ensureSafeNonEmptyFile(
     appFile,
     description: 'Windows application executable',
   );
   await _ensureSafeNonEmptyFile(
-    updaterFile,
-    description: 'Windows updater executable',
+    helperFile,
+    description: 'Windows native install helper',
   );
 
-  final updaterMatches =
-      await _findFilesNamed(bundle, windowsUpdaterExecutable);
-  if (updaterMatches.length != 1 ||
-      !path.equals(updaterMatches.single.path, updaterFile.path)) {
+  final helperMatches = await _findFilesNamed(
+    bundle,
+    windowsNativeHelperExecutable,
+  );
+  if (helperMatches.length != 1 ||
+      !path.equals(helperMatches.single.path, helperFile.path)) {
     throw WindowsBundleContractFailure(
-      'Expected exactly one $windowsUpdaterExecutable in the bundle root, '
-      'found ${updaterMatches.length}.',
+      'Expected exactly one $windowsNativeHelperExecutable in the bundle '
+      'root, found ${helperMatches.length}.',
     );
   }
 
-  for (final legacyUpdaterExecutable in legacyWindowsUpdaterExecutables) {
-    final legacyMatches = await _findFilesNamed(bundle, legacyUpdaterExecutable);
-    if (legacyMatches.isNotEmpty) {
+  for (final forbiddenExecutable in forbiddenWindowsHelperExecutables) {
+    final forbiddenMatches = await _findFilesNamed(bundle, forbiddenExecutable);
+    if (forbiddenMatches.isNotEmpty) {
       throw WindowsBundleContractFailure(
-        'Windows bundle still contains legacy updater '
-        '$legacyUpdaterExecutable.',
+        'Windows bundle contains forbidden Go or legacy helper '
+        '$forbiddenExecutable.',
       );
     }
   }
 
   final expectedMachine = expectedWindowsMachine(architecture);
   final appInfo = await readPortableExecutableInfo(appFile);
-  final updaterInfo = await readPortableExecutableInfo(updaterFile);
+  final helperInfo = await readPortableExecutableInfo(helperFile);
   if (appInfo.machine != expectedMachine) {
     throw WindowsBundleContractFailure(
       '$windowsAppExecutable machine ${appInfo.machineName} does not match '
       'requested architecture $architecture.',
     );
   }
-  if (updaterInfo.machine != expectedMachine) {
+  if (helperInfo.machine != appInfo.machine) {
     throw WindowsBundleContractFailure(
-      '$windowsUpdaterExecutable machine ${updaterInfo.machineName} does not '
-      'match requested architecture $architecture.',
+      '$windowsNativeHelperExecutable machine ${helperInfo.machineName} does '
+      'not match $windowsAppExecutable machine ${appInfo.machineName}.',
     );
   }
 
-  final bytes = await updaterFile.readAsBytes();
+  final helperBytes = await helperFile.readAsBytes();
   return WindowsBundleSummary(
     architecture: architecture,
     bundleDirectory: bundle.path,
     applicationPath: appFile.path,
-    updaterPath: updaterFile.path,
-    updaterMachine: updaterInfo.machine,
-    updaterSize: bytes.length,
-    updaterSha256: sha256.convert(bytes).toString(),
+    helperPath: helperFile.path,
+    helperMachine: helperInfo.machine,
+    helperSize: helperBytes.length,
+    helperSha256: sha256.convert(helperBytes).toString(),
   );
 }
 

@@ -1,4 +1,5 @@
 import '../../../core/version/semantic_version.dart';
+import 'update_models.dart';
 
 /// Persisted lifecycle stages for a downloaded update package.
 enum UpdateDownloadStage { downloading, verified, failed }
@@ -27,6 +28,9 @@ final class UpdateDownloadRecord {
   const UpdateDownloadRecord({
     required this.schemaVersion,
     required this.version,
+    this.operatingSystem = UpdateOperatingSystem.windows,
+    this.architecture = UpdateArchitecture.x64,
+    this.packageType = UpdatePackageType.exe,
     required this.assetName,
     required this.officialDownloadUrl,
     required this.expectedSize,
@@ -39,11 +43,14 @@ final class UpdateDownloadRecord {
     required this.updatedAt,
   });
 
-  static const int currentSchemaVersion = 1;
+  static const int currentSchemaVersion = 2;
   static final RegExp _sha256Expression = RegExp(r'^sha256:[a-fA-F0-9]{64}$');
 
   final int schemaVersion;
   final String version;
+  final UpdateOperatingSystem operatingSystem;
+  final UpdateArchitecture architecture;
+  final UpdatePackageType packageType;
   final String assetName;
   final Uri officialDownloadUrl;
   final int expectedSize;
@@ -66,6 +73,15 @@ final class UpdateDownloadRecord {
 
     try {
       final version = _requiredString(json, 'version');
+      final operatingSystem = UpdateOperatingSystem.values.byName(
+        _requiredString(json, 'operatingSystem'),
+      );
+      final architecture = UpdateArchitecture.values.byName(
+        _requiredString(json, 'architecture'),
+      );
+      final packageType = UpdatePackageType.values.byName(
+        _requiredString(json, 'packageType'),
+      );
       final assetName = _requiredString(json, 'assetName');
       final officialDownloadUrl =
           Uri.parse(_requiredString(json, 'officialDownloadUrl'));
@@ -104,6 +120,9 @@ final class UpdateDownloadRecord {
       return UpdateDownloadRecord(
         schemaVersion: schemaVersion as int,
         version: version,
+        operatingSystem: operatingSystem,
+        architecture: architecture,
+        packageType: packageType,
         assetName: assetName,
         officialDownloadUrl: officialDownloadUrl,
         expectedSize: expectedSize,
@@ -129,6 +148,9 @@ final class UpdateDownloadRecord {
     return <String, Object?>{
       'schemaVersion': schemaVersion,
       'version': version,
+      'operatingSystem': operatingSystem.name,
+      'architecture': architecture.name,
+      'packageType': packageType.name,
       'assetName': assetName,
       'officialDownloadUrl': officialDownloadUrl.toString(),
       'expectedSize': expectedSize,
@@ -152,6 +174,9 @@ final class UpdateDownloadRecord {
     return UpdateDownloadRecord(
       schemaVersion: schemaVersion,
       version: version,
+      operatingSystem: operatingSystem,
+      architecture: architecture,
+      packageType: packageType,
       assetName: assetName,
       officialDownloadUrl: officialDownloadUrl,
       expectedSize: expectedSize,
@@ -171,6 +196,9 @@ final class UpdateDownloadRecord {
     return other is UpdateDownloadRecord &&
         other.schemaVersion == schemaVersion &&
         other.version == version &&
+        other.operatingSystem == operatingSystem &&
+        other.architecture == architecture &&
+        other.packageType == packageType &&
         other.assetName == assetName &&
         other.officialDownloadUrl == officialDownloadUrl &&
         other.expectedSize == expectedSize &&
@@ -187,6 +215,9 @@ final class UpdateDownloadRecord {
   int get hashCode => Object.hash(
         schemaVersion,
         version,
+        operatingSystem,
+        architecture,
+        packageType,
         assetName,
         officialDownloadUrl,
         expectedSize,
