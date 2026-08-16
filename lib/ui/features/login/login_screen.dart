@@ -14,6 +14,7 @@ import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../shared/common/app_loading_progress_ring.dart';
+import '../../shared/dialogs/app_dialog.dart';
 
 import '../../../core/network/dio_client.dart';
 import '../../../core/utils/log/app_talker.dart';
@@ -694,7 +695,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                                 _withClickCursor(
                                   material.TextButton(
-                                    onPressed: () {},
+                                    onPressed: _showForgotPasswordDialog,
+                                    style: material.TextButton.styleFrom(
+                                      enabledMouseCursor:
+                                          SystemMouseCursors.click,
+                                    ),
                                     child: const Text('忘记密码'),
                                   ),
                                 ),
@@ -1009,6 +1014,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } finally {
       _isFinalizing = false;
     }
+  }
+
+  void _showForgotPasswordDialog() {
+    if (!mounted) return;
+    showAppDialog<void>(
+      context: context,
+      title: '忘记密码？',
+      content: const Text(
+        '1. 如果您是 NAS 用户，请尝试 NAS 帐号登录；\n2. 请联系管理员修改密码。',
+      ),
+      primaryButtonText: '确认',
+      onPrimaryPressed: () => Navigator.of(context).pop(),
+    );
   }
 
   void _showErrorDialog(String message) {
