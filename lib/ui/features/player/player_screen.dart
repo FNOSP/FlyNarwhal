@@ -54,6 +54,7 @@ import 'viewmodels/media_playback_view_model.dart';
 import 'controllers/player_overlay_controller.dart';
 import 'controllers/player_session_coordinator.dart';
 import 'services/player_service.dart';
+import 'utils/player_volume_helper.dart';
 import 'viewmodels/player_view_model.dart';
 import 'widgets/episode_selection_flyout.dart';
 import 'widgets/player_danmaku_overlay.dart';
@@ -2593,7 +2594,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
 
       _volume = ref.read(playerSettingsManagerProvider).getVolume();
-      await _player!.setVolume(_volume * 100);
+      await _player!.setVolume(uiVolumeToMpvVolume(_volume));
 
       _speed = ref.read(playerSettingsManagerProvider).getSpeed();
       await _player!.setRate(_speed);
@@ -2946,7 +2947,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _setVolume(double volume) {
     if (_player == null) return;
     setState(() => _volume = volume);
-    _player!.setVolume(volume * 100);
+    _player!.setVolume(uiVolumeToMpvVolume(volume));
     ref.read(playerSettingsManagerProvider).setVolume(volume);
   }
 

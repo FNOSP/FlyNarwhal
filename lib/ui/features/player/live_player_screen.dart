@@ -21,9 +21,11 @@ import 'controllers/pip_window_mode_controller.dart';
 import 'controllers/player_overlay_controller.dart';
 import 'controllers/player_session_coordinator.dart';
 import 'services/player_service.dart';
+import 'utils/player_volume_helper.dart';
 import 'widgets/fullscreen_control.dart';
 import 'widgets/player_action_button.dart';
 import 'widgets/volume_control.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 /// IPTV live-channel player, mirroring the web live player: top bar with
 /// back button, title and a "直播中" badge; bottom bar with play/pause on the
@@ -136,7 +138,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       }
     });
 
-    await player.setVolume(_volume * 100);
+    await player.setVolume(uiVolumeToMpvVolume(_volume));
     unawaited(_loadPlayInfo());
     if (mounted) {
       _playerFocusNode.requestFocus();
@@ -290,7 +292,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
 
   void _setVolume(double volume) {
     setState(() => _volume = volume);
-    _player?.setVolume(volume * 100);
+    _player?.setVolume(uiVolumeToMpvVolume(volume));
     ref.read(playerSettingsManagerProvider).setVolume(volume);
   }
 
@@ -494,185 +496,185 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   Widget build(BuildContext context) {
     final overlayState = ref.watch(playerOverlayControllerProvider);
     _scheduleMacOSWindowButtonsSync(visible: overlayState.isUiVisible);
-    final playerCursor = _isInitialized && !_isPipMode && !overlayState.isUiVisible
-        ? SystemMouseCursors.none
-        : SystemMouseCursors.click;
+    final playerCursor =
+        _isInitialized && !_isPipMode && !overlayState.isUiVisible
+            ? SystemMouseCursors.none
+            : SystemMouseCursors.click;
 
     return Focus(
       focusNode: _playerFocusNode,
       onKeyEvent: _handleKeyEvent,
       child: MouseRegion(
-          cursor: playerCursor,
-          onHover: (_) => _showUi(),
-          child: Stack(
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  _playerFocusNode.requestFocus();
-                  _togglePlayPause();
-                },
-                onDoubleTap: () {
-                  _playerFocusNode.requestFocus();
-                  if (!_isPipMode) {
-                    unawaited(_toggleFullscreen());
-                  }
-                },
+        cursor: playerCursor,
+        onHover: (_) => _showUi(),
+        child: Stack(
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                _playerFocusNode.requestFocus();
+                _togglePlayPause();
+              },
+              onDoubleTap: () {
+                _playerFocusNode.requestFocus();
+                if (!_isPipMode) {
+                  unawaited(_toggleFullscreen());
+                }
+              },
+              child: Container(
+                key: const ValueKey('live-video'),
+                color: Colors.black,
+                child: _isInitialized && _videoController != null
+                    ? Video(
+                        controller: _videoController!,
+                        controls: NoVideoControls,
+                        fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+            if ((_isLoading || (_isInitialized && _isBuffering)) &&
+                _errorMessage == null)
+              const Center(
+                key: ValueKey('live-loading'),
+                child: AppLoadingProgressRing(),
+              ),
+            if (!_isLoading && _errorMessage != null)
+              Center(
                 child: Container(
-                  key: const ValueKey('live-video'),
-                  color: Colors.black,
-                  child: _isInitialized && _videoController != null
-                      ? Video(
-                          controller: _videoController!,
-                          controls: NoVideoControls,
-                          fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
-                        )
-                      : const SizedBox.shrink(),
+                  key: const ValueKey('live-error'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xCC000000),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      AppButton(
+                        onPressed: () {
+                          if (_channels.isEmpty) {
+                            unawaited(_loadPlayInfo());
+                          } else {
+                            unawaited(_openChannel(_selectedChannelIndex));
+                          }
+                        },
+                        child: const Align(
+                          alignment: Alignment.center,
+                          widthFactor: 1.0,
+                          child: Text('重试'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              if ((_isLoading || (_isInitialized && _isBuffering)) &&
-                  _errorMessage == null)
-                const Center(
-                  key: ValueKey('live-loading'),
-                  child: AppLoadingProgressRing(),
-                ),
-              if (!_isLoading && _errorMessage != null)
-                Center(
-                  child: Container(
-                    key: const ValueKey('live-error'),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xCC000000),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _errorMessage!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Button(
-                          onPressed: () {
-                            if (_channels.isEmpty) {
-                              unawaited(_loadPlayInfo());
-                            } else {
-                              unawaited(_openChannel(_selectedChannelIndex));
-                            }
-                          },
-                          child: const Align(
-                            alignment: Alignment.center,
-                            widthFactor: 1.0,
-                            child: Text('重试'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (!_isInitialized && !_isPipMode)
-                Positioned(
-                  top: _isMacOS && !_isFullscreen ? 12.0 : 6.0,
-                  left: 16 + (_isMacOS && !_isFullscreen ? 72.0 : 0.0),
-                  child: _buildBackButton(),
-                ),
-              if (_isInitialized && !_isPipMode)
-                AnimatedOpacity(
-                  opacity: overlayState.isUiVisible ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: IgnorePointer(
-                    ignoring: !overlayState.isUiVisible,
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: Container(
-                            height: 112,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.black.withValues(alpha: 0.7),
-                                  Colors.transparent,
-                                ],
-                              ),
+            if (!_isInitialized && !_isPipMode)
+              Positioned(
+                top: _isMacOS && !_isFullscreen ? 12.0 : 6.0,
+                left: 16 + (_isMacOS && !_isFullscreen ? 72.0 : 0.0),
+                child: _buildBackButton(),
+              ),
+            if (_isInitialized && !_isPipMode)
+              AnimatedOpacity(
+                opacity: overlayState.isUiVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: IgnorePointer(
+                  ignoring: !overlayState.isUiVisible,
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          height: 112,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.7),
+                                Colors.transparent,
+                              ],
                             ),
                           ),
                         ),
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: _buildTopBar(),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: Container(
-                            height: 96,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.7),
-                                ],
-                              ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: _buildTopBar(),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          height: 96,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.7),
+                              ],
                             ),
                           ),
                         ),
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: MouseRegion(
-                            onEnter: (_) {
-                              _overlayController.setHovered(
-                                PlayerHoverZone.bottomControls,
-                                true,
-                              );
-                              _showUi();
-                            },
-                            onExit: (_) => _overlayController.setHovered(
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: MouseRegion(
+                          onEnter: (_) {
+                            _overlayController.setHovered(
                               PlayerHoverZone.bottomControls,
-                              false,
-                            ),
-                            child: SafeArea(
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                                child: _buildBottomBar(overlayState),
-                              ),
+                              true,
+                            );
+                            _showUi();
+                          },
+                          onExit: (_) => _overlayController.setHovered(
+                            PlayerHoverZone.bottomControls,
+                            false,
+                          ),
+                          child: SafeArea(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                              child: _buildBottomBar(overlayState),
                             ),
                           ),
                         ),
-                        if (_isChannelFlyoutOpen)
-                          Positioned(
-                            right: 16,
-                            bottom: 64,
-                            child: _buildChannelFlyout(),
-                          ),
-                      ],
-                    ),
+                      ),
+                      if (_isChannelFlyoutOpen)
+                        Positioned(
+                          right: 16,
+                          bottom: 64,
+                          child: _buildChannelFlyout(),
+                        ),
+                    ],
                   ),
                 ),
-              if (_isInitialized && _isPipMode) _buildPipOverlay(),
-            ],
-          ),
+              ),
+            if (_isInitialized && _isPipMode) _buildPipOverlay(),
+          ],
         ),
-      );
+      ),
+    );
   }
 
   Widget _buildTopBar() {
@@ -748,16 +750,14 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   }
 
   Widget _buildBottomBar(PlayerOverlayState overlayState) {
-    final currentChannel = _channels.isEmpty
-        ? null
-        : _channels[_selectedChannelIndex];
+    final currentChannel =
+        _channels.isEmpty ? null : _channels[_selectedChannelIndex];
     return Row(
       children: [
         PlayerActionButton.svg(
           key: const ValueKey('live-play-pause'),
-          svgAssetPath: _isPlaying
-              ? 'assets/images/pause.svg'
-              : 'assets/images/play.svg',
+          svgAssetPath:
+              _isPlaying ? 'assets/images/pause.svg' : 'assets/images/play.svg',
           onPressed: _togglePlayPause,
           tooltip: _isPlaying ? '暂停' : '播放',
           size: 34,
@@ -832,10 +832,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
 
   Widget _buildChannelFlyout() {
     return MouseRegion(
-      onEnter: (_) =>
-          _overlayController.setFlyoutHovered(PlayerFlyoutType.liveChannel, true),
-      onExit: (_) =>
-          _overlayController.setFlyoutHovered(PlayerFlyoutType.liveChannel, false),
+      onEnter: (_) => _overlayController.setFlyoutHovered(
+          PlayerFlyoutType.liveChannel, true),
+      onExit: (_) => _overlayController.setFlyoutHovered(
+          PlayerFlyoutType.liveChannel, false),
       child: Container(
         width: 168,
         constraints: const BoxConstraints(maxHeight: 320),
