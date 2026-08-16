@@ -53,7 +53,8 @@ final class UpdateReleasePaginationService {
       );
 
       if (firstCurrentOrOlderIndex != null) {
-        final boundaryRelease = dateDescendingReleases[firstCurrentOrOlderIndex];
+        final boundaryRelease =
+            dateDescendingReleases[firstCurrentOrOlderIndex];
         AppTalker.info(
           'UpdateCheck',
           'Stopping release pagination at ${boundaryRelease.tagName} because it is not newer than ${currentVersion.skipKey}.',
@@ -89,9 +90,7 @@ final class UpdateReleasePaginationService {
     List<UpdateRelease> releases,
     SemanticVersion currentVersion,
   ) {
-    for (var releaseIndex = 0;
-        releaseIndex < releases.length;
-        releaseIndex++) {
+    for (var releaseIndex = 0; releaseIndex < releases.length; releaseIndex++) {
       final release = releases[releaseIndex];
       final version = VersionParser.parseReleaseVersion(
         tagName: release.tagName,

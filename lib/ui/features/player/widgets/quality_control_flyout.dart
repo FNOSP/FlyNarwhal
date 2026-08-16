@@ -376,12 +376,17 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
           onTap: kDriverTestMode
               ? () => _isExpanded ? _closeFlyout() : _showFlyout()
               : null,
-          child: Text(
-            isOriginal ? '原画' : _formatResolution(widget.currentResolution),
-            style: TextStyle(
-              color: _isButtonHovered ? Colors.white : _defaultTextColor,
-              fontSize: 17,
-              fontWeight: FontWeight.normal,
+          // Match the icon action buttons, whose 30x30 tap area carries 4px of
+          // transparent padding per side; bare text would look cramped next to them.
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              isOriginal ? '原画' : _formatResolution(widget.currentResolution),
+              style: TextStyle(
+                color: _isButtonHovered ? Colors.white : _defaultTextColor,
+                fontSize: 17,
+                fontWeight: FontWeight.normal,
+              ),
             ),
           ),
         ),

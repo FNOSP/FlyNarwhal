@@ -196,6 +196,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       _errorMessage = null;
       _isChannelFlyoutOpen = false;
     });
+    _overlayController.setFlyoutHovered(PlayerFlyoutType.liveChannel, false);
 
     final player = _player;
     if (player == null) return;

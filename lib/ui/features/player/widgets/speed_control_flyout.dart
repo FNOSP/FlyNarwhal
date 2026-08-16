@@ -285,12 +285,17 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout>
       },
       child: KeyedSubtree(
         key: _buttonKey,
-        child: Text(
-          _selectedSpeed.label == '1.0x' ? '倍速' : _selectedSpeed.label,
-          style: TextStyle(
-            color: _isButtonHovered ? Colors.white : _defaultTextColor,
-            fontSize: 17,
-            fontWeight: FontWeight.normal,
+        // Match the icon action buttons, whose 30x30 tap area carries 4px of
+        // transparent padding per side; bare text would look cramped next to them.
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            _selectedSpeed.label == '1.0x' ? '倍速' : _selectedSpeed.label,
+            style: TextStyle(
+              color: _isButtonHovered ? Colors.white : _defaultTextColor,
+              fontSize: 17,
+              fontWeight: FontWeight.normal,
+            ),
           ),
         ),
       ),

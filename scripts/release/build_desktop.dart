@@ -21,6 +21,7 @@ Future<void> main(List<String> arguments) async {
   final goArchitecture = _requiredEnvironmentValue('OBFUSCATOR_GOARCH');
   final libraryName = _requiredEnvironmentValue('OBFUSCATOR_LIBNAME');
   final dryRun = parsedArguments.dryRun;
+  _validateGitHubTagVersion(_packageVersion());
 
   try {
     await _runProtectedBuild(
@@ -107,7 +108,7 @@ Future<void> _runProtectedBuild({
     stdout.writeln('Copy $nativeLibraryPath -> $bundleLibraryPath');
     if (platform == 'windows') {
       stdout.writeln(
-        'CMake will build $windowsUpdaterExecutable during flutter build windows.',
+        'CMake will build $windowsNativeHelperExecutable during flutter build windows.',
       );
       stdout.writeln('Verify Windows bundle contract in $bundleDirectory');
     }
@@ -165,7 +166,10 @@ Future<void> _runProtectedBuild({
     );
   }
   if (platform == 'windows') {
-    await _runWindowsIdentityCheck();
+    await _runWindowsIdentityCheck(
+      architecture: architecture,
+      bundleDirectory: bundleDirectory,
+    );
     try {
       final summary = await verifyWindowsBundleContract(
         architecture: architecture,
@@ -248,12 +252,17 @@ String _bundleDirectory(String platform, String architecture) {
   };
 }
 
-Future<void> _runWindowsIdentityCheck() async {
+Future<void> _runWindowsIdentityCheck({
+  required String architecture,
+  required String bundleDirectory,
+}) async {
   await _runProcess(
     executable: 'dart',
-    arguments: const <String>[
+    arguments: <String>[
       'run',
-      'scripts/windows/verify_identity_contract.dart'
+      'scripts/windows/verify_identity_contract.dart',
+      architecture,
+      bundleDirectory,
     ],
     dryRun: false,
   );
@@ -808,6 +817,25 @@ Future<void> _runMacosPackageDmg({
     dryRun: false,
   );
   stdout.writeln('Created macOS disk image: $dmgPath');
+}
+
+void _validateGitHubTagVersion(String packageVersion) {
+  final referenceName = Platform.environment['GITHUB_REF_NAME']?.trim();
+  if (referenceName == null || referenceName.isEmpty) {
+    return;
+  }
+  if (!referenceName.startsWith('v')) {
+    return;
+  }
+  final tagVersion = referenceName.substring(1);
+  if (tagVersion == packageVersion) {
+    return;
+  }
+  _fail(
+    'Release tag version ($tagVersion) must match pubspec.yaml version '
+    '($packageVersion). Update pubspec.yaml before publishing the tag so '
+    'installer asset names match the GitHub release version.',
+  );
 }
 
 String _packageVersion() {

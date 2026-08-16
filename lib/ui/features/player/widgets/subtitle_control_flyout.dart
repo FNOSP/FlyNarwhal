@@ -409,11 +409,16 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
       },
       child: KeyedSubtree(
         key: _buttonKey,
-        child: SvgPicture.asset(
-          'assets/images/subtitle.svg',
-          width: 22,
-          height: 22,
-          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+        // Match the icon action buttons, whose 30x30 tap area carries 4px of
+        // transparent padding per side; the bare 22px icon looked cramped next to them.
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: SvgPicture.asset(
+            'assets/images/subtitle.svg',
+            width: 22,
+            height: 22,
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+          ),
         ),
       ),
     );

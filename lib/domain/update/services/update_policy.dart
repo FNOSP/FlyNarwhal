@@ -110,12 +110,18 @@ final class UpdatePolicy {
         ));
         continue;
       }
+      final selectedAsset = selection.asset!;
+      final canonicalAsset =
+          const CanonicalUpdateAssetNameParser().tryParse(selectedAsset.name)!;
       return UpdatePolicyResult(
         candidate: UpdateCandidate(
           version: eligibleRelease.version,
+          operatingSystem: canonicalAsset.operatingSystem,
+          architecture: canonicalAsset.architecture,
+          packageType: canonicalAsset.packageType,
           releaseNotes: eligibleRelease.release.releaseNotes,
           releasePageUrl: eligibleRelease.release.htmlUrl,
-          asset: selection.asset!,
+          asset: selectedAsset,
           isPrerelease: eligibleRelease.release.isPrerelease,
         ),
         diagnostics: List<UpdateSelectionDiagnostic>.unmodifiable(diagnostics),

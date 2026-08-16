@@ -45,15 +45,34 @@ function(ensure_full_libmpv_windows)
 
   # -- Fetch and parse the checksum file ------------------------------------
   set(SHA256_FILE "${LIBMPV_DIR}/mpv-sha256.txt")
+  set(SHA256_FILE_VALID FALSE)
   if(EXISTS "${SHA256_FILE}")
-    file(REMOVE "${SHA256_FILE}")
+    file(STRINGS "${SHA256_FILE}" CACHED_SHA256_LINES)
+    foreach(CACHED_SHA256_LINE IN LISTS CACHED_SHA256_LINES)
+      string(REGEX MATCH "^${ARCH_TAG}[ \t]+[a-fA-F0-9]{64}$"
+        CACHED_SHA256_MATCH "${CACHED_SHA256_LINE}")
+      if(CACHED_SHA256_MATCH)
+        set(SHA256_FILE_VALID TRUE)
+        break()
+      endif()
+    endforeach()
   endif()
-  message(STATUS "[full_libmpv] Fetching SHA256 from ${SHA256_URL}")
-  file(DOWNLOAD "${SHA256_URL}" "${SHA256_FILE}" STATUS DL_STATUS)
-  list(GET DL_STATUS 0 DL_STATUS_CODE)
-  if(NOT DL_STATUS_CODE EQUAL 0)
-    list(GET DL_STATUS 1 DL_STATUS_MSG)
-    message(FATAL_ERROR "[full_libmpv] Failed to download SHA256 file: ${DL_STATUS_MSG}")
+
+  if(NOT SHA256_FILE_VALID)
+    message(STATUS "[full_libmpv] Fetching SHA256 from ${SHA256_URL}")
+    file(TO_NATIVE_PATH "${SHA256_FILE}" SHA256_FILE_NATIVE)
+    execute_process(
+      COMMAND powershell -NoProfile -ExecutionPolicy Bypass -Command
+        "$ProgressPreference = 'SilentlyContinue'; $out = '${SHA256_FILE_NATIVE}'; $urls = @('${SHA256_URL}', 'https://ghfast.top/${SHA256_URL}', 'https://gh-proxy.com/${SHA256_URL}', 'https://ghproxy.net/${SHA256_URL}'); foreach ($url in $urls) { try { if (Test-Path $out) { Remove-Item $out -Force }; Invoke-WebRequest -Uri $url -OutFile $out -MaximumRedirection 10 -UseBasicParsing -TimeoutSec 30; if ((Test-Path $out) -and ((Get-Item $out).Length -gt 0)) { exit 0 } } catch { if (Test-Path $out) { Remove-Item $out -Force } }; Start-Sleep -Seconds 1 }; exit 1"
+      RESULT_VARIABLE SHA256_DOWNLOAD_RESULT
+      ERROR_VARIABLE SHA256_DOWNLOAD_ERROR
+    )
+    if(NOT SHA256_DOWNLOAD_RESULT EQUAL 0)
+      message(FATAL_ERROR
+        "[full_libmpv] Failed to download SHA256 file from all configured sources: ${SHA256_DOWNLOAD_ERROR}")
+    endif()
+  else()
+    message(STATUS "[full_libmpv] Using cached SHA256 file")
   endif()
 
   # Expected format (one line per architecture, whitespace separated):

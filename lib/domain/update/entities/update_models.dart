@@ -259,6 +259,9 @@ final class UpdateReleaseNotesFragment {
 final class UpdateCandidate {
   const UpdateCandidate({
     required this.version,
+    this.operatingSystem = UpdateOperatingSystem.windows,
+    this.architecture = UpdateArchitecture.x64,
+    this.packageType = UpdatePackageType.exe,
     required this.releaseNotes,
     required this.releasePageUrl,
     required this.asset,
@@ -267,11 +270,16 @@ final class UpdateCandidate {
   });
 
   final SemanticVersion version;
+  final UpdateOperatingSystem operatingSystem;
+  final UpdateArchitecture architecture;
+  final UpdatePackageType packageType;
   final String releaseNotes;
   final Uri releasePageUrl;
   final UpdateReleaseAsset asset;
   final bool isPrerelease;
   final List<UpdateReleaseNotesFragment> releaseNotesFragments;
+
+  String get canonicalSha256 => asset.sha256Digest!;
 }
 
 bool _isHttpsUrl(Uri url) {

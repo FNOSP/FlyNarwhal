@@ -279,39 +279,40 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                   type: MediaType.fromString(widget.item.type),
                                 ),
                               ),
-                            Align(
-                              alignment: Alignment.bottomLeft,
-                              child: SizedBox(
-                                width: double.infinity,
-                                height: 5,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(2.5),
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      Container(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.05)),
-                                      if (progress > 0)
-                                        FractionallySizedBox(
-                                          widthFactor: progress,
-                                          alignment: Alignment.centerLeft,
-                                          child: Container(
-                                            decoration: const BoxDecoration(
-                                              color: Color(0xFF2073DF),
-                                              borderRadius: BorderRadius.only(
-                                                topRight: Radius.circular(2.5),
-                                                bottomRight:
-                                                    Radius.circular(2.5),
+                            if (widget.item.type != MediaType.liveChannel.value)
+                              Align(
+                                alignment: Alignment.bottomLeft,
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  height: 5,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(2.5),
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        Container(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.05)),
+                                        if (progress > 0)
+                                          FractionallySizedBox(
+                                            widthFactor: progress,
+                                            alignment: Alignment.centerLeft,
+                                            child: Container(
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFF2073DF),
+                                                borderRadius: BorderRadius.only(
+                                                  topRight: Radius.circular(2.5),
+                                                  bottomRight:
+                                                      Radius.circular(2.5),
+                                                ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
                             Positioned.fill(
                               left: -_hoverOverlayBleed,
                               top: -_hoverOverlayBleed,

@@ -1,4 +1,4 @@
-import 'dart:io' show Directory, File, Platform, exit, pid;
+import 'dart:io' show Directory, Platform, exit, pid;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -21,6 +21,11 @@ import '../services/update/linux_package_identity.dart';
 import '../services/update/linux_update_installer.dart';
 import '../services/update/macos_update_installer.dart';
 import '../services/update/platform_update_installer.dart';
+import '../services/update/windows_native_update_installer.dart';
+import '../services/update/windows_native_updater_bridge.dart';
+import '../services/update/windows_platform_update_recovery.dart';
+import '../services/update/windows_update_install_stage_store.dart';
+import '../services/update/windows_update_transaction_store.dart';
 import '../services/update/sha256_verifier.dart';
 import '../services/update/update_downloader.dart';
 import '../services/update/update_file_store.dart';
@@ -110,18 +115,40 @@ String _linuxInstallRecordPath(String cacheRoot) {
   return path.join(cacheRoot, 'linux-install-record.json');
 }
 
+final windowsUpdateInstallStageStoreProvider =
+    Provider<WindowsUpdateInstallStageStore>((ref) {
+  return WindowsUpdateInstallStageStore();
+});
+
+final windowsUpdateTransactionStoreProvider =
+    Provider<WindowsUpdateTransactionStore>((ref) {
+  return WindowsUpdateTransactionStore(
+    applicationSupportDirectoryProvider:
+        loadWindowsNativeUpdateSupportDirectory,
+  );
+});
+
+final windowsDesktopUpdaterBridgeProvider =
+    Provider<WindowsNativeUpdaterBridge>((ref) {
+  return ProcessWindowsNativeUpdaterBridge();
+});
+
+final windowsNativeUpdateInstallerProvider =
+    Provider<WindowsNativeUpdateInstaller>((ref) {
+  return WindowsNativeUpdateInstaller(
+    stageStore: ref.watch(windowsUpdateInstallStageStoreProvider),
+    transactionStore: ref.watch(windowsUpdateTransactionStoreProvider),
+    bridge: ref.watch(windowsDesktopUpdaterBridgeProvider),
+  );
+});
+
 final platformUpdateInstallerProvider =
     Provider<PlatformUpdateInstaller>((ref) {
   if (kIsWeb) {
     return const UnsupportedPlatformUpdateInstaller();
   }
   if (Platform.isWindows) {
-    final currentExecutable = File(Platform.resolvedExecutable);
-    final updaterPath = path.join(
-      currentExecutable.parent.path,
-      WindowsUpdateInstaller.updaterExecutableName,
-    );
-    return WindowsUpdateInstaller(updaterExecutable: File(updaterPath));
+    return ref.watch(windowsNativeUpdateInstallerProvider);
   }
   if (Platform.isMacOS) {
     return ref.watch(macOSUpdateInstallerProvider);
@@ -177,16 +204,18 @@ final linuxUpdateInstallerProvider = Provider<LinuxUpdateInstaller>((ref) {
       await cacheRootDir.create(recursive: true);
       final platform =
           ref.watch(appVersionServiceProvider).getCurrentPlatform();
-      final packageType =
-          const CanonicalUpdateAssetNameParser().tryParse(request.candidate.asset.name)?.packageType ??
-              UpdatePackageType.appImage;
+      final packageType = const CanonicalUpdateAssetNameParser()
+              .tryParse(request.candidate.asset.name)
+              ?.packageType ??
+          UpdatePackageType.appImage;
       return LinuxUpdateInstallInput(
         processId: pid,
         packageType: packageType,
         packageFilePath: request.packageFile.path,
         cacheRootPath: cacheRoot,
         installRecordPath: _linuxInstallRecordPath(cacheRoot),
-        distributionFamily: platform.linuxFamily ?? LinuxDistributionFamily.other,
+        distributionFamily:
+            platform.linuxFamily ?? LinuxDistributionFamily.other,
         distributionId: null,
         currentExecutablePath: platform.executablePath ?? '',
         appImageEnvironmentPath: platform.appImagePath,
@@ -195,30 +224,19 @@ final linuxUpdateInstallerProvider = Provider<LinuxUpdateInstaller>((ref) {
   );
 });
 
-final windowsInstallResultStoreProvider = Provider<WindowsInstallResultStore?>(
-  (ref) {
-    if (kIsWeb || !Platform.isWindows) {
-      return null;
-    }
-    return WindowsInstallResultStore();
-  },
-);
-
 final updateInstallFailureRecoveryProvider =
     Provider<UpdateInstallFailureRecovery>((ref) {
   if (kIsWeb) {
     return () async => null;
   }
   if (Platform.isWindows) {
-    final store = ref.watch(windowsInstallResultStoreProvider);
-    return () async {
-      try {
-        final result = await store?.consume();
-        return result?.toFailure();
-      } on FormatException {
-        return null;
-      }
-    };
+    final transactionStore = ref.watch(windowsUpdateTransactionStoreProvider);
+    final recovery = WindowsPlatformUpdateRecovery(
+      stageStore: ref.watch(windowsUpdateInstallStageStoreProvider),
+      transactionStore: transactionStore,
+      bridge: ref.watch(windowsDesktopUpdaterBridgeProvider),
+    );
+    return recovery.recoverFailure;
   }
   if (Platform.isMacOS) {
     final installer = ref.watch(macOSUpdateInstallerProvider);
@@ -233,7 +251,8 @@ final updateInstallFailureRecoveryProvider =
     final installer = ref.watch(linuxUpdateInstallerProvider);
     return () async {
       final cacheRootDir = await _defaultUpdateCacheDirectory();
-      return installer.recoverFailure(_linuxInstallRecordPath(cacheRootDir.path));
+      return installer
+          .recoverFailure(_linuxInstallRecordPath(cacheRootDir.path));
     };
   }
   return () async => null;
@@ -244,7 +263,10 @@ final updateExitRequesterProvider = Provider<UpdateExitRequester>((ref) {
     return () async {};
   }
   if (Platform.isWindows) {
-    return () => windowManager.destroy();
+    return () async {
+      await windowManager.setPreventClose(false);
+      await windowManager.close();
+    };
   }
   if (Platform.isMacOS || Platform.isLinux) {
     // The detached platform helper waits for the current process to exit

@@ -133,40 +133,11 @@ jobs:
           & (Join-Path $flutterRoot 'bin/flutter.bat') config --enable-windows-desktop
           & (Join-Path $flutterRoot 'bin/flutter.bat') pub get
 
-      - name: Probe Go toolchain
-        id: probe-go
-        shell: pwsh
-        run: |
-          $requiredVersion = (Get-Content updater/go.mod | Where-Object { $_ -match '^go\s+([0-9.]+)$' } | Select-Object -First 1) -replace '^go\s+', ''
-          if (-not $requiredVersion) {
-            throw 'Unable to determine required Go version from updater/go.mod'
-          }
-          $goCommand = Get-Command go -ErrorAction SilentlyContinue
-          $needsSetup = $true
-          if ($goCommand) {
-            $versionOutput = & go version
-            Write-Host "Existing Go toolchain: $versionOutput"
-            if ($versionOutput -match 'go([0-9]+\.[0-9]+(?:\.[0-9]+)?)') {
-              $installedVersion = [version]$matches[1]
-              if ($installedVersion -ge ([version]$requiredVersion)) {
-                $needsSetup = $false
-              }
-            }
-          } else {
-            Write-Host 'Go is not preinstalled on this runner.'
-          }
-          "needs_setup=$($needsSetup.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-
       - name: Set up Go
-        if: steps.probe-go.outputs.needs_setup == 'true'
         uses: actions/setup-go@v5
         with:
-          go-version-file: updater/go.mod
+          go-version: stable
           check-latest: true
-
-      - name: Verify Go toolchain
-        shell: pwsh
-        run: go version
 
       - name: Set up cgo toolchain (Windows ARM64)
         if: matrix.platform == 'windows' && matrix.architecture == 'arm64'
@@ -288,13 +259,6 @@ jobs:
             build/windows/
             build/.last_build_id
           if-no-files-found: ignore
-
-      - name: Run updater tests
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        run: |
-          Set-Location updater
-          go test ./...
 
       - name: Package Windows installer
         if: matrix.platform == 'windows'

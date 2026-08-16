@@ -18,9 +18,10 @@
 #define MyAppName "飞鲸影视"
 #define MyAppPublisher "JankinWu"
 #define MyAppExecutable "FlyNarwhal.exe"
-#define MyUpdaterExecutable "updater.exe"
-#define MyPreviousUpdaterExecutable "flynarwhal-updater.exe"
-#define MyLegacyUpdaterExecutable "fntv-updater.exe"
+#define MyNativeHelperExecutable "FlyNarwhalInstallHelper.exe"
+#define MyPreviousUpdaterExecutable "updater.exe"
+#define MyLegacyUpdaterExecutable "flynarwhal-updater.exe"
+#define MyOlderUpdaterExecutable "fntv-updater.exe"
 #define MyInstallerIcon "..\\windows\\runner\\resources\\app_icon.ico"
 
 #if !DirExists(FlutterBundleDir)
@@ -29,14 +30,17 @@
 #if !FileExists(FlutterBundleDir + "\\" + MyAppExecutable)
   #error Flutter bundle is missing FlyNarwhal.exe.
 #endif
-#if !FileExists(FlutterBundleDir + "\\" + MyUpdaterExecutable)
-  #error Flutter bundle is missing updater.exe.
+#if !FileExists(FlutterBundleDir + "\\" + MyNativeHelperExecutable)
+  #error Flutter bundle is missing FlyNarwhalInstallHelper.exe.
 #endif
 #if FileExists(FlutterBundleDir + "\\" + MyPreviousUpdaterExecutable)
-  #error Flutter bundle still contains the previous updater executable.
+  #error Flutter bundle still contains a forbidden legacy updater executable.
 #endif
 #if FileExists(FlutterBundleDir + "\\" + MyLegacyUpdaterExecutable)
-  #error Flutter bundle still contains the legacy updater executable.
+  #error Flutter bundle still contains a forbidden legacy updater executable.
+#endif
+#if FileExists(FlutterBundleDir + "\\" + MyOlderUpdaterExecutable)
+  #error Flutter bundle still contains a forbidden legacy updater executable.
 #endif
 #if !FileExists(MyInstallerIcon)
   #error Installer icon file does not exist.
@@ -72,8 +76,19 @@ Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
 
 [Files]
 Source: "{#FlutterBundleDir}\{#MyAppExecutable}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#FlutterBundleDir}\{#MyUpdaterExecutable}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#FlutterBundleDir}\*"; DestDir: "{app}"; Excludes: "{#MyAppExecutable},{#MyUpdaterExecutable},{#MyPreviousUpdaterExecutable},{#MyLegacyUpdaterExecutable}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#FlutterBundleDir}\{#MyNativeHelperExecutable}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#FlutterBundleDir}\*"; DestDir: "{app}"; Excludes: "{#MyAppExecutable},{#MyNativeHelperExecutable},{#MyPreviousUpdaterExecutable},{#MyLegacyUpdaterExecutable},{#MyOlderUpdaterExecutable}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+Type: files; Name: "{app}\{#MyPreviousUpdaterExecutable}"
+Type: files; Name: "{app}\{#MyLegacyUpdaterExecutable}"
+Type: files; Name: "{app}\{#MyOlderUpdaterExecutable}"
+
+[UninstallDelete]
+Type: files; Name: "{app}\{#MyNativeHelperExecutable}"
+Type: files; Name: "{app}\{#MyPreviousUpdaterExecutable}"
+Type: files; Name: "{app}\{#MyLegacyUpdaterExecutable}"
+Type: files; Name: "{app}\{#MyOlderUpdaterExecutable}"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExecutable}"

@@ -476,8 +476,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final headers = _sessionCoordinator.buildPlayerHeaders();
     Player? probePlayer;
     try {
+      // The probe only inspects `hwdec-current`; it must never produce sound.
+      // Without `muted`, this second player audibly replays the start of the
+      // stream while probing (the bug where resume playback was briefly
+      // followed by ~1-2s of the opening audio).
       probePlayer = Player(
-        configuration: const PlayerConfiguration(libass: false),
+        configuration: const PlayerConfiguration(libass: false, muted: true),
       );
       final platform = probePlayer.platform;
       for (final api in candidates) {

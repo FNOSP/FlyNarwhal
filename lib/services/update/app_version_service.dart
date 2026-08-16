@@ -28,8 +28,8 @@ final class AppVersionService {
 
   Future<String> getCurrentVersionText() async {
     final defineVersion = AppConstants.appFullVersion.trim();
-    final defineVersionIsValid =
-        defineVersion.isNotEmpty && SemanticVersion.tryParse(defineVersion) != null;
+    final defineVersionIsValid = defineVersion.isNotEmpty &&
+        SemanticVersion.tryParse(defineVersion) != null;
     if (defineVersionIsValid) {
       return defineVersion;
     }

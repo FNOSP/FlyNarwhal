@@ -43,6 +43,7 @@ constexpr const wchar_t kJavaPreferencesRegistryPath[] =
     L"Software\\JavaSoft\\Prefs";
 
 std::string Utf8FromWideString(const std::wstring& value);
+std::wstring WideStringFromUtf8(const std::string& value);
 
 uint64_t HashUserGuid(const std::string& user_guid, uint64_t seed) {
   uint64_t hash = seed;
@@ -387,6 +388,23 @@ std::string Utf8FromWideString(const std::wstring& value) {
   WideCharToMultiByte(CP_UTF8, 0, value.data(),
                       static_cast<int>(value.size()), result.data(),
                       required_size, nullptr, nullptr);
+  return result;
+}
+
+std::wstring WideStringFromUtf8(const std::string& value) {
+  if (value.empty()) {
+    return L"";
+  }
+  const int required_size = MultiByteToWideChar(
+      CP_UTF8, MB_ERR_INVALID_CHARS, value.data(),
+      static_cast<int>(value.size()), nullptr, 0);
+  if (required_size <= 0) {
+    throw std::runtime_error("Unable to decode UTF-8 process argument.");
+  }
+  std::wstring result(required_size, L'\0');
+  MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.data(),
+                      static_cast<int>(value.size()), result.data(),
+                      required_size);
   return result;
 }
 
