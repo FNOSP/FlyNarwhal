@@ -25,7 +25,11 @@ class _ShortcutCaptureTarget {
 class _ShortcutSettingsDialogState
     extends ConsumerState<ShortcutSettingsDialog> {
   static const double _shortcutColumnWidth = 220;
-  static const double _scrollbarOffset = 20;
+
+  /// How far the scrollbar is pushed to the right of the scrollable area,
+  /// into the dialog's right padding, so it does not overlap the shortcut
+  /// input boxes. A larger value moves the scrollbar further right.
+  static const double _scrollbarOffset = 24;
 
   Map<ShortcutActionId, ShortcutBinding> _bindings = const {};
   _ShortcutCaptureTarget? _captureTarget;
@@ -119,6 +123,7 @@ class _ShortcutSettingsDialogState
                 ),
                 child: ListView(
                   shrinkWrap: true,
+                  padding: const EdgeInsets.only(right: 12),
                   children: [
                     _buildCategorySection(ShortcutCategory.search),
                     const SizedBox(height: 12),
