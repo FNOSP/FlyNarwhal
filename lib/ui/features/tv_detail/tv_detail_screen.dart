@@ -19,6 +19,7 @@ import '../../shared/common/img_loading_progress_ring.dart';
 import '../../shared/movie_poster.dart';
 import '../../shared/toast.dart';
 import 'tv_detail_view_model.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   if (baseUrl.isEmpty || path.isEmpty) return '';
@@ -88,7 +89,7 @@ class TvDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
-                  child: Button(
+                  child: AppButton(
                     child: const Text('重试'),
                     onPressed: () => ref
                         .read(tvDetailNotifierProvider(guid).notifier)
@@ -196,13 +197,13 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     // Guard: require full FlyNarwhal config before triggering analysis
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
-        buildFlyNarwhalConfigWarning(
-          missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
-          missingAuthCode: !settings.hasFlyNarwhalAuthCode,
-        ),
-        type: ToastType.warning,
-        category: 'fly-narwhal-config',
-      );
+            buildFlyNarwhalConfigWarning(
+              missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+              missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+            ),
+            type: ToastType.warning,
+            category: 'fly-narwhal-config',
+          );
       return;
     }
     await ref
@@ -215,13 +216,13 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     // Guard: require full FlyNarwhal config before triggering analysis
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
-        buildFlyNarwhalConfigWarning(
-          missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
-          missingAuthCode: !settings.hasFlyNarwhalAuthCode,
-        ),
-        type: ToastType.warning,
-        category: 'fly-narwhal-config',
-      );
+            buildFlyNarwhalConfigWarning(
+              missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+              missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+            ),
+            type: ToastType.warning,
+            category: 'fly-narwhal-config',
+          );
       return;
     }
     await ref

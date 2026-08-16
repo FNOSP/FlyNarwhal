@@ -631,7 +631,6 @@ class _DanmakuSettingsFlyoutContentState
     );
   }
 
-
   int _nearestSpeedIndex(double speed) {
     var nearestIndex = 0;
     for (var speedIndex = 1; speedIndex < _speedSteps.length; speedIndex++) {

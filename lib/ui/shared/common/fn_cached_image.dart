@@ -46,8 +46,7 @@ class FnCachedImage extends ConsumerWidget {
         : null;
 
     if (imageUrl == null) {
-      return errorWidget ??
-          const Center(child: Icon(FluentIcons.file_image));
+      return errorWidget ?? const Center(child: Icon(FluentIcons.file_image));
     }
 
     return CachedNetworkImage(
@@ -74,9 +73,8 @@ class FnCachedImage extends ConsumerWidget {
     if (lowerPath.startsWith('http://') || lowerPath.startsWith('https://')) {
       return path;
     }
-    final suffix = path.contains('?')
-        ? ''
-        : (width != null ? '?w=${width!.round()}' : '');
+    final suffix =
+        path.contains('?') ? '' : (width != null ? '?w=${width!.round()}' : '');
     if (path.startsWith('/v/api/v1/sys/img')) {
       return '$normalizedBaseUrl$path$suffix';
     }
@@ -117,9 +115,8 @@ CachedNetworkImageProvider fnCachedImageProvider(
     } else if (resolvedPath.startsWith('v/api/v1/sys/img')) {
       imageUrl = '$normalizedBaseUrl/$resolvedPath$suffix';
     } else {
-      final normalizedPath = resolvedPath.startsWith('/')
-          ? resolvedPath
-          : '/$resolvedPath';
+      final normalizedPath =
+          resolvedPath.startsWith('/') ? resolvedPath : '/$resolvedPath';
       imageUrl = '$normalizedBaseUrl/v/api/v1/sys/img$normalizedPath$suffix';
     }
   } else {

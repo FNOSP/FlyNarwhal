@@ -77,7 +77,8 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
     final remote = ref.read(mediaRemoteDataSourceProvider);
     final tagRepo = ref.read(iTagRepositoryProvider);
 
-    Future<T?> safeApiRequest<T>(Future<ApiResult<T>> Function() request) async {
+    Future<T?> safeApiRequest<T>(
+        Future<ApiResult<T>> Function() request) async {
       final result = await request();
       return result.dataOrNull;
     }
@@ -99,14 +100,14 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
     final streamList = results[1] as StreamListResponse?;
     final playInfo = results[2] as PlayInfoResponse?;
     final personList = results[3] as List<PersonList>?;
-    final iso6391 = (results[4] as Map<String, String>?) ??
-        const <String, String>{};
-    final iso6392 = (results[5] as Map<String, String>?) ??
-        const <String, String>{};
-    final iso3166 = (results[6] as Map<String, String>?) ??
-        const <String, String>{};
-    final genresList = (results[7] as List<GenreEntity>?) ??
-        const <GenreEntity>[];
+    final iso6391 =
+        (results[4] as Map<String, String>?) ?? const <String, String>{};
+    final iso6392 =
+        (results[5] as Map<String, String>?) ?? const <String, String>{};
+    final iso3166 =
+        (results[6] as Map<String, String>?) ?? const <String, String>{};
+    final genresList =
+        (results[7] as List<GenreEntity>?) ?? const <GenreEntity>[];
     final genresMap = <int, String>{for (final g in genresList) g.id: g.name};
 
     return MovieDetailState(

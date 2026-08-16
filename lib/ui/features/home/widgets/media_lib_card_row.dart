@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
+import 'package:flutter_cache_manager/flutter_cache_manager.dart'
+    as cache_manager;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../data/models/home_models.dart';
 import '../../../../domain/entities/media_type.dart';
@@ -43,7 +44,10 @@ class MediaLibCardRow extends ConsumerWidget {
           padding: const EdgeInsets.only(left: 32, bottom: 12),
           child: Text(
             '媒体库',
-            style: FluentTheme.of(context).typography.subtitle?.copyWith(fontWeight: FontWeight.w600),
+            style: FluentTheme.of(context)
+                .typography
+                .subtitle
+                ?.copyWith(fontWeight: FontWeight.w600),
           ),
         ),
         ScrollRow(
@@ -152,7 +156,8 @@ class MediaLibraryCard extends StatelessWidget {
                             flex: 3,
                             child: Transform(
                               alignment: Alignment.center,
-                              transform: Matrix4.identity()..scaleByDouble(1.0, -1.0, 1.0, 1.0),
+                              transform: Matrix4.identity()
+                                ..scaleByDouble(1.0, -1.0, 1.0, 1.0),
                               child: _PosterRow(
                                 posters: visiblePosters,
                                 placeholderType: placeholderType,
@@ -176,11 +181,14 @@ class MediaLibraryCard extends StatelessWidget {
                               title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: FluentTheme.of(context).typography.caption?.copyWith(
-                                fontWeight: FontWeight.normal,
-                                fontSize: 14 * scaleFactor,
-                                color: Colors.white,
-                              ),
+                              style: FluentTheme.of(context)
+                                  .typography
+                                  .caption
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.normal,
+                                    fontSize: 14 * scaleFactor,
+                                    color: Colors.white,
+                                  ),
                             ),
                           ),
                         ),
@@ -287,7 +295,8 @@ class _PosterImage extends StatelessWidget {
       cacheManager: cacheManager,
       fit: BoxFit.cover,
       fadeOutDuration: const Duration(milliseconds: 120),
-      errorWidget: (context, url, error) => const Center(child: Icon(FluentIcons.error)),
+      errorWidget: (context, url, error) =>
+          const Center(child: Icon(FluentIcons.error)),
       placeholder: (context, url) => const ImgLoadingProgressRing(),
     );
   }

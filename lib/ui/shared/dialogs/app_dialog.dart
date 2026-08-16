@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 // Colors sampled from the reference web app (飞牛影视, Semi Design dark theme).
 // The web app only ships a dark theme, so dark keeps the sampled palette and
@@ -112,15 +113,14 @@ class AppDialog<T> extends StatelessWidget {
             tertiaryResult, 'tertiary')
         : null;
     final secondary = _visible(secondaryButtonText)
-        ? _secondary(context, palette, secondaryButtonText!,
-            onSecondaryPressed, secondaryResult, 'secondary')
+        ? _secondary(context, palette, secondaryButtonText!, onSecondaryPressed,
+            secondaryResult, 'secondary')
         : null;
     final primary = _visible(primaryButtonText)
         ? _primary(context, primaryButtonText!, onPrimaryPressed, primaryResult)
         : null;
 
-    final hasActions =
-        tertiary != null || secondary != null || primary != null;
+    final hasActions = tertiary != null || secondary != null || primary != null;
 
     return ContentDialog(
       constraints: constraints,
@@ -196,7 +196,7 @@ class AppDialog<T> extends StatelessWidget {
     final pressed =
         isDanger ? appDialogDangerPressedColor : appDialogPrimaryPressedColor;
 
-    return FilledButton(
+    return AppFilledButton(
       key: const ValueKey('app-dialog-primary'),
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
@@ -229,7 +229,7 @@ class AppDialog<T> extends StatelessWidget {
     T? result,
     String name,
   ) {
-    return Button(
+    return AppButton(
       key: ValueKey('app-dialog-$name'),
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {

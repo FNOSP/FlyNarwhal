@@ -1,4 +1,4 @@
-﻿import 'dart:typed_data';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import '../../../../core/utils/log/app_talker.dart';
@@ -333,4 +333,3 @@ _Atom? _atomByType(List<_Atom> atoms, String type) {
   }
   return null;
 }
-

@@ -9,6 +9,7 @@ import '../../shared/common/fn_cached_image.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/movie_poster.dart';
 import 'person_detail_view_model.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 /// Person detail page: avatar, name, biography and works grouped by job.
 /// Built to mirror Compose PersonDetailScreen.
@@ -55,7 +56,7 @@ class PersonDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
-                  child: Button(
+                  child: AppButton(
                     child: const Text('重试'),
                     onPressed: () => ref
                         .read(personDetailNotifierProvider(guid).notifier)

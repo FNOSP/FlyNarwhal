@@ -8,6 +8,7 @@ import '../common/app_loading_progress_ring.dart';
 import '../toast.dart';
 import 'nas_breadcrumb_bar.dart';
 import 'nas_file_browser.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 const Color _nasBorderColor = Color(0x1AFDFDFD);
 const Color _nasSidebarSelectedColor = Color(0xB3002570);
@@ -78,9 +79,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
     // Find the root whose path is a prefix of activePath (longest match).
     NasBrowserRoot? matched;
     for (final root in itemToUse.roots) {
-      final rootPath = root.path.endsWith('/')
-          ? root.path
-          : '${root.path}/';
+      final rootPath = root.path.endsWith('/') ? root.path : '${root.path}/';
       if (activePath == root.path || activePath.startsWith(rootPath)) {
         if (matched == null || root.path.length > matched.path.length) {
           matched = root;
@@ -94,9 +93,8 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
 
     String remainder;
     if (matched != null) {
-      final prefix = matched.path.endsWith('/')
-          ? matched.path
-          : '${matched.path}/';
+      final prefix =
+          matched.path.endsWith('/') ? matched.path : '${matched.path}/';
       remainder = activePath == matched.path
           ? ''
           : activePath.startsWith(prefix)
@@ -120,12 +118,15 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
         children: [
           Text(widget.title),
           const Spacer(),
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => Navigator.of(context).pop(),
-            child: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Icon(FluentIcons.chrome_close, size: 14),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => Navigator.of(context).pop(),
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(FluentIcons.chrome_close, size: 14),
+              ),
             ),
           ),
         ],
@@ -175,7 +176,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
       children: [
         SizedBox(
           width: 80,
-          child: Button(
+          child: AppButton(
             key: const ValueKey('nas-subtitle-cancel'),
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('取消'),
@@ -184,7 +185,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
         const SizedBox(width: 8),
         SizedBox(
           width: 80,
-          child: FilledButton(
+          child: AppFilledButton(
             key: const ValueKey('nas-subtitle-confirm'),
             onPressed: _selectedFilePaths.isNotEmpty
                 ? () {

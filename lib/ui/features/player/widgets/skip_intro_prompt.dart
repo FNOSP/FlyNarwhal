@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 const playerSkipIntroPromptKey = ValueKey('player-skip-intro-prompt');
 const playerSkipIntroUndoKey = ValueKey('player-skip-intro-undo');
@@ -80,7 +81,7 @@ class PlayerSkipPromptContainer extends StatelessWidget {
                 message,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
-              HyperlinkButton(
+              AppHyperlinkButton(
                 key: actionKey,
                 onPressed: onPressed,
                 style: const ButtonStyle(

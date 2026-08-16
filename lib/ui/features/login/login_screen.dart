@@ -25,6 +25,7 @@ import 'widgets/history_sidebar.dart';
 import '../../shared/window_caption.dart';
 import 'login_js_injection.dart';
 import 'login_view_model.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -609,8 +610,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               child: _buildGlassField(
                                 controller: _fnIdController,
                                 placeholder: '请输入 IP:Port、域名或 FN ID',
-                                onChanged: (_) =>
-                                    _autoLoginFromHistory = false,
+                                onChanged: (_) => _autoLoginFromHistory = false,
                                 suffixIcon: const Icon(
                                   material.Icons.history,
                                   color: _hintColor,
@@ -843,7 +843,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           if (isMacOS)
                             const SizedBox(width: kMacOSTrafficLightInset),
                           _withClickCursor(
-                            Button(
+                            AppButton(
                               child: const Text('关闭'),
                               onPressed: () {
                                 setState(() {
@@ -1020,7 +1020,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         content: Text(message),
         actions: [
           _withClickCursor(
-            Button(
+            AppButton(
               child: const Text('OK'),
               onPressed: () => Navigator.pop(context),
             ),

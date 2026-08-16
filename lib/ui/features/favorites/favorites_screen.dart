@@ -284,7 +284,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   Widget build(BuildContext context) {
     final globalRefreshManager = ref.read(globalRefreshManagerProvider);
     final favoritesState = ref.watch(favoritesBrowseNotifierProvider);
-    final favoritesNotifier = ref.read(favoritesBrowseNotifierProvider.notifier);
+    final favoritesNotifier =
+        ref.read(favoritesBrowseNotifierProvider.notifier);
 
     ref.listen<GlobalRefreshRequest?>(currentGlobalRefreshRequestProvider, (
       previous,
@@ -380,10 +381,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                   _enableOneShotTabAnimation();
                                   final selectedTabIndex =
                                       favoritesTabs.indexOf(tab);
-                                  _tabSwitchDirection = selectedTabIndex >=
-                                          _selectedTabIndex
-                                      ? 1
-                                      : -1;
+                                  _tabSwitchDirection =
+                                      selectedTabIndex >= _selectedTabIndex
+                                          ? 1
+                                          : -1;
                                   _selectedTabIndex = selectedTabIndex;
                                   _selectedTab = tab;
                                   _isFilterOpen = false;
@@ -479,7 +480,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                             iso3166: favoritesState.iso3166,
                             initialSelectedFilters: selectedFilters,
                             onFilterChanged: (filters) {
-                              unawaited(favoritesNotifier.applyFilters(filters));
+                              unawaited(
+                                  favoritesNotifier.applyFilters(filters));
                             },
                             onCollapse: () =>
                                 setState(() => _isFilterOpen = false),
@@ -547,7 +549,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 ),
                               )
                             : GridView.builder(
-                                key: ValueKey('favorites-grid-$selectedCacheKey'),
+                                key: ValueKey(
+                                    'favorites-grid-$selectedCacheKey'),
                                 controller: scrollController,
                                 padding: EdgeInsets.all(16 * scaleFactor),
                                 gridDelegate:

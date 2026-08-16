@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../player/widgets/subtitle_selection_panel.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 const kAccentColor = Color(0xFF2173DF);
 
@@ -24,12 +25,13 @@ class DetailPlayButton extends StatelessWidget {
       height: 56,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minWidth: 160),
-        child: FilledButton(
+        child: AppFilledButton(
           onPressed: onPressed,
           style: const ButtonStyle(
             backgroundColor: WidgetStatePropertyAll(kAccentColor),
             shape: WidgetStatePropertyAll(StadiumBorder()),
-            padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 24)),
+            padding:
+                WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 24)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -76,7 +78,11 @@ class Separator extends StatelessWidget {
       child: Text(
         '/',
         style: TextStyle(
-          color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.5),
+          color: FluentTheme.of(context)
+              .typography
+              .caption
+              ?.color
+              ?.withValues(alpha: 0.5),
           fontSize: 14,
         ),
       ),
@@ -119,7 +125,11 @@ class DetailTags extends StatelessWidget {
       items.add(Text(
         item.contentRatings!,
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+          color: FluentTheme.of(context)
+              .typography
+              .body
+              ?.color
+              ?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       ));
@@ -129,7 +139,11 @@ class DetailTags extends StatelessWidget {
       items.add(Text(
         item.airDate!.substring(0, 4),
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+          color: FluentTheme.of(context)
+              .typography
+              .body
+              ?.color
+              ?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       ));
@@ -145,17 +159,23 @@ class DetailTags extends StatelessWidget {
         items.add(Text(
           genresText,
           style: TextStyle(
-            color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+            color: FluentTheme.of(context)
+                .typography
+                .body
+                ?.color
+                ?.withValues(alpha: 0.8),
             fontSize: 14,
           ),
         ));
       }
     }
 
-    if (item.productionCountries != null && item.productionCountries!.isNotEmpty) {
+    if (item.productionCountries != null &&
+        item.productionCountries!.isNotEmpty) {
       final countriesText = item.productionCountries!
           .map((c) {
-            final parts = c.split(RegExp(r'[^A-Za-z]+')).where((p) => p.isNotEmpty);
+            final parts =
+                c.split(RegExp(r'[^A-Za-z]+')).where((p) => p.isNotEmpty);
             final converted = parts.map((p) => iso3166Map[p] ?? p).join(' ');
             return converted.isNotEmpty ? converted : c;
           })
@@ -165,7 +185,11 @@ class DetailTags extends StatelessWidget {
         items.add(Text(
           countriesText,
           style: TextStyle(
-            color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+            color: FluentTheme.of(context)
+                .typography
+                .body
+                ?.color
+                ?.withValues(alpha: 0.8),
             fontSize: 14,
           ),
         ));
@@ -176,7 +200,11 @@ class DetailTags extends StatelessWidget {
       items.add(Text(
         formatedTotalDuration!,
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+          color: FluentTheme.of(context)
+              .typography
+              .body
+              ?.color
+              ?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       ));
@@ -186,17 +214,26 @@ class DetailTags extends StatelessWidget {
       items.add(Text(
         item.ancestorName,
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+          color: FluentTheme.of(context)
+              .typography
+              .body
+              ?.color
+              ?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       ));
     }
 
-    if (smartAnalysisStatusText != null && smartAnalysisStatusText!.isNotEmpty) {
+    if (smartAnalysisStatusText != null &&
+        smartAnalysisStatusText!.isNotEmpty) {
       items.add(Text(
         '智能片头/片尾检测状态：$smartAnalysisStatusText',
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+          color: FluentTheme.of(context)
+              .typography
+              .body
+              ?.color
+              ?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       ));
@@ -241,7 +278,11 @@ class _ImdbLinkState extends State<ImdbLink> {
         Text(
           '链接:  ',
           style: TextStyle(
-            color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+            color: FluentTheme.of(context)
+                .typography
+                .body
+                ?.color
+                ?.withValues(alpha: 0.8),
             fontSize: 14,
           ),
         ),
@@ -297,7 +338,11 @@ class _MediaDescriptionState extends State<MediaDescription> {
     final maxLines = widget.isSeason ? 2 : 4;
     final processedOverview = widget.overview.replaceAll('\n\n', '\n');
     final bodyStyle = TextStyle(
-      color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+      color: FluentTheme.of(context)
+          .typography
+          .body
+          ?.color
+          ?.withValues(alpha: 0.8),
       fontSize: 15,
       height: 1.5,
     );
@@ -323,7 +368,8 @@ class _MediaDescriptionState extends State<MediaDescription> {
         final moreWidth = (TextPainter(
           text: const TextSpan(text: _moreLabel, style: moreStyle),
           textDirection: TextDirection.ltr,
-        )..layout()).width;
+        )..layout())
+            .width;
         final reservedWidth = moreWidth + _moreGap;
 
         bool fitsWithMore(int prefixLen) {
@@ -415,7 +461,7 @@ class MediaDescriptionDialog extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(title, style: FluentTheme.of(context).typography.subtitle),
-          IconButton(
+          AppIconButton(
             icon: const Icon(FluentIcons.chrome_close),
             onPressed: () => Navigator.of(context).pop(),
           ),
@@ -427,7 +473,11 @@ class MediaDescriptionDialog extends StatelessWidget {
           style: TextStyle(
             fontSize: 15,
             height: 1.6,
-            color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+            color: FluentTheme.of(context)
+                .typography
+                .body
+                ?.color
+                ?.withValues(alpha: 0.8),
           ),
         ),
       ),
@@ -463,7 +513,8 @@ class _CircleIconButtonState extends State<CircleIconButton> {
   @override
   Widget build(BuildContext context) {
     final borderColor = Colors.white.withValues(alpha: _hovered ? 0.3 : 0.1);
-    final backgroundColor = _hovered ? Colors.white.withValues(alpha: 0.02) : Colors.transparent;
+    final backgroundColor =
+        _hovered ? Colors.white.withValues(alpha: 0.02) : Colors.transparent;
     return Tooltip(
       message: widget.tooltip,
       child: MouseRegion(
@@ -585,13 +636,16 @@ class _VideoSelectionBoxState extends State<VideoSelectionBox> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final textColor = widget.isSelected ? kAccentColor : theme.typography.body?.color ?? Colors.white;
+    final textColor = widget.isSelected
+        ? kAccentColor
+        : theme.typography.body?.color ?? Colors.white;
     final borderColor = widget.isSelected
         ? kAccentColor
         : _isHovered
             ? Colors.white.withValues(alpha: 0.3)
             : Colors.white.withValues(alpha: 0.1);
-    final backgroundColor = _isHovered ? Colors.white.withValues(alpha: 0.02) : Colors.transparent;
+    final backgroundColor =
+        _isHovered ? Colors.white.withValues(alpha: 0.02) : Colors.transparent;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -752,7 +806,8 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
 
   void _syncHoveredState() {
     if (!mounted) return;
-    final nextHovered = _isTargetHovered || _isFlyoutHovered || _controller.isOpen;
+    final nextHovered =
+        _isTargetHovered || _isFlyoutHovered || _controller.isOpen;
     if (_isHovered != nextHovered) {
       setState(() {
         _isHovered = nextHovered;
@@ -803,7 +858,8 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
             titleText,
             style: TextStyle(
               fontSize: 15,
-              color: isSelected ? theme.accentColor : theme.typography.body?.color,
+              color:
+                  isSelected ? theme.accentColor : theme.typography.body?.color,
             ),
           ),
           if (!item.isNoDisplay)
@@ -852,7 +908,11 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
             '无内容',
             style: TextStyle(
               fontSize: 13,
-              color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.7),
+              color: FluentTheme.of(context)
+                  .typography
+                  .body
+                  ?.color
+                  ?.withValues(alpha: 0.7),
             ),
           ),
         ),
@@ -874,13 +934,20 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
   @override
   Widget build(BuildContext context) {
     final selectedItem = _findSelectedItem();
-    final label = widget.selectedLabel ?? selectedItem?.title ?? widget.placeholder ?? 'Select';
+    final label = widget.selectedLabel ??
+        selectedItem?.title ??
+        widget.placeholder ??
+        'Select';
 
     if (widget.items.length <= 1) {
       return Text(
         label,
         style: TextStyle(
-          color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+          color: FluentTheme.of(context)
+              .typography
+              .body
+              ?.color
+              ?.withValues(alpha: 0.8),
           fontSize: 14,
         ),
       );
@@ -900,7 +967,11 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
               Text(
                 label,
                 style: TextStyle(
-                  color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.8),
+                  color: FluentTheme.of(context)
+                      .typography
+                      .body
+                      ?.color
+                      ?.withValues(alpha: 0.8),
                   fontSize: 14,
                 ),
               ),
@@ -911,7 +982,11 @@ class _StreamSelectorState<T> extends State<StreamSelector<T>> {
                 child: Icon(
                   FluentIcons.chevron_down_small,
                   size: 12,
-                  color: FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.6),
+                  color: FluentTheme.of(context)
+                      .typography
+                      .body
+                      ?.color
+                      ?.withValues(alpha: 0.6),
                 ),
               ),
             ],
@@ -1072,6 +1147,7 @@ class _SubtitleStreamSelectorState extends State<SubtitleStreamSelector> {
       });
     }
   }
+
   void _scheduleHide() {
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(milliseconds: 160), () {

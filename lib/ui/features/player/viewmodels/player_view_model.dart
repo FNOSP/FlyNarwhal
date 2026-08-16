@@ -31,8 +31,7 @@ class PlayerViewModel extends StateNotifier<PlayingInfoCache?> {
     final currentInfo = state;
     if (currentInfo == null) return;
 
-    final guid =
-        currentInfo.playConfig?.guid ?? currentInfo.parentGuid;
+    final guid = currentInfo.playConfig?.guid ?? currentInfo.parentGuid;
     if (guid == null) return;
 
     // Create new play config with updated values

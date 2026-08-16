@@ -120,7 +120,8 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout>
         final buttonSize = renderObject.size;
         final flyoutHeight = _flyoutSize?.height ?? _estimatedFlyoutHeight;
         final bridgeHeight = widget.yOffset + _flyoutBridgeOffset;
-        final top = buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight;
+        final top =
+            buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight;
 
         _updateFlyoutSizeAfterFrame();
 

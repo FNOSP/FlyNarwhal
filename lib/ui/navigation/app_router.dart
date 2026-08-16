@@ -1,4 +1,4 @@
-﻿import 'package:go_router/go_router.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/home/home_screen.dart';
 import '../features/layout/main_layout.dart';
@@ -18,7 +18,7 @@ import '../../providers/providers.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final prefs = ref.watch(preferencesManagerProvider);
   ref.watch(authRefreshProvider);
-  
+
   return GoRouter(
     initialLocation: '/login',
     redirect: (context, state) {
@@ -74,11 +74,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/library/:id',
-            builder: (context, state) => MediaLibraryScreen(id: state.pathParameters['id']),
+            builder: (context, state) =>
+                MediaLibraryScreen(id: state.pathParameters['id']),
           ),
           GoRoute(
             path: '/category/:type',
-            builder: (context, state) => MediaLibraryScreen(categoryType: state.pathParameters['type']),
+            builder: (context, state) =>
+                MediaLibraryScreen(categoryType: state.pathParameters['type']),
           ),
           GoRoute(
             path: '/settings',
@@ -86,19 +88,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/movie/:guid',
-            builder: (context, state) => MovieDetailScreen(guid: state.pathParameters['guid'] ?? ''),
+            builder: (context, state) =>
+                MovieDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
           GoRoute(
             path: '/tv/:guid',
-            builder: (context, state) => TvDetailScreen(guid: state.pathParameters['guid'] ?? ''),
+            builder: (context, state) =>
+                TvDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
           GoRoute(
             path: '/tv/season/:guid',
-            builder: (context, state) => TvSeasonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
+            builder: (context, state) =>
+                TvSeasonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
           GoRoute(
             path: '/person/:guid',
-            builder: (context, state) => PersonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
+            builder: (context, state) =>
+                PersonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
         ],
       ),

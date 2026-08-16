@@ -18,8 +18,7 @@ const Color _pillHoverBackgroundColor = Color(0x14FFFFFF);
 enum _SubtitleDownloadStatus { idle, downloading, done }
 
 // Language option: (server code, display label).
-const List<(String code, String label)> _languageOptions =
-    <(String, String)>[
+const List<(String code, String label)> _languageOptions = <(String, String)>[
   ('zh-CN', '简体中文'),
   ('en', '英文'),
 ];
@@ -43,8 +42,7 @@ class SubtitleSearchDialog extends StatefulWidget {
   final Future<void> Function(
     SearchingSubtitleInfo item,
     String subtitleGuid,
-  )
-  onDownloadSimilar;
+  ) onDownloadSimilar;
 
   const SubtitleSearchDialog({
     super.key,
@@ -329,7 +327,8 @@ class _IconButtonState extends State<_IconButton> {
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: _isHovered ? _languageHoverBackgroundColor : Colors.transparent,
+            color:
+                _isHovered ? _languageHoverBackgroundColor : Colors.transparent,
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
@@ -371,8 +370,9 @@ class _MiddleEllipsisText extends StatelessWidget {
         String fit = minimal;
         while (head + 1 < tail) {
           final mid = (head + tail) ~/ 2;
-          final candidate =
-              chars.take(mid).join() + ellipsis + chars.skip(chars.length - mid).join();
+          final candidate = chars.take(mid).join() +
+              ellipsis +
+              chars.skip(chars.length - mid).join();
           final candidatePainter = TextPainter(
             text: TextSpan(text: candidate, style: style),
             maxLines: 1,
@@ -420,7 +420,8 @@ class _LanguageSwitchButtonState extends State<_LanguageSwitchButton> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
           decoration: BoxDecoration(
-            color: _isHovered ? _languageHoverBackgroundColor : Colors.transparent,
+            color:
+                _isHovered ? _languageHoverBackgroundColor : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: _pillBorderColor),
           ),
@@ -432,7 +433,8 @@ class _LanguageSwitchButtonState extends State<_LanguageSwitchButton> {
                 style: const TextStyle(color: Colors.white, fontSize: 15),
               ),
               const SizedBox(width: 8),
-              const Icon(FluentIcons.chevron_down, size: 12, color: Colors.white),
+              const Icon(FluentIcons.chevron_down,
+                  size: 12, color: Colors.white),
             ],
           ),
         ),
@@ -612,7 +614,8 @@ class _SubtitleSearchItem extends StatelessWidget {
       return Row(
         children: [
           _PillButton(
-            icon: const Icon(FluentIcons.check_mark, size: 16, color: Colors.white),
+            icon: const Icon(FluentIcons.check_mark,
+                size: 16, color: Colors.white),
             label: '下载完成',
             enabled: false,
             onPressed: () {},
@@ -663,9 +666,8 @@ class _PillButtonState extends State<_PillButton> {
   Widget build(BuildContext context) {
     final highlighted = _isHovered && widget.enabled;
     return MouseRegion(
-      cursor: widget.enabled
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
+      cursor:
+          widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(

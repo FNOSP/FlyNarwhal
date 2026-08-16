@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../providers/update_providers.dart';
 import 'update_dialog.dart';
 import 'update_state.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 final updateBadgeStateProvider = Provider<UpdateState>((ref) {
   return ref.watch(updateControllerProvider);
@@ -48,7 +49,7 @@ class UpdateBadge extends StatelessWidget {
       label: semanticLabel,
       child: Tooltip(
         message: semanticLabel,
-        child: IconButton(
+        child: AppIconButton(
           key: const ValueKey('update-badge'),
           autofocus: false,
           // The default IconButton padding yields a ~34px-tall button, which

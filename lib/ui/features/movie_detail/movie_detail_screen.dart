@@ -26,6 +26,7 @@ import '../../shared/local_subtitle_upload.dart';
 import '../player/widgets/subtitle_search_dialog.dart';
 import '../../shared/cast_scroll_row.dart';
 import '../../shared/toast.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   final trimmedPath = path.trim();
@@ -120,7 +121,7 @@ class MovieDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   MouseRegion(
                     cursor: SystemMouseCursors.click,
-                    child: Button(
+                    child: AppButton(
                       child: const Text('重试'),
                       onPressed: () => ref
                           .read(movieDetailNotifierProvider(guid).notifier)
@@ -332,7 +333,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                 title: const Text('添加字幕失败'),
                 content: Text('请稍后重试：$error'),
                 actions: [
-                  Button(
+                  AppButton(
                     child: const Text('确定'),
                     onPressed: () => Navigator.of(errorContext).pop(),
                   ),
@@ -389,9 +390,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         builder: (_) => SubtitleSearchDialog(
           mediaFileName: currentFile.fileName,
           initialSubtitleGuidByTrimId: {
-            for (final subtitle
-                in widget.state.streamList?.subtitleStreams ??
-                    const <SubtitleStream>[])
+            for (final subtitle in widget.state.streamList?.subtitleStreams ??
+                const <SubtitleStream>[])
               if (subtitle.mediaGuid == mediaGuid &&
                   subtitle.trimId.isNotEmpty &&
                   subtitle.guid.isNotEmpty)
@@ -433,9 +433,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           },
           onDownloadSimilar: (item, subtitleGuid) async {
             try {
-              await ref
-                  .read(fileRepositoryProvider)
-                  .predownloadSimilarSubtitle(
+              await ref.read(fileRepositoryProvider).predownloadSimilarSubtitle(
                     mediaGuid: mediaGuid,
                     subtitleGuid: subtitleGuid,
                   );
@@ -1545,8 +1543,7 @@ class _ViewAllMediaInfoButtonState extends State<_ViewAllMediaInfoButton> {
   @override
   Widget build(BuildContext context) {
     // 复刻飞牛影视 web：--semi-color-text-2 (白 60%)，hover 时 --semi-color-text-0 (白)。
-    final color =
-        _hovered ? const Color(0xFFFFFFFF) : const Color(0x99FFFFFF);
+    final color = _hovered ? const Color(0xFFFFFFFF) : const Color(0x99FFFFFF);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),

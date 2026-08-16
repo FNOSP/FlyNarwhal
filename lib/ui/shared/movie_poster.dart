@@ -574,8 +574,7 @@ class _BannerPosterState extends State<BannerPoster> {
                     child: hasPoster
                         ? (widget.contentPadding > 0
                             ? Padding(
-                                padding:
-                                    EdgeInsets.all(widget.contentPadding),
+                                padding: EdgeInsets.all(widget.contentPadding),
                                 child: FnCachedImage(
                                   posterPath: widget.posterPath!,
                                   fit: BoxFit.contain,
@@ -622,8 +621,7 @@ class _BannerPosterState extends State<BannerPoster> {
                       duration: const Duration(milliseconds: 200),
                       opacity: isHovered ? 1 : 0,
                       child: ColoredBox(
-                        color:
-                            const Color(0xFF1C1C1C).withValues(alpha: 0.5),
+                        color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
                       ),
                     ),
                   ),

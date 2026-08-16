@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../shared/dialogs/app_dialog.dart';
 import 'card_expander_item.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 const _projectUrl = 'https://github.com/FNOSP/FlyNarwhal';
 
@@ -29,7 +30,7 @@ class SupportAuthorItem extends StatelessWidget {
       ),
       heading: const Text('FlyNarwhal'),
       caption: const Text(_projectUrl),
-      trailing: Button(
+      trailing: AppButton(
         key: const ValueKey('settings-support-author-button'),
         onPressed: () => _showSupportAuthorDialog(context),
         child: const Text('支持作者'),

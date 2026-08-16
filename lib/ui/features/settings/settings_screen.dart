@@ -17,6 +17,7 @@ import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/shortcut_settings_dialog.dart';
 import 'widgets/support_author_item.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -76,7 +77,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 controller: _flyNarwhalAuthCodeController,
                 obscureText: !_isFlyNarwhalAuthCodeVisible,
                 onSubmitted: (_) => _saveFlyNarwhalAuthCode(dialogContext),
-                suffix: IconButton(
+                suffix: AppIconButton(
                   icon: Icon(
                     _isFlyNarwhalAuthCodeVisible
                         ? FluentIcons.hide3
@@ -98,14 +99,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           actions: [
-            Button(
+            AppButton(
               child: const Text('取消'),
               onPressed: () {
                 _isFlyNarwhalAuthCodeVisible = false;
                 Navigator.pop(dialogContext);
               },
             ),
-            FilledButton(
+            AppFilledButton(
               key: const ValueKey('settings-fly-narwhal-auth-code-save'),
               child: const Text('确定'),
               onPressed: () => _saveFlyNarwhalAuthCode(dialogContext),
@@ -406,7 +407,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 icon: const Icon(FluentIcons.keyboard_classic),
                                 heading: const Text('快捷键设置'),
                                 caption: const Text('自定义快捷键'),
-                                trailing: Button(
+                                trailing: AppButton(
                                   key:
                                       const ValueKey('settings-shortcuts-open'),
                                   child: const Text('自定义'),
@@ -484,7 +485,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                               ),
                                             ),
                                             const SizedBox(width: 8),
-                                            Button(
+                                            AppButton(
                                               key: const ValueKey(
                                                 'settings-fly-narwhal-test',
                                               ),
@@ -556,7 +557,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                             ? '已填写飞鲸服务端授权码'
                                             : '填写飞鲸服务端授权码',
                                       ),
-                                      trailing: Button(
+                                      trailing: AppButton(
                                         onPressed:
                                             _openFlyNarwhalAuthCodeDialog,
                                         child: const Text('填写授权码'),
@@ -586,7 +587,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   loading: () => const Text('正在读取版本信息…'),
                                   error: (error, _) => const Text('无法读取版本信息'),
                                 ),
-                                trailing: Button(
+                                trailing: AppButton(
                                   key: const ValueKey(
                                       'settings-check-update-button'),
                                   onPressed: updateState.phase ==
@@ -694,7 +695,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         '为了改进软件性能，我们会收集部分硬件信息（如 CPU、GPU 型号等）作为参考依据。这些信息将仅用于优化软件，不会涉及个人隐私。',
                                       ),
                                       actions: [
-                                        Button(
+                                        AppButton(
                                           onPressed: () =>
                                               Navigator.pop(context),
                                           child: const Text('我知道了'),
@@ -733,7 +734,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                             .toList(),
                                       ),
                                       const SizedBox(width: 8),
-                                      Button(
+                                      AppButton(
                                         key: const ValueKey(
                                           'settings-log-export-button',
                                         ),
@@ -763,7 +764,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: const Text('导出错误'),
               content: Text(_logExportErrorMessage!),
               actions: [
-                Button(
+                AppButton(
                   child: const Text('确定'),
                   onPressed: () {
                     setState(() {

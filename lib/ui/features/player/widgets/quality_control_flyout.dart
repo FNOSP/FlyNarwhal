@@ -103,10 +103,9 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
 
   double get _currentFlyoutWidth => 320;
 
-  double get _estimatedFlyoutHeight =>
-      _isCustomPage
-          ? _estimatedCustomQualityFlyoutHeight
-          : _estimatedSimpleQualityFlyoutHeight;
+  double get _estimatedFlyoutHeight => _isCustomPage
+      ? _estimatedCustomQualityFlyoutHeight
+      : _estimatedSimpleQualityFlyoutHeight;
 
   void _updateFlyoutSizeAfterFrame() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -841,9 +840,8 @@ class _CustomQualityItemState extends State<_CustomQualityItem> {
                   style: TextStyle(
                     color: textColor,
                     fontSize: 15,
-                    fontWeight: widget.isSelected
-                        ? FontWeight.w600
-                        : FontWeight.normal,
+                    fontWeight:
+                        widget.isSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ),

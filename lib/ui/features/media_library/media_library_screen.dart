@@ -212,8 +212,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     );
   }
 
-  bool get _isLiveLibrary =>
-      widget.categoryType == 'live' || _isIptvLibrary;
+  bool get _isLiveLibrary => widget.categoryType == 'live' || _isIptvLibrary;
 
   bool get _isIptvLibrary {
     final mediaDbList =
@@ -399,68 +398,70 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        final hasPoster =
-            item.poster?.trim().isNotEmpty == true;
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => context.go('/live/${item.guid}'),
-          child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 8 * scaleFactor),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: SizedBox(
-                    width: 56 * scaleFactor,
-                    height: 56 * scaleFactor,
-                    child: hasPoster
-                        ? FnCachedImage(posterPath: item.poster!)
-                        : Container(
-                            color: theme
-                                .resources.controlStrokeColorSecondary,
-                            child: Center(
-                              child: MediaPosterPlaceholder(
-                                type: MediaType.liveChannel,
-                                size: 28 * scaleFactor,
+        final hasPoster = item.poster?.trim().isNotEmpty == true;
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => context.go('/live/${item.guid}'),
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8 * scaleFactor),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: SizedBox(
+                      width: 56 * scaleFactor,
+                      height: 56 * scaleFactor,
+                      child: hasPoster
+                          ? FnCachedImage(posterPath: item.poster!)
+                          : Container(
+                              color:
+                                  theme.resources.controlStrokeColorSecondary,
+                              child: Center(
+                                child: MediaPosterPlaceholder(
+                                  type: MediaType.liveChannel,
+                                  size: 28 * scaleFactor,
+                                ),
                               ),
                             ),
-                          ),
+                    ),
                   ),
-                ),
-                SizedBox(width: 16 * scaleFactor),
-                Expanded(
-                  child: Text(
-                    item.title,
-                    style: theme.typography.body?.copyWith(fontSize: 15),
-                    overflow: TextOverflow.ellipsis,
+                  SizedBox(width: 16 * scaleFactor),
+                  Expanded(
+                    child: Text(
+                      item.title,
+                      style: theme.typography.body?.copyWith(fontSize: 15),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                HoverButton(
-                  onPressed: () => _handleFavoriteToggle(
-                    item.guid,
-                    item.isFavorite == 1,
-                    (_) {},
-                  ),
-                  builder: (context, states) {
-                    final favorite = item.isFavorite == 1;
-                    return SvgPicture.asset(
-                      favorite
-                          ? 'assets/images/favorite_fill.svg'
-                          : 'assets/images/favorite.svg',
-                      width: 18 * scaleFactor,
-                      height: 18 * scaleFactor,
-                      colorFilter: ColorFilter.mode(
+                  HoverButton(
+                    onPressed: () => _handleFavoriteToggle(
+                      item.guid,
+                      item.isFavorite == 1,
+                      (_) {},
+                    ),
+                    builder: (context, states) {
+                      final favorite = item.isFavorite == 1;
+                      return SvgPicture.asset(
                         favorite
-                            ? kDangerDefaultColor
-                            : (theme.typography.caption?.color ??
-                                    Colors.white)
-                                .withValues(alpha: 0.8),
-                        BlendMode.srcIn,
-                      ),
-                    );
-                  },
-                ),
-              ],
+                            ? 'assets/images/favorite_fill.svg'
+                            : 'assets/images/favorite.svg',
+                        width: 18 * scaleFactor,
+                        height: 18 * scaleFactor,
+                        colorFilter: ColorFilter.mode(
+                          favorite
+                              ? kDangerDefaultColor
+                              : (theme.typography.caption?.color ??
+                                      Colors.white)
+                                  .withValues(alpha: 0.8),
+                          BlendMode.srcIn,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -947,60 +948,68 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                   ? _buildGeneralHorizontalGrid(
                                       items, scaleFactor)
                                   : GridView.builder(
-                                  controller: _scrollController,
-                                  padding: EdgeInsets.all(16 * scaleFactor),
-                                  gridDelegate:
-                                      SliverGridDelegateWithMaxCrossAxisExtent(
-                                    maxCrossAxisExtent: 180 * scaleFactor,
-                                    mainAxisSpacing: 8,
-                                    crossAxisSpacing: 0,
-                                    childAspectRatio: 0.6,
-                                  ),
-                          itemCount: items.length,
-                          itemBuilder: (context, index) {
-                            final item = items[index];
-                            return MoviePoster(
-                              title: item.title,
-                              subtitle: buildPosterSubtitle(item),
-                              posterPath: item.poster,
-                              score: item.voteAverage,
-                              resolutions: item.mediaStream?.resolutions,
-                              isFavorite: item.isFavorite == 1,
-                              isWatched: (item.watched ?? 0) == 1,
-                              width: posterWidth,
-                              height: posterHeight,
-                              scaleFactor: scaleFactor,
-                              type: item.type,
-                              guid: item.guid,
-                              onTap: () {
-                                switch (MediaType.tryParse(item.type)) {
-                                  case MediaType.tv:
-                                    context.go('/tv/${item.guid}');
-                                    break;
-                                  case MediaType.season:
-                                    context.go('/tv/season/${item.guid}');
-                                    break;
-                                  default:
-                                    context.go('/movie/${item.guid}');
-                                }
-                              },
-                              onPlayTap: () {
-                                if (item.type == MediaType.liveChannel.value) {
-                                  context.go('/live/${item.guid}');
-                                } else {
-                                  context.go('/player/${item.guid}');
-                                }
-                              },
-                              onFavoriteToggle: _handleFavoriteToggle,
-                              onWatchedToggle: _handleWatchedToggle,
-                              onMoreTap: smartAnalysisEnabled &&
-                                      (item.type == 'Season' ||
-                                          item.type == 'TV')
-                                  ? () => _showSmartAnalysisFlyout(item)
-                                  : null,
-                            );
-                          },
-                        ),
+                                      controller: _scrollController,
+                                      padding: EdgeInsets.all(16 * scaleFactor),
+                                      gridDelegate:
+                                          SliverGridDelegateWithMaxCrossAxisExtent(
+                                        maxCrossAxisExtent: 180 * scaleFactor,
+                                        mainAxisSpacing: 8,
+                                        crossAxisSpacing: 0,
+                                        childAspectRatio: 0.6,
+                                      ),
+                                      itemCount: items.length,
+                                      itemBuilder: (context, index) {
+                                        final item = items[index];
+                                        return MoviePoster(
+                                          title: item.title,
+                                          subtitle: buildPosterSubtitle(item),
+                                          posterPath: item.poster,
+                                          score: item.voteAverage,
+                                          resolutions:
+                                              item.mediaStream?.resolutions,
+                                          isFavorite: item.isFavorite == 1,
+                                          isWatched: (item.watched ?? 0) == 1,
+                                          width: posterWidth,
+                                          height: posterHeight,
+                                          scaleFactor: scaleFactor,
+                                          type: item.type,
+                                          guid: item.guid,
+                                          onTap: () {
+                                            switch (
+                                                MediaType.tryParse(item.type)) {
+                                              case MediaType.tv:
+                                                context.go('/tv/${item.guid}');
+                                                break;
+                                              case MediaType.season:
+                                                context.go(
+                                                    '/tv/season/${item.guid}');
+                                                break;
+                                              default:
+                                                context
+                                                    .go('/movie/${item.guid}');
+                                            }
+                                          },
+                                          onPlayTap: () {
+                                            if (item.type ==
+                                                MediaType.liveChannel.value) {
+                                              context.go('/live/${item.guid}');
+                                            } else {
+                                              context
+                                                  .go('/player/${item.guid}');
+                                            }
+                                          },
+                                          onFavoriteToggle:
+                                              _handleFavoriteToggle,
+                                          onWatchedToggle: _handleWatchedToggle,
+                                          onMoreTap: smartAnalysisEnabled &&
+                                                  (item.type == 'Season' ||
+                                                      item.type == 'TV')
+                                              ? () =>
+                                                  _showSmartAnalysisFlyout(item)
+                                              : null,
+                                        );
+                                      },
+                                    ),
                 ),
               ],
             ),

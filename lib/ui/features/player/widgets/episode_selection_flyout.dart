@@ -30,8 +30,7 @@ const double _episodeFlyoutListBottomPadding = 10;
 const double _episodeListRowHeight = 76;
 const double _episodeListRowSpacing = 6;
 const int _episodeDetailedViewMaxVisibleCount = 6;
-const double _episodeFlyoutMaxHeight =
-    _episodeFlyoutHeaderHeight +
+const double _episodeFlyoutMaxHeight = _episodeFlyoutHeaderHeight +
     _episodeFlyoutDividerHeight +
     _episodeFlyoutListTopSpacing +
     _episodeFlyoutListBottomPadding +

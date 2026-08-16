@@ -99,10 +99,9 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
 
     // The web season page renders the header backdrop from the parent TV
     // item's backdrops, so fetch the parent alongside the other requests.
-    final parentItemFuture =
-        item.type == 'Season' && item.parentGuid.isNotEmpty
-            ? _fetchItemDetail(item.parentGuid)
-            : Future<ItemResponse?>.value(null);
+    final parentItemFuture = item.type == 'Season' && item.parentGuid.isNotEmpty
+        ? _fetchItemDetail(item.parentGuid)
+        : Future<ItemResponse?>.value(null);
 
     final results = await Future.wait([
       _fetchPlayInfo(),
@@ -117,12 +116,12 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
     final playInfo = results[0] as PlayInfoResponse?;
     final episodes = results[1] as List<EpisodeListResponse>;
     final personList = results[2] as List<PersonList>?;
-    final iso6391 = (results[3] as Map<String, String>?) ??
-        const <String, String>{};
-    final iso6392 = (results[4] as Map<String, String>?) ??
-        const <String, String>{};
-    final iso3166 = (results[5] as Map<String, String>?) ??
-        const <String, String>{};
+    final iso6391 =
+        (results[3] as Map<String, String>?) ?? const <String, String>{};
+    final iso6392 =
+        (results[4] as Map<String, String>?) ?? const <String, String>{};
+    final iso3166 =
+        (results[5] as Map<String, String>?) ?? const <String, String>{};
     final parentItem = results[6] as ItemResponse?;
 
     return TvSeasonDetailState(

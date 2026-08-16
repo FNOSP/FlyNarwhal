@@ -264,157 +264,163 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                            if (hasValidPath)
-                              FnCachedImage(
-                                posterPath: resolvedPosterPath,
-                                fit: BoxFit.cover,
-                                width: 400,
-                                errorWidget: MediaPosterPlaceholder(
-                                  type: MediaType.fromString(widget.item.type),
+                              if (hasValidPath)
+                                FnCachedImage(
+                                  posterPath: resolvedPosterPath,
+                                  fit: BoxFit.cover,
+                                  width: 400,
+                                  errorWidget: MediaPosterPlaceholder(
+                                    type:
+                                        MediaType.fromString(widget.item.type),
+                                  ),
+                                )
+                              else
+                                Center(
+                                  child: MediaPosterPlaceholder(
+                                    type:
+                                        MediaType.fromString(widget.item.type),
+                                  ),
                                 ),
-                              )
-                            else
-                              Center(
-                                child: MediaPosterPlaceholder(
-                                  type: MediaType.fromString(widget.item.type),
-                                ),
-                              ),
-                            if (widget.item.type != MediaType.liveChannel.value)
-                              Align(
-                                alignment: Alignment.bottomLeft,
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  height: 5,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(2.5),
-                                    child: Stack(
-                                      fit: StackFit.expand,
-                                      children: [
-                                        Container(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.05)),
-                                        if (progress > 0)
-                                          FractionallySizedBox(
-                                            widthFactor: progress,
-                                            alignment: Alignment.centerLeft,
-                                            child: Container(
-                                              decoration: const BoxDecoration(
-                                                color: Color(0xFF2073DF),
-                                                borderRadius: BorderRadius.only(
-                                                  topRight: Radius.circular(2.5),
-                                                  bottomRight:
-                                                      Radius.circular(2.5),
+                              if (widget.item.type !=
+                                  MediaType.liveChannel.value)
+                                Align(
+                                  alignment: Alignment.bottomLeft,
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: 5,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(2.5),
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Container(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.05)),
+                                          if (progress > 0)
+                                            FractionallySizedBox(
+                                              widthFactor: progress,
+                                              alignment: Alignment.centerLeft,
+                                              child: Container(
+                                                decoration: const BoxDecoration(
+                                                  color: Color(0xFF2073DF),
+                                                  borderRadius:
+                                                      BorderRadius.only(
+                                                    topRight:
+                                                        Radius.circular(2.5),
+                                                    bottomRight:
+                                                        Radius.circular(2.5),
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            Positioned.fill(
-                              left: -_hoverOverlayBleed,
-                              top: -_hoverOverlayBleed,
-                              right: -_hoverOverlayBleed,
-                              bottom: -_hoverOverlayBleed,
-                              child: AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
-                                opacity: isHovered ? 1 : 0,
-                                child: ColoredBox(
-                                  color: const Color(0xFF1C1C1C)
-                                      .withValues(alpha: 0.5),
+                              Positioned.fill(
+                                left: -_hoverOverlayBleed,
+                                top: -_hoverOverlayBleed,
+                                right: -_hoverOverlayBleed,
+                                bottom: -_hoverOverlayBleed,
+                                child: AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 200),
+                                  opacity: isHovered ? 1 : 0,
+                                  child: ColoredBox(
+                                    color: const Color(0xFF1C1C1C)
+                                        .withValues(alpha: 0.5),
+                                  ),
                                 ),
                               ),
-                            ),
-                            Center(
-                              child: AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
-                                opacity: isHovered ? 1 : 0,
-                                child: MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  onEnter: (_) => setState(
-                                      () => _isPlayButtonHovered = true),
-                                  onExit: (_) => setState(
-                                      () => _isPlayButtonHovered = false),
-                                  child: GestureDetector(
-                                    key: ValueKey(
-                                      'recently-watched-play-${widget.itemIndex}',
-                                    ),
-                                    onTap: () {
-                                      ref
-                                          .read(
-                                              navigationStackProvider.notifier)
-                                          .playerSourcePath = '/home';
-                                      if (widget.item.type ==
-                                          MediaType.liveChannel.value) {
-                                        context.go('/live/${widget.item.guid}');
-                                      } else {
-                                        context.go(
-                                            '/player/${widget.item.guid}');
-                                      }
-                                    },
-                                    child: AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 200),
-                                      width: playButtonSize,
-                                      height: playButtonSize,
-                                      child: SvgPicture.asset(
-                                        'assets/images/play_circle.svg',
+                              Center(
+                                child: AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 200),
+                                  opacity: isHovered ? 1 : 0,
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.click,
+                                    onEnter: (_) => setState(
+                                        () => _isPlayButtonHovered = true),
+                                    onExit: (_) => setState(
+                                        () => _isPlayButtonHovered = false),
+                                    child: GestureDetector(
+                                      key: ValueKey(
+                                        'recently-watched-play-${widget.itemIndex}',
+                                      ),
+                                      onTap: () {
+                                        ref
+                                            .read(navigationStackProvider
+                                                .notifier)
+                                            .playerSourcePath = '/home';
+                                        if (widget.item.type ==
+                                            MediaType.liveChannel.value) {
+                                          context
+                                              .go('/live/${widget.item.guid}');
+                                        } else {
+                                          context.go(
+                                              '/player/${widget.item.guid}');
+                                        }
+                                      },
+                                      child: AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 200),
                                         width: playButtonSize,
                                         height: playButtonSize,
-                                        colorFilter: const ColorFilter.mode(
-                                          Colors.white,
-                                          BlendMode.srcIn,
+                                        child: SvgPicture.asset(
+                                          'assets/images/play_circle.svg',
+                                          width: playButtonSize,
+                                          height: playButtonSize,
+                                          colorFilter: const ColorFilter.mode(
+                                            Colors.white,
+                                            BlendMode.srcIn,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            Positioned(
-                              right: 8,
-                              bottom: 8,
-                              child: AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
-                                opacity: isHovered ? 1 : 0,
-                                child: Row(
-                                  children: [
-                                    _PosterIconButton(
-                                      svgAssetPath: _isWatched
-                                          ? 'assets/images/watched_fill.svg'
-                                          : 'assets/images/watched.svg',
-                                      isActive: _isWatched,
-                                      activeColor: kAccentColorDefault,
-                                      scaleFactor: scaleFactor,
-                                      onPressed: _handleWatchedToggle,
-                                    ),
-                                    _PosterIconButton(
-                                      svgAssetPath: _isFavorite
-                                          ? 'assets/images/favorite_fill.svg'
-                                          : 'assets/images/favorite.svg',
-                                      isActive: _isFavorite,
-                                      activeColor: kDangerDefaultColor,
-                                      scaleFactor: scaleFactor,
-                                      onPressed: _handleFavoriteToggle,
-                                    ),
-                                    _PosterIconButton(
-                                      icon: FluentIcons.more,
-                                      isActive: false,
-                                      activeColor: Colors.white,
-                                      scaleFactor: scaleFactor,
-                                      onPressed: () {},
-                                    ),
-                                  ],
+                              Positioned(
+                                right: 8,
+                                bottom: 8,
+                                child: AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 200),
+                                  opacity: isHovered ? 1 : 0,
+                                  child: Row(
+                                    children: [
+                                      _PosterIconButton(
+                                        svgAssetPath: _isWatched
+                                            ? 'assets/images/watched_fill.svg'
+                                            : 'assets/images/watched.svg',
+                                        isActive: _isWatched,
+                                        activeColor: kAccentColorDefault,
+                                        scaleFactor: scaleFactor,
+                                        onPressed: _handleWatchedToggle,
+                                      ),
+                                      _PosterIconButton(
+                                        svgAssetPath: _isFavorite
+                                            ? 'assets/images/favorite_fill.svg'
+                                            : 'assets/images/favorite.svg',
+                                        isActive: _isFavorite,
+                                        activeColor: kDangerDefaultColor,
+                                        scaleFactor: scaleFactor,
+                                        onPressed: _handleFavoriteToggle,
+                                      ),
+                                      _PosterIconButton(
+                                        icon: FluentIcons.more,
+                                        isActive: false,
+                                        activeColor: Colors.white,
+                                        scaleFactor: scaleFactor,
+                                        onPressed: () {},
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
                     const SizedBox(height: 8),
                     SizedBox(
                       width: posterWidth,

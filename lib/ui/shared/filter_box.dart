@@ -64,8 +64,7 @@ class _FilterButtonState extends State<FilterButton> {
       children: [
         ...widget.selectedFilters.entries
             .where(
-              (entry) =>
-                  entry.value.label != '全部' && entry.value.value != null,
+              (entry) => entry.value.label != '全部' && entry.value.value != null,
             )
             .map(
               (entry) => FilterChip(
@@ -242,7 +241,8 @@ class _FilterBoxState extends State<FilterBox> {
   @override
   void initState() {
     super.initState();
-    _selectedOptions = Map<String, FilterItem>.from(widget.initialSelectedFilters);
+    _selectedOptions =
+        Map<String, FilterItem>.from(widget.initialSelectedFilters);
   }
 
   @override
@@ -253,7 +253,8 @@ class _FilterBoxState extends State<FilterBox> {
         oldWidget.tagList != widget.tagList ||
         oldWidget.genres != widget.genres ||
         oldWidget.iso3166 != widget.iso3166) {
-      _selectedOptions = Map<String, FilterItem>.from(widget.initialSelectedFilters);
+      _selectedOptions =
+          Map<String, FilterItem>.from(widget.initialSelectedFilters);
     }
   }
 
@@ -279,7 +280,8 @@ class _FilterBoxState extends State<FilterBox> {
       child: Column(
         children: [
           ...groups.expand((group) {
-            final selected = _selectedOptions[group.title] ?? group.options.first;
+            final selected =
+                _selectedOptions[group.title] ?? group.options.first;
             return [
               FilterRow(
                 title: group.title,
@@ -496,7 +498,8 @@ List<FilterGroup> _buildFilterGroups({
       final label = switch (decade) {
         'Recent' => '今年',
         'Others' => '其他',
-        _ when decade.endsWith('s') => '${decade.substring(0, decade.length - 1)}年代',
+        _ when decade.endsWith('s') =>
+          '${decade.substring(0, decade.length - 1)}年代',
         _ => decade,
       };
       options.add(FilterItem(label, decade));

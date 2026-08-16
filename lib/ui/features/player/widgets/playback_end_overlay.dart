@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 const playerPlaybackEndOverlayKey = ValueKey('player-playback-end-overlay');
 const playerPlaybackEndReplayKey = ValueKey('player-playback-end-replay');
@@ -103,7 +104,7 @@ class _EndActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Button(
+    return AppButton(
       onPressed: onPressed,
       style: ButtonStyle(
         backgroundColor: WidgetStatePropertyAll(

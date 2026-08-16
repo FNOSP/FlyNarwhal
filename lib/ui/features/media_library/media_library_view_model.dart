@@ -67,7 +67,8 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
 
     state = AsyncValue.data(currentState.copyWith(isLoadingMore: true));
     try {
-      final nextRequest = currentRequest.copyWith(page: currentRequest.page + 1);
+      final nextRequest =
+          currentRequest.copyWith(page: currentRequest.page + 1);
       final nextState = await _fetch(nextRequest);
       _currentRequest = nextRequest;
       state = AsyncValue.data(MediaLibraryState(
@@ -113,7 +114,9 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
         : await remote.getItemList(query);
     final data = result.getOrThrow();
     final resolvedMdbName =
-        data.mdbName != null && data.mdbName!.trim().isNotEmpty ? data.mdbName : null;
+        data.mdbName != null && data.mdbName!.trim().isNotEmpty
+            ? data.mdbName
+            : null;
 
     return MediaLibraryState(
       items: data.list,

@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
 import 'subtitle_selection_panel.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 const int _subtitleHideDelayMs = 200;
 const int subtitleFlyoutAnimationDurationMs = 200;
@@ -505,7 +506,7 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                IconButton(
+                AppIconButton(
                   icon: const Icon(FluentIcons.back, size: 12),
                   onPressed: onBack,
                 ),

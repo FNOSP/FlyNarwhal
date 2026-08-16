@@ -3,6 +3,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../../data/models/login_history.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 class HistorySidebar extends StatelessWidget {
   static const Color _textPrimary = Color(0xFFE6E8EC);
@@ -52,7 +53,7 @@ class HistorySidebar extends StatelessWidget {
                 ),
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
-                  child: IconButton(
+                  child: AppIconButton(
                     icon: const Icon(FluentIcons.chrome_close, size: 18),
                     onPressed: onDismiss,
                   ),
@@ -73,7 +74,7 @@ class HistorySidebar extends StatelessWidget {
                 ),
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
-                  child: IconButton(
+                  child: AppIconButton(
                     icon: const Icon(FluentIcons.chrome_close, size: 18),
                     onPressed: onDismiss,
                   ),
@@ -108,7 +109,8 @@ class HistorySidebar extends StatelessWidget {
                                   Flexible(
                                     child: Text(
                                       history.username,
-                                      style: const TextStyle(color: _textPrimary),
+                                      style:
+                                          const TextStyle(color: _textPrimary),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -152,7 +154,7 @@ class HistorySidebar extends StatelessWidget {
                               ),
                               trailing: MouseRegion(
                                 cursor: SystemMouseCursors.click,
-                                child: IconButton(
+                                child: AppIconButton(
                                   icon: const Icon(
                                     FluentIcons.delete,
                                     size: 16,

@@ -26,6 +26,7 @@ import '../../shared/common/scroll_row.dart';
 import '../../shared/toast.dart';
 import '../movie_detail/detail_components.dart';
 import 'tv_season_detail_view_model.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   if (baseUrl.isEmpty || path.isEmpty) return '';
@@ -94,7 +95,7 @@ class TvSeasonDetailScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               MouseRegion(
                 cursor: SystemMouseCursors.click,
-                child: Button(
+                child: AppButton(
                   child: const Text('重试'),
                   onPressed: () => ref
                       .read(tvSeasonDetailNotifierProvider(guid).notifier)
@@ -198,7 +199,7 @@ class _TvSeasonDetailContentState
         actions: [
           MouseRegion(
             cursor: SystemMouseCursors.click,
-            child: Button(
+            child: AppButton(
               child: const Text('关闭'),
               onPressed: () => Navigator.of(context).pop(),
             ),
@@ -213,13 +214,13 @@ class _TvSeasonDetailContentState
     // Guard: require full FlyNarwhal config before triggering analysis
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
-        buildFlyNarwhalConfigWarning(
-          missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
-          missingAuthCode: !settings.hasFlyNarwhalAuthCode,
-        ),
-        type: ToastType.warning,
-        category: 'fly-narwhal-config',
-      );
+            buildFlyNarwhalConfigWarning(
+              missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+              missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+            ),
+            type: ToastType.warning,
+            category: 'fly-narwhal-config',
+          );
       return;
     }
     await ref
@@ -480,14 +481,17 @@ class _TvSeasonDetailContentState
                                 _buildTags(context, item),
                                 const SizedBox(height: 8),
                                 // Only show smart analysis status when the backend service is fully configured
-                                if (ref.watch(settingsProvider).isFlyNarwhalServerAvailable) ...[
+                                if (ref
+                                    .watch(settingsProvider)
+                                    .isFlyNarwhalServerAvailable) ...[
                                   Text(
                                     '智能分析：${_buildSeasonStatusText()}',
                                     key: const ValueKey(
                                       'season-analysis-status',
                                     ),
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.8),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.8),
                                       fontSize: 14,
                                     ),
                                   ),

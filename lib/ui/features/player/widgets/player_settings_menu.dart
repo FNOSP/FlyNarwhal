@@ -1014,9 +1014,8 @@ class _SettingsMenuItemState extends State<_SettingsMenuItem> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onClick != null;
-    final textColor = enabled
-        ? _defaultTextColor
-        : _defaultTextColor.withValues(alpha: 0.4);
+    final textColor =
+        enabled ? _defaultTextColor : _defaultTextColor.withValues(alpha: 0.4);
 
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -1568,9 +1567,7 @@ class _DecodeModeSettingsScreen extends StatelessWidget {
           value: isSpecifySelected
               ? decodeModeLabel(currentMode, availableHwdec)
               : null,
-          onClick: availableHwdec.isEmpty
-              ? null
-              : onNavigateToSpecify,
+          onClick: availableHwdec.isEmpty ? null : onNavigateToSpecify,
         ),
       ],
     );
