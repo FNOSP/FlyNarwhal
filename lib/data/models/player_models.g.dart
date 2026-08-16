@@ -59,6 +59,13 @@ StreamResponse _$StreamResponseFromJson(Map<String, dynamic> json) =>
           ? null
           : CloudStorageInfo.fromJson(
               json['cloud_storage_info'] as Map<String, dynamic>),
+      directLinkQualities: (json['direct_link_qualities'] as List<dynamic>?)
+          ?.map((e) => DirectLinkQuality.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      directLinkAudioStreams:
+          (json['direct_link_audio_streams'] as List<dynamic>?)
+              ?.map((e) => AudioStream.fromJson(e as Map<String, dynamic>))
+              .toList(),
     );
 
 Map<String, dynamic> _$StreamResponseToJson(StreamResponse instance) =>
@@ -69,6 +76,8 @@ Map<String, dynamic> _$StreamResponseToJson(StreamResponse instance) =>
       'file_stream': instance.fileStream,
       'qualities': instance.qualities,
       'cloud_storage_info': instance.cloudStorageInfo,
+      'direct_link_qualities': instance.directLinkQualities,
+      'direct_link_audio_streams': instance.directLinkAudioStreams,
     };
 
 QualityResponse _$QualityResponseFromJson(Map<String, dynamic> json) =>

@@ -47,6 +47,10 @@ class QualityControlFlyout extends StatefulWidget {
   final bool isActiveControl;
   final void Function(bool isHovered)? onHoverStateChanged;
   final void Function(QualityResponse quality) onQualitySelected;
+  // Cloud-storage direct-link mode: the list holds netdisk CDN qualities
+  // (原画/流畅 …) and the flyout renders the web-style 视频质量 panel with the
+  // low-risk green dot and the "直连播放原画无声音" hint.
+  final bool cloudMode;
 
   const QualityControlFlyout({
     super.key,
@@ -57,6 +61,7 @@ class QualityControlFlyout extends StatefulWidget {
     this.isActiveControl = false,
     this.onHoverStateChanged,
     required this.onQualitySelected,
+    this.cloudMode = false,
   });
 
   @override
@@ -411,6 +416,7 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
         currentResolution: widget.currentResolution,
         currentBitrate: widget.currentBitrate,
         isCustomPage: _isCustomPage,
+        cloudMode: widget.cloudMode,
         onSwitchPage: (isCustom) {
           setState(() => _isCustomPage = isCustom);
           _overlayEntry?.markNeedsBuild();
@@ -433,6 +439,7 @@ class _QualityFlyoutContent extends StatelessWidget {
   final String currentResolution;
   final int? currentBitrate;
   final bool isCustomPage;
+  final bool cloudMode;
   final void Function(bool isCustom) onSwitchPage;
   final void Function(QualityResponse) onQualitySelected;
 
@@ -441,6 +448,7 @@ class _QualityFlyoutContent extends StatelessWidget {
     required this.currentResolution,
     required this.currentBitrate,
     required this.isCustomPage,
+    required this.cloudMode,
     required this.onSwitchPage,
     required this.onQualitySelected,
   });
@@ -454,21 +462,27 @@ class _QualityFlyoutContent extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: _flyoutBorderColor),
       ),
-      child: isCustomPage
-          ? _CustomQualityPage(
+      child: cloudMode
+          ? _CloudQualityPage(
               qualities: qualities,
               currentResolution: currentResolution,
-              currentBitrate: currentBitrate,
-              onBack: () => onSwitchPage(false),
               onQualitySelected: onQualitySelected,
             )
-          : _SimpleQualityPage(
-              qualities: qualities,
-              currentResolution: currentResolution,
-              currentBitrate: currentBitrate,
-              onToCustom: () => onSwitchPage(true),
-              onQualitySelected: onQualitySelected,
-            ),
+          : isCustomPage
+              ? _CustomQualityPage(
+                  qualities: qualities,
+                  currentResolution: currentResolution,
+                  currentBitrate: currentBitrate,
+                  onBack: () => onSwitchPage(false),
+                  onQualitySelected: onQualitySelected,
+                )
+              : _SimpleQualityPage(
+                  qualities: qualities,
+                  currentResolution: currentResolution,
+                  currentBitrate: currentBitrate,
+                  onToCustom: () => onSwitchPage(true),
+                  onQualitySelected: onQualitySelected,
+                ),
     );
   }
 }
@@ -857,6 +871,217 @@ class _CustomQualityItemState extends State<_CustomQualityItem> {
                   size: 16,
                   color: Colors.white,
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cloud-storage 视频质量 panel mirroring the web player's netdisk resolution
+/// popover: the CDN quality list (原画/流畅 …), a green dot marking the
+/// low-risk option and the "直连播放原画无声音" hint with its explanation.
+class _CloudQualityPage extends StatelessWidget {
+  final List<QualityResponse> qualities;
+  final String currentResolution;
+  final void Function(QualityResponse) onQualitySelected;
+
+  const _CloudQualityPage({
+    required this.qualities,
+    required this.currentResolution,
+    required this.onQualitySelected,
+  });
+
+  // Mirrors the web player: with more than one non-m3u8 quality the first
+  // entry (原画) is marked with the low-risk green dot.
+  bool _showDot(QualityResponse quality) {
+    final nonM3u8 = qualities.where((q) => !q.isM3u8).toList();
+    if (nonM3u8.length <= 1) return false;
+    return quality == nonM3u8.first;
+  }
+
+  bool get _showDotFooter {
+    final nonM3u8 = qualities.where((q) => !q.isM3u8).toList();
+    return nonM3u8.length > 1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Text(
+              '视频质量',
+              style: TextStyle(
+                color: _defaultTextColor,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const Divider(
+            style: DividerThemeData(
+              decoration: BoxDecoration(color: Color(0x33FFFFFF)),
+            ),
+          ),
+          const SizedBox(height: 4),
+          ...qualities.map((quality) {
+            final selected = quality.resolution == currentResolution;
+            final disabled = quality.isM3u8;
+            final item = _CloudQualityItem(
+              label: quality.resolution,
+              isSelected: selected,
+              showDot: !disabled && _showDot(quality),
+              onClick: disabled ? null : () => onQualitySelected(quality),
+            );
+            if (!disabled) return item;
+            return Tooltip(
+              message: '直连播放暂不支持该画质',
+              child: item,
+            );
+          }),
+          const SizedBox(height: 4),
+          const Divider(
+            style: DividerThemeData(
+              decoration: BoxDecoration(color: Color(0x33FFFFFF)),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_showDotFooter) ...[
+                  const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.only(top: 6, right: 6),
+                        child: _GreenDot(),
+                      ),
+                      Expanded(
+                        child: Text(
+                          '选项风控概率相对低，建议优先选择',
+                          style: TextStyle(
+                            color: Color(0xA0FFFFFF),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                const Row(
+                  children: [
+                    Text(
+                      '直连播放原画无声音',
+                      style: TextStyle(color: Color(0xA0FFFFFF), fontSize: 12),
+                    ),
+                    SizedBox(width: 6),
+                    Tooltip(
+                      message:
+                          '由于播放器对音频编码格式的支持有限，直连播放原画可能出现无声音'
+                          '的情况。可尝试切换播放方式为 “NAS 代理播放”。',
+                      child: Icon(
+                        FluentIcons.unknown,
+                        size: 13,
+                        color: Color(0x80FFFFFF),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GreenDot extends StatelessWidget {
+  const _GreenDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 6,
+      height: 6,
+      decoration: const BoxDecoration(
+        color: Color(0xFF30A46C),
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
+class _CloudQualityItem extends StatefulWidget {
+  final String label;
+  final bool isSelected;
+  final bool showDot;
+  final VoidCallback? onClick;
+
+  const _CloudQualityItem({
+    required this.label,
+    required this.isSelected,
+    this.showDot = false,
+    required this.onClick,
+  });
+
+  @override
+  State<_CloudQualityItem> createState() => _CloudQualityItemState();
+}
+
+class _CloudQualityItemState extends State<_CloudQualityItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = widget.onClick == null;
+    final textColor = disabled
+        ? const Color(0x66FFFFFF)
+        : widget.isSelected
+            ? _selectedTextColor
+            : _defaultTextColor;
+    return MouseRegion(
+      cursor: disabled
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
+      onEnter: (_) {
+        if (!disabled) setState(() => _isHovered = true);
+      },
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onClick,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: _isHovered ? _hoverBackgroundColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            children: [
+              Text(
+                widget.label,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 15,
+                  fontWeight:
+                      widget.isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+              if (widget.showDot) ...[
+                const SizedBox(width: 6),
+                const _GreenDot(),
+              ],
             ],
           ),
         ),

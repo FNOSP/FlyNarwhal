@@ -57,6 +57,7 @@ import 'services/player_service.dart';
 import 'utils/player_volume_helper.dart';
 import 'viewmodels/player_view_model.dart';
 import 'widgets/episode_selection_flyout.dart';
+import 'widgets/cloud_playback_widgets.dart';
 import 'widgets/player_danmaku_overlay.dart';
 import 'widgets/danmaku_settings_flyout.dart';
 import 'widgets/player_subtitle_overlay.dart';
@@ -234,6 +235,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isPipTransitioning = false;
   Timer? _pipBoundsSaveTimer;
   Timer? _pipIdleTimer;
+  // Cloud-storage (网盘) playback: error-guide dialog shown when direct-link
+  // playback fails, offering quality / play-mode switches.
+  bool _cloudPlaybackErrorVisible = false;
+  // Remote cloud containers (e.g. a 24 GB 4K MKV over the NAS proxy) can take
+  // far longer to open than local files; verification gets a longer window.
+  static const Duration _cloudDirectVerifyTimeout = Duration(seconds: 20);
   // Window session separation: the player route keeps its own geometry and
   // must not leak resizes into the app window state used by other routes.
   Rect? _prePlayerWindowBounds;
@@ -1646,15 +1653,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final videoStream = cache?.currentVideoStream;
     if (cache == null || videoStream == null) return;
 
+    // Cloud media reopens with the 原画 direct-link quality (index 0) and
+    // restores the netdisk quality list in the UI; local files keep the
+    // plain link.
+    final directQualities = cache.directLinkQualities;
+    final isCloud = directQualities.isNotEmpty;
     final directLink = await _sessionCoordinator.getDirectPlayLink(
       mediaGuid: videoStream.mediaGuid,
       startPositionMs: startPositionMs,
+      directLinkQualityIndex: isCloud ? 0 : null,
     );
+    final convertedQualities = isCloud
+        ? directQualities.map((q) => q.toQualityResponse()).toList()
+        : null;
     _playingInfoCache = cache.copyWith(
       playLink: null,
       playRecordLink:
           _sessionCoordinator.ensureDirectPlayRecordLink(cache.playRecordLink),
       isUseDirectLink: true,
+      directLinkQualityIndex: isCloud ? 0 : null,
+      currentQualities: convertedQualities ?? cache.currentQualities,
+      currentQuality: isCloud ? convertedQualities!.first : cache.currentQuality,
     );
     ref
         .read(playerViewModelProvider.notifier)
@@ -1711,6 +1730,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _currentQuality = _playingInfoCache?.currentQuality;
           _currentResolution = _currentQuality?.resolution ?? '';
           _currentBitrate = _currentQuality?.bitrate;
+          // Cloud media reopens as a netdisk direct-link session; the flyout
+          // list must follow the converted direct-link qualities.
+          if (_playingInfoCache?.directLinkQualities.isNotEmpty ?? false) {
+            _qualities = _playingInfoCache!.currentQualities;
+          }
         });
       }
     } catch (e) {
@@ -2422,7 +2446,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
       if (!mounted || requestToken != _loadRequestToken) return;
 
-      final verified = await _verifyPlaybackStarted();
+      final verified = await _verifyPlaybackStarted(
+        timeout: (_playingInfoCache?.directLinkQualities.isNotEmpty ?? false)
+            ? _cloudDirectVerifyTimeout
+            : const Duration(seconds: 3),
+      );
       if (verified) return;
     } catch (e) {
       AppTalker.warning(
@@ -2432,27 +2460,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     if (!mounted || requestToken != _loadRequestToken) return;
+    // Cloud direct-link failure: instead of silently falling back to a NAS
+    // transcode of the same huge file, mirror the web player's error guard —
+    // show the reason and let the user switch quality or play mode.
+    if (_playingInfoCache?.directLinkQualities.isNotEmpty ?? false) {
+      setState(() {
+        _isLoading = false;
+        _cloudPlaybackErrorVisible = true;
+      });
+      return;
+    }
     await _fallbackToHlsFromDirectLink(startPositionMs: startPositionMs);
   }
 
-  /// Returns true if the player has started producing frames.
-  /// Waits up to ~3 seconds for the player to report a non-zero duration,
-  /// which indicates the container was successfully opened.
-  Future<bool> _verifyPlaybackStarted() async {
+  /// Returns true when the player has started producing frames.
+  /// Waits up to [timeout] for the player to report a non-zero duration,
+  /// which indicates the container was successfully opened. An mpv error
+  /// event during the window short-circuits the wait. Cloud direct links can
+  /// take much longer than local files (huge remote containers), so callers
+  /// pass a longer timeout for netdisk sessions.
+  Future<bool> _verifyPlaybackStarted({
+    Duration timeout = const Duration(seconds: 3),
+  }) async {
     final player = _player;
     if (player == null) return false;
 
-    for (int attempt = 0; attempt < 6; attempt++) {
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return false;
-      final state = player.state;
-      if (state.duration.inMilliseconds > 0 && state.width != null) {
-        return true;
+    var errored = false;
+    final errorSub = player.stream.error.listen((_) => errored = true);
+    try {
+      final attempts = (timeout.inMilliseconds / 500).ceil();
+      for (int attempt = 0; attempt < attempts; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        if (!mounted) return false;
+        if (errored) return false;
+        final state = player.state;
+        if (state.duration.inMilliseconds > 0 && state.width != null) {
+          return true;
+        }
       }
+    } finally {
+      await errorSub.cancel();
     }
     AppTalker.warning(
       'Player',
-      'direct link verification failed: player reports no duration after 3s',
+      'direct link verification failed: player reports no duration after ${timeout.inSeconds}s',
     );
     return false;
   }
@@ -3254,11 +3305,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               updateState: false,
             );
         await _reopenPlaybackWithDirectLink(startPositionMs: currentPosition);
-        final verified = await _verifyPlaybackStarted();
+        final verified = await _verifyPlaybackStarted(
+          timeout: (_playingInfoCache?.directLinkQualities.isNotEmpty ?? false)
+              ? _cloudDirectVerifyTimeout
+              : const Duration(seconds: 3),
+        );
         if (!verified && mounted) {
-          await _fallbackToHlsFromDirectLink(
-            startPositionMs: currentPosition,
-          );
+          if (_playingInfoCache?.directLinkQualities.isNotEmpty ?? false) {
+            setState(() {
+              _isLoading = false;
+              _cloudPlaybackErrorVisible = true;
+            });
+          } else {
+            await _fallbackToHlsFromDirectLink(
+              startPositionMs: currentPosition,
+            );
+          }
         }
       } else {
         if (hasTranscodeSession) {
@@ -3487,7 +3549,365 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _onQualitySelected(QualityResponse quality) async {
+    final cache = _playingInfoCache;
+    // Cloud-storage direct-link sessions switch quality by reopening the
+    // media/range link with the new direct_link_quality_index — no server
+    // transcode session is involved.
+    if (cache != null &&
+        cache.isUseDirectLink &&
+        cache.directLinkQualities.isNotEmpty) {
+      await _switchCloudDirectQuality(quality);
+      return;
+    }
     await _switchQualityWithSessionFlow(quality);
+  }
+
+  /// Whether the active session is a cloud-storage direct-link session
+  /// (网盘直连播放): quality list and errors behave like the web player's
+  /// netdisk flow.
+  bool get _isCloudDirectSession {
+    final cache = _playingInfoCache;
+    return cache != null &&
+        cache.isUseDirectLink &&
+        cache.directLinkQualities.isNotEmpty;
+  }
+
+  Future<void> _switchCloudDirectQuality(QualityResponse quality) async {
+    final cache = _playingInfoCache;
+    final player = _player;
+    if (cache == null || player == null) return;
+    final videoStream = cache.currentVideoStream;
+    if (videoStream == null) return;
+
+    final targetIndex = cache.directLinkQualities.indexWhere(
+      (q) => q.resolution == quality.resolution && !q.isM3u8,
+    );
+    if (targetIndex < 0 || targetIndex == cache.directLinkQualityIndex) {
+      return;
+    }
+
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setNetdiskQuality(
+            quality.resolution,
+            userGuid: ref.read(userInfoProvider).valueOrNull?.guid,
+          ),
+    );
+
+    final switchToken = ++_cloudSwitchToken;
+    setState(() => _isLoading = true);
+    try {
+      final currentPosition = player.state.position.inMilliseconds;
+      final directLink = await _sessionCoordinator.getDirectPlayLink(
+        mediaGuid: videoStream.mediaGuid,
+        startPositionMs: currentPosition,
+        directLinkQualityIndex: targetIndex,
+      );
+      if (!_isCurrentCloudSwitch(switchToken)) return;
+
+      _playingInfoCache = cache.copyWith(
+        currentQuality: quality,
+        directLinkQualityIndex: targetIndex,
+        playRecordLink: _sessionCoordinator
+            .ensureDirectPlayRecordLink(cache.playRecordLink),
+      );
+      ref
+          .read(playerViewModelProvider.notifier)
+          .updatePlayingInfo(_playingInfoCache);
+      _queuePlayRecordUpdate(positionMs: currentPosition);
+
+      await _openMediaWithResume(
+        playUri: directLink.playUri,
+        startPositionMs: currentPosition,
+        currentSubtitleStream: _playingInfoCache?.currentSubtitleStream,
+      );
+      if (!_isCurrentCloudSwitch(switchToken)) return;
+
+      final verified = await _verifyPlaybackStarted(
+        timeout: _cloudDirectVerifyTimeout,
+      );
+      if (!verified && mounted && _isCurrentCloudSwitch(switchToken)) {
+        // The newly selected direct quality could not be opened; guide the
+        // user instead of silently retrying the same failing link. Keep the
+        // UI labels on the attempted quality so the dialog context matches
+        // the (stalled) session state.
+        setState(() {
+          _isLoading = false;
+          _currentQuality = quality;
+          _currentResolution = quality.resolution;
+          _currentBitrate = quality.bitrate;
+          _cloudPlaybackErrorVisible = true;
+        });
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _currentQuality = quality;
+        _currentResolution = quality.resolution;
+        _currentBitrate = quality.bitrate;
+      });
+      _refreshPlaybackDetailsImmediately();
+    } catch (e) {
+      AppTalker.warning('Player', 'cloud direct quality switch failed: $e');
+      if (mounted && _isCurrentCloudSwitch(switchToken)) {
+        ref
+            .read(toastManagerProvider.notifier)
+            .showToast('切换画质失败: $e', type: ToastType.failed);
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  int _cloudSwitchToken = 0;
+
+  bool _isCurrentCloudSwitch(int token) =>
+      mounted && token == _cloudSwitchToken;
+
+  /// Non-m3u8 direct-link qualities other than the currently selected one —
+  /// shown as switch targets in the cloud playback error dialog.
+  List<String> _cloudAlternativeQualityLabels() {
+    final cache = _playingInfoCache;
+    if (cache == null) return const [];
+    final currentIndex = cache.directLinkQualityIndex ?? -1;
+    return [
+      for (var i = 0; i < cache.directLinkQualities.length; i++)
+        if (i != currentIndex && !cache.directLinkQualities[i].isM3u8)
+          cache.directLinkQualities[i].resolution,
+    ];
+  }
+
+  /// Retries the current direct-link quality after a cloud playback failure.
+  Future<void> _retryCloudDirectPlayback() async {
+    setState(() => _cloudPlaybackErrorVisible = false);
+    final cache = _playingInfoCache;
+    final player = _player;
+    if (cache == null || player == null || cache.currentVideoStream == null) {
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      // The stalled player usually sits at position 0; resume from the last
+      // recorded position instead of restarting the movie.
+      final playerPosition = player.state.position.inMilliseconds;
+      final currentPosition =
+          playerPosition > 0 ? playerPosition : _lastRecordedPosition;
+      final directLink = await _sessionCoordinator.getDirectPlayLink(
+        mediaGuid: cache.currentVideoStream!.mediaGuid,
+        startPositionMs: currentPosition,
+        directLinkQualityIndex: cache.directLinkQualityIndex ?? 0,
+      );
+      await _openMediaWithResume(
+        playUri: directLink.playUri,
+        startPositionMs: currentPosition,
+        currentSubtitleStream: cache.currentSubtitleStream,
+      );
+      final verified = await _verifyPlaybackStarted(
+        timeout: _cloudDirectVerifyTimeout,
+      );
+      if (!mounted) return;
+      if (!verified) {
+        setState(() {
+          _isLoading = false;
+          _cloudPlaybackErrorVisible = true;
+        });
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _currentQuality = cache.currentQuality;
+        _currentResolution = cache.currentQuality?.resolution ?? '';
+        _currentBitrate = cache.currentQuality?.bitrate;
+      });
+    } catch (e) {
+      AppTalker.warning('Player', 'cloud direct retry failed: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _cloudPlaybackErrorVisible = true;
+        });
+      }
+    }
+  }
+
+  /// Error-dialog action: jump to the first alternative direct-link quality,
+  /// falling back to NAS proxy playback when none exists.
+  Future<void> _switchCloudAlternativeQuality() async {
+    final cache = _playingInfoCache;
+    if (cache == null) return;
+    setState(() => _cloudPlaybackErrorVisible = false);
+    final labels = _cloudAlternativeQualityLabels();
+    if (labels.isEmpty) {
+      await _switchCloudPlayMode(CloudPlayMode.proxy);
+      return;
+    }
+    final target = cache.directLinkQualities.firstWhere(
+      (q) => q.resolution == labels.first && !q.isM3u8,
+    );
+    await _switchCloudDirectQuality(target.toQualityResponse());
+  }
+
+  /// Switches between 网盘直连播放 and NAS 代理播放 for cloud media, mirroring
+  /// the web player's playMode selector (the choice is persisted per cloud
+  /// storage type + user).
+  Future<void> _switchCloudPlayMode(String mode) async {
+    final cache = _playingInfoCache;
+    final player = _player;
+    if (cache == null || player == null) return;
+    final streamInfo = cache.streamInfo;
+    final directQualities = cache.directLinkQualities;
+    if (streamInfo == null || directQualities.isEmpty) return;
+
+    final cloudType = streamInfo.cloudStorageInfo?.cloudStorageType;
+    final userGuid = ref.read(userInfoProvider).valueOrNull?.guid;
+    final alreadyInMode = (mode == CloudPlayMode.direct) ==
+        (cache.isUseDirectLink && cache.directLinkQualityIndex != null);
+    if (alreadyInMode) return;
+
+    unawaited(
+      ref
+          .read(playerSettingsManagerProvider)
+          .setCloudPlayMode(cloudType, mode, userGuid: userGuid),
+    );
+    final label =
+        mode == CloudPlayMode.direct ? '网盘直连播放' : 'NAS 代理播放';
+    ref
+        .read(toastManagerProvider.notifier)
+        .showToast('播放方式切换至 $label', type: ToastType.success);
+
+    final switchToken = ++_cloudSwitchToken;
+    setState(() {
+      _isLoading = true;
+      _cloudPlaybackErrorVisible = false;
+    });
+    try {
+      final currentPosition = player.state.position.inMilliseconds;
+      if (mode == CloudPlayMode.direct) {
+        final savedResolution = ref
+            .read(playerSettingsManagerProvider)
+            .getNetdiskQuality(userGuid: userGuid)
+            ?.resolution;
+        final index = PlayerSessionCoordinator.defaultDirectLinkQualityIndex(
+          directQualities,
+          savedResolution: savedResolution,
+        );
+        final directLink = await _sessionCoordinator.getDirectPlayLink(
+          mediaGuid: cache.currentVideoStream!.mediaGuid,
+          startPositionMs: currentPosition,
+          directLinkQualityIndex: index,
+        );
+        if (!_isCurrentCloudSwitch(switchToken)) return;
+
+        final convertedQualities =
+            directQualities.map((q) => q.toQualityResponse()).toList();
+        _playingInfoCache = cache.copyWith(
+          isUseDirectLink: true,
+          playLink: null,
+          playRecordLink: _sessionCoordinator
+              .ensureDirectPlayRecordLink(cache.playRecordLink),
+          directLinkQualityIndex: index,
+          currentQualities: convertedQualities,
+          currentQuality: convertedQualities[index],
+        );
+        ref
+            .read(playerViewModelProvider.notifier)
+            .updatePlayingInfo(_playingInfoCache);
+        setState(() {
+          _qualities = convertedQualities;
+          _currentQuality = convertedQualities[index];
+          _currentResolution = convertedQualities[index].resolution;
+          _currentBitrate = convertedQualities[index].bitrate;
+        });
+        _queuePlayRecordUpdate(positionMs: currentPosition);
+
+        await _openMediaWithResume(
+          playUri: directLink.playUri,
+          startPositionMs: currentPosition,
+          currentSubtitleStream: _playingInfoCache?.currentSubtitleStream,
+        );
+        if (!_isCurrentCloudSwitch(switchToken)) return;
+        final verified = await _verifyPlaybackStarted(
+          timeout: _cloudDirectVerifyTimeout,
+        );
+        if (!verified && mounted && _isCurrentCloudSwitch(switchToken)) {
+          setState(() {
+            _isLoading = false;
+            _cloudPlaybackErrorVisible = true;
+          });
+          return;
+        }
+      } else {
+        // NAS 代理播放: open a regular transcode session with the server
+        // quality list (play/play + media/p).
+        final transcodeQualities = streamInfo.qualities ?? const [];
+        final quality = _sessionCoordinator.initializeQuality(
+          transcodeQualities,
+          userGuid: userGuid,
+        );
+        final audioGuid = cache.currentAudioStream?.guid ??
+            _selectedAudioGuid ??
+            _requestedAudioGuid ??
+            _playInfo?.audioGuid ??
+            '';
+        final playRequest = _sessionCoordinator.createPlayRequest(
+          videoStream: cache.currentVideoStream!,
+          fileStream: cache.currentFileStream!,
+          audioGuid: audioGuid,
+          subtitleGuid: cache.currentSubtitleStream?.guid,
+          quality: quality,
+          startTimestamp: currentPosition ~/ 1000,
+        );
+        // Transcode startup for huge cloud files can exceed the client's
+        // 10 s receive timeout; extend it for this one negotiation.
+        final dio = ref.read(dioClientProvider).dio;
+        final previousReceiveTimeout = dio.options.receiveTimeout;
+        dio.options.receiveTimeout = const Duration(seconds: 60);
+        PlayPlayResponse response;
+        try {
+          response =
+              await ref.read(playerServiceProvider).playVideo(playRequest);
+        } finally {
+          dio.options.receiveTimeout = previousReceiveTimeout;
+        }
+        if (!_isCurrentCloudSwitch(switchToken)) return;
+
+        _playingInfoCache = cache.copyWith(
+          isUseDirectLink: false,
+          playLink: response.playLink,
+          playRecordLink: null,
+          directLinkQualityIndex: null,
+          currentQualities: transcodeQualities,
+          currentQuality: quality,
+        );
+        ref
+            .read(playerViewModelProvider.notifier)
+            .updatePlayingInfo(_playingInfoCache);
+        setState(() {
+          _qualities = transcodeQualities;
+          _currentQuality = quality;
+          _currentResolution = quality?.resolution ?? '';
+          _currentBitrate = quality?.bitrate;
+        });
+        await _handlePlayPlaySuccess(response,
+            startPositionMs: currentPosition);
+      }
+      if (mounted && _isCurrentCloudSwitch(switchToken)) {
+        setState(() => _isLoading = false);
+        _refreshPlaybackDetailsImmediately();
+      }
+    } catch (e, st) {
+      AppTalker.error(
+        'Player',
+        error: e,
+        stackTrace: st,
+        message: 'cloud play mode switch failed',
+      );
+      if (mounted && _isCurrentCloudSwitch(switchToken)) {
+        ref
+            .read(toastManagerProvider.notifier)
+            .showToast('切换播放方式失败: $e', type: ToastType.failed);
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _onAudioSelected(AudioStream audio) async {
@@ -4201,6 +4621,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ),
           if (_isInitialized && _isPipMode) _buildPipOverlay(),
+          if (_cloudPlaybackErrorVisible &&
+              (_playingInfoCache?.streamInfo?.isCloudDirectMedia ?? false))
+            CloudPlaybackErrorDialog(
+              key: const ValueKey('player-cloud-playback-error'),
+              cloudLabel: cloudStorageLabel(
+                _playingInfoCache?.streamInfo?.cloudStorageInfo
+                    ?.cloudStorageType,
+              ),
+              alternativeQualityLabels: _cloudAlternativeQualityLabels(),
+              onRetry: _retryCloudDirectPlayback,
+              onSwitchQuality: _switchCloudAlternativeQuality,
+              onSwitchProxy: () => _switchCloudPlayMode(CloudPlayMode.proxy),
+              onBack: _handleBack,
+            ),
           ..._buildSkipAndEndOverlays(),
         ],
       ),
@@ -4636,6 +5070,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         const SizedBox(width: 16),
         _buildPlaybackTimeText(),
         const Spacer(),
+        // Cloud-storage media shows the account chip (网盘直连/NAS 代理 selector)
+        // ahead of the trailing control cluster, mirroring the web player.
+        if (_playingInfoCache?.streamInfo?.isCloudDirectMedia ?? false) ...[
+          CloudAccountChip(
+            key: const ValueKey('player-cloud-account-chip'),
+            cloudStorageInfo:
+                _playingInfoCache!.streamInfo!.cloudStorageInfo!,
+            isDirectLink: _playingInfoCache!.isUseDirectLink,
+            yOffset: _controlFlyoutOffset,
+            isActiveControl:
+                overlayState.activeFlyout == PlayerFlyoutType.cloudPlayMode,
+            onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
+                PlayerFlyoutType.cloudPlayMode, hovered),
+            onPlayModeSelected: _switchCloudPlayMode,
+          ),
+          const SizedBox(width: _trailingControlSpacing),
+        ],
         // Keep the trailing control cluster visually consistent.
         SpeedControlFlyout(
           key: const ValueKey('player-speed-control'),
@@ -4669,6 +5120,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             qualities: _qualities,
             currentResolution: _currentResolution,
             currentBitrate: _currentBitrate,
+            cloudMode: _isCloudDirectSession,
             yOffset: _controlFlyoutOffset,
             isActiveControl:
                 overlayState.activeFlyout == PlayerFlyoutType.quality,

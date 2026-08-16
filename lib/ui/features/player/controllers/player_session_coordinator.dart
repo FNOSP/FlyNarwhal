@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/utils/log/app_talker.dart';
 import '../../../../domain/entities/media_type.dart';
 
 import '../../../../data/models/episode_list_response.dart';
@@ -201,13 +204,37 @@ class PlayerSessionCoordinator {
     final subtitleGuid = target.subtitleGuid ?? currentSubtitleStream?.guid;
 
     final qualities = streamInfo.qualities ?? [];
+    final historyMs = playInfo.ts * 1000;
+
+    // Cloud-storage (网盘) media with direct-link qualities takes a dedicated
+    // session path mirroring the web player: the quality list is the CDN
+    // direct-link list (原画/流畅 …) selected by index, and the play mode
+    // (网盘直连播放 vs NAS 代理播放) is a persisted per-user choice.
+    if (streamInfo.isCloudDirectMedia) {
+      return _loadCloudSession(
+        playInfo: playInfo,
+        streamInfo: streamInfo,
+        target: target,
+        currentVideoStream: currentVideoStream,
+        fileStream: fileStream,
+        audioStreams: audioStreams,
+        subtitleStreams: subtitleStreams,
+        currentAudioStream: currentAudioStream,
+        currentSubtitleStream: currentSubtitleStream,
+        audioGuid: audioGuid,
+        subtitleGuid: subtitleGuid,
+        transcodeQualities: qualities,
+        startPositionMs: historyMs,
+        baseUrl: baseUrl,
+      );
+    }
+
     // Restore the previously saved quality using the KMP matching strategy:
     // exact match first, then resolution-only fallback, then original quality.
     final currentQuality = initializeQuality(
       qualities,
       userGuid: target.userGuid,
     );
-    final historyMs = playInfo.ts * 1000;
 
     final resolved = await _resolvePlayLink(
       playInfo: playInfo,
@@ -264,6 +291,282 @@ class PlayerSessionCoordinator {
       preparedPlaySource: preparedPlaySource,
       effectiveStartPositionMs: resolved.effectiveStartMs,
     );
+  }
+
+  Future<PlayerSessionLoadResult> _loadCloudSession({
+    required PlayInfoResponse playInfo,
+    required StreamResponse streamInfo,
+    required PlayerRouteTarget target,
+    required VideoStream currentVideoStream,
+    required FileInfo fileStream,
+    required List<AudioStream> audioStreams,
+    required List<SubtitleStream> subtitleStreams,
+    required AudioStream? currentAudioStream,
+    required SubtitleStream? currentSubtitleStream,
+    required String audioGuid,
+    required String? subtitleGuid,
+    required List<QualityResponse> transcodeQualities,
+    required int startPositionMs,
+    required String baseUrl,
+  }) async {
+    final directQualities = streamInfo.directLinkQualities!;
+    final cloudType = streamInfo.cloudStorageInfo?.cloudStorageType;
+    final savedMode =
+        _playerSettingsManager.getCloudPlayMode(cloudType, target.userGuid);
+    final useDirectLink = savedMode != 'proxy' && !transcodeForced;
+
+    if (useDirectLink) {
+      return _loadCloudDirectSession(
+        playInfo: playInfo,
+        streamInfo: streamInfo,
+        currentVideoStream: currentVideoStream,
+        fileStream: fileStream,
+        audioStreams: audioStreams,
+        subtitleStreams: subtitleStreams,
+        currentAudioStream: currentAudioStream,
+        currentSubtitleStream: currentSubtitleStream,
+        audioGuid: audioGuid,
+        subtitleGuid: subtitleGuid,
+        directQualities: directQualities,
+        startPositionMs: startPositionMs,
+        userGuid: target.userGuid,
+      );
+    }
+
+    // NAS 代理播放: a regular transcode session (play/play + media/p), using
+    // the server transcode quality list instead of the direct-link list.
+    final currentQuality = initializeQuality(
+      transcodeQualities,
+      userGuid: target.userGuid,
+    );
+    // Spinning up a transcode for a huge cloud file (e.g. a 24 GB 4K remux)
+    // can take well past the client's 10 s receive timeout; extend it for
+    // this one negotiation.
+    final previousReceiveTimeout = _dio.options.receiveTimeout;
+    _dio.options.receiveTimeout = const Duration(seconds: 60);
+    try {
+      return await _loadCloudProxySession(
+        playInfo: playInfo,
+        streamInfo: streamInfo,
+        currentVideoStream: currentVideoStream,
+        fileStream: fileStream,
+        audioStreams: audioStreams,
+        subtitleStreams: subtitleStreams,
+        currentAudioStream: currentAudioStream,
+        currentSubtitleStream: currentSubtitleStream,
+        audioGuid: audioGuid,
+        subtitleGuid: subtitleGuid,
+        transcodeQualities: transcodeQualities,
+        currentQuality: currentQuality,
+        directQualities: directQualities,
+        startPositionMs: startPositionMs,
+        baseUrl: baseUrl,
+      );
+    } catch (error) {
+      // The NAS could not start a transcode session for this cloud file
+      // (server-side failure or timeout). Fall back to 网盘直连播放 instead of
+      // leaving the player on a dead screen, and drop the persisted proxy
+      // preference so the next launch does not pay the same ~minute stall.
+      AppTalker.warning(
+        'Player',
+        'cloud proxy session failed, falling back to direct link: $error',
+      );
+      unawaited(
+        _playerSettingsManager.setCloudPlayMode(
+          cloudType,
+          'direct',
+          userGuid: target.userGuid,
+        ),
+      );
+      return _loadCloudDirectSession(
+        playInfo: playInfo,
+        streamInfo: streamInfo,
+        currentVideoStream: currentVideoStream,
+        fileStream: fileStream,
+        audioStreams: audioStreams,
+        subtitleStreams: subtitleStreams,
+        currentAudioStream: currentAudioStream,
+        currentSubtitleStream: currentSubtitleStream,
+        audioGuid: audioGuid,
+        subtitleGuid: subtitleGuid,
+        directQualities: directQualities,
+        startPositionMs: startPositionMs,
+        userGuid: target.userGuid,
+      );
+    } finally {
+      _dio.options.receiveTimeout = previousReceiveTimeout;
+    }
+  }
+
+  Future<PlayerSessionLoadResult> _loadCloudDirectSession({
+    required PlayInfoResponse playInfo,
+    required StreamResponse streamInfo,
+    required VideoStream currentVideoStream,
+    required FileInfo fileStream,
+    required List<AudioStream> audioStreams,
+    required List<SubtitleStream> subtitleStreams,
+    required AudioStream? currentAudioStream,
+    required SubtitleStream? currentSubtitleStream,
+    required String audioGuid,
+    required String? subtitleGuid,
+    required List<DirectLinkQuality> directQualities,
+    required int startPositionMs,
+    String? userGuid,
+  }) async {
+    final index = defaultDirectLinkQualityIndex(
+      directQualities,
+      savedResolution: _playerSettingsManager
+          .getNetdiskQuality(userGuid: userGuid)
+          ?.resolution,
+    );
+    final currentQuality = directQualities[index].toQualityResponse();
+    final directLink = await getDirectPlayLink(
+      mediaGuid: currentVideoStream.mediaGuid,
+      startPositionMs: startPositionMs,
+      directLinkQualityIndex: index,
+    );
+    final preparedPlaySource = await preparePlaySourceForMediaKit(
+      playUri: directLink.playUri,
+      currentSubtitleStream: currentSubtitleStream,
+    );
+    final playingInfoCache = PlayingInfoCache(
+      itemGuid: playInfo.item.guid,
+      parentGuid: playInfo.parentGuid,
+      item: playInfo.item,
+      currentFileStream: fileStream,
+      currentVideoStream: currentVideoStream,
+      currentAudioStream: currentAudioStream,
+      currentSubtitleStream: currentSubtitleStream,
+      currentQualities:
+          directQualities.map((q) => q.toQualityResponse()).toList(),
+      currentQuality: currentQuality,
+      directLinkQualities: directQualities,
+      directLinkQualityIndex: index,
+      currentAudioStreamList: audioStreams,
+      currentSubtitleStreamList: subtitleStreams,
+      playLink: null,
+      playRecordLink: ensureDirectPlayRecordLink(null),
+      isUseDirectLink: true,
+      playConfig: playInfo.playConfig,
+      streamInfo: streamInfo,
+      isEpisode: MediaType.tryParse(playInfo.item.type) == MediaType.episode,
+      subhead: buildDisplaySubhead(
+        playInfo.item,
+        episodeNumber: playInfo.item.episodeNumber,
+      ),
+    );
+    return PlayerSessionLoadResult(
+      playInfo: playInfo,
+      streamInfo: streamInfo,
+      playingInfoCache: playingInfoCache,
+      qualities: playingInfoCache.currentQualities,
+      currentQuality: currentQuality,
+      episodeList: const [],
+      currentEpisode: null,
+      nextEpisode: null,
+      audioGuid: audioGuid,
+      subtitleGuid: subtitleGuid,
+      preparedPlaySource: preparedPlaySource,
+      effectiveStartPositionMs: directLink.effectiveStartMs,
+    );
+  }
+
+  Future<PlayerSessionLoadResult> _loadCloudProxySession({
+    required PlayInfoResponse playInfo,
+    required StreamResponse streamInfo,
+    required VideoStream currentVideoStream,
+    required FileInfo fileStream,
+    required List<AudioStream> audioStreams,
+    required List<SubtitleStream> subtitleStreams,
+    required AudioStream? currentAudioStream,
+    required SubtitleStream? currentSubtitleStream,
+    required String audioGuid,
+    required String? subtitleGuid,
+    required List<QualityResponse> transcodeQualities,
+    required QualityResponse? currentQuality,
+    required List<DirectLinkQuality> directQualities,
+    required int startPositionMs,
+    required String baseUrl,
+  }) async {
+    final resolved = await _resolvePlayLink(
+      playInfo: playInfo,
+      videoStream: currentVideoStream,
+      fileStream: fileStream,
+      audioGuid: audioGuid,
+      subtitleGuid: subtitleGuid,
+      currentQuality: currentQuality,
+      qualities: transcodeQualities,
+      startPositionMs: startPositionMs,
+      baseUrl: baseUrl,
+      forceTranscode: true,
+    );
+    final preparedPlaySource = await preparePlaySourceForMediaKit(
+      playUri: resolved.playUri,
+      currentSubtitleStream: currentSubtitleStream,
+    );
+    final playingInfoCache = PlayingInfoCache(
+      itemGuid: playInfo.item.guid,
+      parentGuid: playInfo.parentGuid,
+      item: playInfo.item,
+      currentFileStream: fileStream,
+      currentVideoStream: currentVideoStream,
+      currentAudioStream: currentAudioStream,
+      currentSubtitleStream: currentSubtitleStream,
+      currentQualities: transcodeQualities,
+      currentQuality: currentQuality,
+      directLinkQualities: directQualities,
+      directLinkQualityIndex: null,
+      currentAudioStreamList: audioStreams,
+      currentSubtitleStreamList: subtitleStreams,
+      playLink: resolved.isDirectLink ? null : resolved.playLinkRaw,
+      playRecordLink:
+          resolved.isDirectLink ? ensureDirectPlayRecordLink(null) : null,
+      isUseDirectLink: resolved.isDirectLink,
+      playConfig: playInfo.playConfig,
+      streamInfo: streamInfo,
+      isEpisode: MediaType.tryParse(playInfo.item.type) == MediaType.episode,
+      subhead: buildDisplaySubhead(
+        playInfo.item,
+        episodeNumber: playInfo.item.episodeNumber,
+      ),
+    );
+    return PlayerSessionLoadResult(
+      playInfo: playInfo,
+      streamInfo: streamInfo,
+      playingInfoCache: playingInfoCache,
+      qualities: transcodeQualities,
+      currentQuality: currentQuality,
+      episodeList: const [],
+      currentEpisode: null,
+      nextEpisode: null,
+      audioGuid: audioGuid,
+      subtitleGuid: subtitleGuid,
+      preparedPlaySource: preparedPlaySource,
+      effectiveStartPositionMs: resolved.effectiveStartMs,
+    );
+  }
+
+  /// Default direct-link quality index, mirroring the web player: prefer the
+  /// previously saved netdisk resolution; otherwise pick the second non-m3u8
+  /// quality when more than one exists (直连原画不可用时默认选择「流畅」),
+  /// falling back to the first one.
+  static int defaultDirectLinkQualityIndex(
+    List<DirectLinkQuality> qualities, {
+    String? savedResolution,
+  }) {
+    if (qualities.isEmpty) return 0;
+    final nonM3u8 =
+        qualities.where((q) => !q.isM3u8 && q.resolution.isNotEmpty).toList();
+    if (savedResolution != null && savedResolution.isNotEmpty) {
+      final savedIndex = nonM3u8.indexWhere(
+        (q) => q.resolution == savedResolution,
+      );
+      if (savedIndex >= 0) {
+        return qualities.indexOf(nonM3u8[savedIndex]);
+      }
+    }
+    final defaultNonM3u8Index = nonM3u8.length > 1 ? 1 : 0;
+    return nonM3u8.isEmpty ? 0 : qualities.indexOf(nonM3u8[defaultNonM3u8Index]);
   }
 
   Future<EpisodeContext> loadEpisodeContext({
@@ -489,13 +792,17 @@ class PlayerSessionCoordinator {
   Future<DirectPlayLinkResult> getDirectPlayLink({
     required String mediaGuid,
     required int startPositionMs,
+    int? directLinkQualityIndex,
   }) async {
     final baseUrl = _preferencesManager.getBaseUrl() ?? '';
     final base = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
     final controlPlayLink = '/v/api/v1/media/range/$mediaGuid';
-    final fullUrl = '$base$controlPlayLink';
+    final qualityQuery = directLinkQualityIndex != null
+        ? '?direct_link_quality_index=$directLinkQualityIndex'
+        : '';
+    final fullUrl = '$base$controlPlayLink$qualityQuery';
     // mpv (media_kit) cannot open the backend's "?range=bytes=offset-"
     // query-style direct link; it does not translate the query into a real
     // HTTP Range request, so the stream fails to open. The backend, however,
@@ -503,6 +810,9 @@ class PlayerSessionCoordinator {
     // returns 206 Partial Content). So always hand mpv the plain base URL and
     // let it resume by time via the mpv "start" property + on-demand Range
     // requests, instead of embedding the byte offset in the query string.
+    // The direct_link_quality_index query is different: the backend selects
+    // the matching CDN link server-side and still serves standard ranges, so
+    // it is safe to keep (mirrors the web player's URL shape).
     return DirectPlayLinkResult(
       playUri: fullUrl,
       playLinkRaw: controlPlayLink,
@@ -610,10 +920,14 @@ class PlayerSessionCoordinator {
     required List<QualityResponse> qualities,
     required int startPositionMs,
     required String baseUrl,
+    bool forceTranscode = false,
   }) async {
     // Mirrors the web player: forcing H.264/SDR requires a transcode session,
-    // so the direct link must be skipped while either setting is on.
-    if (!transcodeForced &&
+    // so the direct link must be skipped while either setting is on. Cloud
+    // proxy sessions also always go through play/play (the plain direct link
+    // without a quality index would stream the wrong CDN file).
+    if (!forceTranscode &&
+        !transcodeForced &&
         supportsDirectLink(videoStream, currentQuality, qualities)) {
       final directLink = await getDirectPlayLink(
         mediaGuid: videoStream.mediaGuid,

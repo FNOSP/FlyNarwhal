@@ -76,6 +76,13 @@ class StreamResponse {
   final List<QualityResponse>? qualities;
   @JsonKey(name: 'cloud_storage_info')
   final CloudStorageInfo? cloudStorageInfo;
+  // Cloud-storage (网盘) direct-link playback qualities, e.g. 原画 / 流畅 for
+  // Quark. Present only for cloud media; the web player selects one by index
+  // via media/range?direct_link_quality_index=N.
+  @JsonKey(name: 'direct_link_qualities')
+  final List<DirectLinkQuality>? directLinkQualities;
+  @JsonKey(name: 'direct_link_audio_streams')
+  final List<AudioStream>? directLinkAudioStreams;
 
   StreamResponse({
     this.videoStream,
@@ -84,11 +91,66 @@ class StreamResponse {
     this.fileStream,
     this.qualities,
     this.cloudStorageInfo,
+    this.directLinkQualities,
+    this.directLinkAudioStreams,
   });
 
   factory StreamResponse.fromJson(Map<String, dynamic> json) =>
       _$StreamResponseFromJson(json);
   Map<String, dynamic> toJson() => _$StreamResponseToJson(this);
+
+  /// Cloud-storage media that exposes direct-link qualities (Quark/Baidu …).
+  bool get isCloudDirectMedia =>
+      cloudStorageInfo != null &&
+      (directLinkQualities?.isNotEmpty ?? false);
+}
+
+/// One entry of `direct_link_qualities` returned for cloud media. `resolution`
+/// is a display label from the backend ("原画" / "流畅"), `url` is the raw CDN
+/// link (the NAS proxies it through media/range), `expiredAt` is seconds.
+class DirectLinkQuality {
+  final int bitrate;
+  final String resolution;
+  final bool progressive;
+  final String url;
+  final bool isM3u8;
+  final int expiredAt;
+
+  DirectLinkQuality({
+    this.bitrate = 0,
+    required this.resolution,
+    this.progressive = false,
+    this.url = '',
+    this.isM3u8 = false,
+    this.expiredAt = 0,
+  });
+
+  QualityResponse toQualityResponse() => QualityResponse(
+        bitrate: bitrate,
+        resolution: resolution,
+        progressive: progressive,
+        isM3u8: isM3u8,
+      );
+
+  factory DirectLinkQuality.fromJson(Map<String, dynamic> json) {
+    return DirectLinkQuality(
+      bitrate: (json['bitrate'] as num?)?.toInt() ?? 0,
+      resolution: json['resolution'] as String? ?? '',
+      progressive: json['progressive'] as bool? ?? false,
+      url: json['url'] as String? ?? '',
+      isM3u8: json['is_m3u8'] as bool? ?? false,
+      expiredAt: (json['expired_at'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'bitrate': bitrate,
+        'resolution': resolution,
+        'progressive': progressive,
+        'url': url,
+        'is_m3u8': isM3u8,
+        'expired_at': expiredAt,
+      };
 }
 
 @JsonSerializable()
@@ -309,6 +371,11 @@ class PlayingInfoCache {
   final SubtitleStream? previousSubtitle;
   final List<QualityResponse> currentQualities;
   final QualityResponse? currentQuality;
+  // Cloud-storage direct-link qualities (网盘直连画质, e.g. 原画/流畅) and the
+  // selected index into that list, mirrored from the web player's
+  // direct_link_quality_index. Null/absent for local media.
+  final List<DirectLinkQuality> directLinkQualities;
+  final int? directLinkQualityIndex;
   final List<AudioStream> currentAudioStreamList;
   final List<SubtitleStream> currentSubtitleStreamList;
   // Server-side playback session link reused by media/p requests.
@@ -333,6 +400,8 @@ class PlayingInfoCache {
     this.previousSubtitle,
     this.currentQualities = const [],
     this.currentQuality,
+    this.directLinkQualities = const [],
+    this.directLinkQualityIndex,
     this.currentAudioStreamList = const [],
     this.currentSubtitleStreamList = const [],
     this.playLink,
@@ -355,6 +424,8 @@ class PlayingInfoCache {
     Object? previousSubtitle = _unset,
     List<QualityResponse>? currentQualities,
     Object? currentQuality = _unset,
+    List<DirectLinkQuality>? directLinkQualities,
+    Object? directLinkQualityIndex = _unset,
     List<AudioStream>? currentAudioStreamList,
     List<SubtitleStream>? currentSubtitleStreamList,
     Object? playLink = _unset,
@@ -384,6 +455,10 @@ class PlayingInfoCache {
       currentQuality: identical(currentQuality, _unset)
           ? this.currentQuality
           : currentQuality as QualityResponse?,
+      directLinkQualities: directLinkQualities ?? this.directLinkQualities,
+      directLinkQualityIndex: identical(directLinkQualityIndex, _unset)
+          ? this.directLinkQualityIndex
+          : directLinkQualityIndex as int?,
       currentAudioStreamList:
           currentAudioStreamList ?? this.currentAudioStreamList,
       currentSubtitleStreamList:

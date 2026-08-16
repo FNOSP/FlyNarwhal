@@ -13,6 +13,7 @@ enum PlayerFlyoutType {
   danmaku,
   settingsMenu,
   liveChannel,
+  cloudPlayMode,
 }
 
 enum PlayerHoverZone {
@@ -30,6 +31,7 @@ enum PlayerHoverZone {
   pipControl,
   playbackDetails,
   liveChannelControl,
+  cloudPlayModeControl,
 }
 
 class PlayerOverlayState {
@@ -145,6 +147,8 @@ class PlayerOverlayController extends StateNotifier<PlayerOverlayState> {
         return PlayerHoverZone.settingsMenu;
       case PlayerFlyoutType.liveChannel:
         return PlayerHoverZone.liveChannelControl;
+      case PlayerFlyoutType.cloudPlayMode:
+        return PlayerHoverZone.cloudPlayModeControl;
     }
   }
 
