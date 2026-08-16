@@ -336,6 +336,9 @@ final class UpdateController extends StateNotifier<UpdateState> {
         'Starting ${manual ? 'manual' : 'automatic'} update check.',
       );
       final currentVersion = await _currentVersionLoader();
+      if (!_isDisposed) {
+        state = state.copyWith(currentVersion: currentVersion);
+      }
       AppTalker.info(
         'UpdateCheck',
         'Current application version is ${currentVersion.skipKey}.',

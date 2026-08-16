@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../../../core/version/semantic_version.dart';
 import '../../../domain/update/entities/update_models.dart';
 import '../../../services/update/sha256_verifier.dart';
 
@@ -255,6 +256,7 @@ final class UpdateState {
     required this.presentation,
     this.failure,
     this.lastSuccessfulCheckAt,
+    this.currentVersion,
   });
 
   factory UpdateState.initial({DateTime? lastSuccessfulCheckAt}) {
@@ -269,6 +271,9 @@ final class UpdateState {
   final UpdatePresentationState presentation;
   final UpdateWorkflowFailure? failure;
   final DateTime? lastSuccessfulCheckAt;
+
+  /// The currently installed application version, loaded once during a check.
+  final SemanticVersion? currentVersion;
 
   UpdateCandidate? get candidate => task.candidate;
   int get receivedBytes => task.receivedBytes;
@@ -328,6 +333,7 @@ final class UpdateState {
     UpdatePresentationState? presentation,
     UpdateWorkflowFailure? failure,
     DateTime? lastSuccessfulCheckAt,
+    SemanticVersion? currentVersion,
     bool clearFailure = false,
   }) {
     return UpdateState(
@@ -336,6 +342,7 @@ final class UpdateState {
       failure: clearFailure ? null : failure ?? this.failure,
       lastSuccessfulCheckAt:
           lastSuccessfulCheckAt ?? this.lastSuccessfulCheckAt,
+      currentVersion: currentVersion ?? this.currentVersion,
     );
   }
 }
