@@ -22,6 +22,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.1.2-beta] - 2026-08-16
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Added
+
+- **AppButton 包装器**：新增 `AppButton` 包装器，统一所有按钮的手型光标。
+
+### Changed
+
+- **macOS 播放器音量增益**：将 macOS 端 mpv 音量增益提升至 1.7 倍。
+
+### Fixed
+
+- **登录页忘记密码弹窗**：修复登录页点击「忘记密码」无弹窗的问题，使用统一 AppDialog 样式并显示与 Web 端一致的提示内容。
+- **fnOS 登录 WebView 异常提示**：抑制 NAS 登录 WebView 中由代理 NE 拦截 QUIC 触发的「系统异常」 alert。
+- **更新弹窗当前版本展示**：在更新弹窗中显示当前已安装的版本号。
+
 ## [2.1.1-beta] - 2026-08-16
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
