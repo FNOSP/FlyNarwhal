@@ -224,15 +224,6 @@ final linuxUpdateInstallerProvider = Provider<LinuxUpdateInstaller>((ref) {
   );
 });
 
-final windowsInstallResultStoreProvider = Provider<WindowsInstallResultStore?>(
-  (ref) {
-    if (kIsWeb || !Platform.isWindows) {
-      return null;
-    }
-    return WindowsInstallResultStore();
-  },
-);
-
 final updateInstallFailureRecoveryProvider =
     Provider<UpdateInstallFailureRecovery>((ref) {
   if (kIsWeb) {
@@ -245,21 +236,7 @@ final updateInstallFailureRecoveryProvider =
       transactionStore: transactionStore,
       bridge: ref.watch(windowsDesktopUpdaterBridgeProvider),
     );
-    final legacyStore = ref.watch(windowsInstallResultStoreProvider);
-    return () async {
-      final nativeFailure = await recovery.recoverFailure();
-      if (nativeFailure != null || await transactionStore.hasActive()) {
-        return nativeFailure;
-      }
-
-      // Consume the legacy Go result only when no native transaction exists.
-      try {
-        final result = await legacyStore?.consume();
-        return result?.toFailure();
-      } on FormatException {
-        return null;
-      }
-    };
+    return recovery.recoverFailure;
   }
   if (Platform.isMacOS) {
     final installer = ref.watch(macOSUpdateInstallerProvider);

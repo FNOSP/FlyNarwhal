@@ -204,101 +204,16 @@ endif()
 
 unset(CMAKE_POLICY_DEFAULT_CMP0175)
 
-option(FLYNARWHAL_USE_NATIVE_UPDATE_HELPER
-  "Build and bundle the native Windows install helper" ON)
-
 set(FLYNARWHAL_NATIVE_HELPER_NAME "FlyNarwhalInstallHelper.exe")
-set(FLYNARWHAL_GO_UPDATER_NAME "updater.exe")
 set(FLYNARWHAL_LEGACY_UPDATER_NAMES
+  "updater.exe"
   "flynarwhal-updater.exe"
   "fntv-updater.exe"
 )
 
-if(FLYNARWHAL_USE_NATIVE_UPDATE_HELPER)
-  # Build exactly one production update helper for this bundle.
-  add_subdirectory("native")
-  add_dependencies(${BINARY_NAME} FlyNarwhalInstallHelper)
-else()
-  set(FLYNARWHAL_UPDATER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../updater")
-  set(FLYNARWHAL_UPDATER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/build_updater.cmake")
-
-  if(NOT EXISTS "${FLYNARWHAL_UPDATER_SOURCE_DIR}/go.mod")
-    message(FATAL_ERROR "Windows updater source is missing: ${FLYNARWHAL_UPDATER_SOURCE_DIR}")
-  endif()
-  if(NOT EXISTS "${FLYNARWHAL_UPDATER_SCRIPT}")
-    message(FATAL_ERROR "Windows updater build script is missing: ${FLYNARWHAL_UPDATER_SCRIPT}")
-  endif()
-
-  find_program(FLYNARWHAL_GO_EXECUTABLE NAMES go)
-  if(NOT FLYNARWHAL_GO_EXECUTABLE)
-    message(FATAL_ERROR "Go 1.23+ is required to build ${FLYNARWHAL_GO_UPDATER_NAME}. Install Go and ensure 'go version' works from PATH.")
-  endif()
-
-  execute_process(
-    COMMAND "${FLYNARWHAL_GO_EXECUTABLE}" version
-    RESULT_VARIABLE FLYNARWHAL_GO_VERSION_RESULT
-    OUTPUT_VARIABLE FLYNARWHAL_GO_VERSION_OUTPUT
-    ERROR_VARIABLE FLYNARWHAL_GO_VERSION_ERROR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_STRIP_TRAILING_WHITESPACE
-  )
-  if(NOT FLYNARWHAL_GO_VERSION_RESULT EQUAL 0)
-    message(FATAL_ERROR "Failed to execute 'go version': ${FLYNARWHAL_GO_VERSION_ERROR}")
-  endif()
-  string(REGEX MATCH "go([0-9]+\\.[0-9]+(\\.[0-9]+)?)" FLYNARWHAL_GO_VERSION_MATCH "${FLYNARWHAL_GO_VERSION_OUTPUT}")
-  if(NOT CMAKE_MATCH_1)
-    message(FATAL_ERROR "Unable to parse Go version from: ${FLYNARWHAL_GO_VERSION_OUTPUT}")
-  endif()
-  if(CMAKE_MATCH_1 VERSION_LESS "1.23")
-    message(FATAL_ERROR "Go 1.23+ is required to build ${FLYNARWHAL_GO_UPDATER_NAME}; found ${CMAKE_MATCH_1}")
-  endif()
-  message(STATUS "Using Go toolchain for updater: ${FLYNARWHAL_GO_VERSION_OUTPUT}")
-
-  if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-x64")
-    set(FLYNARWHAL_UPDATER_GOARCH "amd64")
-    set(FLYNARWHAL_UPDATER_ARCH_DIR "x64")
-  elseif(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
-    set(FLYNARWHAL_UPDATER_GOARCH "arm64")
-    set(FLYNARWHAL_UPDATER_ARCH_DIR "arm64")
-  else()
-    message(FATAL_ERROR "Unsupported Flutter Windows target for updater: ${FLUTTER_TARGET_PLATFORM}")
-  endif()
-
-  file(GLOB_RECURSE FLYNARWHAL_UPDATER_GO_SOURCES CONFIGURE_DEPENDS
-    "${FLYNARWHAL_UPDATER_SOURCE_DIR}/*.go"
-  )
-  set(FLYNARWHAL_UPDATER_DEPENDENCIES
-    ${FLYNARWHAL_UPDATER_GO_SOURCES}
-    "${FLYNARWHAL_UPDATER_SOURCE_DIR}/go.mod"
-  )
-  if(EXISTS "${FLYNARWHAL_UPDATER_SOURCE_DIR}/go.sum")
-    list(APPEND FLYNARWHAL_UPDATER_DEPENDENCIES "${FLYNARWHAL_UPDATER_SOURCE_DIR}/go.sum")
-  endif()
-
-  set(FLYNARWHAL_UPDATER_INTERMEDIATE_DIR
-    "${PROJECT_BUILD_DIR}/updater/$<CONFIG>/${FLYNARWHAL_UPDATER_ARCH_DIR}"
-  )
-  set(FLYNARWHAL_UPDATER_INTERMEDIATE
-    "${FLYNARWHAL_UPDATER_INTERMEDIATE_DIR}/${FLYNARWHAL_GO_UPDATER_NAME}"
-  )
-  set(FLYNARWHAL_UPDATER_INTERMEDIATE_TMP
-    "${FLYNARWHAL_UPDATER_INTERMEDIATE}.tmp"
-  )
-
-  add_custom_target(updater_build ALL
-    COMMAND "${CMAKE_COMMAND}"
-      "-DGO_EXECUTABLE=${FLYNARWHAL_GO_EXECUTABLE}"
-      "-DUPDATER_SOURCE_DIR=${FLYNARWHAL_UPDATER_SOURCE_DIR}"
-      "-DUPDATER_OUTPUT=${FLYNARWHAL_UPDATER_INTERMEDIATE}"
-      "-DUPDATER_OUTPUT_TMP=${FLYNARWHAL_UPDATER_INTERMEDIATE_TMP}"
-      "-DUPDATER_GOARCH=${FLYNARWHAL_UPDATER_GOARCH}"
-      "-DUPDATER_CONFIGURATION=$<CONFIG>"
-      -P "${FLYNARWHAL_UPDATER_SCRIPT}"
-    DEPENDS ${FLYNARWHAL_UPDATER_DEPENDENCIES}
-    VERBATIM
-  )
-  add_dependencies(${BINARY_NAME} updater_build)
-endif()
+# Build the only production update helper for this bundle.
+add_subdirectory("native")
+add_dependencies(${BINARY_NAME} FlyNarwhalInstallHelper)
 
 
 # === Installation ===
@@ -322,21 +237,9 @@ endforeach()
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
-if(FLYNARWHAL_USE_NATIVE_UPDATE_HELPER)
-  install(TARGETS FlyNarwhalInstallHelper
-    RUNTIME DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-    COMPONENT Runtime)
-  install(CODE "
-    file(REMOVE \"${INSTALL_BUNDLE_LIB_DIR}/${FLYNARWHAL_GO_UPDATER_NAME}\")
-  " COMPONENT Runtime)
-else()
-  install(FILES "${FLYNARWHAL_UPDATER_INTERMEDIATE}"
-    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-    COMPONENT Runtime)
-  install(CODE "
-    file(REMOVE \"${INSTALL_BUNDLE_LIB_DIR}/${FLYNARWHAL_NATIVE_HELPER_NAME}\")
-  " COMPONENT Runtime)
-endif()
+install(TARGETS FlyNarwhalInstallHelper
+  RUNTIME DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
 
 install(FILES "${FLUTTER_INSTALL_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
