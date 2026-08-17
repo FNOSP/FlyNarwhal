@@ -41,6 +41,15 @@ class MediaStream {
   Map<String, dynamic> toJson() => _$MediaStreamToJson(this);
 }
 
+// color_range_type 在不同接口下可能是字符串或数组（文件夹浏览返回
+// ["SDR"]）；统一归一为首项字符串，避免解析期类型转换异常。
+String? parseColorRangeType(dynamic value) {
+  if (value is List) {
+    return value.isEmpty ? null : value.first?.toString();
+  }
+  return value as String?;
+}
+
 @JsonSerializable()
 class MediaItem {
   final String guid;
@@ -52,6 +61,9 @@ class MediaItem {
   final String title;
   final String? type;
   final String? poster;
+  // Folder items expose covers via poster_list (no `poster` field).
+  @JsonKey(name: 'poster_list')
+  final List<String>? posterList;
   @JsonKey(name: 'poster_width')
   final int? posterWidth;
   @JsonKey(name: 'poster_height')
@@ -104,6 +116,7 @@ class MediaItem {
     required this.title,
     this.type,
     this.poster,
+    this.posterList,
     this.posterWidth,
     this.posterHeight,
     this.isFavorite = 0,
@@ -132,6 +145,18 @@ class MediaItem {
   factory MediaItem.fromJson(Map<String, dynamic> json) =>
       _$MediaItemFromJson(json);
   Map<String, dynamic> toJson() => _$MediaItemToJson(this);
+
+  // 封面优先级：poster 字段 → poster_list 首项（文件夹视图的封面来源）。
+  String? get effectivePoster {
+    final p = poster?.trim();
+    if (p != null && p.isNotEmpty) {
+      return poster;
+    }
+    if (posterList != null && posterList!.isNotEmpty) {
+      return posterList!.first;
+    }
+    return null;
+  }
 }
 
 String? buildPosterSubtitle(MediaItem item) {
@@ -190,12 +215,35 @@ class ItemListQueryResponse {
   final int total;
   @JsonKey(name: 'mdb_name')
   final String? mdbName;
+  // Breadcrumb chain returned when browsing a folder (parent_guid):
+  // all entries up to the last are ancestors, the last is the folder itself.
+  @JsonKey(name: 'jump_list')
+  final List<JumpItem> jumpList;
 
-  ItemListQueryResponse({this.list = const [], this.total = 0, this.mdbName});
+  ItemListQueryResponse({
+    this.list = const [],
+    this.total = 0,
+    this.mdbName,
+    this.jumpList = const [],
+  });
 
   factory ItemListQueryResponse.fromJson(Map<String, dynamic> json) =>
       _$ItemListQueryResponseFromJson(json);
   Map<String, dynamic> toJson() => _$ItemListQueryResponseToJson(this);
+}
+
+@JsonSerializable()
+class JumpItem {
+  @JsonKey(name: 'fv_guid')
+  final String fvGuid;
+  @JsonKey(name: 'base_name')
+  final String baseName;
+
+  const JumpItem({required this.fvGuid, required this.baseName});
+
+  factory JumpItem.fromJson(Map<String, dynamic> json) =>
+      _$JumpItemFromJson(json);
+  Map<String, dynamic> toJson() => _$JumpItemToJson(this);
 }
 
 @JsonSerializable()
@@ -270,6 +318,10 @@ String? buildPlayDetailSubtitle(PlayDetailResponse item) {
 class ItemListQueryRequest {
   @JsonKey(name: 'ancestor_guid')
   final String? ancestorGuid;
+  // Direct-parent folder guid (fv_*): lists only the folder's children,
+  // mirroring the web folder view's item/list request.
+  @JsonKey(name: 'parent_guid')
+  final String? parentGuid;
   @JsonKey(name: 'exclude_grouped_video')
   final int excludeGroupedVideo;
   @JsonKey(name: 'sort_type')
@@ -283,6 +335,7 @@ class ItemListQueryRequest {
 
   ItemListQueryRequest({
     this.ancestorGuid,
+    this.parentGuid,
     this.excludeGroupedVideo = 1,
     this.sortType = "DESC",
     this.sortColumn = "create_time",

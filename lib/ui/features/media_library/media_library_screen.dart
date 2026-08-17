@@ -71,8 +71,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       setState(() {
         _isFilterOpen = false;
         _selectedFilters = {};
-        _sortColumn = 'create_time';
-        _sortOrder = 'DESC';
+        _sortColumn = _defaultSortColumn();
+        _sortOrder = _defaultSortOrder();
         _liveSettings = const LiveLibrarySettings();
         _tagList = null;
         _genres = null;
@@ -94,6 +94,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
 
   String get _providerGuid => widget.id ?? 'category:${widget.categoryType!}';
 
+  // 文件夹视图（Web /v/folder/:guid）：guid 以 fv_ 前缀标识目录项。
+  bool get _isFolder => widget.id?.startsWith('fv_') ?? false;
+
   String _resolveTitle() {
     switch (widget.categoryType) {
       case 'total':
@@ -110,6 +113,10 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         return '媒体库';
     }
   }
+
+  // 文件夹视图默认标题升序（与 Web 文件夹视图一致），其余页面沿用创建时间降序。
+  String _defaultSortColumn() => _isFolder ? 'sort_title' : 'create_time';
+  String _defaultSortOrder() => _isFolder ? 'ASC' : 'DESC';
 
   String? _resolveMediaDbTitle(List<MediaDbListResponse> list) {
     if (widget.id == null) return null;
@@ -261,8 +268,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
           _sortColumn = settings.sortField;
           _sortOrder = settings.sortType;
         } else {
-          _sortColumn = 'create_time';
-          _sortOrder = 'DESC';
+          _sortColumn = _defaultSortColumn();
+          _sortOrder = _defaultSortOrder();
         }
       });
       await ref
@@ -276,8 +283,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
             _sortColumn = _liveSettings.sortField;
             _sortOrder = _liveSettings.sortType;
           } else {
-            _sortColumn = 'create_time';
-            _sortOrder = 'DESC';
+            _sortColumn = _defaultSortColumn();
+            _sortOrder = _defaultSortOrder();
           }
         });
         await ref
@@ -320,7 +327,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
 
   MediaLibraryBrowseRequest _buildBrowseRequest() {
     return MediaLibraryBrowseRequest(
-      ancestorGuid: widget.id,
+      ancestorGuid: _isFolder ? null : widget.id,
+      parentGuid: _isFolder ? widget.id : null,
+      excludeGroupedVideo: _isFolder ? 0 : 1,
       categoryType: widget.categoryType,
       page: 1,
       pageSize: 50,
@@ -490,7 +499,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
             AspectRatio(
               aspectRatio: 16 / 9,
               child: BannerPoster(
-                posterPath: item.poster,
+                posterPath: item.effectivePoster,
                 type: item.type,
                 guid: item.guid,
                 isFavorite: item.isFavorite == 1,
@@ -542,13 +551,15 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         final item = items[index];
         final smartAnalysisEnabled =
             ref.watch(settingsProvider).flyNarwhalServerEnabled;
+        final isDirectory =
+            MediaType.tryParse(item.type) == MediaType.directory;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AspectRatio(
               aspectRatio: 16 / 9,
               child: BannerPoster(
-                posterPath: item.poster,
+                posterPath: item.effectivePoster,
                 score: item.voteAverage,
                 type: item.type,
                 guid: item.guid,
@@ -556,13 +567,15 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                 isWatched: (item.watched ?? 0) == 1,
                 scaleFactor: scaleFactor,
                 onTap: () => _navigateGeneralLibraryItem(item),
-                onPlayTap: () {
-                  if (item.type == MediaType.liveChannel.value) {
-                    context.go('/live/${item.guid}');
-                  } else {
-                    context.go('/player/${item.guid}');
-                  }
-                },
+                onPlayTap: isDirectory
+                    ? null
+                    : () {
+                        if (item.type == MediaType.liveChannel.value) {
+                          context.go('/live/${item.guid}');
+                        } else {
+                          context.go('/player/${item.guid}');
+                        }
+                      },
                 onFavoriteToggle: _handleFavoriteToggle,
                 onWatchedToggle: _handleWatchedToggle,
                 onMoreTap: smartAnalysisEnabled &&
@@ -594,6 +607,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         break;
       case MediaType.season:
         context.go('/tv/season/${item.guid}');
+        break;
+      case MediaType.directory:
+        context.go('/folder/${item.guid}');
         break;
       default:
         context.go('/movie/${item.guid}');
@@ -747,6 +763,93 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     );
   }
 
+  // 文件夹视图头部：面包屑（上级路径）+ 大标题 + 分隔线，镜像 Web /v/folder/:guid。
+  Widget _buildFolderHeader(String title, MediaLibraryState? libraryData) {
+    final theme = FluentTheme.of(context);
+    final scaleFactor = resolveWindowScaleFactor(context);
+    final jumpList = libraryData?.jumpList ?? const <JumpItem>[];
+    // jump_list 末项是当前文件夹自身，面包屑只展示其祖先链。
+    final crumbs = jumpList.length > 1 ? jumpList.sublist(0, jumpList.length - 1) : const <JumpItem>[];
+    final mutedColor = theme.typography.body?.color?.withValues(alpha: 0.7);
+
+    void goCrumb(JumpItem crumb) {
+      if (crumb.fvGuid.isNotEmpty) {
+        context.go('/folder/${crumb.fvGuid}');
+        return;
+      }
+      // 面包屑根项是媒体库（fv_guid 为空），用列表项上的 ancestor_guid 定位。
+      String? ancestorGuid;
+      for (final e in libraryData?.items ?? const <MediaItem>[]) {
+        if (e.ancestorGuid?.isNotEmpty == true) {
+          ancestorGuid = e.ancestorGuid;
+          break;
+        }
+      }
+      if (ancestorGuid?.isNotEmpty == true) {
+        context.go('/library/$ancestorGuid');
+      }
+    }
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          24 * scaleFactor, 16 * scaleFactor, 24 * scaleFactor, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (crumbs.isNotEmpty)
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Icon(
+                  FluentIcons.folder_open,
+                  size: 16 * scaleFactor,
+                  color: mutedColor,
+                ),
+                const SizedBox(width: 6),
+                for (var i = 0; i < crumbs.length; i++) ...[
+                  if (i > 0)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Icon(FluentIcons.chevron_right,
+                          size: 10 * scaleFactor, color: mutedColor),
+                    ),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => goCrumb(crumbs[i]),
+                      child: Text(
+                        crumbs[i].baseName,
+                        style: theme.typography.body?.copyWith(
+                          fontSize: 14 * scaleFactor,
+                          color: mutedColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          if (crumbs.isNotEmpty) SizedBox(height: 12 * scaleFactor),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.typography.title?.copyWith(
+              fontSize: 36 * scaleFactor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 16 * scaleFactor),
+          Container(
+            height: 1,
+            color: theme.resources.cardStrokeColorDefault,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.id == null && widget.categoryType == null) {
@@ -810,12 +913,18 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     const posterHeight = 200.0;
     const posterWidth = posterHeight * 2 / 3;
     final mediaDbTitle = _resolveMediaDbTitle(mediaDbList);
+    // 文件夹视图标题取 jump_list 末项（当前文件夹名），缺失时回退到所属库名。
+    final folderTitle = libraryData?.jumpList.isNotEmpty == true
+        ? libraryData!.jumpList.last.baseName
+        : null;
     final title = widget.id != null
-        ? (libraryData?.mdbName ?? mediaDbTitle ?? '媒体库')
+        ? (_isFolder
+            ? (folderTitle ?? libraryData?.mdbName ?? '文件夹')
+            : (libraryData?.mdbName ?? mediaDbTitle ?? '媒体库'))
         : _resolveTitle();
 
     return ScaffoldPage(
-      header: PageHeader(title: Text(title)),
+      header: _isFolder ? null : PageHeader(title: Text(title)),
       content: Stack(
         children: [
           NotificationListener<ScrollNotification>(
@@ -831,6 +940,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (_isFolder) _buildFolderHeader(title, libraryData),
                 Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -863,7 +973,12 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                         ),
                       ] else ...[
                         SortFlyout(
-                          key: ValueKey('sort-$_providerGuid'),
+                          // key 含排序状态：文件夹视图的默认排序（标题升序）
+                          // 在异步读取偏好后才确定，需让胶囊随之重建。
+                          key: ValueKey(
+                              'sort-$_providerGuid-$_sortColumn-$_sortOrder'),
+                          initialSortColumn: _sortColumn,
+                          initialSortOrder: _sortOrder,
                           onSortTypeSelected: (type) {
                             setState(() => _sortColumn = type);
                             if (_supportsLibrarySettings) {
@@ -892,6 +1007,22 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                             onLayoutSelected: _selectLibraryLayout,
                           ),
                         ],
+                      ],
+                      if (_isFolder) ...[
+                        const Spacer(),
+                        Text(
+                          '共 ${libraryData?.total ?? 0} 项',
+                          style: FluentTheme.of(context)
+                              .typography
+                              .body
+                              ?.copyWith(
+                                color: FluentTheme.of(context)
+                                    .typography
+                                    .body
+                                    ?.color
+                                    ?.withValues(alpha: 0.6),
+                              ),
+                        ),
                       ],
                     ],
                   ),
@@ -935,7 +1066,17 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                 Expanded(
                   child: mediaLibraryState.isLoading && items.isEmpty
                       ? const Center(child: AppLoadingProgressRing())
-                      : _isLiveLibrary &&
+                      : mediaLibraryState.hasError
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Text(
+                                  '加载失败：${mediaLibraryState.error}',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            )
+                          : _isLiveLibrary &&
                               _liveSettings.viewType == LiveViewType.list
                           ? _buildLiveListView(items, scaleFactor)
                           : _isLiveLibrary &&
@@ -960,10 +1101,17 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                       itemCount: items.length,
                                       itemBuilder: (context, index) {
                                         final item = items[index];
+                                        final itemMediaType =
+                                            MediaType.tryParse(item.type);
+                                        final isDirectory =
+                                            itemMediaType ==
+                                                MediaType.directory;
                                         return MoviePoster(
                                           title: item.title,
-                                          subtitle: buildPosterSubtitle(item),
-                                          posterPath: item.poster,
+                                          // 文件夹卡片仅显示标题（与 Web 一致）。
+                                          subtitle:
+                                              isDirectory ? null : buildPosterSubtitle(item),
+                                          posterPath: item.effectivePoster,
                                           score: item.voteAverage,
                                           resolutions:
                                               item.mediaStream?.resolutions,
@@ -975,8 +1123,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                           type: item.type,
                                           guid: item.guid,
                                           onTap: () {
-                                            switch (
-                                                MediaType.tryParse(item.type)) {
+                                            switch (itemMediaType) {
                                               case MediaType.tv:
                                                 context.go('/tv/${item.guid}');
                                                 break;
@@ -984,20 +1131,28 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                                 context.go(
                                                     '/tv/season/${item.guid}');
                                                 break;
+                                              case MediaType.directory:
+                                                context.go(
+                                                    '/folder/${item.guid}');
+                                                break;
                                               default:
                                                 context
                                                     .go('/movie/${item.guid}');
                                             }
                                           },
-                                          onPlayTap: () {
-                                            if (item.type ==
-                                                MediaType.liveChannel.value) {
-                                              context.go('/live/${item.guid}');
-                                            } else {
-                                              context
-                                                  .go('/player/${item.guid}');
-                                            }
-                                          },
+                                          onPlayTap: isDirectory
+                                              ? null
+                                              : () {
+                                                  if (item.type ==
+                                                      MediaType
+                                                          .liveChannel.value) {
+                                                    context.go(
+                                                        '/live/${item.guid}');
+                                                  } else {
+                                                    context.go(
+                                                        '/player/${item.guid}');
+                                                  }
+                                                },
                                           onFavoriteToggle:
                                               _handleFavoriteToggle,
                                           onWatchedToggle: _handleWatchedToggle,

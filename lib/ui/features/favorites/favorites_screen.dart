@@ -568,7 +568,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                   return MoviePoster(
                                     title: item.title,
                                     subtitle: buildPosterSubtitle(item),
-                                    posterPath: item.poster,
+                                    posterPath: item.effectivePoster,
                                     score: item.voteAverage,
                                     resolutions: item.mediaStream?.resolutions,
                                     isFavorite: item.isFavorite == 1,
@@ -583,18 +583,26 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                         context.go('/tv/${item.guid}');
                                       } else if (item.type == 'Season') {
                                         context.go('/tv/season/${item.guid}');
+                                      } else if (item.type == 'Directory') {
+                                        context.go('/folder/${item.guid}');
                                       } else {
                                         context.go('/movie/${item.guid}');
                                       }
                                     },
-                                    onPlayTap: () {
-                                      if (item.type ==
-                                          MediaType.liveChannel.value) {
-                                        context.go('/live/${item.guid}');
-                                      } else {
-                                        context.go('/player/${item.guid}');
-                                      }
-                                    },
+                                    onPlayTap:
+                                        item.type == 'Directory'
+                                            ? null
+                                            : () {
+                                                if (item.type ==
+                                                    MediaType
+                                                        .liveChannel.value) {
+                                                  context
+                                                      .go('/live/${item.guid}');
+                                                } else {
+                                                  context.go(
+                                                      '/player/${item.guid}');
+                                                }
+                                              },
                                     onFavoriteToggle: _handleFavoriteToggle,
                                     onWatchedToggle: _handleWatchedToggle,
                                     onMoreTap: smartAnalysisEnabled &&

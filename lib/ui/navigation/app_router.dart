@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../tooling/driver_test_mode.dart';
 import '../features/home/home_screen.dart';
 import '../features/layout/main_layout.dart';
 import '../features/login/login_screen.dart';
@@ -15,12 +16,20 @@ import '../features/player/live_player_screen.dart';
 import '../../core/utils/log/app_talker.dart';
 import '../../providers/providers.dart';
 
+// Driver-only: opens a specific route on launch (e.g. /player/<guid>) so
+// automated verification can bypass hover/tap navigation on static screens.
+// Ignored in production builds.
+const String _driverInitialRoute =
+    String.fromEnvironment('DRIVER_INITIAL_ROUTE');
+
 final routerProvider = Provider<GoRouter>((ref) {
   final prefs = ref.watch(preferencesManagerProvider);
   ref.watch(authRefreshProvider);
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: (kDriverTestMode && _driverInitialRoute.isNotEmpty)
+        ? _driverInitialRoute
+        : '/login',
     redirect: (context, state) {
       final token = prefs.getToken();
       final baseUrl = prefs.getBaseUrl();
@@ -76,6 +85,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/library/:id',
             builder: (context, state) =>
                 MediaLibraryScreen(id: state.pathParameters['id']),
+          ),
+          // 文件夹视图（Web /v/folder/:guid）：目录项（fv_*）钻取浏览。
+          GoRoute(
+            path: '/folder/:guid',
+            builder: (context, state) =>
+                MediaLibraryScreen(id: state.pathParameters['guid']),
           ),
           GoRoute(
             path: '/category/:type',

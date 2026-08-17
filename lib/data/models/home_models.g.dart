@@ -33,7 +33,7 @@ MediaStream _$MediaStreamFromJson(Map<String, dynamic> json) => MediaStream(
           ?.map((e) => e as String)
           .toList(),
       audioType: json['audio_type'] as String?,
-      colorRangeType: json['color_range_type'] as String?,
+      colorRangeType: parseColorRangeType(json['color_range_type']),
     );
 
 Map<String, dynamic> _$MediaStreamToJson(MediaStream instance) =>
@@ -51,6 +51,9 @@ MediaItem _$MediaItemFromJson(Map<String, dynamic> json) => MediaItem(
       title: json['title'] as String,
       type: json['type'] as String?,
       poster: json['poster'] as String?,
+      posterList: (json['poster_list'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
       posterWidth: (json['poster_width'] as num?)?.toInt(),
       posterHeight: (json['poster_height'] as num?)?.toInt(),
       isFavorite: (json['is_favorite'] as num?)?.toInt() ?? 0,
@@ -88,6 +91,7 @@ Map<String, dynamic> _$MediaItemToJson(MediaItem instance) => <String, dynamic>{
       'title': instance.title,
       'type': instance.type,
       'poster': instance.poster,
+      'poster_list': instance.posterList,
       'poster_width': instance.posterWidth,
       'poster_height': instance.posterHeight,
       'is_favorite': instance.isFavorite,
@@ -122,6 +126,10 @@ ItemListQueryResponse _$ItemListQueryResponseFromJson(
           const [],
       total: (json['total'] as num?)?.toInt() ?? 0,
       mdbName: json['mdb_name'] as String?,
+      jumpList: (json['jump_list'] as List<dynamic>?)
+              ?.map((e) => JumpItem.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$ItemListQueryResponseToJson(
@@ -130,6 +138,17 @@ Map<String, dynamic> _$ItemListQueryResponseToJson(
       'list': instance.list,
       'total': instance.total,
       'mdb_name': instance.mdbName,
+      'jump_list': instance.jumpList,
+    };
+
+JumpItem _$JumpItemFromJson(Map<String, dynamic> json) => JumpItem(
+      fvGuid: json['fv_guid'] as String,
+      baseName: json['base_name'] as String,
+    );
+
+Map<String, dynamic> _$JumpItemToJson(JumpItem instance) => <String, dynamic>{
+      'fv_guid': instance.fvGuid,
+      'base_name': instance.baseName,
     };
 
 PlayDetailResponse _$PlayDetailResponseFromJson(Map<String, dynamic> json) =>
@@ -176,6 +195,7 @@ Map<String, dynamic> _$ItemListQueryRequestToJson(
         ItemListQueryRequest instance) =>
     <String, dynamic>{
       'ancestor_guid': instance.ancestorGuid,
+      'parent_guid': instance.parentGuid,
       'exclude_grouped_video': instance.excludeGroupedVideo,
       'sort_type': instance.sortType,
       'sort_column': instance.sortColumn,

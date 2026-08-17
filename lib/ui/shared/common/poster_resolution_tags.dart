@@ -1,5 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+// 服务端对未识别分辨率的条目会回空串/非标值，只渲染边框的空角标，
+// Web 端不展示这类条目；这里只放行 1080p / 4k 形式的标准分辨率。
+final RegExp _standardResolution = RegExp(r'^\d+[pkPK]$');
+
 List<String> normalizePosterResolutions(List<String>? input) {
   if (input == null || input.isEmpty) {
     return [];
@@ -7,7 +11,7 @@ List<String> normalizePosterResolutions(List<String>? input) {
   final seen = <String>{};
   final result = <String>[];
   for (final resolution in input) {
-    if (resolution == 'Others') {
+    if (!_standardResolution.hasMatch(resolution.trim())) {
       continue;
     }
     if (seen.add(resolution)) {

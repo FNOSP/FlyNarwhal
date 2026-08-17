@@ -104,6 +104,13 @@ class LivePlayRecordRequest {
 class MediaLibraryBrowseRequest {
   @JsonKey(name: 'ancestor_guid')
   final String? ancestorGuid;
+  // Direct-parent folder guid (fv_*). Not serialized directly — the wire
+  // body is built in toItemListQueryRequest(); kept unannotated so the
+  // committed generated toJson stays valid without regeneration.
+  final String? parentGuid;
+  // Folder browsing keeps grouped videos visible (web omits the field,
+  // whose server default is 0); library browsing excludes them (1).
+  final int excludeGroupedVideo;
   @JsonKey(includeToJson: false)
   final String? categoryType;
   @JsonKey(name: 'page_size')
@@ -120,6 +127,8 @@ class MediaLibraryBrowseRequest {
 
   const MediaLibraryBrowseRequest({
     this.ancestorGuid,
+    this.parentGuid,
+    this.excludeGroupedVideo = 1,
     this.categoryType,
     this.pageSize = 50,
     this.page = 1,
@@ -132,6 +141,8 @@ class MediaLibraryBrowseRequest {
   ItemListQueryRequest toItemListQueryRequest() {
     return ItemListQueryRequest(
       ancestorGuid: ancestorGuid,
+      parentGuid: parentGuid,
+      excludeGroupedVideo: excludeGroupedVideo,
       page: page,
       pageSize: pageSize,
       sortColumn: sortColumn,
@@ -146,6 +157,8 @@ class MediaLibraryBrowseRequest {
 
   MediaLibraryBrowseRequest copyWith({
     String? ancestorGuid,
+    String? parentGuid,
+    int? excludeGroupedVideo,
     String? categoryType,
     int? pageSize,
     int? page,
@@ -156,6 +169,8 @@ class MediaLibraryBrowseRequest {
   }) {
     return MediaLibraryBrowseRequest(
       ancestorGuid: ancestorGuid ?? this.ancestorGuid,
+      parentGuid: parentGuid ?? this.parentGuid,
+      excludeGroupedVideo: excludeGroupedVideo ?? this.excludeGroupedVideo,
       categoryType: categoryType ?? this.categoryType,
       pageSize: pageSize ?? this.pageSize,
       page: page ?? this.page,
