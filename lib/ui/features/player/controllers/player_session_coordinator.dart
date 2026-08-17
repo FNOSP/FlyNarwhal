@@ -364,21 +364,11 @@ class PlayerSessionCoordinator {
       );
     } catch (error) {
       // The NAS could not start a transcode session for this cloud file
-      // (server-side failure or timeout). Fall back to 网盘直连播放 instead of
-      // leaving the player on a dead screen, and drop the persisted proxy
-      // preference so the next launch does not pay the same ~minute stall.
-      AppTalker.warning(
-        'Player',
-        'cloud proxy session failed, falling back to direct link: $error',
-      );
-      unawaited(
-        _playerSettingsManager.setCloudPlayMode(
-          cloudType,
-          'direct',
-          userGuid: target.userGuid,
-        ),
-      );
-      return _loadCloudDirectSession(
+      // (server-side failure or timeout). Mirror the web player: surface the
+      // proxy error guard and let the user retry or switch to 网盘直连播放 —
+      // never auto-fallback or rewrite the persisted play-mode preference.
+      AppTalker.warning('Player', 'cloud proxy session failed: $error');
+      return _cloudProxyFailureResult(
         playInfo: playInfo,
         streamInfo: streamInfo,
         currentVideoStream: currentVideoStream,
@@ -389,9 +379,10 @@ class PlayerSessionCoordinator {
         currentSubtitleStream: currentSubtitleStream,
         audioGuid: audioGuid,
         subtitleGuid: subtitleGuid,
+        transcodeQualities: transcodeQualities,
+        currentQuality: currentQuality,
         directQualities: directQualities,
         startPositionMs: startPositionMs,
-        userGuid: target.userGuid,
       );
     } finally {
       _dio.options.receiveTimeout = previousReceiveTimeout;
@@ -543,6 +534,70 @@ class PlayerSessionCoordinator {
       subtitleGuid: subtitleGuid,
       preparedPlaySource: preparedPlaySource,
       effectiveStartPositionMs: resolved.effectiveStartMs,
+    );
+  }
+
+  /// Proxy-mode result for a failed initial cloud proxy negotiation. The
+  /// empty play URI makes the player's open/verify step fail so the proxy
+  /// error guard is shown; the direct-link qualities stay attached so the
+  /// guard can offer 网盘直连播放.
+  PlayerSessionLoadResult _cloudProxyFailureResult({
+    required PlayInfoResponse playInfo,
+    required StreamResponse streamInfo,
+    required VideoStream currentVideoStream,
+    required FileInfo fileStream,
+    required List<AudioStream> audioStreams,
+    required List<SubtitleStream> subtitleStreams,
+    required AudioStream? currentAudioStream,
+    required SubtitleStream? currentSubtitleStream,
+    required String audioGuid,
+    required String? subtitleGuid,
+    required List<QualityResponse> transcodeQualities,
+    required QualityResponse? currentQuality,
+    required List<DirectLinkQuality> directQualities,
+    required int startPositionMs,
+  }) {
+    final playingInfoCache = PlayingInfoCache(
+      itemGuid: playInfo.item.guid,
+      parentGuid: playInfo.parentGuid,
+      item: playInfo.item,
+      currentFileStream: fileStream,
+      currentVideoStream: currentVideoStream,
+      currentAudioStream: currentAudioStream,
+      currentSubtitleStream: currentSubtitleStream,
+      currentQualities: transcodeQualities,
+      currentQuality: currentQuality,
+      directLinkQualities: directQualities,
+      directLinkQualityIndex: null,
+      currentAudioStreamList: audioStreams,
+      currentSubtitleStreamList: subtitleStreams,
+      playLink: null,
+      playRecordLink: null,
+      isUseDirectLink: false,
+      playConfig: playInfo.playConfig,
+      streamInfo: streamInfo,
+      isEpisode: MediaType.tryParse(playInfo.item.type) == MediaType.episode,
+      subhead: buildDisplaySubhead(
+        playInfo.item,
+        episodeNumber: playInfo.item.episodeNumber,
+      ),
+    );
+    return PlayerSessionLoadResult(
+      playInfo: playInfo,
+      streamInfo: streamInfo,
+      playingInfoCache: playingInfoCache,
+      qualities: transcodeQualities,
+      currentQuality: currentQuality,
+      episodeList: const [],
+      currentEpisode: null,
+      nextEpisode: null,
+      audioGuid: audioGuid,
+      subtitleGuid: subtitleGuid,
+      preparedPlaySource: const PreparedPlaySource(
+        playUri: '',
+        useHlsSubtitleOverlay: false,
+      ),
+      effectiveStartPositionMs: startPositionMs,
     );
   }
 

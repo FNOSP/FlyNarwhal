@@ -215,7 +215,7 @@ class _CloudAccountChipState extends State<CloudAccountChip>
         }
         final buttonOffset = renderObject.localToGlobal(Offset.zero);
         final buttonSize = renderObject.size;
-        final flyoutWidth = _flyoutWidth;
+        const flyoutWidth = _flyoutWidth;
         final flyoutHeight = _flyoutSize?.height ?? _estimatedFlyoutHeight;
         final windowWidth = MediaQuery.of(context).size.width;
         final buttonCenterX = buttonOffset.dx + buttonSize.width / 2;
@@ -668,114 +668,92 @@ class _PlayModeCardState extends State<_PlayModeCard> {
   }
 }
 
-/// Error dialog shown when cloud direct-link playback fails, mirroring the
-/// web player's error guard: possible reasons plus actions to switch quality
-/// or play mode.
+/// Full-screen error page shown when cloud playback fails, mirroring the web
+/// player's playback-error page: stacked-card artwork, the centered message
+/// and the action buttons (返回 / 重试 / 网盘直连播放 etc.).
 class CloudPlaybackErrorDialog extends StatelessWidget {
-  final String cloudLabel;
-  final List<String> alternativeQualityLabels;
   final VoidCallback onRetry;
   final VoidCallback onSwitchQuality;
   final VoidCallback onSwitchProxy;
+  final VoidCallback onSwitchDirect;
   final VoidCallback onBack;
+  final bool isProxyMode;
 
   const CloudPlaybackErrorDialog({
     super.key,
-    required this.cloudLabel,
-    required this.alternativeQualityLabels,
     required this.onRetry,
     required this.onSwitchQuality,
     required this.onSwitchProxy,
+    required this.onSwitchDirect,
     required this.onBack,
+    this.isProxyMode = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final reasonPrefix =
-        '${cloudLabel.isNotEmpty ? '$cloudLabel ' : ''}直连播放异常，可能原因：';
-    final reasons = '网盘连接断开、触发网盘风控、网盘限制非会员操作。';
-    final qualityHint = alternativeQualityLabels.isNotEmpty
-        ? '建议尝试切换其他画质（${alternativeQualityLabels.join(' / ')}）。'
-        : '建议尝试切换其他画质。';
-
     return Positioned.fill(
       child: ColoredBox(
-        color: const Color(0x99000000),
+        color: const Color(0xFF19191A),
         child: Center(
-          child: Container(
-            width: 460,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xF01A1A1A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x33FFFFFF)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(
-                      FluentIcons.error,
-                      color: Color(0xFFE5484D),
-                      size: 20,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      '抱歉，播放出错了',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/images/playback_error.png',
+                width: 200,
+                height: 200,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '抱歉，播放出错了',
+                style: TextStyle(
+                  color: Color(0x99FFFFFF),
+                  fontSize: 16,
+                  height: 22 / 16,
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  reasonPrefix + reasons,
-                  style:
-                      const TextStyle(color: Color(0xC8FFFFFF), fontSize: 13),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  qualityHint,
-                  style:
-                      const TextStyle(color: Color(0xC8FFFFFF), fontSize: 13),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    _DialogActionButton(
-                      key: const ValueKey('player-cloud-error-back'),
-                      label: '返回',
-                      onPressed: onBack,
-                    ),
-                    const SizedBox(width: 10),
-                    _DialogActionButton(
-                      key: const ValueKey('player-cloud-error-retry'),
-                      label: '重试',
-                      onPressed: onRetry,
-                    ),
-                    const SizedBox(width: 10),
-                    _DialogActionButton(
+              ),
+              const SizedBox(height: 30),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _ErrorPageActionButton(
+                    key: const ValueKey('player-cloud-error-back'),
+                    label: '返回',
+                    onPressed: onBack,
+                  ),
+                  const SizedBox(width: 16),
+                  _ErrorPageActionButton(
+                    key: const ValueKey('player-cloud-error-retry'),
+                    label: '重试',
+                    onPressed: onRetry,
+                  ),
+                  if (!isProxyMode) ...[
+                    const SizedBox(width: 16),
+                    _ErrorPageActionButton(
                       key: const ValueKey('player-cloud-error-switch-quality'),
                       label: '播放其他画质',
                       onPressed: onSwitchQuality,
                     ),
-                    const SizedBox(width: 10),
-                    _DialogActionButton(
+                    const SizedBox(width: 16),
+                    _ErrorPageActionButton(
                       key: const ValueKey('player-cloud-error-switch-proxy'),
                       label: '切换 NAS 代理播放',
                       primary: true,
                       onPressed: onSwitchProxy,
                     ),
+                  ] else ...[
+                    const SizedBox(width: 16),
+                    _ErrorPageActionButton(
+                      key: const ValueKey('player-cloud-error-switch-direct'),
+                      label: '网盘直连播放',
+                      primary: true,
+                      onPressed: onSwitchDirect,
+                    ),
                   ],
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -783,12 +761,14 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
   }
 }
 
-class _DialogActionButton extends StatefulWidget {
+/// Action button on the playback-error page, matching the web player's
+/// large Semi Design buttons (44px tall, 8px radius, 20px padding).
+class _ErrorPageActionButton extends StatefulWidget {
   final String label;
   final bool primary;
   final VoidCallback onPressed;
 
-  const _DialogActionButton({
+  const _ErrorPageActionButton({
     super.key,
     required this.label,
     this.primary = false,
@@ -796,17 +776,20 @@ class _DialogActionButton extends StatefulWidget {
   });
 
   @override
-  State<_DialogActionButton> createState() => _DialogActionButtonState();
+  State<_ErrorPageActionButton> createState() => _ErrorPageActionButtonState();
 }
 
-class _DialogActionButtonState extends State<_DialogActionButton> {
+class _ErrorPageActionButtonState extends State<_ErrorPageActionButton> {
   bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
     final background = widget.primary
-        ? _selectedTextColor
-        : (_isHovered ? const Color(0x26FFFFFF) : const Color(0x14FFFFFF));
+        ? (_isHovered ? const Color(0xFF3388FF) : const Color(0xFF0066FF))
+        : (_isHovered ? const Color(0x1FFFFFFF) : const Color(0x0FFFFFFF));
+    final foreground = widget.primary
+        ? Colors.white
+        : const Color(0xCCFFFFFF);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
@@ -814,15 +797,21 @@ class _DialogActionButtonState extends State<_DialogActionButton> {
       child: GestureDetector(
         onTap: widget.onPressed,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          height: 44,
+          constraints: const BoxConstraints(minWidth: 80),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: const Color(0x4DFFFFFF)),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             widget.label,
-            style: const TextStyle(color: Colors.white, fontSize: 13),
+            style: TextStyle(
+              color: foreground,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
