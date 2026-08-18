@@ -84,6 +84,7 @@ class AppDialog<T> extends StatelessWidget {
       maxHeight: 720,
     ),
     this.titleIcon,
+    this.onClose,
   });
 
   final String title;
@@ -100,6 +101,9 @@ class AppDialog<T> extends StatelessWidget {
   final T? tertiaryResult;
   final BoxConstraints constraints;
   final Widget? titleIcon;
+
+  /// When non-null, renders a close button on the title's trailing edge.
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +164,16 @@ class AppDialog<T> extends StatelessWidget {
         children: [
           if (titleIcon != null) ...[titleIcon!, const SizedBox(width: 12)],
           Expanded(child: Text(title)),
+          if (onClose != null)
+            AppIconButton(
+              key: const ValueKey('app-dialog-close'),
+              icon: Icon(
+                FluentIcons.chrome_close,
+                size: 16,
+                color: palette.text,
+              ),
+              onPressed: onClose,
+            ),
         ],
       ),
       content: DefaultTextStyle.merge(
@@ -306,6 +320,7 @@ Future<T?> showAppDialog<T>({
     maxHeight: 720,
   ),
   Widget? titleIcon,
+  VoidCallback? onClose,
 }) {
   return showDialog<T>(
     context: context,
@@ -325,6 +340,7 @@ Future<T?> showAppDialog<T>({
       tertiaryResult: tertiaryResult,
       constraints: constraints,
       titleIcon: titleIcon,
+      onClose: onClose,
     ),
   );
 }

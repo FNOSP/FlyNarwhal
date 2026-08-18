@@ -15,6 +15,7 @@ import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
+import 'widgets/changelog_dialog.dart';
 import 'widgets/shortcut_settings_dialog.dart';
 import 'widgets/support_author_item.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
@@ -687,23 +688,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 heading: const Text('隐私声明'),
                                 caption: const Text('隐私声明'),
                                 onPressed: () {
-                                  showDialog(
+                                  showAppDialog(
                                     context: context,
-                                    builder: (context) => ContentDialog(
-                                      title: const Text('隐私声明'),
-                                      content: const Text(
-                                        '为了改进软件性能，我们会收集部分硬件信息（如 CPU、GPU 型号等）作为参考依据。这些信息将仅用于优化软件，不会涉及个人隐私。',
-                                      ),
-                                      actions: [
-                                        AppButton(
-                                          onPressed: () =>
-                                              Navigator.pop(context),
-                                          child: const Text('我知道了'),
-                                        ),
-                                      ],
+                                    title: '隐私声明',
+                                    content: const Text(
+                                      '为了改进软件性能，我们会收集部分硬件信息（如 CPU、GPU 型号等）作为参考依据。这些信息将仅用于优化软件，不会涉及个人隐私。',
                                     ),
+                                    primaryButtonText: '我知道了',
                                   );
                                 },
+                              ),
+                              CardExpanderItem(
+                                key: const ValueKey('settings-changelog'),
+                                icon: const Icon(FluentIcons.history),
+                                heading: const Text('更新日志'),
+                                caption: const Text('查看各版本的更新内容'),
+                                onPressed: () => showChangelogDialog(context),
                               ),
                               if (canExportLogs)
                                 CardExpanderItem(
