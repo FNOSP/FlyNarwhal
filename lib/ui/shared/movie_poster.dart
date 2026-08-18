@@ -422,6 +422,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
         context.go('/tv/season/${widget.guid}');
         break;
       case MediaType.liveChannel:
+        ref.read(navigationStackProvider.notifier).playerSourcePath =
+            GoRouterState.of(context).uri.toString();
         context.go('/live/${widget.guid}');
         break;
       case MediaType.directory:

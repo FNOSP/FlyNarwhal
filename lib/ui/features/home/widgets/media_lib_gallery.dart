@@ -8,6 +8,7 @@ import '../../../../data/models/home_models.dart';
 import '../../../shared/movie_poster.dart';
 import '../../../shared/common/scroll_row.dart';
 import '../../../shared/common/app_loading_progress_ring.dart';
+import '../../../../providers/providers.dart';
 
 class MediaLibGallery extends ConsumerWidget {
   final String title;
@@ -107,6 +108,10 @@ class MediaLibGallery extends ConsumerWidget {
                       ? null
                       : () {
                           if (item.type == MediaType.liveChannel.value) {
+                            ref
+                                .read(navigationStackProvider.notifier)
+                                .playerSourcePath =
+                                GoRouterState.of(context).uri.toString();
                             context.go('/live/${item.guid}');
                           } else {
                             context.go('/player/${item.guid}');

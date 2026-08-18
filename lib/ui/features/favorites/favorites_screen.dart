@@ -596,6 +596,14 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                                 if (item.type ==
                                                     MediaType
                                                         .liveChannel.value) {
+                                                  ref
+                                                      .read(
+                                                          navigationStackProvider
+                                                              .notifier)
+                                                      .playerSourcePath =
+                                                      GoRouterState.of(context)
+                                                          .uri
+                                                          .toString();
                                                   context
                                                       .go('/live/${item.guid}');
                                                 } else {

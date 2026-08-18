@@ -412,7 +412,11 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => context.go('/live/${item.guid}'),
+            onTap: () {
+                ref.read(navigationStackProvider.notifier).playerSourcePath =
+                    GoRouterState.of(context).uri.toString();
+                context.go('/live/${item.guid}');
+              },
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 8 * scaleFactor),
               child: Row(
@@ -505,8 +509,16 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                 isFavorite: item.isFavorite == 1,
                 scaleFactor: scaleFactor,
                 contentPadding: 12 * scaleFactor,
-                onTap: () => context.go('/live/${item.guid}'),
-                onPlayTap: () => context.go('/live/${item.guid}'),
+                onTap: () {
+                ref.read(navigationStackProvider.notifier).playerSourcePath =
+                    GoRouterState.of(context).uri.toString();
+                context.go('/live/${item.guid}');
+              },
+                onPlayTap: () {
+                  ref.read(navigationStackProvider.notifier).playerSourcePath =
+                      GoRouterState.of(context).uri.toString();
+                  context.go('/live/${item.guid}');
+                },
                 onFavoriteToggle: _handleFavoriteToggle,
                 // 直播台无“已观看”/智能分析状态，故不传 onWatchedToggle /
                 // onMoreTap → 遮罩上仅显示播放按钮与收藏按钮（与 Web 一致）。
@@ -571,6 +583,10 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                     ? null
                     : () {
                         if (item.type == MediaType.liveChannel.value) {
+                          ref
+                              .read(navigationStackProvider.notifier)
+                              .playerSourcePath =
+                              GoRouterState.of(context).uri.toString();
                           context.go('/live/${item.guid}');
                         } else {
                           context.go('/player/${item.guid}');
@@ -1146,6 +1162,15 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                                   if (item.type ==
                                                       MediaType
                                                           .liveChannel.value) {
+                                                    ref
+                                                        .read(
+                                                            navigationStackProvider
+                                                                .notifier)
+                                                        .playerSourcePath =
+                                                        GoRouterState.of(
+                                                                context)
+                                                            .uri
+                                                            .toString();
                                                     context.go(
                                                         '/live/${item.guid}');
                                                   } else {

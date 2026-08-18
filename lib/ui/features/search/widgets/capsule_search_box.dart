@@ -182,6 +182,9 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
     if (target == null) return;
     _dismiss();
     ref.read(navigationStackProvider.notifier).pushPath(currentPath);
+    if (SearchResultType.tryParse(item.type) == SearchResultType.liveChannel) {
+      ref.read(navigationStackProvider.notifier).playerSourcePath = currentPath;
+    }
     context.go(target);
   }
 
