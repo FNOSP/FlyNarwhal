@@ -13,6 +13,7 @@ import '../../shared/common/app_loading_progress_ring.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/fly_narwhal/index.dart';
+import '../../../data/storage/preferences_manager.dart';
 import '../../../domain/entities/media_type.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
@@ -25,6 +26,7 @@ import '../../shared/common/poster_resolution_tags.dart';
 import '../../shared/common/scroll_row.dart';
 import '../../shared/toast.dart';
 import '../movie_detail/detail_components.dart';
+import '../../shared/semi_icons.dart';
 import 'tv_season_detail_view_model.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 
@@ -85,6 +87,7 @@ class TvSeasonDetailScreen extends ConsumerWidget {
           guid: guid,
           httpHeaders: httpHeaders,
           cacheManager: cacheManager,
+          prefsManager: prefsManager,
         ),
         loading: () => const Center(child: AppLoadingProgressRing()),
         error: (error, stack) => Center(
@@ -116,6 +119,7 @@ class _TvSeasonDetailContent extends ConsumerStatefulWidget {
   final String guid;
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
+  final PreferencesManager prefsManager;
 
   const _TvSeasonDetailContent({
     required this.state,
@@ -123,6 +127,7 @@ class _TvSeasonDetailContent extends ConsumerStatefulWidget {
     required this.guid,
     required this.httpHeaders,
     required this.cacheManager,
+    required this.prefsManager,
   });
 
   @override
@@ -537,6 +542,7 @@ class _TvSeasonDetailContentState
                   baseUrl: widget.baseUrl,
                   httpHeaders: widget.httpHeaders,
                   cacheManager: widget.cacheManager,
+                  prefsManager: widget.prefsManager,
                   onEpisodeTap: (episode) {
                     // Navigate to player screen for this episode
                     ref
@@ -710,6 +716,7 @@ class _EpisodeListSection extends StatefulWidget {
   final String baseUrl;
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
+  final PreferencesManager prefsManager;
   final ValueChanged<EpisodeListResponse> onEpisodeTap;
   final Future<bool> Function(String guid, bool isFavorite) onFavoriteToggle;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
@@ -720,6 +727,7 @@ class _EpisodeListSection extends StatefulWidget {
     required this.baseUrl,
     required this.httpHeaders,
     required this.cacheManager,
+    required this.prefsManager,
     required this.onEpisodeTap,
     required this.onFavoriteToggle,
     required this.onWatchedToggle,
@@ -732,10 +740,13 @@ class _EpisodeListSection extends StatefulWidget {
 class _EpisodeListSectionState extends State<_EpisodeListSection> {
   late final ScrollController _scrollController = ScrollController();
   int? _lastPositionedEpisodeNumber;
+  // 视图模式：'card' | 'button'，初始从持久化读取，镜像 Web playlist view_type。
+  late bool _isButtonView;
 
   @override
   void initState() {
     super.initState();
+    _isButtonView = widget.prefsManager.getEpisodeListViewType() == 'button';
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _positionToCurrentEpisode());
   }
@@ -784,38 +795,62 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '剧集列表',
-          style: FluentTheme.of(context).typography.subtitle?.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: 26,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '剧集列表',
+                style: FluentTheme.of(context).typography.subtitle?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 26,
+                    ),
               ),
+            ),
+            _EpisodeListViewToggle(
+              isButtonView: _isButtonView,
+              onChanged: _handleToggleView,
+            ),
+          ],
         ),
         const SizedBox(height: 16),
-        ScrollRow(
-          controller: _scrollController,
-          height: _episodeRowHeight,
-          itemCount: widget.episodes.length,
-          itemSpacing: _episodeCardSpacing,
-          scrollFactor: 0.9,
-          itemBuilder: (context, index) {
-            final episode = widget.episodes[index];
-            return _EpisodeCard(
-              episode: episode,
-              baseUrl: widget.baseUrl,
-              httpHeaders: widget.httpHeaders,
-              cacheManager: widget.cacheManager,
-              isCurrent: episode.episodeNumber == currentEpisodeNumber,
-              onTap: () => widget.onEpisodeTap(episode),
-              onFavoriteToggle: (currentState) =>
-                  widget.onFavoriteToggle(episode.guid, currentState),
-              onWatchedToggle: (currentState) =>
-                  widget.onWatchedToggle(episode.guid, currentState),
-            );
-          },
-        ),
+        if (_isButtonView)
+          _EpisodeButtonGrid(
+            episodes: widget.episodes,
+            currentEpisodeNumber: currentEpisodeNumber,
+            onEpisodeTap: widget.onEpisodeTap,
+          )
+        else
+          ScrollRow(
+            controller: _scrollController,
+            height: _episodeRowHeight,
+            itemCount: widget.episodes.length,
+            itemSpacing: _episodeCardSpacing,
+            scrollFactor: 0.9,
+            itemBuilder: (context, index) {
+              final episode = widget.episodes[index];
+              return _EpisodeCard(
+                episode: episode,
+                baseUrl: widget.baseUrl,
+                httpHeaders: widget.httpHeaders,
+                cacheManager: widget.cacheManager,
+                isCurrent: episode.episodeNumber == currentEpisodeNumber,
+                onTap: () => widget.onEpisodeTap(episode),
+                onFavoriteToggle: (currentState) =>
+                    widget.onFavoriteToggle(episode.guid, currentState),
+                onWatchedToggle: (currentState) =>
+                    widget.onWatchedToggle(episode.guid, currentState),
+              );
+            },
+          ),
       ],
     );
+  }
+
+  void _handleToggleView(bool isButtonView) {
+    if (_isButtonView == isButtonView) return;
+    setState(() => _isButtonView = isButtonView);
+    widget.prefsManager
+        .saveEpisodeListViewType(isButtonView ? 'button' : 'card');
   }
 }
 
@@ -1262,6 +1297,214 @@ class _EpisodePosterActionButtonState
                   color: widget.isActive ? widget.activeColor : Colors.white,
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 选集列表视图切换开关（胶囊分段控件），镜像 Web 端 `title="切换为卡片视图/序号视图"`。
+/// 左侧 desktop 图标=卡片视图，右侧 grid 图标=序号按钮视图，滑动浮标指示当前状态。
+class _EpisodeListViewToggle extends StatefulWidget {
+  final bool isButtonView;
+  final ValueChanged<bool> onChanged;
+
+  const _EpisodeListViewToggle({
+    required this.isButtonView,
+    required this.onChanged,
+  });
+
+  @override
+  State<_EpisodeListViewToggle> createState() => _EpisodeListViewToggleState();
+}
+
+class _EpisodeListViewToggleState extends State<_EpisodeListViewToggle> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final iconColor =
+        theme.typography.body?.color?.withValues(alpha: 0.85) ?? Colors.white;
+    final borderColor =
+        iconColor.withValues(alpha: _hovered ? 0.3 : 0.15);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onChanged(!widget.isButtonView),
+        child: Tooltip(
+          message: widget.isButtonView ? '切换为卡片视图' : '切换为序号视图',
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 68,
+            height: 36,
+            padding: const EdgeInsets.all(1),
+            decoration: BoxDecoration(
+              color: theme.scaffoldBackgroundColor,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: borderColor),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // 滑动浮标
+                AnimatedAlign(
+                  duration: const Duration(milliseconds: 200),
+                  alignment: widget.isButtonView
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: SemiIcons.desktop(
+                          size: 20,
+                          color: iconColor,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: SemiIcons.grid(
+                          size: 20,
+                          color: iconColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 序号按钮视图，镜像 Web 端 `grid-cols-[repeat(auto-fill,52px)] gap-2` 的
+/// 52×52 方形数字按钮网格。当前集高亮，未知集号（片花/预告等）按标题展示。
+class _EpisodeButtonGrid extends StatefulWidget {
+  final List<EpisodeListResponse> episodes;
+  final int? currentEpisodeNumber;
+  final ValueChanged<EpisodeListResponse> onEpisodeTap;
+
+  const _EpisodeButtonGrid({
+    required this.episodes,
+    required this.currentEpisodeNumber,
+    required this.onEpisodeTap,
+  });
+
+  @override
+  State<_EpisodeButtonGrid> createState() => _EpisodeButtonGridState();
+}
+
+class _EpisodeButtonGridState extends State<_EpisodeButtonGrid> {
+  @override
+  Widget build(BuildContext context) {
+    final currentEpisodeNumber = widget.currentEpisodeNumber;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final episode in widget.episodes)
+          _EpisodeNumberButton(
+            episode: episode,
+            isCurrent: episode.episodeNumber == currentEpisodeNumber,
+            onTap: () => widget.onEpisodeTap(episode),
+          ),
+      ],
+    );
+  }
+}
+
+class _EpisodeNumberButton extends StatefulWidget {
+  final EpisodeListResponse episode;
+  final bool isCurrent;
+  final VoidCallback onTap;
+
+  const _EpisodeNumberButton({
+    required this.episode,
+    required this.isCurrent,
+    required this.onTap,
+  });
+
+  @override
+  State<_EpisodeNumberButton> createState() => _EpisodeNumberButtonState();
+}
+
+class _EpisodeNumberButtonState extends State<_EpisodeNumberButton> {
+  bool _hovered = false;
+
+  String get _label {
+    final number = widget.episode.episodeNumber;
+    if (number > 0) return '$number';
+    final title = widget.episode.title.trim();
+    return title.isNotEmpty ? title : '?';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final textColor = theme.typography.body?.color ?? Colors.white;
+    final hasNumber = widget.episode.episodeNumber > 0;
+
+    final Color background;
+    final Color border;
+    final Color labelColor;
+    if (widget.isCurrent) {
+      background = const Color(0xFF2173DF);
+      border = const Color(0xFF2173DF);
+      labelColor = Colors.white;
+    } else if (_hovered) {
+      background = textColor.withValues(alpha: 0.08);
+      border = textColor.withValues(alpha: 0.3);
+      labelColor = textColor;
+    } else {
+      background = Colors.transparent;
+      border = textColor.withValues(alpha: 0.12);
+      labelColor = textColor;
+    }
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 52,
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: border),
+          ),
+          child: Text(
+            _label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.typography.body?.copyWith(
+              fontSize: hasNumber ? 14 : 11,
+              color: labelColor,
+            ),
           ),
         ),
       ),
