@@ -10,6 +10,7 @@ import '../../../core/utils/log/app_talker.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_result.dart';
 import '../../../data/models/movie_detail_models.dart';
+import '../../../data/models/file_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     as cache_manager;
@@ -602,6 +603,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final item = widget.state.item;
     if (item == null) return const Center(child: Text('未找到电影信息'));
 
+    final authDirs = ref.watch(authorizedDirsProvider).valueOrNull ?? const <AuthDir>[];
+
     final windowHeight = MediaQuery.of(context).size.height;
     final pixelRatio = MediaQuery.of(context).devicePixelRatio;
     // Align backdrop height to an integer number of physical pixels to prevent
@@ -987,6 +990,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                   padding: const EdgeInsets.fromLTRB(48, 0, 48, 48),
                   child: _MediaInfoSection(
                     state: widget.state,
+                    authDirs: authDirs,
                     selectedVideoStreamIndex: _selectedVideoStreamIndex,
                     currentMediaGuid: _currentMediaGuid,
                     currentAudioGuid: _selectedAudioGuid,
@@ -1194,6 +1198,7 @@ class _MediaSourceBoxes extends StatelessWidget {
 
 class _MediaInfoSection extends StatelessWidget {
   final MovieDetailState state;
+  final List<AuthDir> authDirs;
   final int selectedVideoStreamIndex;
   final String currentMediaGuid;
   final String? currentAudioGuid;
@@ -1201,6 +1206,7 @@ class _MediaInfoSection extends StatelessWidget {
 
   const _MediaInfoSection({
     required this.state,
+    this.authDirs = const [],
     required this.selectedVideoStreamIndex,
     required this.currentMediaGuid,
     this.currentAudioGuid,
@@ -1292,6 +1298,7 @@ class _MediaInfoSection extends StatelessWidget {
       audioStream: audioStream.guid.isNotEmpty ? audioStream : null,
       subtitleStream: subtitleStream.guid.isNotEmpty ? subtitleStream : null,
       imdbId: state.item?.imdbId,
+      authDirs: authDirs,
       iso6391Map: iso6391Map,
       iso6392Map: state.iso6392,
     );

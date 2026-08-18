@@ -116,18 +116,76 @@ class FnDataConvertor {
     return language;
   }
 
+  /// Format a raw server file path to a user-friendly location string,
+  static String formatFileLocation(
+    String path, {
+    List<AuthDir>? authDirs,
+  }) {
+    if (path.isEmpty) return '';
+
+    final normalized = path.startsWith('/') ? path.substring(1) : path;
+    final segments = normalized.split('/');
+    if (segments.length < 2) return path;
+
+    final volMatch = RegExp(r'^vol(\d+)$').firstMatch(segments[0]);
+    if (volMatch == null) return path;
+    final volumeLabel = '存储空间 ${volMatch.group(1)}';
+
+    final uid = segments[1];
+
+    String? username;
+    for (final dir in authDirs ?? const <AuthDir>[]) {
+      final dirPath = dir.path.trim();
+      if (dirPath.isEmpty) continue;
+      final normalizedDir =
+          dirPath.startsWith('/') ? dirPath.substring(1) : dirPath;
+      // findDirItem equivalent: the authorized dir path is a prefix of the
+      // file path (segments match up to the dir's depth).
+      final dirSegments = normalizedDir.split('/');
+      if (dirSegments.length >= 2 &&
+          dirSegments[0] == segments[0] &&
+          dirSegments[1] == uid &&
+          _segmentsPrefixOf(dirSegments, segments)) {
+        username = dir.uname.trim();
+        if (username.isNotEmpty) break;
+      }
+    }
+
+    final userLabel = username != null && username.isNotEmpty
+        ? '$username 的文件'
+        : '用户 $uid';
+
+    final rest = segments.length > 2
+        ? segments.sublist(2).join('/')
+        : '';
+
+    if (rest.isEmpty) {
+      return '$volumeLabel/$userLabel';
+    }
+    return '$volumeLabel/$userLabel/$rest';
+  }
+
+  static bool _segmentsPrefixOf(List<String> prefix, List<String> full) {
+    if (prefix.length > full.length) return false;
+    for (var i = 0; i < prefix.length; i++) {
+      if (prefix[i] != full[i]) return false;
+    }
+    return true;
+  }
+
   static MediaDetails convertToMediaDetails({
     FileInfo? fileInfo,
     VideoStream? videoStream,
     AudioStream? audioStream,
     SubtitleStream? subtitleStream,
     String? imdbId,
+    List<AuthDir>? authDirs,
     required Map<String, String> iso6391Map,
     required Map<String, String> iso6392Map,
   }) {
     final fileInfoData = fileInfo != null
         ? FileInfoData(
-            location: fileInfo.path,
+            location: formatFileLocation(fileInfo.path, authDirs: authDirs),
             size: formatFileSize(fileInfo.size),
             createdDate: formatTimestamp(fileInfo.updateTime),
             addedDate: formatTimestamp(fileInfo.updateTime),
