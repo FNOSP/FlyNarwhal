@@ -326,11 +326,10 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout>
     _isButtonHovered = false;
     _popupHovered = false;
 
-    if (_animationController.status != AnimationStatus.dismissed) {
-      await _animationController.reverse();
-    }
-
-    if (!mounted) return;
+    // Close immediately without the reverse animation when another flyout is
+    // taking over, so the leaving flyout doesn't stack on the incoming one.
+    _animationController.stop();
+    _animationController.value = 0;
     _hideOverlay();
     setState(() => _isExpanded = false);
     widget.onHoverStateChanged?.call(false);
