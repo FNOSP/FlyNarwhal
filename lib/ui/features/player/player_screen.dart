@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -1514,6 +1515,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await _loadAndPlayMedia();
   }
 
+  /// Builds HTTP headers for the video player, mirroring the web player:
+  /// - NAS proxy URLs (/media/range, /wp/m3u8) use NAS auth and carry the cloud
+  ///   provider headers in X-Wp-Header when streamData.header is present.
+  /// - Direct cloud CDN URLs use only the provider headers from streamData.header
+  ///   and omit NAS auth, because the request goes to the cloud provider.
+  Map<String, String> _buildPlaybackHttpHeaders(String playUri) {
+    final isNasProxy = playUri.contains('/v/api/v1/media/range') ||
+        playUri.contains('/v/api/v1/wp/m3u8');
+    final cloudHeader = _playingInfoCache?.streamInfo?.header;
+
+    if (isNasProxy) {
+      final headers = _sessionCoordinator.buildPlayerHeaders();
+      if (cloudHeader != null && cloudHeader.isNotEmpty) {
+        headers['X-Wp-Header'] = jsonEncode(cloudHeader);
+      }
+      return headers;
+    }
+
+    final headers = <String, String>{};
+    if (cloudHeader != null) {
+      for (final entry in cloudHeader.entries) {
+        final value = entry.value;
+        if (value != null) {
+          headers[entry.key] = value.toString();
+        }
+      }
+    }
+    return headers;
+  }
+
   Future<void> _openMediaWithResume({
     required String playUri,
     required int startPositionMs,
@@ -1537,7 +1568,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }
 
-    final headers = _sessionCoordinator.buildPlayerHeaders();
+    final headers = _buildPlaybackHttpHeaders(playUri);
     await player.open(
       Media(
         playUri,
@@ -1662,20 +1693,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // plain link.
     final directQualities = cache.directLinkQualities;
     final isCloud = directQualities.isNotEmpty;
+    final cloudStorageType =
+        cache.streamInfo?.cloudStorageInfo?.cloudStorageType;
+    final filtered = PlayerSessionCoordinator.filterDirectLinkQualities(
+      qualities: directQualities,
+      cloudStorageType: cloudStorageType,
+    );
+    final visibleQualities = filtered.qualities.isNotEmpty
+        ? filtered.qualities
+        : directQualities;
+    final visibleOriginalIndices = filtered.originalIndices.isNotEmpty
+        ? filtered.originalIndices
+        : List<int>.generate(directQualities.length, (i) => i);
+    final originalIndex = isCloud ? visibleOriginalIndices.first : null;
     final directLink = await _sessionCoordinator.getDirectPlayLink(
       mediaGuid: videoStream.mediaGuid,
       startPositionMs: startPositionMs,
-      directLinkQualityIndex: isCloud ? 0 : null,
+      directLinkQualityIndex: originalIndex,
+      directLinkQualities: directQualities,
+      cloudStorageType: cloudStorageType,
+      directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
     );
     final convertedQualities = isCloud
-        ? directQualities.map((q) => q.toQualityResponse()).toList()
+        ? visibleQualities.map((q) => q.toQualityResponse()).toList()
         : null;
     _playingInfoCache = cache.copyWith(
       playLink: null,
       playRecordLink:
           _sessionCoordinator.ensureDirectPlayRecordLink(cache.playRecordLink),
       isUseDirectLink: true,
-      directLinkQualityIndex: isCloud ? 0 : null,
+      directLinkQualityIndex: originalIndex,
       currentQualities: convertedQualities ?? cache.currentQualities,
       currentQuality: isCloud ? convertedQualities!.first : cache.currentQuality,
     );
@@ -3983,36 +4030,52 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         .read(playerSettingsManagerProvider)
         .getNetdiskQuality(userGuid: userGuid)
         ?.resolution;
-    final index = PlayerSessionCoordinator.defaultDirectLinkQualityIndex(
-      directQualities,
+    final cloudStorageType =
+        cache.streamInfo?.cloudStorageInfo?.cloudStorageType;
+    final filtered = PlayerSessionCoordinator.filterDirectLinkQualities(
+      qualities: directQualities,
+      cloudStorageType: cloudStorageType,
+    );
+    final visibleQualities = filtered.qualities.isNotEmpty
+        ? filtered.qualities
+        : directQualities;
+    final visibleOriginalIndices = filtered.originalIndices.isNotEmpty
+        ? filtered.originalIndices
+        : List<int>.generate(directQualities.length, (i) => i);
+    final visibleIndex = PlayerSessionCoordinator.defaultDirectLinkQualityIndex(
+      visibleQualities,
       savedResolution: savedResolution,
     );
+    final originalIndex = visibleOriginalIndices[visibleIndex];
     final directLink = await _sessionCoordinator.getDirectPlayLink(
       mediaGuid: videoStream.mediaGuid,
       startPositionMs: startPositionMs,
-      directLinkQualityIndex: index,
+      directLinkQualityIndex: originalIndex,
+      directLinkQualities: directQualities,
+      cloudStorageType: cloudStorageType,
+      directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
     );
     if (!_isCurrentCloudSwitch(switchToken)) return false;
 
     final convertedQualities =
-        directQualities.map((q) => q.toQualityResponse()).toList();
+        visibleQualities.map((q) => q.toQualityResponse()).toList();
     _playingInfoCache = cache.copyWith(
       isUseDirectLink: true,
       playLink: null,
       playRecordLink: _sessionCoordinator
           .ensureDirectPlayRecordLink(cache.playRecordLink),
-      directLinkQualityIndex: index,
+      directLinkQualityIndex: originalIndex,
       currentQualities: convertedQualities,
-      currentQuality: convertedQualities[index],
+      currentQuality: convertedQualities[visibleIndex],
     );
     ref
         .read(playerViewModelProvider.notifier)
         .updatePlayingInfo(_playingInfoCache);
     setState(() {
       _qualities = convertedQualities;
-      _currentQuality = convertedQualities[index];
-      _currentResolution = convertedQualities[index].resolution;
-      _currentBitrate = convertedQualities[index].bitrate;
+      _currentQuality = convertedQualities[visibleIndex];
+      _currentResolution = convertedQualities[visibleIndex].resolution;
+      _currentBitrate = convertedQualities[visibleIndex].bitrate;
     });
     unawaited(
       ref.read(playerSettingsManagerProvider).setCloudPlayMode(

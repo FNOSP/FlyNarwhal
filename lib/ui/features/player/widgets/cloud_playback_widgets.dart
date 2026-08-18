@@ -81,8 +81,14 @@ class _CloudTypeAvatar extends StatelessWidget {
     switch (cloudStorageType) {
       case 1: // 百度网盘
         return 'assets/images/baidu_pan.png';
+      case 2: // 阿里云盘
+        return 'assets/images/aliyun_pan.png';
+      case 3: // 115 生活
+        return 'assets/images/oneonefive_pan.png';
       case 4: // 夸克网盘
         return 'assets/images/quark_pan.png';
+      case 5: // 123 云盘
+        return 'assets/images/onetwothree_pan.png';
       default:
         return null;
     }

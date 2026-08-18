@@ -83,6 +83,9 @@ class StreamResponse {
   final List<DirectLinkQuality>? directLinkQualities;
   @JsonKey(name: 'direct_link_audio_streams')
   final List<AudioStream>? directLinkAudioStreams;
+  // Optional cloud provider headers (e.g. Referer/User-Agent) the web player
+  // forwards via X-Wp-Header for direct-link playback.
+  final Map<String, dynamic>? header;
 
   StreamResponse({
     this.videoStream,
@@ -93,6 +96,7 @@ class StreamResponse {
     this.cloudStorageInfo,
     this.directLinkQualities,
     this.directLinkAudioStreams,
+    this.header,
   });
 
   factory StreamResponse.fromJson(Map<String, dynamic> json) =>

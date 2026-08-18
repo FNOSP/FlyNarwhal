@@ -404,17 +404,32 @@ class PlayerSessionCoordinator {
     required int startPositionMs,
     String? userGuid,
   }) async {
-    final index = defaultDirectLinkQualityIndex(
-      directQualities,
+    final cloudStorageType = streamInfo.cloudStorageInfo?.cloudStorageType;
+    final filtered = filterDirectLinkQualities(
+      qualities: directQualities,
+      cloudStorageType: cloudStorageType,
+    );
+    final visibleQualities = filtered.qualities.isNotEmpty
+        ? filtered.qualities
+        : directQualities;
+    final visibleOriginalIndices = filtered.originalIndices.isNotEmpty
+        ? filtered.originalIndices
+        : List<int>.generate(directQualities.length, (i) => i);
+    final visibleIndex = defaultDirectLinkQualityIndex(
+      visibleQualities,
       savedResolution: _playerSettingsManager
           .getNetdiskQuality(userGuid: userGuid)
           ?.resolution,
     );
-    final currentQuality = directQualities[index].toQualityResponse();
+    final originalIndex = visibleOriginalIndices[visibleIndex];
+    final currentQuality = visibleQualities[visibleIndex].toQualityResponse();
     final directLink = await getDirectPlayLink(
       mediaGuid: currentVideoStream.mediaGuid,
       startPositionMs: startPositionMs,
-      directLinkQualityIndex: index,
+      directLinkQualityIndex: originalIndex,
+      directLinkQualities: directQualities,
+      cloudStorageType: cloudStorageType,
+      directLinkAudioIndex: playInfo.directLinkAudioIndex,
     );
     final preparedPlaySource = await preparePlaySourceForMediaKit(
       playUri: directLink.playUri,
@@ -429,10 +444,10 @@ class PlayerSessionCoordinator {
       currentAudioStream: currentAudioStream,
       currentSubtitleStream: currentSubtitleStream,
       currentQualities:
-          directQualities.map((q) => q.toQualityResponse()).toList(),
+          visibleQualities.map((q) => q.toQualityResponse()).toList(),
       currentQuality: currentQuality,
       directLinkQualities: directQualities,
-      directLinkQualityIndex: index,
+      directLinkQualityIndex: originalIndex,
       currentAudioStreamList: audioStreams,
       currentSubtitleStreamList: subtitleStreams,
       playLink: null,
@@ -622,6 +637,30 @@ class PlayerSessionCoordinator {
     }
     final defaultNonM3u8Index = nonM3u8.length > 1 ? 1 : 0;
     return nonM3u8.isEmpty ? 0 : qualities.indexOf(nonM3u8[defaultNonM3u8Index]);
+  }
+
+  /// Filters the direct-link quality list by cloud provider, mirroring the web
+  /// player's `Ape`: 123/Baidu hide m3u8 qualities; 115 and others keep them.
+  /// Returns the visible qualities together with their original indices in the
+  /// unfiltered list so callers can map back to the stored list.
+  static ({List<DirectLinkQuality> qualities, List<int> originalIndices})
+      filterDirectLinkQualities({
+    required List<DirectLinkQuality> qualities,
+    required int? cloudStorageType,
+  }) {
+    final visible = <DirectLinkQuality>[];
+    final originalIndices = <int>[];
+    for (var i = 0; i < qualities.length; i++) {
+      final q = qualities[i];
+      // OneTwoThreePan (5) and BaiduPan (1) filter out m3u8 entries.
+      if (q.isM3u8 &&
+          (cloudStorageType == 1 || cloudStorageType == 5)) {
+        continue;
+      }
+      visible.add(q);
+      originalIndices.add(i);
+    }
+    return (qualities: visible, originalIndices: originalIndices);
   }
 
   Future<EpisodeContext> loadEpisodeContext({
@@ -848,11 +887,57 @@ class PlayerSessionCoordinator {
     required String mediaGuid,
     required int startPositionMs,
     int? directLinkQualityIndex,
+    List<DirectLinkQuality>? directLinkQualities,
+    int? cloudStorageType,
+    int? directLinkAudioIndex,
   }) async {
     final baseUrl = _preferencesManager.getBaseUrl() ?? '';
     final base = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
+
+    // When a specific direct-link quality is selected, mirror the web
+    // player's provider-specific URL shape.
+    if (directLinkQualities != null &&
+        directLinkQualityIndex != null &&
+        directLinkQualityIndex >= 0 &&
+        directLinkQualityIndex < directLinkQualities.length) {
+      final quality = directLinkQualities[directLinkQualityIndex];
+
+      // Aliyun Pan (2) and 123 Pan (5): play the raw CDN URL directly.
+      if (cloudStorageType == 2 || cloudStorageType == 5) {
+        return DirectPlayLinkResult(
+          playUri: quality.url,
+          playLinkRaw: quality.url,
+          effectiveStartMs: startPositionMs,
+        );
+      }
+
+      // 115 Pan (3): m3u8 qualities are proxied through /wp/m3u8 with the
+      // selected audio track appended; non-m3u8 uses the raw CDN URL.
+      if (cloudStorageType == 3) {
+        if (quality.isM3u8) {
+          final proxiedUrl = _buildOneOneFiveM3u8Url(
+            qualityUrl: quality.url,
+            directLinkAudioIndex: directLinkAudioIndex,
+            base: base,
+          );
+          return DirectPlayLinkResult(
+            playUri: proxiedUrl,
+            playLinkRaw: proxiedUrl,
+            effectiveStartMs: startPositionMs,
+          );
+        }
+        return DirectPlayLinkResult(
+          playUri: quality.url,
+          playLinkRaw: quality.url,
+          effectiveStartMs: startPositionMs,
+        );
+      }
+    }
+
+    // Baidu Pan (1), Quark Pan (4) and fallbacks: use the NAS proxy with the
+    // quality index so the server selects the matching CDN link.
     final controlPlayLink = '/v/api/v1/media/range/$mediaGuid';
     final qualityQuery = directLinkQualityIndex != null
         ? '?direct_link_quality_index=$directLinkQualityIndex'
@@ -873,6 +958,29 @@ class PlayerSessionCoordinator {
       playLinkRaw: controlPlayLink,
       effectiveStartMs: startPositionMs,
     );
+  }
+
+  /// Builds the /wp/m3u8 proxy URL for 115 Pan m3u8 qualities.
+  /// Mirrors the web player's R2.getM3u8Url(): appends the selected
+  /// audio_track to the original m3u8 URL and encodes it into originalUrl.
+  String _buildOneOneFiveM3u8Url({
+    required String qualityUrl,
+    required int? directLinkAudioIndex,
+    required String base,
+  }) {
+    final originalUri = Uri.parse(qualityUrl);
+    final Map<String, String> queryParams = {};
+    if (directLinkAudioIndex != null && directLinkAudioIndex >= 0) {
+      queryParams['audio_track'] = directLinkAudioIndex.toString();
+    }
+    final proxiedUri = originalUri.replace(
+      queryParameters: {
+        ...originalUri.queryParameters,
+        ...queryParams,
+      },
+    );
+    final encoded = Uri.encodeComponent(proxiedUri.toString());
+    return '$base/v/api/v1/wp/m3u8?originalUrl=$encoded';
   }
 
   /// Request an HLS transcode play link from the backend. Used as a fallback
