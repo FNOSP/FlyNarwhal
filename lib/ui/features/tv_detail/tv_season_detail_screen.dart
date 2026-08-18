@@ -594,6 +594,8 @@ class _TvSeasonDetailContentState
   }
 
   Widget _buildTags(BuildContext context, ItemResponse item) {
+    // The web season detail header shows only score + year — no "共 x 集" tag,
+    // so we deliberately omit the episode-count tag here to mirror the web.
     final List<Widget> items = [];
 
     final voteAverage = double.tryParse(item.voteAverage) ?? 0.0;
@@ -610,16 +612,6 @@ class _TvSeasonDetailContentState
     if (item.airDate != null && item.airDate!.length >= 4) {
       items.add(Text(
         item.airDate!.substring(0, 4),
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.8),
-          fontSize: 14,
-        ),
-      ));
-    }
-
-    if (item.localNumberOfEpisodes > 0) {
-      items.add(Text(
-        '共 ${item.localNumberOfEpisodes} 集',
         style: TextStyle(
           color: Colors.white.withValues(alpha: 0.8),
           fontSize: 14,

@@ -162,26 +162,31 @@ class MediaItem {
 String? buildPosterSubtitle(MediaItem item) {
   final mediaType = MediaType.tryParse(item.type);
   if (mediaType == MediaType.tv) {
-    if (!_isBlank(item.firstAirDate) && !_isBlank(item.lastAirDate)) {
-      // Use local season count (available in library) with fallback to metadata count
-      final seasonCount =
-          item.localNumberOfSeasons ?? item.numberOfSeasons ?? 0;
-      return '共 $seasonCount 季 · ${_takeYear(item.firstAirDate)}~${_takeYear(item.lastAirDate)}';
+    // Mirror the web layout subheading builder for TV items:
+    //   c = number_of_seasons, u = local_number_of_seasons,
+    //   l = local_number_of_episodes, a = season_number
+    //   if (c > 1 || u > 1) { u>1 => "共 u 季"; u==1 => "第 a 季" }
+    //   else if ((c==1||u==1) && u==1) => "共 l 集"
+    //   then append the year range from first/last air date.
+    final c = item.numberOfSeasons ?? 0;
+    final u = item.localNumberOfSeasons ?? 0;
+    final l = item.localNumberOfEpisodes ?? 0;
+
+    final List<String> parts = [];
+    if (c > 1 || u > 1) {
+      if (u > 1) {
+        parts.add('共 $u 季');
+      } else {
+        parts.add('第 ${item.seasonNumber} 季');
+      }
+    } else if ((c == 1 || u == 1) && u == 1) {
+      parts.add('共 $l 集');
     }
-    // Use local counts for single-season ended shows
-    if ((item.localNumberOfSeasons ?? item.numberOfSeasons) == 1 &&
-        item.status == 'Ended') {
-      final year = !_isBlank(item.releaseDate)
-          ? ' · ${_takeYear(item.releaseDate)}'
-          : '';
-      final episodeCount =
-          item.localNumberOfEpisodes ?? item.numberOfEpisodes ?? 0;
-      return '共 $episodeCount 集$year';
-    }
-    if (item.numberOfSeasons != null && !_isBlank(item.releaseDate)) {
-      return '第 ${item.seasonNumber} 季 · ${_takeYear(item.releaseDate)}';
-    }
-    return _takeYear(item.releaseDate);
+
+    final year = _buildAirDateYear(item.firstAirDate, item.lastAirDate);
+    if (year.isNotEmpty) parts.add(year);
+
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   if (_isBlank(item.releaseDate) && !_isBlank(item.type)) {
@@ -193,6 +198,19 @@ String? buildPosterSubtitle(MediaItem item) {
   }
 
   return _takeYear(item.releaseDate);
+}
+
+/// Builds the year segment for a TV item from its first/last air date,
+/// mirroring the web `cD` helper: `firstYear` (or `firstYear-lastYear` when
+/// they differ), returning '' when neither date is present.
+String _buildAirDateYear(String? firstAirDate, String? lastAirDate) {
+  final firstYear = _takeYear(firstAirDate);
+  if (firstYear == null) return '';
+  final lastYear = _takeYear(lastAirDate);
+  if (lastYear != null && lastAirDate != firstAirDate && lastYear != firstYear) {
+    return '$firstYear-$lastYear';
+  }
+  return firstYear;
 }
 
 String _mediaTypeDescription(String? type) {

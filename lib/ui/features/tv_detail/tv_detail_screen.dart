@@ -653,12 +653,20 @@ class _SeasonListGridState extends State<_SeasonListGrid> {
         spacing: spacing,
         runSpacing: spacing,
         children: widget.seasons.map((season) {
-          final episodeNumber = season.episodeNumber > 0
-              ? season.episodeNumber
-              : season.localNumberOfEpisodes;
-          final subtitle = season.airDate != null
-              ? "共 $episodeNumber 集 · ${season.airDate!.length >= 4 ? season.airDate!.substring(0, 4) : season.airDate}"
-              : "共 $episodeNumber 集";
+          // Mirror the web layout subheading builder for Season items:
+          //   if (local_number_of_episodes) => "共 l 集"
+          //   elif season_number > 0        => "第 a 季"
+          //   then append the air_date year.
+          final List<String> parts = [];
+          if (season.localNumberOfEpisodes > 0) {
+            parts.add('共 ${season.localNumberOfEpisodes} 集');
+          } else if (season.seasonNumber > 0) {
+            parts.add('第 ${season.seasonNumber} 季');
+          }
+          if (season.airDate != null && season.airDate!.length >= 4) {
+            parts.add(season.airDate!.substring(0, 4));
+          }
+          final subtitle = parts.join(' · ');
 
           return SizedBox(
             width: itemWidth,
