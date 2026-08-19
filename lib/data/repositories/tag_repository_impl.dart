@@ -42,12 +42,14 @@ class TagRepositoryImpl implements ITagRepository {
   @override
   Future<ApiResult<TagListEntity>> getTagList({
     String? ancestorGuid,
+    String? parentGuid,
     required int isFavorite,
     String? type,
   }) async {
     // Convert filter metadata into the domain entity used by the screens.
     final result = await _remoteDataSource.getTagList(
       ancestorGuid: ancestorGuid,
+      parentGuid: parentGuid,
       isFavorite: isFavorite,
       type: type,
     );

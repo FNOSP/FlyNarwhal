@@ -18,6 +18,7 @@ Map<String, dynamic> _$UserDataGetRequestToJson(UserDataGetRequest instance) {
   }
 
   writeNotNull('mdb_guid', instance.mdbGuid);
+  writeNotNull('item_guid', instance.itemGuid);
   return val;
 }
 
@@ -33,6 +34,7 @@ Map<String, dynamic> _$UserDataSetRequestToJson(UserDataSetRequest instance) {
   }
 
   writeNotNull('mdb_guid', instance.mdbGuid);
+  writeNotNull('item_guid', instance.itemGuid);
   val['value'] = instance.value;
   return val;
 }

@@ -455,6 +455,47 @@ class MediaRemoteDataSource {
     _cache.invalidate(guid);
   }
 
+  /// 刷新条目元数据（对齐 Web `POST /item/refresh`，文件夹“更多”菜单用）。
+  Future<ApiResult<bool>> refreshItemMetadata(String itemGuid) async {
+    final result = await _dioClient.post<bool>(
+      ApiEndpoints.itemRefresh,
+      data: ItemGuidRequest(itemGuid: itemGuid).toJson(),
+      converter: (data) => _parseSuccessResponse(data),
+    );
+    if (result.isSuccess) _cache.invalidate(itemGuid);
+    return result;
+  }
+
+  /// 重新识别条目（对齐 Web `POST /scrap/rescrap`）。[type] 为条目类型，
+  /// 目录传 'Directory'。
+  Future<ApiResult<bool>> rescrapItem(String itemGuid, String type) async {
+    final result = await _dioClient.post<bool>(
+      ApiEndpoints.scrapRescrap,
+      data: <String, dynamic>{
+        'item_guid': itemGuid,
+        'type': type,
+      },
+      converter: (data) => _parseSuccessResponse(data),
+    );
+    if (result.isSuccess) _cache.invalidate(itemGuid);
+    return result;
+  }
+
+  /// 删除条目（对齐 Web `DELETE /item/:guid?delete_file=0|1`）。
+  /// [deleteFile] 为 true 时同时删除磁盘文件；默认 false 仅从媒体库移除。
+  Future<ApiResult<bool>> deleteItem(
+    String guid, {
+    required bool deleteFile,
+  }) async {
+    final result = await _dioClient.delete<bool>(
+      ApiEndpoints.itemByGuid(guid),
+      queryParameters: <String, dynamic>{'delete_file': deleteFile ? 1 : 0},
+      converter: (data) => _parseSuccessResponse(data),
+    );
+    if (result.isSuccess) _cache.invalidate(guid);
+    return result;
+  }
+
   // Private parsing methods
   List<MediaDbListResponse> _parseMediaDbListResponse(dynamic data) {
     final baseResponse = FnBaseResponse<List<MediaDbListResponse>>.fromJson(

@@ -3,14 +3,17 @@ import 'package:json_annotation/json_annotation.dart';
 part 'user_data_models.g.dart';
 
 /// Request body for POST /user/getData. [mdbGuid] scopes the key to one
-/// media library; omit it for global (e.g. category) settings.
+/// media library; omit it for global (e.g. category) settings. [itemGuid]
+/// narrows further to a single item (e.g. a folder's own browse settings).
 @JsonSerializable(createFactory: false)
 class UserDataGetRequest {
   final String key;
   @JsonKey(name: 'mdb_guid', includeIfNull: false)
   final String? mdbGuid;
+  @JsonKey(name: 'item_guid', includeIfNull: false)
+  final String? itemGuid;
 
-  const UserDataGetRequest({required this.key, this.mdbGuid});
+  const UserDataGetRequest({required this.key, this.mdbGuid, this.itemGuid});
 
   Map<String, dynamic> toJson() => _$UserDataGetRequestToJson(this);
 }
@@ -21,11 +24,14 @@ class UserDataSetRequest {
   final String key;
   @JsonKey(name: 'mdb_guid', includeIfNull: false)
   final String? mdbGuid;
+  @JsonKey(name: 'item_guid', includeIfNull: false)
+  final String? itemGuid;
   final String value;
 
   const UserDataSetRequest({
     required this.key,
     this.mdbGuid,
+    this.itemGuid,
     required this.value,
   });
 

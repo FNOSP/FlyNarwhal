@@ -79,6 +79,7 @@ class TagRemoteDataSource {
   /// Get tag list for filtering
   Future<ApiResult<TagListResponse>> getTagList({
     String? ancestorGuid,
+    String? parentGuid,
     required int isFavorite,
     String? type,
   }) async {
@@ -86,6 +87,7 @@ class TagRemoteDataSource {
       ApiEndpoints.tagList,
       queryParameters: {
         if (ancestorGuid != null) 'ancestor_guid': ancestorGuid,
+        if (parentGuid != null) 'parent_guid': parentGuid,
         'is_favorite': isFavorite,
         if (type != null) 'type': type,
       },
