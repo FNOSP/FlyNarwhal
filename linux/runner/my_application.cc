@@ -103,8 +103,36 @@ static void my_application_activate(GApplication* application) {
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
-  gtk_window_set_title(window, "fly_narwhal");
-  gtk_window_set_decorated(window, FALSE);
+  // Use a header bar so GTK takes ownership of the decorations (CSD).
+  // Without it on Wayland, compositors such as KDE's KWin draw their own
+  // server-side title bar, which ignores both gtk_window_set_decorated(FALSE)
+  // and TitleBarStyle.hidden from window_manager. The header bar itself is
+  // hidden by TitleBarStyle.hidden in app.dart before the window is shown.
+  // If running on X and not using GNOME then just use a traditional title bar
+  // in case the window manager does more exotic layout, e.g. tiling; the
+  // undecorated request is honored there.
+  gboolean use_header_bar = TRUE;
+#ifdef GDK_WINDOWING_X11
+  GdkScreen* screen = gtk_window_get_screen(window);
+  if (GDK_IS_X11_SCREEN(screen)) {
+    const gchar* wm_name = gdk_x11_screen_get_window_manager_name(screen);
+    if (g_strcmp0(wm_name, "GNOME Shell") != 0) {
+      use_header_bar = FALSE;
+    }
+  }
+#endif
+  if (use_header_bar) {
+    GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
+    gtk_widget_show(GTK_WIDGET(header_bar));
+    gtk_header_bar_set_title(header_bar, "fly_narwhal");
+    // The app draws its own caption buttons (WindowCaption); never show the
+    // GTK ones in case this bar becomes visible.
+    gtk_header_bar_set_show_close_button(header_bar, FALSE);
+    gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
+  } else {
+    gtk_window_set_title(window, "fly_narwhal");
+    gtk_window_set_decorated(window, FALSE);
+  }
 
   gtk_window_set_default_size(window, 1280, 720);
 
