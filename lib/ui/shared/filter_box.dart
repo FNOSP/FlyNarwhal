@@ -220,6 +220,13 @@ class FilterBox extends StatefulWidget {
   /// 直播库（IPTV）页只展示“类型”一行，与 Web 端一致。
   final bool liveOnly;
 
+  /// 文件夹视图只展示 Web `/v/folder/:guid` 支持的 4 行筛选：
+  /// 分辨率、视频动态范围、音频规格、是否已观看。
+  final bool folderOnly;
+
+  /// 当指定时，筛选内容超过该高度可滚动，避免在窄窗口中撑破布局。
+  final double? maxHeight;
+
   const FilterBox({
     super.key,
     this.tagList,
@@ -229,6 +236,8 @@ class FilterBox extends StatefulWidget {
     required this.onFilterChanged,
     this.onCollapse,
     this.liveOnly = false,
+    this.folderOnly = false,
+    this.maxHeight,
   });
 
   @override
@@ -266,10 +275,59 @@ class _FilterBoxState extends State<FilterBox> {
       genres: widget.genres,
       iso3166: widget.iso3166,
       liveOnly: widget.liveOnly,
+      folderOnly: widget.folderOnly,
     );
     for (final group in groups) {
       _selectedOptions.putIfAbsent(group.title, () => group.options.first);
     }
+
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ...groups.expand((group) {
+          final selected =
+              _selectedOptions[group.title] ?? group.options.first;
+          return [
+            FilterRow(
+              title: group.title,
+              options: group.options,
+              selected: selected,
+              onSelected: (item) {
+                setState(() {
+                  _selectedOptions[group.title] = item;
+                });
+                widget.onFilterChanged(_selectedOptions);
+              },
+            ),
+            const SizedBox(height: 16),
+          ];
+        }),
+        if (widget.onCollapse != null)
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: HoverButton(
+              onPressed: widget.onCollapse,
+              builder: (context, states) {
+                final color = states.isHovered
+                    ? theme.typography.body?.color
+                    : theme.typography.caption?.color;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('收起', style: TextStyle(color: color, fontSize: 14)),
+                    const SizedBox(width: 4),
+                    Icon(
+                      FluentIcons.chevron_up,
+                      size: 14,
+                      color: color,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+      ],
+    );
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -277,52 +335,12 @@ class _FilterBoxState extends State<FilterBox> {
         color: theme.resources.controlStrokeColorDefault,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Column(
-        children: [
-          ...groups.expand((group) {
-            final selected =
-                _selectedOptions[group.title] ?? group.options.first;
-            return [
-              FilterRow(
-                title: group.title,
-                options: group.options,
-                selected: selected,
-                onSelected: (item) {
-                  setState(() {
-                    _selectedOptions[group.title] = item;
-                  });
-                  widget.onFilterChanged(_selectedOptions);
-                },
-              ),
-              const SizedBox(height: 16),
-            ];
-          }),
-          if (widget.onCollapse != null)
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: HoverButton(
-                onPressed: widget.onCollapse,
-                builder: (context, states) {
-                  final color = states.isHovered
-                      ? theme.typography.body?.color
-                      : theme.typography.caption?.color;
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('收起', style: TextStyle(color: color, fontSize: 14)),
-                      const SizedBox(width: 4),
-                      Icon(
-                        FluentIcons.chevron_up,
-                        size: 14,
-                        color: color,
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-        ],
-      ),
+      child: widget.maxHeight != null
+          ? ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: widget.maxHeight!),
+              child: SingleChildScrollView(child: content),
+            )
+          : content,
     );
   }
 }
@@ -402,9 +420,10 @@ List<FilterGroup> _buildFilterGroups({
   List<GenreEntity>? genres,
   Map<String, String>? iso3166,
   bool liveOnly = false,
+  bool folderOnly = false,
 }) {
   final groups = <FilterGroup>[];
-  if (!liveOnly) {
+  if (!liveOnly && !folderOnly) {
     groups.add(
       const FilterGroup(
         '影视类型',
@@ -415,6 +434,66 @@ List<FilterGroup> _buildFilterGroups({
         ],
       ),
     );
+  }
+
+  if (folderOnly) {
+    // 文件夹视图仅显示 Web `/v/folder/:guid` 暴露的 4 行筛选。
+    if (tagList != null) {
+      groups.add(
+        FilterGroup(
+          '分辨率',
+          [
+            const FilterItem('全部', null),
+            ...tagList.resolutions.map((r) => FilterItem(r, r)),
+          ],
+        ),
+      );
+      groups.add(
+        FilterGroup(
+          '视频动态范围',
+          [
+            const FilterItem('全部', null),
+            ...tagList.colorRanges.map((r) {
+              final label = r == 'DolbyVision' ? '杜比视界' : r;
+              return FilterItem(label, r);
+            }),
+          ],
+        ),
+      );
+      groups.add(
+        FilterGroup(
+          '音频规格',
+          [
+            const FilterItem('全部', null),
+            ...tagList.audioTypes.map((r) {
+              final label = switch (r) {
+                'DolbySurround' => '杜比环绕',
+                'DolbyAtmos' => '杜比全景声',
+                'Stereo' => '立体声',
+                'Others' => '其他',
+                _ => r,
+              };
+              return FilterItem(label, r);
+            }),
+          ],
+        ),
+      );
+    } else {
+      groups.add(const FilterGroup('分辨率', [FilterItem('全部', null)]));
+      groups.add(const FilterGroup('视频动态范围', [FilterItem('全部', null)]));
+      groups.add(const FilterGroup('音频规格', [FilterItem('全部', null)]));
+    }
+    groups.add(
+      const FilterGroup(
+        '是否已观看',
+        [
+          FilterItem('全部', null),
+          FilterItem('已观看', '1'),
+          FilterItem('未观看', '0'),
+        ],
+      ),
+    );
+    return groups;
   }
 
   if (tagList != null && genres != null) {

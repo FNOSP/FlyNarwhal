@@ -5,6 +5,7 @@ import '../features/home/home_screen.dart';
 import '../features/layout/main_layout.dart';
 import '../features/login/login_screen.dart';
 import '../features/media_library/media_library_screen.dart';
+import '../features/folder/folder_screen.dart';
 import '../features/favorites/favorites_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/movie_detail/movie_detail_screen.dart';
@@ -90,7 +91,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/folder/:guid',
             builder: (context, state) =>
-                MediaLibraryScreen(id: state.pathParameters['guid']),
+                FolderScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
           GoRoute(
             path: '/category/:type',
