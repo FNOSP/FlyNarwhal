@@ -51,7 +51,7 @@ dependencies:
   
   # Video Player
   media_kit: ^1.1.10
-  media_kit_video: ^1.2.4
+  media_kit_video: ^2.0.1
   media_kit_libs_video: ^1.0.4
   
   # Animation
