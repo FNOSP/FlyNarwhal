@@ -221,6 +221,9 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
     final displayTitle = buildPlayDetailTitle(widget.item);
     final displaySubtitle = buildPlayDetailSubtitle(widget.item);
     final scaleFactor = resolveWindowScaleFactor(context);
+    final isLiveChannel = widget.item.type == MediaType.liveChannel.value;
+    final posterFit = isLiveChannel ? BoxFit.contain : BoxFit.cover;
+    final posterContentPadding = isLiveChannel ? 12.0 * scaleFactor : 0.0;
     final pixelRatio = MediaQuery.of(context).devicePixelRatio;
     double snap(double v) => (v * pixelRatio).roundToDouble() / pixelRatio;
     final posterWidth = snap(240 * scaleFactor);
@@ -265,13 +268,17 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                             fit: StackFit.expand,
                             children: [
                               if (hasValidPath)
-                                FnCachedImage(
-                                  posterPath: resolvedPosterPath,
-                                  fit: BoxFit.cover,
-                                  width: 400,
-                                  errorWidget: MediaPosterPlaceholder(
-                                    type:
-                                        MediaType.fromString(widget.item.type),
+                                Padding(
+                                  padding: EdgeInsets.all(posterContentPadding),
+                                  child: FnCachedImage(
+                                    posterPath: resolvedPosterPath,
+                                    fit: posterFit,
+                                    width: 400,
+                                    errorWidget: MediaPosterPlaceholder(
+                                      type:
+                                          MediaType.fromString(widget.item.type),
+                                      widthFactor: isLiveChannel ? 0.65 : 0.45,
+                                    ),
                                   ),
                                 )
                               else
@@ -279,10 +286,10 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                   child: MediaPosterPlaceholder(
                                     type:
                                         MediaType.fromString(widget.item.type),
+                                    widthFactor: isLiveChannel ? 0.65 : 0.45,
                                   ),
                                 ),
-                              if (widget.item.type !=
-                                  MediaType.liveChannel.value)
+                              if (!isLiveChannel)
                                 Align(
                                   alignment: Alignment.bottomLeft,
                                   child: SizedBox(
