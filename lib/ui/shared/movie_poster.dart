@@ -754,6 +754,7 @@ class PosterIconButton extends StatefulWidget {
   final VoidCallback? onPressed;
 
   const PosterIconButton({
+    super.key,
     this.icon,
     this.svgAssetPath,
     required this.isActive,
