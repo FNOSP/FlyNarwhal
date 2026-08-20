@@ -141,7 +141,9 @@ class AppDialog<T> extends StatelessWidget {
           ],
         ),
         barrierColor: appDialogBarrierColor,
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        // The actions row supplies the bottom 24px margin when present;
+        // without actions, keep the same 24px margin on all four sides.
+        padding: EdgeInsets.fromLTRB(24, 24, 24, hasActions ? 0 : 24),
         titlePadding: const EdgeInsets.only(bottom: 24),
         bodyPadding: EdgeInsets.zero,
         actionsSpacing: 12,
