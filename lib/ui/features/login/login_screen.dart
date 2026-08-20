@@ -15,7 +15,9 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/dialogs/app_dialog.dart';
+import '../../shared/toast.dart';
 
+import '../../../core/error/login_exception.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/login_history.dart';
@@ -204,7 +206,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) context.go('/home');
     } catch (e) {
       AppTalker.warning('Login', 'direct login error: $e');
-      _showErrorDialog(e.toString());
+      _handleLoginError(e);
     }
   }
 
@@ -1010,10 +1012,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) context.go('/home');
     } catch (e) {
       AppTalker.warning('Login', 'finalize login error: $e');
-      _showErrorDialog(e.toString());
+      _handleLoginError(e);
     } finally {
       _isFinalizing = false;
     }
+  }
+
+  void _handleLoginError(Object error) {
+    if (error is LoginException) {
+      if (error.code == -15) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              '用户名或密码错误',
+              type: ToastType.failed,
+              duration: const Duration(seconds: 3),
+            );
+        return;
+      }
+      _showErrorDialog(error.message);
+      return;
+    }
+    _showErrorDialog(error.toString());
   }
 
   void _showForgotPasswordDialog() {
