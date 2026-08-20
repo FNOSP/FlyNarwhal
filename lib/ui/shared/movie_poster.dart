@@ -117,6 +117,11 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
     final scaledHeight = snap(widget.height * scaleFactor);
     final mediaType = MediaType.tryParse(widget.type);
     final showFavoriteButton = mediaType != MediaType.season;
+    // 目录不可播放：无论调用方是否误传 onPlayTap，均不渲染播放按钮。
+    final showPlayButton = mediaType != MediaType.directory &&
+        (mediaType == MediaType.movie ||
+            mediaType == MediaType.video ||
+            widget.onPlayTap != null);
     final actionInset = 8.0 * scaleFactor;
 
     // Play button sizes (matching Kotlin implementation)
@@ -164,6 +169,26 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                           else
                             Center(
                               child: MediaPosterPlaceholder(type: mediaType),
+                            ),
+                          // 目录封面左上角文件夹角标，镜像 Web 文件夹视图。
+                          if (mediaType == MediaType.directory && hasValidPath)
+                            Positioned(
+                              top: 8 * scaleFactor,
+                              left: 8 * scaleFactor,
+                              child: Container(
+                                width: 28 * scaleFactor,
+                                height: 28 * scaleFactor,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.55),
+                                  borderRadius:
+                                      BorderRadius.circular(6 * scaleFactor),
+                                ),
+                                child: Icon(
+                                  FluentIcons.folder_open,
+                                  size: 16 * scaleFactor,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
                           if (showScore)
                             Positioned(
@@ -233,10 +258,8 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                               ),
                             ),
                           ),
-                          // Show play button for Movie and Video types
-                          if (mediaType == MediaType.movie ||
-                              mediaType == MediaType.video ||
-                              widget.onPlayTap != null)
+                          // Show play button for playable types only
+                          if (showPlayButton)
                             Center(
                               child: AnimatedOpacity(
                                 duration: const Duration(milliseconds: 200),
@@ -373,6 +396,12 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
   void _handleNavigation(BuildContext context, WidgetRef ref) {
     if (widget.guid == null || widget.guid!.isEmpty) return;
 
+    // 目录项进入文件夹视图，无需预取详情。
+    if (MediaType.tryParse(widget.type) == MediaType.directory) {
+      context.go('/folder/${widget.guid}');
+      return;
+    }
+
     // 预取详情数据到缓存，使进入详情页时近乎秒开。
     unawaited(ref
         .read(mediaRemoteDataSourceProvider)
@@ -393,9 +422,13 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
         context.go('/tv/season/${widget.guid}');
         break;
       case MediaType.liveChannel:
+        ref.read(navigationStackProvider.notifier).playerSourcePath =
+            GoRouterState.of(context).uri.toString();
         context.go('/live/${widget.guid}');
         break;
       case MediaType.directory:
+        context.go('/folder/${widget.guid}');
+        break;
       case MediaType.episode:
       case null:
         break;
@@ -574,8 +607,7 @@ class _BannerPosterState extends State<BannerPoster> {
                     child: hasPoster
                         ? (widget.contentPadding > 0
                             ? Padding(
-                                padding:
-                                    EdgeInsets.all(widget.contentPadding),
+                                padding: EdgeInsets.all(widget.contentPadding),
                                 child: FnCachedImage(
                                   posterPath: widget.posterPath!,
                                   fit: BoxFit.contain,
@@ -622,8 +654,7 @@ class _BannerPosterState extends State<BannerPoster> {
                       duration: const Duration(milliseconds: 200),
                       opacity: isHovered ? 1 : 0,
                       child: ColoredBox(
-                        color:
-                            const Color(0xFF1C1C1C).withValues(alpha: 0.5),
+                        color: const Color(0xFF1C1C1C).withValues(alpha: 0.5),
                       ),
                     ),
                   ),
@@ -723,6 +754,7 @@ class PosterIconButton extends StatefulWidget {
   final VoidCallback? onPressed;
 
   const PosterIconButton({
+    super.key,
     this.icon,
     this.svgAssetPath,
     required this.isActive,

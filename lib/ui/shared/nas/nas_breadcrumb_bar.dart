@@ -58,9 +58,7 @@ class NasBreadcrumbBar extends StatelessWidget {
     final n = segments.length;
     if (n == 1) return [w];
 
-    final naturals = segments
-        .map((s) => _measureText(context, s))
-        .toList();
+    final naturals = segments.map((s) => _measureText(context, s)).toList();
 
     if (n == 2) {
       final rootW = naturals[0].clamp(0.0, w);

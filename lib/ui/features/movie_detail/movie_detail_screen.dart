@@ -10,6 +10,7 @@ import '../../../core/utils/log/app_talker.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_result.dart';
 import '../../../data/models/movie_detail_models.dart';
+import '../../../data/models/file_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     as cache_manager;
@@ -26,6 +27,7 @@ import '../../shared/local_subtitle_upload.dart';
 import '../player/widgets/subtitle_search_dialog.dart';
 import '../../shared/cast_scroll_row.dart';
 import '../../shared/toast.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   final trimmedPath = path.trim();
@@ -120,7 +122,7 @@ class MovieDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   MouseRegion(
                     cursor: SystemMouseCursors.click,
-                    child: Button(
+                    child: AppButton(
                       child: const Text('重试'),
                       onPressed: () => ref
                           .read(movieDetailNotifierProvider(guid).notifier)
@@ -332,7 +334,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                 title: const Text('添加字幕失败'),
                 content: Text('请稍后重试：$error'),
                 actions: [
-                  Button(
+                  AppButton(
                     child: const Text('确定'),
                     onPressed: () => Navigator.of(errorContext).pop(),
                   ),
@@ -389,9 +391,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         builder: (_) => SubtitleSearchDialog(
           mediaFileName: currentFile.fileName,
           initialSubtitleGuidByTrimId: {
-            for (final subtitle
-                in widget.state.streamList?.subtitleStreams ??
-                    const <SubtitleStream>[])
+            for (final subtitle in widget.state.streamList?.subtitleStreams ??
+                const <SubtitleStream>[])
               if (subtitle.mediaGuid == mediaGuid &&
                   subtitle.trimId.isNotEmpty &&
                   subtitle.guid.isNotEmpty)
@@ -433,9 +434,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           },
           onDownloadSimilar: (item, subtitleGuid) async {
             try {
-              await ref
-                  .read(fileRepositoryProvider)
-                  .predownloadSimilarSubtitle(
+              await ref.read(fileRepositoryProvider).predownloadSimilarSubtitle(
                     mediaGuid: mediaGuid,
                     subtitleGuid: subtitleGuid,
                   );
@@ -603,6 +602,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   Widget build(BuildContext context) {
     final item = widget.state.item;
     if (item == null) return const Center(child: Text('未找到电影信息'));
+
+    final authDirs = ref.watch(authorizedDirsProvider).valueOrNull ?? const <AuthDir>[];
 
     final windowHeight = MediaQuery.of(context).size.height;
     final pixelRatio = MediaQuery.of(context).devicePixelRatio;
@@ -989,6 +990,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                   padding: const EdgeInsets.fromLTRB(48, 0, 48, 48),
                   child: _MediaInfoSection(
                     state: widget.state,
+                    authDirs: authDirs,
                     selectedVideoStreamIndex: _selectedVideoStreamIndex,
                     currentMediaGuid: _currentMediaGuid,
                     currentAudioGuid: _selectedAudioGuid,
@@ -1196,6 +1198,7 @@ class _MediaSourceBoxes extends StatelessWidget {
 
 class _MediaInfoSection extends StatelessWidget {
   final MovieDetailState state;
+  final List<AuthDir> authDirs;
   final int selectedVideoStreamIndex;
   final String currentMediaGuid;
   final String? currentAudioGuid;
@@ -1203,6 +1206,7 @@ class _MediaInfoSection extends StatelessWidget {
 
   const _MediaInfoSection({
     required this.state,
+    this.authDirs = const [],
     required this.selectedVideoStreamIndex,
     required this.currentMediaGuid,
     this.currentAudioGuid,
@@ -1294,6 +1298,7 @@ class _MediaInfoSection extends StatelessWidget {
       audioStream: audioStream.guid.isNotEmpty ? audioStream : null,
       subtitleStream: subtitleStream.guid.isNotEmpty ? subtitleStream : null,
       imdbId: state.item?.imdbId,
+      authDirs: authDirs,
       iso6391Map: iso6391Map,
       iso6392Map: state.iso6392,
     );
@@ -1545,8 +1550,7 @@ class _ViewAllMediaInfoButtonState extends State<_ViewAllMediaInfoButton> {
   @override
   Widget build(BuildContext context) {
     // 复刻飞牛影视 web：--semi-color-text-2 (白 60%)，hover 时 --semi-color-text-0 (白)。
-    final color =
-        _hovered ? const Color(0xFFFFFFFF) : const Color(0x99FFFFFF);
+    final color = _hovered ? const Color(0xFFFFFFFF) : const Color(0x99FFFFFF);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),

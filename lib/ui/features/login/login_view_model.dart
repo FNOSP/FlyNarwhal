@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../../core/error/login_exception.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/base_response.dart';
 import '../../../data/models/login_history.dart';
@@ -101,7 +102,10 @@ class LoginViewModel extends _$LoginViewModel {
       );
 
       if (baseResponse.code != 0) {
-        throw Exception(baseResponse.msg);
+        throw LoginException(
+          code: baseResponse.code,
+          message: baseResponse.msg,
+        );
       }
 
       if (baseResponse.data == null) {
@@ -169,6 +173,10 @@ class LoginViewModel extends _$LoginViewModel {
       refreshNotifier.state = refreshNotifier.state + 1;
       AppTalker.info('Login', 'auth refresh state=${refreshNotifier.state}');
     });
+
+    if (state.hasError) {
+      throw state.error!;
+    }
   }
 
   Future<String> _resolveNasUrl(String fnId) async {

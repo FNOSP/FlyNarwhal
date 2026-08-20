@@ -19,6 +19,7 @@ import '../../shared/common/img_loading_progress_ring.dart';
 import '../../shared/movie_poster.dart';
 import '../../shared/toast.dart';
 import 'tv_detail_view_model.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   if (baseUrl.isEmpty || path.isEmpty) return '';
@@ -88,7 +89,7 @@ class TvDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
-                  child: Button(
+                  child: AppButton(
                     child: const Text('重试'),
                     onPressed: () => ref
                         .read(tvDetailNotifierProvider(guid).notifier)
@@ -196,13 +197,13 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     // Guard: require full FlyNarwhal config before triggering analysis
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
-        buildFlyNarwhalConfigWarning(
-          missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
-          missingAuthCode: !settings.hasFlyNarwhalAuthCode,
-        ),
-        type: ToastType.warning,
-        category: 'fly-narwhal-config',
-      );
+            buildFlyNarwhalConfigWarning(
+              missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+              missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+            ),
+            type: ToastType.warning,
+            category: 'fly-narwhal-config',
+          );
       return;
     }
     await ref
@@ -215,13 +216,13 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     // Guard: require full FlyNarwhal config before triggering analysis
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
-        buildFlyNarwhalConfigWarning(
-          missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
-          missingAuthCode: !settings.hasFlyNarwhalAuthCode,
-        ),
-        type: ToastType.warning,
-        category: 'fly-narwhal-config',
-      );
+            buildFlyNarwhalConfigWarning(
+              missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+              missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+            ),
+            type: ToastType.warning,
+            category: 'fly-narwhal-config',
+          );
       return;
     }
     await ref
@@ -652,12 +653,20 @@ class _SeasonListGridState extends State<_SeasonListGrid> {
         spacing: spacing,
         runSpacing: spacing,
         children: widget.seasons.map((season) {
-          final episodeNumber = season.episodeNumber > 0
-              ? season.episodeNumber
-              : season.localNumberOfEpisodes;
-          final subtitle = season.airDate != null
-              ? "共 $episodeNumber 集 · ${season.airDate!.length >= 4 ? season.airDate!.substring(0, 4) : season.airDate}"
-              : "共 $episodeNumber 集";
+          // Mirror the web layout subheading builder for Season items:
+          //   if (local_number_of_episodes) => "共 l 集"
+          //   elif season_number > 0        => "第 a 季"
+          //   then append the air_date year.
+          final List<String> parts = [];
+          if (season.localNumberOfEpisodes > 0) {
+            parts.add('共 ${season.localNumberOfEpisodes} 集');
+          } else if (season.seasonNumber > 0) {
+            parts.add('第 ${season.seasonNumber} 季');
+          }
+          if (season.airDate != null && season.airDate!.length >= 4) {
+            parts.add(season.airDate!.substring(0, 4));
+          }
+          final subtitle = parts.join(' · ');
 
           return SizedBox(
             width: itemWidth,

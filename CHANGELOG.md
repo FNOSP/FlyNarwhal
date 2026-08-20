@@ -22,6 +22,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.2.0-beta] - 2026-08-21
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Added
+
+- **网盘视频播放**：新增网盘（夸克、115、123、阿里云盘、百度网盘）视频播放能力，对齐飞牛影视 Web 端播放流程，支持 NAS 代理启动失败时自动回退直连播放。
+- **文件夹浏览**：新增文件夹视图。
+- **选集视图切换**：剧集详情页选集区块的新增卡片视图 / 序号视图切换开关，支持切换状态全局持久化。
+- **播放结束界面优化**：播放结束页样式优化。
+- **更新日志弹窗**：设置中新增更新日志弹窗，渲染内置 CHANGELOG.md。
+- **登录密码错误提示**：登录失败（密码错误）时显示「用户名或密码错误」提示。
+
+### Changed
+
+- **依赖升级**：升级 go_router、window_manager、liquid_glass_widgets、flutter_lints 等依赖。
+- **演员简介交互**：人物详情页简介对齐飞牛影视 Web 端，超出时行内截断并显示「更多」链接，点击以弹窗查看完整内容。
+
+### Fixed
+
+- **Windows 更新安装流程**：修复 Windows 端退出并安装流程。
+- **播放器兼容 Flutter 3.38+**：升级 media_kit_video 至 2.0.1，修复 Flutter 3.38+ 硬件渲染播放问题。
+- **Linux Wayland 标题栏**：修复 KDE Wayland 下 KWin 重复绘制系统标题栏的问题。
+- **侧边栏 LeftMinimal 顶部留白**：移除 LeftMinimal 模式下导航栏顶部 38px 空白条。
+- **直播频道封面显示**：修复最近观看中直播频道封面裁切与占位图尺寸问题。
+- **直播播放器返回路径**：退出直播播放器后正确返回进入前的页面。
+- **影片文件位置用户名**：正确解析文件位置展示的用户名。
+- **播放器控制浮层重叠**：快速移动鼠标时同步关闭被替代的控制弹框，避免多个弹框重叠。
+- **剧集季/集数标签**：对齐飞牛影视 Web 端「共 x 集 / 共 x 季」标签展示逻辑。
+
+## [2.1.2-beta] - 2026-08-16
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Added
+
+- **AppButton 包装器**：新增 `AppButton` 包装器，统一所有按钮的手型光标。
+
+### Changed
+
+- **macOS 播放器音量增益**：将 macOS 端 mpv 音量增益提升至 1.7 倍。
+
+### Fixed
+
+- **登录页忘记密码弹窗**：修复登录页点击「忘记密码」无弹窗的问题，使用统一 AppDialog 样式并显示与 Web 端一致的提示内容。
+- **fnOS 登录 WebView 异常提示**：抑制 NAS 登录 WebView 中由代理 NE 拦截 QUIC 触发的「系统异常」 alert。
+- **更新弹窗当前版本展示**：在更新弹窗中显示当前已安装的版本号。
+
 ## [2.1.1-beta] - 2026-08-16
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**

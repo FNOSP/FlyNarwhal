@@ -121,10 +121,10 @@ class PlayerWindowAspectRatioController {
       AppTalker.info(
         'WindowRatio',
         'apply($setting): target=${targetRatio.toStringAsFixed(3)} '
-        'current=${currentRatio.toStringAsFixed(3)} '
-        'bounds=${bounds.width.toStringAsFixed(0)}x${bounds.height.toStringAsFixed(0)} '
-        'baseline=${(_baselineArea ?? 0).toStringAsFixed(0)} '
-        'resize=${!alreadyMatching}',
+            'current=${currentRatio.toStringAsFixed(3)} '
+            'bounds=${bounds.width.toStringAsFixed(0)}x${bounds.height.toStringAsFixed(0)} '
+            'baseline=${(_baselineArea ?? 0).toStringAsFixed(0)} '
+            'resize=${!alreadyMatching}',
       );
 
       if (!alreadyMatching) {
@@ -190,8 +190,7 @@ class PlayerWindowAspectRatioController {
     final lastProgrammaticSize = _lastProgrammaticSize;
     if (lastProgrammaticSize != null &&
         (bounds.width - lastProgrammaticSize.width).abs() < _sizeEpsilonPx &&
-        (bounds.height - lastProgrammaticSize.height).abs() <
-            _sizeEpsilonPx) {
+        (bounds.height - lastProgrammaticSize.height).abs() < _sizeEpsilonPx) {
       // Echo of our own setBounds, not a user gesture.
       return;
     }
@@ -200,7 +199,7 @@ class PlayerWindowAspectRatioController {
     AppTalker.info(
       'WindowRatio',
       'baseline updated from user resize: '
-      '${bounds.width.toStringAsFixed(0)}x${bounds.height.toStringAsFixed(0)}',
+          '${bounds.width.toStringAsFixed(0)}x${bounds.height.toStringAsFixed(0)}',
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 // Soft blue for toggle default checked state
 const Color playerSettingsAccentColor = Color(0xFF3D84E0);
@@ -32,7 +33,7 @@ class PlayerSettingsHeader extends StatelessWidget {
           child: Row(
             children: [
               if (onBack != null) ...[
-                IconButton(
+                AppIconButton(
                   key: const ValueKey('player-settings-header-back'),
                   icon: const Icon(FluentIcons.chevron_left, size: 16),
                   onPressed: onBack,
@@ -50,30 +51,33 @@ class PlayerSettingsHeader extends StatelessWidget {
                 ),
               ),
               if (actionLabel != null)
-                GestureDetector(
-                  key: const ValueKey('player-settings-header-action'),
-                  onTap: onAction,
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          actionLabel!,
-                          style: const TextStyle(
-                            color: playerSettingsTextColor,
-                            fontSize: 15,
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    key: const ValueKey('player-settings-header-action'),
+                    onTap: onAction,
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 5),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            actionLabel!,
+                            style: const TextStyle(
+                              color: playerSettingsTextColor,
+                              fontSize: 15,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 5),
-                        const Icon(
-                          FluentIcons.chevron_right,
-                          size: 12,
-                          color: playerSettingsTextColor,
-                        ),
-                      ],
+                          const SizedBox(width: 5),
+                          const Icon(
+                            FluentIcons.chevron_right,
+                            size: 12,
+                            color: playerSettingsTextColor,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

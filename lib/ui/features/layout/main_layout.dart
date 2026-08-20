@@ -501,14 +501,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     // Nudge the refresh button slightly lower to match the traffic lights.
     const double kRefreshButtonTopPadding = kTrafficLightTopPadding + 6.0;
 
-    return Focus(
-      focusNode: _shortcutFocusNode,
-      autofocus: true,
-      onKeyEvent: handleGlobalKeyEvent,
-      child: Column(
-        children: [
-          if (isMacOS)
-            Container(
+    final Widget titleBarWidget = isMacOS
+        ? Container(
               height: kWindowTitleBarHeight,
               color: theme.resources.solidBackgroundFillColorBase,
               child: Stack(
@@ -608,8 +602,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                 ],
               ),
             )
-          else
-            WindowCaption(
+        : WindowCaption(
               title: const Text('飞鲸影视'),
               titleTrailing: const SharedUpdateBadge(
                 key: ValueKey('titlebar-update-badge'),
@@ -627,8 +620,28 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
               onBack: canGoBack ? handleBackNavigation : null,
               showNavToggle: isMinimalDisplayMode,
               onNavToggle: isMinimalDisplayMode ? handleNavToggle : null,
-            ),
-          Expanded(
+            );
+
+    return Focus(
+      focusNode: _shortcutFocusNode,
+      autofocus: true,
+      onKeyEvent: handleGlobalKeyEvent,
+      child: Stack(
+        children: [
+          // fluent_ui's minimal-mode layout (_buildMinimalView) reserves a
+          // 38px band at the top of the NavigationView for the window title
+          // bar and starts page content below it. We draw our own title bar
+          // above, so in minimal mode shift the whole view up 38px: the
+          // reserved band slides under the (later-painted, opaque) title bar
+          // and page content starts flush below it, exactly like the other
+          // display modes.
+          Positioned(
+            top: isMinimalDisplayMode
+                ? kWindowTitleBarHeight - 38.0
+                : kWindowTitleBarHeight,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: NavigationView(
               key: _navigationViewKey,
               pane: NavigationPane(
@@ -642,6 +655,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
               paneBodyBuilder: (item, body) => widget.child,
             ),
           ),
+          Positioned(top: 0, left: 0, right: 0, child: titleBarWidget),
         ],
       ),
     );

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 
+import '../../core/utils/log/app_talker.dart';
 import '../../core/version/semantic_version.dart';
 import '../../domain/update/entities/verified_update_artifact.dart';
 import 'update_path_safety.dart';
@@ -227,6 +228,10 @@ final class WindowsUpdateInstallStageStore {
     required String operationId,
     required String architecture,
   }) async {
+    AppTalker.info(
+      'WindowsUpdateStage',
+      'Creating Windows install stage for transaction $transactionId.',
+    );
     _validateTransactionId(transactionId);
     if (operationId.isEmpty ||
         (architecture != 'x64' && architecture != 'arm64')) {
@@ -237,6 +242,10 @@ final class WindowsUpdateInstallStageStore {
     }
     await _validateVerifiedArtifact(artifact);
     final stagingRoot = await _loadStagingRoot();
+    AppTalker.info(
+      'WindowsUpdateStage',
+      'Resolved staging root ${stagingRoot.path}.',
+    );
     final stageDirectory = Directory(path.join(
       stagingRoot.path,
       '$_stageDirectoryPrefix$transactionId',
@@ -254,6 +263,10 @@ final class WindowsUpdateInstallStageStore {
       final installerFile =
           File(path.join(stageDirectory.path, _installerFileName));
       await artifact.file.copy(installerFile.path);
+      AppTalker.info(
+        'WindowsUpdateStage',
+        'Copied verified installer to ${installerFile.path}.',
+      );
       final actualDigest = await _digestFile(installerFile);
       if (await installerFile.length() != artifact.length ||
           actualDigest != artifact.sha256) {
@@ -281,11 +294,19 @@ final class WindowsUpdateInstallStageStore {
       final authorityFile =
           File(path.join(stageDirectory.path, _authorityFileName));
       await _writeFileAndFlush(authorityFile, jsonEncode(authority.toJson()));
+      AppTalker.info(
+        'WindowsUpdateStage',
+        'Wrote authority receipt to ${authorityFile.path}.',
+      );
 
       final provenanceFile =
           File(path.join(stageDirectory.path, _provenanceFileName));
       final provenance = await _buildProvenance(stageDirectory);
       await _writeFileAndFlush(provenanceFile, provenance.toCanonicalJson());
+      AppTalker.info(
+        'WindowsUpdateStage',
+        'Wrote provenance receipt to ${provenanceFile.path}.',
+      );
       return loadAndVerifyStage(stageDirectory.path);
     } on Object {
       if (await _isOwnedStageDirectory(stageDirectory, stagingRoot)) {
@@ -296,6 +317,10 @@ final class WindowsUpdateInstallStageStore {
   }
 
   Future<WindowsUpdateInstallStage> loadAndVerifyStage(String stagePath) async {
+    AppTalker.info(
+      'WindowsUpdateStage',
+      'Loading and verifying stage $stagePath.',
+    );
     final stagingRoot = await _loadStagingRoot();
     final stageDirectory = Directory(stagePath);
     await _assertOwnedStageDirectory(stageDirectory, stagingRoot);
@@ -352,6 +377,10 @@ final class WindowsUpdateInstallStageStore {
   }
 
   Future<void> deleteStage(WindowsUpdateInstallStage stage) async {
+    AppTalker.info(
+      'WindowsUpdateStage',
+      'Deleting stage ${stage.stageDirectory.path}.',
+    );
     final stagingRoot = await _loadStagingRoot();
     await _assertOwnedStageDirectory(stage.stageDirectory, stagingRoot);
     await stage.stageDirectory.delete(recursive: true);

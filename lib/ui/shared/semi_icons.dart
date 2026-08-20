@@ -17,6 +17,12 @@ class SemiIcons {
   static SvgPicture caretDown({double size = 12, Color? color}) =>
       _icon('caret_down', size, color);
 
+  static SvgPicture desktop({double size = 20, Color? color}) =>
+      _icon('desktop', size, color);
+
+  static SvgPicture grid({double size = 20, Color? color}) =>
+      _icon('grid', size, color);
+
   static SvgPicture _icon(String name, double size, Color? color) {
     return SvgPicture.asset(
       '$_assetDir/$name.svg',

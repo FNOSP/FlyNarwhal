@@ -129,3 +129,10 @@ third_party/media_kit_libs_macos_video_full/macos/.cache/
 third_party/media_kit_libs_macos_video_full/macos/Frameworks/
 third_party/media_kit_libs_macos_video_full/macos/Headers/
 .cache/
+
+# Local debugging notes and one-off capture utilities
+debug-*.md
+export_wireshark_http_json.ps1
+
+# Local CMake test build output for the native update helpers
+windows/native/build-test/

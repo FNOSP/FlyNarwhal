@@ -67,8 +67,7 @@ class TvDetailNotifier extends _$TvDetailNotifier {
 
   Future<PlayInfoResponse?> _fetchPlayInfo() async {
     final remote = ref.read(mediaRemoteDataSourceProvider);
-    final result =
-        await remote.getPlayInfo(ItemGuidRequest(itemGuid: guid));
+    final result = await remote.getPlayInfo(ItemGuidRequest(itemGuid: guid));
     return result.dataOrNull;
   }
 
@@ -104,7 +103,8 @@ class TvDetailNotifier extends _$TvDetailNotifier {
     final remote = ref.read(mediaRemoteDataSourceProvider);
     final tagRepo = ref.read(iTagRepositoryProvider);
 
-    Future<T?> safeApiRequest<T>(Future<ApiResult<T>> Function() request) async {
+    Future<T?> safeApiRequest<T>(
+        Future<ApiResult<T>> Function() request) async {
       final result = await request();
       return result.dataOrNull;
     }
@@ -123,12 +123,12 @@ class TvDetailNotifier extends _$TvDetailNotifier {
     final playInfo = results[1] as PlayInfoResponse?;
     final seasons = results[2] as List<SeasonListResponse>;
     final personList = results[3] as List<PersonList>?;
-    final iso6391 = (results[4] as Map<String, String>?) ??
-        const <String, String>{};
-    final iso6392 = (results[5] as Map<String, String>?) ??
-        const <String, String>{};
-    final iso3166 = (results[6] as Map<String, String>?) ??
-        const <String, String>{};
+    final iso6391 =
+        (results[4] as Map<String, String>?) ?? const <String, String>{};
+    final iso6392 =
+        (results[5] as Map<String, String>?) ?? const <String, String>{};
+    final iso3166 =
+        (results[6] as Map<String, String>?) ?? const <String, String>{};
 
     return TvDetailState(
       item: item,

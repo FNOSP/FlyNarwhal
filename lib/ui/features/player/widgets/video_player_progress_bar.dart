@@ -136,6 +136,7 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     final thumbRadius = _showDetails ? 8.0 : 0.0;
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       onHover: (event) {

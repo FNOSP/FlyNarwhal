@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 // Colors sampled from the reference web app (飞牛影视, Semi Design dark theme).
 // The web app only ships a dark theme, so dark keeps the sampled palette and
@@ -83,6 +84,7 @@ class AppDialog<T> extends StatelessWidget {
       maxHeight: 720,
     ),
     this.titleIcon,
+    this.onClose,
   });
 
   final String title;
@@ -100,6 +102,9 @@ class AppDialog<T> extends StatelessWidget {
   final BoxConstraints constraints;
   final Widget? titleIcon;
 
+  /// When non-null, renders a close button on the title's trailing edge.
+  final VoidCallback? onClose;
+
   @override
   Widget build(BuildContext context) {
     final palette = FluentTheme.of(context).brightness == Brightness.dark
@@ -112,15 +117,14 @@ class AppDialog<T> extends StatelessWidget {
             tertiaryResult, 'tertiary')
         : null;
     final secondary = _visible(secondaryButtonText)
-        ? _secondary(context, palette, secondaryButtonText!,
-            onSecondaryPressed, secondaryResult, 'secondary')
+        ? _secondary(context, palette, secondaryButtonText!, onSecondaryPressed,
+            secondaryResult, 'secondary')
         : null;
     final primary = _visible(primaryButtonText)
         ? _primary(context, primaryButtonText!, onPrimaryPressed, primaryResult)
         : null;
 
-    final hasActions =
-        tertiary != null || secondary != null || primary != null;
+    final hasActions = tertiary != null || secondary != null || primary != null;
 
     return ContentDialog(
       constraints: constraints,
@@ -137,7 +141,9 @@ class AppDialog<T> extends StatelessWidget {
           ],
         ),
         barrierColor: appDialogBarrierColor,
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        // The actions row supplies the bottom 24px margin when present;
+        // without actions, keep the same 24px margin on all four sides.
+        padding: EdgeInsets.fromLTRB(24, 24, 24, hasActions ? 0 : 24),
         titlePadding: const EdgeInsets.only(bottom: 24),
         bodyPadding: EdgeInsets.zero,
         actionsSpacing: 12,
@@ -160,6 +166,16 @@ class AppDialog<T> extends StatelessWidget {
         children: [
           if (titleIcon != null) ...[titleIcon!, const SizedBox(width: 12)],
           Expanded(child: Text(title)),
+          if (onClose != null)
+            AppIconButton(
+              key: const ValueKey('app-dialog-close'),
+              icon: Icon(
+                FluentIcons.chrome_close,
+                size: 16,
+                color: palette.text,
+              ),
+              onPressed: onClose,
+            ),
         ],
       ),
       content: DefaultTextStyle.merge(
@@ -196,7 +212,7 @@ class AppDialog<T> extends StatelessWidget {
     final pressed =
         isDanger ? appDialogDangerPressedColor : appDialogPrimaryPressedColor;
 
-    return FilledButton(
+    return AppFilledButton(
       key: const ValueKey('app-dialog-primary'),
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
@@ -229,7 +245,7 @@ class AppDialog<T> extends StatelessWidget {
     T? result,
     String name,
   ) {
-    return Button(
+    return AppButton(
       key: ValueKey('app-dialog-$name'),
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
@@ -306,6 +322,7 @@ Future<T?> showAppDialog<T>({
     maxHeight: 720,
   ),
   Widget? titleIcon,
+  VoidCallback? onClose,
 }) {
   return showDialog<T>(
     context: context,
@@ -325,6 +342,7 @@ Future<T?> showAppDialog<T>({
       tertiaryResult: tertiaryResult,
       constraints: constraints,
       titleIcon: titleIcon,
+      onClose: onClose,
     ),
   );
 }

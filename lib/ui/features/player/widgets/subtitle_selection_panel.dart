@@ -210,57 +210,54 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
                     controller: _scrollController,
                     thumbVisibility:
                         widget.autoHideScrollbar ? _scrollbarVisible : true,
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: EdgeInsets.zero,
-                        itemCount: widget.subtitles.length + 1,
-                        itemBuilder: (context, index) {
-                          final key = _itemKeys.putIfAbsent(
-                            index,
-                            () => GlobalKey(),
-                          );
-                          if (index == 0) {
-                            return KeyedSubtree(
-                              key: key,
-                              child: _SubtitleItem(
-                                key: const ValueKey('subtitle-item-off'),
-                                title: '关闭',
-                                subtitle: '',
-                                isSelected:
-                                    widget.selectedSubtitleGuid == null ||
-                                        widget.selectedSubtitleGuid!.isEmpty,
-                                onTap: () => widget.onSubtitleSelected(null),
-                              ),
-                            );
-                          }
-
-                          final subtitle = widget.subtitles[index - 1];
-                          final showPredownload =
-                              _hasPredownloadButton(subtitle);
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      padding: EdgeInsets.zero,
+                      itemCount: widget.subtitles.length + 1,
+                      itemBuilder: (context, index) {
+                        final key = _itemKeys.putIfAbsent(
+                          index,
+                          () => GlobalKey(),
+                        );
+                        if (index == 0) {
                           return KeyedSubtree(
                             key: key,
                             child: _SubtitleItem(
-                              key: ValueKey('subtitle-item-${subtitle.guid}'),
-                              title: _buildTitle(subtitle),
-                              subtitle: _buildSubtitle(subtitle),
-                              isSelected:
-                                  widget.selectedSubtitleGuid == subtitle.guid,
-                              isExternal: subtitle.isExternal == 1,
-                              showPredownloadSimilar: showPredownload,
-                              onDelete: widget.onRequestDelete == null
-                                  ? null
-                                  : () =>
-                                      widget.onRequestDelete!.call(subtitle),
-                              onPredownloadSimilar: showPredownload
-                                  ? () => widget.onPredownloadSimilar!
-                                      .call(subtitle)
-                                  : null,
-                              onTap: () =>
-                                  widget.onSubtitleSelected(subtitle.guid),
+                              key: const ValueKey('subtitle-item-off'),
+                              title: '关闭',
+                              subtitle: '',
+                              isSelected: widget.selectedSubtitleGuid == null ||
+                                  widget.selectedSubtitleGuid!.isEmpty,
+                              onTap: () => widget.onSubtitleSelected(null),
                             ),
                           );
-                        },
-                      ),
+                        }
+
+                        final subtitle = widget.subtitles[index - 1];
+                        final showPredownload = _hasPredownloadButton(subtitle);
+                        return KeyedSubtree(
+                          key: key,
+                          child: _SubtitleItem(
+                            key: ValueKey('subtitle-item-${subtitle.guid}'),
+                            title: _buildTitle(subtitle),
+                            subtitle: _buildSubtitle(subtitle),
+                            isSelected:
+                                widget.selectedSubtitleGuid == subtitle.guid,
+                            isExternal: subtitle.isExternal == 1,
+                            showPredownloadSimilar: showPredownload,
+                            onDelete: widget.onRequestDelete == null
+                                ? null
+                                : () => widget.onRequestDelete!.call(subtitle),
+                            onPredownloadSimilar: showPredownload
+                                ? () =>
+                                    widget.onPredownloadSimilar!.call(subtitle)
+                                : null,
+                            onTap: () =>
+                                widget.onSubtitleSelected(subtitle.guid),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -365,8 +362,9 @@ class _SubtitleHeaderPillButtonState extends State<SubtitleHeaderPillButton> {
     return Opacity(
       opacity: widget.enabled ? 1 : 0.4,
       child: MouseRegion(
-        cursor:
-            widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        cursor: widget.enabled
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
         child: GestureDetector(
@@ -501,7 +499,8 @@ class _SubtitleAddMenuItemState extends State<_SubtitleAddMenuItem> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: _isHovered ? subtitleHoverBackgroundColor : Colors.transparent,
+            color:
+                _isHovered ? subtitleHoverBackgroundColor : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -708,7 +707,8 @@ class _PredownloadSimilarButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: subtitleFlyoutBorderColor),
-            color: isHovered ? subtitleHoverBackgroundColor : Colors.transparent,
+            color:
+                isHovered ? subtitleHoverBackgroundColor : Colors.transparent,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,

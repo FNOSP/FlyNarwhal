@@ -10,6 +10,9 @@ class PreferencesManager {
   static const String _keyFollowSystemTheme = 'follow_system_theme';
   static const String _keyDarkMode = 'dark_mode';
   static const String _keyNavigationDisplayMode = 'navigation_display_mode';
+  // 选集/剧集列表视图：'card' (卡片/海报) | 'button' (序号按钮网格)。
+  // 镜像 Web 端 playlist setting 的 view_type，全局记忆。
+  static const String _keyEpisodeListViewType = 'episode_list_view_type';
   static const String _keyFallbackDeviceId = 'fallback_device_id';
   static const String _keySmartSkipEnabled = 'smart_skip_enabled';
 
@@ -79,6 +82,15 @@ class PreferencesManager {
 
   Future<void> saveNavigationDisplayMode(String value) async {
     await _prefs.setString(_keyNavigationDisplayMode, value);
+  }
+
+  // 选集/剧集列表视图：'card' | 'button'，默认卡片视图。
+  String getEpisodeListViewType() {
+    return _prefs.getString(_keyEpisodeListViewType) ?? 'card';
+  }
+
+  Future<void> saveEpisodeListViewType(String value) async {
+    await _prefs.setString(_keyEpisodeListViewType, value);
   }
 
   String? getFallbackDeviceId() {

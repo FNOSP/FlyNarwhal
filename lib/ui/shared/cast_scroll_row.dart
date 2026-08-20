@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
+import 'package:flutter_cache_manager/flutter_cache_manager.dart'
+    as cache_manager;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/models/movie_detail_models.dart';
@@ -100,9 +101,12 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
   @override
   Widget build(BuildContext context) {
     final imageUrl = _buildImageUrl(widget.baseUrl, widget.person.profilePath);
-    final nameColor =
-        _hovered ? FluentTheme.of(context).accentColor : FluentTheme.of(context).typography.body?.color;
-    final role = widget.person.job == 'Actor' ? '饰 ${widget.person.role}' : widget.person.job;
+    final nameColor = _hovered
+        ? FluentTheme.of(context).accentColor
+        : FluentTheme.of(context).typography.body?.color;
+    final role = widget.person.job == 'Actor'
+        ? '饰 ${widget.person.role}'
+        : widget.person.job;
 
     return SizedBox(
       width: 80,
@@ -169,7 +173,11 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
                 role,
                 style: FluentTheme.of(context).typography.caption?.copyWith(
                       fontSize: 12,
-                      color: FluentTheme.of(context).typography.caption?.color?.withValues(alpha: 0.6),
+                      color: FluentTheme.of(context)
+                          .typography
+                          .caption
+                          ?.color
+                          ?.withValues(alpha: 0.6),
                     ),
                 maxLines: 1,
                 textAlign: TextAlign.center,
@@ -205,6 +213,8 @@ class _PersonPlaceholder extends StatelessWidget {
 
 String _buildImageUrl(String baseUrl, String path) {
   if (baseUrl.isEmpty || path.isEmpty) return '';
-  final normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+  final normalizedBaseUrl = baseUrl.endsWith('/')
+      ? baseUrl.substring(0, baseUrl.length - 1)
+      : baseUrl;
   return '$normalizedBaseUrl/v/api/v1/sys/img$path';
 }

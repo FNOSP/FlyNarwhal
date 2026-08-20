@@ -41,6 +41,15 @@ class MediaStream {
   Map<String, dynamic> toJson() => _$MediaStreamToJson(this);
 }
 
+// color_range_type 在不同接口下可能是字符串或数组（文件夹浏览返回
+// ["SDR"]）；统一归一为首项字符串，避免解析期类型转换异常。
+String? parseColorRangeType(dynamic value) {
+  if (value is List) {
+    return value.isEmpty ? null : value.first?.toString();
+  }
+  return value as String?;
+}
+
 @JsonSerializable()
 class MediaItem {
   final String guid;
@@ -52,6 +61,9 @@ class MediaItem {
   final String title;
   final String? type;
   final String? poster;
+  // Folder items expose covers via poster_list (no `poster` field).
+  @JsonKey(name: 'poster_list')
+  final List<String>? posterList;
   @JsonKey(name: 'poster_width')
   final int? posterWidth;
   @JsonKey(name: 'poster_height')
@@ -104,6 +116,7 @@ class MediaItem {
     required this.title,
     this.type,
     this.poster,
+    this.posterList,
     this.posterWidth,
     this.posterHeight,
     this.isFavorite = 0,
@@ -132,31 +145,48 @@ class MediaItem {
   factory MediaItem.fromJson(Map<String, dynamic> json) =>
       _$MediaItemFromJson(json);
   Map<String, dynamic> toJson() => _$MediaItemToJson(this);
+
+  // 封面优先级：poster 字段 → poster_list 首项（文件夹视图的封面来源）。
+  String? get effectivePoster {
+    final p = poster?.trim();
+    if (p != null && p.isNotEmpty) {
+      return poster;
+    }
+    if (posterList != null && posterList!.isNotEmpty) {
+      return posterList!.first;
+    }
+    return null;
+  }
 }
 
 String? buildPosterSubtitle(MediaItem item) {
   final mediaType = MediaType.tryParse(item.type);
   if (mediaType == MediaType.tv) {
-    if (!_isBlank(item.firstAirDate) && !_isBlank(item.lastAirDate)) {
-      // Use local season count (available in library) with fallback to metadata count
-      final seasonCount =
-          item.localNumberOfSeasons ?? item.numberOfSeasons ?? 0;
-      return '共 $seasonCount 季 · ${_takeYear(item.firstAirDate)}~${_takeYear(item.lastAirDate)}';
+    // Mirror the web layout subheading builder for TV items:
+    //   c = number_of_seasons, u = local_number_of_seasons,
+    //   l = local_number_of_episodes, a = season_number
+    //   if (c > 1 || u > 1) { u>1 => "共 u 季"; u==1 => "第 a 季" }
+    //   else if ((c==1||u==1) && u==1) => "共 l 集"
+    //   then append the year range from first/last air date.
+    final c = item.numberOfSeasons ?? 0;
+    final u = item.localNumberOfSeasons ?? 0;
+    final l = item.localNumberOfEpisodes ?? 0;
+
+    final List<String> parts = [];
+    if (c > 1 || u > 1) {
+      if (u > 1) {
+        parts.add('共 $u 季');
+      } else {
+        parts.add('第 ${item.seasonNumber} 季');
+      }
+    } else if ((c == 1 || u == 1) && u == 1) {
+      parts.add('共 $l 集');
     }
-    // Use local counts for single-season ended shows
-    if ((item.localNumberOfSeasons ?? item.numberOfSeasons) == 1 &&
-        item.status == 'Ended') {
-      final year = !_isBlank(item.releaseDate)
-          ? ' · ${_takeYear(item.releaseDate)}'
-          : '';
-      final episodeCount =
-          item.localNumberOfEpisodes ?? item.numberOfEpisodes ?? 0;
-      return '共 $episodeCount 集$year';
-    }
-    if (item.numberOfSeasons != null && !_isBlank(item.releaseDate)) {
-      return '第 ${item.seasonNumber} 季 · ${_takeYear(item.releaseDate)}';
-    }
-    return _takeYear(item.releaseDate);
+
+    final year = _buildAirDateYear(item.firstAirDate, item.lastAirDate);
+    if (year.isNotEmpty) parts.add(year);
+
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   if (_isBlank(item.releaseDate) && !_isBlank(item.type)) {
@@ -168,6 +198,19 @@ String? buildPosterSubtitle(MediaItem item) {
   }
 
   return _takeYear(item.releaseDate);
+}
+
+/// Builds the year segment for a TV item from its first/last air date,
+/// mirroring the web `cD` helper: `firstYear` (or `firstYear-lastYear` when
+/// they differ), returning '' when neither date is present.
+String _buildAirDateYear(String? firstAirDate, String? lastAirDate) {
+  final firstYear = _takeYear(firstAirDate);
+  if (firstYear == null) return '';
+  final lastYear = _takeYear(lastAirDate);
+  if (lastYear != null && lastAirDate != firstAirDate && lastYear != firstYear) {
+    return '$firstYear-$lastYear';
+  }
+  return firstYear;
 }
 
 String _mediaTypeDescription(String? type) {
@@ -190,12 +233,35 @@ class ItemListQueryResponse {
   final int total;
   @JsonKey(name: 'mdb_name')
   final String? mdbName;
+  // Breadcrumb chain returned when browsing a folder (parent_guid):
+  // all entries up to the last are ancestors, the last is the folder itself.
+  @JsonKey(name: 'jump_list')
+  final List<JumpItem> jumpList;
 
-  ItemListQueryResponse({this.list = const [], this.total = 0, this.mdbName});
+  ItemListQueryResponse({
+    this.list = const [],
+    this.total = 0,
+    this.mdbName,
+    this.jumpList = const [],
+  });
 
   factory ItemListQueryResponse.fromJson(Map<String, dynamic> json) =>
       _$ItemListQueryResponseFromJson(json);
   Map<String, dynamic> toJson() => _$ItemListQueryResponseToJson(this);
+}
+
+@JsonSerializable()
+class JumpItem {
+  @JsonKey(name: 'fv_guid')
+  final String fvGuid;
+  @JsonKey(name: 'base_name')
+  final String baseName;
+
+  const JumpItem({required this.fvGuid, required this.baseName});
+
+  factory JumpItem.fromJson(Map<String, dynamic> json) =>
+      _$JumpItemFromJson(json);
+  Map<String, dynamic> toJson() => _$JumpItemToJson(this);
 }
 
 @JsonSerializable()
@@ -270,6 +336,10 @@ String? buildPlayDetailSubtitle(PlayDetailResponse item) {
 class ItemListQueryRequest {
   @JsonKey(name: 'ancestor_guid')
   final String? ancestorGuid;
+  // Direct-parent folder guid (fv_*): lists only the folder's children,
+  // mirroring the web folder view's item/list request.
+  @JsonKey(name: 'parent_guid')
+  final String? parentGuid;
   @JsonKey(name: 'exclude_grouped_video')
   final int excludeGroupedVideo;
   @JsonKey(name: 'sort_type')
@@ -283,6 +353,7 @@ class ItemListQueryRequest {
 
   ItemListQueryRequest({
     this.ancestorGuid,
+    this.parentGuid,
     this.excludeGroupedVideo = 1,
     this.sortType = "DESC",
     this.sortColumn = "create_time",

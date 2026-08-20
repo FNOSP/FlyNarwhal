@@ -60,6 +60,9 @@ class ApiEndpoints {
   static const String searchList = '/v/api/v1/search/list';
   static const String itemDetail = '/v/api/v1/item/detail';
   static const String itemPrefix = '/v/api/v1/item';
+  // 文件夹页“更多”菜单：刷新元数据 / 重新识别（对齐 Web item/refresh、scrap/rescrap）。
+  static const String itemRefresh = '/v/api/v1/item/refresh';
+  static const String scrapRescrap = '/v/api/v1/scrap/rescrap';
   static const String stream = '/v/api/v1/stream';
   static const String streamListPrefix = '/v/api/v1/stream/list';
   static const String personListPrefix = '/v/api/v1/person/list';

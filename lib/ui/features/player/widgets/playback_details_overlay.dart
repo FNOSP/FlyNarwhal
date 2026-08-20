@@ -214,9 +214,7 @@ class PlaybackDetailsPanel extends StatelessWidget {
     // bitrate; direct play falls back to the media source stream's values.
     final resolution = hasServerStats && status.resolution.isNotEmpty
         ? status.resolution
-        : videoStream != null &&
-                videoStream.width > 0 &&
-                videoStream.height > 0
+        : videoStream != null && videoStream.width > 0 && videoStream.height > 0
             ? '${videoStream.width} x ${videoStream.height}'
             : '';
     final bitrate = hasServerStats && status.bitrate > 0

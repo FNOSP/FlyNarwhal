@@ -3,6 +3,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import 'app_dialog.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 /// 复刻自 http://192.168.31.73:5666 的"文件媒体信息"弹窗。
 ///
@@ -89,7 +90,7 @@ class FileMediaInfoDialog extends StatelessWidget {
                   ),
             ),
           ),
-          IconButton(
+          AppIconButton(
             icon: const Icon(FluentIcons.chrome_close, size: 16),
             onPressed: () => Navigator.of(context).pop(),
           ),
@@ -354,11 +355,7 @@ class _VideoTrackCard extends StatelessWidget {
         [
           _Field('色彩空间', _dash(stream.colorSpace)),
           _Field('色彩转换', _dash(stream.colorTransfer)),
-          _Field(
-              '位深度',
-              stream.bitDepth > 0
-                  ? '${stream.bitDepth} bit'
-                  : '--'),
+          _Field('位深度', stream.bitDepth > 0 ? '${stream.bitDepth} bit' : '--'),
           _Field('像素格式', _dash(stream.pixFmt)),
           _Field('参考帧', stream.refs.toString()),
         ],
@@ -377,8 +374,8 @@ class _AudioTrackCard extends StatelessWidget {
   final Map<String, String> iso6391Map;
   final Map<String, String> iso6392Map;
 
-  String _language() => FnDataConvertor.getLanguageName(
-      stream.language, iso6391Map, iso6392Map);
+  String _language() =>
+      FnDataConvertor.getLanguageName(stream.language, iso6391Map, iso6392Map);
 
   String _codec() => stream.audioType.isNotEmpty
       ? stream.audioType
@@ -401,8 +398,7 @@ class _AudioTrackCard extends StatelessWidget {
         ],
         [
           _Field('布局', _dash(stream.channelLayout)),
-          _Field('声道',
-              stream.channels > 0 ? '${stream.channels} ch' : '--'),
+          _Field('声道', stream.channels > 0 ? '${stream.channels} ch' : '--'),
           _Field('采样率',
               stream.sampleRate.isNotEmpty ? '${stream.sampleRate} Hz' : '--'),
         ],
@@ -425,8 +421,8 @@ class _SubtitleTrackCard extends StatelessWidget {
   final Map<String, String> iso6391Map;
   final Map<String, String> iso6392Map;
 
-  String _language() => FnDataConvertor.getLanguageName(
-      stream.language, iso6391Map, iso6392Map);
+  String _language() =>
+      FnDataConvertor.getLanguageName(stream.language, iso6391Map, iso6392Map);
 
   String _codec() =>
       stream.codecName.isNotEmpty ? stream.codecName : stream.codecType;

@@ -120,7 +120,8 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout>
         final buttonSize = renderObject.size;
         final flyoutHeight = _flyoutSize?.height ?? _estimatedFlyoutHeight;
         final bridgeHeight = widget.yOffset + _flyoutBridgeOffset;
-        final top = buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight;
+        final top =
+            buttonOffset.dy + buttonSize.height - bridgeHeight - flyoutHeight;
 
         _updateFlyoutSizeAfterFrame();
 
@@ -251,11 +252,12 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout>
     _isButtonHovered = false;
     _popupHovered = false;
 
-    if (_animationController.status != AnimationStatus.dismissed) {
-      await _animationController.reverse();
-    }
-
-    if (!mounted) return;
+    // Close immediately without the reverse animation: `_forceCloseFlyout` is
+    // only invoked when another flyout is taking over, and animating the
+    // leaving flyout's fade-out stacks it on top of the incoming one for the
+    // animation duration — the "two flyouts overlap" bug.
+    _animationController.stop();
+    _animationController.value = 0;
     _hideOverlay();
     setState(() {
       _isExpanded = false;

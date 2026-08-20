@@ -97,8 +97,9 @@ class _ScrollRowState extends State<ScrollRow> {
         builder: (context, constraints) {
           final resolved = widget.padding.resolve(Directionality.of(context));
           final horizontalPadding = resolved.horizontal;
-          final scrollAmount =
-              (constraints.maxWidth - horizontalPadding).clamp(0, double.infinity) * widget.scrollFactor;
+          final scrollAmount = (constraints.maxWidth - horizontalPadding)
+                  .clamp(0, double.infinity) *
+              widget.scrollFactor;
 
           return MouseRegion(
             onEnter: (_) => setState(() => _hovered = true),
@@ -111,7 +112,8 @@ class _ScrollRowState extends State<ScrollRow> {
                   scrollDirection: Axis.horizontal,
                   primary: false,
                   itemCount: widget.itemCount,
-                  separatorBuilder: (context, index) => SizedBox(width: widget.itemSpacing),
+                  separatorBuilder: (context, index) =>
+                      SizedBox(width: widget.itemSpacing),
                   itemBuilder: widget.itemBuilder,
                 ),
                 _ScrollButton(

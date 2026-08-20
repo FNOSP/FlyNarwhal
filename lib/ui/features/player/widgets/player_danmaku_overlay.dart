@@ -49,8 +49,8 @@ abstract interface class PlayerDanmakuRenderController {
   void dispose();
 }
 
-typedef PlayerDanmakuRenderControllerFactory =
-    PlayerDanmakuRenderController Function();
+typedef PlayerDanmakuRenderControllerFactory = PlayerDanmakuRenderController
+    Function();
 
 class PlayerDanmakuOverlay extends StatefulWidget {
   final List<Danmaku> danmakuList;
@@ -248,9 +248,8 @@ class _PlayerDanmakuOverlayState extends State<PlayerDanmakuOverlay> {
         ? widget.settings.speed * effectivePlaybackRate
         : widget.settings.speed;
     final durationSeconds = (10.0 / effectiveSpeed).clamp(2.5, 20.0);
-    final staticDurationSeconds = widget.settings.syncPlaybackSpeed
-        ? 5.0 / effectivePlaybackRate
-        : 5.0;
+    final staticDurationSeconds =
+        widget.settings.syncPlaybackSpeed ? 5.0 / effectivePlaybackRate : 5.0;
     return PlayerDanmakuRenderOptions(
       fontSize: 20.0 * widget.settings.fontSizeScale,
       area: widget.settings.area,

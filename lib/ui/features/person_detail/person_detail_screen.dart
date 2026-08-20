@@ -7,8 +7,10 @@ import '../../../data/models/person_models.dart';
 import '../../../providers/global_refresh.dart';
 import '../../shared/common/fn_cached_image.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
+import '../../shared/dialogs/app_dialog.dart';
 import '../../shared/movie_poster.dart';
 import 'person_detail_view_model.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 /// Person detail page: avatar, name, biography and works grouped by job.
 /// Built to mirror Compose PersonDetailScreen.
@@ -55,7 +57,7 @@ class PersonDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
-                  child: Button(
+                  child: AppButton(
                     child: const Text('重试'),
                     onPressed: () => ref
                         .read(personDetailNotifierProvider(guid).notifier)
@@ -153,22 +155,14 @@ class _PersonDetailContent extends ConsumerWidget {
   }
 }
 
-class _PersonHeader extends StatefulWidget {
+class _PersonHeader extends StatelessWidget {
   final PersonResponse person;
 
   const _PersonHeader({required this.person});
 
   @override
-  State<_PersonHeader> createState() => _PersonHeaderState();
-}
-
-class _PersonHeaderState extends State<_PersonHeader> {
-  bool _expanded = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final person = widget.person;
     final hasBiography =
         person.biography != null && person.biography!.trim().isNotEmpty;
 
@@ -221,30 +215,162 @@ class _PersonHeaderState extends State<_PersonHeader> {
               ],
               if (hasBiography) ...[
                 const SizedBox(height: 16),
-                Text(
-                  person.biography!,
-                  style: theme.typography.body,
-                  maxLines: _expanded ? null : 7,
-                  overflow: _expanded ? null : TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: () => setState(() => _expanded = !_expanded),
-                    child: Text(
-                      _expanded ? '收起' : '更多',
-                      style: theme.typography.body?.copyWith(
-                        color: const Color(0xFF2173DF),
-                      ),
-                    ),
-                  ),
-                ),
+                _BiographyText(biography: person.biography!),
               ],
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Biography truncated to a fixed number of visual lines like the web person
+/// page: when the text overflows, a blue "更多" link is inlined at the end of
+/// the last visible line (its width reserved) and tapping it opens the full
+/// text in a dialog. No expand/collapse in place.
+class _BiographyText extends StatefulWidget {
+  final String biography;
+
+  const _BiographyText({required this.biography});
+
+  // Mirrors the web person page (lines: 7, 15px/23px).
+  static const _maxLines = 7;
+  static const _textStyle = TextStyle(fontSize: 14, height: 20 / 14);
+  static const _moreStyle = TextStyle(
+    fontSize: 14,
+    height: 20 / 14,
+    color: appDialogPrimaryColor,
+  );
+
+  @override
+  State<_BiographyText> createState() => _BiographyTextState();
+}
+
+class _BiographyTextState extends State<_BiographyText> {
+  String? _visibleText;
+  bool _overflowed = false;
+
+  @override
+  void didUpdateWidget(_BiographyText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.biography != widget.biography) {
+      _visibleText = null;
+      _overflowed = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _measure(constraints.maxWidth);
+        return Text.rich(
+          TextSpan(
+            style: _BiographyText._textStyle,
+            children: [
+              TextSpan(text: _visibleText ?? widget.biography),
+              if (_overflowed)
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.baseline,
+                  baseline: TextBaseline.alphabetic,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      key: const ValueKey('person-biography-more'),
+                      onTap: () => _showFullBiography(context),
+                      child: const Padding(
+                        padding: EdgeInsets.only(left: 4),
+                        child: Text('更多', style: _BiographyText._moreStyle),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Measures the biography against [maxWidth] and computes the truncated
+  /// text that fits [_BiographyText._maxLines] lines including the inline
+  /// "更多" link on the last line.
+  void _measure(double maxWidth) {
+    if (maxWidth <= 0 || !maxWidth.isFinite) return;
+    final painter = TextPainter(
+      text: TextSpan(text: widget.biography, style: _BiographyText._textStyle),
+      textDirection: TextDirection.ltr,
+      maxLines: _BiographyText._maxLines,
+    )..layout(maxWidth: maxWidth);
+    if (!painter.didExceedMaxLines) {
+      _visibleText = widget.biography;
+      _overflowed = false;
+      return;
+    }
+
+    final morePainter = TextPainter(
+      text: const TextSpan(text: '更多', style: _BiographyText._moreStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final reserved = morePainter.width + 4; // 4px gap before the link.
+
+    final lines = painter.computeLineMetrics();
+    final lastLine = lines.last;
+    final lastLineEnd = painter.getPositionForOffset(
+      Offset(lastLine.left + lastLine.width, lastLine.baseline),
+    ).offset;
+
+    // If the last rendered line still has room for the link, keep it whole;
+    // otherwise cut the last line so text + link fit.
+    var end = lastLineEnd;
+    if (lastLine.left + lastLine.width + reserved > maxWidth) {
+      final target = maxWidth - reserved;
+      var lo = 0, hi = lastLineEnd;
+      final probe = TextPainter(textDirection: TextDirection.ltr);
+      while (lo < hi) {
+        final mid = (lo + hi + 1) ~/ 2;
+        probe.text = TextSpan(
+          text: widget.biography.substring(0, mid),
+          style: _BiographyText._textStyle,
+        );
+        probe.layout(maxWidth: maxWidth);
+        final probeLines = probe.computeLineMetrics();
+        final probeLast = probeLines.last;
+        final lastWidth = probeLast.left + probeLast.width;
+        if (probeLines.length <= _BiographyText._maxLines &&
+            lastWidth <= target) {
+          lo = mid;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      end = lo;
+    }
+    _visibleText = widget.biography.substring(0, end);
+    _overflowed = true;
+  }
+
+  void _showFullBiography(BuildContext context) {
+    // Like the changelog dialog: build AppDialog directly so the close button
+    // pops with the dialog's own context (showAppDialog's builder discards it).
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AppDialog<void>(
+        title: '演员简介',
+        constraints: const BoxConstraints(
+          minWidth: 560,
+          maxWidth: 744,
+          maxHeight: 720,
+        ),
+        onClose: () => Navigator.of(dialogContext).pop(),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 640),
+          child: SingleChildScrollView(
+            child: Text(widget.biography, style: _BiographyText._textStyle),
+          ),
+        ),
+      ),
     );
   }
 }

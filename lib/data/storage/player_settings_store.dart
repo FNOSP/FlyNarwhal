@@ -10,6 +10,13 @@ class PlayerSettingsStore {
   static const String _keySpeed = 'player_speed';
   static const String _keyQualityResolution = 'player_quality_resolution';
   static const String _keyQualityBitrate = 'player_quality_bitrate';
+  // Cloud-storage (网盘) playback preferences:
+  // 'direct' (网盘直连播放) | 'proxy' (NAS 代理播放), keyed per cloud type.
+  static const String _keyCloudPlayMode = 'player_cloud_play_mode';
+  // Last chosen netdisk direct-link resolution (原画/流畅 …), stored apart
+  // from the transcode quality so the two lists never cross-match.
+  static const String _keyNetdiskQualityResolution =
+      'player_netdisk_quality_resolution';
   static const String _keyAutoPlay = 'player_auto_play';
   static const String _keyWindowAspectRatio = 'player_window_aspect_ratio';
   static const String _keyVideoFillModeCache = 'player_video_fill_mode_cache';
@@ -183,6 +190,48 @@ class PlayerSettingsManager {
       return;
     }
     await _prefs.remove(bitrateKey);
+  }
+
+  /// Saved cloud play mode for a cloud storage type: null means the default
+  /// (网盘直连播放). Persisted per user + cloud type like the web player.
+  String? getCloudPlayMode(int? cloudStorageType, String? userGuid) {
+    if (cloudStorageType == null) return null;
+    final key = _scopedKey(
+      '${PlayerSettingsStore._keyCloudPlayMode}_$cloudStorageType',
+      userGuid: userGuid,
+    );
+    return _prefs.getString(key);
+  }
+
+  Future<void> setCloudPlayMode(
+    int? cloudStorageType,
+    String mode, {
+    String? userGuid,
+  }) async {
+    if (cloudStorageType == null) return;
+    final key = _scopedKey(
+      '${PlayerSettingsStore._keyCloudPlayMode}_$cloudStorageType',
+      userGuid: userGuid,
+    );
+    await _prefs.setString(key, mode);
+  }
+
+  PlayerSavedQuality? getNetdiskQuality({String? userGuid}) {
+    final key = _scopedKey(
+      PlayerSettingsStore._keyNetdiskQualityResolution,
+      userGuid: userGuid,
+    );
+    final resolution = _prefs.getString(key);
+    if (resolution == null || resolution.isEmpty) return null;
+    return PlayerSavedQuality(resolution: resolution, bitrate: null);
+  }
+
+  Future<void> setNetdiskQuality(String resolution, {String? userGuid}) async {
+    final key = _scopedKey(
+      PlayerSettingsStore._keyNetdiskQualityResolution,
+      userGuid: userGuid,
+    );
+    await _prefs.setString(key, resolution);
   }
 
   double getDanmakuArea() =>

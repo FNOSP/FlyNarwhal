@@ -14,7 +14,10 @@ import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../shared/common/app_loading_progress_ring.dart';
+import '../../shared/dialogs/app_dialog.dart';
+import '../../shared/toast.dart';
 
+import '../../../core/error/login_exception.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/login_history.dart';
@@ -25,6 +28,7 @@ import 'widgets/history_sidebar.dart';
 import '../../shared/window_caption.dart';
 import 'login_js_injection.dart';
 import 'login_view_model.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -202,7 +206,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) context.go('/home');
     } catch (e) {
       AppTalker.warning('Login', 'direct login error: $e');
-      _showErrorDialog(e.toString());
+      _handleLoginError(e);
     }
   }
 
@@ -609,8 +613,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               child: _buildGlassField(
                                 controller: _fnIdController,
                                 placeholder: '请输入 IP:Port、域名或 FN ID',
-                                onChanged: (_) =>
-                                    _autoLoginFromHistory = false,
+                                onChanged: (_) => _autoLoginFromHistory = false,
                                 suffixIcon: const Icon(
                                   material.Icons.history,
                                   color: _hintColor,
@@ -694,7 +697,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                                 _withClickCursor(
                                   material.TextButton(
-                                    onPressed: () {},
+                                    onPressed: _showForgotPasswordDialog,
+                                    style: material.TextButton.styleFrom(
+                                      enabledMouseCursor:
+                                          SystemMouseCursors.click,
+                                    ),
                                     child: const Text('忘记密码'),
                                   ),
                                 ),
@@ -843,7 +850,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           if (isMacOS)
                             const SizedBox(width: kMacOSTrafficLightInset),
                           _withClickCursor(
-                            Button(
+                            AppButton(
                               child: const Text('关闭'),
                               onPressed: () {
                                 setState(() {
@@ -1005,10 +1012,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) context.go('/home');
     } catch (e) {
       AppTalker.warning('Login', 'finalize login error: $e');
-      _showErrorDialog(e.toString());
+      _handleLoginError(e);
     } finally {
       _isFinalizing = false;
     }
+  }
+
+  void _handleLoginError(Object error) {
+    if (error is LoginException) {
+      if (error.code == -15) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              '用户名或密码错误',
+              type: ToastType.failed,
+              duration: const Duration(seconds: 3),
+            );
+        return;
+      }
+      _showErrorDialog(error.message);
+      return;
+    }
+    _showErrorDialog(error.toString());
+  }
+
+  void _showForgotPasswordDialog() {
+    if (!mounted) return;
+    showAppDialog<void>(
+      context: context,
+      title: '忘记密码？',
+      content: const Text(
+        '1. 如果您是 NAS 用户，请尝试 NAS 帐号登录；\n2. 请联系管理员修改密码。',
+      ),
+      primaryButtonText: '确认',
+      onPrimaryPressed: () => Navigator.of(context).pop(),
+    );
   }
 
   void _showErrorDialog(String message) {
@@ -1020,7 +1056,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         content: Text(message),
         actions: [
           _withClickCursor(
-            Button(
+            AppButton(
               child: const Text('OK'),
               onPressed: () => Navigator.pop(context),
             ),

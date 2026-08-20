@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
 import 'subtitle_selection_panel.dart';
+import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 const int _subtitleHideDelayMs = 200;
 const int subtitleFlyoutAnimationDurationMs = 200;
@@ -377,11 +378,12 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
     _isButtonHovered = false;
     _popupHovered = false;
 
-    if (_animationController.status != AnimationStatus.dismissed) {
-      await _animationController.reverse();
-    }
-
-    if (!mounted) return;
+    // Close immediately without the reverse animation: `_forceCloseFlyout` is
+    // only invoked when another flyout is taking over, and animating the
+    // leaving flyout's fade-out stacks it on top of the incoming one for the
+    // animation duration — the "two flyouts overlap" bug.
+    _animationController.stop();
+    _animationController.value = 0;
     _hideOverlay();
     setState(() {
       _isExpanded = false;
@@ -505,7 +507,7 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                IconButton(
+                AppIconButton(
                   icon: const Icon(FluentIcons.back, size: 12),
                   onPressed: onBack,
                 ),

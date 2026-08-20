@@ -384,9 +384,7 @@ class _TreeNodeRowState extends State<_TreeNodeRow> {
               const SizedBox(width: 8),
               // Folder / file icon.
               Image.asset(
-                isDir
-                    ? 'assets/images/folder.png'
-                    : 'assets/images/text.png',
+                isDir ? 'assets/images/folder.png' : 'assets/images/text.png',
                 width: 20,
                 height: 20,
               ),

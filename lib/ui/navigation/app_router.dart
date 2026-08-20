@@ -1,9 +1,11 @@
-﻿import 'package:go_router/go_router.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../tooling/driver_test_mode.dart';
 import '../features/home/home_screen.dart';
 import '../features/layout/main_layout.dart';
 import '../features/login/login_screen.dart';
 import '../features/media_library/media_library_screen.dart';
+import '../features/folder/folder_screen.dart';
 import '../features/favorites/favorites_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/movie_detail/movie_detail_screen.dart';
@@ -15,12 +17,20 @@ import '../features/player/live_player_screen.dart';
 import '../../core/utils/log/app_talker.dart';
 import '../../providers/providers.dart';
 
+// Driver-only: opens a specific route on launch (e.g. /player/<guid>) so
+// automated verification can bypass hover/tap navigation on static screens.
+// Ignored in production builds.
+const String _driverInitialRoute =
+    String.fromEnvironment('DRIVER_INITIAL_ROUTE');
+
 final routerProvider = Provider<GoRouter>((ref) {
   final prefs = ref.watch(preferencesManagerProvider);
   ref.watch(authRefreshProvider);
-  
+
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: (kDriverTestMode && _driverInitialRoute.isNotEmpty)
+        ? _driverInitialRoute
+        : '/login',
     redirect: (context, state) {
       final token = prefs.getToken();
       final baseUrl = prefs.getBaseUrl();
@@ -74,11 +84,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/library/:id',
-            builder: (context, state) => MediaLibraryScreen(id: state.pathParameters['id']),
+            builder: (context, state) =>
+                MediaLibraryScreen(id: state.pathParameters['id']),
+          ),
+          // 文件夹视图（Web /v/folder/:guid）：目录项（fv_*）钻取浏览。
+          GoRoute(
+            path: '/folder/:guid',
+            builder: (context, state) =>
+                FolderScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
           GoRoute(
             path: '/category/:type',
-            builder: (context, state) => MediaLibraryScreen(categoryType: state.pathParameters['type']),
+            builder: (context, state) =>
+                MediaLibraryScreen(categoryType: state.pathParameters['type']),
           ),
           GoRoute(
             path: '/settings',
@@ -86,19 +104,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/movie/:guid',
-            builder: (context, state) => MovieDetailScreen(guid: state.pathParameters['guid'] ?? ''),
+            builder: (context, state) =>
+                MovieDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
           GoRoute(
             path: '/tv/:guid',
-            builder: (context, state) => TvDetailScreen(guid: state.pathParameters['guid'] ?? ''),
+            builder: (context, state) =>
+                TvDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
           GoRoute(
             path: '/tv/season/:guid',
-            builder: (context, state) => TvSeasonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
+            builder: (context, state) =>
+                TvSeasonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
           GoRoute(
             path: '/person/:guid',
-            builder: (context, state) => PersonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
+            builder: (context, state) =>
+                PersonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
         ],
       ),

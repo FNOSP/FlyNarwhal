@@ -12,6 +12,7 @@ abstract class ITagRepository {
   /// Get tag list for filtering
   Future<ApiResult<TagListEntity>> getTagList({
     String? ancestorGuid,
+    String? parentGuid,
     required int isFavorite,
     String? type,
   });

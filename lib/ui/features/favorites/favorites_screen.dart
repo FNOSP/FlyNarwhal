@@ -284,7 +284,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   Widget build(BuildContext context) {
     final globalRefreshManager = ref.read(globalRefreshManagerProvider);
     final favoritesState = ref.watch(favoritesBrowseNotifierProvider);
-    final favoritesNotifier = ref.read(favoritesBrowseNotifierProvider.notifier);
+    final favoritesNotifier =
+        ref.read(favoritesBrowseNotifierProvider.notifier);
 
     ref.listen<GlobalRefreshRequest?>(currentGlobalRefreshRequestProvider, (
       previous,
@@ -380,10 +381,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                   _enableOneShotTabAnimation();
                                   final selectedTabIndex =
                                       favoritesTabs.indexOf(tab);
-                                  _tabSwitchDirection = selectedTabIndex >=
-                                          _selectedTabIndex
-                                      ? 1
-                                      : -1;
+                                  _tabSwitchDirection =
+                                      selectedTabIndex >= _selectedTabIndex
+                                          ? 1
+                                          : -1;
                                   _selectedTabIndex = selectedTabIndex;
                                   _selectedTab = tab;
                                   _isFilterOpen = false;
@@ -479,7 +480,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                             iso3166: favoritesState.iso3166,
                             initialSelectedFilters: selectedFilters,
                             onFilterChanged: (filters) {
-                              unawaited(favoritesNotifier.applyFilters(filters));
+                              unawaited(
+                                  favoritesNotifier.applyFilters(filters));
                             },
                             onCollapse: () =>
                                 setState(() => _isFilterOpen = false),
@@ -547,7 +549,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 ),
                               )
                             : GridView.builder(
-                                key: ValueKey('favorites-grid-$selectedCacheKey'),
+                                key: ValueKey(
+                                    'favorites-grid-$selectedCacheKey'),
                                 controller: scrollController,
                                 padding: EdgeInsets.all(16 * scaleFactor),
                                 gridDelegate:
@@ -565,7 +568,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                   return MoviePoster(
                                     title: item.title,
                                     subtitle: buildPosterSubtitle(item),
-                                    posterPath: item.poster,
+                                    posterPath: item.effectivePoster,
                                     score: item.voteAverage,
                                     resolutions: item.mediaStream?.resolutions,
                                     isFavorite: item.isFavorite == 1,
@@ -580,18 +583,34 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                         context.go('/tv/${item.guid}');
                                       } else if (item.type == 'Season') {
                                         context.go('/tv/season/${item.guid}');
+                                      } else if (item.type == 'Directory') {
+                                        context.go('/folder/${item.guid}');
                                       } else {
                                         context.go('/movie/${item.guid}');
                                       }
                                     },
-                                    onPlayTap: () {
-                                      if (item.type ==
-                                          MediaType.liveChannel.value) {
-                                        context.go('/live/${item.guid}');
-                                      } else {
-                                        context.go('/player/${item.guid}');
-                                      }
-                                    },
+                                    onPlayTap:
+                                        item.type == 'Directory'
+                                            ? null
+                                            : () {
+                                                if (item.type ==
+                                                    MediaType
+                                                        .liveChannel.value) {
+                                                  ref
+                                                      .read(
+                                                          navigationStackProvider
+                                                              .notifier)
+                                                      .playerSourcePath =
+                                                      GoRouterState.of(context)
+                                                          .uri
+                                                          .toString();
+                                                  context
+                                                      .go('/live/${item.guid}');
+                                                } else {
+                                                  context.go(
+                                                      '/player/${item.guid}');
+                                                }
+                                              },
                                     onFavoriteToggle: _handleFavoriteToggle,
                                     onWatchedToggle: _handleWatchedToggle,
                                     onMoreTap: smartAnalysisEnabled &&

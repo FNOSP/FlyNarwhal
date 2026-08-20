@@ -10,6 +10,8 @@ class MediaLibraryState {
   final List<MediaItem> items;
   final int total;
   final String? mdbName;
+  // Breadcrumb chain for folder browsing (last entry is the folder itself).
+  final List<JumpItem> jumpList;
   final bool hasMore;
   final bool isLoadingMore;
 
@@ -17,6 +19,7 @@ class MediaLibraryState {
     this.items = const [],
     this.total = 0,
     this.mdbName,
+    this.jumpList = const [],
     this.hasMore = true,
     this.isLoadingMore = false,
   });
@@ -25,6 +28,7 @@ class MediaLibraryState {
     List<MediaItem>? items,
     int? total,
     String? mdbName,
+    List<JumpItem>? jumpList,
     bool? hasMore,
     bool? isLoadingMore,
   }) {
@@ -32,6 +36,7 @@ class MediaLibraryState {
       items: items ?? this.items,
       total: total ?? this.total,
       mdbName: mdbName ?? this.mdbName,
+      jumpList: jumpList ?? this.jumpList,
       hasMore: hasMore ?? this.hasMore,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     );
@@ -67,7 +72,8 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
 
     state = AsyncValue.data(currentState.copyWith(isLoadingMore: true));
     try {
-      final nextRequest = currentRequest.copyWith(page: currentRequest.page + 1);
+      final nextRequest =
+          currentRequest.copyWith(page: currentRequest.page + 1);
       final nextState = await _fetch(nextRequest);
       _currentRequest = nextRequest;
       state = AsyncValue.data(MediaLibraryState(
@@ -99,6 +105,21 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
       );
     }
 
+    // Folder guids (fv_*) browse by direct parent so only the folder's own
+    // children are listed, matching the web folder view; default sort is
+    // title ascending like the web client. Grouped videos stay visible
+    // (exclude_grouped_video=0), otherwise folders of raw videos come back
+    // empty.
+    if (guid.startsWith('fv_')) {
+      return MediaLibraryBrowseRequest(
+        parentGuid: guid,
+        excludeGroupedVideo: 0,
+        sortColumn: 'sort_title',
+        sortType: 'ASC',
+        tags: Tags(type: MediaType.libraryBrowseValues),
+      );
+    }
+
     return MediaLibraryBrowseRequest(
       ancestorGuid: guid,
       tags: Tags(type: MediaType.libraryBrowseValues),
@@ -113,12 +134,17 @@ class MediaLibraryNotifier extends _$MediaLibraryNotifier {
         : await remote.getItemList(query);
     final data = result.getOrThrow();
     final resolvedMdbName =
-        data.mdbName != null && data.mdbName!.trim().isNotEmpty ? data.mdbName : null;
+        data.mdbName != null && data.mdbName!.trim().isNotEmpty
+            ? data.mdbName
+            : null;
 
     return MediaLibraryState(
       items: data.list,
       total: data.total,
-      mdbName: request.ancestorGuid != null ? resolvedMdbName : null,
+      mdbName: (request.ancestorGuid != null || request.parentGuid != null)
+          ? resolvedMdbName
+          : null,
+      jumpList: data.jumpList,
       hasMore: data.list.length >= query.pageSize,
       isLoadingMore: false,
     );

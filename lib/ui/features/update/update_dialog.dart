@@ -29,6 +29,7 @@ Future<void> showUpdateDialog(BuildContext context) {
 
         return UpdateDialog(
           state: updateState,
+          currentVersion: updateState.currentVersion?.toString() ?? '当前安装版本',
           onClose: () {
             controller.closeDialog();
             popDialog();

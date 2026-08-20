@@ -230,9 +230,7 @@ class _WindowCaptionBackButtonState extends State<WindowCaptionBackButton> {
     final isDark = widget.brightness == Brightness.dark;
     final baseColor = isDark ? Colors.white : Colors.black;
     // Dim the icon when the button is disabled.
-    final iconColor = _isEnabled
-        ? baseColor
-        : baseColor.withValues(alpha: 0.3);
+    final iconColor = _isEnabled ? baseColor : baseColor.withValues(alpha: 0.3);
     final buttonSize = widget.compact ? 20.0 : 46.0;
     final iconSize = widget.compact ? 14.0 : 16.0;
     final hoverBackground = widget.compact
@@ -254,9 +252,8 @@ class _WindowCaptionBackButtonState extends State<WindowCaptionBackButton> {
       child: Tooltip(
         message: widget.semanticLabel,
         child: MouseRegion(
-          cursor: _isEnabled
-              ? SystemMouseCursors.click
-              : SystemMouseCursors.basic,
+          cursor:
+              _isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
           onEnter: (_) => setState(() => _isHovered = true),
           onExit: (_) => setState(() => _isHovered = false),
           child: GestureDetector(
@@ -325,9 +322,7 @@ class _WindowCaptionNavToggleButtonState
     final isDark = widget.brightness == Brightness.dark;
     final baseColor = isDark ? Colors.white : Colors.black;
     // Dim the icon when the button is disabled.
-    final iconColor = _isEnabled
-        ? baseColor
-        : baseColor.withValues(alpha: 0.3);
+    final iconColor = _isEnabled ? baseColor : baseColor.withValues(alpha: 0.3);
     final buttonSize = widget.compact ? 28.0 : 46.0;
     // menu.svg's glyph only fills ~78% of its viewBox, so the nominal size
     // runs larger than a font icon for the same visual weight.
@@ -351,9 +346,8 @@ class _WindowCaptionNavToggleButtonState
       child: Tooltip(
         message: widget.semanticLabel,
         child: MouseRegion(
-          cursor: _isEnabled
-              ? SystemMouseCursors.click
-              : SystemMouseCursors.basic,
+          cursor:
+              _isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
           onEnter: (_) => setState(() => _isHovered = true),
           onExit: (_) => setState(() => _isHovered = false),
           child: GestureDetector(
@@ -761,6 +755,7 @@ class _WindowCaptionButtonState extends State<WindowCaptionButton> {
     }
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(

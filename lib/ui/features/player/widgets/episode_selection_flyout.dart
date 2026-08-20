@@ -30,8 +30,7 @@ const double _episodeFlyoutListBottomPadding = 10;
 const double _episodeListRowHeight = 76;
 const double _episodeListRowSpacing = 6;
 const int _episodeDetailedViewMaxVisibleCount = 6;
-const double _episodeFlyoutMaxHeight =
-    _episodeFlyoutHeaderHeight +
+const double _episodeFlyoutMaxHeight = _episodeFlyoutHeaderHeight +
     _episodeFlyoutDividerHeight +
     _episodeFlyoutListTopSpacing +
     _episodeFlyoutListBottomPadding +
@@ -301,11 +300,10 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
     _isButtonHovered = false;
     _popupHovered = false;
 
-    if (_animationController.status != AnimationStatus.dismissed) {
-      await _animationController.reverse();
-    }
-
-    if (!mounted) return;
+    // Close immediately without the reverse animation when another flyout is
+    // taking over, so the leaving flyout doesn't stack on the incoming one.
+    _animationController.stop();
+    _animationController.value = 0;
     _hideOverlay();
     setState(() => _isExpanded = false);
     widget.onHoverStateChanged?.call(false);

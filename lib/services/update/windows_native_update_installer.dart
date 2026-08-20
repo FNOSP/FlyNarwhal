@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
+import '../../core/utils/log/app_talker.dart';
 import 'platform_update_installer.dart';
 import 'windows_native_updater_bridge.dart';
 import 'windows_update_install_stage_store.dart';
@@ -40,48 +41,26 @@ final class WindowsNativeUpdateInstaller implements PlatformUpdateInstaller {
   Future<PlatformUpdateInstallResult> _launchNewTransaction(
     PlatformUpdateInstallRequest request,
   ) async {
+    AppTalker.info(
+      'WindowsUpdateInstall',
+      'Launching Windows install transaction for operation ${request.operationId}.',
+    );
     try {
       final existingReceipt = await _transactionStore.loadActive();
       if (existingReceipt != null) {
+        AppTalker.info(
+          'WindowsUpdateInstall',
+          'Reusing existing active transaction ${existingReceipt.transactionId}.',
+        );
         return _reuseExistingTransaction(request, existingReceipt);
       }
-      final architecture = await _architectureLoader();
-      final transactionId = _createLowercaseUuidV4();
-      final stage = await _stageStore.createStage(
-        artifact: request.artifact,
-        transactionId: transactionId,
-        operationId: request.operationId,
-        architecture: architecture,
-      );
-      final receipt = _createReceipt(stage);
-
-      // Persist both receipts before the helper sees the stage.
-      await _transactionStore.save(stage: stage, receipt: receipt);
-      await _transactionStore.saveActive(receipt);
-      final verifiedReceipt = await _transactionStore.load(stage);
-      final indexedReceipt = await _transactionStore.loadActive();
-      if (verifiedReceipt == null ||
-          indexedReceipt == null ||
-          indexedReceipt.transactionId != verifiedReceipt.transactionId ||
-          indexedReceipt.operationId != verifiedReceipt.operationId) {
-        return _failure(
-          'windows_stage_provenance_failure',
-          'The pending Windows update receipt is missing after readback.',
-          retryable: false,
-        );
-      }
-
-      final prepareResponse = await _bridge.prepare(verifiedReceipt);
-      if (prepareResponse.status != WindowsNativeTransactionStatus.prepared) {
-        return _mapHelperResponse(prepareResponse);
-      }
-      final commitResponse = await _bridge.commit(verifiedReceipt);
-      if (commitResponse.status ==
-          WindowsNativeTransactionStatus.commitAccepted) {
-        return const PlatformUpdateCommitAccepted();
-      }
-      return _mapHelperResponse(commitResponse);
+      return await _startFreshTransaction(request);
     } on WindowsUpdateInstallStageException catch (error) {
+      AppTalker.error(
+        'WindowsUpdateInstall',
+        error: error,
+        message: 'Stage creation failed: ${error.message}',
+      );
       return _failure(
         'windows_stage_provenance_failure',
         error.message,
@@ -89,6 +68,11 @@ final class WindowsNativeUpdateInstaller implements PlatformUpdateInstaller {
         cause: error,
       );
     } on WindowsUpdateTransactionException catch (error) {
+      AppTalker.error(
+        'WindowsUpdateInstall',
+        error: error,
+        message: 'Transaction receipt persistence failed: ${error.message}',
+      );
       return _failure(
         'windows_stage_provenance_failure',
         error.message,
@@ -96,6 +80,11 @@ final class WindowsNativeUpdateInstaller implements PlatformUpdateInstaller {
         cause: error,
       );
     } on Object catch (error) {
+      AppTalker.error(
+        'WindowsUpdateInstall',
+        error: error,
+        message: 'Unexpected Windows install failure.',
+      );
       return _failure(
         'windows_helper_unavailable',
         error.toString(),
@@ -105,13 +94,105 @@ final class WindowsNativeUpdateInstaller implements PlatformUpdateInstaller {
     }
   }
 
+  Future<PlatformUpdateInstallResult> _startFreshTransaction(
+    PlatformUpdateInstallRequest request,
+  ) async {
+    final architecture = await _architectureLoader();
+    final transactionId = _createLowercaseUuidV4();
+    final stage = await _stageStore.createStage(
+      artifact: request.artifact,
+      transactionId: transactionId,
+      operationId: request.operationId,
+      architecture: architecture,
+    );
+    AppTalker.info(
+      'WindowsUpdateInstall',
+      'Created install stage ${stage.stageDirectory.path} for transaction $transactionId.',
+    );
+    final receipt = _createReceipt(stage);
+
+    // Persist both receipts before the helper sees the stage.
+    await _transactionStore.save(stage: stage, receipt: receipt);
+    await _transactionStore.saveActive(receipt);
+    AppTalker.info(
+      'WindowsUpdateInstall',
+      'Persisted stage receipts for transaction $transactionId.',
+    );
+    final verifiedReceipt = await _transactionStore.load(stage);
+    final indexedReceipt = await _transactionStore.loadActive();
+    if (verifiedReceipt == null ||
+        indexedReceipt == null ||
+        indexedReceipt.transactionId != verifiedReceipt.transactionId ||
+        indexedReceipt.operationId != verifiedReceipt.operationId) {
+      return _failure(
+        'windows_stage_provenance_failure',
+        'The pending Windows update receipt is missing after readback.',
+        retryable: false,
+      );
+    }
+
+    final prepareResponse = await _bridge.prepare(verifiedReceipt);
+    AppTalker.info(
+      'WindowsUpdateInstall',
+      'Helper prepare returned ${prepareResponse.status.name} for transaction $transactionId.',
+    );
+    if (prepareResponse.status != WindowsNativeTransactionStatus.prepared) {
+      return _mapHelperResponse(prepareResponse);
+    }
+    final commitResponse = await _bridge.commit(verifiedReceipt);
+    AppTalker.info(
+      'WindowsUpdateInstall',
+      'Helper commit returned ${commitResponse.status.name} for transaction $transactionId.',
+    );
+    // Treat the protected endpoint handoff as a durable commit acceptance.
+    if (commitResponse.status ==
+            WindowsNativeTransactionStatus.commitAccepted ||
+        commitResponse.status ==
+            WindowsNativeTransactionStatus.recoveryArmed) {
+      return const PlatformUpdateCommitAccepted();
+    }
+    return _mapHelperResponse(commitResponse);
+  }
+
   Future<PlatformUpdateInstallResult> _reuseExistingTransaction(
     PlatformUpdateInstallRequest request,
     WindowsPendingInstallReceipt receipt,
   ) async {
+    AppTalker.info(
+      'WindowsUpdateInstall',
+      'Reconciling existing transaction ${receipt.transactionId}.',
+    );
     if (receipt.operationId != request.operationId ||
         receipt.expectedArtifactSha256 != request.artifact.sha256 ||
         receipt.expectedArtifactLength != request.artifact.length) {
+      // A different operation owns the receipt. Reclaim it when the native
+      // transaction is terminal or gone so new installs are not blocked.
+      final staleState = await _bridge.query(receipt.transactionId);
+      AppTalker.info(
+        'WindowsUpdateInstall',
+        'Stale transaction ${receipt.transactionId} queried as ${staleState.status.name} (code ${staleState.code}).',
+      );
+      final staleIsGone =
+          staleState.code == 'windows_transaction_not_found';
+      // manualActionRequired is terminal on the native side; without it a
+      // stuck journal would block every future install forever.
+      final staleIsTerminal =
+          staleState.status == WindowsNativeTransactionStatus.completed ||
+              staleState.status == WindowsNativeTransactionStatus.failed ||
+              staleState.status == WindowsNativeTransactionStatus.cancelled ||
+              staleState.status ==
+                  WindowsNativeTransactionStatus.manualActionRequired;
+      if (staleIsGone || staleIsTerminal) {
+        AppTalker.warning(
+          'WindowsUpdateInstall',
+          'Reclaiming stale transaction ${receipt.transactionId} in terminal '
+          'state ${staleState.status.name} for a fresh install.',
+        );
+        await _transactionStore.clearActive(
+          transactionId: receipt.transactionId,
+        );
+        return _startFreshTransaction(request);
+      }
       return _failure(
         'windows_transaction_busy',
         'Another durable Windows update transaction is already active.',
@@ -131,12 +212,28 @@ final class WindowsNativeUpdateInstaller implements PlatformUpdateInstaller {
       );
     }
     final response = await _bridge.query(receipt.transactionId);
+    AppTalker.info(
+      'WindowsUpdateInstall',
+      'Helper query returned ${response.status.name} for existing transaction ${receipt.transactionId}.',
+    );
     if (response.status == WindowsNativeTransactionStatus.prepared) {
       return _commitExisting(stageReceipt);
     }
     return switch (response.status) {
       WindowsNativeTransactionStatus.commitAccepted =>
         const PlatformUpdateCommitAccepted(),
+      WindowsNativeTransactionStatus.restaged =>
+        PlatformUpdateRecoveryRequired(
+          transactionId: receipt.transactionId,
+          technicalDetail: response.technicalDetail ??
+              'The existing Windows transaction has restaged the installer and is awaiting recovery handoff.',
+        ),
+      WindowsNativeTransactionStatus.recoveryArmed =>
+        PlatformUpdateRecoveryRequired(
+          transactionId: receipt.transactionId,
+          technicalDetail: response.technicalDetail ??
+              'The existing Windows transaction has been handed off to the recovery host.',
+        ),
       WindowsNativeTransactionStatus.completed =>
         const PlatformUpdateCommitAccepted(),
       WindowsNativeTransactionStatus.recoveryRequired =>
@@ -159,7 +256,12 @@ final class WindowsNativeUpdateInstaller implements PlatformUpdateInstaller {
     WindowsPendingInstallReceipt receipt,
   ) async {
     final response = await _bridge.commit(receipt);
-    if (response.status == WindowsNativeTransactionStatus.commitAccepted) {
+    AppTalker.info(
+      'WindowsUpdateInstall',
+      'Helper commitExisting returned ${response.status.name} for ${receipt.transactionId}.',
+    );
+    if (response.status == WindowsNativeTransactionStatus.commitAccepted ||
+        response.status == WindowsNativeTransactionStatus.recoveryArmed) {
       return const PlatformUpdateCommitAccepted();
     }
     return _mapHelperResponse(response);
@@ -184,6 +286,8 @@ final class WindowsNativeUpdateInstaller implements PlatformUpdateInstaller {
     WindowsNativeUpdaterResponse response,
   ) {
     final mappedCode = switch (response.status) {
+      WindowsNativeTransactionStatus.restaged ||
+      WindowsNativeTransactionStatus.recoveryArmed ||
       WindowsNativeTransactionStatus.recoveryRequired =>
         'windows_recovery_required',
       WindowsNativeTransactionStatus.manualActionRequired =>
@@ -197,7 +301,11 @@ final class WindowsNativeUpdateInstaller implements PlatformUpdateInstaller {
       response.technicalDetail ??
           'The Windows update helper rejected the transaction.',
       retryable:
-          response.status == WindowsNativeTransactionStatus.recoveryRequired ||
+          response.status == WindowsNativeTransactionStatus.restaged ||
+              response.status ==
+                  WindowsNativeTransactionStatus.recoveryArmed ||
+              response.status ==
+                  WindowsNativeTransactionStatus.recoveryRequired ||
               response.status == WindowsNativeTransactionStatus.unknown,
     );
   }

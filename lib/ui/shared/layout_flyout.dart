@@ -174,7 +174,8 @@ class _LayoutFlyoutState extends State<LayoutFlyout> {
           height: 36,
           padding: const EdgeInsets.only(left: 16, right: 12),
           decoration: BoxDecoration(
-            color: active ? textColor.withValues(alpha: 0.06) : Colors.transparent,
+            color:
+                active ? textColor.withValues(alpha: 0.06) : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
               color: textColor.withValues(alpha: active ? 0.2 : 0.1),

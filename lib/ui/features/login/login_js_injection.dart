@@ -19,6 +19,22 @@ class LoginJsInjectionBuilder {
   var ALLOW_AUTO_LOGIN = $allowAutoLogin;
   var USERNAME_HISTORY = $usernameHistoryJsonLiteral || [];
 
+  // fnOS shows a terminal "系统异常，请联系管理员修复系统" alert after its
+  // vite:preloadError handler reloads the page 3 times. In WKWebView,
+  // HTTP/3 (QUIC) races on lazy chunk imports can be killed by local
+  // proxy/tunnel network extensions before the TCP fallback completes,
+  // which trips that reload loop even though the page recovers. The
+  // alert only blocks the recovered page, so suppress it; fnOS's own
+  // reload counter still terminates the loop on the recovered page.
+  if (!window.__flynarwhal_alert_guarded) {
+    window.__flynarwhal_alert_guarded = true;
+    var originalAlert = window.alert ? window.alert.bind(window) : null;
+    window.alert = function(message) {
+      if (String(message).indexOf('系统异常，请联系管理员修复系统') !== -1) return;
+      if (originalAlert) originalAlert(message);
+    };
+  }
+
   function callNative(method, params) {
     var serializedParams = params || '';
     try {

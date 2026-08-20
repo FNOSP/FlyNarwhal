@@ -1,89 +1,50 @@
 #include "flynarwhal_install_helper.h"
+#include "flynarwhal_updater_endpoint.h"
 
 #include <Windows.h>
 
 #include <iostream>
-#include <map>
 #include <string>
+#include <vector>
 
 namespace helper = flynarwhal::install_helper;
 
 namespace {
 
-std::map<std::wstring, std::wstring> ParseOptions(int argument_count,
-                                                  wchar_t** arguments,
-                                                  int first_option) {
-  if ((argument_count - first_option) % 2 != 0) {
-    return {};
+bool ForwardCommandToProtectedHelper(const std::filesystem::path& executable,
+                                     int argument_count,
+                                     wchar_t** arguments,
+                                     std::wstring* error_message) {
+  std::wstring command_line = helper::QuoteWindowsArgument(executable.wstring());
+  for (int index = 1; index < argument_count; ++index) {
+    command_line += L' ';
+    command_line += helper::QuoteWindowsArgument(arguments[index]);
   }
-  std::map<std::wstring, std::wstring> options;
-  for (int index = first_option; index + 1 < argument_count; index += 2) {
-    const std::wstring name = arguments[index];
-    if (name.rfind(L"--", 0) != 0 || options.count(name) != 0) {
-      return {};
-    }
-    options.emplace(name, arguments[index + 1]);
-  }
-  return options;
-}
-
-bool ParseProcessId(const std::wstring& value, DWORD* process_id) {
-  try {
-    const unsigned long parsed = std::stoul(value);
-    if (parsed == 0) {
-      return false;
-    }
-    *process_id = static_cast<DWORD>(parsed);
-    return true;
-  } catch (...) {
+  STARTUPINFOW startup_info{};
+  startup_info.cb = sizeof(startup_info);
+  startup_info.dwFlags = STARTF_USESTDHANDLES;
+  startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+  startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+  startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+  PROCESS_INFORMATION process_information{};
+  if (!CreateProcessW(executable.c_str(), command_line.data(), nullptr, nullptr,
+                      TRUE, 0, nullptr, nullptr, &startup_info,
+                      &process_information)) {
+    *error_message = L"Protected helper could not be started.";
     return false;
   }
-}
-
-bool ParseUnsignedLength(const std::wstring& value,
-                         std::uint64_t* artifact_length) {
-  try {
-    const unsigned long long parsed = std::stoull(value);
-    if (parsed == 0) {
-      return false;
-    }
-    *artifact_length = static_cast<std::uint64_t>(parsed);
-    return true;
-  } catch (...) {
-    return false;
-  }
-}
-
-bool BuildBindings(const std::map<std::wstring, std::wstring>& options,
-                   helper::RequestBindings* bindings) {
-  const wchar_t* required_names[] = {
-      L"--transaction-id", L"--stage", L"--provenance-sha256",
-      L"--artifact-sha256", L"--artifact-length", L"--caller-pid",
-      L"--caller-executable"};
-  if (options.size() != std::size(required_names)) {
-    return false;
-  }
-  for (const wchar_t* name : required_names) {
-    if (options.count(name) != 1) {
-      return false;
-    }
-  }
-
-  bindings->transaction_id = options.at(L"--transaction-id");
-  bindings->stage_path = options.at(L"--stage");
-  bindings->stage_provenance_sha256 = options.at(L"--provenance-sha256");
-  bindings->expected_artifact_sha256 = options.at(L"--artifact-sha256");
-  bindings->caller_executable = options.at(L"--caller-executable");
-  return ParseUnsignedLength(options.at(L"--artifact-length"),
-                             &bindings->expected_artifact_length) &&
-         ParseProcessId(options.at(L"--caller-pid"),
-                        &bindings->caller_process_id);
+  CloseHandle(process_information.hThread);
+  WaitForSingleObject(process_information.hProcess, INFINITE);
+  DWORD exit_code = 0;
+  GetExitCodeProcess(process_information.hProcess, &exit_code);
+  CloseHandle(process_information.hProcess);
+  ExitProcess(exit_code);
 }
 
 void PrintUsage() {
   std::wcerr
       << L"Usage: FlyNarwhalInstallHelper.exe "
-      << L"prepare|commit|query|recover|cancel|worker <sealed bindings>\n";
+      << L"prepare|commit|query|recover|cancel <sealed bindings>\n";
 }
 
 }  // namespace
@@ -93,40 +54,35 @@ int wmain(int argument_count, wchar_t** arguments) {
     PrintUsage();
     return 64;
   }
-
-  const std::wstring command = arguments[1];
-  const auto options = ParseOptions(argument_count, arguments, 2);
-  if (command == L"query" || command == L"recover" ||
-      command == L"cancel") {
-    if (options.size() != 1 || options.count(L"--transaction-id") != 1) {
-      PrintUsage();
-      return 64;
-    }
-    const std::wstring transaction_id = options.at(L"--transaction-id");
-    if (command == L"query") {
-      return helper::RunQuery(transaction_id);
-    }
-    if (command == L"recover") {
-      return helper::RunRecover(transaction_id);
-    }
-    return helper::RunCancel(transaction_id);
+  // Attach a fresh update log so bootstrap failures are visible in release.
+  helper::StartUpdateLogSession(helper::CreateUpdateLogPath());
+  helper::LogInfo(std::wstring(L"Install helper bootstrap invoked with command: ") +
+                  (argument_count > 1 ? arguments[1] : L"<none>"));
+  std::wstring error;
+  helper::EndpointDescriptor descriptor;
+  helper::EndpointPolicy policy;
+  if (!helper::ReadRegisteredEndpoint(&descriptor, &error) ||
+      !helper::ReadEndpointPolicy(descriptor.policy_path, &policy, &error) ||
+      !helper::ValidateEndpointDescriptor(descriptor, policy, &error)) {
+    helper::LogError(
+        std::wstring(L"Protected endpoint validation failed: ") +
+        (error.empty() ? L"Protected endpoint is unavailable." : error));
+    std::wcerr << (error.empty() ? L"Protected endpoint is unavailable." : error)
+               << L'\n';
+    return 2;
   }
-
-  helper::RequestBindings bindings;
-  if (!BuildBindings(options, &bindings)) {
-    PrintUsage();
-    return 64;
+  if (helper::GetCurrentExecutablePath().filename() !=
+      L"FlyNarwhalInstallHelper.exe") {
+    helper::LogError(L"Bootstrap executable identity is invalid.");
+    std::wcerr << L"Bootstrap executable identity is invalid.\n";
+    return 2;
   }
-  if (command == L"prepare") {
-    return helper::RunPrepare(bindings);
+  if (!ForwardCommandToProtectedHelper(descriptor.protected_helper_path,
+                                       argument_count, arguments, &error)) {
+    helper::LogError(std::wstring(L"Forwarding to protected helper failed: ") +
+                     error);
+    std::wcerr << error << L'\n';
+    return 2;
   }
-  if (command == L"commit") {
-    return helper::RunCommit(bindings);
-  }
-  if (command == L"worker") {
-    return helper::RunWorker(bindings);
-  }
-
-  PrintUsage();
-  return 64;
+  return 0;
 }
