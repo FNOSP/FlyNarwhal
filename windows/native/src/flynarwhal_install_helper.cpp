@@ -1,5 +1,8 @@
 #include "flynarwhal_install_helper.h"
 
+#include "flynarwhal_recovery_host.h"
+#include "flynarwhal_updater_endpoint.h"
+
 #include <bcrypt.h>
 #include <shellapi.h>
 #include <shlobj.h>
@@ -9,6 +12,7 @@
 #include <array>
 #include <chrono>
 #include <cwctype>
+#include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -25,7 +29,13 @@ constexpr wchar_t kAuthorityName[] = L"release-authority.json";
 constexpr wchar_t kProvenanceName[] = L".desktop_updater_stage_provenance.json";
 constexpr wchar_t kPendingName[] = L"pending-install.json";
 constexpr wchar_t kInstalledExecutableName[] = L"FlyNarwhal.exe";
+constexpr wchar_t kWindowsLogCompanyName[] = L"com.jankinwu";
+constexpr wchar_t kWindowsLogProductName[] = L"FlyNarwhal";
+constexpr wchar_t kUpdateLogFilePrefix[] = L"update_ ";
+constexpr wchar_t kUpdateLogFileExtension[] = L".log";
 constexpr DWORD kInstallerTimeoutMilliseconds = 20U * 60U * 1000U;
+
+std::filesystem::path g_active_update_log_path;
 
 struct ScopedHandle {
   HANDLE value = INVALID_HANDLE_VALUE;
@@ -98,6 +108,127 @@ std::wstring Utf8ToWide(const std::string& value) {
   MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.data(),
                       static_cast<int>(value.size()), converted.data(), size);
   return converted;
+}
+
+std::tm GetLocalTime(std::time_t timestamp) {
+  std::tm local_time{};
+  localtime_s(&local_time, &timestamp);
+  return local_time;
+}
+
+std::wstring FormatFileTimestamp(std::time_t timestamp) {
+  const auto local_time = GetLocalTime(timestamp);
+  std::wostringstream output;
+  output << std::put_time(&local_time, L"%Y%m%d_%H%M%S");
+  return output.str();
+}
+
+std::wstring FormatLogTimestamp(std::time_t timestamp) {
+  const auto local_time = GetLocalTime(timestamp);
+  std::wostringstream output;
+  output << std::put_time(&local_time, L"%Y-%m-%d %H:%M:%S");
+  return output.str();
+}
+
+std::filesystem::path GetRoamingAppDataPath() {
+  PWSTR raw_path = nullptr;
+  if (FAILED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_DEFAULT,
+                                  nullptr, &raw_path))) {
+    return {};
+  }
+  const std::filesystem::path result(raw_path);
+  CoTaskMemFree(raw_path);
+  return result;
+}
+
+std::filesystem::path GetUpdateLogDirectory() {
+  return GetRoamingAppDataPath() / kWindowsLogCompanyName /
+         kWindowsLogProductName / L"logs";
+}
+
+bool TryParseUpdateLogTimestamp(const std::wstring& file_name,
+                                std::time_t* parsed_timestamp) {
+  static const std::wregex expression(
+      LR"(^update_ ([0-9]{8}_[0-9]{6})\.log$)");
+  std::wsmatch match;
+  if (!std::regex_match(file_name, match, expression)) {
+    return false;
+  }
+  std::tm parsed_time{};
+  std::wistringstream input(match[1].str());
+  input >> std::get_time(&parsed_time, L"%Y%m%d_%H%M%S");
+  if (input.fail()) {
+    return false;
+  }
+  parsed_time.tm_isdst = -1;
+  const std::time_t timestamp = std::mktime(&parsed_time);
+  if (timestamp == static_cast<std::time_t>(-1)) {
+    return false;
+  }
+  *parsed_timestamp = timestamp;
+  return true;
+}
+
+std::time_t ComputeUpdateLogCutoff(std::time_t now) {
+  auto cutoff = GetLocalTime(now);
+  cutoff.tm_mon -= 3;
+  cutoff.tm_isdst = -1;
+  return std::mktime(&cutoff);
+}
+
+void AppendUpdateLogLine(const std::wstring& level, const std::wstring& message) {
+  if (g_active_update_log_path.empty()) {
+    return;
+  }
+  std::ofstream stream(g_active_update_log_path, std::ios::binary | std::ios::app);
+  if (!stream) {
+    return;
+  }
+  stream << WideToUtf8(FormatLogTimestamp(std::time(nullptr))) << " ["
+         << WideToUtf8(level) << "] " << WideToUtf8(message) << "\r\n";
+  stream.flush();
+}
+
+void AttachUpdateLogPath(const std::filesystem::path& log_path) {
+  if (log_path.empty()) {
+    return;
+  }
+  g_active_update_log_path = log_path;
+}
+
+void CleanupExpiredUpdateLogs() {
+  const auto log_directory = GetUpdateLogDirectory();
+  std::error_code error;
+  if (!std::filesystem::exists(log_directory, error) || error) {
+    return;
+  }
+  const std::time_t cutoff = ComputeUpdateLogCutoff(std::time(nullptr));
+  std::size_t deleted_count = 0;
+  for (const auto& entry : std::filesystem::directory_iterator(log_directory, error)) {
+    if (error) {
+      break;
+    }
+    if (!entry.is_regular_file()) {
+      continue;
+    }
+    std::time_t parsed_timestamp = 0;
+    const auto file_name = entry.path().filename().wstring();
+    if (!TryParseUpdateLogTimestamp(file_name, &parsed_timestamp) ||
+        parsed_timestamp >= cutoff) {
+      continue;
+    }
+    std::error_code remove_error;
+    std::filesystem::remove(entry.path(), remove_error);
+    if (!remove_error) {
+      ++deleted_count;
+    }
+  }
+  if (deleted_count > 0) {
+    AppendUpdateLogLine(
+        L"INFO",
+        std::wstring(L"Cleaned ") + std::to_wstring(deleted_count) +
+            L" expired update log file(s).");
+  }
 }
 
 std::string EscapeJson(const std::wstring& value) {
@@ -250,6 +381,72 @@ std::filesystem::path GetOwnedStageRoot() {
          L"install-staging";
 }
 
+std::filesystem::path GetWorkerRoot() {
+  return GetLocalAppDataPath() / L"FlyNarwhal" / L"updates" /
+         L"worker-runtime";
+}
+
+std::filesystem::path GetRestagedInstallerRoot() {
+  return GetLocalAppDataPath() / L"FlyNarwhal" / L"updates" / L"restaged";
+}
+
+bool LoadValidatedEndpoint(EndpointDescriptor* descriptor,
+                           EndpointPolicy* policy,
+                           std::wstring* error_message) {
+  if (!ReadRegisteredEndpoint(descriptor, error_message) ||
+      !ReadEndpointPolicy(descriptor->policy_path, policy, error_message) ||
+      !ValidateEndpointDescriptor(*descriptor, *policy, error_message)) {
+    return false;
+  }
+  return true;
+}
+
+bool RestageInstaller(const Journal& journal,
+                      const StageVerification& verification,
+                      std::filesystem::path* restaged_path,
+                      std::wstring* restaged_sha256,
+                      std::wstring* error_message) {
+  const auto restaged_root = GetRestagedInstallerRoot();
+  std::error_code directory_error;
+  std::filesystem::create_directories(restaged_root, directory_error);
+  if (directory_error || HasReparsePointInExistingPath(restaged_root)) {
+    *error_message = L"Restaged installer root is unsafe.";
+    return false;
+  }
+  const auto transaction_root = restaged_root / journal.bindings.transaction_id;
+  std::filesystem::create_directories(transaction_root, directory_error);
+  if (directory_error || HasReparsePointInExistingPath(transaction_root)) {
+    *error_message = L"Restaged installer path is unsafe.";
+    return false;
+  }
+  const auto target_path = transaction_root / kInstallerName;
+  std::filesystem::copy_file(verification.installer_path, target_path,
+                             std::filesystem::copy_options::overwrite_existing,
+                             directory_error);
+  const auto target_sha = ComputeFileSha256(target_path);
+  if (directory_error || !IsSafeRegularFile(target_path) ||
+      target_sha != journal.bindings.expected_artifact_sha256) {
+    *error_message = L"Restaged installer could not be verified.";
+    return false;
+  }
+  *restaged_path = target_path;
+  *restaged_sha256 = target_sha;
+  return true;
+}
+
+bool ValidateRestagedInstaller(const Journal& journal,
+                               std::wstring* error_message) {
+  if (journal.restaged_installer_path.empty() ||
+      journal.restaged_installer_sha256.empty() ||
+      !IsSafeRegularFile(journal.restaged_installer_path) ||
+      ComputeFileSha256(journal.restaged_installer_path) !=
+          journal.restaged_installer_sha256) {
+    *error_message = L"Restaged installer is missing or invalid.";
+    return false;
+  }
+  return true;
+}
+
 bool ValidateStageLocation(const RequestBindings& bindings,
                            std::wstring* error_message) {
   const std::filesystem::path stage = bindings.stage_path;
@@ -395,7 +592,7 @@ bool ValidateProvenance(const RequestBindings& bindings,
 
 std::string SerializeJournal(const Journal& journal) {
   std::ostringstream output;
-  output << "{\"schemaVersion\":" << journal.schema_version
+  output << "{\"schemaVersion\":2"
          << ",\"transactionId\":\""
          << EscapeJson(journal.bindings.transaction_id)
          << "\",\"stagePath\":\""
@@ -413,11 +610,27 @@ std::string SerializeJournal(const Journal& journal) {
          << "\",\"state\":\"" << EscapeJson(StateToString(journal.state))
          << "\",\"helperExecutable\":\""
          << EscapeJson(journal.helper_executable.wstring())
+         << "\",\"protectedHelperPath\":\""
+         << EscapeJson(journal.protected_helper_path.wstring())
+         << "\",\"recoveryHostPath\":\""
+         << EscapeJson(journal.recovery_host_path.wstring())
+         << "\",\"restagedInstallerPath\":\""
+         << EscapeJson(journal.restaged_installer_path.wstring())
+         << "\",\"updateLogPath\":\""
+         << EscapeJson(journal.update_log_path.wstring())
          << "\",\"helperSha256\":\"" << EscapeJson(journal.helper_sha256)
+         << "\",\"restagedInstallerSha256\":\""
+         << EscapeJson(journal.restaged_installer_sha256)
+         << "\",\"endpointVersion\":\""
+         << EscapeJson(journal.endpoint_version)
+         << "\",\"recoveryTaskName\":\""
+         << EscapeJson(journal.recovery_task_name)
          << "\",\"installerStarted\":"
          << (journal.installer_started ? "true" : "false")
          << ",\"relaunchAttempted\":"
          << (journal.relaunch_attempted ? "true" : "false")
+         << ",\"recoveryArmed\":"
+         << (journal.recovery_armed ? "true" : "false")
          << ",\"installerExitCode\":" << journal.installer_exit_code
          << ",\"terminalMessage\":\""
          << EscapeJson(journal.terminal_message) << "\"}";
@@ -438,19 +651,34 @@ std::optional<Journal> ParseJournal(const std::wstring& json) {
   const auto caller = ExtractJsonString(json, L"callerExecutable");
   const auto state_value = ExtractJsonString(json, L"state");
   const auto helper_path = ExtractJsonString(json, L"helperExecutable");
+  const auto protected_helper_path =
+      ExtractJsonString(json, L"protectedHelperPath");
+  const auto recovery_host_path =
+      ExtractJsonString(json, L"recoveryHostPath");
+  const auto restaged_installer_path =
+      ExtractJsonString(json, L"restagedInstallerPath");
+  const auto update_log_path = ExtractJsonString(json, L"updateLogPath");
   const auto helper_sha = ExtractJsonString(json, L"helperSha256");
+  const auto restaged_installer_sha =
+      ExtractJsonString(json, L"restagedInstallerSha256");
+  const auto endpoint_version = ExtractJsonString(json, L"endpointVersion");
+  const auto recovery_task_name = ExtractJsonString(json, L"recoveryTaskName");
   const auto exit_code = ExtractJsonUnsigned(json, L"installerExitCode");
   const auto terminal_message = ExtractJsonString(json, L"terminalMessage");
   bool installer_started = false;
   bool relaunch_attempted = false;
+  bool recovery_armed = false;
   const auto state = state_value ? StateFromString(*state_value) : std::nullopt;
-  if (!schema || *schema != 1 || !transaction || !stage || !provenance ||
+  if (!schema || (*schema != 1 && *schema != 2) || !transaction || !stage ||
+      !provenance ||
       !artifact || !artifact_length || *artifact_length == 0 || !process_id ||
       *process_id > MAXDWORD || !caller || !state ||
       !helper_path || !helper_sha || !exit_code || *exit_code > MAXDWORD ||
       !terminal_message ||
       !ExtractJsonBoolean(json, L"installerStarted", &installer_started) ||
-      !ExtractJsonBoolean(json, L"relaunchAttempted", &relaunch_attempted)) {
+      !ExtractJsonBoolean(json, L"relaunchAttempted", &relaunch_attempted) ||
+      (*schema == 2 &&
+       !ExtractJsonBoolean(json, L"recoveryArmed", &recovery_armed))) {
     return std::nullopt;
   }
   journal.bindings.transaction_id = *transaction;
@@ -462,11 +690,34 @@ std::optional<Journal> ParseJournal(const std::wstring& json) {
   journal.bindings.caller_executable = *caller;
   journal.state = *state;
   journal.helper_executable = *helper_path;
+  if (protected_helper_path) {
+    journal.protected_helper_path = *protected_helper_path;
+  }
+  if (recovery_host_path) {
+    journal.recovery_host_path = *recovery_host_path;
+  }
+  if (restaged_installer_path) {
+    journal.restaged_installer_path = *restaged_installer_path;
+  }
+  if (update_log_path) {
+    journal.update_log_path = *update_log_path;
+  }
   journal.helper_sha256 = *helper_sha;
+  if (restaged_installer_sha) {
+    journal.restaged_installer_sha256 = *restaged_installer_sha;
+  }
+  if (endpoint_version) {
+    journal.endpoint_version = *endpoint_version;
+  }
+  if (recovery_task_name) {
+    journal.recovery_task_name = *recovery_task_name;
+  }
   journal.installer_started = installer_started;
   journal.relaunch_attempted = relaunch_attempted;
+  journal.recovery_armed = recovery_armed;
   journal.installer_exit_code = static_cast<DWORD>(*exit_code);
   journal.terminal_message = *terminal_message;
+  journal.schema_version = 2;
   return journal;
 }
 
@@ -480,23 +731,44 @@ bool BindingsEqual(const RequestBindings& left, const RequestBindings& right) {
          PathsEqual(left.caller_executable, right.caller_executable);
 }
 
+bool ValidateJournalExecutableBindingImpl(
+    const Journal& journal,
+    const std::filesystem::path& current_executable_path,
+    const std::wstring& current_executable_sha);
+
 bool ValidateJournalEndpoint(const Journal& journal,
                              const RequestBindings& bindings,
                              std::wstring* error_message) {
   const auto helper_path = GetCurrentExecutablePath();
   const auto helper_sha = ComputeFileSha256(helper_path);
   if (!BindingsEqual(journal.bindings, bindings) ||
-      !PathsEqual(journal.helper_executable, helper_path) ||
-      journal.helper_sha256 != helper_sha) {
+      !ValidateJournalExecutableBindingImpl(journal, helper_path, helper_sha)) {
     *error_message = L"Transaction endpoint binding does not match.";
     return false;
   }
   return true;
 }
 
-std::wstring BuildWorkerCommandLine(const RequestBindings& bindings) {
+bool ValidateJournalExecutableBindingImpl(
+    const Journal& journal,
+    const std::filesystem::path& current_executable_path,
+    const std::wstring& current_executable_sha) {
+  // Allow the registered protected helper or the legacy worker fallback copy
+  // during the migration window, but always require the trusted helper digest.
+  const auto worker_path = GetWorkerRoot() / journal.bindings.transaction_id /
+                           journal.helper_executable.filename();
+  const auto endpoint_path = journal.protected_helper_path.empty()
+                                 ? journal.helper_executable
+                                 : journal.protected_helper_path;
+  return ((PathsEqual(endpoint_path, current_executable_path) ||
+           PathsEqual(worker_path, current_executable_path)) &&
+          journal.helper_sha256 == current_executable_sha);
+}
+
+std::wstring BuildWorkerCommandLine(const std::filesystem::path& executable_path,
+                                    const RequestBindings& bindings) {
   std::vector<std::wstring> values = {
-      GetCurrentExecutablePath().wstring(),
+      executable_path.wstring(),
       L"worker",
       L"--transaction-id",
       bindings.transaction_id,
@@ -523,22 +795,88 @@ std::wstring BuildWorkerCommandLine(const RequestBindings& bindings) {
   return command_line;
 }
 
-bool StartDetachedWorker(const RequestBindings& bindings,
+bool CreateWorkerCopy(const Journal& journal,
+                      std::filesystem::path* worker_path,
+                      std::wstring* error_message) {
+  const auto worker_root = GetWorkerRoot();
+  std::error_code directory_error;
+  std::filesystem::create_directories(worker_root, directory_error);
+  if (directory_error || HasReparsePointInExistingPath(worker_root)) {
+    *error_message = L"Worker runtime directory is unsafe.";
+    return false;
+  }
+  const auto runtime_directory = worker_root / journal.bindings.transaction_id;
+  std::filesystem::create_directories(runtime_directory, directory_error);
+  if (directory_error || HasReparsePointInExistingPath(runtime_directory)) {
+    *error_message = L"Worker runtime path is unsafe.";
+    return false;
+  }
+  // Run the detached worker from an app-owned runtime copy so the installer
+  // can replace the installed helper without Restart Manager aborting.
+  const auto target_path =
+      runtime_directory / journal.helper_executable.filename();
+  std::filesystem::copy_file(journal.helper_executable, target_path,
+                             std::filesystem::copy_options::overwrite_existing,
+                             directory_error);
+  if (directory_error || !IsSafeRegularFile(target_path) ||
+      ComputeFileSha256(target_path) != journal.helper_sha256) {
+    *error_message = L"Worker runtime copy could not be created.";
+    return false;
+  }
+  *worker_path = target_path;
+  return true;
+}
+
+bool StartDetachedWorker(const Journal& journal,
                          std::wstring* error_message) {
-  std::wstring command_line = BuildWorkerCommandLine(bindings);
+  std::filesystem::path worker_path;
+  if (!CreateWorkerCopy(journal, &worker_path, error_message)) {
+    return false;
+  }
+  std::wstring command_line =
+      BuildWorkerCommandLine(worker_path, journal.bindings);
+  LogInfo(std::wstring(L"Starting detached worker process from: ") +
+          worker_path.wstring());
   STARTUPINFOW startup_info{};
   startup_info.cb = sizeof(startup_info);
   PROCESS_INFORMATION process_information{};
-  if (!CreateProcessW(GetCurrentExecutablePath().c_str(), command_line.data(),
+  if (!CreateProcessW(worker_path.c_str(), command_line.data(),
                       nullptr, nullptr, FALSE,
                       CREATE_NO_WINDOW | DETACHED_PROCESS, nullptr, nullptr,
                       &startup_info, &process_information)) {
+    const DWORD last_error = GetLastError();
+    LogError(std::wstring(L"Unable to start the transaction worker; last error ") +
+             std::to_wstring(last_error) + L".");
     *error_message = L"Unable to start the transaction worker.";
     return false;
   }
+  LogInfo(std::wstring(L"Detached worker started with process id ") +
+          std::to_wstring(process_information.dwProcessId) + L".");
   CloseHandle(process_information.hThread);
   CloseHandle(process_information.hProcess);
   return true;
+}
+
+int PersistFailure(Journal journal, const std::wstring& message,
+                   TransactionState state = TransactionState::failed);
+
+// Shared fallback used when the scheduled recovery host cannot take over:
+// hand the committed transaction to a detached worker instead of stranding
+// it in a terminal manual-action state.
+int RecoverWithWorkerFallback(Journal* journal, std::wstring* error_message) {
+  journal->recovery_armed = false;
+  journal->recovery_task_name.clear();
+  journal->state = TransactionState::commit_accepted;
+  if (!WriteJournalDurably(*journal, error_message)) {
+    return PersistFailure(*journal, *error_message);
+  }
+  if (!StartDetachedWorker(*journal, error_message)) {
+    return PersistFailure(*journal, *error_message,
+                          TransactionState::manual_action_required);
+  }
+  LogInfo(L"Commit accepted and worker fallback launch requested.");
+  std::wcout << L"commitAccepted\n";
+  return 0;
 }
 
 bool StartInstallerAndWait(const ProcessLaunchPolicy& policy,
@@ -549,6 +887,8 @@ bool StartInstallerAndWait(const ProcessLaunchPolicy& policy,
     command_line += L' ';
     command_line += QuoteWindowsArgument(argument);
   }
+  LogInfo(std::wstring(L"Launching verified installer with log path: ") +
+          policy.log_path.wstring());
   STARTUPINFOW startup_info{};
   startup_info.cb = sizeof(startup_info);
   PROCESS_INFORMATION process_information{};
@@ -565,14 +905,18 @@ bool StartInstallerAndWait(const ProcessLaunchPolicy& policy,
   if (wait_result == WAIT_TIMEOUT) {
     TerminateProcess(process.value, ERROR_TIMEOUT);
     WaitForSingleObject(process.value, 5000);
+    LogError(L"Installer timed out after 20 minutes.");
     *error_message = L"Installer exceeded the fixed 20 minute timeout.";
     return false;
   }
   if (wait_result != WAIT_OBJECT_0 ||
       !GetExitCodeProcess(process.value, exit_code)) {
+    LogError(L"Installer completion could not be observed.");
     *error_message = L"Installer completion could not be observed.";
     return false;
   }
+  LogInfo(std::wstring(L"Installer process exited with code: ") +
+          std::to_wstring(*exit_code));
   return true;
 }
 
@@ -589,7 +933,9 @@ bool RelaunchInstalledApplication(Journal* journal,
   if (!WriteJournalDurably(*journal, error_message)) {
     return false;
   }
-  const auto executable = GetFixedInstallRoot() / kInstalledExecutableName;
+  const auto install_root =
+      GetInstallRootForExecutable(journal->bindings.caller_executable);
+  const auto executable = install_root / kInstalledExecutableName;
   if (!IsSafeRegularFile(executable)) {
     *error_message = L"Installed executable is missing or unsafe.";
     return false;
@@ -628,9 +974,9 @@ std::optional<std::array<unsigned long, 4>> ParseVersion(
   return index >= 2 ? std::optional(parts) : std::nullopt;
 }
 
-bool ValidateInstalledExecutable(const std::filesystem::path& executable,
-                                 const StageVerification& verification,
-                                 std::wstring* error_message) {
+bool ValidateInstalledExecutableImpl(const std::filesystem::path& executable,
+                                     const StageVerification& verification,
+                                     std::wstring* error_message) {
   ScopedHandle file(CreateFileW(executable.c_str(), GENERIC_READ,
                                FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                                FILE_ATTRIBUTE_NORMAL, nullptr));
@@ -693,9 +1039,13 @@ bool ValidateInstalledExecutable(const std::filesystem::path& executable,
 }
 
 int PersistFailure(Journal journal, const std::wstring& message,
-                   TransactionState state = TransactionState::failed) {
+                   TransactionState state) {
   journal.state = state;
   journal.terminal_message = message;
+  if (!journal.update_log_path.empty()) {
+    StartUpdateLogSession(journal.update_log_path);
+  }
+  LogError(message);
   std::wstring ignored;
   WriteJournalDurably(journal, &ignored);
   std::wcerr << message << L'\n';
@@ -704,10 +1054,83 @@ int PersistFailure(Journal journal, const std::wstring& message,
 
 }  // namespace
 
+void LogInfo(const std::wstring& message) {
+  AppendUpdateLogLine(L"INFO", message);
+}
+
+void LogWarning(const std::wstring& message) {
+  AppendUpdateLogLine(L"WARN", message);
+}
+
+void LogError(const std::wstring& message) {
+  AppendUpdateLogLine(L"ERROR", message);
+}
+
+std::filesystem::path CreateUpdateLogPath() {
+  return GetUpdateLogDirectory() /
+         (std::wstring(kUpdateLogFilePrefix) +
+          FormatFileTimestamp(std::time(nullptr)) + kUpdateLogFileExtension);
+}
+
+void StartUpdateLogSession(const std::filesystem::path& log_path) {
+  if (log_path.empty()) {
+    return;
+  }
+  std::error_code error;
+  std::filesystem::create_directories(log_path.parent_path(), error);
+  if (error) {
+    return;
+  }
+  AttachUpdateLogPath(log_path);
+  CleanupExpiredUpdateLogs();
+  AppendUpdateLogLine(
+      L"INFO",
+      std::wstring(L"Attached update log file: ") + log_path.wstring());
+}
+
+void EnsureJournalHasUpdateLogPath(Journal* journal) {
+  if (journal == nullptr || !journal->update_log_path.empty()) {
+    return;
+  }
+  journal->update_log_path = CreateUpdateLogPath();
+}
+
+// Rebind a journal to the trusted registry endpoint. The protected helper may
+// have been updated after the transaction was prepared, leaving the journal's
+// cached endpoint provenance stale. Only endpoint provenance is refreshed; the
+// transaction bindings and stage provenance are never mutated here.
+void RefreshJournalEndpointBinding(Journal* journal,
+                                   const EndpointDescriptor& descriptor) {
+  journal->helper_executable = descriptor.protected_helper_path;
+  journal->protected_helper_path = descriptor.protected_helper_path;
+  journal->recovery_host_path = descriptor.recovery_host_path;
+  journal->endpoint_version = descriptor.endpoint_version;
+  journal->helper_sha256 = descriptor.protected_helper_sha256;
+}
+
+bool ValidateJournalExecutableBinding(
+    const Journal& journal,
+    const std::filesystem::path& current_executable_path,
+    const std::wstring& current_executable_sha) {
+  return ValidateJournalExecutableBindingImpl(
+      journal, current_executable_path, current_executable_sha);
+}
+
+bool ValidateInstalledExecutable(const std::filesystem::path& executable,
+                                 const StageVerification& verification,
+                                 std::wstring* error_message) {
+  return ValidateInstalledExecutableImpl(executable, verification,
+                                         error_message);
+}
+
 std::wstring StateToString(TransactionState state) {
   switch (state) {
     case TransactionState::prepared:
       return L"prepared";
+    case TransactionState::restaged:
+      return L"restaged";
+    case TransactionState::recovery_armed:
+      return L"recoveryArmed";
     case TransactionState::commit_accepted:
       return L"commitAccepted";
     case TransactionState::waiting_for_exit:
@@ -729,8 +1152,10 @@ std::wstring StateToString(TransactionState state) {
 }
 
 std::optional<TransactionState> StateFromString(const std::wstring& value) {
-  const std::array<std::pair<const wchar_t*, TransactionState>, 9> states = {{
+  const std::array<std::pair<const wchar_t*, TransactionState>, 11> states = {{
       {L"prepared", TransactionState::prepared},
+      {L"restaged", TransactionState::restaged},
+      {L"recoveryArmed", TransactionState::recovery_armed},
       {L"commitAccepted", TransactionState::commit_accepted},
       {L"waitingForExit", TransactionState::waiting_for_exit},
       {L"managerStarted", TransactionState::manager_started},
@@ -767,6 +1192,15 @@ bool IsLowercaseSha256(const std::wstring& value) {
 }
 
 std::filesystem::path GetLocalAppDataPath() {
+  // Tests redirect the updater data root to a hermetic temp directory so the
+  // real production journal and app data are never touched.
+  wchar_t override_root[32768]{};
+  const DWORD override_length =
+      GetEnvironmentVariableW(L"FLYNARWHAL_UPDATER_DATA_ROOT", override_root,
+                              static_cast<DWORD>(std::size(override_root)));
+  if (override_length > 0 && override_length < std::size(override_root)) {
+    return std::filesystem::path(std::wstring(override_root, override_length));
+  }
   PWSTR raw_path = nullptr;
   if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_DEFAULT,
                                   nullptr, &raw_path))) {
@@ -782,8 +1216,25 @@ std::filesystem::path GetJournalPath() {
          L"active-transaction.json";
 }
 
-std::filesystem::path GetFixedInstallRoot() {
-  return GetLocalAppDataPath() / L"FlyNarwhal";
+std::filesystem::path GetInstallRootForExecutable(
+    const std::filesystem::path& executable_path) {
+  if (executable_path.empty()) {
+    return {};
+  }
+  return executable_path.parent_path();
+}
+
+bool ValidateCallerInstallRoot(
+    const std::filesystem::path& helper_executable_path,
+    const std::filesystem::path& caller_executable_path) {
+  const auto helper_install_root =
+      GetInstallRootForExecutable(helper_executable_path);
+  const auto caller_install_root =
+      GetInstallRootForExecutable(caller_executable_path);
+  return !helper_install_root.empty() && !caller_install_root.empty() &&
+         !HasReparsePointInExistingPath(helper_install_root) &&
+         !HasReparsePointInExistingPath(caller_install_root) &&
+         PathsEqual(caller_install_root, helper_install_root);
 }
 
 std::filesystem::path GetCurrentExecutablePath() {
@@ -879,18 +1330,6 @@ bool ValidateCallerIdentity(const RequestBindings& bindings) {
   if (bindings.caller_process_id == 0 ||
       bindings.caller_executable.filename() != kInstalledExecutableName ||
       !IsSafeRegularFile(bindings.caller_executable)) {
-    return false;
-  }
-#if defined(FLYNARWHAL_NATIVE_HELPER_DEVELOPMENT_BUILD)
-  const bool caller_location_is_allowed =
-      PathsEqual(bindings.caller_executable.parent_path(),
-                 GetCurrentExecutablePath().parent_path());
-#else
-  const bool caller_location_is_allowed =
-      PathsEqual(bindings.caller_executable.parent_path(),
-                 GetFixedInstallRoot());
-#endif
-  if (!caller_location_is_allowed) {
     return false;
   }
   ScopedHandle process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION |
@@ -1075,8 +1514,21 @@ bool ClearTerminalJournal(std::wstring* error_message) {
 int RunPrepare(const RequestBindings& bindings) {
   StageVerification verification;
   std::wstring error;
-  if (!ValidateCallerIdentity(bindings) ||
+  EndpointDescriptor descriptor;
+  EndpointPolicy policy;
+  StartUpdateLogSession(CreateUpdateLogPath());
+  LogInfo(std::wstring(L"Prepare requested for transaction: ") +
+          bindings.transaction_id);
+
+  // Record the validation outcome before reserving the durable journal.
+  if (!LoadValidatedEndpoint(&descriptor, &policy, &error) ||
+      !ValidateCurrentProtectedExecutable(
+          descriptor, policy, GetCurrentExecutablePath(),
+          ComputeFileSha256(GetCurrentExecutablePath()), false,
+          bindings.transaction_id, &error) ||
+      !ValidateCallerIdentity(bindings) ||
       !ValidateStage(bindings, &verification, &error)) {
+    LogError(error.empty() ? L"Caller identity is invalid." : error);
     std::wcerr << (error.empty() ? L"Caller identity is invalid." : error)
                << L'\n';
     return 2;
@@ -1094,30 +1546,53 @@ int RunPrepare(const RequestBindings& bindings) {
   journal.bindings = bindings;
   journal.state = TransactionState::prepared;
   journal.helper_executable = GetCurrentExecutablePath();
-  const auto helper_sha256 = ComputeFileSha256(journal.helper_executable);
+  journal.protected_helper_path = descriptor.protected_helper_path;
+  journal.recovery_host_path = descriptor.recovery_host_path;
+  journal.endpoint_version = descriptor.endpoint_version;
+  journal.update_log_path = g_active_update_log_path;
+  const auto helper_sha256 = descriptor.protected_helper_sha256;
   if (!IsLowercaseSha256(helper_sha256)) {
+    LogError(L"Helper SHA-256 could not be computed.");
     std::wcerr << L"Helper SHA-256 could not be computed.\n";
     return 2;
   }
   journal.helper_sha256 = helper_sha256;
   if (!WriteJournalDurably(journal, &error)) {
+    LogError(error);
     std::wcerr << error << L'\n';
     return 1;
   }
+  LogInfo(L"Prepare completed successfully.");
   std::wcout << L"prepared\n";
   return 0;
 }
 
 int RunCommit(const RequestBindings& bindings) {
   std::wstring error;
+  EndpointDescriptor descriptor;
+  EndpointPolicy policy;
   auto journal = ReadJournal(&error);
-  if (!journal || !ValidateJournalEndpoint(*journal, bindings, &error) ||
+  if (journal) {
+    EnsureJournalHasUpdateLogPath(&*journal);
+    StartUpdateLogSession(journal->update_log_path);
+    LogInfo(std::wstring(L"Commit requested for transaction: ") +
+            journal->bindings.transaction_id);
+  }
+  if (!journal || !LoadValidatedEndpoint(&descriptor, &policy, &error) ||
+      !ValidateCurrentProtectedExecutable(
+          descriptor, policy, GetCurrentExecutablePath(),
+          ComputeFileSha256(GetCurrentExecutablePath()), false,
+          bindings.transaction_id, &error) ||
+      !ValidateJournalEndpoint(*journal, bindings, &error) ||
       !ValidateCallerIdentity(bindings)) {
+    LogError(error.empty() ? L"Caller identity is invalid." : error);
     std::wcerr << (error.empty() ? L"Caller identity is invalid." : error)
                << L'\n';
     return 2;
   }
-  if (journal->state == TransactionState::commit_accepted ||
+  if (journal->state == TransactionState::restaged ||
+      journal->state == TransactionState::recovery_armed ||
+      journal->state == TransactionState::commit_accepted ||
       journal->state == TransactionState::waiting_for_exit ||
       journal->state == TransactionState::manager_started ||
       journal->state == TransactionState::verification_pending ||
@@ -1131,15 +1606,47 @@ int RunCommit(const RequestBindings& bindings) {
   }
   StageVerification verification;
   if (!ValidateStage(bindings, &verification, &error)) {
+    LogError(error);
     std::wcerr << error << L'\n';
     return 2;
   }
-  journal->state = TransactionState::commit_accepted;
-  if (!WriteJournalDurably(*journal, &error) ||
-      !StartDetachedWorker(bindings, &error)) {
+  journal->protected_helper_path = descriptor.protected_helper_path;
+  journal->recovery_host_path = descriptor.recovery_host_path;
+  journal->endpoint_version = descriptor.endpoint_version;
+  if (!RestageInstaller(*journal, verification, &journal->restaged_installer_path,
+                        &journal->restaged_installer_sha256, &error)) {
+    return PersistFailure(*journal, error,
+                          TransactionState::manual_action_required);
+  }
+  journal->state = TransactionState::restaged;
+  if (!WriteJournalDurably(*journal, &error)) {
     return PersistFailure(*journal, error);
   }
-  std::wcout << L"commitAccepted\n";
+  LogInfo(std::wstring(L"Installer restaged successfully to: ") +
+          journal->restaged_installer_path.wstring());
+
+  std::filesystem::path recovery_runtime_path;
+  if (!CreateRecoveryRuntimeCopy(journal->recovery_host_path,
+                                 descriptor.recovery_host_sha256,
+                                 journal->bindings.transaction_id,
+                                 &recovery_runtime_path, &error)) {
+    LogWarning(L"Recovery host runtime copy could not be created; using worker fallback.");
+    return RecoverWithWorkerFallback(&*journal, &error);
+  }
+
+  if (!ArmRecoveryHostTask(recovery_runtime_path, journal->bindings.transaction_id,
+                           &journal->recovery_task_name, &error)) {
+    LogWarning(L"Recovery host task could not be armed; using worker fallback.");
+    return RecoverWithWorkerFallback(&*journal, &error);
+  }
+
+  journal->recovery_armed = true;
+  journal->state = TransactionState::recovery_armed;
+  if (!WriteJournalDurably(*journal, &error)) {
+    return PersistFailure(*journal, error);
+  }
+  LogInfo(L"Commit accepted and recovery host handoff requested.");
+  std::wcout << L"recoveryArmed\n";
   return 0;
 }
 
@@ -1153,6 +1660,11 @@ int RunQuery(const std::wstring& transaction_id) {
     std::wcerr << error << L'\n';
     return 4;
   }
+  if (!journal->update_log_path.empty()) {
+    StartUpdateLogSession(journal->update_log_path);
+    LogInfo(std::wstring(L"Query requested. Current state: ") +
+            StateToString(journal->state));
+  }
   std::wcout << StateToString(journal->state) << L'\n';
   return 0;
 }
@@ -1163,12 +1675,21 @@ int RunCancel(const std::wstring& transaction_id) {
   }
   std::wstring error;
   auto journal = ReadJournal(&error);
+  if (journal) {
+    EnsureJournalHasUpdateLogPath(&*journal);
+    StartUpdateLogSession(journal->update_log_path);
+    LogWarning(std::wstring(L"Cancel requested for transaction: ") +
+               journal->bindings.transaction_id);
+  }
   if (!journal || journal->bindings.transaction_id != transaction_id ||
       !ValidateJournalEndpoint(*journal, journal->bindings, &error)) {
+    LogError(error);
     std::wcerr << error << L'\n';
     return 2;
   }
   if (journal->state != TransactionState::prepared &&
+      journal->state != TransactionState::restaged &&
+      journal->state != TransactionState::recovery_armed &&
       journal->state != TransactionState::commit_accepted) {
     std::wcerr << L"Mutation has started; cancellation is no longer allowed.\n";
     return 2;
@@ -1176,9 +1697,11 @@ int RunCancel(const std::wstring& transaction_id) {
   journal->state = TransactionState::cancelled;
   journal->terminal_message = L"Cancelled before installer mutation.";
   if (!WriteJournalDurably(*journal, &error)) {
+    LogError(error);
     std::wcerr << error << L'\n';
     return 1;
   }
+  LogWarning(L"Transaction cancelled before installer launch.");
   std::wcout << L"cancelled\n";
   return 0;
 }
@@ -1188,20 +1711,48 @@ int RunRecover(const std::wstring& transaction_id) {
     return 64;
   }
   std::wstring error;
+  EndpointDescriptor descriptor;
+  EndpointPolicy policy;
   auto journal = ReadJournal(&error);
-  if (!journal || journal->bindings.transaction_id != transaction_id ||
-      !ValidateJournalEndpoint(*journal, journal->bindings, &error)) {
+  if (journal) {
+    EnsureJournalHasUpdateLogPath(&*journal);
+    StartUpdateLogSession(journal->update_log_path);
+    LogInfo(std::wstring(L"Recover requested for transaction: ") +
+            journal->bindings.transaction_id);
+  }
+  if (!journal || !LoadValidatedEndpoint(&descriptor, &policy, &error) ||
+      !ValidateCurrentProtectedExecutable(
+          descriptor, policy, GetCurrentExecutablePath(),
+          ComputeFileSha256(GetCurrentExecutablePath()), false, transaction_id,
+          &error) ||
+      journal->bindings.transaction_id != transaction_id) {
+    LogError(error);
     std::wcerr << error << L'\n';
     return 2;
+  }
+
+  // The protected helper may have been updated after the transaction was
+  // prepared, so the journal's cached endpoint binding can be stale. The
+  // current helper identity has already been proven against the registry
+  // descriptor above, so rebind to the trusted endpoint and persist before
+  // validating the transaction for replay.
+  if (!ValidateJournalEndpoint(*journal, journal->bindings, &error)) {
+    RefreshJournalEndpointBinding(&*journal, descriptor);
+    if (!ValidateJournalEndpoint(*journal, journal->bindings, &error)) {
+      LogError(error);
+      std::wcerr << error << L'\n';
+      return 2;
+    }
+    if (!WriteJournalDurably(*journal, &error)) {
+      LogError(error);
+      std::wcerr << error << L'\n';
+      return 1;
+    }
+    LogInfo(L"Recovery rebound the transaction to the current trusted endpoint.");
   }
   if (IsTerminalState(journal->state)) {
     std::wcout << StateToString(journal->state) << L'\n';
     return 0;
-  }
-  StageVerification verification;
-  if (!ValidateStage(journal->bindings, &verification, &error)) {
-    std::wcerr << error << L'\n';
-    return 2;
   }
   if (journal->installer_started) {
     journal->state = TransactionState::manual_action_required;
@@ -1212,28 +1763,78 @@ int RunRecover(const std::wstring& transaction_id) {
     return 0;
   }
   if (journal->state == TransactionState::prepared) {
-    journal->state = TransactionState::commit_accepted;
+    StageVerification verification;
+    if (!ValidateStage(journal->bindings, &verification, &error)) {
+      LogError(error);
+      std::wcerr << error << L'\n';
+      return 2;
+    }
+
+    // Restage the verified installer before the recovery host takes ownership.
+    if (!RestageInstaller(*journal, verification, &journal->restaged_installer_path,
+                          &journal->restaged_installer_sha256, &error)) {
+      return PersistFailure(*journal, error,
+                            TransactionState::manual_action_required);
+    }
+    journal->state = TransactionState::restaged;
     if (!WriteJournalDurably(*journal, &error)) {
       return PersistFailure(*journal, error);
     }
   }
-  if (journal->state != TransactionState::commit_accepted &&
+  // Only replay transactions that already own a verified restaged installer.
+  if (!ValidateRestagedInstaller(*journal, &error)) {
+    return PersistFailure(*journal, L"Restaged installer is missing or invalid.",
+                          TransactionState::manual_action_required);
+  }
+  if (journal->state != TransactionState::restaged &&
+      journal->state != TransactionState::recovery_armed &&
+      journal->state != TransactionState::commit_accepted &&
       journal->state != TransactionState::waiting_for_exit) {
     std::wcerr << L"Transaction cannot be automatically replayed.\n";
     return 2;
   }
-  // Resume exclusively with the caller and stage bindings sealed in journal.
-  if (!StartDetachedWorker(journal->bindings, &error)) {
+
+  // Mirror the commit path: when the scheduled recovery host cannot be
+  // armed, fall back to the detached worker instead of stranding the
+  // transaction in a manual action state.
+  std::filesystem::path recovery_runtime_path;
+  if (!CreateRecoveryRuntimeCopy(journal->recovery_host_path,
+                                 descriptor.recovery_host_sha256,
+                                 journal->bindings.transaction_id,
+                                 &recovery_runtime_path, &error)) {
+    LogWarning(std::wstring(
+                   L"Recovery host runtime copy could not be created (") +
+               error + L"); using worker fallback.");
+    return RecoverWithWorkerFallback(&*journal, &error);
+  }
+  if (!ArmRecoveryHostTask(recovery_runtime_path, journal->bindings.transaction_id,
+                           &journal->recovery_task_name, &error)) {
+    LogWarning(std::wstring(L"Recovery host task could not be armed (") +
+               error + L"); using worker fallback.");
+    return RecoverWithWorkerFallback(&*journal, &error);
+  }
+  // Mark the journal after the recovery host task is durably armed.
+  journal->recovery_armed = true;
+  journal->state = TransactionState::recovery_armed;
+  if (!WriteJournalDurably(*journal, &error)) {
     return PersistFailure(*journal, error);
   }
-  std::wcout << L"recoveryAccepted\n";
+  LogInfo(L"Recovery accepted and recovery host replay requested.");
+  std::wcout << L"recoveryArmed\n";
   return 0;
 }
 
 int RunWorker(const RequestBindings& bindings) {
   std::wstring error;
   auto journal = ReadJournal(&error);
+  if (journal) {
+    EnsureJournalHasUpdateLogPath(&*journal);
+    StartUpdateLogSession(journal->update_log_path);
+    LogInfo(std::wstring(L"Worker started for transaction: ") +
+            journal->bindings.transaction_id);
+  }
   if (!journal || !ValidateJournalEndpoint(*journal, bindings, &error)) {
+    LogError(error);
     std::wcerr << error << L'\n';
     return 2;
   }
@@ -1251,6 +1852,7 @@ int RunWorker(const RequestBindings& bindings) {
   if (!WriteJournalDurably(*journal, &error)) {
     return PersistFailure(*journal, error);
   }
+  LogInfo(L"Waiting for caller process to exit before installing.");
 
   ScopedHandle caller(OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
                                   FALSE, bindings.caller_process_id));
@@ -1271,10 +1873,18 @@ int RunWorker(const RequestBindings& bindings) {
       return PersistFailure(*journal, L"Caller exit could not be observed.");
     }
   }
+  LogInfo(L"Caller process has exited; continuing installation.");
 
   StageVerification verification;
   if (!ValidateStage(bindings, &verification, &error)) {
     return PersistFailure(*journal, error);
+  }
+
+  // Require the restaged installer even on the fallback path so mutation
+  // never depends on the original stage executable again.
+  if (!ValidateRestagedInstaller(*journal, &error)) {
+    return PersistFailure(*journal, error,
+                          TransactionState::manual_action_required);
   }
 
   // Persist the launch guard before starting the external mutation.
@@ -1284,10 +1894,9 @@ int RunWorker(const RequestBindings& bindings) {
     return PersistFailure(*journal, error);
   }
   ProcessLaunchPolicy policy;
-  policy.installer_path = verification.installer_path;
-  policy.install_root = GetFixedInstallRoot();
-  policy.log_path = GetLocalAppDataPath() / L"Temp" /
-                    (L"FlyNarwhal-install-" + bindings.transaction_id + L".log");
+  policy.installer_path = journal->restaged_installer_path;
+  policy.install_root = GetInstallRootForExecutable(bindings.caller_executable);
+  policy.log_path = journal->update_log_path;
   DWORD exit_code = 0;
   if (!StartInstallerAndWait(policy, &exit_code, &error)) {
     return PersistFailure(*journal, error);
@@ -1297,13 +1906,17 @@ int RunWorker(const RequestBindings& bindings) {
     return PersistFailure(*journal,
                           L"Installer returned a non-zero exit code.");
   }
+  LogInfo(L"Installer finished successfully. Verifying installed application.");
   journal->state = TransactionState::verification_pending;
   if (!WriteJournalDurably(*journal, &error)) {
     return PersistFailure(*journal, error);
   }
-  const auto installed_executable = GetFixedInstallRoot() / kInstalledExecutableName;
+  const auto installed_executable =
+      GetInstallRootForExecutable(bindings.caller_executable) /
+      kInstalledExecutableName;
   if (!IsSafeRegularFile(installed_executable) ||
-      !ValidateInstalledExecutable(installed_executable, verification, &error)) {
+      !ValidateInstalledExecutableImpl(installed_executable, verification,
+                                      &error)) {
     return PersistFailure(*journal, L"Installed application identity is invalid.",
                           TransactionState::manual_action_required);
   }
@@ -1311,6 +1924,7 @@ int RunWorker(const RequestBindings& bindings) {
     return PersistFailure(*journal, error,
                           TransactionState::manual_action_required);
   }
+  LogInfo(L"Installed application relaunch requested successfully.");
   return 0;
 }
 

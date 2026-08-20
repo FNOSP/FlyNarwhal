@@ -731,6 +731,10 @@ final class UpdateController extends StateNotifier<UpdateState> {
     final candidate = state.task.candidate;
     var file = state.task.localFile;
     if (candidate == null) return;
+    AppTalker.info(
+      'UpdateInstall',
+      'Starting installation workflow for ${candidate.version}.',
+    );
     if (file == null) {
       file = await _recoverMissingInstallFile(candidate);
       if (file == null) return;
@@ -763,6 +767,10 @@ final class UpdateController extends StateNotifier<UpdateState> {
       sha256: verification.sha256,
       verifiedAt: _clock().toUtc(),
     );
+    AppTalker.info(
+      'UpdateInstall',
+      'Verified install artifact ${verification.file.path} with sha256 ${verification.sha256}.',
+    );
     state = state.copyWith(
       task: state.task.copyWith(phase: UpdateTaskPhase.installing),
       presentation: state.presentation.copyWith(
@@ -773,8 +781,16 @@ final class UpdateController extends StateNotifier<UpdateState> {
       operationId: operationId,
       artifact: verifiedArtifact,
     ));
+    AppTalker.info(
+      'UpdateInstall',
+      'Platform installer returned ${result.runtimeType}.',
+    );
     if (result is PlatformUpdateCommitAccepted ||
         result is PlatformUpdateHelperLaunched) {
+      AppTalker.info(
+        'UpdateInstall',
+        'Installer accepted the transaction. Requesting app exit.',
+      );
       await _exitRequester();
       return;
     }
@@ -801,6 +817,10 @@ final class UpdateController extends StateNotifier<UpdateState> {
           isRetryable: false,
         ),
     };
+    AppTalker.warning(
+      'UpdateInstall',
+      'Installation failed with code ${failure.code}: ${failure.technicalDetail}',
+    );
     if (_isDisposed) return;
     state = state.copyWith(
       task: state.task.copyWith(phase: UpdateTaskPhase.installFailed),

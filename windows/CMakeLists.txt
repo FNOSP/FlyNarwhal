@@ -214,6 +214,8 @@ set(FLYNARWHAL_LEGACY_UPDATER_NAMES
 # Build the only production update helper for this bundle.
 add_subdirectory("native")
 add_dependencies(${BINARY_NAME} FlyNarwhalInstallHelper)
+add_dependencies(${BINARY_NAME} FlyNarwhalProtectedHelper)
+add_dependencies(${BINARY_NAME} FlyNarwhalRecoveryHost)
 
 
 # === Installation ===
@@ -238,6 +240,14 @@ install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
 install(TARGETS FlyNarwhalInstallHelper
+  RUNTIME DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
+install(TARGETS FlyNarwhalProtectedHelper
+  RUNTIME DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
+install(TARGETS FlyNarwhalRecoveryHost
   RUNTIME DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 

@@ -7,6 +7,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../core/utils/log/app_talker.dart';
 import '../data/datasources/remote/github_release_data_source.dart';
 import '../data/repositories/update_repository_impl.dart';
 import '../data/storage/github_release_response_cache.dart';
@@ -264,6 +265,10 @@ final updateExitRequesterProvider = Provider<UpdateExitRequester>((ref) {
   }
   if (Platform.isWindows) {
     return () async {
+      AppTalker.info(
+        'UpdateInstall',
+        'Exit requester closing the window so the install worker can proceed.',
+      );
       await windowManager.setPreventClose(false);
       await windowManager.close();
     };
@@ -271,7 +276,13 @@ final updateExitRequesterProvider = Provider<UpdateExitRequester>((ref) {
   if (Platform.isMacOS || Platform.isLinux) {
     // The detached platform helper waits for the current process to exit
     // before replacing the running app bundle or package.
-    return () async => exit(0);
+    return () async {
+      AppTalker.info(
+        'UpdateInstall',
+        'Exit requester terminating the process so the install worker can proceed.',
+      );
+      exit(0);
+    };
   }
   return () async {};
 });

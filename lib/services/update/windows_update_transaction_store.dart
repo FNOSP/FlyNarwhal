@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/utils/log/app_talker.dart';
 import 'windows_update_install_stage_store.dart';
 
 /// Reasons why an app-owned pending install receipt is not trustworthy.
@@ -118,6 +119,10 @@ final class WindowsUpdateTransactionStore {
     required WindowsUpdateInstallStage stage,
     required WindowsPendingInstallReceipt receipt,
   }) async {
+    AppTalker.info(
+      'WindowsUpdateTransaction',
+      'Saving stage receipt for transaction ${receipt.transactionId}.',
+    );
     _verifyBindings(stage, receipt);
     final receiptFile =
         File(path.join(stage.stageDirectory.path, 'pending-install.json'));
@@ -147,6 +152,10 @@ final class WindowsUpdateTransactionStore {
 
   Future<WindowsPendingInstallReceipt?> load(
       WindowsUpdateInstallStage stage) async {
+    AppTalker.info(
+      'WindowsUpdateTransaction',
+      'Loading stage receipt from ${stage.stageDirectory.path}.',
+    );
     final receiptFile =
         File(path.join(stage.stageDirectory.path, 'pending-install.json'));
     if (!await receiptFile.exists()) return null;
@@ -167,12 +176,20 @@ final class WindowsUpdateTransactionStore {
   }
 
   Future<void> delete(WindowsUpdateInstallStage stage) async {
+    AppTalker.info(
+      'WindowsUpdateTransaction',
+      'Deleting stage receipt from ${stage.stageDirectory.path}.',
+    );
     final receiptFile =
         File(path.join(stage.stageDirectory.path, 'pending-install.json'));
     if (await receiptFile.exists()) await receiptFile.delete();
   }
 
   Future<void> saveActive(WindowsPendingInstallReceipt receipt) async {
+    AppTalker.info(
+      'WindowsUpdateTransaction',
+      'Saving active receipt for transaction ${receipt.transactionId}.',
+    );
     final activeFile = await _activeReceiptFile();
     await activeFile.parent.create(recursive: true);
     final contents = jsonEncode(receipt.toJson());
@@ -185,6 +202,10 @@ final class WindowsUpdateTransactionStore {
   }
 
   Future<WindowsPendingInstallReceipt?> loadActive() async {
+    AppTalker.info(
+      'WindowsUpdateTransaction',
+      'Loading active Windows transaction receipt.',
+    );
     final activeFile = await _activeReceiptFile();
     if (!await activeFile.exists()) return null;
     try {
@@ -202,6 +223,12 @@ final class WindowsUpdateTransactionStore {
   }
 
   Future<void> clearActive({String? transactionId}) async {
+    AppTalker.info(
+      'WindowsUpdateTransaction',
+      transactionId == null
+          ? 'Clearing active Windows transaction receipt.'
+          : 'Clearing active Windows transaction receipt for $transactionId.',
+    );
     final activeFile = await _activeReceiptFile();
     if (!await activeFile.exists()) return;
     if (transactionId != null) {

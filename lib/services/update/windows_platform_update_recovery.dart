@@ -1,3 +1,4 @@
+import '../../core/utils/log/app_talker.dart';
 import 'platform_update_installer.dart';
 import 'windows_native_updater_bridge.dart';
 import 'windows_update_install_stage_store.dart';
@@ -21,6 +22,10 @@ final class WindowsPlatformUpdateRecovery {
     try {
       final indexedReceipt = await _transactionStore.loadActive();
       if (indexedReceipt == null) return null;
+      AppTalker.info(
+        'WindowsUpdateRecovery',
+        'Recovering active transaction ${indexedReceipt.transactionId}.',
+      );
 
       // Re-verify both durable app-owned copies before trusting the journal.
       final stage =
@@ -40,6 +45,10 @@ final class WindowsPlatformUpdateRecovery {
       }
 
       final queryResponse = await _bridge.query(indexedReceipt.transactionId);
+      AppTalker.info(
+        'WindowsUpdateRecovery',
+        'Helper query returned ${queryResponse.status.name} during recovery.',
+      );
       if (queryResponse.code == 'windows_transaction_not_found') {
         await _transactionStore.clearActive(
           transactionId: indexedReceipt.transactionId,
@@ -53,10 +62,16 @@ final class WindowsPlatformUpdateRecovery {
           );
           return null;
         case WindowsNativeTransactionStatus.prepared:
+        case WindowsNativeTransactionStatus.restaged:
+        case WindowsNativeTransactionStatus.recoveryArmed:
         case WindowsNativeTransactionStatus.commitAccepted:
         case WindowsNativeTransactionStatus.recoveryRequired:
           final recoveryResponse =
               await _bridge.recover(indexedReceipt.transactionId);
+          AppTalker.info(
+            'WindowsUpdateRecovery',
+            'Helper recover returned ${recoveryResponse.status.name}.',
+          );
           if (recoveryResponse.status ==
               WindowsNativeTransactionStatus.completed) {
             await _transactionStore.clearActive(
@@ -66,9 +81,22 @@ final class WindowsPlatformUpdateRecovery {
           }
           return _mapRecoveryResponse(indexedReceipt, recoveryResponse);
         case WindowsNativeTransactionStatus.manualActionRequired:
-          return _manualFailure(indexedReceipt, queryResponse);
         case WindowsNativeTransactionStatus.failed:
         case WindowsNativeTransactionStatus.cancelled:
+          // Terminal transactions can never resume; release the receipt so
+          // future installs are not blocked by the stale record.
+          AppTalker.warning(
+            'WindowsUpdateRecovery',
+            'Clearing stale terminal transaction ${indexedReceipt.transactionId} '
+            '(${queryResponse.status.name}) so new installs are not blocked.',
+          );
+          await _transactionStore.clearActive(
+            transactionId: indexedReceipt.transactionId,
+          );
+          if (queryResponse.status ==
+              WindowsNativeTransactionStatus.manualActionRequired) {
+            return _manualFailure(indexedReceipt, queryResponse);
+          }
           return _failure(
             queryResponse.code ?? 'windows_helper_trust_failure',
             queryResponse.technicalDetail ??
@@ -84,6 +112,11 @@ final class WindowsPlatformUpdateRecovery {
           );
       }
     } on WindowsUpdateInstallStageException catch (error) {
+      AppTalker.error(
+        'WindowsUpdateRecovery',
+        error: error,
+        message: 'Stage verification failed during recovery: ${error.message}',
+      );
       return _failure(
         'windows_stage_provenance_failure',
         error.message,
@@ -91,6 +124,12 @@ final class WindowsPlatformUpdateRecovery {
         cause: error,
       );
     } on WindowsUpdateTransactionException catch (error) {
+      AppTalker.error(
+        'WindowsUpdateRecovery',
+        error: error,
+        message:
+            'Transaction receipt verification failed during recovery: ${error.message}',
+      );
       return _failure(
         'windows_stage_provenance_failure',
         error.message,
@@ -98,6 +137,11 @@ final class WindowsPlatformUpdateRecovery {
         cause: error,
       );
     } on Object catch (error) {
+      AppTalker.error(
+        'WindowsUpdateRecovery',
+        error: error,
+        message: 'Unexpected Windows recovery failure.',
+      );
       return _failure(
         'windows_helper_unavailable',
         error.toString(),
@@ -115,6 +159,15 @@ final class WindowsPlatformUpdateRecovery {
       WindowsNativeTransactionStatus.completed => null,
       WindowsNativeTransactionStatus.manualActionRequired =>
         _manualFailure(receipt, response),
+      WindowsNativeTransactionStatus.restaged ||
+      WindowsNativeTransactionStatus.recoveryArmed ||
+      WindowsNativeTransactionStatus.recoveryRequired =>
+        _failure(
+          'windows_recovery_required',
+          response.technicalDetail ??
+              'Windows update recovery has been handed off to the recovery host.',
+          retryable: true,
+        ),
       WindowsNativeTransactionStatus.failed ||
       WindowsNativeTransactionStatus.cancelled =>
         _failure(
@@ -123,11 +176,11 @@ final class WindowsPlatformUpdateRecovery {
           retryable: false,
         ),
       _ => _failure(
-          'windows_recovery_required',
-          response.technicalDetail ??
-              'Windows update recovery has been accepted by the helper.',
-          retryable: true,
-        ),
+        'windows_recovery_required',
+        response.technicalDetail ??
+            'Windows update recovery has been accepted by the helper.',
+        retryable: true,
+      ),
     };
   }
 

@@ -11,8 +11,14 @@
 
 namespace flynarwhal::install_helper {
 
+// Defined in flynarwhal_updater_endpoint.h; referenced here by const
+// reference so the install helper header can avoid an include cycle.
+struct EndpointDescriptor;
+
 enum class TransactionState {
   prepared,
+  restaged,
+  recovery_armed,
   commit_accepted,
   waiting_for_exit,
   manager_started,
@@ -38,9 +44,17 @@ struct Journal {
   RequestBindings bindings;
   TransactionState state = TransactionState::prepared;
   std::filesystem::path helper_executable;
+  std::filesystem::path protected_helper_path;
+  std::filesystem::path recovery_host_path;
+  std::filesystem::path restaged_installer_path;
+  std::filesystem::path update_log_path;
   std::wstring helper_sha256;
+  std::wstring restaged_installer_sha256;
+  std::wstring endpoint_version;
+  std::wstring recovery_task_name;
   bool installer_started = false;
   bool relaunch_attempted = false;
+  bool recovery_armed = false;
   DWORD installer_exit_code = 0;
   std::wstring terminal_message;
 };
@@ -60,6 +74,14 @@ struct ProcessLaunchPolicy {
   std::filesystem::path log_path;
 };
 
+// Release-visible update log session helpers shared by every native binary.
+void LogInfo(const std::wstring& message);
+void LogWarning(const std::wstring& message);
+void LogError(const std::wstring& message);
+void StartUpdateLogSession(const std::filesystem::path& log_path);
+std::filesystem::path CreateUpdateLogPath();
+void EnsureJournalHasUpdateLogPath(Journal* journal);
+
 std::wstring StateToString(TransactionState state);
 std::optional<TransactionState> StateFromString(const std::wstring& value);
 bool IsTerminalState(TransactionState state);
@@ -67,20 +89,33 @@ bool IsCanonicalUuidV4(const std::wstring& value);
 bool IsLowercaseSha256(const std::wstring& value);
 std::filesystem::path GetLocalAppDataPath();
 std::filesystem::path GetJournalPath();
-std::filesystem::path GetFixedInstallRoot();
+std::filesystem::path GetInstallRootForExecutable(
+    const std::filesystem::path& executable_path);
 std::filesystem::path GetCurrentExecutablePath();
 std::wstring ComputeFileSha256(const std::filesystem::path& path);
 bool HasReparsePointInExistingPath(const std::filesystem::path& path);
+bool ValidateCallerInstallRoot(
+    const std::filesystem::path& helper_executable_path,
+    const std::filesystem::path& caller_executable_path);
+bool ValidateJournalExecutableBinding(
+    const Journal& journal,
+    const std::filesystem::path& current_executable_path,
+    const std::wstring& current_executable_sha);
 bool ValidateCallerIdentity(const RequestBindings& bindings);
 bool ValidateStage(const RequestBindings& bindings,
                    StageVerification* verification,
                    std::wstring* error_message);
+bool ValidateInstalledExecutable(const std::filesystem::path& executable,
+                                 const StageVerification& verification,
+                                 std::wstring* error_message);
 std::vector<std::wstring> BuildFixedInstallerArguments(
     const ProcessLaunchPolicy& policy);
 std::wstring QuoteWindowsArgument(const std::wstring& argument);
 bool WriteJournalDurably(const Journal& journal, std::wstring* error_message);
 std::optional<Journal> ReadJournal(std::wstring* error_message);
 bool ClearTerminalJournal(std::wstring* error_message);
+void RefreshJournalEndpointBinding(Journal* journal,
+                                   const EndpointDescriptor& descriptor);
 int RunPrepare(const RequestBindings& bindings);
 int RunCommit(const RequestBindings& bindings);
 int RunQuery(const std::wstring& transaction_id);
