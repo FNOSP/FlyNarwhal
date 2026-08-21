@@ -13,6 +13,7 @@ import '../update/update_state.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
+import '../../shared/hover_tip.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/changelog_dialog.dart';
@@ -552,7 +553,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         'settings-fly-narwhal-auth-code',
                                       ),
                                       icon: const Icon(FluentIcons.permissions),
-                                      heading: const Text('授权码'),
+                                      heading: Row(
+                                        children: [
+                                          const Text('授权码'),
+                                          const SizedBox(width: 6),
+                                          const HoverTip(
+                                            tipText:
+                                                '请在浏览器中访问部署在 NAS 中的飞鲸服务端地址（应用中心版请点击飞牛 OS 桌面中的「飞鲸影视」），点击右上角的「获取授权码」按钮，复制授权码后粘贴到填写授权码的文本框中。\n需要服务端版本 >= 0.6.0，低于 0.6.0 版的服务端不支持自动更新到 0.6.0 或以上版本，请手动更新到 0.6.0 或以上版本',
+                                          ),
+                                        ],
+                                      ),
                                       caption: Text(
                                         settings.hasFlyNarwhalAuthCode
                                             ? '已填写飞鲸服务端授权码'
