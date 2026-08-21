@@ -25,6 +25,7 @@ const double _flyoutBridgeHorizontalPadding = 12;
 class DanmakuSettingsFlyout extends StatefulWidget {
   final DanmakuSettings settings;
   final DanmakuLoadStatus loadStatus;
+  final bool isVisible;
   final double popupBottomOffset;
   final bool isActiveControl;
   final ValueChanged<double> onAreaChanged;
@@ -39,6 +40,7 @@ class DanmakuSettingsFlyout extends StatefulWidget {
     super.key,
     required this.settings,
     required this.loadStatus,
+    this.isVisible = true,
     required this.popupBottomOffset,
     this.isActiveControl = false,
     required this.onAreaChanged,
@@ -93,6 +95,9 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout>
       _requestOverlayRebuild();
     }
     if (oldWidget.isActiveControl && !widget.isActiveControl) {
+      _forceCloseFlyout();
+    }
+    if (!widget.isVisible && _isExpanded) {
       _forceCloseFlyout();
     }
     if (widget.loadStatus == DanmakuLoadStatus.empty && _isExpanded) {
@@ -336,7 +341,7 @@ class _DanmakuSettingsFlyoutState extends State<DanmakuSettingsFlyout>
   }
 
   bool get _isDanmakuSettingsDisabled {
-    return widget.loadStatus == DanmakuLoadStatus.empty;
+    return !widget.isVisible || widget.loadStatus == DanmakuLoadStatus.empty;
   }
 
   @override

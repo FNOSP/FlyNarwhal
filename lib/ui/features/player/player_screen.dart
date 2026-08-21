@@ -5331,8 +5331,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             child: PlayerActionButton.svg(
               key: const ValueKey('player-danmaku-toggle'),
               svgAssetPath: danmakuState.isVisible
-                  ? 'assets/images/danmu_close.svg'
-                  : 'assets/images/danmu_open.svg',
+                  ? 'assets/images/danmu_open.svg'
+                  : 'assets/images/danmu_close.svg',
               onPressed: () {
                 final newVisibility = !danmakuState.isVisible;
                 // Guard: require full FlyNarwhal config before enabling danmaku
@@ -5364,6 +5364,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           DanmakuSettingsFlyout(
             settings: danmakuState.settings,
             loadStatus: danmakuState.loadStatus,
+            isVisible: danmakuState.isVisible,
             popupBottomOffset: _controlFlyoutOffset.toDouble(),
             isActiveControl:
                 overlayState.activeFlyout == PlayerFlyoutType.danmaku,
