@@ -84,11 +84,21 @@ final class LinuxOsReleaseParser {
       'rocky',
       'almalinux',
     };
+    const archIdentities = <String>{
+      'arch',
+      'manjaro',
+      'endeavouros',
+      'garuda',
+      'cachyos',
+    };
     if (identities.any(debianIdentities.contains)) {
       return LinuxDistributionFamily.debian;
     }
     if (identities.any(rpmIdentities.contains)) {
       return LinuxDistributionFamily.rpm;
+    }
+    if (identities.any(archIdentities.contains)) {
+      return LinuxDistributionFamily.arch;
     }
     return LinuxDistributionFamily.other;
   }
@@ -257,6 +267,10 @@ final class IoPlatformInfo implements PlatformInfo {
             ],
           LinuxDistributionFamily.rpm => const <UpdatePackageType>[
               UpdatePackageType.rpm,
+              UpdatePackageType.appImage,
+            ],
+          LinuxDistributionFamily.arch => const <UpdatePackageType>[
+              UpdatePackageType.pacman,
               UpdatePackageType.appImage,
             ],
           _ => const <UpdatePackageType>[UpdatePackageType.appImage],

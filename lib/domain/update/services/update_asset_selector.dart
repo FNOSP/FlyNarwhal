@@ -21,7 +21,7 @@ final class CanonicalUpdateAssetNameParser {
   const CanonicalUpdateAssetNameParser();
 
   static final RegExp _expression = RegExp(
-    r'^FlyNarwhal_Setup_(Windows|MacOS|Linux)_(amd64|aarch64)_([^/]+)\.(exe|dmg|deb|rpm|AppImage)$',
+    r'^FlyNarwhal_Setup_(Windows|MacOS|Linux)_(amd64|aarch64)_([^/]+)\.(exe|dmg|deb|rpm|AppImage|pkg\.tar\.zst)$',
     caseSensitive: false,
   );
 
@@ -73,6 +73,7 @@ final class CanonicalUpdateAssetNameParser {
       'deb' => UpdatePackageType.deb,
       'rpm' => UpdatePackageType.rpm,
       'appimage' => UpdatePackageType.appImage,
+      'pkg.tar.zst' => UpdatePackageType.pacman,
       _ => null,
     };
   }
@@ -86,7 +87,8 @@ final class CanonicalUpdateAssetNameParser {
       UpdateOperatingSystem.macos => packageType == UpdatePackageType.dmg,
       UpdateOperatingSystem.linux => packageType == UpdatePackageType.deb ||
           packageType == UpdatePackageType.rpm ||
-          packageType == UpdatePackageType.appImage,
+          packageType == UpdatePackageType.appImage ||
+          packageType == UpdatePackageType.pacman,
     };
   }
 }
@@ -297,6 +299,10 @@ final class UpdateAssetSelector {
             normalized == 'application/x-debian-package',
       UpdatePackageType.rpm => normalized == 'application/x-rpm',
       UpdatePackageType.appImage => normalized == 'application/vnd.appimage',
+      UpdatePackageType.pacman =>
+        normalized == 'application/zstd' ||
+            normalized == 'application/x-xz' ||
+            normalized == 'application/x-tar',
     };
   }
 }
