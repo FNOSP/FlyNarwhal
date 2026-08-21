@@ -51,6 +51,7 @@ class FlyNarwhalRemoteDataSource {
           sendTimeout: _requestReceiveTimeout,
           responseType: ResponseType.plain,
           followRedirects: true,
+          validateStatus: (status) => true,
         ));
     final hasLoggingInterceptor = client.interceptors
         .any((interceptor) => interceptor is LoggingInterceptor);
@@ -145,7 +146,7 @@ class FlyNarwhalRemoteDataSource {
       }
       return const Success(<String, List<Danmaku>>{});
     } catch (error) {
-      return ResultFailure(FailureInfo.fromMessage(error.toString()));
+      return ResultFailure(_wrapFailureInfo(error));
     }
   }
 
@@ -175,7 +176,7 @@ class FlyNarwhalRemoteDataSource {
         stackTrace: stackTrace,
         message: 'GET 请求失败: $path',
       );
-      return ResultFailure(FailureInfo.fromMessage(error.toString()));
+      return ResultFailure(_wrapFailureInfo(error));
     }
   }
 
@@ -204,7 +205,7 @@ class FlyNarwhalRemoteDataSource {
         stackTrace: stackTrace,
         message: 'POST 请求失败: $path',
       );
-      return ResultFailure(FailureInfo.fromMessage(error.toString()));
+      return ResultFailure(_wrapFailureInfo(error));
     }
   }
 
@@ -318,6 +319,12 @@ class FlyNarwhalRemoteDataSource {
       normalizedPath = normalizedPath.substring(1);
     }
     return '$normalizedBaseUrl/$normalizedPath';
+  }
+
+  FailureInfo _wrapFailureInfo(Object? error) {
+    if (error is FailureInfo) return error;
+    if (error is Exception) return FailureInfo.fromMessage(error.toString());
+    return FailureInfo.fromMessage(error?.toString() ?? 'Unknown error');
   }
 
   Future<String> _generateAuthx({

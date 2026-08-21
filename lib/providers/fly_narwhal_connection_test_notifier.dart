@@ -25,11 +25,27 @@ class FlyNarwhalConnectionTestNotifier
       final result = await _remoteDataSource.getVersion(
         baseUrl: normalizedBaseUrl,
       );
-      final version = result.getOrThrow().data?.replaceAll('-fnapp', '') ?? '';
-      if (version.isEmpty) {
-        throw Exception('FlyNarwhal 服务端未返回版本号');
-      }
-      state = AsyncValue.data(version);
+      result.when(
+        success: (smartResult) {
+          final version = smartResult.data?.replaceAll('-fnapp', '') ?? '';
+          if (version.isEmpty) {
+            state = AsyncValue.error(
+              Exception('FlyNarwhal 服务端未返回版本号'),
+              StackTrace.current,
+            );
+            return;
+          }
+          state = AsyncValue.data(version);
+        },
+        failure: (failure) {
+          state = AsyncValue.error(
+            failure.displayMessage.isNotEmpty
+                ? failure.displayMessage
+                : failure.message,
+            StackTrace.current,
+          );
+        },
+      );
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
     }

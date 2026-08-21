@@ -13,7 +13,10 @@ class SmartAnalysisResult<T> {
     this.encrypted,
   });
 
-  bool isSuccess() {
+  bool isSuccess() => isSuccessResponse(code: code, success: success);
+
+  /// Public helper to align with Kotlin [SmartAnalysisResult.isSuccess].
+  static bool isSuccessResponse({int code = 0, bool? success}) {
     return success == true || code == 0 || (code >= 200 && code <= 299);
   }
 
