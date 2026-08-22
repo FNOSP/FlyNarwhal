@@ -199,8 +199,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ref.read(flyNarwhalConnectionTestProvider.notifier).clear();
           },
           error: (error, _) {
+            final isUnreachable = error.toString() == '飞鲸服务端无法访问';
             ref.read(toastManagerProvider.notifier).showToast(
-                  '飞鲸服务端连接失败：$error',
+                  isUnreachable ? '飞鲸服务端无法访问' : '飞鲸服务端连接失败：$error',
                   type: ToastType.failed,
                   category: 'fly-narwhal-connection',
                 );
