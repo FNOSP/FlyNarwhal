@@ -543,6 +543,7 @@ class _TvSeasonDetailContentState
                   httpHeaders: widget.httpHeaders,
                   cacheManager: widget.cacheManager,
                   prefsManager: widget.prefsManager,
+                  userGuid: ref.watch(currentUserGuidProvider),
                   onEpisodeTap: (episode) {
                     // Navigate to player screen for this episode
                     ref
@@ -709,6 +710,7 @@ class _EpisodeListSection extends StatefulWidget {
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
   final PreferencesManager prefsManager;
+  final String? userGuid;
   final ValueChanged<EpisodeListResponse> onEpisodeTap;
   final Future<bool> Function(String guid, bool isFavorite) onFavoriteToggle;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
@@ -720,6 +722,7 @@ class _EpisodeListSection extends StatefulWidget {
     required this.httpHeaders,
     required this.cacheManager,
     required this.prefsManager,
+    this.userGuid,
     required this.onEpisodeTap,
     required this.onFavoriteToggle,
     required this.onWatchedToggle,
@@ -738,7 +741,10 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
   @override
   void initState() {
     super.initState();
-    _isButtonView = widget.prefsManager.getEpisodeListViewType() == 'button';
+    _isButtonView = widget.prefsManager.getEpisodeListViewType(
+          userGuid: widget.userGuid,
+        ) ==
+        'button';
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _positionToCurrentEpisode());
   }
@@ -841,8 +847,10 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
   void _handleToggleView(bool isButtonView) {
     if (_isButtonView == isButtonView) return;
     setState(() => _isButtonView = isButtonView);
-    widget.prefsManager
-        .saveEpisodeListViewType(isButtonView ? 'button' : 'card');
+    widget.prefsManager.saveEpisodeListViewType(
+      isButtonView ? 'button' : 'card',
+      userGuid: widget.userGuid,
+    );
   }
 }
 

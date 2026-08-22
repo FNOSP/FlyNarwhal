@@ -37,7 +37,11 @@ import 'providers.dart';
 
 /// Provides persisted application update preferences.
 final updateSettingsStoreProvider = Provider<UpdateSettingsStore>((ref) {
-  return UpdateSettingsStore(ref.watch(sharedPreferencesProvider));
+  final userGuid = ref.watch(currentUserGuidProvider);
+  return UpdateSettingsStore(
+    ref.watch(sharedPreferencesProvider),
+    userGuid: userGuid,
+  );
 });
 
 /// Provides package metadata and desktop platform detection.

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/version/semantic_version.dart';
 import 'legacy_update_preferences_migrator.dart';
+import 'preferences_manager.dart';
 
 /// Immutable update preferences exposed after migration completes.
 final class UpdateSettings {
@@ -28,25 +31,34 @@ final class UpdateSettings {
 class UpdateSettingsStore {
   UpdateSettingsStore(
     this.preferences, {
+    String? userGuid,
     LegacyUpdatePreferencesReader? legacyPreferencesReader,
-  }) : _legacyPreferencesReader = legacyPreferencesReader ??
+  })  : _userGuid = PreferencesManager.normalizeGuid(userGuid),
+        _legacyPreferencesReader = legacyPreferencesReader ??
             SharedPreferencesLegacyUpdateReader(preferences);
 
   static const int currentSchemaVersion = 1;
   static const String defaultProxyUrl = 'https://ghfast.top/';
 
   final SharedPreferences preferences;
+  final String? _userGuid;
   final LegacyUpdatePreferencesReader _legacyPreferencesReader;
   bool _isInitialized = false;
 
+  String _scopedKey(String rawKey) {
+    final guid = _userGuid;
+    if (guid == null) return rawKey;
+    return '$guid::$rawKey';
+  }
+
   bool get isInitialized => _isInitialized;
   bool get isProxyEnabled {
-    final value = preferences.get(UpdateSettingsKeys.proxyEnabled);
+    final value = _readScoped(UpdateSettingsKeys.proxyEnabled);
     return value is bool ? value : true;
   }
 
   String get proxyUrl {
-    final value = preferences.get(UpdateSettingsKeys.proxyUrl);
+    final value = _readScoped(UpdateSettingsKeys.proxyUrl);
     if (value is! String) {
       return defaultProxyUrl;
     }
@@ -54,22 +66,23 @@ class UpdateSettingsStore {
   }
 
   bool get includePrerelease {
-    final value = preferences.get(UpdateSettingsKeys.includePrerelease);
+    final value = _readScoped(UpdateSettingsKeys.includePrerelease);
     return value is bool ? value : false;
   }
 
   bool get autoDownload {
-    final value = preferences.get(UpdateSettingsKeys.autoDownload);
+    final value = _readScoped(UpdateSettingsKeys.autoDownload);
     return value is bool ? value : false;
   }
 
   Set<String> get skippedVersions =>
       LegacyUpdatePreferencesMigrator.normalizeSkippedVersions(
-        preferences.get(UpdateSettingsKeys.skippedVersions),
+        _readScoped(UpdateSettingsKeys.skippedVersions),
       ).toSet();
 
   DateTime? get lastSuccessfulCheckAt {
-    final timestamp = preferences.get(UpdateSettingsKeys.lastSuccessfulCheckAt);
+    final timestamp =
+        _readScoped(UpdateSettingsKeys.lastSuccessfulCheckAt);
     if (timestamp is! int || timestamp < 0) {
       return null;
     }
@@ -131,23 +144,26 @@ class UpdateSettingsStore {
   }
 
   Future<void> setProxyEnabled(bool value) =>
-      preferences.setBool(UpdateSettingsKeys.proxyEnabled, value);
+      preferences.setBool(_scopedKey(UpdateSettingsKeys.proxyEnabled), value);
   Future<void> setIncludePrerelease(bool value) =>
-      preferences.setBool(UpdateSettingsKeys.includePrerelease, value);
+      preferences.setBool(_scopedKey(UpdateSettingsKeys.includePrerelease), value);
   Future<void> setAutoDownload(bool value) =>
-      preferences.setBool(UpdateSettingsKeys.autoDownload, value);
+      preferences.setBool(_scopedKey(UpdateSettingsKeys.autoDownload), value);
 
   Future<void> setProxyUrl(String value) async {
     final normalizedUrl = normalizeProxyUrl(value);
     if (normalizedUrl == null) {
       throw const FormatException('GitHub 资源代理地址必须是有效的 HTTPS 地址。');
     }
-    await preferences.setString(UpdateSettingsKeys.proxyUrl, normalizedUrl);
+    await preferences.setString(
+      _scopedKey(UpdateSettingsKeys.proxyUrl),
+      normalizedUrl,
+    );
   }
 
   Future<void> setLastSuccessfulCheckAt(DateTime value) {
     return preferences.setInt(
-      UpdateSettingsKeys.lastSuccessfulCheckAt,
+      _scopedKey(UpdateSettingsKeys.lastSuccessfulCheckAt),
       value.millisecondsSinceEpoch,
     );
   }
@@ -166,7 +182,7 @@ class UpdateSettingsStore {
     }.toList()
       ..sort();
     await preferences.setStringList(
-      UpdateSettingsKeys.skippedVersions,
+      _scopedKey(UpdateSettingsKeys.skippedVersions),
       updatedVersions,
     );
   }
@@ -200,6 +216,34 @@ class UpdateSettingsStore {
       if (!succeeded) {
         throw StateError('Failed to persist update setting ${entry.key}');
       }
+    }
+  }
+
+  Object? _readScoped(String rawKey) {
+    final guid = _userGuid;
+    if (guid == null) {
+      return preferences.get(rawKey);
+    }
+    final scopedKey = _scopedKey(rawKey);
+    final userValue = preferences.get(scopedKey);
+    if (userValue != null) return userValue;
+    final legacy = preferences.get(rawKey);
+    if (legacy != null) {
+      unawaited(_persistScoped(scopedKey, legacy));
+    }
+    return legacy;
+  }
+
+  Future<void> _persistScoped(String key, Object value) async {
+    switch (value) {
+      case bool booleanValue:
+        await preferences.setBool(key, booleanValue);
+      case int integerValue:
+        await preferences.setInt(key, integerValue);
+      case String stringValue:
+        await preferences.setString(key, stringValue);
+      case List<String> stringList:
+        await preferences.setStringList(key, stringList);
     }
   }
 }

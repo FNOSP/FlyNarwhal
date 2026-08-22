@@ -44,6 +44,13 @@ final accountSettingsStoreProvider = Provider<AccountSettingsStore>((ref) {
   return AccountSettingsStore(prefs);
 });
 
+// 当前登录用户的 guid，未登录返回 null。设置项隔离、迁移统一依赖它。
+final currentUserGuidProvider = Provider<String?>((ref) {
+  final userInfo = ref.watch(userInfoProvider).valueOrNull;
+  final guid = userInfo?.guid.trim();
+  return (guid == null || guid.isEmpty) ? null : guid;
+});
+
 final runtimeConfigurationProvider = Provider<RuntimeConfiguration>((ref) {
   return NativeRuntimeConfiguration(resolveSecretBridge());
 });
@@ -161,7 +168,8 @@ final subtitleRemoteDataSourceProvider =
 
 final flyNarwhalSettingsProvider = Provider<FlyNarwhalSettings>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return FlyNarwhalSettings(prefs);
+  final userGuid = ref.watch(currentUserGuidProvider);
+  return FlyNarwhalSettings(prefs, userGuid: userGuid);
 });
 
 final flyNarwhalRemoteDataSourceProvider =
@@ -313,11 +321,13 @@ class SettingsState {
 }
 
 class SettingsNotifier extends StateNotifier<SettingsState> {
-  SettingsNotifier(this._prefs, this._flyNarwhalSettings)
-      : super(SettingsState(
-          followSystemTheme: _prefs.getFollowSystemTheme(),
-          darkMode: _prefs.getDarkMode(),
-          navigationDisplayMode: _prefs.getNavigationDisplayMode(),
+  SettingsNotifier(this._prefs, this._flyNarwhalSettings, {String? userGuid})
+      : _userGuid = PreferencesManager.normalizeGuid(userGuid),
+        super(SettingsState(
+          followSystemTheme: _prefs.getFollowSystemTheme(userGuid: userGuid),
+          darkMode: _prefs.getDarkMode(userGuid: userGuid),
+          navigationDisplayMode:
+              _prefs.getNavigationDisplayMode(userGuid: userGuid),
           flyNarwhalServerEnabled: _flyNarwhalSettings.enabled,
           flyNarwhalServerBaseUrl: _flyNarwhalSettings.baseUrl?.trim() ?? '',
           hasFlyNarwhalAuthCode:
@@ -326,19 +336,20 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   final PreferencesManager _prefs;
   final FlyNarwhalSettings _flyNarwhalSettings;
+  final String? _userGuid;
 
   Future<void> setFollowSystemTheme(bool value) async {
-    await _prefs.saveFollowSystemTheme(value);
+    await _prefs.saveFollowSystemTheme(value, userGuid: _userGuid);
     state = state.copyWith(followSystemTheme: value);
   }
 
   Future<void> setDarkMode(bool value) async {
-    await _prefs.saveDarkMode(value);
+    await _prefs.saveDarkMode(value, userGuid: _userGuid);
     state = state.copyWith(darkMode: value);
   }
 
   Future<void> setNavigationDisplayMode(String value) async {
-    await _prefs.saveNavigationDisplayMode(value);
+    await _prefs.saveNavigationDisplayMode(value, userGuid: _userGuid);
     state = state.copyWith(navigationDisplayMode: value);
   }
 
@@ -376,7 +387,8 @@ final settingsProvider =
     StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
   final prefs = ref.watch(preferencesManagerProvider);
   final flyNarwhalSettings = ref.watch(flyNarwhalSettingsProvider);
-  return SettingsNotifier(prefs, flyNarwhalSettings);
+  final userGuid = ref.watch(currentUserGuidProvider);
+  return SettingsNotifier(prefs, flyNarwhalSettings, userGuid: userGuid);
 });
 
 class UserInfoNotifier extends StateNotifier<AsyncValue<UserInfo?>> {
@@ -644,10 +656,12 @@ class _InMemoryCacheInfoRepository implements CacheInfoRepository {
 // Player settings manager provider
 final playerSettingsManagerProvider = Provider<PlayerSettingsManager>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return PlayerSettingsManager(prefs);
+  final userGuid = ref.watch(currentUserGuidProvider);
+  return PlayerSettingsManager(prefs, userGuid: userGuid);
 });
 
 final shortcutSettingsStoreProvider = Provider<ShortcutSettingsStore>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return ShortcutSettingsStore(prefs);
+  final userGuid = ref.watch(currentUserGuidProvider);
+  return ShortcutSettingsStore(prefs, userGuid: userGuid);
 });

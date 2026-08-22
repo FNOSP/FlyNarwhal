@@ -25,7 +25,6 @@ import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/fly_narwhal/danmaku.dart';
-import '../../../data/storage/player_settings_store.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../core/utils/app_fonts.dart';
@@ -894,7 +893,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _onAutoPlayChanged(bool value) {
     _overlayController.setAutoPlayEnabled(value);
     _introSkipController.dispatch(AutoPlayChanged(value));
-    unawaited(PlayerSettingsStore.setAutoPlay(value));
+    unawaited(ref.read(playerSettingsManagerProvider).setAutoPlay(value));
   }
 
   void _setupProviderListeners() {

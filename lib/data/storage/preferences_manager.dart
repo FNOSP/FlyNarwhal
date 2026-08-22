@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/login_history.dart';
@@ -19,6 +20,12 @@ class PreferencesManager {
   final SharedPreferences _prefs;
 
   PreferencesManager(this._prefs);
+
+  /// 规范化用户 guid：未登录（空/仅空白）返回 null，表示使用全局/legacy 键。
+  static String? normalizeGuid(String? userGuid) {
+    final normalized = userGuid?.trim() ?? '';
+    return normalized.isEmpty ? null : normalized;
+  }
 
   List<LoginHistory> getLoginHistory() {
     final jsonString = _prefs.getString(_keyLoginHistory);
@@ -60,37 +67,49 @@ class PreferencesManager {
     await _prefs.setString(_keyBaseUrl, url);
   }
 
-  bool getFollowSystemTheme() {
-    return _prefs.getBool(_keyFollowSystemTheme) ?? false;
+  bool getFollowSystemTheme({String? userGuid}) {
+    return _readBoolScoped(
+      _keyFollowSystemTheme,
+      userGuid,
+      defaultValue: false,
+    );
   }
 
-  Future<void> saveFollowSystemTheme(bool value) async {
-    await _prefs.setBool(_keyFollowSystemTheme, value);
+  Future<void> saveFollowSystemTheme(bool value, {String? userGuid}) {
+    return _writeBoolScoped(_keyFollowSystemTheme, userGuid, value);
   }
 
-  bool getDarkMode() {
-    return _prefs.getBool(_keyDarkMode) ?? true;
+  bool getDarkMode({String? userGuid}) {
+    return _readBoolScoped(_keyDarkMode, userGuid, defaultValue: true);
   }
 
-  Future<void> saveDarkMode(bool value) async {
-    await _prefs.setBool(_keyDarkMode, value);
+  Future<void> saveDarkMode(bool value, {String? userGuid}) {
+    return _writeBoolScoped(_keyDarkMode, userGuid, value);
   }
 
-  String getNavigationDisplayMode() {
-    return _prefs.getString(_keyNavigationDisplayMode) ?? 'LeftCompact';
+  String getNavigationDisplayMode({String? userGuid}) {
+    return _readStringScoped(
+      _keyNavigationDisplayMode,
+      userGuid,
+      defaultValue: 'LeftCompact',
+    );
   }
 
-  Future<void> saveNavigationDisplayMode(String value) async {
-    await _prefs.setString(_keyNavigationDisplayMode, value);
+  Future<void> saveNavigationDisplayMode(String value, {String? userGuid}) {
+    return _writeStringScoped(_keyNavigationDisplayMode, userGuid, value);
   }
 
   // 选集/剧集列表视图：'card' | 'button'，默认卡片视图。
-  String getEpisodeListViewType() {
-    return _prefs.getString(_keyEpisodeListViewType) ?? 'card';
+  String getEpisodeListViewType({String? userGuid}) {
+    return _readStringScoped(
+      _keyEpisodeListViewType,
+      userGuid,
+      defaultValue: 'card',
+    );
   }
 
-  Future<void> saveEpisodeListViewType(String value) async {
-    await _prefs.setString(_keyEpisodeListViewType, value);
+  Future<void> saveEpisodeListViewType(String value, {String? userGuid}) {
+    return _writeStringScoped(_keyEpisodeListViewType, userGuid, value);
   }
 
   String? getFallbackDeviceId() {
@@ -139,6 +158,63 @@ class PreferencesManager {
     final initialValue = getLegacySmartSkipEnabled() ?? true;
     await saveSmartSkipEnabledForUser(normalizedUserGuid, initialValue);
     return initialValue;
+  }
+
+  // 作用域读取：优先用户键，未命中则回退全局/legacy 键并异步写入用户键。
+  bool _readBoolScoped(
+    String rawKey,
+    String? userGuid, {
+    required bool defaultValue,
+  }) {
+    final normalized = normalizeGuid(userGuid);
+    if (normalized == null) {
+      return _prefs.getBool(rawKey) ?? defaultValue;
+    }
+    final scopedKey = '$normalized::$rawKey';
+    final userValue = _prefs.getBool(scopedKey);
+    if (userValue != null) return userValue;
+    final legacy = _prefs.getBool(rawKey);
+    if (legacy != null) {
+      unawaited(_prefs.setBool(scopedKey, legacy));
+      return legacy;
+    }
+    return defaultValue;
+  }
+
+  String _readStringScoped(
+    String rawKey,
+    String? userGuid, {
+    required String defaultValue,
+  }) {
+    final normalized = normalizeGuid(userGuid);
+    if (normalized == null) {
+      return _prefs.getString(rawKey) ?? defaultValue;
+    }
+    final scopedKey = '$normalized::$rawKey';
+    final userValue = _prefs.getString(scopedKey);
+    if (userValue != null) return userValue;
+    final legacy = _prefs.getString(rawKey);
+    if (legacy != null) {
+      unawaited(_prefs.setString(scopedKey, legacy));
+      return legacy;
+    }
+    return defaultValue;
+  }
+
+  Future<void> _writeBoolScoped(String rawKey, String? userGuid, bool value) {
+    final normalized = normalizeGuid(userGuid);
+    final key = normalized == null ? rawKey : '$normalized::$rawKey';
+    return _prefs.setBool(key, value);
+  }
+
+  Future<void> _writeStringScoped(
+    String rawKey,
+    String? userGuid,
+    String value,
+  ) {
+    final normalized = normalizeGuid(userGuid);
+    final key = normalized == null ? rawKey : '$normalized::$rawKey';
+    return _prefs.setString(key, value);
   }
 
   Future<void> clear() async {
