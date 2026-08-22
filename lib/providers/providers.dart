@@ -1,6 +1,7 @@
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 import '../core/config/runtime_configuration.dart';
 import '../core/config/secret_bridge_selector.dart';
 import '../core/network/dio_client.dart';
@@ -21,6 +22,7 @@ import '../data/storage/login_history_password_service.dart';
 import '../data/storage/player_settings_store.dart';
 import '../data/storage/preferences_manager.dart';
 import '../data/storage/shortcut_settings_store.dart';
+import '../data/storage/user_settings_migrator.dart';
 import '../domain/repositories/i_tag_repository.dart';
 import 'danmaku_controller.dart';
 import 'fly_narwhal_connection_test_notifier.dart';
@@ -49,6 +51,25 @@ final currentUserGuidProvider = Provider<String?>((ref) {
   final userInfo = ref.watch(userInfoProvider).valueOrNull;
   final guid = userInfo?.guid.trim();
   return (guid == null || guid.isEmpty) ? null : guid;
+});
+
+// 一次性把全局设置迁移到当前用户命名空间的协调器。
+final userSettingsMigratorProvider = Provider<UserSettingsMigrator>((ref) {
+  return UserSettingsMigrator(ref.watch(sharedPreferencesProvider));
+});
+
+// 挂载 userInfoProvider 监听：第一个成功登录的 guid 触发一次迁移（fire-and-forget）。
+// 迁移标记位（global_settings_migrated）在协调器内部检查，后续用户不重复迁移。
+final userGuidMigrationBootstrapperProvider = Provider<void>((ref) {
+  final migrator = ref.watch(userSettingsMigratorProvider);
+  ref.listen<AsyncValue<UserInfo?>>(userInfoProvider, (previous, next) {
+    final prevGuid = previous?.valueOrNull?.guid.trim();
+    final nextGuid = next.valueOrNull?.guid.trim();
+    if (nextGuid == null || nextGuid.isEmpty) return;
+    if (nextGuid == prevGuid) return;
+    unawaited(migrator.migrateForUser(nextGuid));
+  }, fireImmediately: true);
+  return;
 });
 
 final runtimeConfigurationProvider = Provider<RuntimeConfiguration>((ref) {

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 
@@ -366,20 +365,14 @@ class PlayerSettingsManager {
     );
   }
 
+  // 作用域读取：未登录读全局键；登录态只读 <guid>::<key>，无命中返回默认值。
+  // 不再做"懒迁移"复制：迁移由 UserSettingsMigrator 统一处理并删除全局值。
   double _readDoubleScoped(String rawKey, double defaultValue) {
     final guid = _userGuid;
     if (guid == null) {
       return _prefs.getDouble(rawKey) ?? defaultValue;
     }
-    final scopedKey = _scopedKey(rawKey);
-    final userValue = _prefs.getDouble(scopedKey);
-    if (userValue != null) return userValue;
-    final legacy = _prefs.getDouble(rawKey);
-    if (legacy != null) {
-      unawaited(_prefs.setDouble(scopedKey, legacy));
-      return legacy;
-    }
-    return defaultValue;
+    return _prefs.getDouble('$guid::$rawKey') ?? defaultValue;
   }
 
   bool _readBoolScoped(String rawKey, bool defaultValue) {
@@ -387,15 +380,7 @@ class PlayerSettingsManager {
     if (guid == null) {
       return _prefs.getBool(rawKey) ?? defaultValue;
     }
-    final scopedKey = _scopedKey(rawKey);
-    final userValue = _prefs.getBool(scopedKey);
-    if (userValue != null) return userValue;
-    final legacy = _prefs.getBool(rawKey);
-    if (legacy != null) {
-      unawaited(_prefs.setBool(scopedKey, legacy));
-      return legacy;
-    }
-    return defaultValue;
+    return _prefs.getBool('$guid::$rawKey') ?? defaultValue;
   }
 
   String _readStringScoped(String rawKey, String defaultValue) {
@@ -403,15 +388,7 @@ class PlayerSettingsManager {
     if (guid == null) {
       return _prefs.getString(rawKey) ?? defaultValue;
     }
-    final scopedKey = _scopedKey(rawKey);
-    final userValue = _prefs.getString(scopedKey);
-    if (userValue != null) return userValue;
-    final legacy = _prefs.getString(rawKey);
-    if (legacy != null) {
-      unawaited(_prefs.setString(scopedKey, legacy));
-      return legacy;
-    }
-    return defaultValue;
+    return _prefs.getString('$guid::$rawKey') ?? defaultValue;
   }
 
   Future<void> _writeDoubleScoped(String rawKey, double value) {

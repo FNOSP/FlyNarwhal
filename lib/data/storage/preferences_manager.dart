@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/login_history.dart';
@@ -151,16 +150,11 @@ class PreferencesManager {
     if (normalizedUserGuid.isEmpty) {
       return getLegacySmartSkipEnabled() ?? true;
     }
-
-    final userValue = getSmartSkipEnabledForUser(normalizedUserGuid);
-    if (userValue != null) return userValue;
-
-    final initialValue = getLegacySmartSkipEnabled() ?? true;
-    await saveSmartSkipEnabledForUser(normalizedUserGuid, initialValue);
-    return initialValue;
+    return getSmartSkipEnabledForUser(normalizedUserGuid) ?? true;
   }
 
-  // 作用域读取：优先用户键，未命中则回退全局/legacy 键并异步写入用户键。
+  // 作用域读取：未登录读全局键；登录态只读 <guid>::<key>，无命中返回默认值。
+  // 不再做"懒迁移"复制：迁移由 UserSettingsMigrator 统一处理并删除全局值。
   bool _readBoolScoped(
     String rawKey,
     String? userGuid, {
@@ -170,15 +164,7 @@ class PreferencesManager {
     if (normalized == null) {
       return _prefs.getBool(rawKey) ?? defaultValue;
     }
-    final scopedKey = '$normalized::$rawKey';
-    final userValue = _prefs.getBool(scopedKey);
-    if (userValue != null) return userValue;
-    final legacy = _prefs.getBool(rawKey);
-    if (legacy != null) {
-      unawaited(_prefs.setBool(scopedKey, legacy));
-      return legacy;
-    }
-    return defaultValue;
+    return _prefs.getBool('$normalized::$rawKey') ?? defaultValue;
   }
 
   String _readStringScoped(
@@ -190,15 +176,7 @@ class PreferencesManager {
     if (normalized == null) {
       return _prefs.getString(rawKey) ?? defaultValue;
     }
-    final scopedKey = '$normalized::$rawKey';
-    final userValue = _prefs.getString(scopedKey);
-    if (userValue != null) return userValue;
-    final legacy = _prefs.getString(rawKey);
-    if (legacy != null) {
-      unawaited(_prefs.setString(scopedKey, legacy));
-      return legacy;
-    }
-    return defaultValue;
+    return _prefs.getString('$normalized::$rawKey') ?? defaultValue;
   }
 
   Future<void> _writeBoolScoped(String rawKey, String? userGuid, bool value) {

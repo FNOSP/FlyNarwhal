@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/version/semantic_version.dart';
@@ -107,40 +105,65 @@ class UpdateSettingsStore {
     if (_isInitialized) {
       return;
     }
-    final existingNewKeys = preferences.getKeys().where(
-          (key) => key.startsWith('update.'),
-        );
-    const migrator = LegacyUpdatePreferencesMigrator(
-      defaultProxyUrl: defaultProxyUrl,
-    );
-    final migrationBatch = migrator.createMigrationBatch(
-      existingNewKeys: existingNewKeys.toSet(),
-      legacyReader: _legacyPreferencesReader,
-      normalizeProxyUrl: normalizeProxyUrl,
-    );
+    // Collect the bare `update.*` key names already present in the *scoped*
+    // namespace (global when logged out, `<guid>::`-prefixed when logged in).
+    // The migrator works with bare key names, so strip the guid prefix.
+    final scopedPrefix = _userGuid == null ? '' : '$_userGuid::';
+    final existingNewKeys = preferences
+        .getKeys()
+        .where((key) => key.startsWith('${scopedPrefix}update.'))
+        .map((key) => key.substring(scopedPrefix.length))
+        .toSet();
 
-    // Persist validated values before publishing initialized state.
-    final initializationBatch = <String, Object>{
-      ...migrationBatch,
-      if (!preferences.containsKey(UpdateSettingsKeys.proxyEnabled) &&
-          !migrationBatch.containsKey(UpdateSettingsKeys.proxyEnabled))
-        UpdateSettingsKeys.proxyEnabled: true,
-      if (!preferences.containsKey(UpdateSettingsKeys.proxyUrl) &&
-          !migrationBatch.containsKey(UpdateSettingsKeys.proxyUrl))
-        UpdateSettingsKeys.proxyUrl: defaultProxyUrl,
-      if (!preferences.containsKey(UpdateSettingsKeys.includePrerelease) &&
-          !migrationBatch.containsKey(UpdateSettingsKeys.includePrerelease))
-        UpdateSettingsKeys.includePrerelease: false,
-      if (!preferences.containsKey(UpdateSettingsKeys.autoDownload) &&
-          !migrationBatch.containsKey(UpdateSettingsKeys.autoDownload))
-        UpdateSettingsKeys.autoDownload: false,
-      if (!preferences.containsKey(UpdateSettingsKeys.skippedVersions) &&
-          !migrationBatch.containsKey(UpdateSettingsKeys.skippedVersions))
-        UpdateSettingsKeys.skippedVersions: <String>[],
-      UpdateSettingsKeys.schemaVersion: currentSchemaVersion,
-    };
+    // When logged in, the KMP-legacy → `update.*` migration is handled by
+    // UserSettingsMigrator; here we only backfill defaults. When logged out
+    // (first install), migrate KMP legacy into the global `update.*` keys so
+    // the upcoming user-scoped migration has a global source to read from.
+    final migrationBatch = _userGuid == null
+        ? const LegacyUpdatePreferencesMigrator(
+            defaultProxyUrl: defaultProxyUrl,
+          ).createMigrationBatch(
+            existingNewKeys: existingNewKeys,
+            legacyReader: _legacyPreferencesReader,
+            normalizeProxyUrl: normalizeProxyUrl,
+          )
+        : const <String, Object>{};
+
+    // Persist validated values (and first-install defaults) into the scoped
+    // namespace.
+    final initializationBatch = <String, Object>{};
+    for (final entry in migrationBatch.entries) {
+      initializationBatch[_scopedKey(entry.key)] = entry.value;
+    }
+    final hasProxyEnabled =
+        _hasKey(migrationBatch, UpdateSettingsKeys.proxyEnabled);
+    if (!hasProxyEnabled) {
+      initializationBatch[_scopedKey(UpdateSettingsKeys.proxyEnabled)] = true;
+    }
+    if (!_hasKey(migrationBatch, UpdateSettingsKeys.proxyUrl)) {
+      initializationBatch[_scopedKey(UpdateSettingsKeys.proxyUrl)] =
+          defaultProxyUrl;
+    }
+    if (!_hasKey(migrationBatch, UpdateSettingsKeys.includePrerelease)) {
+      initializationBatch[_scopedKey(UpdateSettingsKeys.includePrerelease)] =
+          false;
+    }
+    if (!_hasKey(migrationBatch, UpdateSettingsKeys.autoDownload)) {
+      initializationBatch[_scopedKey(UpdateSettingsKeys.autoDownload)] = false;
+    }
+    if (!_hasKey(migrationBatch, UpdateSettingsKeys.skippedVersions)) {
+      initializationBatch[_scopedKey(UpdateSettingsKeys.skippedVersions)] =
+          <String>[];
+    }
+    initializationBatch[_scopedKey(UpdateSettingsKeys.schemaVersion)] =
+        currentSchemaVersion;
     await _persistBatch(initializationBatch);
     _isInitialized = true;
+  }
+
+  bool _hasKey(Map<String, Object> batch, String rawKey) {
+    return batch.containsKey(rawKey) ||
+        preferences.containsKey(_scopedKey(rawKey));
   }
 
   Future<void> setProxyEnabled(bool value) =>
@@ -219,32 +242,14 @@ class UpdateSettingsStore {
     }
   }
 
+  // 作用域读取：未登录走 legacy 链（KMP 兼容）；登录态只读 <guid>::update.*，
+  // 无命中返回 null。迁移由 UserSettingsMigrator 统一处理并删除 legacy / 全局值。
   Object? _readScoped(String rawKey) {
     final guid = _userGuid;
     if (guid == null) {
       return preferences.get(rawKey);
     }
-    final scopedKey = _scopedKey(rawKey);
-    final userValue = preferences.get(scopedKey);
-    if (userValue != null) return userValue;
-    final legacy = preferences.get(rawKey);
-    if (legacy != null) {
-      unawaited(_persistScoped(scopedKey, legacy));
-    }
-    return legacy;
-  }
-
-  Future<void> _persistScoped(String key, Object value) async {
-    switch (value) {
-      case bool booleanValue:
-        await preferences.setBool(key, booleanValue);
-      case int integerValue:
-        await preferences.setInt(key, integerValue);
-      case String stringValue:
-        await preferences.setString(key, stringValue);
-      case List<String> stringList:
-        await preferences.setStringList(key, stringList);
-    }
+    return preferences.get('$guid::$rawKey');
   }
 }
 

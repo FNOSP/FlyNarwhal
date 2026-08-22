@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/services.dart';
@@ -370,19 +369,14 @@ class ShortcutSettingsStore {
     return '$guid::$rawKey';
   }
 
+  // 作用域读取：未登录读全局键；登录态只读 <guid>::<key>。
+  // 不再做"懒迁移"复制：迁移由 UserSettingsMigrator 统一处理并删除全局值。
   String? _readStringScoped(String rawKey) {
     final guid = _userGuid;
     if (guid == null) {
       return _prefs.getString(rawKey);
     }
-    final scopedKey = _scopedKey(rawKey);
-    final userValue = _prefs.getString(scopedKey);
-    if (userValue != null) return userValue;
-    final legacy = _prefs.getString(rawKey);
-    if (legacy != null) {
-      unawaited(_prefs.setString(scopedKey, legacy));
-    }
-    return legacy;
+    return _prefs.getString('$guid::$rawKey');
   }
 
   Future<void> _writeStringScoped(String rawKey, String value) {
