@@ -81,9 +81,9 @@ class FlyNarwhalRemoteDataSource {
     String? proxyUrl,
   }) async* {
     final data = <String, dynamic>{
-      'download_url': downloadUrl,
+      'downloadUrl': downloadUrl,
       if (hash != null && hash.isNotEmpty) 'hash': hash,
-      if (proxyUrl != null && proxyUrl.isNotEmpty) 'proxy_url': proxyUrl,
+      if (proxyUrl != null && proxyUrl.isNotEmpty) 'proxyUrl': proxyUrl,
     };
     final events =
         await _ssePost(ApiEndpoints.flyNarwhalUpdateStart, data: data);

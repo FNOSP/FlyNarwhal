@@ -7,11 +7,14 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../core/constants/app_constants.dart';
 import '../core/utils/log/app_talker.dart';
+import '../data/datasources/remote/fly_narwhal_server_release_data_source.dart';
 import '../data/datasources/remote/github_release_data_source.dart';
 import '../data/repositories/update_repository_impl.dart';
 import '../data/storage/github_release_response_cache.dart';
 import '../data/storage/update_settings_store.dart';
+import '../data/models/user_info.dart';
 import '../domain/update/entities/update_models.dart';
 import '../domain/update/repositories/update_repository.dart';
 import '../domain/update/services/update_asset_selector.dart';
@@ -33,6 +36,7 @@ import '../services/update/update_file_store.dart';
 import '../services/update/update_scheduler.dart';
 import '../ui/features/update/update_controller.dart';
 import '../ui/features/update/update_state.dart';
+import 'fly_narwhal_server_update_notifier.dart';
 import 'providers.dart';
 
 /// Provides persisted application update preferences.
@@ -310,11 +314,64 @@ final currentAppVersionProvider = FutureProvider<String>((ref) {
   return ref.watch(appVersionServiceProvider).getCurrentVersionText();
 });
 
+/// Fetches tagged releases from the FlyNarwhal server repository.
+final flyNarwhalServerReleaseDataSourceProvider =
+    Provider<FlyNarwhalServerReleaseDataSource>((ref) {
+  return FlyNarwhalServerReleaseDataSource(
+    dio: ref.watch(updateDioProvider),
+    userAgent: 'FlyNarwhal desktop client',
+  );
+});
+
+/// Coordinates the FlyNarwhal server self-update check and install flow.
+final flyNarwhalServerUpdateProvider = StateNotifierProvider<
+    FlyNarwhalServerUpdateNotifier, FlyNarwhalServerUpdateState>((ref) {
+  final releaseDataSource =
+      ref.watch(flyNarwhalServerReleaseDataSourceProvider);
+  final updateSettingsStore = ref.watch(updateSettingsStoreProvider);
+  final notifier = FlyNarwhalServerUpdateNotifier(
+    dataSource: ref.watch(flyNarwhalRemoteDataSourceProvider),
+    fetchServerRelease: releaseDataSource.fetchByTag,
+    targetVersion: AppConstants.flyNarwhalServerVersion,
+    isEnabled: () => ref.read(settingsProvider).isFlyNarwhalServerAvailable,
+    getProxyUrl: () => updateSettingsStore.proxyUrl,
+  );
+
+  // Re-check when the server is enabled.
+  ref.listen<SettingsState>(settingsProvider, (previous, next) {
+    final wasEnabled = previous?.flyNarwhalServerEnabled ?? false;
+    if (!wasEnabled && next.flyNarwhalServerEnabled) {
+      notifier.checkServerUpdate();
+    }
+  });
+
+  // Re-check when the logged-in user changes.
+  ref.listen<AsyncValue<UserInfo?>>(userInfoProvider, (previous, next) {
+    if (previous?.valueOrNull?.guid != next.valueOrNull?.guid) {
+      notifier.checkServerUpdate();
+    }
+  });
+
+  // Ride along with the client's manual "check for updates".
+  ref.listen<UpdateState>(updateControllerProvider, (previous, next) {
+    final wasChecking = previous?.phase == UpdatePhase.checking;
+    if (!wasChecking && next.phase == UpdatePhase.checking) {
+      notifier.checkServerUpdate();
+    }
+  });
+
+  return notifier;
+});
+
 /// Starts one root-scoped automatic update scheduler for desktop platforms.
 final updateSchedulerProvider = Provider<UpdateScheduler>((ref) {
   final scheduler = UpdateScheduler(
-    checkForUpdates: () =>
-        ref.read(updateControllerProvider.notifier).handleAutomaticCheck(),
+    checkForUpdates: () {
+      ref.read(flyNarwhalServerUpdateProvider.notifier).checkServerUpdate();
+      return ref
+          .read(updateControllerProvider.notifier)
+          .handleAutomaticCheck();
+    },
     startupDelay: const Duration(seconds: 30),
     interval: const Duration(hours: 4),
     isSupportedPlatform:
