@@ -485,7 +485,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // Share the same referrer/origin headers as the real playback so the
     // source is reachable during the probe.
-    final headers = _sessionCoordinator.buildPlayerHeaders();
+    final headers = _buildPlaybackHttpHeaders(playUri);
     Player? probePlayer;
     try {
       // The probe only inspects `hwdec-current`; it must never produce sound.
@@ -1521,7 +1521,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   ///   and omit NAS auth, because the request goes to the cloud provider.
   Map<String, String> _buildPlaybackHttpHeaders(String playUri) {
     final isNasProxy = playUri.contains('/v/api/v1/media/range') ||
-        playUri.contains('/v/api/v1/wp/m3u8');
+        playUri.contains('/v/api/v1/wp/m3u8') ||
+        _isNasHostedUrl(playUri);
     final cloudHeader = _playingInfoCache?.streamInfo?.header;
 
     if (isNasProxy) {
@@ -1542,6 +1543,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }
     return headers;
+  }
+
+  /// Whether [playUri] is served by the NAS itself and therefore needs NAS
+  /// auth. Covers transcode HLS links (play/play -> /v/media/ID/preset.m3u8
+  /// and their .ts segments), which live on the same host:port as the
+  /// configured base URL. The browser-based web player gets this for free via
+  /// same-origin cookies; mpv needs the headers attached explicitly. Direct
+  /// cloud CDN URLs live on other hosts and must not receive NAS credentials.
+  bool _isNasHostedUrl(String playUri) {
+    final baseUrl = ref.read(preferencesManagerProvider).getBaseUrl();
+    if (baseUrl == null || baseUrl.isEmpty) return false;
+    final baseUri = Uri.tryParse(baseUrl);
+    final targetUri = Uri.tryParse(playUri);
+    if (baseUri == null || targetUri == null) return false;
+    final baseHost = baseUri.host;
+    if (baseHost.isEmpty) return false;
+    return targetUri.host == baseHost && targetUri.port == baseUri.port;
   }
 
   Future<void> _openMediaWithResume({
