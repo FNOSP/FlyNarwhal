@@ -11,6 +11,7 @@ import '../../../providers/global_refresh.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/window_caption.dart';
+import '../../shared/media_category_icon.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../search/widgets/capsule_search_box.dart';
 import '../update/update_badge.dart';
@@ -144,29 +145,14 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     }
 
     Widget buildCategoryIcon(String category) {
-      String assetPath;
-      switch (category) {
-        case 'Movie':
-          assetPath = 'assets/images/movie.svg';
-          break;
-        case 'TV':
-          assetPath = 'assets/images/tv.svg';
-          break;
-        case 'Mix':
-          assetPath = 'assets/images/mix_media.svg';
-          break;
-        case 'IPTV':
-          // Live TV media library (e.g. 国内电视台).
-          assetPath = 'assets/images/live_tv.svg';
-          break;
-        case 'Others':
-          assetPath = 'assets/images/other_media.svg';
-          break;
-        default:
-          assetPath = 'assets/images/other_media.svg';
-          break;
-      }
-      return buildNavigationAssetIcon(assetPath);
+      final theme = FluentTheme.of(context);
+      final iconColor =
+          IconTheme.of(context).color ?? theme.iconTheme.color ?? Colors.white;
+      return buildMediaCategoryIcon(
+        category: category,
+        size: 14,
+        color: iconColor,
+      );
     }
 
     List<NavigationPaneItem> buildMediaDbItems() {
