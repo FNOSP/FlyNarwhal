@@ -17,6 +17,13 @@ class CastScrollRow extends StatelessWidget {
   final double height;
   final double itemSpacing;
   final EdgeInsetsGeometry padding;
+  final ScrollController? controller;
+
+  /// Width of a single cast item. Exposed so callers can compute the scroll
+  /// offset needed to bring a given person to the leading edge.
+  static const double itemWidth = 80;
+
+  static const double defaultItemSpacing = 16;
 
   const CastScrollRow({
     super.key,
@@ -26,8 +33,9 @@ class CastScrollRow extends StatelessWidget {
     required this.cacheManager,
     this.title = '演职人员',
     this.height = 112,
-    this.itemSpacing = 16,
+    this.itemSpacing = defaultItemSpacing,
     this.padding = const EdgeInsets.symmetric(horizontal: 32),
+    this.controller,
   });
 
   @override
@@ -53,6 +61,9 @@ class CastScrollRow extends StatelessWidget {
           itemBuilder: (context, index) {
             final person = persons[index];
             return _CastAvatar(
+              // Index is part of the key because the same person can appear
+              // multiple times (e.g. as both director and actor).
+              key: ValueKey('cast-${person.personGuid}-$index'),
               person: person,
               baseUrl: baseUrl,
               httpHeaders: httpHeaders,
@@ -62,6 +73,7 @@ class CastScrollRow extends StatelessWidget {
           height: height,
           padding: padding,
           itemSpacing: itemSpacing,
+          controller: controller,
         ),
       ],
     );
@@ -75,6 +87,7 @@ class _CastAvatar extends ConsumerStatefulWidget {
   final cache_manager.CacheManager cacheManager;
 
   const _CastAvatar({
+    super.key,
     required this.person,
     required this.baseUrl,
     required this.httpHeaders,
@@ -92,9 +105,15 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
   void _handleTap() {
     final personGuid = widget.person.personGuid;
     if (personGuid.isEmpty) return;
-    ref.read(navigationStackProvider.notifier).pushPath(
-          GoRouterState.of(context).uri.toString(),
-        );
+    final currentUri = GoRouterState.of(context).uri.toString();
+    ref.read(navigationStackProvider.notifier).pushPath(currentUri);
+    // Remember the clicked person so the originating page can scroll back
+    // to it when the user returns (mirrors the Web behavior).
+    ref.read(castScrollReturnTargetProvider.notifier).state =
+        CastScrollReturnTarget(
+      mediaPath: currentUri,
+      personGuid: personGuid,
+    );
     context.go('/person/$personGuid');
   }
 
@@ -109,7 +128,7 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
         : widget.person.job;
 
     return SizedBox(
-      width: 80,
+      width: CastScrollRow.itemWidth,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),

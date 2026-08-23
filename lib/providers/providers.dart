@@ -144,6 +144,26 @@ class NavigationStackNotifier extends StateNotifier<List<String>> {
   }
 }
 
+/// Records the cast member clicked when entering the person detail page, so
+/// returning to [mediaPath] can scroll the cast row back to that person.
+/// Mirrors the fnOS Web behavior where the clicked actor id is carried by
+/// the back-navigation route state.
+class CastScrollReturnTarget {
+  const CastScrollReturnTarget({
+    required this.mediaPath,
+    required this.personGuid,
+  });
+
+  /// URI string of the page the person was clicked from, e.g. `/movie/<guid>`.
+  final String mediaPath;
+
+  /// The person guid of the clicked cast member.
+  final String personGuid;
+}
+
+final castScrollReturnTargetProvider =
+    StateProvider<CastScrollReturnTarget?>((ref) => null);
+
 final dioClientProvider = Provider<DioClient>((ref) {
   final prefsManager = ref.watch(preferencesManagerProvider);
   return DioClient.withCallbacks(

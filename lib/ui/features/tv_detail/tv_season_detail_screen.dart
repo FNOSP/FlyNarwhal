@@ -141,6 +141,9 @@ class _TvSeasonDetailContentState
   late final FlyoutController _moreController = FlyoutController();
   late final SeasonAnalysisStatusController _seasonAnalysisStatusController;
 
+  final ScrollController _castScrollController = ScrollController();
+  bool _castScrollRestoreDone = false;
+
   @override
   void initState() {
     super.initState();
@@ -164,6 +167,7 @@ class _TvSeasonDetailContentState
     );
     _moreController.dispose();
     _descriptionScrollController.dispose();
+    _castScrollController.dispose();
     super.dispose();
   }
 
@@ -287,10 +291,38 @@ class _TvSeasonDetailContentState
     return '第 ${playInfo.item.episodeNumber} 集';
   }
 
+  /// When this page is re-entered by going back from a cast member's person
+  /// detail page, scroll the cast row so that member is positioned at the
+  /// leading edge again — mirroring the fnOS Web behavior.
+  void _maybeRestoreCastScroll() {
+    if (_castScrollRestoreDone) return;
+    final target = ref.read(castScrollReturnTargetProvider);
+    if (target == null) return;
+    if (Uri.parse(target.mediaPath).path != '/tv/season/${widget.guid}') {
+      return;
+    }
+    final index = widget.state.personList
+        .indexWhere((p) => p.personGuid == target.personGuid);
+    _castScrollRestoreDone = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(castScrollReturnTargetProvider.notifier).state = null;
+      if (index < 0 || !_castScrollController.hasClients) return;
+      final position = _castScrollController.position;
+      final offset = index *
+          (CastScrollRow.itemWidth + CastScrollRow.defaultItemSpacing);
+      _castScrollController.jumpTo(
+        offset.clamp(position.minScrollExtent, position.maxScrollExtent),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.state.item;
     if (item == null) return const Center(child: Text('未找到分季信息'));
+
+    _maybeRestoreCastScroll();
 
     // Start or stop polling when the Fly Narwhal server availability changes
     ref.listen<bool>(
@@ -575,6 +607,7 @@ class _TvSeasonDetailContentState
                     baseUrl: widget.baseUrl,
                     httpHeaders: widget.httpHeaders,
                     cacheManager: widget.cacheManager,
+                    controller: _castScrollController,
                   ),
                 ),
               ),
