@@ -28,7 +28,10 @@ target_compile_options(flynarwhal_install_helper_core PRIVATE
 target_link_libraries(flynarwhal_install_helper_core PRIVATE
   advapi32.lib
   bcrypt.lib
+  ole32.lib
+  oleaut32.lib
   shell32.lib
+  taskschd.lib
   version.lib
 )
 

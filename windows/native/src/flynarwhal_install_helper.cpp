@@ -765,92 +765,29 @@ bool ValidateJournalExecutableBindingImpl(
           journal.helper_sha256 == current_executable_sha);
 }
 
-std::wstring BuildWorkerCommandLine(const std::filesystem::path& executable_path,
-                                    const RequestBindings& bindings) {
-  std::vector<std::wstring> values = {
-      executable_path.wstring(),
-      L"worker",
-      L"--transaction-id",
-      bindings.transaction_id,
-      L"--stage",
-      bindings.stage_path.wstring(),
-      L"--provenance-sha256",
-      bindings.stage_provenance_sha256,
-      L"--artifact-sha256",
-      bindings.expected_artifact_sha256,
-      L"--artifact-length",
-      std::to_wstring(bindings.expected_artifact_length),
-      L"--caller-pid",
-      std::to_wstring(bindings.caller_process_id),
-      L"--caller-executable",
-      bindings.caller_executable.wstring(),
-  };
-  std::wstring command_line;
-  for (const auto& value : values) {
-    if (!command_line.empty()) {
-      command_line += L' ';
-    }
-    command_line += QuoteWindowsArgument(value);
-  }
-  return command_line;
-}
-
-bool CreateWorkerCopy(const Journal& journal,
-                      std::filesystem::path* worker_path,
-                      std::wstring* error_message) {
-  const auto worker_root = GetWorkerRoot();
-  std::error_code directory_error;
-  std::filesystem::create_directories(worker_root, directory_error);
-  if (directory_error || HasReparsePointInExistingPath(worker_root)) {
-    *error_message = L"Worker runtime directory is unsafe.";
-    return false;
-  }
-  const auto runtime_directory = worker_root / journal.bindings.transaction_id;
-  std::filesystem::create_directories(runtime_directory, directory_error);
-  if (directory_error || HasReparsePointInExistingPath(runtime_directory)) {
-    *error_message = L"Worker runtime path is unsafe.";
-    return false;
-  }
-  // Run the detached worker from an app-owned runtime copy so the installer
-  // can replace the installed helper without Restart Manager aborting.
-  const auto target_path =
-      runtime_directory / journal.helper_executable.filename();
-  std::filesystem::copy_file(journal.helper_executable, target_path,
-                             std::filesystem::copy_options::overwrite_existing,
-                             directory_error);
-  if (directory_error || !IsSafeRegularFile(target_path) ||
-      ComputeFileSha256(target_path) != journal.helper_sha256) {
-    *error_message = L"Worker runtime copy could not be created.";
-    return false;
-  }
-  *worker_path = target_path;
-  return true;
-}
-
-bool StartDetachedWorker(const Journal& journal,
-                         std::wstring* error_message) {
-  std::filesystem::path worker_path;
-  if (!CreateWorkerCopy(journal, &worker_path, error_message)) {
-    return false;
-  }
+bool StartDetachedRecoveryWaiter(
+    const std::filesystem::path& recovery_runtime_path,
+    const std::wstring& transaction_id,
+    std::wstring* error_message) {
   std::wstring command_line =
-      BuildWorkerCommandLine(worker_path, journal.bindings);
-  LogInfo(std::wstring(L"Starting detached worker process from: ") +
-          worker_path.wstring());
+      QuoteWindowsArgument(recovery_runtime_path.wstring());
+  command_line += L" resume --transaction-id ";
+  command_line += QuoteWindowsArgument(transaction_id);
+  LogInfo(std::wstring(L"Starting detached recovery waiter from: ") +
+          recovery_runtime_path.wstring());
   STARTUPINFOW startup_info{};
   startup_info.cb = sizeof(startup_info);
   PROCESS_INFORMATION process_information{};
-  if (!CreateProcessW(worker_path.c_str(), command_line.data(),
-                      nullptr, nullptr, FALSE,
-                      CREATE_NO_WINDOW | DETACHED_PROCESS, nullptr, nullptr,
-                      &startup_info, &process_information)) {
+  if (!CreateProcessW(recovery_runtime_path.c_str(), command_line.data(),
+                      nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
+                      nullptr, &startup_info, &process_information)) {
     const DWORD last_error = GetLastError();
-    LogError(std::wstring(L"Unable to start the transaction worker; last error ") +
+    LogError(std::wstring(L"Unable to start the recovery waiter; last error ") +
              std::to_wstring(last_error) + L".");
-    *error_message = L"Unable to start the transaction worker.";
+    *error_message = L"Unable to start the recovery waiter.";
     return false;
   }
-  LogInfo(std::wstring(L"Detached worker started with process id ") +
+  LogInfo(std::wstring(L"Recovery waiter started with process id ") +
           std::to_wstring(process_information.dwProcessId) + L".");
   CloseHandle(process_information.hThread);
   CloseHandle(process_information.hProcess);
@@ -861,20 +798,27 @@ int PersistFailure(Journal journal, const std::wstring& message,
                    TransactionState state = TransactionState::failed);
 
 // Shared fallback used when the scheduled recovery host cannot take over:
-// hand the committed transaction to a detached worker instead of stranding
-// it in a terminal manual-action state.
-int RecoverWithWorkerFallback(Journal* journal, std::wstring* error_message) {
+// run the already-provisioned recovery runtime copy directly as a detached
+// waiter instead of stranding the transaction in a terminal manual-action
+// state. No additional executable copy is created; the waiter is the same
+// recovery host binary the scheduled task would have launched.
+int RecoverWithDirectWaiterFallback(
+    Journal* journal,
+    const std::filesystem::path& recovery_runtime_path,
+    std::wstring* error_message) {
   journal->recovery_armed = false;
   journal->recovery_task_name.clear();
   journal->state = TransactionState::commit_accepted;
   if (!WriteJournalDurably(*journal, error_message)) {
     return PersistFailure(*journal, *error_message);
   }
-  if (!StartDetachedWorker(*journal, error_message)) {
+  if (!StartDetachedRecoveryWaiter(recovery_runtime_path,
+                                   journal->bindings.transaction_id,
+                                   error_message)) {
     return PersistFailure(*journal, *error_message,
                           TransactionState::manual_action_required);
   }
-  LogInfo(L"Commit accepted and worker fallback launch requested.");
+  LogInfo(L"Commit accepted and direct recovery waiter launch requested.");
   std::wcout << L"commitAccepted\n";
   return 0;
 }
@@ -1630,14 +1574,16 @@ int RunCommit(const RequestBindings& bindings) {
                                  descriptor.recovery_host_sha256,
                                  journal->bindings.transaction_id,
                                  &recovery_runtime_path, &error)) {
-    LogWarning(L"Recovery host runtime copy could not be created; using worker fallback.");
-    return RecoverWithWorkerFallback(&*journal, &error);
+    LogWarning(L"Recovery host runtime copy could not be created.");
+    return PersistFailure(*journal, error,
+                          TransactionState::manual_action_required);
   }
 
   if (!ArmRecoveryHostTask(recovery_runtime_path, journal->bindings.transaction_id,
                            &journal->recovery_task_name, &error)) {
-    LogWarning(L"Recovery host task could not be armed; using worker fallback.");
-    return RecoverWithWorkerFallback(&*journal, &error);
+    LogWarning(L"Recovery host task could not be armed; using direct recovery waiter fallback.");
+    return RecoverWithDirectWaiterFallback(&*journal, recovery_runtime_path,
+                                           &error);
   }
 
   journal->recovery_armed = true;
@@ -1795,8 +1741,9 @@ int RunRecover(const std::wstring& transaction_id) {
   }
 
   // Mirror the commit path: when the scheduled recovery host cannot be
-  // armed, fall back to the detached worker instead of stranding the
-  // transaction in a manual action state.
+  // armed, fall back to running the provisioned recovery runtime copy
+  // directly as a detached waiter instead of stranding the transaction in a
+  // manual action state.
   std::filesystem::path recovery_runtime_path;
   if (!CreateRecoveryRuntimeCopy(journal->recovery_host_path,
                                  descriptor.recovery_host_sha256,
@@ -1804,14 +1751,16 @@ int RunRecover(const std::wstring& transaction_id) {
                                  &recovery_runtime_path, &error)) {
     LogWarning(std::wstring(
                    L"Recovery host runtime copy could not be created (") +
-               error + L"); using worker fallback.");
-    return RecoverWithWorkerFallback(&*journal, &error);
+               error + L").");
+    return PersistFailure(*journal, error,
+                          TransactionState::manual_action_required);
   }
   if (!ArmRecoveryHostTask(recovery_runtime_path, journal->bindings.transaction_id,
                            &journal->recovery_task_name, &error)) {
     LogWarning(std::wstring(L"Recovery host task could not be armed (") +
-               error + L"); using worker fallback.");
-    return RecoverWithWorkerFallback(&*journal, &error);
+               error + L"); using direct recovery waiter fallback.");
+    return RecoverWithDirectWaiterFallback(&*journal, recovery_runtime_path,
+                                           &error);
   }
   // Mark the journal after the recovery host task is durably armed.
   journal->recovery_armed = true;
