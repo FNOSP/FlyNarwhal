@@ -22,6 +22,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.2.1-beta] - 2026-08-23
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Added
+
+- **Arch Linux 安装包**：支持 Arch Linux pacman（.pkg.tar.zst）安装包。
+- **服务端自更新检查**：新增自动检测飞牛影视服务端自更新。
+- **演员简介返回定位**：详情页点击演员后返回时，滚动条定位回被点击的演员。
+- **授权码输入提示**：设置页中授权码新增引导提示。
+
+### Changed
+
+- **设置按用户隔离**：全局设置与播放器偏好迁移为按用户范围存储，并为旧数据提供一次性自动迁移。
+- **更新徽章样式**：标题栏更新徽章改用新版图标并调整间距。
+
+### Fixed
+
+- **弹幕开关状态**：关闭弹幕时禁用弹幕相关设置项，修正切换图标，重新识别失败时隐藏弹幕。
+- **智能跳过开关回退**：回退智能跳过切换逻辑。
+- **直播弹框同步关闭**：快速移动鼠标时同步关闭线路选择/音量弹框。
+- **连接测试错误信息**：连接测试失败时展示服务端返回的具体错误信息。
+- **服务器不可达提示**：服务器不可达时显示更友好的提示。
+- **转码播放鉴权**：转码 HLS 播放 URL 附带 NAS 鉴权头。
+- **优化更新弹窗**：更新弹窗包裹 ExcludeSemantics，消除 Windows AXTree 错误日志。
+- **异步关闭安全**：AppDialog 在异步操作后安全自动关闭。
+
 ## [2.2.0-beta] - 2026-08-21
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
