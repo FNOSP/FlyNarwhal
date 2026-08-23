@@ -165,10 +165,10 @@ class DanmakuController extends StateNotifier<DanmakuState> {
           ),
         );
 
-  Future<void> loadDanmaku(DanmakuRequest request) async {
+  Future<bool> loadDanmaku(DanmakuRequest request) async {
     if (!_canLoadDanmaku()) {
       clear();
-      return;
+      return false;
     }
 
     final currentRequestGeneration = ++_requestGeneration;
@@ -183,7 +183,7 @@ class DanmakuController extends StateNotifier<DanmakuState> {
       final response =
           (await _remoteDataSource.getDanmaku(request)).getOrThrow();
       if (currentRequestGeneration != _requestGeneration) {
-        return;
+        return false;
       }
 
       final selectedDanmaku = _selectDanmaku(
@@ -191,16 +191,18 @@ class DanmakuController extends StateNotifier<DanmakuState> {
         request.episodeNumber,
       );
       final normalizedDanmaku = _normalizeAndSort(selectedDanmaku);
+      final loadStatus = normalizedDanmaku.isEmpty
+          ? DanmakuLoadStatus.empty
+          : DanmakuLoadStatus.loaded;
       state = state.copyWith(
         danmakuList: normalizedDanmaku,
-        loadStatus: normalizedDanmaku.isEmpty
-            ? DanmakuLoadStatus.empty
-            : DanmakuLoadStatus.loaded,
+        loadStatus: loadStatus,
         clearErrorMessage: true,
       );
+      return true;
     } catch (error) {
       if (currentRequestGeneration != _requestGeneration) {
-        return;
+        return false;
       }
 
       AppTalker.warning(
@@ -211,7 +213,9 @@ class DanmakuController extends StateNotifier<DanmakuState> {
         danmakuList: const [],
         loadStatus: DanmakuLoadStatus.failure,
         errorMessage: error.toString(),
+        isVisible: false,
       );
+      return false;
     }
   }
 

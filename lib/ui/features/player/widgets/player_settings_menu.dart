@@ -168,7 +168,7 @@ class PlayerSettingsMenu extends StatefulWidget {
   final void Function(int skipOpening, int skipEnding) onSkipConfigChanged;
   final void Function(bool isHovered)? onHoverStateChanged;
   final bool smartSkipEnabled;
-  final void Function(bool enabled)? onSmartSkipEnabledChanged;
+  final Future<bool> Function(bool enabled)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
@@ -661,7 +661,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final void Function(String) onVideoFillModeChanged;
   final void Function(int, int) onSkipConfigChanged;
   final bool smartSkipEnabled;
-  final void Function(bool)? onSmartSkipEnabledChanged;
+  final Future<bool> Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
@@ -1694,7 +1694,7 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
   final VoidCallback onBack;
   final void Function(int, int) onConfigChanged;
   final bool smartSkipEnabled;
-  final void Function(bool)? onSmartSkipEnabledChanged;
+  final Future<bool> Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
   final bool isSavingSkipConfig;
   // Whether the FlyNarwhal server is fully configured (URL + auth code)
@@ -1836,7 +1836,19 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                       return;
                     }
                     setState(() => _smartSkipEnabled = value);
-                    widget.onSmartSkipEnabledChanged?.call(value);
+                    final onChanged = widget.onSmartSkipEnabledChanged;
+                    if (onChanged == null) return;
+                    // Roll back the local switch state when the requested enable
+                    // did not take effect (e.g. re-request failed). Without this,
+                    // the switch would stay ON while the feature is actually off,
+                    // until the screen is re-entered.
+                    unawaited(
+                      onChanged(value).then((ok) {
+                        if (!ok && mounted && value) {
+                          setState(() => _smartSkipEnabled = false);
+                        }
+                      }),
+                    );
                   },
           ),
         const SizedBox(height: 8),
