@@ -89,7 +89,13 @@ class PlaybackDetailsPanel extends StatelessWidget {
   }
 
   String get _playTypeLabel {
-    if (cache.isUseDirectLink && _isCloudMedia) return '网盘直连播放';
+    if (cache.isUseDirectLink && _isCloudMedia) {
+      // The web player shows a dedicated label for STRM direct-link sessions.
+      if (cache.streamInfo?.cloudStorageInfo?.isStrm ?? false) {
+        return 'STRM 直连播放';
+      }
+      return '网盘直连播放';
+    }
     if (_isTranscoded) return '转码播放';
     return '直接播放';
   }

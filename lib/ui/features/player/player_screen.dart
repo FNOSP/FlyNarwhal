@@ -58,6 +58,7 @@ import 'utils/player_volume_helper.dart';
 import 'viewmodels/player_view_model.dart';
 import 'widgets/episode_selection_flyout.dart';
 import 'widgets/cloud_playback_widgets.dart';
+import 'widgets/strm_play_tips_flyout.dart';
 import 'widgets/player_danmaku_overlay.dart';
 import 'widgets/danmaku_settings_flyout.dart';
 import 'widgets/player_subtitle_overlay.dart';
@@ -4870,6 +4871,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             CloudPlaybackErrorDialog(
               key: const ValueKey('player-cloud-playback-error'),
               isProxyMode: _cloudPlaybackErrorIsProxy,
+              isStrm:
+                  _playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
+                      false,
               onRetry: _retryCloudPlaybackWithReload,
               onSwitchQuality: _switchCloudAlternativeQualityWithReload,
               onSwitchProxy: _switchCloudPlayModeWithReloadToProxy,
@@ -5407,7 +5411,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         const Spacer(),
         // Cloud-storage media shows the account chip (网盘直连/NAS 代理 selector)
         // ahead of the trailing control cluster, mirroring the web player.
-        if (_playingInfoCache?.streamInfo?.isCloudDirectMedia ?? false) ...[
+        // STRM files instead show a plain cloud icon with a static
+        // 「正在直连播放 STRM 文件」hover tip (no direct/proxy switch, like web).
+        if (_playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
+            false) ...[
+          StrmPlayTipsFlyout(
+            key: const ValueKey('player-strm-play-tips'),
+            yOffset: _controlFlyoutOffset,
+            isActiveControl:
+                overlayState.activeFlyout == PlayerFlyoutType.strmDirectPlay,
+            onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
+                PlayerFlyoutType.strmDirectPlay, hovered),
+          ),
+          const SizedBox(width: _trailingControlSpacing),
+        ] else if (_playingInfoCache?.streamInfo?.isCloudDirectMedia ??
+            false) ...[
           CloudAccountChip(
             key: const ValueKey('player-cloud-account-chip'),
             cloudStorageInfo:
@@ -5456,6 +5474,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             currentResolution: _currentResolution,
             currentBitrate: _currentBitrate,
             cloudMode: _isCloudDirectSession,
+            isStrm:
+                _playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
+                    false,
             yOffset: _controlFlyoutOffset,
             isActiveControl:
                 overlayState.activeFlyout == PlayerFlyoutType.quality,

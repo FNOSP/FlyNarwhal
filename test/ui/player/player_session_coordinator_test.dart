@@ -334,6 +334,59 @@ video/main.m3u8
       },
     );
   });
+
+  group('PlayerSessionCoordinator.getDirectPlayLink', () {
+    test(
+      'Given STRM media, When resolving the direct play link, Then it plays the NAS-resolved URL directly',
+      () async {
+        const strmUrl = 'http://192.168.31.73:8024/smartstrm_fid/movie.mkv?sign=abc';
+        final result = await coordinator.getDirectPlayLink(
+          mediaGuid: 'media-guid',
+          startPositionMs: 16000,
+          directLinkQualityIndex: 0,
+          directLinkQualities: [
+            DirectLinkQuality(
+              resolution: '原画',
+              url: strmUrl,
+              isM3u8: false,
+            ),
+          ],
+          cloudStorageType: CloudStorageInfo.strmCloudStorageType,
+        );
+
+        expect(result.playUri, equals(strmUrl));
+        expect(result.playLinkRaw, equals(strmUrl));
+        expect(result.effectiveStartMs, equals(16000));
+      },
+    );
+
+    test(
+      'Given Baidu Pan media, When resolving the direct play link, Then it still routes through the media/range proxy',
+      () async {
+        final result = await coordinator.getDirectPlayLink(
+          mediaGuid: 'media-guid',
+          startPositionMs: 0,
+          directLinkQualityIndex: 0,
+          directLinkQualities: [
+            DirectLinkQuality(
+              resolution: '原画',
+              url: 'https://pan.example.com/movie.mkv',
+              isM3u8: false,
+            ),
+          ],
+          cloudStorageType: 1,
+        );
+
+        expect(
+          result.playUri,
+          equals(
+            'https://example.com/v/api/v1/media/range/media-guid'
+            '?direct_link_quality_index=0',
+          ),
+        );
+      },
+    );
+  });
 }
 
 PlayInfoResponse _buildPlayInfoResponse() {

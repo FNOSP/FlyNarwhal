@@ -51,6 +51,9 @@ class QualityControlFlyout extends StatefulWidget {
   // (原画/流畅 …) and the flyout renders the web-style 视频质量 panel with the
   // low-risk green dot and the "直连播放原画无声音" hint.
   final bool cloudMode;
+  // STRM media: mirrors the web player, which hides the 原画无声音 hint for
+  // STRM direct-link sessions (and has no NAS 代理切换 for STRM either).
+  final bool isStrm;
 
   const QualityControlFlyout({
     super.key,
@@ -62,6 +65,7 @@ class QualityControlFlyout extends StatefulWidget {
     this.onHoverStateChanged,
     required this.onQualitySelected,
     this.cloudMode = false,
+    this.isStrm = false,
   });
 
   @override
@@ -429,6 +433,7 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
         currentBitrate: widget.currentBitrate,
         isCustomPage: _isCustomPage,
         cloudMode: widget.cloudMode,
+        isStrm: widget.isStrm,
         onSwitchPage: (isCustom) {
           setState(() => _isCustomPage = isCustom);
           _overlayEntry?.markNeedsBuild();
@@ -452,6 +457,7 @@ class _QualityFlyoutContent extends StatelessWidget {
   final int? currentBitrate;
   final bool isCustomPage;
   final bool cloudMode;
+  final bool isStrm;
   final void Function(bool isCustom) onSwitchPage;
   final void Function(QualityResponse) onQualitySelected;
 
@@ -461,6 +467,7 @@ class _QualityFlyoutContent extends StatelessWidget {
     required this.currentBitrate,
     required this.isCustomPage,
     required this.cloudMode,
+    required this.isStrm,
     required this.onSwitchPage,
     required this.onQualitySelected,
   });
@@ -478,6 +485,7 @@ class _QualityFlyoutContent extends StatelessWidget {
           ? _CloudQualityPage(
               qualities: qualities,
               currentResolution: currentResolution,
+              isStrm: isStrm,
               onQualitySelected: onQualitySelected,
             )
           : isCustomPage
@@ -897,11 +905,13 @@ class _CustomQualityItemState extends State<_CustomQualityItem> {
 class _CloudQualityPage extends StatelessWidget {
   final List<QualityResponse> qualities;
   final String currentResolution;
+  final bool isStrm;
   final void Function(QualityResponse) onQualitySelected;
 
   const _CloudQualityPage({
     required this.qualities,
     required this.currentResolution,
+    this.isStrm = false,
     required this.onQualitySelected,
   });
 
@@ -990,25 +1000,28 @@ class _CloudQualityPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                 ],
-                const Row(
-                  children: [
-                    Text(
-                      '直连播放原画无声音',
-                      style: TextStyle(color: Color(0xA0FFFFFF), fontSize: 12),
-                    ),
-                    SizedBox(width: 6),
-                    Tooltip(
-                      message:
-                          '由于播放器对音频编码格式的支持有限，直连播放原画可能出现无声音'
-                          '的情况。可尝试切换播放方式为 “NAS 代理播放”。',
-                      child: Icon(
-                        FluentIcons.unknown,
-                        size: 13,
-                        color: Color(0x80FFFFFF),
+                // The web player hides this hint (and its NAS 代理切换 advice)
+                // for STRM direct-link sessions.
+                if (!isStrm)
+                  const Row(
+                    children: [
+                      Text(
+                        '直连播放原画无声音',
+                        style: TextStyle(color: Color(0xA0FFFFFF), fontSize: 12),
                       ),
-                    ),
-                  ],
-                ),
+                      SizedBox(width: 6),
+                      Tooltip(
+                        message:
+                            '由于播放器对音频编码格式的支持有限，直连播放原画可能出现无声音'
+                            '的情况。可尝试切换播放方式为 “NAS 代理播放”。',
+                        child: Icon(
+                          FluentIcons.unknown,
+                          size: 13,
+                          color: Color(0x80FFFFFF),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
