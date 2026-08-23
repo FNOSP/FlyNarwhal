@@ -314,6 +314,9 @@ bool ArmRecoveryHostTask(const std::filesystem::path& runtime_path,
     settings->put_DisallowStartIfOnBatteries(VARIANT_FALSE);
     settings->put_ExecutionTimeLimit(L"PT0S");
   }
+  // The Task Scheduler COM API takes BSTR strings, so allocate one for the
+  // trigger boundary instead of passing a const wchar_t*.
+  ScopedBstr boundary_bstr(boundary.c_str());
   ComPtr<ITriggerCollection> triggers;
   ComPtr<ITrigger> trigger;
   ComPtr<ITimeTrigger> time_trigger;
@@ -322,29 +325,32 @@ bool ArmRecoveryHostTask(const std::filesystem::path& runtime_path,
       FAILED(triggers->Create(TASK_TRIGGER_TIME, trigger.receive())) ||
       FAILED(trigger->QueryInterface(IID_ITimeTrigger,
                                      reinterpret_cast<void**>(time_trigger.receive()))) ||
-      FAILED(time_trigger->put_StartBoundary(boundary.c_str()))) {
+      FAILED(time_trigger->put_StartBoundary(boundary_bstr.value))) {
     LogWarning(L"Recovery task trigger could not be attached.");
     *error_message = L"Recovery host task could not be created.";
     return false;
   }
+  const std::wstring runtime_path_text = runtime_path.wstring();
+  // Allocate BSTRs for the action path and arguments required by the COM API.
+  ScopedBstr path_bstr(runtime_path_text.c_str());
+  ScopedBstr arguments_bstr(task_arguments.c_str());
   ComPtr<IActionCollection> actions;
   ComPtr<IAction> action;
   ComPtr<IExecAction> exec_action;
-  const std::wstring runtime_path_text = runtime_path.wstring();
   result = task->get_Actions(actions.receive());
   if (FAILED(result) ||
       FAILED(actions->Create(TASK_ACTION_EXEC, action.receive())) ||
       FAILED(action->QueryInterface(IID_IExecAction,
                                     reinterpret_cast<void**>(exec_action.receive()))) ||
-      FAILED(exec_action->put_Path(runtime_path_text.c_str())) ||
-      FAILED(exec_action->put_Arguments(task_arguments.c_str()))) {
+      FAILED(exec_action->put_Path(path_bstr.value)) ||
+      FAILED(exec_action->put_Arguments(arguments_bstr.value))) {
     LogWarning(L"Recovery task action could not be attached.");
     *error_message = L"Recovery host task could not be created.";
     return false;
   }
   ComPtr<IRegisteredTask> registered;
   result = root->RegisterTaskDefinition(task_bstr.value, task.value,
-                                        TASK_CREATE_OR_REPLACE, empty, empty,
+                                        TASK_CREATE_OR_UPDATE, empty, empty,
                                         TASK_LOGON_INTERACTIVE_TOKEN, empty,
                                         registered.receive());
   if (FAILED(result)) {
@@ -353,7 +359,7 @@ bool ArmRecoveryHostTask(const std::filesystem::path& runtime_path,
     *error_message = L"Recovery host task could not be created.";
     return false;
   }
-  result = registered->Run(empty);
+  result = registered->Run(empty, nullptr);
   if (FAILED(result)) {
     LogWarning(std::wstring(L"Recovery task could not be started; HRESULT ") +
                std::to_wstring(static_cast<unsigned long>(result)));

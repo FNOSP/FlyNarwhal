@@ -1346,8 +1346,10 @@ bool ValidateStage(const RequestBindings& bindings,
 
 std::vector<std::wstring> BuildFixedInstallerArguments(
     const ProcessLaunchPolicy& policy) {
-  return {L"/VERYSILENT",       L"/SP-", L"/SUPPRESSMSGBOXES",
-          L"/NORESTART",        L"/CLOSEAPPLICATIONS",
+  // Run the installer silently so updates need no wizard interaction.
+  // Silent mode reuses the previous installation settings (dir and tasks).
+  return {L"/SILENT", L"/SUPPRESSMSGBOXES", L"/NORESTART",
+          L"/CLOSEAPPLICATIONS",
           L"/DIR=" + policy.install_root.wstring(),
           L"/LOG=" + policy.log_path.wstring()};
 }
