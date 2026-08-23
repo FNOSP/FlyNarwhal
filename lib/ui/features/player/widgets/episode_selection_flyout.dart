@@ -108,6 +108,13 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
   void dispose() {
     _hideTimer?.cancel();
     _hideOverlay();
+    // If the flyout is removed from the tree mid-hover (e.g. picking an
+    // episode resets the episode list, removing this widget before
+    // MouseRegion.onExit fires), its episodeControl hover zone is stranded in
+    // the overlay controller and permanently blocks auto-hide. Clear it here.
+    if (_isExpanded || _isButtonHovered || _popupHovered) {
+      widget.onHoverStateChanged?.call(false);
+    }
     _animationController.dispose();
     super.dispose();
   }
