@@ -7,10 +7,10 @@ enum UpdateOperatingSystem { windows, macos, linux }
 enum UpdateArchitecture { x64, arm64, x86 }
 
 /// Supported package formats for update packages.
-enum UpdatePackageType { exe, dmg, deb, rpm, appImage }
+enum UpdatePackageType { exe, dmg, deb, rpm, appImage, pacman }
 
 /// Linux package ecosystem inferred from structured os-release fields.
-enum LinuxDistributionFamily { debian, rpm, other }
+enum LinuxDistributionFamily { debian, rpm, arch, other }
 
 /// Stable reasons why platform detection cannot produce an update target.
 enum PlatformInfoFailureReason {

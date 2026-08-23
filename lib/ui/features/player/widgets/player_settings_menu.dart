@@ -7,6 +7,7 @@ import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../tooling/driver_test_mode.dart';
+import '../../../shared/tip_box.dart';
 import 'player_action_button.dart';
 import 'player_settings_components.dart';
 
@@ -167,7 +168,7 @@ class PlayerSettingsMenu extends StatefulWidget {
   final void Function(int skipOpening, int skipEnding) onSkipConfigChanged;
   final void Function(bool isHovered)? onHoverStateChanged;
   final bool smartSkipEnabled;
-  final void Function(bool enabled)? onSmartSkipEnabledChanged;
+  final Future<bool> Function(bool enabled)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
@@ -660,7 +661,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final void Function(String) onVideoFillModeChanged;
   final void Function(int, int) onSkipConfigChanged;
   final bool smartSkipEnabled;
-  final void Function(bool)? onSmartSkipEnabledChanged;
+  final Future<bool> Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
@@ -1525,30 +1526,14 @@ class _DecodeModeSettingsScreen extends StatelessWidget {
         // Base modes: 自动 / 软件解码(回拷模式暂不展示).
         ...baseOptions.map((option) {
           final label = optionLabels[option] ?? option;
-          // Show a tips box matching the settings flyout's background on
-          // hover, briefly explaining the decode mode.
-          return Tooltip(
+          // Show a tips box briefly explaining the decode mode on hover.
+          return TipBox(
             message: optionTips[option] ?? label,
             // Anchor to the option row instead of the cursor, and float the
             // tips box above it so the hovered option stays visible.
             // verticalOffset is measured from the row center, so it must
             // exceed half the row height (~18) to clear the row entirely.
-            useMousePosition: false,
-            style: TooltipThemeData(
-              waitDuration: Duration.zero,
-              showDuration: const Duration(seconds: 5),
-              preferBelow: false,
-              verticalOffset: 28,
-              textStyle: const TextStyle(
-                color: _defaultTextColor,
-                fontSize: 12,
-              ),
-              decoration: BoxDecoration(
-                color: _flyoutBackgroundColor,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _flyoutBorderColor),
-              ),
-            ),
+            verticalOffset: 28,
             child: _AspectRatioItem(
               key: ValueKey('player-decode-mode-$option'),
               label: label,
@@ -1709,7 +1694,7 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
   final VoidCallback onBack;
   final void Function(int, int) onConfigChanged;
   final bool smartSkipEnabled;
-  final void Function(bool)? onSmartSkipEnabledChanged;
+  final Future<bool> Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
   final bool isSavingSkipConfig;
   // Whether the FlyNarwhal server is fully configured (URL + auth code)
@@ -1851,7 +1836,19 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                       return;
                     }
                     setState(() => _smartSkipEnabled = value);
-                    widget.onSmartSkipEnabledChanged?.call(value);
+                    final onChanged = widget.onSmartSkipEnabledChanged;
+                    if (onChanged == null) return;
+                    // Roll back the local switch state when the requested enable
+                    // did not take effect (e.g. re-request failed). Without this,
+                    // the switch would stay ON while the feature is actually off,
+                    // until the screen is re-entered.
+                    unawaited(
+                      onChanged(value).then((ok) {
+                        if (!ok && mounted && value) {
+                          setState(() => _smartSkipEnabled = false);
+                        }
+                      }),
+                    );
                   },
           ),
         const SizedBox(height: 8),

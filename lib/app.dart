@@ -212,6 +212,13 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final scheduler = ref.read(updateSchedulerProvider);
+      // Instantiate the server-update notifier so its reactive triggers
+      // (server enable, login change, manual check) are registered up front.
+      ref.read(flyNarwhalServerUpdateProvider);
+      // Register the one-shot per-user settings migration listener before any
+      // UI reads settings, so the first successful login migrates + clears the
+      // global namespace exactly once.
+      ref.read(userGuidMigrationBootstrapperProvider);
       scheduler.start();
       _scheduler = scheduler;
       unawaited(_reportLaunch());

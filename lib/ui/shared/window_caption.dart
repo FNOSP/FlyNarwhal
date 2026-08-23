@@ -106,7 +106,11 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
                           ),
                           child: widget.title ?? const SizedBox.shrink(),
                         ),
-                        if (widget.titleTrailing != null) widget.titleTrailing!,
+                        if (widget.titleTrailing != null) ...[
+                          // Keep the trailing badge visually separated from the title text.
+                          const SizedBox(width: 8),
+                          widget.titleTrailing!,
+                        ],
                       ],
                     ),
                   ),

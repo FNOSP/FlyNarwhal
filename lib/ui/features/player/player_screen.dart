@@ -25,7 +25,6 @@ import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/fly_narwhal/danmaku.dart';
-import '../../../data/storage/player_settings_store.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../core/utils/app_fonts.dart';
@@ -257,6 +256,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool? _pendingMacOSWindowButtonsVisibility;
   bool _pendingMacOSWindowButtonsForce = false;
   bool _macOSWindowButtonsSyncQueued = false;
+  // Session-scoped temporary disable of the smart skip feature. Set when the
+  // FlyNarwhal server is not fully configured, or when the intro/outro analysis
+  // request fails; cleared as soon as a re-enable attempt succeeds. This is
+  // deliberately NOT persisted (per user decision: temporary for this session).
+  bool _sessionSmartSkipDisabled = false;
   static const Duration _pipIdleHideDuration = Duration(seconds: 3);
 
   PlayerOverlayController get _overlayController =>
@@ -486,7 +490,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // Share the same referrer/origin headers as the real playback so the
     // source is reachable during the probe.
-    final headers = _sessionCoordinator.buildPlayerHeaders();
+    final headers = _buildPlaybackHttpHeaders(playUri);
     Player? probePlayer;
     try {
       // The probe only inspects `hwdec-current`; it must never produce sound.
@@ -894,7 +898,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _onAutoPlayChanged(bool value) {
     _overlayController.setAutoPlayEnabled(value);
     _introSkipController.dispatch(AutoPlayChanged(value));
-    unawaited(PlayerSettingsStore.setAutoPlay(value));
+    unawaited(ref.read(playerSettingsManagerProvider).setAutoPlay(value));
   }
 
   void _setupProviderListeners() {
@@ -986,22 +990,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     ref.listenManual<EpisodeAnalysisState>(
       episodeAnalysisControllerProvider,
       (previous, next) {
-        if (!mounted || previous?.smartSegments == next.smartSegments) return;
+        if (!mounted) return;
+        // When the intro/outro analysis request fails, temporarily disable the
+        // smart skip switch for this session.
+        final analysisFailed =
+            next.errorMessage != null &&
+            !next.isPolling &&
+            next.smartSegments == null;
+        if (analysisFailed && !_sessionSmartSkipDisabled) {
+          _sessionSmartSkipDisabled = true;
+        }
+        if (previous?.smartSegments == next.smartSegments &&
+            previous?.errorMessage == next.errorMessage &&
+            !analysisFailed) {
+          return;
+        }
         _resolveAndDispatchSkipSegments();
         setState(() {});
       },
     );
   }
 
+  /// Whether the smart skip feature should be treated as enabled for the
+  /// current session. Requires the FlyNarwhal server to be fully configured,
+  /// the user's persisted smart-skip preference to be on, and no session-scoped
+  /// temporary disable.
+  bool _effectiveSmartSkipEnabled() {
+    final settings = ref.read(settingsProvider);
+    final smartSkipSettings = ref.read(smartSkipSettingsControllerProvider);
+    return settings.isFlyNarwhalServerAvailable &&
+        smartSkipSettings.enabled &&
+        !_sessionSmartSkipDisabled;
+  }
+
   void _resolveAndDispatchSkipSegments() {
     final cache = _playingInfoCache;
     final playConfig = cache?.playConfig;
-    final settings = ref.read(settingsProvider);
-    final smartSkipSettings = ref.read(smartSkipSettingsControllerProvider);
-    final smartSegments =
-        settings.flyNarwhalServerEnabled && smartSkipSettings.enabled
-            ? ref.read(episodeAnalysisControllerProvider).smartSegments
-            : null;
+    final smartSegments = _effectiveSmartSkipEnabled()
+        ? ref.read(episodeAnalysisControllerProvider).smartSegments
+        : null;
     _resolvedSkipSegments = _skipSegmentResolver.resolve(
       episodeGuid: cache?.itemGuid ?? _currentItemGuid,
       smartSegments: smartSegments,
@@ -1522,7 +1549,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   ///   and omit NAS auth, because the request goes to the cloud provider.
   Map<String, String> _buildPlaybackHttpHeaders(String playUri) {
     final isNasProxy = playUri.contains('/v/api/v1/media/range') ||
-        playUri.contains('/v/api/v1/wp/m3u8');
+        playUri.contains('/v/api/v1/wp/m3u8') ||
+        _isNasHostedUrl(playUri);
     final cloudHeader = _playingInfoCache?.streamInfo?.header;
 
     if (isNasProxy) {
@@ -1543,6 +1571,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }
     return headers;
+  }
+
+  /// Whether [playUri] is served by the NAS itself and therefore needs NAS
+  /// auth. Covers transcode HLS links (play/play -> /v/media/ID/preset.m3u8
+  /// and their .ts segments), which live on the same host:port as the
+  /// configured base URL. The browser-based web player gets this for free via
+  /// same-origin cookies; mpv needs the headers attached explicitly. Direct
+  /// cloud CDN URLs live on other hosts and must not receive NAS credentials.
+  bool _isNasHostedUrl(String playUri) {
+    final baseUrl = ref.read(preferencesManagerProvider).getBaseUrl();
+    if (baseUrl == null || baseUrl.isEmpty) return false;
+    final baseUri = Uri.tryParse(baseUrl);
+    final targetUri = Uri.tryParse(playUri);
+    if (baseUri == null || targetUri == null) return false;
+    final baseHost = baseUri.host;
+    if (baseHost.isEmpty) return false;
+    return targetUri.host == baseHost && targetUri.port == baseUri.port;
   }
 
   Future<void> _openMediaWithResume({
@@ -2644,17 +2689,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _streamInfo = result.streamInfo;
       _playingInfoCache = result.playingInfoCache;
       final flyNarwhalSettings = ref.read(settingsProvider);
-      if (flyNarwhalSettings.flyNarwhalServerEnabled &&
-          flyNarwhalSettings.flyNarwhalServerBaseUrl.isNotEmpty &&
-          flyNarwhalSettings.hasFlyNarwhalAuthCode) {
+      final serverFullyConfigured = flyNarwhalSettings.isFlyNarwhalServerAvailable;
+      if (serverFullyConfigured) {
         unawaited(
           ref
               .read(danmakuControllerProvider.notifier)
               .loadDanmaku(_buildDanmakuRequest(result.playInfo)),
         );
       } else {
-        ref.read(danmakuControllerProvider.notifier).clear();
+        ref
+            .read(danmakuControllerProvider.notifier)
+            .clear();
+        // When the server isn't fully configured, turn the danmaku switch off.
+        ref
+            .read(danmakuControllerProvider.notifier)
+            .setVisibility(false);
       }
+      // Mirror for the smart skip feature: when the server isn't fully
+      // configured, treat smart skip as temporarily disabled for this session.
+      _sessionSmartSkipDisabled = !serverFullyConfigured;
       _currentItemGuid =
           result.playingInfoCache.itemGuid ?? result.playInfo.item.guid;
       _qualities = result.qualities;
@@ -4895,9 +4948,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _replayCurrentEpisode() {
-    final smartSkipEnabled =
-        ref.read(settingsProvider).flyNarwhalServerEnabled &&
-            ref.read(smartSkipSettingsControllerProvider).enabled;
+    final smartSkipEnabled = _effectiveSmartSkipEnabled();
     final manualIntroEnd =
         _resolvedSkipSegments.introSource == SkipSegmentSource.manual
             ? _resolvedSkipSegments.introSegment?.endMilliseconds ?? 0
@@ -5168,12 +5219,64 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _setSmartSkipEnabled(bool enabled) async {
+  Future<void> _onDanmakuTogglePressed() async {
+    final danmakuState = ref.read(danmakuControllerProvider);
+    final turningOn = !danmakuState.isVisible;
+
+    if (!turningOn) {
+      ref.read(danmakuControllerProvider.notifier).setVisibility(false);
+      return;
+    }
+
+    // Guard: require full FlyNarwhal config before enabling danmaku.
+    final fnSettings = ref.read(settingsProvider);
+    if (!fnSettings.isFlyNarwhalServerAvailable) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            buildFlyNarwhalConfigWarning(
+              missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
+              missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
+            ),
+            type: ToastType.warning,
+            category: 'fly-narwhal-config',
+          );
+      return;
+    }
+
+    final controller = ref.read(danmakuControllerProvider.notifier);
+    final playInfo = _playInfo;
+    final shouldReload = danmakuState.loadStatus == DanmakuLoadStatus.failure ||
+        danmakuState.loadStatus == DanmakuLoadStatus.idle;
+    if (shouldReload) {
+      if (playInfo == null) {
+        controller.setVisibility(true);
+        return;
+      }
+      final loaded = await controller.loadDanmaku(
+        _buildDanmakuRequest(playInfo),
+      );
+      if (!mounted) return;
+      if (loaded) {
+        controller.setVisibility(true);
+      } else {
+        ref.read(toastManagerProvider.notifier).showToast(
+              '请求弹幕接口失败，请检查飞鲸服务端配置',
+              type: ToastType.failed,
+              category: 'danmaku-load-error',
+            );
+      }
+      return;
+    }
+
+    // Already loaded (loaded / empty): just toggle visibility, no re-request.
+    controller.setVisibility(true);
+  }
+
+  Future<bool> _setSmartSkipEnabled(bool enabled) async {
     // Guard: require full FlyNarwhal config before enabling smart skip
     if (enabled) {
       final fnSettings = ref.read(settingsProvider);
       if (!fnSettings.isFlyNarwhalServerAvailable) {
-        if (!mounted) return;
+        if (!mounted) return false;
         ref.read(toastManagerProvider.notifier).showToast(
               buildFlyNarwhalConfigWarning(
                 missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
@@ -5182,21 +5285,62 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               type: ToastType.warning,
               category: 'fly-narwhal-config',
             );
-        return;
+        return false;
+      }
+      // Re-enabling after a previous failure: re-request the analysis first.
+      if (_sessionSmartSkipDisabled) {
+        final succeeded = await _retrySmartSkipAnalysis();
+        if (!mounted) return false;
+        if (!succeeded) {
+          ref.read(toastManagerProvider.notifier).showToast(
+                '请求智能片头片尾接口失败，请检查飞鲸服务端配置',
+                type: ToastType.failed,
+                category: 'smart-skip-load-error',
+              );
+          return false;
+        }
       }
     }
     try {
       await ref
           .read(smartSkipSettingsControllerProvider.notifier)
           .setEnabled(enabled);
+      if (enabled) {
+        _sessionSmartSkipDisabled = false;
+      }
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ref.read(toastManagerProvider.notifier).showToast(
             '保存智能跳过设置失败: $error',
             type: ToastType.failed,
             category: 'smart-skip-setting',
           );
+      return false;
     }
+    if (mounted) {
+      _resolveAndDispatchSkipSegments();
+      setState(() {});
+    }
+    return true;
+  }
+
+  Future<bool> _retrySmartSkipAnalysis() async {
+    final analysis = ref.read(episodeAnalysisControllerProvider);
+    final controller = ref.read(episodeAnalysisControllerProvider.notifier);
+    final cache = _playingInfoCache;
+    final mediaGuid = analysis.mediaGuid ?? cache?.currentVideoStream?.mediaGuid;
+    if (mediaGuid == null) return false;
+
+    await controller.updateContext(
+      isEpisode: cache?.isEpisode == true ||
+          MediaType.tryParse(cache?.item?.type) == MediaType.episode,
+      serviceEnabled: true,
+      smartSkipEnabled: true,
+      episodeGuid: cache?.itemGuid,
+      mediaGuid: mediaGuid,
+    );
+    final next = ref.read(episodeAnalysisControllerProvider);
+    return next.smartSegments != null;
   }
 
   Widget _buildControlButtons({
@@ -5331,30 +5475,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             child: PlayerActionButton.svg(
               key: const ValueKey('player-danmaku-toggle'),
               svgAssetPath: danmakuState.isVisible
-                  ? 'assets/images/danmu_close.svg'
-                  : 'assets/images/danmu_open.svg',
-              onPressed: () {
-                final newVisibility = !danmakuState.isVisible;
-                // Guard: require full FlyNarwhal config before enabling danmaku
-                if (newVisibility) {
-                  final fnSettings = ref.read(settingsProvider);
-                  if (!fnSettings.isFlyNarwhalServerAvailable) {
-                    ref.read(toastManagerProvider.notifier).showToast(
-                          buildFlyNarwhalConfigWarning(
-                            missingUrl:
-                                fnSettings.flyNarwhalServerBaseUrl.isEmpty,
-                            missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
-                          ),
-                          type: ToastType.warning,
-                          category: 'fly-narwhal-config',
-                        );
-                    return;
-                  }
-                }
-                ref
-                    .read(danmakuControllerProvider.notifier)
-                    .setVisibility(newVisibility);
-              },
+                  ? 'assets/images/danmu_open.svg'
+                  : 'assets/images/danmu_close.svg',
+              onPressed: () => unawaited(_onDanmakuTogglePressed()),
               tooltip: danmakuState.isVisible ? '关闭弹幕' : '开启弹幕',
               size: 34,
               iconSize: 24,
@@ -5364,6 +5487,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           DanmakuSettingsFlyout(
             settings: danmakuState.settings,
             loadStatus: danmakuState.loadStatus,
+            isVisible: danmakuState.isVisible,
             popupBottomOffset: _controlFlyoutOffset.toDouble(),
             isActiveControl:
                 overlayState.activeFlyout == PlayerFlyoutType.danmaku,
@@ -5418,13 +5542,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           currentPositionMillis: _currentPosition,
           totalDurationMillis: _duration,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
-          smartSkipEnabled:
-              ref.watch(smartSkipSettingsControllerProvider).enabled,
+          smartSkipEnabled: _effectiveSmartSkipEnabled(),
           isSmartAnalysisGloballyEnabled: settings.flyNarwhalServerEnabled,
           isSavingSkipConfig: _isSavingSkipConfig,
-          onSmartSkipEnabledChanged: (enabled) {
-            unawaited(_setSmartSkipEnabled(enabled));
-          },
+          onSmartSkipEnabledChanged: _setSmartSkipEnabled,
           isFlyNarwhalServerAvailable: settings.isFlyNarwhalServerAvailable,
           onFlyNarwhalConfigMissing: () {
             ref.read(toastManagerProvider.notifier).showToast(

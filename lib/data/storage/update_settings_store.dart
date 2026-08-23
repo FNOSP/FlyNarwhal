@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/version/semantic_version.dart';
 import 'legacy_update_preferences_migrator.dart';
+import 'preferences_manager.dart';
 
 /// Immutable update preferences exposed after migration completes.
 final class UpdateSettings {
@@ -28,25 +29,34 @@ final class UpdateSettings {
 class UpdateSettingsStore {
   UpdateSettingsStore(
     this.preferences, {
+    String? userGuid,
     LegacyUpdatePreferencesReader? legacyPreferencesReader,
-  }) : _legacyPreferencesReader = legacyPreferencesReader ??
+  })  : _userGuid = PreferencesManager.normalizeGuid(userGuid),
+        _legacyPreferencesReader = legacyPreferencesReader ??
             SharedPreferencesLegacyUpdateReader(preferences);
 
   static const int currentSchemaVersion = 1;
   static const String defaultProxyUrl = 'https://ghfast.top/';
 
   final SharedPreferences preferences;
+  final String? _userGuid;
   final LegacyUpdatePreferencesReader _legacyPreferencesReader;
   bool _isInitialized = false;
 
+  String _scopedKey(String rawKey) {
+    final guid = _userGuid;
+    if (guid == null) return rawKey;
+    return '$guid::$rawKey';
+  }
+
   bool get isInitialized => _isInitialized;
   bool get isProxyEnabled {
-    final value = preferences.get(UpdateSettingsKeys.proxyEnabled);
+    final value = _readScoped(UpdateSettingsKeys.proxyEnabled);
     return value is bool ? value : true;
   }
 
   String get proxyUrl {
-    final value = preferences.get(UpdateSettingsKeys.proxyUrl);
+    final value = _readScoped(UpdateSettingsKeys.proxyUrl);
     if (value is! String) {
       return defaultProxyUrl;
     }
@@ -54,22 +64,23 @@ class UpdateSettingsStore {
   }
 
   bool get includePrerelease {
-    final value = preferences.get(UpdateSettingsKeys.includePrerelease);
+    final value = _readScoped(UpdateSettingsKeys.includePrerelease);
     return value is bool ? value : false;
   }
 
   bool get autoDownload {
-    final value = preferences.get(UpdateSettingsKeys.autoDownload);
+    final value = _readScoped(UpdateSettingsKeys.autoDownload);
     return value is bool ? value : false;
   }
 
   Set<String> get skippedVersions =>
       LegacyUpdatePreferencesMigrator.normalizeSkippedVersions(
-        preferences.get(UpdateSettingsKeys.skippedVersions),
+        _readScoped(UpdateSettingsKeys.skippedVersions),
       ).toSet();
 
   DateTime? get lastSuccessfulCheckAt {
-    final timestamp = preferences.get(UpdateSettingsKeys.lastSuccessfulCheckAt);
+    final timestamp =
+        _readScoped(UpdateSettingsKeys.lastSuccessfulCheckAt);
     if (timestamp is! int || timestamp < 0) {
       return null;
     }
@@ -94,60 +105,88 @@ class UpdateSettingsStore {
     if (_isInitialized) {
       return;
     }
-    final existingNewKeys = preferences.getKeys().where(
-          (key) => key.startsWith('update.'),
-        );
-    const migrator = LegacyUpdatePreferencesMigrator(
-      defaultProxyUrl: defaultProxyUrl,
-    );
-    final migrationBatch = migrator.createMigrationBatch(
-      existingNewKeys: existingNewKeys.toSet(),
-      legacyReader: _legacyPreferencesReader,
-      normalizeProxyUrl: normalizeProxyUrl,
-    );
+    // Collect the bare `update.*` key names already present in the *scoped*
+    // namespace (global when logged out, `<guid>::`-prefixed when logged in).
+    // The migrator works with bare key names, so strip the guid prefix.
+    final scopedPrefix = _userGuid == null ? '' : '$_userGuid::';
+    final existingNewKeys = preferences
+        .getKeys()
+        .where((key) => key.startsWith('${scopedPrefix}update.'))
+        .map((key) => key.substring(scopedPrefix.length))
+        .toSet();
 
-    // Persist validated values before publishing initialized state.
-    final initializationBatch = <String, Object>{
-      ...migrationBatch,
-      if (!preferences.containsKey(UpdateSettingsKeys.proxyEnabled) &&
-          !migrationBatch.containsKey(UpdateSettingsKeys.proxyEnabled))
-        UpdateSettingsKeys.proxyEnabled: true,
-      if (!preferences.containsKey(UpdateSettingsKeys.proxyUrl) &&
-          !migrationBatch.containsKey(UpdateSettingsKeys.proxyUrl))
-        UpdateSettingsKeys.proxyUrl: defaultProxyUrl,
-      if (!preferences.containsKey(UpdateSettingsKeys.includePrerelease) &&
-          !migrationBatch.containsKey(UpdateSettingsKeys.includePrerelease))
-        UpdateSettingsKeys.includePrerelease: false,
-      if (!preferences.containsKey(UpdateSettingsKeys.autoDownload) &&
-          !migrationBatch.containsKey(UpdateSettingsKeys.autoDownload))
-        UpdateSettingsKeys.autoDownload: false,
-      if (!preferences.containsKey(UpdateSettingsKeys.skippedVersions) &&
-          !migrationBatch.containsKey(UpdateSettingsKeys.skippedVersions))
-        UpdateSettingsKeys.skippedVersions: <String>[],
-      UpdateSettingsKeys.schemaVersion: currentSchemaVersion,
-    };
+    // When logged in, the KMP-legacy → `update.*` migration is handled by
+    // UserSettingsMigrator; here we only backfill defaults. When logged out
+    // (first install), migrate KMP legacy into the global `update.*` keys so
+    // the upcoming user-scoped migration has a global source to read from.
+    final migrationBatch = _userGuid == null
+        ? const LegacyUpdatePreferencesMigrator(
+            defaultProxyUrl: defaultProxyUrl,
+          ).createMigrationBatch(
+            existingNewKeys: existingNewKeys,
+            legacyReader: _legacyPreferencesReader,
+            normalizeProxyUrl: normalizeProxyUrl,
+          )
+        : const <String, Object>{};
+
+    // Persist validated values (and first-install defaults) into the scoped
+    // namespace.
+    final initializationBatch = <String, Object>{};
+    for (final entry in migrationBatch.entries) {
+      initializationBatch[_scopedKey(entry.key)] = entry.value;
+    }
+    final hasProxyEnabled =
+        _hasKey(migrationBatch, UpdateSettingsKeys.proxyEnabled);
+    if (!hasProxyEnabled) {
+      initializationBatch[_scopedKey(UpdateSettingsKeys.proxyEnabled)] = true;
+    }
+    if (!_hasKey(migrationBatch, UpdateSettingsKeys.proxyUrl)) {
+      initializationBatch[_scopedKey(UpdateSettingsKeys.proxyUrl)] =
+          defaultProxyUrl;
+    }
+    if (!_hasKey(migrationBatch, UpdateSettingsKeys.includePrerelease)) {
+      initializationBatch[_scopedKey(UpdateSettingsKeys.includePrerelease)] =
+          false;
+    }
+    if (!_hasKey(migrationBatch, UpdateSettingsKeys.autoDownload)) {
+      initializationBatch[_scopedKey(UpdateSettingsKeys.autoDownload)] = false;
+    }
+    if (!_hasKey(migrationBatch, UpdateSettingsKeys.skippedVersions)) {
+      initializationBatch[_scopedKey(UpdateSettingsKeys.skippedVersions)] =
+          <String>[];
+    }
+    initializationBatch[_scopedKey(UpdateSettingsKeys.schemaVersion)] =
+        currentSchemaVersion;
     await _persistBatch(initializationBatch);
     _isInitialized = true;
   }
 
+  bool _hasKey(Map<String, Object> batch, String rawKey) {
+    return batch.containsKey(rawKey) ||
+        preferences.containsKey(_scopedKey(rawKey));
+  }
+
   Future<void> setProxyEnabled(bool value) =>
-      preferences.setBool(UpdateSettingsKeys.proxyEnabled, value);
+      preferences.setBool(_scopedKey(UpdateSettingsKeys.proxyEnabled), value);
   Future<void> setIncludePrerelease(bool value) =>
-      preferences.setBool(UpdateSettingsKeys.includePrerelease, value);
+      preferences.setBool(_scopedKey(UpdateSettingsKeys.includePrerelease), value);
   Future<void> setAutoDownload(bool value) =>
-      preferences.setBool(UpdateSettingsKeys.autoDownload, value);
+      preferences.setBool(_scopedKey(UpdateSettingsKeys.autoDownload), value);
 
   Future<void> setProxyUrl(String value) async {
     final normalizedUrl = normalizeProxyUrl(value);
     if (normalizedUrl == null) {
       throw const FormatException('GitHub 资源代理地址必须是有效的 HTTPS 地址。');
     }
-    await preferences.setString(UpdateSettingsKeys.proxyUrl, normalizedUrl);
+    await preferences.setString(
+      _scopedKey(UpdateSettingsKeys.proxyUrl),
+      normalizedUrl,
+    );
   }
 
   Future<void> setLastSuccessfulCheckAt(DateTime value) {
     return preferences.setInt(
-      UpdateSettingsKeys.lastSuccessfulCheckAt,
+      _scopedKey(UpdateSettingsKeys.lastSuccessfulCheckAt),
       value.millisecondsSinceEpoch,
     );
   }
@@ -166,7 +205,7 @@ class UpdateSettingsStore {
     }.toList()
       ..sort();
     await preferences.setStringList(
-      UpdateSettingsKeys.skippedVersions,
+      _scopedKey(UpdateSettingsKeys.skippedVersions),
       updatedVersions,
     );
   }
@@ -201,6 +240,16 @@ class UpdateSettingsStore {
         throw StateError('Failed to persist update setting ${entry.key}');
       }
     }
+  }
+
+  // 作用域读取：未登录走 legacy 链（KMP 兼容）；登录态只读 <guid>::update.*，
+  // 无命中返回 null。迁移由 UserSettingsMigrator 统一处理并删除 legacy / 全局值。
+  Object? _readScoped(String rawKey) {
+    final guid = _userGuid;
+    if (guid == null) {
+      return preferences.get(rawKey);
+    }
+    return preferences.get('$guid::$rawKey');
   }
 }
 

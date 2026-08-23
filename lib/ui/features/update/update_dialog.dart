@@ -119,29 +119,34 @@ class UpdateDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final dialogPhase = state.presentation.dialogPhase;
     final actions = _actionsFor(dialogPhase);
-    return CallbackShortcuts(
-      bindings: <ShortcutActivator, VoidCallback>{
-        const SingleActivator(LogicalKeyboardKey.escape): onClose,
-      },
-      child: FocusTraversalGroup(
-        policy: OrderedTraversalPolicy(),
-        child: AppDialog<void>(
-          key: const ValueKey('update-dialog'),
-          constraints: const BoxConstraints(minWidth: 520, maxWidth: 600),
-          title: _titleFor(dialogPhase),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 390),
-            child: SingleChildScrollView(
-              key: const ValueKey('update-dialog-content-scroll'),
-              child: _buildContent(context, dialogPhase),
+    // Exclude the dialog from the semantics tree to avoid a Windows engine
+    // accessibility-bridge bug that logs repeated AXTree update failures when
+    // the dialog swaps content between phases (checking/available/upToDate).
+    return ExcludeSemantics(
+      child: CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          const SingleActivator(LogicalKeyboardKey.escape): onClose,
+        },
+        child: FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: AppDialog<void>(
+            key: const ValueKey('update-dialog'),
+            constraints: const BoxConstraints(minWidth: 520, maxWidth: 600),
+            title: _titleFor(dialogPhase),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 390),
+              child: SingleChildScrollView(
+                key: const ValueKey('update-dialog-content-scroll'),
+                child: _buildContent(context, dialogPhase),
+              ),
             ),
+            tertiaryButtonText: actions.tertiaryText,
+            secondaryButtonText: actions.secondaryText,
+            primaryButtonText: actions.primaryText,
+            onTertiaryPressed: actions.onTertiaryPressed,
+            onSecondaryPressed: actions.onSecondaryPressed,
+            onPrimaryPressed: actions.onPrimaryPressed,
           ),
-          tertiaryButtonText: actions.tertiaryText,
-          secondaryButtonText: actions.secondaryText,
-          primaryButtonText: actions.primaryText,
-          onTertiaryPressed: actions.onTertiaryPressed,
-          onSecondaryPressed: actions.onSecondaryPressed,
-          onPrimaryPressed: actions.onPrimaryPressed,
         ),
       ),
     );

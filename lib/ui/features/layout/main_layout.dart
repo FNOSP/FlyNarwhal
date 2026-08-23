@@ -113,6 +113,14 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(navigationStackProvider.notifier).pushPath(currentPath);
       globalRefreshManager.updateCurrentRoutePath(currentRoutePath);
+      // Drop a pending cast-scroll target when the user moves on to an
+      // unrelated page instead of returning to the originating detail page.
+      final castTarget = ref.read(castScrollReturnTargetProvider);
+      if (castTarget != null &&
+          castTarget.mediaPath != currentPath &&
+          !currentPath.startsWith('/person/')) {
+        ref.read(castScrollReturnTargetProvider.notifier).state = null;
+      }
     });
 
     Widget? buildCountText(int? count) {

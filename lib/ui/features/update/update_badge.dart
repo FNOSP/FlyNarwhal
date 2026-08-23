@@ -59,10 +59,10 @@ class UpdateBadge extends StatelessWidget {
             padding: WidgetStatePropertyAll(EdgeInsets.all((20 - 18) / 2)),
           ),
           icon: SvgPicture.asset(
-            'assets/images/update.svg',
+            'assets/images/version_update.svg',
             key: const ValueKey('update-badge-icon'),
-            width: 18,
-            height: 18,
+            width: 14,
+            height: 14,
             colorFilter: ColorFilter.mode(accentColor, BlendMode.srcIn),
           ),
           onPressed: onPressed,

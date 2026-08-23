@@ -1,6 +1,7 @@
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 import '../core/config/runtime_configuration.dart';
 import '../core/config/secret_bridge_selector.dart';
 import '../core/network/dio_client.dart';
@@ -21,6 +22,7 @@ import '../data/storage/login_history_password_service.dart';
 import '../data/storage/player_settings_store.dart';
 import '../data/storage/preferences_manager.dart';
 import '../data/storage/shortcut_settings_store.dart';
+import '../data/storage/user_settings_migrator.dart';
 import '../domain/repositories/i_tag_repository.dart';
 import 'danmaku_controller.dart';
 import 'fly_narwhal_connection_test_notifier.dart';
@@ -42,6 +44,32 @@ final preferencesManagerProvider = Provider<PreferencesManager>((ref) {
 final accountSettingsStoreProvider = Provider<AccountSettingsStore>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return AccountSettingsStore(prefs);
+});
+
+// 当前登录用户的 guid，未登录返回 null。设置项隔离、迁移统一依赖它。
+final currentUserGuidProvider = Provider<String?>((ref) {
+  final userInfo = ref.watch(userInfoProvider).valueOrNull;
+  final guid = userInfo?.guid.trim();
+  return (guid == null || guid.isEmpty) ? null : guid;
+});
+
+// 一次性把全局设置迁移到当前用户命名空间的协调器。
+final userSettingsMigratorProvider = Provider<UserSettingsMigrator>((ref) {
+  return UserSettingsMigrator(ref.watch(sharedPreferencesProvider));
+});
+
+// 挂载 userInfoProvider 监听：第一个成功登录的 guid 触发一次迁移（fire-and-forget）。
+// 迁移标记位（global_settings_migrated）在协调器内部检查，后续用户不重复迁移。
+final userGuidMigrationBootstrapperProvider = Provider<void>((ref) {
+  final migrator = ref.watch(userSettingsMigratorProvider);
+  ref.listen<AsyncValue<UserInfo?>>(userInfoProvider, (previous, next) {
+    final prevGuid = previous?.valueOrNull?.guid.trim();
+    final nextGuid = next.valueOrNull?.guid.trim();
+    if (nextGuid == null || nextGuid.isEmpty) return;
+    if (nextGuid == prevGuid) return;
+    unawaited(migrator.migrateForUser(nextGuid));
+  }, fireImmediately: true);
+  return;
 });
 
 final runtimeConfigurationProvider = Provider<RuntimeConfiguration>((ref) {
@@ -116,6 +144,26 @@ class NavigationStackNotifier extends StateNotifier<List<String>> {
   }
 }
 
+/// Records the cast member clicked when entering the person detail page, so
+/// returning to [mediaPath] can scroll the cast row back to that person.
+/// Mirrors the fnOS Web behavior where the clicked actor id is carried by
+/// the back-navigation route state.
+class CastScrollReturnTarget {
+  const CastScrollReturnTarget({
+    required this.mediaPath,
+    required this.personGuid,
+  });
+
+  /// URI string of the page the person was clicked from, e.g. `/movie/<guid>`.
+  final String mediaPath;
+
+  /// The person guid of the clicked cast member.
+  final String personGuid;
+}
+
+final castScrollReturnTargetProvider =
+    StateProvider<CastScrollReturnTarget?>((ref) => null);
+
 final dioClientProvider = Provider<DioClient>((ref) {
   final prefsManager = ref.watch(preferencesManagerProvider);
   return DioClient.withCallbacks(
@@ -161,7 +209,8 @@ final subtitleRemoteDataSourceProvider =
 
 final flyNarwhalSettingsProvider = Provider<FlyNarwhalSettings>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return FlyNarwhalSettings(prefs);
+  final userGuid = ref.watch(currentUserGuidProvider);
+  return FlyNarwhalSettings(prefs, userGuid: userGuid);
 });
 
 final flyNarwhalRemoteDataSourceProvider =
@@ -313,11 +362,13 @@ class SettingsState {
 }
 
 class SettingsNotifier extends StateNotifier<SettingsState> {
-  SettingsNotifier(this._prefs, this._flyNarwhalSettings)
-      : super(SettingsState(
-          followSystemTheme: _prefs.getFollowSystemTheme(),
-          darkMode: _prefs.getDarkMode(),
-          navigationDisplayMode: _prefs.getNavigationDisplayMode(),
+  SettingsNotifier(this._prefs, this._flyNarwhalSettings, {String? userGuid})
+      : _userGuid = PreferencesManager.normalizeGuid(userGuid),
+        super(SettingsState(
+          followSystemTheme: _prefs.getFollowSystemTheme(userGuid: userGuid),
+          darkMode: _prefs.getDarkMode(userGuid: userGuid),
+          navigationDisplayMode:
+              _prefs.getNavigationDisplayMode(userGuid: userGuid),
           flyNarwhalServerEnabled: _flyNarwhalSettings.enabled,
           flyNarwhalServerBaseUrl: _flyNarwhalSettings.baseUrl?.trim() ?? '',
           hasFlyNarwhalAuthCode:
@@ -326,19 +377,20 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   final PreferencesManager _prefs;
   final FlyNarwhalSettings _flyNarwhalSettings;
+  final String? _userGuid;
 
   Future<void> setFollowSystemTheme(bool value) async {
-    await _prefs.saveFollowSystemTheme(value);
+    await _prefs.saveFollowSystemTheme(value, userGuid: _userGuid);
     state = state.copyWith(followSystemTheme: value);
   }
 
   Future<void> setDarkMode(bool value) async {
-    await _prefs.saveDarkMode(value);
+    await _prefs.saveDarkMode(value, userGuid: _userGuid);
     state = state.copyWith(darkMode: value);
   }
 
   Future<void> setNavigationDisplayMode(String value) async {
-    await _prefs.saveNavigationDisplayMode(value);
+    await _prefs.saveNavigationDisplayMode(value, userGuid: _userGuid);
     state = state.copyWith(navigationDisplayMode: value);
   }
 
@@ -376,7 +428,8 @@ final settingsProvider =
     StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
   final prefs = ref.watch(preferencesManagerProvider);
   final flyNarwhalSettings = ref.watch(flyNarwhalSettingsProvider);
-  return SettingsNotifier(prefs, flyNarwhalSettings);
+  final userGuid = ref.watch(currentUserGuidProvider);
+  return SettingsNotifier(prefs, flyNarwhalSettings, userGuid: userGuid);
 });
 
 class UserInfoNotifier extends StateNotifier<AsyncValue<UserInfo?>> {
@@ -644,10 +697,12 @@ class _InMemoryCacheInfoRepository implements CacheInfoRepository {
 // Player settings manager provider
 final playerSettingsManagerProvider = Provider<PlayerSettingsManager>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return PlayerSettingsManager(prefs);
+  final userGuid = ref.watch(currentUserGuidProvider);
+  return PlayerSettingsManager(prefs, userGuid: userGuid);
 });
 
 final shortcutSettingsStoreProvider = Provider<ShortcutSettingsStore>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return ShortcutSettingsStore(prefs);
+  final userGuid = ref.watch(currentUserGuidProvider);
+  return ShortcutSettingsStore(prefs, userGuid: userGuid);
 });

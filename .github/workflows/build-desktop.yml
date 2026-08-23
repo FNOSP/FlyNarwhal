@@ -176,12 +176,12 @@ jobs:
           # toolchain (clang/cmake/ninja/pkg-config) in addition to the
           # libmpv runtime used for the full PGS/HDMV SUP bundle. The release
           # packaging additionally needs dpkg-deb (preinstalled), fpm for the
-          # .rpm, and appimagetool for the .AppImage.
+          # .rpm and .pkg.tar.zst, and appimagetool for the .AppImage.
           sudo apt-get install -y \
             clang cmake ninja-build pkg-config \
             libgtk-3-dev liblzma-dev \
             gcc mpv libmpv-dev \
-            rpm ruby-dev
+            rpm ruby-dev libarchive-tools
           sudo gem install fpm --no-document
           # appimagetool is distributed as an AppImage per architecture; run it
           # with --appimage-extract-and-run so no FUSE is required on runners.
@@ -350,7 +350,7 @@ jobs:
           mkdir -p release-assets
           # Flatten installers so published asset names match SHA256SUMS entries.
           # Include all desktop packages produced by the build matrix:
-          # Windows (.exe), macOS (.dmg), Linux (.deb, .rpm, .AppImage).
+          # Windows (.exe), macOS (.dmg), Linux (.deb, .rpm, .pkg.tar.zst, .AppImage).
           find artifacts -type f -name 'FlyNarwhal_Setup_*' -exec cp -f {} release-assets/ \;
           count=$(find release-assets -type f | wc -l)
           if [ "$count" -eq 0 ]; then
@@ -372,7 +372,7 @@ jobs:
           cd release-assets
           shopt -s nullglob
           # Emit a same-name .sig detached signature for every installer.
-          for file in FlyNarwhal_Setup_*.exe FlyNarwhal_Setup_*.dmg FlyNarwhal_Setup_*.deb FlyNarwhal_Setup_*.rpm FlyNarwhal_Setup_*.AppImage; do
+          for file in FlyNarwhal_Setup_*.exe FlyNarwhal_Setup_*.dmg FlyNarwhal_Setup_*.deb FlyNarwhal_Setup_*.rpm FlyNarwhal_Setup_*.pkg.tar.zst FlyNarwhal_Setup_*.AppImage; do
             minisign -S -s "$MINISIGN_SECRET_KEY_PATH" -m "$file" -x "$file.sig" -t "file=$file tag=$GITHUB_REF_NAME"
             minisign -Vm "$file" -x "$file.sig" -p ../minisign.pub
           done

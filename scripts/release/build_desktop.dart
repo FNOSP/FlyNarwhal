@@ -118,8 +118,8 @@ Future<void> _runProtectedBuild({
         '(sources: /usr/lib/<arch>-linux-gnu via scripts/linux/bundle_full_libmpv.dart).',
       );
       stdout.writeln(
-        'Package the bundle into a .deb via dpkg-deb, a .rpm via fpm, and '
-        'an .AppImage via appimagetool under dist/.',
+        'Package the bundle into a .deb via dpkg-deb, a .rpm via fpm, a '
+        '.pkg.tar.zst via fpm, and an .AppImage via appimagetool under dist/.',
       );
     }
     if (platform == 'macos') {
@@ -355,9 +355,9 @@ Future<void> _runLinuxPackaging({
   required String bundleDirectory,
   required String architecture,
 }) async {
-  // The .deb and the .rpm share the same staged payload; the AppImage is
-  // assembled separately from the raw bundle because it needs a relative
-  // Exec/Icon layout instead of absolute /opt paths.
+  // The .deb, the .rpm and the pacman package share the same staged payload;
+  // the AppImage is assembled separately from the raw bundle because it needs a
+  // relative Exec/Icon layout instead of absolute /opt paths.
   final stagingRoot = await _stageLinuxPackageTree(
     bundleDirectory: bundleDirectory,
     architecture: architecture,
@@ -370,6 +370,10 @@ Future<void> _runLinuxPackaging({
       architecture: architecture,
     );
     await _runLinuxPackageDeb(
+      stagingRoot: stagingRoot,
+      architecture: architecture,
+    );
+    await _runLinuxPackagePacman(
       stagingRoot: stagingRoot,
       architecture: architecture,
     );
@@ -624,6 +628,86 @@ exec "\$HERE/fly_narwhal" "\$@"
   await stagingRoot.delete(recursive: true);
   await _validateAppImagePackage(File(appImagePath));
   stdout.writeln('Created AppImage: $appImagePath');
+}
+
+Future<void> _runLinuxPackagePacman({
+  required Directory stagingRoot,
+  required String architecture,
+}) async {
+  final version = _packageVersion();
+  // pacman's pkgver cannot contain a '-', so replace prerelease separators with
+  // '~' (allowed by pacman) while keeping the published asset filename
+  // identical to the release version. The iteration is pinned to 1.
+  final pacmanVersion = version.replaceAll('-', '~');
+  const pacmanIteration = '1';
+  final pacmanArch = architecture == 'arm64' ? 'aarch64' : 'x86_64';
+
+  // Match the in-app updater's asset regex so the release is discoverable:
+  // FlyNarwhal_Setup_Linux_(amd64|aarch64)_<version>.pkg.tar.zst
+  final packageName = 'fly-narwhal';
+  final distDir = Directory('dist');
+  await distDir.create(recursive: true);
+  final packagePath =
+      '${distDir.path}/FlyNarwhal_Setup_Linux_${_updateArch(architecture)}_$version.pkg.tar.zst';
+
+  // fpm's pacman target builds a .pkg.tar.zst from the same staged payload
+  // used by the .deb and .rpm. The --package path overrides the default
+  // lowercase filename so the asset name matches the updater contract.
+  await _runProcess(
+    executable: 'fpm',
+    arguments: <String>[
+      '--force',
+      '-s',
+      'dir',
+      '-t',
+      'pacman',
+      '-n',
+      packageName,
+      '-v',
+      pacmanVersion,
+      '--iteration',
+      pacmanIteration,
+      '-a',
+      pacmanArch,
+      '--pacman-compression',
+      'zstd',
+      '--category',
+      'video',
+      '--maintainer',
+      'FlyNarwhal <dev@flynarwhal.app>',
+      '--description',
+      'FlyNarwhal desktop media player',
+      '-C',
+      stagingRoot.path,
+      '--package',
+      packagePath,
+      'opt',
+      'usr',
+    ],
+    dryRun: false,
+  );
+  await _validatePacmanPackage(File(packagePath));
+  stdout.writeln('Created pacman package: $packagePath');
+}
+
+/// Validates a pacman package by checking it contains .PKGINFO metadata.
+Future<void> _validatePacmanPackage(File package) async {
+  await _validatePackageExists(package);
+  if (!Platform.isLinux) {
+    stdout.writeln('Skipping pacman validation on non-Linux host');
+    return;
+  }
+  final result = await Process.run(
+    'tar',
+    <String>['-tf', package.path],
+  );
+  if (result.exitCode != 0) {
+    _fail('tar validation failed for ${package.path}: ${result.stderr}');
+  }
+  final output = result.stdout.toString();
+  if (!output.contains('.PKGINFO')) {
+    _fail('pacman package missing .PKGINFO metadata: ${package.path}');
+  }
 }
 
 String _updateArch(String architecture) =>

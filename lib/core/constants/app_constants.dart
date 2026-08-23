@@ -20,6 +20,12 @@ class AppConstants {
   static const String appFullVersion =
       String.fromEnvironment('APP_FULL_VERSION');
 
+  /// Minimum FlyNarwhal server version this client expects. When the NAS
+  /// server reports an older version, the client triggers a server self-update.
+  static const String flyNarwhalServerVersion =
+      String.fromEnvironment('FLY_NARWHAL_SERVER_VERSION',
+          defaultValue: '0.6.4');
+
   // Timeouts
   static const Duration defaultConnectTimeout = Duration(seconds: 10);
   static const Duration defaultReceiveTimeout = Duration(seconds: 10);

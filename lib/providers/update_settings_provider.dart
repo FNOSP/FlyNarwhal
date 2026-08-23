@@ -6,7 +6,11 @@ import 'providers.dart';
 /// Supplies an injectable store for reactive update settings tests.
 final reactiveUpdateSettingsStoreProvider =
     Provider<UpdateSettingsStore>((ref) {
-  return UpdateSettingsStore(ref.watch(sharedPreferencesProvider));
+  final userGuid = ref.watch(currentUserGuidProvider);
+  return UpdateSettingsStore(
+    ref.watch(sharedPreferencesProvider),
+    userGuid: userGuid,
+  );
 });
 
 /// Publishes update settings only after migration and schema writes complete.

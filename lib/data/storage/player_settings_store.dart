@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'centered_window_bounds_codec.dart';
+import 'preferences_manager.dart';
 
 class PlayerSettingsStore {
   static const String _keyVolume = 'player_volume';
@@ -131,24 +132,27 @@ class PlayerSavedQuality {
 // Async version for use with providers
 class PlayerSettingsManager {
   final SharedPreferences _prefs;
+  final String? _userGuid;
 
-  PlayerSettingsManager(this._prefs);
+  PlayerSettingsManager(this._prefs, {String? userGuid})
+      : _userGuid = PreferencesManager.normalizeGuid(userGuid);
 
   String _scopedKey(String rawKey, {String? userGuid}) {
-    final normalizedUserGuid = userGuid?.trim() ?? '';
-    if (normalizedUserGuid.isEmpty) {
+    final effective =
+        PreferencesManager.normalizeGuid(userGuid) ?? _userGuid;
+    if (effective == null) {
       return rawKey;
     }
-    return '$normalizedUserGuid::$rawKey';
+    return '$effective::$rawKey';
   }
 
-  double getVolume() => _prefs.getDouble(PlayerSettingsStore._keyVolume) ?? 1.0;
+  double getVolume() => _readDoubleScoped(PlayerSettingsStore._keyVolume, 1.0);
   Future<void> setVolume(double volume) =>
-      _prefs.setDouble(PlayerSettingsStore._keyVolume, volume);
+      _writeDoubleScoped(PlayerSettingsStore._keyVolume, volume);
 
-  double getSpeed() => _prefs.getDouble(PlayerSettingsStore._keySpeed) ?? 1.0;
+  double getSpeed() => _readDoubleScoped(PlayerSettingsStore._keySpeed, 1.0);
   Future<void> setSpeed(double speed) =>
-      _prefs.setDouble(PlayerSettingsStore._keySpeed, speed);
+      _writeDoubleScoped(PlayerSettingsStore._keySpeed, speed);
 
   PlayerSavedQuality? getQuality({String? userGuid}) {
     final scopedResolutionKey = _scopedKey(
@@ -235,53 +239,53 @@ class PlayerSettingsManager {
   }
 
   double getDanmakuArea() =>
-      _prefs.getDouble(PlayerSettingsStore._keyDanmakuArea) ?? 1.0;
+      _readDoubleScoped(PlayerSettingsStore._keyDanmakuArea, 1.0);
   Future<void> setDanmakuArea(double area) =>
-      _prefs.setDouble(PlayerSettingsStore._keyDanmakuArea, area);
+      _writeDoubleScoped(PlayerSettingsStore._keyDanmakuArea, area);
 
   double getDanmakuOpacity() =>
-      _prefs.getDouble(PlayerSettingsStore._keyDanmakuOpacity) ?? 1.0;
+      _readDoubleScoped(PlayerSettingsStore._keyDanmakuOpacity, 1.0);
   Future<void> setDanmakuOpacity(double opacity) =>
-      _prefs.setDouble(PlayerSettingsStore._keyDanmakuOpacity, opacity);
+      _writeDoubleScoped(PlayerSettingsStore._keyDanmakuOpacity, opacity);
 
   double getDanmakuFontSizeScale() =>
-      _prefs.getDouble(PlayerSettingsStore._keyDanmakuFontSize) ?? 1.0;
+      _readDoubleScoped(PlayerSettingsStore._keyDanmakuFontSize, 1.0);
   Future<void> setDanmakuFontSizeScale(double fontSizeScale) =>
-      _prefs.setDouble(PlayerSettingsStore._keyDanmakuFontSize, fontSizeScale);
+      _writeDoubleScoped(PlayerSettingsStore._keyDanmakuFontSize, fontSizeScale);
 
   double getDanmakuSpeed() =>
-      _prefs.getDouble(PlayerSettingsStore._keyDanmakuSpeed) ?? 1.0;
+      _readDoubleScoped(PlayerSettingsStore._keyDanmakuSpeed, 1.0);
   Future<void> setDanmakuSpeed(double speed) =>
-      _prefs.setDouble(PlayerSettingsStore._keyDanmakuSpeed, speed);
+      _writeDoubleScoped(PlayerSettingsStore._keyDanmakuSpeed, speed);
 
-  bool getDanmakuSyncPlaybackSpeed() =>
-      _prefs.getBool(PlayerSettingsStore._keyDanmakuSyncPlaybackSpeed) ?? false;
+  bool getDanmakuSyncPlaybackSpeed() => _readBoolScoped(
+      PlayerSettingsStore._keyDanmakuSyncPlaybackSpeed, false);
   Future<void> setDanmakuSyncPlaybackSpeed(bool syncPlaybackSpeed) =>
-      _prefs.setBool(
+      _writeBoolScoped(
         PlayerSettingsStore._keyDanmakuSyncPlaybackSpeed,
         syncPlaybackSpeed,
       );
 
   bool getDanmakuDebugEnabled() =>
-      _prefs.getBool(PlayerSettingsStore._keyDanmakuDebug) ?? false;
+      _readBoolScoped(PlayerSettingsStore._keyDanmakuDebug, false);
   Future<void> setDanmakuDebugEnabled(bool debugEnabled) =>
-      _prefs.setBool(PlayerSettingsStore._keyDanmakuDebug, debugEnabled);
+      _writeBoolScoped(PlayerSettingsStore._keyDanmakuDebug, debugEnabled);
 
   bool getAutoPlay() =>
-      _prefs.getBool(PlayerSettingsStore._keyAutoPlay) ?? true;
+      _readBoolScoped(PlayerSettingsStore._keyAutoPlay, true);
   Future<void> setAutoPlay(bool autoPlay) =>
-      _prefs.setBool(PlayerSettingsStore._keyAutoPlay, autoPlay);
+      _writeBoolScoped(PlayerSettingsStore._keyAutoPlay, autoPlay);
 
   String getWindowAspectRatio() =>
-      _prefs.getString(PlayerSettingsStore._keyWindowAspectRatio) ?? 'AUTO';
+      _readStringScoped(PlayerSettingsStore._keyWindowAspectRatio, 'AUTO');
   Future<void> setWindowAspectRatio(String ratio) =>
-      _prefs.setString(PlayerSettingsStore._keyWindowAspectRatio, ratio);
+      _writeStringScoped(PlayerSettingsStore._keyWindowAspectRatio, ratio);
 
   // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | 'auto-unsafe'.
   String getDecodeMode() =>
-      _prefs.getString(PlayerSettingsStore._keyDecodeMode) ?? 'auto';
+      _readStringScoped(PlayerSettingsStore._keyDecodeMode, 'auto');
   Future<void> setDecodeMode(String mode) =>
-      _prefs.setString(PlayerSettingsStore._keyDecodeMode, mode);
+      _writeStringScoped(PlayerSettingsStore._keyDecodeMode, mode);
 
   // Mirrors the web player: the video fill mode is remembered per media item.
   String getVideoFillMode(String itemGuid) {
@@ -320,14 +324,14 @@ class PlayerSettingsManager {
   }
 
   bool getForceH264() =>
-      _prefs.getBool(PlayerSettingsStore._keyForceH264) ?? false;
+      _readBoolScoped(PlayerSettingsStore._keyForceH264, false);
   Future<void> setForceH264(bool enabled) =>
-      _prefs.setBool(PlayerSettingsStore._keyForceH264, enabled);
+      _writeBoolScoped(PlayerSettingsStore._keyForceH264, enabled);
 
   bool getForceSdrColor() =>
-      _prefs.getBool(PlayerSettingsStore._keyForceSdrColor) ?? false;
+      _readBoolScoped(PlayerSettingsStore._keyForceSdrColor, false);
   Future<void> setForceSdrColor(bool enabled) =>
-      _prefs.setBool(PlayerSettingsStore._keyForceSdrColor, enabled);
+      _writeBoolScoped(PlayerSettingsStore._keyForceSdrColor, enabled);
 
   // Window geometry: center + size persistence, keep in sync with the static
   // [PlayerSettingsStore] counterparts above.
@@ -359,5 +363,43 @@ class PlayerSettingsManager {
       PlayerSettingsStore._pipWindowBoundsPrefix,
       bounds,
     );
+  }
+
+  // 作用域读取：未登录读全局键；登录态只读 <guid>::<key>，无命中返回默认值。
+  // 不再做"懒迁移"复制：迁移由 UserSettingsMigrator 统一处理并删除全局值。
+  double _readDoubleScoped(String rawKey, double defaultValue) {
+    final guid = _userGuid;
+    if (guid == null) {
+      return _prefs.getDouble(rawKey) ?? defaultValue;
+    }
+    return _prefs.getDouble('$guid::$rawKey') ?? defaultValue;
+  }
+
+  bool _readBoolScoped(String rawKey, bool defaultValue) {
+    final guid = _userGuid;
+    if (guid == null) {
+      return _prefs.getBool(rawKey) ?? defaultValue;
+    }
+    return _prefs.getBool('$guid::$rawKey') ?? defaultValue;
+  }
+
+  String _readStringScoped(String rawKey, String defaultValue) {
+    final guid = _userGuid;
+    if (guid == null) {
+      return _prefs.getString(rawKey) ?? defaultValue;
+    }
+    return _prefs.getString('$guid::$rawKey') ?? defaultValue;
+  }
+
+  Future<void> _writeDoubleScoped(String rawKey, double value) {
+    return _prefs.setDouble(_scopedKey(rawKey), value);
+  }
+
+  Future<void> _writeBoolScoped(String rawKey, bool value) {
+    return _prefs.setBool(_scopedKey(rawKey), value);
+  }
+
+  Future<void> _writeStringScoped(String rawKey, String value) {
+    return _prefs.setString(_scopedKey(rawKey), value);
   }
 }

@@ -3,6 +3,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'preferences_manager.dart';
+
 enum ShortcutCategory { search, playback }
 
 enum ShortcutActionId {
@@ -166,8 +168,10 @@ class ShortcutActionDefinition {
 
 class ShortcutSettingsStore {
   final SharedPreferences _prefs;
+  final String? _userGuid;
 
-  ShortcutSettingsStore(this._prefs);
+  ShortcutSettingsStore(this._prefs, {String? userGuid})
+      : _userGuid = PreferencesManager.normalizeGuid(userGuid);
 
   static final definitions = <ShortcutActionDefinition>[
     ShortcutActionDefinition(
@@ -304,11 +308,11 @@ class ShortcutSettingsStore {
       throw ArgumentError('Unknown shortcut action: $actionId');
     }
     final primary = ShortcutKeyBinding.fromStorageString(
-          _prefs.getString(_storageKey(actionId, 'primary')),
+          _readStringScoped(_storageKey(actionId, 'primary')),
         ) ??
         definition.defaultBinding.primary;
     final secondary = ShortcutKeyBinding.fromStorageString(
-          _prefs.getString(_storageKey(actionId, 'secondary')),
+          _readStringScoped(_storageKey(actionId, 'secondary')),
         ) ??
         definition.defaultBinding.secondary;
     return ShortcutBinding(primary: primary, secondary: secondary);
@@ -325,11 +329,11 @@ class ShortcutSettingsStore {
     ShortcutActionId actionId,
     ShortcutBinding binding,
   ) async {
-    await _prefs.setString(
+    await _writeStringScoped(
       _storageKey(actionId, 'primary'),
       binding.primary.toStorageString(),
     );
-    await _prefs.setString(
+    await _writeStringScoped(
       _storageKey(actionId, 'secondary'),
       binding.secondary?.toStorageString() ?? '',
     );
@@ -357,6 +361,26 @@ class ShortcutSettingsStore {
 
   String _storageKey(ShortcutActionId actionId, String slot) {
     return 'shortcut.${actionId.name}.$slot';
+  }
+
+  String _scopedKey(String rawKey) {
+    final guid = _userGuid;
+    if (guid == null) return rawKey;
+    return '$guid::$rawKey';
+  }
+
+  // 作用域读取：未登录读全局键；登录态只读 <guid>::<key>。
+  // 不再做"懒迁移"复制：迁移由 UserSettingsMigrator 统一处理并删除全局值。
+  String? _readStringScoped(String rawKey) {
+    final guid = _userGuid;
+    if (guid == null) {
+      return _prefs.getString(rawKey);
+    }
+    return _prefs.getString('$guid::$rawKey');
+  }
+
+  Future<void> _writeStringScoped(String rawKey, String value) {
+    return _prefs.setString(_scopedKey(rawKey), value);
   }
 
   bool _isTextInputKey(LogicalKeyboardKey key) {

@@ -7,7 +7,7 @@ import '../../domain/update/entities/update_models.dart';
 import 'linux_package_identity.dart';
 import 'platform_update_installer.dart';
 
-enum LinuxInstallerMode { deb, rpmDnf, rpmZypper, rpmDirect, appImage }
+enum LinuxInstallerMode { deb, rpmDnf, rpmZypper, rpmDirect, appImage, pacman }
 
 enum LinuxInstallRecordStage { launched, failed, completed }
 
@@ -354,7 +354,8 @@ final class LinuxUpdateInstaller implements PlatformUpdateInstaller {
     if (input.packageType == UpdatePackageType.appImage) {
       currentExecutablePath = await _validateAppImage(input);
     } else if (input.packageType != UpdatePackageType.deb &&
-        input.packageType != UpdatePackageType.rpm) {
+        input.packageType != UpdatePackageType.rpm &&
+        input.packageType != UpdatePackageType.pacman) {
       throw const LinuxInstallerValidationException(
         'linux_package_type_unsupported',
         'The selected package type is not supported by Linux installer.',
@@ -415,6 +416,9 @@ final class LinuxUpdateInstaller implements PlatformUpdateInstaller {
   Future<LinuxInstallerMode> _selectMode(LinuxUpdateInstallInput input) async {
     if (input.packageType == UpdatePackageType.deb) {
       return LinuxInstallerMode.deb;
+    }
+    if (input.packageType == UpdatePackageType.pacman) {
+      return LinuxInstallerMode.pacman;
     }
     if (input.packageType == UpdatePackageType.appImage) {
       return LinuxInstallerMode.appImage;
@@ -539,6 +543,7 @@ case "$MODE" in
   rpmDnf) /usr/bin/pkexec /usr/bin/dnf install -y "$PACKAGE_PATH" ;;
   rpmZypper) /usr/bin/pkexec /usr/bin/zypper --non-interactive install "$PACKAGE_PATH" ;;
   rpmDirect) /usr/bin/pkexec /usr/bin/rpm -Uvh "$PACKAGE_PATH" ;;
+  pacman) /usr/bin/pkexec /usr/bin/pacman -U --noconfirm "$PACKAGE_PATH" ;;
   appImage)
     [ "$(dirname -- "$PACKAGE_PATH")" = "$(dirname -- "$TARGET_PATH")" ] || {
       fail 24 linux_appimage_cross_filesystem

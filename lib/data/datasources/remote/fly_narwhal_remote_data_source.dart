@@ -14,6 +14,8 @@ import '../../../core/utils/log/app_talker.dart';
 import '../../models/fly_narwhal/index.dart';
 
 class FlyNarwhalRemoteDataSource {
+  static const String _kServerUnreachable = '飞鲸服务端无法访问';
+
   static const Duration _connectTimeout = Duration(seconds: 15);
   static const Duration _requestReceiveTimeout = Duration(seconds: 30);
   static const Duration _sseReceiveTimeout = Duration(seconds: 240);
@@ -51,6 +53,7 @@ class FlyNarwhalRemoteDataSource {
           sendTimeout: _requestReceiveTimeout,
           responseType: ResponseType.plain,
           followRedirects: true,
+          validateStatus: (status) => true,
         ));
     final hasLoggingInterceptor = client.interceptors
         .any((interceptor) => interceptor is LoggingInterceptor);
@@ -80,9 +83,9 @@ class FlyNarwhalRemoteDataSource {
     String? proxyUrl,
   }) async* {
     final data = <String, dynamic>{
-      'download_url': downloadUrl,
+      'downloadUrl': downloadUrl,
       if (hash != null && hash.isNotEmpty) 'hash': hash,
-      if (proxyUrl != null && proxyUrl.isNotEmpty) 'proxy_url': proxyUrl,
+      if (proxyUrl != null && proxyUrl.isNotEmpty) 'proxyUrl': proxyUrl,
     };
     final events =
         await _ssePost(ApiEndpoints.flyNarwhalUpdateStart, data: data);
@@ -145,7 +148,7 @@ class FlyNarwhalRemoteDataSource {
       }
       return const Success(<String, List<Danmaku>>{});
     } catch (error) {
-      return ResultFailure(FailureInfo.fromMessage(error.toString()));
+      return ResultFailure(_wrapFailureInfo(error));
     }
   }
 
@@ -175,7 +178,7 @@ class FlyNarwhalRemoteDataSource {
         stackTrace: stackTrace,
         message: 'GET 请求失败: $path',
       );
-      return ResultFailure(FailureInfo.fromMessage(error.toString()));
+      return ResultFailure(_wrapFailureInfo(error));
     }
   }
 
@@ -204,7 +207,7 @@ class FlyNarwhalRemoteDataSource {
         stackTrace: stackTrace,
         message: 'POST 请求失败: $path',
       );
-      return ResultFailure(FailureInfo.fromMessage(error.toString()));
+      return ResultFailure(_wrapFailureInfo(error));
     }
   }
 
@@ -318,6 +321,36 @@ class FlyNarwhalRemoteDataSource {
       normalizedPath = normalizedPath.substring(1);
     }
     return '$normalizedBaseUrl/$normalizedPath';
+  }
+
+  FailureInfo _wrapFailureInfo(Object? error) {
+    if (error is FailureInfo) return error;
+    if (error is DioException && _isServerUnreachable(error)) {
+      return const FailureInfo(
+        message: _kServerUnreachable,
+        displayMessage: _kServerUnreachable,
+      );
+    }
+    if (error is Exception) return FailureInfo.fromMessage(error.toString());
+    return FailureInfo.fromMessage(error?.toString() ?? 'Unknown error');
+  }
+
+  /// Returns true when the error indicates the server cannot be reached at all
+  /// (connection refused, DNS failure, timeout), as opposed to a server that
+  /// responded with an error.
+  static bool _isServerUnreachable(DioException error) {
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.connectionError:
+        return true;
+      case DioExceptionType.badResponse:
+      case DioExceptionType.cancel:
+      case DioExceptionType.badCertificate:
+      case DioExceptionType.unknown:
+        return false;
+    }
   }
 
   Future<String> _generateAuthx({

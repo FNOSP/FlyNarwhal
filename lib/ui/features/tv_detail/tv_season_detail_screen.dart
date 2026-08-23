@@ -141,6 +141,9 @@ class _TvSeasonDetailContentState
   late final FlyoutController _moreController = FlyoutController();
   late final SeasonAnalysisStatusController _seasonAnalysisStatusController;
 
+  final ScrollController _castScrollController = ScrollController();
+  bool _castScrollRestoreDone = false;
+
   @override
   void initState() {
     super.initState();
@@ -164,6 +167,7 @@ class _TvSeasonDetailContentState
     );
     _moreController.dispose();
     _descriptionScrollController.dispose();
+    _castScrollController.dispose();
     super.dispose();
   }
 
@@ -287,10 +291,38 @@ class _TvSeasonDetailContentState
     return '第 ${playInfo.item.episodeNumber} 集';
   }
 
+  /// When this page is re-entered by going back from a cast member's person
+  /// detail page, scroll the cast row so that member is positioned at the
+  /// leading edge again — mirroring the fnOS Web behavior.
+  void _maybeRestoreCastScroll() {
+    if (_castScrollRestoreDone) return;
+    final target = ref.read(castScrollReturnTargetProvider);
+    if (target == null) return;
+    if (Uri.parse(target.mediaPath).path != '/tv/season/${widget.guid}') {
+      return;
+    }
+    final index = widget.state.personList
+        .indexWhere((p) => p.personGuid == target.personGuid);
+    _castScrollRestoreDone = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(castScrollReturnTargetProvider.notifier).state = null;
+      if (index < 0 || !_castScrollController.hasClients) return;
+      final position = _castScrollController.position;
+      final offset = index *
+          (CastScrollRow.itemWidth + CastScrollRow.defaultItemSpacing);
+      _castScrollController.jumpTo(
+        offset.clamp(position.minScrollExtent, position.maxScrollExtent),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.state.item;
     if (item == null) return const Center(child: Text('未找到分季信息'));
+
+    _maybeRestoreCastScroll();
 
     // Start or stop polling when the Fly Narwhal server availability changes
     ref.listen<bool>(
@@ -543,6 +575,7 @@ class _TvSeasonDetailContentState
                   httpHeaders: widget.httpHeaders,
                   cacheManager: widget.cacheManager,
                   prefsManager: widget.prefsManager,
+                  userGuid: ref.watch(currentUserGuidProvider),
                   onEpisodeTap: (episode) {
                     // Navigate to player screen for this episode
                     ref
@@ -574,6 +607,7 @@ class _TvSeasonDetailContentState
                     baseUrl: widget.baseUrl,
                     httpHeaders: widget.httpHeaders,
                     cacheManager: widget.cacheManager,
+                    controller: _castScrollController,
                   ),
                 ),
               ),
@@ -709,6 +743,7 @@ class _EpisodeListSection extends StatefulWidget {
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
   final PreferencesManager prefsManager;
+  final String? userGuid;
   final ValueChanged<EpisodeListResponse> onEpisodeTap;
   final Future<bool> Function(String guid, bool isFavorite) onFavoriteToggle;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
@@ -720,6 +755,7 @@ class _EpisodeListSection extends StatefulWidget {
     required this.httpHeaders,
     required this.cacheManager,
     required this.prefsManager,
+    this.userGuid,
     required this.onEpisodeTap,
     required this.onFavoriteToggle,
     required this.onWatchedToggle,
@@ -738,7 +774,10 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
   @override
   void initState() {
     super.initState();
-    _isButtonView = widget.prefsManager.getEpisodeListViewType() == 'button';
+    _isButtonView = widget.prefsManager.getEpisodeListViewType(
+          userGuid: widget.userGuid,
+        ) ==
+        'button';
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _positionToCurrentEpisode());
   }
@@ -841,8 +880,10 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
   void _handleToggleView(bool isButtonView) {
     if (_isButtonView == isButtonView) return;
     setState(() => _isButtonView = isButtonView);
-    widget.prefsManager
-        .saveEpisodeListViewType(isButtonView ? 'button' : 'card');
+    widget.prefsManager.saveEpisodeListViewType(
+      isButtonView ? 'button' : 'card',
+      userGuid: widget.userGuid,
+    );
   }
 }
 
