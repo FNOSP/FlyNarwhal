@@ -60,6 +60,10 @@ class ItemResponse {
   final String parentGuid;
   @JsonKey(name: 'ancestor_name')
   final String ancestorName;
+  /// 所属媒体库分类（Movie/TV/Mix/IPTV/Others），详情页标题旁图标
+  /// 据此选择（复刻 Web：category 决定图标，缺省按 Others 处理）。
+  @JsonKey(name: 'ancestor_category')
+  final String? ancestorCategory;
   @JsonKey(name: 'play_item_guid')
   final String playItemGuid;
   @JsonKey(defaultValue: 0)
@@ -103,6 +107,7 @@ class ItemResponse {
     required this.playError,
     required this.parentGuid,
     required this.ancestorName,
+    this.ancestorCategory,
     required this.playItemGuid,
     required this.duration,
     required this.logicType,
@@ -145,6 +150,7 @@ class ItemResponse {
     String? playError,
     String? parentGuid,
     String? ancestorName,
+    String? ancestorCategory,
     String? playItemGuid,
     int? duration,
     int? logicType,
@@ -183,6 +189,7 @@ class ItemResponse {
       playError: playError ?? this.playError,
       parentGuid: parentGuid ?? this.parentGuid,
       ancestorName: ancestorName ?? this.ancestorName,
+      ancestorCategory: ancestorCategory ?? this.ancestorCategory,
       playItemGuid: playItemGuid ?? this.playItemGuid,
       duration: duration ?? this.duration,
       logicType: logicType ?? this.logicType,
@@ -330,6 +337,15 @@ class VideoStream {
     required this.ext1,
     required this.isBluray,
   });
+
+  /// 后端用来标记「不存在」的占位视频流的 `ext1` 值（与 Web 端
+  /// `ext1 === -1` 判定一致）。STRM 等未解析出真实媒体流的条目只会
+  /// 返回这样的占位流。
+  static const int ext1NotExist = -1;
+
+  /// 是否为占位视频流（如 STRM 文件）。详情页据此隐藏选择器与
+  /// 视频/音频信息区（复刻 Web）。
+  bool get isNotExist => ext1 == ext1NotExist;
 
   factory VideoStream.fromJson(Map<String, dynamic> json) => _$VideoStreamFromJson(json);
   Map<String, dynamic> toJson() => _$VideoStreamToJson(this);

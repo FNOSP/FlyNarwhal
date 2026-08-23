@@ -117,6 +117,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) =>
                 TvSeasonDetailScreen(guid: state.pathParameters['guid'] ?? ''),
           ),
+          // 集详情页（Web /v/tv/episode/:guid）：从选集海报空白区进入，
+          // 复用电影详情页，由内容自行识别 Episode 类型渲染剧集布局。
+          GoRoute(
+            path: '/tv/episode/:guid',
+            builder: (context, state) =>
+                MovieDetailScreen(guid: state.pathParameters['guid'] ?? ''),
+          ),
           GoRoute(
             path: '/person/:guid',
             builder: (context, state) =>

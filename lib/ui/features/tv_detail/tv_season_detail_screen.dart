@@ -576,12 +576,16 @@ class _TvSeasonDetailContentState
                   cacheManager: widget.cacheManager,
                   prefsManager: widget.prefsManager,
                   userGuid: ref.watch(currentUserGuidProvider),
-                  onEpisodeTap: (episode) {
+                  onEpisodePlay: (episode) {
                     // Navigate to player screen for this episode
                     ref
                         .read(navigationStackProvider.notifier)
                         .playerSourcePath = '/tv/season/${widget.guid}';
                     context.go('/player/${episode.guid}');
+                  },
+                  onEpisodeOpenDetail: (episode) {
+                    // 点击海报空白区/标题区进入集详情页（复刻 Web）。
+                    context.go('/tv/episode/${episode.guid}');
                   },
                   onFavoriteToggle: (guid, isFavorite) {
                     return ref
@@ -744,7 +748,8 @@ class _EpisodeListSection extends StatefulWidget {
   final cache_manager.CacheManager cacheManager;
   final PreferencesManager prefsManager;
   final String? userGuid;
-  final ValueChanged<EpisodeListResponse> onEpisodeTap;
+  final ValueChanged<EpisodeListResponse> onEpisodePlay;
+  final ValueChanged<EpisodeListResponse> onEpisodeOpenDetail;
   final Future<bool> Function(String guid, bool isFavorite) onFavoriteToggle;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
 
@@ -756,7 +761,8 @@ class _EpisodeListSection extends StatefulWidget {
     required this.cacheManager,
     required this.prefsManager,
     this.userGuid,
-    required this.onEpisodeTap,
+    required this.onEpisodePlay,
+    required this.onEpisodeOpenDetail,
     required this.onFavoriteToggle,
     required this.onWatchedToggle,
   });
@@ -848,7 +854,7 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
           _EpisodeButtonGrid(
             episodes: widget.episodes,
             currentEpisodeNumber: currentEpisodeNumber,
-            onEpisodeTap: widget.onEpisodeTap,
+            onEpisodeTap: widget.onEpisodePlay,
           )
         else
           ScrollRow(
@@ -865,7 +871,8 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
                 httpHeaders: widget.httpHeaders,
                 cacheManager: widget.cacheManager,
                 isCurrent: episode.episodeNumber == currentEpisodeNumber,
-                onTap: () => widget.onEpisodeTap(episode),
+                onPlay: () => widget.onEpisodePlay(episode),
+                onOpenDetail: () => widget.onEpisodeOpenDetail(episode),
                 onFavoriteToggle: (currentState) =>
                     widget.onFavoriteToggle(episode.guid, currentState),
                 onWatchedToggle: (currentState) =>
@@ -893,7 +900,8 @@ class _EpisodeCard extends StatefulWidget {
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
   final bool isCurrent;
-  final VoidCallback onTap;
+  final VoidCallback onPlay;
+  final VoidCallback onOpenDetail;
   final Future<bool> Function(bool currentState) onFavoriteToggle;
   final Future<bool> Function(bool currentState) onWatchedToggle;
 
@@ -903,7 +911,8 @@ class _EpisodeCard extends StatefulWidget {
     required this.httpHeaders,
     required this.cacheManager,
     required this.isCurrent,
-    required this.onTap,
+    required this.onPlay,
+    required this.onOpenDetail,
     required this.onFavoriteToggle,
     required this.onWatchedToggle,
   });
@@ -972,7 +981,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
             text: const Text('播放本集'),
             onPressed: () {
               Flyout.of(context).close();
-              widget.onTap();
+              widget.onPlay();
             },
           ),
           MenuFlyoutItem(
@@ -1014,7 +1023,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: widget.onOpenDetail,
         child: SizedBox(
           width: _episodePosterWidth,
           child: Column(
@@ -1138,7 +1147,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                           onExit: (_) =>
                               setState(() => _isPlayButtonHovered = false),
                           child: GestureDetector(
-                            onTap: widget.onTap,
+                            onTap: widget.onPlay,
                             behavior: HitTestBehavior.opaque,
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),

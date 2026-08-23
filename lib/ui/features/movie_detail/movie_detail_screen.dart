@@ -668,14 +668,137 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final backdropSeamCoverHeight = 2 / pixelRatio;
     final isFavorite = item.isFavorite == 1;
     final isWatched = item.isWatched == 1;
+    // 剧集详情页（Web /v/tv/episode/:guid）复用本页面：识别 Episode 类型，
+    // 渲染「剧名 · 季 · 集」面包屑 + 集标题的头部，并隐藏演职人员行。
+    final isEpisode = item.type == 'Episode';
 
     // Calculate total duration for progress bar
     final totalDuration = widget.state.streamList?.videoStreams
             .elementAtOrNull(_selectedVideoStreamIndex)
             ?.duration ??
         0;
-    final formatedTotalDuration =
-        FnDataConvertor.formatSecondsToCNDateTime(totalDuration);
+    // 与 Web 一致：时长为 0（如 STRM 占位流）时不显示时长标签。
+    final formatedTotalDuration = totalDuration > 0
+        ? FnDataConvertor.formatSecondsToCNDateTime(totalDuration)
+        : null;
+
+    // —— 复刻 Web：STRM 等占位流（仅空流且 ext1 == -1）的可见性逻辑 ——
+    // Web: isNotExist = videoStream.ext1 === -1
+    final streamList = widget.state.streamList;
+    final currentVideoStream =
+        streamList?.videoStreams.elementAtOrNull(_selectedVideoStreamIndex);
+    final isStreamNotExist = currentVideoStream?.isNotExist ?? false;
+    final hasAudioForCurrentMedia = streamList?.audioStreams
+            .any((s) => s.mediaGuid == _currentMediaGuid) ??
+        false;
+    final hasSubtitleForCurrentMedia = streamList?.subtitleStreams
+            .any((s) => s.mediaGuid == _currentMediaGuid) ??
+        false;
+    // Web: audioVisible = isNotExist ? false : hasAudio
+    final audioSelectorVisible =
+        isStreamNotExist ? false : hasAudioForCurrentMedia;
+    // Web: streamVisible = isNotExist ? (hasSubtitle || audioVisible) : true
+    final streamSelectorVisible = isStreamNotExist
+        ? (hasSubtitleForCurrentMedia || audioSelectorVisible)
+        : true;
+
+    Widget? qualityAndSelectorRow;
+    if (streamList != null) {
+      final rowChildren = <Widget>[];
+      if (streamSelectorVisible) {
+        final subtitleStreams = streamList.subtitleStreams
+            .where((s) => s.mediaGuid == _currentMediaGuid)
+            .toList();
+        final currentSubtitle = subtitleStreams
+            .where((s) => s.guid == _selectedSubtitleGuid)
+            .firstOrNull;
+        final subtitleLabel = _selectedSubtitleGuid == '_no_display_'
+            ? '无字幕'
+            : '${FnDataConvertor.getLanguageName(currentSubtitle?.language ?? '', widget.state.iso6391, widget.state.iso6392)}字幕';
+        rowChildren.add(SubtitleStreamSelector(
+          selectedLabel: subtitleLabel,
+          subtitles: subtitleStreams,
+          selectedSubtitleGuid:
+              _selectedSubtitleGuid == '_no_display_' ? null : _selectedSubtitleGuid,
+          iso6391Map: widget.state.iso6391,
+          iso6392Map: widget.state.iso6392,
+          onChanged: (guid) {
+            final value = guid ?? '_no_display_';
+            setState(() {
+              _selectedSubtitleGuid = value;
+              _mediaGuidSubtitleGuidMap[_currentMediaGuid] = value;
+            });
+          },
+          onAddNasSubtitle: () => _showAddNasSubtitleDialog(_currentMediaGuid),
+          onSearchSubtitle: _openSubtitleSearchDialog,
+          onAddLocalSubtitle: _pickAndUploadLocalSubtitle,
+          onRequestDelete: _handleDeleteSubtitle,
+          onPredownloadSimilar: _handlePredownloadSimilarSubtitle,
+        ));
+      }
+      if (audioSelectorVisible) {
+        final audioStreams = streamList.audioStreams
+            .where((s) => s.mediaGuid == _currentMediaGuid)
+            .toList();
+        final currentAudio = audioStreams
+            .where((s) => s.guid == _selectedAudioGuid)
+            .firstOrNull;
+        final audioLabel = currentAudio == null
+            ? '音频'
+            : '${FnDataConvertor.getLanguageName(currentAudio.language, widget.state.iso6391, widget.state.iso6392)}音频';
+        final audioItems = audioStreams.map((s) {
+          final lang = FnDataConvertor.getLanguageName(
+              s.language, widget.state.iso6391, widget.state.iso6392);
+          return StreamOptionItem<String>(
+            title: lang,
+            value: s.guid,
+            subtitle1: s.codecName,
+            subtitle2: s.channelLayout,
+            subtitle3: s.title,
+            isDefault: s.isDefault == 1,
+          );
+        }).toList();
+        if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 12));
+        rowChildren.add(StreamSelector<String>(
+          placeholder: '音频',
+          selectedLabel: audioLabel,
+          selectedValue: _selectedAudioGuid,
+          items: audioItems,
+          onChanged: (val) {
+            setState(() {
+              _selectedAudioGuid = val;
+              _mediaGuidAudioGuidMap[_currentMediaGuid] = val;
+            });
+          },
+        ));
+      }
+      // 质量标签：仅在有值时显示（与 Web 一致；STRM 占位流三者均为空）。
+      final audioTypeLabel = _formatAudioTypeLabel(streamList.audioStreams
+              .where((s) => s.guid == _selectedAudioGuid)
+              .firstOrNull
+              ?.audioType ??
+          '');
+      final qualityTags = <String>[
+        if ((currentVideoStream?.resolutionType ?? '').isNotEmpty)
+          currentVideoStream!.resolutionType.toUpperCase(),
+        if ((currentVideoStream?.colorRangeType ?? '').isNotEmpty)
+          currentVideoStream!.colorRangeType,
+        if (audioTypeLabel.isNotEmpty) audioTypeLabel,
+      ];
+      if (qualityTags.isNotEmpty) {
+        if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 12));
+        for (var i = 0; i < qualityTags.length; i++) {
+          if (i > 0) rowChildren.add(const SizedBox(width: 8));
+          rowChildren.add(MediaQualityTag(text: qualityTags[i]));
+        }
+      }
+      if (rowChildren.isNotEmpty) {
+        qualityAndSelectorRow = Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: rowChildren,
+        );
+      }
+    }
 
     return Stack(
       children: [
@@ -725,27 +848,29 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                       alignment: Alignment.bottomLeft,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(48, 0, 48, 24),
-                        child: logoUrl.isNotEmpty
-                            ? _LogoTitle(
-                                url: logoUrl,
-                                title: item.title,
-                                httpHeaders: widget.httpHeaders,
-                                cacheManager: widget.cacheManager,
-                              )
-                            : Text(
-                                item.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: FluentTheme.of(context)
-                                    .typography
-                                    .titleLarge
-                                    ?.copyWith(
-                                      fontSize: 60,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                      height: 1.1,
-                                    ),
-                              ),
+                        child: isEpisode
+                            ? _EpisodeTitleBlock(item: item)
+                            : logoUrl.isNotEmpty
+                                ? _LogoTitle(
+                                    url: logoUrl,
+                                    title: item.title,
+                                    httpHeaders: widget.httpHeaders,
+                                    cacheManager: widget.cacheManager,
+                                  )
+                                : Text(
+                                    item.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: FluentTheme.of(context)
+                                        .typography
+                                        .titleLarge
+                                        ?.copyWith(
+                                          fontSize: 60,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                          height: 1.1,
+                                        ),
+                                  ),
                       ),
                     ),
                   ],
@@ -838,139 +963,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                 formatedTotalDuration: formatedTotalDuration,
                                 iso3166Map: iso3166Map,
                                 genresMap: widget.state.genres,
+                                isEpisode: isEpisode,
                               ),
-                              const SizedBox(height: 8),
-                              // Quality Tags & Selectors
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  if (widget.state.streamList != null) ...[
-                                    Builder(builder: (context) {
-                                      final subtitleStreams = widget
-                                          .state.streamList!.subtitleStreams
-                                          .where((s) =>
-                                              s.mediaGuid == _currentMediaGuid)
-                                          .toList();
-                                      final currentSubtitle = subtitleStreams
-                                          .where((s) =>
-                                              s.guid == _selectedSubtitleGuid)
-                                          .firstOrNull;
-                                      final subtitleLabel = _selectedSubtitleGuid ==
-                                              '_no_display_'
-                                          ? '无字幕'
-                                          : '${FnDataConvertor.getLanguageName(currentSubtitle?.language ?? '', widget.state.iso6391, widget.state.iso6392)}字幕';
-                                      return SubtitleStreamSelector(
-                                        selectedLabel: subtitleLabel,
-                                        subtitles: subtitleStreams,
-                                        selectedSubtitleGuid:
-                                            _selectedSubtitleGuid ==
-                                                    '_no_display_'
-                                                ? null
-                                                : _selectedSubtitleGuid,
-                                        iso6391Map: widget.state.iso6391,
-                                        iso6392Map: widget.state.iso6392,
-                                        onChanged: (guid) {
-                                          final value = guid ?? '_no_display_';
-                                          setState(() {
-                                            _selectedSubtitleGuid = value;
-                                            _mediaGuidSubtitleGuidMap[
-                                                _currentMediaGuid] = value;
-                                          });
-                                        },
-                                        onAddNasSubtitle: () =>
-                                            _showAddNasSubtitleDialog(
-                                                _currentMediaGuid),
-                                        onSearchSubtitle:
-                                            _openSubtitleSearchDialog,
-                                        onAddLocalSubtitle:
-                                            _pickAndUploadLocalSubtitle,
-                                        onRequestDelete: _handleDeleteSubtitle,
-                                        onPredownloadSimilar:
-                                            _handlePredownloadSimilarSubtitle,
-                                      );
-                                    }),
-                                    const SizedBox(width: 12),
-                                    Builder(builder: (context) {
-                                      final audioStreams = widget
-                                          .state.streamList!.audioStreams
-                                          .where((s) =>
-                                              s.mediaGuid == _currentMediaGuid)
-                                          .toList();
-                                      final currentAudio = audioStreams
-                                          .where((s) =>
-                                              s.guid == _selectedAudioGuid)
-                                          .firstOrNull;
-                                      final audioLabel = currentAudio == null
-                                          ? '音频'
-                                          : '${FnDataConvertor.getLanguageName(currentAudio.language, widget.state.iso6391, widget.state.iso6392)}音频';
-                                      final audioItems = audioStreams.map((s) {
-                                        final lang =
-                                            FnDataConvertor.getLanguageName(
-                                                s.language,
-                                                widget.state.iso6391,
-                                                widget.state.iso6392);
-                                        return StreamOptionItem<String>(
-                                          title: lang,
-                                          value: s.guid,
-                                          subtitle1: s.codecName,
-                                          subtitle2: s.channelLayout,
-                                          subtitle3: s.title,
-                                          isDefault: s.isDefault == 1,
-                                        );
-                                      }).toList();
-                                      return StreamSelector<String>(
-                                        placeholder: '音频',
-                                        selectedLabel: audioLabel,
-                                        selectedValue: _selectedAudioGuid,
-                                        items: audioItems,
-                                        onChanged: (val) {
-                                          setState(() {
-                                            _selectedAudioGuid = val;
-                                            _mediaGuidAudioGuidMap[
-                                                _currentMediaGuid] = val;
-                                          });
-                                        },
-                                      );
-                                    }),
-                                    const SizedBox(width: 12),
-                                    // Quality Tags
-                                    if (widget.state.streamList!.videoStreams
-                                            .isNotEmpty &&
-                                        _selectedVideoStreamIndex <
-                                            widget.state.streamList!
-                                                .videoStreams.length) ...[
-                                      MediaQualityTag(
-                                          text: widget
-                                              .state
-                                              .streamList!
-                                              .videoStreams[
-                                                  _selectedVideoStreamIndex]
-                                              .resolutionType
-                                              .toUpperCase()),
-                                      const SizedBox(width: 8),
-                                      MediaQualityTag(
-                                          text: widget
-                                              .state
-                                              .streamList!
-                                              .videoStreams[
-                                                  _selectedVideoStreamIndex]
-                                              .colorRangeType),
-                                    ],
-                                    const SizedBox(width: 8),
-                                    // Audio Type Tag
-                                    Builder(builder: (context) {
-                                      final audio = widget
-                                          .state.streamList!.audioStreams
-                                          .where((s) =>
-                                              s.guid == _selectedAudioGuid)
-                                          .firstOrNull;
-                                      return MediaQualityTag(
-                                          text: _formatAudioTypeLabel(
-                                              audio?.audioType ?? ''));
-                                    }),
-                                  ],
-                                ],
-                              ),
+                              if (qualityAndSelectorRow != null) ...[
+                                const SizedBox(height: 8),
+                                qualityAndSelectorRow,
+                              ],
                             ],
                           ),
                         ),
@@ -996,7 +994,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                         onMore: () => showDialog(
                           context: context,
                           builder: (_) => MediaDescriptionDialog(
-                              title: '电影简介', content: item.overview!),
+                              title: isEpisode ? '剧集简介' : '电影简介',
+                              content: item.overview!),
                         ),
                       ),
                     ],
@@ -1005,8 +1004,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
               ),
             ),
 
-            // Cast List
-            if (widget.state.personList.isNotEmpty)
+            // Cast List（剧集详情页不展示演职人员，与 Web 一致）
+            if (!isEpisode && widget.state.personList.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -1042,9 +1041,10 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   }
 
   Future<void> _playMedia() async {
+    final isEpisode = widget.state.item?.type == 'Episode';
     // Navigate to player screen
     ref.read(navigationStackProvider.notifier).playerSourcePath =
-        '/movie/${widget.guid}';
+        isEpisode ? '/tv/episode/${widget.guid}' : '/movie/${widget.guid}';
     context.go(
       '/player/${widget.guid}'
       '?media_guid=$_currentMediaGuid'
@@ -1161,6 +1161,55 @@ class _LogoTitleState extends State<_LogoTitle> {
   }
 }
 
+/// 剧集详情页头部标题块：复刻 Web 的「剧名 · 季 · 集」面包屑 + 集标题。
+/// 面包屑 16px 加粗 60% 白；集标题 32px 常规白（与 Web 实测一致）。
+class _EpisodeTitleBlock extends StatelessWidget {
+  final ItemResponse item;
+
+  const _EpisodeTitleBlock({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = <String>[
+      if (item.tvTitle.trim().isNotEmpty) item.tvTitle.trim(),
+      if (item.parentTitle.trim().isNotEmpty) item.parentTitle.trim(),
+      if (item.episodeNumber > 0) '第 ${item.episodeNumber} 集',
+    ];
+    final breadcrumb = parts.join(' · ');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (breadcrumb.isNotEmpty) ...[
+          Text(
+            breadcrumb,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Color(0x99FFFFFF),
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
+        Text(
+          item.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.w400,
+            color: Colors.white,
+            height: 1.25,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _ProgressBar extends StatelessWidget {
   final int watchedTs;
   final int totalDuration;
@@ -1258,6 +1307,10 @@ class _MediaInfoSection extends StatelessWidget {
             selectedVideoStreamIndex < videoStreams.length
         ? videoStreams[selectedVideoStreamIndex]
         : null;
+
+    // 复刻 Web：占位视频流（如 STRM）且该媒体没有字幕/音频流时，
+    // 不展示「视频/音频信息」区（只保留文件信息与链接）。
+    final hideStreamInfo = _shouldHideStreamInfo(videoStream);
 
     final fileInfo = (state.streamList?.files ?? []).firstWhere(
       (f) => f.guid == currentMediaGuid,
@@ -1379,44 +1432,45 @@ class _MediaInfoSection extends StatelessWidget {
           ),
         ),
 
-        const SizedBox(height: 24),
-
         // Video/Audio Info Section
-        _InfoSection(
-          title: '视频/音频信息',
-          trailing: videoStream != null
-              ? _ViewAllMediaInfoButton(
-                  key: const ValueKey('file-media-info-view-all'),
-                  onPressed: () => _showFileMediaInfoDialog(
-                    context: context,
-                    state: state,
-                    videoStream: videoStream,
+        if (!hideStreamInfo) ...[
+          const SizedBox(height: 24),
+          _InfoSection(
+            title: '视频/音频信息',
+            trailing: videoStream != null
+                ? _ViewAllMediaInfoButton(
+                    key: const ValueKey('file-media-info-view-all'),
+                    onPressed: () => _showFileMediaInfoDialog(
+                      context: context,
+                      state: state,
+                      videoStream: videoStream,
+                    ),
+                  )
+                : null,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _TrackItem(
+                    info: mediaDetails.videoTrack,
+                    iconAssetPath: 'assets/images/vedio.svg',
                   ),
-                )
-              : null,
-          child: Row(
-            children: [
-              Expanded(
-                child: _TrackItem(
-                  info: mediaDetails.videoTrack,
-                  iconAssetPath: 'assets/images/vedio.svg',
                 ),
-              ),
-              Expanded(
-                child: _TrackItem(
-                  info: mediaDetails.audioTrack,
-                  iconAssetPath: 'assets/images/audio.svg',
+                Expanded(
+                  child: _TrackItem(
+                    info: mediaDetails.audioTrack,
+                    iconAssetPath: 'assets/images/audio.svg',
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _TrackItem(
-                  info: mediaDetails.subtitleTrack,
-                  iconAssetPath: 'assets/images/vedio.svg',
+                Expanded(
+                  child: _TrackItem(
+                    info: mediaDetails.subtitleTrack,
+                    iconAssetPath: 'assets/images/vedio.svg',
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
 
         if (mediaDetails.imdbLink.isNotEmpty) ...[
           const SizedBox(height: 24),
@@ -1424,6 +1478,24 @@ class _MediaInfoSection extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  /// 复刻 Web 详情页的隐藏判定：
+  /// - 当前视频流为占位流（`ext1 == -1`，如 STRM）且该媒体没有字幕/音频流；
+  /// - 或无当前视频流且不存在任何真实视频流。
+  bool _shouldHideStreamInfo(VideoStream? currentVideoStream) {
+    final videoStreams = state.streamList?.videoStreams ?? const <VideoStream>[];
+    if (currentVideoStream == null) {
+      return !videoStreams.any((s) => !s.isNotExist);
+    }
+    if (!currentVideoStream.isNotExist) return false;
+    final mediaGuid = currentVideoStream.mediaGuid;
+    final hasSubtitle =
+        (state.streamList?.subtitleStreams ?? const <SubtitleStream>[])
+            .any((s) => s.mediaGuid == mediaGuid);
+    final hasAudio = (state.streamList?.audioStreams ?? const <AudioStream>[])
+        .any((s) => s.mediaGuid == mediaGuid);
+    return !hasSubtitle && !hasAudio;
   }
 
   void _showFileMediaInfoDialog({
