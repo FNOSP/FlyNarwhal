@@ -18,12 +18,18 @@ class VolumeControl extends StatefulWidget {
   final void Function(double volume) onVolumeChange;
   final void Function(bool isHovered)? onHoverStateChanged;
 
+  /// When this flips from true to false while the popup is open, the popup
+  /// closes synchronously without the reverse animation — the same
+  /// cross-menu sync-close contract as the other player flyouts.
+  final bool isActiveControl;
+
   const VolumeControl({
     super.key,
     required this.volume,
     this.popupBottomOffset = 48,
     required this.onVolumeChange,
     this.onHoverStateChanged,
+    this.isActiveControl = true,
   });
 
   @override
@@ -69,6 +75,9 @@ class _VolumeControlState extends State<VolumeControl>
   @override
   void didUpdateWidget(VolumeControl oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActiveControl && !widget.isActiveControl) {
+      _forceCloseFlyout();
+    }
     if (oldWidget.volume != widget.volume ||
         oldWidget.popupBottomOffset != widget.popupBottomOffset) {
       _requestOverlayRebuild();
@@ -126,7 +135,11 @@ class _VolumeControlState extends State<VolumeControl>
         }
 
         final renderObject = buttonContext.findRenderObject();
-        if (renderObject is! RenderBox || !renderObject.hasSize) {
+        // The button can be deactivated (e.g. bottom bar removed on PiP enter
+        // or route leave) before this entry is unmounted; skip positioning.
+        if (renderObject is! RenderBox ||
+            !renderObject.hasSize ||
+            !renderObject.attached) {
           return const SizedBox.shrink();
         }
 
@@ -249,6 +262,35 @@ class _VolumeControlState extends State<VolumeControl>
 
     setState(() => _isExpanded = false);
     widget.onHoverStateChanged?.call(false);
+  }
+
+  /// Runs from didUpdateWidget, i.e. during the build phase: only stop the
+  /// ticker without notifying listeners. Resetting the controller value here
+  /// would setState the popup's AnimatedBuilder (mounted in the root overlay,
+  /// outside the current build scope) and throw mid-build. The value is reset
+  /// by forward(from: 0) the next time the popup opens.
+  void _forceCloseFlyout() {
+    _hideTimer?.cancel();
+    if (!_isExpanded) return;
+    _isButtonHovered = false;
+    _popupHovered = false;
+    _animationController.stop();
+    _hideOverlay();
+    setState(() => _isExpanded = false);
+    _notifyHoveredAfterFrame(false);
+  }
+
+  /// Delivers a hover-state change after the current frame, so consumers can
+  /// safely modify providers (force-close runs during the build phase).
+  void _notifyHoveredAfterFrame(bool hovered) {
+    final callback = widget.onHoverStateChanged;
+    if (callback == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Skip if the popup reopened in the meantime; a stale close
+      // notification would clobber the fresh hover state.
+      if (!mounted || _isExpanded) return;
+      callback(hovered);
+    });
   }
 
   @override

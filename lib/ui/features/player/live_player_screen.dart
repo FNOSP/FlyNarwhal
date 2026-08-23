@@ -22,6 +22,7 @@ import 'controllers/player_overlay_controller.dart';
 import 'controllers/player_session_coordinator.dart';
 import 'services/player_service.dart';
 import 'utils/player_volume_helper.dart';
+import 'widgets/channel_select_flyout.dart';
 import 'widgets/fullscreen_control.dart';
 import 'widgets/player_action_button.dart';
 import 'widgets/volume_control.dart';
@@ -62,7 +63,6 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   PlayInfoResponse? _playInfo;
   List<LiveChannelSource> _channels = const [];
   int _selectedChannelIndex = 0;
-  bool _isChannelFlyoutOpen = false;
   double _volume = 1.0;
 
   int _loadToken = 0;
@@ -196,9 +196,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       _selectedChannelIndex = index;
       _isLoading = true;
       _errorMessage = null;
-      _isChannelFlyoutOpen = false;
     });
-    _overlayController.setFlyoutHovered(PlayerFlyoutType.liveChannel, false);
 
     final player = _player;
     if (player == null) return;
@@ -331,7 +329,6 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
         _isPipHovered = true;
       });
       _overlayController.dismissTransientUi();
-      _closeChannelFlyout();
       await _pipController.enter(videoAspectRatio: _resolveVideoAspectRatio());
       _restartPipIdleTimer();
     } catch (e, st) {
@@ -478,17 +475,6 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       }
     });
   }
-
-  void _toggleChannelFlyout(bool open) {
-    if (_isChannelFlyoutOpen == open) return;
-    setState(() => _isChannelFlyoutOpen = open);
-    _overlayController.setFlyoutHovered(PlayerFlyoutType.liveChannel, open);
-    if (open) {
-      _showUi();
-    }
-  }
-
-  void _closeChannelFlyout() => _toggleChannelFlyout(false);
 
   // ------------------------------------------------------------------ build
 
@@ -660,12 +646,6 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
                           ),
                         ),
                       ),
-                      if (_isChannelFlyoutOpen)
-                        Positioned(
-                          right: 16,
-                          bottom: 64,
-                          child: _buildChannelFlyout(),
-                        ),
                     ],
                   ),
                 ),
@@ -765,22 +745,29 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
         ),
         const Spacer(),
         if (currentChannel != null) ...[
-          _buildChannelSelector(overlayState, currentChannel),
+          _buildChannelSelector(overlayState),
           const SizedBox(width: _trailingControlSpacing),
         ],
         VolumeControl(
           key: const ValueKey('live-volume-control'),
           volume: _volume,
-          onHoverStateChanged: (hovered) => _overlayController.setHovered(
-            PlayerHoverZone.volumeControl,
-            hovered,
-          ),
+          isActiveControl:
+              overlayState.activeFlyout != PlayerFlyoutType.liveChannel,
+          onHoverStateChanged: (hovered) {
+            if (hovered) _dismissChannelFlyout();
+            _overlayController.setHovered(
+              PlayerHoverZone.volumeControl,
+              hovered,
+            );
+          },
           onVolumeChange: _setVolume,
         ),
         const SizedBox(width: _trailingControlSpacing),
         MouseRegion(
-          onEnter: (_) =>
-              _overlayController.setHovered(PlayerHoverZone.pipControl, true),
+          onEnter: (_) {
+            _dismissChannelFlyout();
+            _overlayController.setHovered(PlayerHoverZone.pipControl, true);
+          },
           onExit: (_) =>
               _overlayController.setHovered(PlayerHoverZone.pipControl, false),
           child: PlayerActionButton.lottie(
@@ -793,10 +780,13 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
           ),
         ),
         const SizedBox(width: _trailingControlSpacing),
-        FullScreenControl(
-          key: const ValueKey('live-fullscreen'),
-          isFullScreen: _isFullscreen,
-          onClick: () => unawaited(_toggleFullscreen()),
+        MouseRegion(
+          onEnter: (_) => _dismissChannelFlyout(),
+          child: FullScreenControl(
+            key: const ValueKey('live-fullscreen'),
+            isFullScreen: _isFullscreen,
+            onClick: () => unawaited(_toggleFullscreen()),
+          ),
         ),
       ],
     );
@@ -804,76 +794,35 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
 
   Widget _buildChannelSelector(
     PlayerOverlayState overlayState,
-    LiveChannelSource currentChannel,
   ) {
-    return GestureDetector(
+    return ChannelSelectFlyout(
       key: const ValueKey('live-channel-button'),
-      onTap: () => _toggleChannelFlyout(!_isChannelFlyoutOpen),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          height: 30,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: _isChannelFlyoutOpen
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            currentChannel.fileName,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-          ),
-        ),
+      channels: _channels,
+      selectedIndex: _selectedChannelIndex,
+      isActiveControl:
+          overlayState.activeFlyout == PlayerFlyoutType.liveChannel,
+      onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
+        PlayerFlyoutType.liveChannel,
+        hovered,
       ),
+      onChannelSelected: (index) => unawaited(_openChannel(index)),
     );
   }
 
-  Widget _buildChannelFlyout() {
-    return MouseRegion(
-      onEnter: (_) => _overlayController.setFlyoutHovered(
-          PlayerFlyoutType.liveChannel, true),
-      onExit: (_) => _overlayController.setFlyoutHovered(
-          PlayerFlyoutType.liveChannel, false),
-      child: Container(
-        width: 168,
-        constraints: const BoxConstraints(maxHeight: 320),
-        decoration: BoxDecoration(
-          color: const Color(0xCC000000),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0x80808080)),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 10, 12, 6),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '线路',
-                    style: TextStyle(color: Color(0xB3FFFFFF), fontSize: 12),
-                  ),
-                ),
-              ),
-              ...List.generate(_channels.length, (index) {
-                final channel = _channels[index];
-                final isSelected = index == _selectedChannelIndex;
-                return _ChannelFlyoutItem(
-                  key: ValueKey('live-channel-item-$index'),
-                  label: channel.fileName,
-                  isSelected: isSelected,
-                  onTap: () => unawaited(_openChannel(index)),
-                );
-              }),
-              const SizedBox(height: 6),
-            ],
-          ),
-        ),
-      ),
-    );
+  void _handleFlyoutHoverStateChanged(PlayerFlyoutType type, bool hovered) {
+    _overlayController.setFlyoutHovered(type, hovered);
+    if (hovered) {
+      _showUi();
+    }
+  }
+
+  /// Synchronously closes the channel flyout by clearing its active state in
+  /// the overlay controller. When the cursor moves onto a non-menu trailing
+  /// control (volume / PiP / fullscreen), this flips the flyout's
+  /// `isActiveControl` to false, which triggers its `didUpdateWidget` and
+  /// `_forceCloseFlyout` — the same cross-menu sync-close used elsewhere.
+  void _dismissChannelFlyout() {
+    _overlayController.setFlyoutHovered(PlayerFlyoutType.liveChannel, false);
   }
 
   Widget _buildPipOverlay() {
@@ -974,69 +923,5 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   @override
   void onWindowLeaveFullScreen() {
     if (mounted) setState(() => _isFullscreen = false);
-  }
-}
-
-class _ChannelFlyoutItem extends StatefulWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _ChannelFlyoutItem({
-    super.key,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  State<_ChannelFlyoutItem> createState() => _ChannelFlyoutItemState();
-}
-
-class _ChannelFlyoutItemState extends State<_ChannelFlyoutItem> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: _isHovered || widget.isSelected
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.transparent,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: widget.isSelected
-                        ? const Color(0xFF3B82F6)
-                        : Colors.white,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              if (widget.isSelected)
-                const Icon(
-                  FluentIcons.check_mark,
-                  size: 14,
-                  color: Colors.white,
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

@@ -293,20 +293,33 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
     widget.onHoverStateChanged?.call(false);
   }
 
-  Future<void> _forceCloseFlyout() async {
+  void _forceCloseFlyout() {
     _hideTimer?.cancel();
     if (!_isExpanded) return;
 
     _isButtonHovered = false;
     _popupHovered = false;
 
-    // Close immediately without the reverse animation when another flyout is
-    // taking over, so the leaving flyout doesn't stack on the incoming one.
+    // Runs from didUpdateWidget, i.e. during the build phase: only stop the
+    // ticker without notifying listeners. Resetting the controller value here
+    // would setState the flyout's AnimatedBuilder (mounted in the root
+    // overlay, outside the current build scope) and throw mid-build. The
+    // value is reset by forward(from: 0) the next time the flyout opens.
     _animationController.stop();
-    _animationController.value = 0;
     _hideOverlay();
     setState(() => _isExpanded = false);
-    widget.onHoverStateChanged?.call(false);
+    _notifyHoveredAfterFrame(false);
+  }
+
+  /// Delivers a hover-state change after the current frame, so consumers can
+  /// safely modify providers (force-close runs during the build phase).
+  void _notifyHoveredAfterFrame(bool hovered) {
+    final callback = widget.onHoverStateChanged;
+    if (callback == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isExpanded) return;
+      callback(hovered);
+    });
   }
 
   @override
