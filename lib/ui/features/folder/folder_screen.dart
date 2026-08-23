@@ -686,7 +686,12 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
               if (resumeEntry != null && canPlay) ...[
                 Button(
                   key: ValueKey('folder-continue-play-${resumeEntry.guid}'),
-                  onPressed: () => context.go('/player/${resumeEntry.guid}'),
+                  onPressed: () {
+                    ref.read(navigationStackProvider.notifier)
+                        .playerSourcePath =
+                        GoRouterState.of(context).uri.toString();
+                    context.go('/player/${resumeEntry.guid}');
+                  },
                   style: ButtonStyle(
                     backgroundColor: WidgetStateProperty.resolveWith(
                         (states) {
@@ -824,9 +829,10 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   }
 
   void _playItem(MediaItem item) {
+    // Record the source page for the player's back button (VOD and live).
+    ref.read(navigationStackProvider.notifier).playerSourcePath =
+        GoRouterState.of(context).uri.toString();
     if (item.type == MediaType.liveChannel.value) {
-      ref.read(navigationStackProvider.notifier).playerSourcePath =
-          GoRouterState.of(context).uri.toString();
       context.go('/live/${item.guid}');
     } else {
       context.go('/player/${item.guid}');

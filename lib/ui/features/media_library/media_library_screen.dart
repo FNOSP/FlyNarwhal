@@ -582,11 +582,13 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                 onPlayTap: isDirectory
                     ? null
                     : () {
+                        // Record the source page for the player's back
+                        // button (VOD and live).
+                        ref
+                            .read(navigationStackProvider.notifier)
+                            .playerSourcePath =
+                            GoRouterState.of(context).uri.toString();
                         if (item.type == MediaType.liveChannel.value) {
-                          ref
-                              .read(navigationStackProvider.notifier)
-                              .playerSourcePath =
-                              GoRouterState.of(context).uri.toString();
                           context.go('/live/${item.guid}');
                         } else {
                           context.go('/player/${item.guid}');
@@ -1159,18 +1161,21 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                           onPlayTap: isDirectory
                                               ? null
                                               : () {
+                                                  // Record the source page
+                                                  // for the player's back
+                                                  // button (VOD and live).
+                                                  ref
+                                                      .read(
+                                                          navigationStackProvider
+                                                              .notifier)
+                                                      .playerSourcePath =
+                                                      GoRouterState.of(
+                                                              context)
+                                                          .uri
+                                                          .toString();
                                                   if (item.type ==
                                                       MediaType
                                                           .liveChannel.value) {
-                                                    ref
-                                                        .read(
-                                                            navigationStackProvider
-                                                                .notifier)
-                                                        .playerSourcePath =
-                                                        GoRouterState.of(
-                                                                context)
-                                                            .uri
-                                                            .toString();
                                                     context.go(
                                                         '/live/${item.guid}');
                                                   } else {
