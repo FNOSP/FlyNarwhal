@@ -1043,7 +1043,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         '1. 如果您是 NAS 用户，请尝试 NAS 帐号登录；\n2. 请联系管理员修改密码。',
       ),
       primaryButtonText: '确认',
-      onPrimaryPressed: () => Navigator.of(context).pop(),
+      onPrimaryPressed: () {},
+      autoDismiss: true,
     );
   }
 

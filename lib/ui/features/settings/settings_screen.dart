@@ -63,70 +63,61 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _flyNarwhalAuthCodeController.text =
         ref.read(settingsProvider.notifier).getFlyNarwhalAuthCode();
     _isFlyNarwhalAuthCodeVisible = false;
-    showDialog(
+    showAppDialog(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => ContentDialog(
-          title: const Text('填写授权码'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('请输入飞鲸服务端授权码：'),
-              const SizedBox(height: 12),
-              TextBox(
-                key: const ValueKey('settings-fly-narwhal-auth-code-input'),
-                controller: _flyNarwhalAuthCodeController,
-                obscureText: !_isFlyNarwhalAuthCodeVisible,
-                onSubmitted: (_) => _saveFlyNarwhalAuthCode(dialogContext),
-                suffix: AppIconButton(
-                  icon: Icon(
-                    _isFlyNarwhalAuthCodeVisible
-                        ? FluentIcons.hide3
-                        : FluentIcons.view,
-                  ),
-                  onPressed: () {
-                    setDialogState(() {
-                      _isFlyNarwhalAuthCodeVisible =
-                          !_isFlyNarwhalAuthCodeVisible;
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                '请在飞鲸服务端页面点击“获取授权码”后粘贴到此处。',
-                style: TextStyle(fontSize: 12),
-              ),
-            ],
-          ),
-          actions: [
-            AppButton(
-              child: const Text('取消'),
-              onPressed: () {
-                _isFlyNarwhalAuthCodeVisible = false;
-                Navigator.pop(dialogContext);
+      title: '填写授权码',
+      content: StatefulBuilder(
+        builder: (context, setDialogState) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('请输入飞鲸服务端授权码：'),
+            const SizedBox(height: 12),
+            TextBox(
+              key: const ValueKey('settings-fly-narwhal-auth-code-input'),
+              controller: _flyNarwhalAuthCodeController,
+              obscureText: !_isFlyNarwhalAuthCodeVisible,
+              onSubmitted: (_) async {
+                // The dialog lives on the root navigator; pop it after saving.
+                await _saveFlyNarwhalAuthCode();
+                if (context.mounted) {
+                  Navigator.of(context, rootNavigator: true).pop();
+                }
               },
+              suffix: AppIconButton(
+                icon: Icon(
+                  _isFlyNarwhalAuthCodeVisible
+                      ? FluentIcons.hide3
+                      : FluentIcons.view,
+                ),
+                onPressed: () {
+                  setDialogState(() {
+                    _isFlyNarwhalAuthCodeVisible =
+                        !_isFlyNarwhalAuthCodeVisible;
+                  });
+                },
+              ),
             ),
-            AppFilledButton(
-              key: const ValueKey('settings-fly-narwhal-auth-code-save'),
-              child: const Text('确定'),
-              onPressed: () => _saveFlyNarwhalAuthCode(dialogContext),
+            const SizedBox(height: 12),
+            const Text(
+              '请在飞鲸服务端页面点击“获取授权码”后粘贴到此处。',
+              style: TextStyle(fontSize: 12),
             ),
           ],
         ),
       ),
+      secondaryButtonText: '取消',
+      primaryButtonText: '确定',
+      // AppDialog waits for this and then closes itself using its own context.
+      onPrimaryPressed: _saveFlyNarwhalAuthCode,
+      autoDismiss: true,
     );
   }
 
-  Future<void> _saveFlyNarwhalAuthCode(BuildContext dialogContext) async {
+  Future<void> _saveFlyNarwhalAuthCode() async {
     await ref
         .read(settingsProvider.notifier)
         .setFlyNarwhalAuthCode(_flyNarwhalAuthCodeController.text);
-    _isFlyNarwhalAuthCodeVisible = false;
-    if (mounted && dialogContext.mounted) {
-      Navigator.pop(dialogContext);
-    }
   }
 
   Future<void> _exportErrorLogs() async {
@@ -192,7 +183,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           data: (version) {
             if (version == null) return;
             ref.read(toastManagerProvider.notifier).showToast(
-                  '飞鲸服务端连接成功，当前版本号：$version',
+                  '飞鲸服务端连接成功，当前服务端版本号：$version',
                   type: ToastType.success,
                   category: 'fly-narwhal-connection',
                 );

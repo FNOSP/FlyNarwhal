@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 
@@ -85,6 +87,7 @@ class AppDialog<T> extends StatelessWidget {
     ),
     this.titleIcon,
     this.onClose,
+    this.autoDismiss = false,
   });
 
   final String title;
@@ -93,9 +96,9 @@ class AppDialog<T> extends StatelessWidget {
   final String? primaryButtonText;
   final String? secondaryButtonText;
   final String? tertiaryButtonText;
-  final VoidCallback? onPrimaryPressed;
-  final VoidCallback? onSecondaryPressed;
-  final VoidCallback? onTertiaryPressed;
+  final FutureOr<void> Function()? onPrimaryPressed;
+  final FutureOr<void> Function()? onSecondaryPressed;
+  final FutureOr<void> Function()? onTertiaryPressed;
   final T? primaryResult;
   final T? secondaryResult;
   final T? tertiaryResult;
@@ -103,7 +106,16 @@ class AppDialog<T> extends StatelessWidget {
   final Widget? titleIcon;
 
   /// When non-null, renders a close button on the title's trailing edge.
-  final VoidCallback? onClose;
+  final FutureOr<void> Function()? onClose;
+
+  /// When true, each action button (primary/secondary/tertiary) and the close
+  /// button wait for its optional callback to finish, then close the dialog
+  /// using AppDialog's own internal context (never a caller page context).
+  ///
+  /// When false (default), buttons only run their callback and leave closing to
+  /// the caller — the historical behavior, kept for stateful dialogs whose
+  /// buttons must keep the dialog open while an async step runs.
+  final bool autoDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +186,7 @@ class AppDialog<T> extends StatelessWidget {
                 size: 16,
                 color: palette.text,
               ),
-              onPressed: onClose,
+              onPressed: () => _invoke(context, onClose, null),
             ),
         ],
       ),
@@ -202,7 +214,7 @@ class AppDialog<T> extends StatelessWidget {
   Widget _primary(
     BuildContext context,
     String text,
-    VoidCallback? callback,
+    FutureOr<void> Function()? callback,
     T? result,
   ) {
     final isDanger = type == AppDialogType.danger;
@@ -241,7 +253,7 @@ class AppDialog<T> extends StatelessWidget {
     BuildContext context,
     _AppDialogPalette palette,
     String text,
-    VoidCallback? callback,
+    FutureOr<void> Function()? callback,
     T? result,
     String name,
   ) {
@@ -290,11 +302,18 @@ class AppDialog<T> extends StatelessWidget {
         ),
       );
 
-  void _invoke(BuildContext context, VoidCallback? callback, T? result) {
+  Future<void> _invoke(
+    BuildContext context,
+    FutureOr<void> Function()? callback,
+    T? result,
+  ) async {
     if (callback != null) {
-      callback();
-    } else {
-      Navigator.of(context).pop(result);
+      await Future<void>.sync(callback);
+    }
+    if (autoDismiss || callback == null) {
+      if (context.mounted) {
+        Navigator.of(context).pop(result);
+      }
     }
   }
 
@@ -309,9 +328,9 @@ Future<T?> showAppDialog<T>({
   String? primaryButtonText,
   String? secondaryButtonText,
   String? tertiaryButtonText,
-  VoidCallback? onPrimaryPressed,
-  VoidCallback? onSecondaryPressed,
-  VoidCallback? onTertiaryPressed,
+  FutureOr<void> Function()? onPrimaryPressed,
+  FutureOr<void> Function()? onSecondaryPressed,
+  FutureOr<void> Function()? onTertiaryPressed,
   T? primaryResult,
   T? secondaryResult,
   T? tertiaryResult,
@@ -322,7 +341,8 @@ Future<T?> showAppDialog<T>({
     maxHeight: 720,
   ),
   Widget? titleIcon,
-  VoidCallback? onClose,
+  FutureOr<void> Function()? onClose,
+  bool autoDismiss = false,
 }) {
   return showDialog<T>(
     context: context,
@@ -343,6 +363,7 @@ Future<T?> showAppDialog<T>({
       constraints: constraints,
       titleIcon: titleIcon,
       onClose: onClose,
+      autoDismiss: autoDismiss,
     ),
   );
 }
