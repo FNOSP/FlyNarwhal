@@ -22,6 +22,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.3.0-beta] - 2026-08-24
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Added
+
+- **STRM 直连播放**：对齐飞牛影视 Web 端 STRM 文件直连播放流程，解析后直连云端地址。
+- **新增剧集详情页**：剧集详情页复用电影详情页，头部显示面包屑与集标题，隐藏演职人员区。
+
+### Changed
+
+- **媒体库分类图标复用**：抽取共享的媒体库分类图标映射，主布局与详情页复用同一套图标。
+
+### Fixed
+
+- **Windows 更新 Defender 行为收敛**：安装助手改用 /SILENT 安装器、恢复任务改用任务计划 COM，减少 Defender 误报与自我复制行为；回退改为直接重启宿主副本。
+- **播放器 VOD 来源路径记录**：所有 VOD 播放入口记录播放器来源路径，修复播放器返回路径错误。
+- **标题栏更新徽章对齐**：更新徽章与同级 caption 图标高度对齐。
+- **自动隐藏失效**：修复点击「下一集」后，其他切换按钮悬浮弹框残留导致控制 UI 自动隐藏失效的问题。
+
 ## [2.2.1-beta] - 2026-08-23
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
