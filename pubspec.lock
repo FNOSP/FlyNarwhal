@@ -412,10 +412,11 @@ packages:
   fluent_ui:
     dependency: "direct main"
     description:
-      name: fluent_ui
-      sha256: "64c2b9dd208f8e3134d3e38db107235ee30c1dd9b792843274687a7ecc063590"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "fix/navigation-overlay-keys"
+      resolved-ref: a3f96b597a117854dcb1b9b923fd418edf2e9893
+      url: "https://github.com/Jankin-Wu/fluent_ui.git"
+    source: git
     version: "4.16.1"
   flutter:
     dependency: "direct main"

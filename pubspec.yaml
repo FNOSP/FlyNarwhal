@@ -79,11 +79,21 @@ dev_dependencies:
 # the *full* FFmpeg/mpv XCFramework (PGS/HDMV SUP bitmap subtitle support).
 # See third_party/media_kit_libs_macos_video_full/macos/Makefile for the
 # pinned upstream archive (libmpv-xcframeworks_v0.6.0_macos-universal-video-full).
+#
+# Override fluent_ui with a fork carrying a NavigationView crash fix
+# (unfixed upstream as of 4.16.1): switching the display mode or toggling the
+# compact overlay crashes with "_RenderLayoutBuilder was mutated" and a
+# "_elements.contains(element)" assertion. The fix/navigation-overlay-keys
+# branch (based on tag v4.16.1) gives each pane overlay position its own key.
 dependency_overrides:
   media_kit_libs_macos_video:
     path: third_party/media_kit_libs_macos_video_full
   media_kit_libs_windows_video:
     path: third_party/media_kit_libs_windows_video
+  fluent_ui:
+    git:
+      url: https://github.com/Jankin-Wu/fluent_ui.git
+      ref: fix/navigation-overlay-keys
 
 flutter:
   uses-material-design: true
