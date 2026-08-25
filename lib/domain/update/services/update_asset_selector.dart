@@ -4,12 +4,14 @@ import '../entities/update_models.dart';
 /// Parsed fields from a canonical Flutter 2.x release asset name.
 final class CanonicalUpdateAssetName {
   const CanonicalUpdateAssetName({
+    required this.edition,
     required this.operatingSystem,
     required this.architecture,
     required this.version,
     required this.packageType,
   });
 
+  final UpdateDistributionEdition edition;
   final UpdateOperatingSystem operatingSystem;
   final UpdateArchitecture architecture;
   final SemanticVersion version;
@@ -21,7 +23,7 @@ final class CanonicalUpdateAssetNameParser {
   const CanonicalUpdateAssetNameParser();
 
   static final RegExp _expression = RegExp(
-    r'^FlyNarwhal_Setup_(Windows|MacOS|Linux)_(amd64|aarch64)_([^/]+)\.(exe|dmg|deb|rpm|AppImage|pkg\.tar\.zst)$',
+    r'^FlyNarwhal_(Setup|Portable)_(Windows|MacOS|Linux)_(amd64|aarch64)_([^/]+)\.(exe|dmg|deb|rpm|AppImage|pkg\.tar\.zst|zip)$',
     caseSensitive: false,
   );
 
@@ -30,23 +32,34 @@ final class CanonicalUpdateAssetNameParser {
     if (match == null) {
       return null;
     }
-    final operatingSystem = _parseOperatingSystem(match.group(1)!);
-    final architecture = _parseArchitecture(match.group(2)!);
-    final version = SemanticVersion.tryParse(match.group(3)!);
-    final packageType = _parsePackageType(match.group(4)!);
-    if (operatingSystem == null ||
+    final edition = _parseEdition(match.group(1)!);
+    final operatingSystem = _parseOperatingSystem(match.group(2)!);
+    final architecture = _parseArchitecture(match.group(3)!);
+    final version = SemanticVersion.tryParse(match.group(4)!);
+    final packageType = _parsePackageType(match.group(5)!);
+    if (edition == null ||
+        operatingSystem == null ||
         architecture == null ||
         version == null ||
         packageType == null ||
-        !_isValidCombination(operatingSystem, packageType)) {
+        !_isValidCombination(operatingSystem, edition, packageType)) {
       return null;
     }
     return CanonicalUpdateAssetName(
+      edition: edition,
       operatingSystem: operatingSystem,
       architecture: architecture,
       version: version,
       packageType: packageType,
     );
+  }
+
+  UpdateDistributionEdition? _parseEdition(String value) {
+    return switch (value.toLowerCase()) {
+      'setup' => UpdateDistributionEdition.setup,
+      'portable' => UpdateDistributionEdition.portable,
+      _ => null,
+    };
   }
 
   UpdateOperatingSystem? _parseOperatingSystem(String value) {
@@ -74,14 +87,21 @@ final class CanonicalUpdateAssetNameParser {
       'rpm' => UpdatePackageType.rpm,
       'appimage' => UpdatePackageType.appImage,
       'pkg.tar.zst' => UpdatePackageType.pacman,
+      'zip' => UpdatePackageType.zip,
       _ => null,
     };
   }
 
   bool _isValidCombination(
     UpdateOperatingSystem operatingSystem,
+    UpdateDistributionEdition edition,
     UpdatePackageType packageType,
   ) {
+    if (edition == UpdateDistributionEdition.portable) {
+      // Only Windows publishes a portable edition bundle today.
+      return operatingSystem == UpdateOperatingSystem.windows &&
+          packageType == UpdatePackageType.zip;
+    }
     return switch (operatingSystem) {
       UpdateOperatingSystem.windows => packageType == UpdatePackageType.exe,
       UpdateOperatingSystem.macos => packageType == UpdatePackageType.dmg,
@@ -303,6 +323,9 @@ final class UpdateAssetSelector {
         normalized == 'application/zstd' ||
             normalized == 'application/x-xz' ||
             normalized == 'application/x-tar',
+      UpdatePackageType.zip =>
+        normalized == 'application/zip' ||
+            normalized == 'application/x-zip-compressed',
     };
   }
 }

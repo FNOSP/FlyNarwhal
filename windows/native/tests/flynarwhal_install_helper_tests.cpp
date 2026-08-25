@@ -101,6 +101,7 @@ void TestJournalRoundTripAndCancel() {
   journal.endpoint_version = L"2.1.0";
   journal.recovery_task_name = L"FlyNarwhal.UpdateRecovery." + transaction_id;
   journal.state = helper::TransactionState::prepared;
+  journal.package_mode = helper::PackageMode::portable;
 
   std::wstring error;
   Expect(helper::WriteJournalDurably(journal, &error),
@@ -112,6 +113,8 @@ void TestJournalRoundTripAndCancel() {
            "transaction ID should survive roundtrip");
     Expect(restored->state == helper::TransactionState::prepared,
            "state should survive roundtrip");
+    Expect(restored->package_mode == helper::PackageMode::portable,
+           "portable package mode should survive roundtrip");
     Expect(restored->update_log_path == journal.update_log_path,
            "update log path should survive roundtrip");
     Expect(restored->protected_helper_path == journal.protected_helper_path,

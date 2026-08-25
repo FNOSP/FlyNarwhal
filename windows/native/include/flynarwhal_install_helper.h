@@ -29,6 +29,11 @@ enum class TransactionState {
   manual_action_required,
 };
 
+// How the restaged artifact is applied once the caller has exited:
+// installer launches the Inno Setup package, portable extracts the zip
+// archive straight over the caller's application directory.
+enum class PackageMode { installer, portable };
+
 struct RequestBindings {
   std::wstring transaction_id;
   std::filesystem::path stage_path;
@@ -43,6 +48,7 @@ struct Journal {
   int schema_version = 1;
   RequestBindings bindings;
   TransactionState state = TransactionState::prepared;
+  PackageMode package_mode = PackageMode::installer;
   std::filesystem::path helper_executable;
   std::filesystem::path protected_helper_path;
   std::filesystem::path recovery_host_path;
@@ -66,6 +72,7 @@ struct StageVerification {
   std::uint64_t artifact_length = 0;
   std::wstring candidate_version;
   std::wstring candidate_architecture;
+  PackageMode package_mode = PackageMode::installer;
 };
 
 struct ProcessLaunchPolicy {
@@ -110,6 +117,14 @@ bool ValidateInstalledExecutable(const std::filesystem::path& executable,
                                  std::wstring* error_message);
 std::vector<std::wstring> BuildFixedInstallerArguments(
     const ProcessLaunchPolicy& policy);
+// Applies the restaged artifact for the transaction: launches the Inno Setup
+// installer for installer mode, or extracts the portable zip archive over
+// the install root for portable mode. Shared by the protected helper worker
+// and the recovery host resume path.
+bool ApplyRestagedArtifact(const Journal& journal,
+                           const ProcessLaunchPolicy& policy,
+                           DWORD* exit_code,
+                           std::wstring* error_message);
 std::wstring QuoteWindowsArgument(const std::wstring& argument);
 bool WriteJournalDurably(const Journal& journal, std::wstring* error_message);
 std::optional<Journal> ReadJournal(std::wstring* error_message);

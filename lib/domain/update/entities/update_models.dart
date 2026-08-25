@@ -7,7 +7,10 @@ enum UpdateOperatingSystem { windows, macos, linux }
 enum UpdateArchitecture { x64, arm64, x86 }
 
 /// Supported package formats for update packages.
-enum UpdatePackageType { exe, dmg, deb, rpm, appImage, pacman }
+enum UpdatePackageType { exe, dmg, deb, rpm, appImage, pacman, zip }
+
+/// Distribution edition encoded in the canonical asset name prefix.
+enum UpdateDistributionEdition { setup, portable }
 
 /// Linux package ecosystem inferred from structured os-release fields.
 enum LinuxDistributionFamily { debian, rpm, arch, other }
@@ -86,6 +89,7 @@ final class UpdatePlatform {
     this.executablePath,
     this.appBundlePath,
     this.appImagePath,
+    this.isPortable = false,
   });
 
   final UpdateOperatingSystem operatingSystem;
@@ -95,6 +99,9 @@ final class UpdatePlatform {
   final String? executablePath;
   final String? appBundlePath;
   final String? appImagePath;
+
+  /// True when the Windows app runs from a self-contained portable bundle.
+  final bool isPortable;
 }
 
 /// Injectable contract for resolving the running desktop environment.

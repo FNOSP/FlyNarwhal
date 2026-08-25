@@ -18,8 +18,6 @@
 namespace flynarwhal::install_helper {
 namespace {
 
-constexpr DWORD kInstallerTimeoutMilliseconds = 20U * 60U * 1000U;
-
 struct ScopedHandle {
   HANDLE value = INVALID_HANDLE_VALUE;
 
@@ -127,41 +125,6 @@ std::wstring BuildTaskStartBoundary(const SYSTEMTIME& local_time) {
              local_time.wHour, local_time.wMinute, local_time.wSecond, sign,
              magnitude / 60UL, magnitude % 60UL);
   return buffer;
-}
-
-bool StartInstallerAndWait(const ProcessLaunchPolicy& policy,
-                           DWORD* exit_code,
-                           std::wstring* error_message) {
-  std::wstring command_line = QuoteWindowsArgument(policy.installer_path.wstring());
-  for (const auto& argument : BuildFixedInstallerArguments(policy)) {
-    command_line += L' ';
-    command_line += QuoteWindowsArgument(argument);
-  }
-  STARTUPINFOW startup_info{};
-  startup_info.cb = sizeof(startup_info);
-  PROCESS_INFORMATION process_information{};
-  if (!CreateProcessW(policy.installer_path.c_str(), command_line.data(), nullptr,
-                      nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr,
-                      &startup_info, &process_information)) {
-    *error_message = L"Unable to start the verified installer.";
-    return false;
-  }
-  ScopedHandle process(process_information.hProcess);
-  CloseHandle(process_information.hThread);
-  const DWORD wait_result =
-      WaitForSingleObject(process.value, kInstallerTimeoutMilliseconds);
-  if (wait_result == WAIT_TIMEOUT) {
-    TerminateProcess(process.value, ERROR_TIMEOUT);
-    WaitForSingleObject(process.value, 5000);
-    *error_message = L"Installer exceeded the fixed 20 minute timeout.";
-    return false;
-  }
-  if (wait_result != WAIT_OBJECT_0 ||
-      !GetExitCodeProcess(process.value, exit_code)) {
-    *error_message = L"Installer completion could not be observed.";
-    return false;
-  }
-  return true;
 }
 
 bool RelaunchInstalledApplication(const std::filesystem::path& install_root,
@@ -513,7 +476,7 @@ int RunRecoveryHostResume(const std::wstring& transaction_id) {
       GetInstallRootForExecutable(journal->bindings.caller_executable);
   policy_to_launch.log_path = journal->update_log_path;
   DWORD exit_code = 0;
-  if (!StartInstallerAndWait(policy_to_launch, &exit_code, &error)) {
+  if (!ApplyRestagedArtifact(*journal, policy_to_launch, &exit_code, &error)) {
     PersistFailure(&*journal, error, TransactionState::failed);
     std::wcerr << error << L'\n';
     return 1;

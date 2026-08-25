@@ -1,6 +1,11 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as path;
+
 import '../../domain/update/entities/update_models.dart';
+
+/// Marker file placed next to the portable bundle executable.
+const String windowsPortableMarkerFileName = 'PORTABLE';
 
 /// Host OS identity exposed by the infrastructure environment adapter.
 enum HostOperatingSystem { windows, macos, linux, unsupported }
@@ -159,11 +164,13 @@ final class IoPlatformInfo implements PlatformInfo {
       }
       linuxFamily = _osReleaseParser.parse(osRelease).family;
     }
+    final isPortable = operatingSystem == UpdateOperatingSystem.windows &&
+        _isPortableWindowsBundle(environment.executablePath);
     return PlatformInfoSuccess(
       UpdatePlatform(
         operatingSystem: operatingSystem,
         architecture: architecture,
-        packageTypes: _packageTypes(operatingSystem, linuxFamily),
+        packageTypes: _packageTypes(operatingSystem, linuxFamily, isPortable),
         linuxFamily: linuxFamily,
         executablePath: environment.executablePath,
         appBundlePath: operatingSystem == UpdateOperatingSystem.macos
@@ -172,6 +179,7 @@ final class IoPlatformInfo implements PlatformInfo {
         appImagePath: operatingSystem == UpdateOperatingSystem.linux
             ? environment.environment['APPIMAGE']
             : null,
+        isPortable: isPortable,
       ),
     );
   }
@@ -212,7 +220,10 @@ final class IoPlatformInfo implements PlatformInfo {
       }
       linuxFamily = _osReleaseParser.parse(osRelease).family;
     }
-    final packageTypes = _packageTypes(operatingSystem, linuxFamily);
+    final isPortable = operatingSystem == UpdateOperatingSystem.windows &&
+        _isPortableWindowsBundle(_environment.executablePath);
+    final packageTypes =
+        _packageTypes(operatingSystem, linuxFamily, isPortable);
     return PlatformInfoSuccess(
       UpdatePlatform(
         operatingSystem: operatingSystem,
@@ -226,6 +237,7 @@ final class IoPlatformInfo implements PlatformInfo {
         appImagePath: operatingSystem == UpdateOperatingSystem.linux
             ? _environment.environment['APPIMAGE']
             : null,
+        isPortable: isPortable,
       ),
     );
   }
@@ -252,11 +264,14 @@ final class IoPlatformInfo implements PlatformInfo {
   List<UpdatePackageType> _packageTypes(
     UpdateOperatingSystem operatingSystem,
     LinuxDistributionFamily? linuxFamily,
+    bool isPortable,
   ) {
     return switch (operatingSystem) {
-      UpdateOperatingSystem.windows => const <UpdatePackageType>[
-          UpdatePackageType.exe,
-        ],
+      // Portable Windows bundles only receive portable zip updates so they
+      // never silently switch a user to the installer edition.
+      UpdateOperatingSystem.windows => isPortable
+          ? const <UpdatePackageType>[UpdatePackageType.zip]
+          : const <UpdatePackageType>[UpdatePackageType.exe],
       UpdateOperatingSystem.macos => const <UpdatePackageType>[
           UpdatePackageType.dmg,
         ],
@@ -276,6 +291,21 @@ final class IoPlatformInfo implements PlatformInfo {
           _ => const <UpdatePackageType>[UpdatePackageType.appImage],
         },
     };
+  }
+
+  bool _isPortableWindowsBundle(String executablePath) {
+    if (executablePath.isEmpty) {
+      return false;
+    }
+    try {
+      final marker = File(path.join(
+        path.dirname(executablePath),
+        windowsPortableMarkerFileName,
+      ));
+      return marker.existsSync();
+    } on FileSystemException {
+      return false;
+    }
   }
 
   String? _findAppBundlePath(String executablePath) {

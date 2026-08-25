@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 
 import '../../core/utils/log/app_talker.dart';
 import '../../core/version/semantic_version.dart';
+import '../../domain/update/entities/update_models.dart';
 import '../../domain/update/entities/verified_update_artifact.dart';
 import 'update_path_safety.dart';
 
@@ -25,6 +26,7 @@ Future<Directory> loadWindowsNativeUpdateSupportDirectory() async {
 
 const String _stageDirectoryPrefix = 'desktop_updater_stage_';
 const String _installerFileName = 'installer.exe';
+const String _portableArchiveFileName = 'update.zip';
 const String _authorityFileName = 'release-authority.json';
 const String _provenanceFileName = '.desktop_updater_stage_provenance.json';
 const String _applicationPackageId = 'fly_narwhal';
@@ -123,6 +125,10 @@ final class WindowsUpdateInstallAuthority {
       };
 
   void validate() {
+    final hasInstallerCombination =
+        packageType == 'exe' && artifactFileName == _installerFileName;
+    final hasPortableCombination =
+        packageType == 'zip' && artifactFileName == _portableArchiveFileName;
     if (schemaVersion != currentSchemaVersion ||
         !_lowercaseUuidV4Expression.hasMatch(transactionId) ||
         operationId.isEmpty ||
@@ -130,8 +136,7 @@ final class WindowsUpdateInstallAuthority {
         SemanticVersion.tryParse(version) == null ||
         platform != 'windows' ||
         (architecture != 'x64' && architecture != 'arm64') ||
-        packageType != 'exe' ||
-        artifactFileName != _installerFileName ||
+        (!hasInstallerCombination && !hasPortableCombination) ||
         artifactLength <= 0 ||
         !_sha256Expression.hasMatch(artifactSha256) ||
         source != 'github-release-digest') {
@@ -260,8 +265,12 @@ final class WindowsUpdateInstallStageStore {
     await stageDirectory.create();
     try {
       await _assertOwnedStageDirectory(stageDirectory, stagingRoot);
+      final isPortableArchive =
+          artifact.candidate.packageType == UpdatePackageType.zip;
+      final stagedArtifactFileName =
+          isPortableArchive ? _portableArchiveFileName : _installerFileName;
       final installerFile =
-          File(path.join(stageDirectory.path, _installerFileName));
+          File(path.join(stageDirectory.path, stagedArtifactFileName));
       await artifact.file.copy(installerFile.path);
       AppTalker.info(
         'WindowsUpdateStage',
@@ -284,8 +293,8 @@ final class WindowsUpdateInstallStageStore {
         version: artifact.candidate.version.toString(),
         platform: 'windows',
         architecture: architecture,
-        packageType: 'exe',
-        artifactFileName: _installerFileName,
+        packageType: isPortableArchive ? 'zip' : 'exe',
+        artifactFileName: stagedArtifactFileName,
         artifactLength: artifact.length,
         artifactSha256: artifact.sha256,
         source: 'github-release-digest',
@@ -324,14 +333,11 @@ final class WindowsUpdateInstallStageStore {
     final stagingRoot = await _loadStagingRoot();
     final stageDirectory = Directory(stagePath);
     await _assertOwnedStageDirectory(stageDirectory, stagingRoot);
-    final installerFile =
-        File(path.join(stageDirectory.path, _installerFileName));
     final authorityFile =
         File(path.join(stageDirectory.path, _authorityFileName));
     final provenanceFile =
         File(path.join(stageDirectory.path, _provenanceFileName));
-    if (!await UpdatePathSafety.isSafeRegularFile(installerFile.path) ||
-        !await UpdatePathSafety.isSafeRegularFile(authorityFile.path) ||
+    if (!await UpdatePathSafety.isSafeRegularFile(authorityFile.path) ||
         !await UpdatePathSafety.isSafeRegularFile(provenanceFile.path)) {
       throw const WindowsUpdateInstallStageException(
         WindowsUpdateInstallStageFailureReason.unsafePath,
@@ -347,6 +353,16 @@ final class WindowsUpdateInstallStageStore {
       );
     }
     final authority = WindowsUpdateInstallAuthority.fromJson(authorityJson);
+    // The staged artifact name is decided by the validated authority so zip
+    // (portable) and exe (installer) stages share one code path.
+    final installerFile = File(
+        path.join(stageDirectory.path, authority.artifactFileName));
+    if (!await UpdatePathSafety.isSafeRegularFile(installerFile.path)) {
+      throw const WindowsUpdateInstallStageException(
+        WindowsUpdateInstallStageFailureReason.unsafePath,
+        'Windows update stage contains an unsafe required file.',
+      );
+    }
     if (authority.transactionId !=
             _transactionIdFromStageName(stageDirectory.path) ||
         await installerFile.length() != authority.artifactLength ||
@@ -405,7 +421,12 @@ final class WindowsUpdateInstallStageStore {
 
   Future<void> _validateVerifiedArtifact(
       VerifiedUpdateArtifact artifact) async {
-    if (path.extension(artifact.file.path).toLowerCase() != '.exe' ||
+    final extension = path.extension(artifact.file.path).toLowerCase();
+    final isPortableArchive =
+        artifact.candidate.packageType == UpdatePackageType.zip;
+    final hasExpectedExtension =
+        isPortableArchive ? extension == '.zip' : extension == '.exe';
+    if (!hasExpectedExtension ||
         artifact.length <= 0 ||
         !_sha256Expression.hasMatch(artifact.sha256) ||
         !await UpdatePathSafety.isSafeRegularFile(artifact.file.path) ||
@@ -470,6 +491,7 @@ final class WindowsUpdateInstallStageStore {
 
   bool _isAllowedStageEntry(String relativePath) {
     return relativePath == _installerFileName ||
+        relativePath == _portableArchiveFileName ||
         relativePath == _authorityFileName ||
         relativePath == 'pending-install.json';
   }

@@ -25,6 +25,7 @@ namespace {
 
 constexpr wchar_t kStagePrefix[] = L"desktop_updater_stage_";
 constexpr wchar_t kInstallerName[] = L"installer.exe";
+constexpr wchar_t kPortableArchiveName[] = L"update.zip";
 constexpr wchar_t kAuthorityName[] = L"release-authority.json";
 constexpr wchar_t kProvenanceName[] = L".desktop_updater_stage_provenance.json";
 constexpr wchar_t kPendingName[] = L"pending-install.json";
@@ -34,6 +35,12 @@ constexpr wchar_t kWindowsLogProductName[] = L"FlyNarwhal";
 constexpr wchar_t kUpdateLogFilePrefix[] = L"update_ ";
 constexpr wchar_t kUpdateLogFileExtension[] = L".log";
 constexpr DWORD kInstallerTimeoutMilliseconds = 20U * 60U * 1000U;
+// Portable extraction is fast; keep the cap tight but above slow disks.
+constexpr DWORD kExtractionTimeoutMilliseconds = 5U * 60U * 1000U;
+// Leftover media subprocesses can hold bundle files briefly after the app
+// exits; retry extraction a few times before giving up.
+constexpr int kExtractionAttemptCount = 4;
+constexpr DWORD kExtractionRetryDelayMilliseconds = 2500U;
 
 std::filesystem::path g_active_update_log_path;
 
@@ -266,21 +273,33 @@ std::string BuildJsonString(const std::wstring& value) {
 
 std::string BuildCanonicalProvenance(
     const std::filesystem::path& stage_path,
-    std::uint64_t installer_length,
-    const std::wstring& installer_sha,
+    const std::wstring& artifact_name,
+    std::uint64_t artifact_length,
+    const std::wstring& artifact_sha,
     std::uint64_t authority_length,
     const std::wstring& authority_sha) {
+  // Entries must be sorted by relativePath (UTF-8) to stay byte-identical to
+  // the app-side provenance builder: the '.' directory first, then whichever
+  // of the artifact and authority file names sorts earlier.
+  const std::string artifact_entry =
+      std::string("{\"kind\":\"file\",\"length\":") +
+      std::to_string(artifact_length) + ",\"relativePath\":" +
+      BuildJsonString(artifact_name) + ",\"sha256\":" +
+      BuildJsonString(artifact_sha) + "}";
+  const std::string authority_entry =
+      std::string("{\"kind\":\"file\",\"length\":") +
+      std::to_string(authority_length) + ",\"relativePath\":" +
+      BuildJsonString(std::wstring(kAuthorityName)) + ",\"sha256\":" +
+      BuildJsonString(authority_sha) + "}";
+  const bool artifact_first =
+      WideToUtf8(artifact_name) < WideToUtf8(std::wstring(kAuthorityName));
   std::ostringstream output;
   output << "{\"schemaVersion\":1,\"stageName\":"
          << BuildJsonString(stage_path.filename().wstring())
          << ",\"entries\":[{\"kind\":\"directory\",\"length\":0,"
-            "\"relativePath\":\".\"},{\"kind\":\"file\",\"length\":"
-         << installer_length
-         << ",\"relativePath\":\"installer.exe\",\"sha256\":"
-         << BuildJsonString(installer_sha)
-         << "},{\"kind\":\"file\",\"length\":" << authority_length
-         << ",\"relativePath\":\"release-authority.json\",\"sha256\":"
-         << BuildJsonString(authority_sha) << "}]}";
+            "\"relativePath\":\".\"},"
+         << (artifact_first ? artifact_entry : authority_entry) << ","
+         << (artifact_first ? authority_entry : artifact_entry) << "]}";
   return output.str();
 }
 
@@ -419,7 +438,8 @@ bool RestageInstaller(const Journal& journal,
     *error_message = L"Restaged installer path is unsafe.";
     return false;
   }
-  const auto target_path = transaction_root / kInstallerName;
+  const auto target_path =
+      transaction_root / verification.installer_path.filename();
   std::filesystem::copy_file(verification.installer_path, target_path,
                              std::filesystem::copy_options::overwrite_existing,
                              directory_error);
@@ -486,9 +506,44 @@ bool ValidatePendingReceipt(const RequestBindings& bindings,
   return true;
 }
 
+bool PackageModeFromAuthorityFields(const std::wstring& package_type,
+                                    const std::wstring& artifact_name,
+                                    PackageMode* package_mode) {
+  if (package_type == L"exe" && artifact_name == kInstallerName) {
+    *package_mode = PackageMode::installer;
+    return true;
+  }
+  if (package_type == L"zip" && artifact_name == kPortableArchiveName) {
+    *package_mode = PackageMode::portable;
+    return true;
+  }
+  return false;
+}
+
+bool ResolveStageArtifactName(const std::filesystem::path& authority_path,
+                              PackageMode* package_mode,
+                              std::wstring* artifact_name,
+                              std::wstring* error_message) {
+  const auto authority = ReadUtf8File(authority_path);
+  if (!authority) {
+    *error_message = L"Authority receipt is unreadable.";
+    return false;
+  }
+  const auto package_type = ExtractJsonString(*authority, L"packageType");
+  const auto artifact = ExtractJsonString(*authority, L"artifactFileName");
+  if (!package_type || !artifact ||
+      !PackageModeFromAuthorityFields(*package_type, *artifact, package_mode)) {
+    *error_message = L"Authority receipt is invalid.";
+    return false;
+  }
+  *artifact_name = *artifact;
+  return true;
+}
+
 bool ValidateAuthority(const RequestBindings& bindings,
                        const std::filesystem::path& authority_path,
                        std::uint64_t installer_length,
+                       PackageMode expected_mode,
                        std::wstring* candidate_version,
                        std::wstring* candidate_architecture,
                        std::wstring* error_message) {
@@ -512,11 +567,14 @@ bool ValidateAuthority(const RequestBindings& bindings,
   const auto source = ExtractJsonString(*authority, L"source");
   const auto version = ExtractJsonString(*authority, L"version");
   const auto architecture = ExtractJsonString(*authority, L"architecture");
+  PackageMode authority_mode = PackageMode::installer;
   if (!schema_version || *schema_version != 1 || !transaction_id ||
       *transaction_id != bindings.transaction_id || !package_id ||
       *package_id != L"fly_narwhal" || !platform || *platform != L"windows" ||
-      !package_type || *package_type != L"exe" || !artifact_name ||
-      *artifact_name != kInstallerName || !artifact_length ||
+      !package_type || !artifact_name ||
+      !PackageModeFromAuthorityFields(*package_type, *artifact_name,
+                                      &authority_mode) ||
+      authority_mode != expected_mode || !artifact_length ||
       *artifact_length != installer_length ||
       *artifact_length != bindings.expected_artifact_length || !artifact_sha ||
       *artifact_sha != bindings.expected_artifact_sha256 || !source ||
@@ -534,6 +592,7 @@ bool ValidateProvenance(const RequestBindings& bindings,
                         const std::filesystem::path& provenance_path,
                         const std::filesystem::path& installer_path,
                         const std::filesystem::path& authority_path,
+                        const std::wstring& artifact_name,
                         std::wstring* error_message) {
   const std::wstring provenance_sha = ComputeFileSha256(provenance_path);
   if (provenance_sha != bindings.stage_provenance_sha256) {
@@ -567,8 +626,8 @@ bool ValidateProvenance(const RequestBindings& bindings,
     return false;
   }
   const std::string expected_provenance = BuildCanonicalProvenance(
-      bindings.stage_path, installer_length, installer_sha, authority_length,
-      authority_sha);
+      bindings.stage_path, artifact_name, installer_length, installer_sha,
+      authority_length, authority_sha);
   if (WideToUtf8(*provenance) != expected_provenance) {
     *error_message = L"Canonical provenance inventory does not match.";
     return false;
@@ -581,7 +640,7 @@ bool ValidateProvenance(const RequestBindings& bindings,
       return false;
     }
     const std::wstring name = entry.path().filename().wstring();
-    if (name != kInstallerName && name != kAuthorityName &&
+    if (name != artifact_name && name != kAuthorityName &&
         name != kProvenanceName && name != kPendingName) {
       *error_message = L"Stage contains an unexpected entry.";
       return false;
@@ -592,7 +651,11 @@ bool ValidateProvenance(const RequestBindings& bindings,
 
 std::string SerializeJournal(const Journal& journal) {
   std::ostringstream output;
-  output << "{\"schemaVersion\":2"
+  output << "{\"schemaVersion\":3"
+         << ",\"packageMode\":\""
+         << (journal.package_mode == PackageMode::portable ? "portable"
+                                                           : "installer")
+         << "\""
          << ",\"transactionId\":\""
          << EscapeJson(journal.bindings.transaction_id)
          << "\",\"stagePath\":\""
@@ -669,7 +732,13 @@ std::optional<Journal> ParseJournal(const std::wstring& json) {
   bool relaunch_attempted = false;
   bool recovery_armed = false;
   const auto state = state_value ? StateFromString(*state_value) : std::nullopt;
-  if (!schema || (*schema != 1 && *schema != 2) || !transaction || !stage ||
+  const auto package_mode_value = ExtractJsonString(json, L"packageMode");
+  PackageMode package_mode = PackageMode::installer;
+  if (package_mode_value && *package_mode_value == L"portable") {
+    package_mode = PackageMode::portable;
+  }
+  if (!schema || (*schema != 1 && *schema != 2 && *schema != 3) ||
+      !transaction || !stage ||
       !provenance ||
       !artifact || !artifact_length || *artifact_length == 0 || !process_id ||
       *process_id > MAXDWORD || !caller || !state ||
@@ -715,9 +784,10 @@ std::optional<Journal> ParseJournal(const std::wstring& json) {
   journal.installer_started = installer_started;
   journal.relaunch_attempted = relaunch_attempted;
   journal.recovery_armed = recovery_armed;
+  journal.package_mode = package_mode;
   journal.installer_exit_code = static_cast<DWORD>(*exit_code);
   journal.terminal_message = *terminal_message;
-  journal.schema_version = 2;
+  journal.schema_version = 3;
   return journal;
 }
 
@@ -997,6 +1067,91 @@ int PersistFailure(Journal journal, const std::wstring& message,
 }
 
 }  // namespace
+
+namespace {
+
+std::filesystem::path GetSystemTarExecutablePath() {
+  wchar_t system_root[MAX_PATH]{};
+  const UINT length = GetSystemWindowsDirectoryW(system_root, MAX_PATH);
+  if (length == 0 || length >= MAX_PATH) {
+    return {};
+  }
+  return std::filesystem::path(std::wstring(system_root, length)) /
+         L"System32" / L"tar.exe";
+}
+
+bool ExtractPortableArchive(const std::filesystem::path& archive_path,
+                            const std::filesystem::path& install_root,
+                            std::wstring* error_message) {
+  const auto tar_path = GetSystemTarExecutablePath();
+  if (tar_path.empty() || !IsSafeRegularFile(tar_path)) {
+    *error_message =
+        L"System tar.exe is unavailable for portable update extraction.";
+    return false;
+  }
+  std::wstring command_line = QuoteWindowsArgument(tar_path.wstring());
+  command_line += L" -xf ";
+  command_line += QuoteWindowsArgument(archive_path.wstring());
+  command_line += L" -C ";
+  command_line += QuoteWindowsArgument(install_root.wstring());
+  // Extraction overwrites files in place; it does not delete files that an
+  // older version left behind. Retries cover bundle files still held open by
+  // leftover subprocesses shortly after the app exits.
+  for (int attempt = 1; attempt <= kExtractionAttemptCount; ++attempt) {
+    STARTUPINFOW startup_info{};
+    startup_info.cb = sizeof(startup_info);
+    PROCESS_INFORMATION process_information{};
+    if (!CreateProcessW(tar_path.c_str(), command_line.data(), nullptr,
+                        nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr,
+                        &startup_info, &process_information)) {
+      *error_message = L"Portable archive extraction could not be started.";
+      return false;
+    }
+    ScopedHandle process(process_information.hProcess);
+    CloseHandle(process_information.hThread);
+    const DWORD wait_result =
+        WaitForSingleObject(process.value, kExtractionTimeoutMilliseconds);
+    if (wait_result == WAIT_TIMEOUT) {
+      TerminateProcess(process.value, ERROR_TIMEOUT);
+      WaitForSingleObject(process.value, 5000);
+      *error_message = L"Portable archive extraction timed out.";
+      return false;
+    }
+    DWORD extraction_exit_code = 0;
+    if (wait_result == WAIT_OBJECT_0 &&
+        GetExitCodeProcess(process.value, &extraction_exit_code) &&
+        extraction_exit_code == 0) {
+      LogInfo(std::wstring(L"Portable archive extracted on attempt ") +
+              std::to_wstring(attempt) + L".");
+      return true;
+    }
+    LogWarning(std::wstring(L"Portable archive extraction attempt ") +
+               std::to_wstring(attempt) + L" failed.");
+    if (attempt < kExtractionAttemptCount) {
+      Sleep(kExtractionRetryDelayMilliseconds);
+    }
+  }
+  *error_message = L"Portable archive could not be extracted over the "
+                   L"application directory (files may be in use).";
+  return false;
+}
+
+}  // namespace
+
+bool ApplyRestagedArtifact(const Journal& journal,
+                           const ProcessLaunchPolicy& policy,
+                           DWORD* exit_code,
+                           std::wstring* error_message) {
+  if (journal.package_mode == PackageMode::portable) {
+    if (!ExtractPortableArchive(journal.restaged_installer_path,
+                                policy.install_root, error_message)) {
+      return false;
+    }
+    *exit_code = 0;
+    return true;
+  }
+  return StartInstallerAndWait(policy, exit_code, error_message);
+}
 
 void LogInfo(const std::wstring& message) {
   AppendUpdateLogLine(L"INFO", message);
@@ -1305,12 +1460,24 @@ bool ValidateStage(const RequestBindings& bindings,
     }
     return false;
   }
-  const auto installer = bindings.stage_path / kInstallerName;
   const auto authority = bindings.stage_path / kAuthorityName;
   const auto provenance = bindings.stage_path / kProvenanceName;
   const auto pending = bindings.stage_path / kPendingName;
-  if (!IsSafeRegularFile(installer) || !IsSafeRegularFile(authority) ||
-      !IsSafeRegularFile(provenance) || !IsSafeRegularFile(pending)) {
+  if (!IsSafeRegularFile(authority) || !IsSafeRegularFile(provenance) ||
+      !IsSafeRegularFile(pending)) {
+    *error_message = L"Stage required files are missing or unsafe.";
+    return false;
+  }
+  // The authority decides whether the stage carries an installer or a
+  // portable archive, so it must be resolved before naming the artifact.
+  PackageMode package_mode = PackageMode::installer;
+  std::wstring artifact_name;
+  if (!ResolveStageArtifactName(authority, &package_mode, &artifact_name,
+                                error_message)) {
+    return false;
+  }
+  const auto installer = bindings.stage_path / artifact_name;
+  if (!IsSafeRegularFile(installer)) {
     *error_message = L"Stage required files are missing or unsafe.";
     return false;
   }
@@ -1321,12 +1488,12 @@ bool ValidateStage(const RequestBindings& bindings,
   if (file_error || installer_length == 0 ||
       installer_length != bindings.expected_artifact_length ||
       actual_installer_sha256 != bindings.expected_artifact_sha256 ||
-      !ValidateAuthority(bindings, authority, installer_length,
+      !ValidateAuthority(bindings, authority, installer_length, package_mode,
                          &verification->candidate_version,
                          &verification->candidate_architecture,
                          error_message) ||
       !ValidateProvenance(bindings, provenance, installer, authority,
-                          error_message)) {
+                          artifact_name, error_message)) {
     return false;
   }
   const auto pending_contents = ReadUtf8File(pending);
@@ -1341,6 +1508,7 @@ bool ValidateStage(const RequestBindings& bindings,
   verification->authority_path = authority;
   verification->provenance_path = provenance;
   verification->artifact_length = installer_length;
+  verification->package_mode = package_mode;
   return true;
 }
 
@@ -1491,6 +1659,7 @@ int RunPrepare(const RequestBindings& bindings) {
   Journal journal;
   journal.bindings = bindings;
   journal.state = TransactionState::prepared;
+  journal.package_mode = verification.package_mode;
   journal.helper_executable = GetCurrentExecutablePath();
   journal.protected_helper_path = descriptor.protected_helper_path;
   journal.recovery_host_path = descriptor.recovery_host_path;
@@ -1849,7 +2018,7 @@ int RunWorker(const RequestBindings& bindings) {
   policy.install_root = GetInstallRootForExecutable(bindings.caller_executable);
   policy.log_path = journal->update_log_path;
   DWORD exit_code = 0;
-  if (!StartInstallerAndWait(policy, &exit_code, &error)) {
+  if (!ApplyRestagedArtifact(*journal, policy, &exit_code, &error)) {
     return PersistFailure(*journal, error);
   }
   journal->installer_exit_code = exit_code;
