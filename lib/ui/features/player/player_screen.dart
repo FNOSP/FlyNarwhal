@@ -253,6 +253,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _windowPersistenceSuspended = false;
   bool _windowSessionCaptured = false;
   Timer? _playerWindowSizeSaveTimer;
+  // True while this screen is programmatically restoring window geometry
+  // (player entry / route leave). Window-state events fired by our own
+  // maximize/unmaximize calls must not overwrite the persisted player window
+  // form, otherwise the exit-time unmaximize wipes the user's maximized
+  // preference and the next video opens floating.
+  bool _isRestoringWindowSession = false;
+  // Monotonic id pairing every player screen with the window session it
+  // captured, so a disposed screen never restores the app window over a newer
+  // player screen that has already taken over (e.g. direct video switches).
+  static int _windowSessionGeneration = 0;
+  int _windowSessionId = 0;
   bool? _lastMacOSWindowButtonsVisibility;
   bool? _pendingMacOSWindowButtonsVisibility;
   bool _pendingMacOSWindowButtonsForce = false;
@@ -3329,6 +3340,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!_windowSessionCaptured) return;
     if (_isPipMode || _pipController.isPipMode) return;
     if (_isFullscreen || !_isInitialized) return;
+    // A maximized player window owns its shape. The persisted flag is checked
+    // in addition to the controller's own isMaximized() probe because macOS
+    // can transiently report a zoomed window as not maximized; the flag keeps
+    // the maximized window intact in that window of instability.
+    if (ref.read(playerSettingsManagerProvider).getPlayerWindowMaximized()) {
+      unawaited(_windowAspectRatioController.release());
+      return;
+    }
 
     // Delay slightly so the window state has settled, matching the KMP
     // behavior right after window creation or state transitions.
@@ -3336,6 +3355,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!mounted) return;
     if (_isPipMode || _pipController.isPipMode) return;
     if (_isFullscreen) return;
+    if (ref.read(playerSettingsManagerProvider).getPlayerWindowMaximized()) {
+      unawaited(_windowAspectRatioController.release());
+      return;
+    }
 
     await _windowAspectRatioController.apply(
       setting: _windowAspectRatio,
@@ -5918,16 +5941,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
 
-    // The player route owns the window ratio lock; release it so other routes
-    // can resize the window freely again.
-    await _windowAspectRatioController.release();
-    final isFullscreen = await _fullscreenController.exitForRouteLeave();
-    await _restoreAppWindowSession();
-    if (!mounted || _isFullscreen == isFullscreen) {
-      return;
-    }
+    // Window-state events fired by the restore sequence below are our own,
+    // not user gestures; keep them from overwriting the persisted form.
+    _isRestoringWindowSession = true;
+    try {
+      // The player route owns the window ratio lock; release it so other
+      // routes can resize the window freely again.
+      await _windowAspectRatioController.release();
+      final isFullscreen = await _fullscreenController.exitForRouteLeave();
+      await _restoreAppWindowSession();
+      if (!mounted || _isFullscreen == isFullscreen) {
+        return;
+      }
 
-    setState(() => _isFullscreen = isFullscreen);
+      setState(() => _isFullscreen = isFullscreen);
+    } finally {
+      _isRestoringWindowSession = false;
+    }
   }
 
   /// The player route keeps its own window geometry, separate from the rest
@@ -5939,6 +5969,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!_isDesktopPlatform()) {
       return;
     }
+    // Claim the window session synchronously before any await so a disposed
+    // predecessor can see the takeover and skip its own window restore.
+    _windowSessionId = ++_windowSessionGeneration;
     Rect? bounds;
     var wasMaximized = false;
     try {
@@ -5971,15 +6004,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// size), mirroring the KMP player window restoring its saved position and
   /// size on open.
   Future<void> _restorePlayerWindowBounds() async {
+    _isRestoringWindowSession = true;
     try {
       if (await windowManager.isFullScreen()) {
         return;
       }
       // The player keeps its own window form: if it was last left maximized,
       // re-enter maximize for this (possibly different) video instead of
-      // restoring the floating geometry.
+      // restoring the floating geometry. The pre-player maximized state seeds
+      // the player form too, so entering the player from a maximized app
+      // window keeps the window maximized across video switches.
       final settingsManager = ref.read(playerSettingsManagerProvider);
-      if (settingsManager.getPlayerWindowMaximized()) {
+      final playerWindowMaximized =
+          settingsManager.getPlayerWindowMaximized() || _prePlayerWasMaximized;
+      if (playerWindowMaximized) {
+        if (!settingsManager.getPlayerWindowMaximized()) {
+          unawaited(settingsManager.setPlayerWindowMaximized(true));
+        }
         if (!await windowManager.isMaximized()) {
           await windowManager.maximize();
         }
@@ -6008,6 +6049,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         stackTrace: stackTrace,
         message: 'restore player window bounds failed',
       );
+    } finally {
+      _isRestoringWindowSession = false;
     }
   }
 
@@ -6022,6 +6065,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       try {
         if (await windowManager.isMaximized() ||
             await windowManager.isFullScreen()) {
+          return;
+        }
+        // isMaximized() can transiently report false for a maximized window on
+        // macOS (e.g. right after the ratio lock is released); the persisted
+        // maximized flag is the authoritative source, so never record the
+        // zoomed geometry as the player's floating bounds while it is set.
+        if (ref
+            .read(playerSettingsManagerProvider)
+            .getPlayerWindowMaximized()) {
           return;
         }
         final bounds = await windowManager.getBounds();
@@ -6052,11 +6104,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
 
+    // A newer player screen (direct video switch) has already captured the
+    // window session: hand over without restoring app geometry over it.
+    final superseded = _windowSessionId != _windowSessionGeneration;
+    if (superseded) {
+      MainWindowPersistenceGuard.resume();
+      return;
+    }
+
+    _isRestoringWindowSession = true;
+
     // Remember the player's final floating geometry for the next session.
     if (!_isPipMode && !_pipController.isPipMode) {
       try {
+        // The persisted maximized flag guards against isMaximized() briefly
+        // reporting false for a zoomed window; a zoomed geometry must never
+        // be recorded as the floating bounds.
         if (!await windowManager.isMaximized() &&
-            !await windowManager.isFullScreen()) {
+            !await windowManager.isFullScreen() &&
+            !ref
+                .read(playerSettingsManagerProvider)
+                .getPlayerWindowMaximized()) {
           final bounds = await windowManager.getBounds();
           await ref
               .read(playerSettingsManagerProvider)
@@ -6106,6 +6174,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'restore app window session failed',
       );
     } finally {
+      _isRestoringWindowSession = false;
       MainWindowPersistenceGuard.resume();
     }
   }
@@ -6169,6 +6238,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void onWindowMaximize() {
     if (!mounted || !_isDesktopPlatform()) return;
     if (_isPipMode || _pipController.isPipMode) return;
+    if (_isRestoringWindowSession) return;
     // Maximize owns the window shape (like fullscreen/PiP): drop the ratio
     // lock so the maximized window is left intact, and persist the player's
     // maximized form so other videos also open maximized.
@@ -6182,6 +6252,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void onWindowUnmaximize() {
     if (!mounted || !_isDesktopPlatform()) return;
     if (_isPipMode || _pipController.isPipMode) return;
+    if (_isRestoringWindowSession) return;
     // The user returned to a floating window; persist that and re-apply the
     // ratio lock.
     unawaited(

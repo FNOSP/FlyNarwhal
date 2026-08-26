@@ -102,7 +102,8 @@ class PlayerWindowAspectRatioController {
       // double-clicking the title bar). Maximize owns the window shape just
       // like fullscreen/PiP do, so leave the maximized window untouched and
       // drop the ratio lock; it is re-applied when the user un-maximizes.
-      if (await windowManager.isMaximized()) {
+      final isMaximized = await windowManager.isMaximized();
+      if (isMaximized) {
         await release();
         return;
       }
@@ -311,4 +312,5 @@ class PlayerWindowAspectRatioController {
       return const [];
     }
   }
+
 }
