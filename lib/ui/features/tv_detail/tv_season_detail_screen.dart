@@ -854,7 +854,8 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
           _EpisodeButtonGrid(
             episodes: widget.episodes,
             currentEpisodeNumber: currentEpisodeNumber,
-            onEpisodeTap: widget.onEpisodePlay,
+            // 序号视图点击某集进入集详情页（与卡片视图点击海报空白区一致）。
+            onEpisodeTap: widget.onEpisodeOpenDetail,
           )
         else
           ScrollRow(
