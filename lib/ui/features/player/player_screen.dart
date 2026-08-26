@@ -5197,7 +5197,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _saveSkipConfig(int skipOpening, int skipEnding) async {
     if (_isSavingSkipConfig) return;
     final cache = _playingInfoCache;
-    final configGuid = cache?.playConfig?.guid ?? cache?.itemGuid;
+    // Skip settings are keyed by the parent (season/show) guid, mirroring the
+    // web player which always saves with infoItem.parent_guid. Falling back to
+    // the episode's own guid stores the config under a key the server never
+    // returns in play/info, losing the settings on episode switch or replay.
+    final configGuid = cache?.playConfig?.guid ?? cache?.parentGuid;
     if (cache == null || configGuid == null || configGuid.isEmpty) return;
 
     final previousConfig = cache.playConfig;
