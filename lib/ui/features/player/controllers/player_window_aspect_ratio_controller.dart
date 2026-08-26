@@ -32,8 +32,6 @@ class PlayerWindowAspectRatioController {
     '21:9': 21 / 9,
   };
   static const String autoSetting = 'AUTO';
-  static const Duration _windowStateTransitionDelay =
-      Duration(milliseconds: 16);
   static const Size _normalWindowMinimumSize = Size(1280, 720);
   // Area of [_normalWindowMinimumSize]; kept as literals because Size
   // properties are not accessible in const expressions.
@@ -100,9 +98,13 @@ class PlayerWindowAspectRatioController {
       final alreadyLocked = previousLockedRatio != null &&
           (previousLockedRatio - targetRatio).abs() < _ratioEpsilon;
 
+      // The user may have maximized the window during playback (e.g. by
+      // double-clicking the title bar). Maximize owns the window shape just
+      // like fullscreen/PiP do, so leave the maximized window untouched and
+      // drop the ratio lock; it is re-applied when the user un-maximizes.
       if (await windowManager.isMaximized()) {
-        await windowManager.unmaximize();
-        await Future<void>.delayed(_windowStateTransitionDelay);
+        await release();
+        return;
       }
 
       final bounds = await windowManager.getBounds();

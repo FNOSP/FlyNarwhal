@@ -5971,13 +5971,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// size), mirroring the KMP player window restoring its saved position and
   /// size on open.
   Future<void> _restorePlayerWindowBounds() async {
-    final savedBounds =
-        ref.read(playerSettingsManagerProvider).getPlayerWindowBounds();
-    if (savedBounds == null) {
-      return;
-    }
     try {
       if (await windowManager.isFullScreen()) {
+        return;
+      }
+      // The player keeps its own window form: if it was last left maximized,
+      // re-enter maximize for this (possibly different) video instead of
+      // restoring the floating geometry.
+      final settingsManager = ref.read(playerSettingsManagerProvider);
+      if (settingsManager.getPlayerWindowMaximized()) {
+        if (!await windowManager.isMaximized()) {
+          await windowManager.maximize();
+        }
+        return;
+      }
+      final savedBounds = settingsManager.getPlayerWindowBounds();
+      if (savedBounds == null) {
         return;
       }
       if (await windowManager.isMaximized()) {
@@ -6154,6 +6163,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void onWindowResized() {
     _schedulePipBoundsSave();
     _schedulePlayerWindowBoundsSave();
+  }
+
+  @override
+  void onWindowMaximize() {
+    if (!mounted || !_isDesktopPlatform()) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    // Maximize owns the window shape (like fullscreen/PiP): drop the ratio
+    // lock so the maximized window is left intact, and persist the player's
+    // maximized form so other videos also open maximized.
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setPlayerWindowMaximized(true),
+    );
+    unawaited(_windowAspectRatioController.release());
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    if (!mounted || !_isDesktopPlatform()) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    // The user returned to a floating window; persist that and re-apply the
+    // ratio lock.
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setPlayerWindowMaximized(false),
+    );
+    unawaited(_applyWindowAspectRatio());
   }
 
   bool get _canAdjustSubtitle {

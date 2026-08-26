@@ -30,6 +30,10 @@ class PlayerSettingsStore {
   // are mirrored on write for downgrade compatibility.
   static const String _playerWindowBoundsPrefix = 'player_window';
   static const String _pipWindowBoundsPrefix = 'pip_window';
+  // Whether the player window was last left maximized. Separate from the app
+  // main window's maximized flag: the player keeps its own window form, so a
+  // maximized player is restored maximized when any video is opened.
+  static const String _keyPlayerWindowMaximized = 'player_window_maximized';
   static const String _keyDanmakuArea = 'danmaku_area';
   static const String _keyDanmakuOpacity = 'danmaku_opacity';
   static const String _keyDanmakuFontSize = 'danmaku_font_size';
@@ -347,6 +351,18 @@ class PlayerSettingsManager {
       _prefs,
       PlayerSettingsStore._playerWindowBoundsPrefix,
       bounds,
+    );
+  }
+
+  bool getPlayerWindowMaximized() {
+    return _prefs.getBool(PlayerSettingsStore._keyPlayerWindowMaximized) ??
+        false;
+  }
+
+  Future<void> setPlayerWindowMaximized(bool maximized) {
+    return _prefs.setBool(
+      PlayerSettingsStore._keyPlayerWindowMaximized,
+      maximized,
     );
   }
 
