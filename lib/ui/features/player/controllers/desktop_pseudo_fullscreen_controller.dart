@@ -99,8 +99,8 @@ class DesktopPseudoFullscreenController {
       final restoredBounds = WindowGeometry.normalizeMainWindowBounds(
         snapshot.bounds,
         displays,
-        fallbackSize: const Size(1280, 720),
-        minimumSize: const Size(1280, 720),
+        fallbackSize: const Size(640, 360),
+        minimumSize: const Size(640, 360),
       );
       await windowManager.setBounds(restoredBounds);
       if (snapshot.wasMaximized) {

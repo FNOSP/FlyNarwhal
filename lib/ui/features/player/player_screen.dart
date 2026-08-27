@@ -3345,7 +3345,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // can transiently report a zoomed window as not maximized; the flag keeps
     // the maximized window intact in that window of instability.
     if (ref.read(playerSettingsManagerProvider).getPlayerWindowMaximized()) {
-      unawaited(_windowAspectRatioController.release());
+      // The maximized window will be restored by the OS on un-maximize; keep
+      // the small ratio-aware minimum so that restore is not clamped.
+      unawaited(
+        _windowAspectRatioController.release(restoreNormalMinimumSize: false),
+      );
       return;
     }
 
@@ -3356,7 +3360,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_isPipMode || _pipController.isPipMode) return;
     if (_isFullscreen) return;
     if (ref.read(playerSettingsManagerProvider).getPlayerWindowMaximized()) {
-      unawaited(_windowAspectRatioController.release());
+      unawaited(
+        _windowAspectRatioController.release(restoreNormalMinimumSize: false),
+      );
       return;
     }
 
@@ -3598,7 +3604,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!_isDesktopPlatform()) return;
     if (_isPipMode || _pipController.isPipMode) return;
     if (isFullscreen) {
-      unawaited(_windowAspectRatioController.release());
+      // Keep the ratio-aware (small) window minimum in place while
+      // fullscreen: the OS restores the pre-fullscreen frame on exit, and a
+      // raised minimum would clamp that restore, shifting small windows.
+      unawaited(
+        _windowAspectRatioController.release(restoreNormalMinimumSize: false),
+      );
     } else {
       unawaited(_applyWindowAspectRatio());
     }
@@ -6249,7 +6260,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     unawaited(
       ref.read(playerSettingsManagerProvider).setPlayerWindowMaximized(true),
     );
-    unawaited(_windowAspectRatioController.release());
+    // Keep the ratio-aware (small) window minimum while maximized: un-
+    // maximizing restores the pre-maximize frame, and a raised minimum
+    // would clamp that restore, shifting small windows.
+    unawaited(
+      _windowAspectRatioController.release(restoreNormalMinimumSize: false),
+    );
   }
 
   @override

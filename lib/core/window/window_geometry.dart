@@ -58,6 +58,34 @@ class WindowGeometry {
     return displayWithLargestIntersection ?? _primaryDisplay(displays);
   }
 
+  /// Returns [size] with each axis shrunk to the work area of the target
+  /// display when it exceeds it; axes that already fit are left unchanged.
+  ///
+  /// The target display is chosen with [anchorBounds] when provided (the
+  /// display containing that rect), otherwise the primary display is used.
+  /// Sizes are compared in logical (scale-adjusted) units, matching how
+  /// [DesktopDisplayGeometry.workArea] is reported.
+  static Size fitSizeToWorkArea(
+    Size size,
+    List<DesktopDisplayGeometry> displays, {
+    Rect? anchorBounds,
+  }) {
+    if (displays.isEmpty) {
+      return size;
+    }
+    final display = anchorBounds != null
+        ? selectDisplay(anchorBounds, displays) ?? _primaryDisplay(displays)
+        : _primaryDisplay(displays);
+    final workArea = display.workArea;
+    if (workArea.width <= 0 || workArea.height <= 0) {
+      return size;
+    }
+    return Size(
+      size.width > workArea.width ? workArea.width : size.width,
+      size.height > workArea.height ? workArea.height : size.height,
+    );
+  }
+
   static Rect normalizeMainWindowBounds(
     Rect requestedBounds,
     List<DesktopDisplayGeometry> displays, {
