@@ -4742,7 +4742,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   return PlayerDanmakuOverlay(
                     danmakuList: danmakuState.danmakuList,
                     position: position,
-                    isPlaying: _isPlaying,
+                    // Gate danmaku on real playback readiness: media_kit's
+                    // playing flag flips true as soon as mpv starts loading,
+                    // long before the first frame renders, which would let
+                    // danmaku fly over the loading spinner.
+                    isPlaying: _isPlaying && _isInitialized && !_isLoading,
                     playbackRate: _speed,
                     isVisible: danmakuState.isVisible,
                     settings: danmakuState.settings,
