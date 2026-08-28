@@ -52,9 +52,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     // Register the macOS "open preferences" shortcut as a global
     // hardware-keyboard handler so it fires no matter which widget owns the
     // focus (including right after launch, when nothing is focused yet).
-    // The player pages (/player/:guid, /live/:guid) live outside the
-    // ShellRoute, so MainLayout is not mounted there and the handler stays
-    // inactive.
+    // The player pages (/player/:guid, /live/:guid) are pushed on top of the
+    // shell, so MainLayout stays mounted underneath; the handler ignores
+    // keys while a player page is on top.
     if (!kIsWeb && Platform.isMacOS) {
       HardwareKeyboard.instance.addHandler(_handleOpenSettingsKey);
     }
@@ -64,6 +64,13 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     // Only react to the initial key-down so holding the keys navigates
     // once instead of on every key repeat.
     if (event is! KeyDownEvent || !_openSettingsBinding.matches(event)) {
+      return false;
+    }
+    // Stay inactive while a fullscreen player page is pushed on top of the
+    // shell (MainLayout remains mounted underneath).
+    final location =
+        GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
+    if (location.startsWith('/player/') || location.startsWith('/live/')) {
       return false;
     }
     context.go('/settings');

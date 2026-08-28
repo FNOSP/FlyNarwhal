@@ -114,9 +114,9 @@ class MediaLibGallery extends ConsumerWidget {
                               .playerSourcePath =
                               GoRouterState.of(context).uri.toString();
                           if (item.type == MediaType.liveChannel.value) {
-                            context.go('/live/${item.guid}');
+                            context.push('/live/${item.guid}');
                           } else {
-                            context.go('/player/${item.guid}');
+                            context.push('/player/${item.guid}');
                           }
                         },
                   onFavoriteToggle: onFavoriteToggle,

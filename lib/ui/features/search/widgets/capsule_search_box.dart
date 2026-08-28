@@ -184,8 +184,12 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
     ref.read(navigationStackProvider.notifier).pushPath(currentPath);
     if (SearchResultType.tryParse(item.type) == SearchResultType.liveChannel) {
       ref.read(navigationStackProvider.notifier).playerSourcePath = currentPath;
+      // Push so the source page stays mounted under the fullscreen live
+      // player and keeps its scroll position on return.
+      context.push(target);
+    } else {
+      context.go(target);
     }
-    context.go(target);
   }
 
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {

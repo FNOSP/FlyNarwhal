@@ -581,7 +581,7 @@ class _TvSeasonDetailContentState
                     ref
                         .read(navigationStackProvider.notifier)
                         .playerSourcePath = '/tv/season/${widget.guid}';
-                    context.go('/player/${episode.guid}');
+                    context.push('/player/${episode.guid}');
                   },
                   onEpisodeOpenDetail: (episode) {
                     // 点击海报空白区/标题区进入集详情页（复刻 Web）。
@@ -702,7 +702,7 @@ class _TvSeasonDetailContentState
                   : widget.guid;
               ref.read(navigationStackProvider.notifier).playerSourcePath =
                   '/tv/season/${widget.guid}';
-              context.go('/player/$targetGuid');
+              context.push('/player/$targetGuid');
             }
           },
         ),

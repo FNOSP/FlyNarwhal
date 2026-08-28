@@ -4613,11 +4613,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _handleBack() async {
     await _leavePlayerRoute(() {
       if (context.canPop()) {
+        // Normal entries push the player on top of the shell, so popping
+        // restores the source page with its state (incl. scroll position).
+        final stack = ref.read(navigationStackProvider.notifier);
+        stack.playerSourcePath = null;
         context.pop();
       } else {
-        // Return to the page the player was entered from. The player route
-        // sits outside the ShellRoute, so it is never on the navigation
-        // stack itself and the entry `go` replaced it.
+        // Fallback for deep links that land on the player directly: return
+        // to the page the player was entered from (or home).
         final stack = ref.read(navigationStackProvider.notifier);
         final sourcePath = stack.playerSourcePath;
         stack.playerSourcePath = null;

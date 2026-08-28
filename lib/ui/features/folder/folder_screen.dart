@@ -690,7 +690,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
                     ref.read(navigationStackProvider.notifier)
                         .playerSourcePath =
                         GoRouterState.of(context).uri.toString();
-                    context.go('/player/${resumeEntry.guid}');
+                    context.push('/player/${resumeEntry.guid}');
                   },
                   style: ButtonStyle(
                     backgroundColor: WidgetStateProperty.resolveWith(
@@ -833,9 +833,9 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
     ref.read(navigationStackProvider.notifier).playerSourcePath =
         GoRouterState.of(context).uri.toString();
     if (item.type == MediaType.liveChannel.value) {
-      context.go('/live/${item.guid}');
+      context.push('/live/${item.guid}');
     } else {
-      context.go('/player/${item.guid}');
+      context.push('/player/${item.guid}');
     }
   }
 

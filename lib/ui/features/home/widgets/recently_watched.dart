@@ -360,10 +360,10 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                             .playerSourcePath = '/home';
                                         if (widget.item.type ==
                                             MediaType.liveChannel.value) {
-                                          context
-                                              .go('/live/${widget.item.guid}');
+                                          context.push(
+                                              '/live/${widget.item.guid}');
                                         } else {
-                                          context.go(
+                                          context.push(
                                               '/player/${widget.item.guid}');
                                         }
                                       },

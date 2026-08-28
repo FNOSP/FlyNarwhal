@@ -608,9 +608,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                                     MediaType
                                                         .liveChannel.value) {
                                                   context
-                                                      .go('/live/${item.guid}');
+                                                      .push('/live/${item.guid}');
                                                 } else {
-                                                  context.go(
+                                                  context.push(
                                                       '/player/${item.guid}');
                                                 }
                                               },

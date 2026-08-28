@@ -179,7 +179,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         playInfo.item.guid.isNotEmpty ? playInfo.item.guid : widget.guid;
     ref.read(navigationStackProvider.notifier).playerSourcePath =
         '/tv/${widget.guid}';
-    context.go('/player/$targetGuid');
+    context.push('/player/$targetGuid');
   }
 
   void _showDescriptionDialog(ItemResponse item) {

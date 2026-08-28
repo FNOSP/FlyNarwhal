@@ -424,7 +424,9 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
       case MediaType.liveChannel:
         ref.read(navigationStackProvider.notifier).playerSourcePath =
             GoRouterState.of(context).uri.toString();
-        context.go('/live/${widget.guid}');
+        // Push (instead of go) so the source page stays mounted under the
+        // fullscreen player and keeps its scroll position on return.
+        context.push('/live/${widget.guid}');
         break;
       case MediaType.directory:
         context.go('/folder/${widget.guid}');
@@ -442,7 +444,9 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
     if (mediaType == MediaType.movie || mediaType == MediaType.video) {
       ref.read(navigationStackProvider.notifier).playerSourcePath =
           ref.read(navigationStackProvider).lastOrNull ?? '/home';
-      context.go('/player/${widget.guid}');
+      // Push (instead of go) so the source page stays mounted under the
+      // fullscreen player and keeps its scroll position on return.
+      context.push('/player/${widget.guid}');
     }
   }
 

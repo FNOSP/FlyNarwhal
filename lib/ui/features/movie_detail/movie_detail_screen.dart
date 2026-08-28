@@ -1045,7 +1045,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     // Navigate to player screen
     ref.read(navigationStackProvider.notifier).playerSourcePath =
         isEpisode ? '/tv/episode/${widget.guid}' : '/movie/${widget.guid}';
-    context.go(
+    context.push(
       '/player/${widget.guid}'
       '?media_guid=$_currentMediaGuid'
       '&audio_guid=${_selectedAudioGuid ?? ''}'
