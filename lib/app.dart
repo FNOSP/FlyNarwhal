@@ -77,6 +77,8 @@ Future<void> bootstrapApp() async {
       await windowManager.setPreventClose(true);
 
       const defaultWindowSize = Size(1280, 720);
+      // Smallest size the user may shrink the main (non-player) window to.
+      const mainWindowMinimumSize = Size(800, 450);
       final savedState = MainWindowSettingsStore(prefs).read();
 
       // Displays are resolved regardless of whether saved geometry exists:
@@ -97,7 +99,7 @@ Future<void> bootstrapApp() async {
           savedState.bounds,
           displays,
           fallbackSize: defaultWindowSize,
-          minimumSize: defaultWindowSize,
+          minimumSize: mainWindowMinimumSize,
         );
       }
 
@@ -109,12 +111,20 @@ Future<void> bootstrapApp() async {
         defaultWindowSize,
         displays,
       );
+      // The minimum follows the same rule so displays with a smaller scaled
+      // work area never end up with a minimum larger than the visible area.
+      final minimumSize = WindowGeometry.fitSizeToWorkArea(
+        mainWindowMinimumSize,
+        displays,
+      );
       AppTalker.info(
         'Window',
         'Startup size ${startupSize.width.toStringAsFixed(0)}x'
             '${startupSize.height.toStringAsFixed(0)} '
             '(default ${defaultWindowSize.width.toStringAsFixed(0)}x'
             '${defaultWindowSize.height.toStringAsFixed(0)}, '
+            'minimum ${minimumSize.width.toStringAsFixed(0)}x'
+            '${minimumSize.height.toStringAsFixed(0)}, '
             'displays=${displays.length}, restored=$restoredBounds)',
       );
 
@@ -126,7 +136,7 @@ Future<void> bootstrapApp() async {
       );
 
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
-        await windowManager.setMinimumSize(startupSize);
+        await windowManager.setMinimumSize(minimumSize);
         if (restoredBounds != null) {
           await windowManager.setBounds(restoredBounds);
         }

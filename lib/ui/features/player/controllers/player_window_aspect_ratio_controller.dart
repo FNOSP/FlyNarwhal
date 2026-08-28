@@ -34,7 +34,7 @@ class PlayerWindowAspectRatioController {
   static const String autoSetting = 'AUTO';
   /// The standard window minimum restored by [release] so non-player routes
   /// keep the app's normal window limits.
-  static const Size _normalWindowMinimumSize = Size(1280, 720);
+  static const Size _normalWindowMinimumSize = Size(800, 450);
   /// The smallest the player window may be shrunk to while a ratio lock is
   /// active. Lower than [_normalWindowMinimumSize] so the user can make the
   /// player window smaller; both the ratio-locked OS minimum and the
@@ -42,7 +42,7 @@ class PlayerWindowAspectRatioController {
   static const Size _playerWindowMinimumSize = Size(640, 360);
   // Area of [_normalWindowMinimumSize]; kept as literals because Size
   // properties are not accessible in const expressions.
-  static const double _fallbackBaselineArea = 1280 * 720;
+  static const double _fallbackBaselineArea = 800 * 450;
   // Aspect ratios closer than this are considered identical, avoiding
   // redundant window resizing when repeated video-param events arrive.
   static const double _ratioEpsilon = 0.005;
@@ -158,8 +158,8 @@ class PlayerWindowAspectRatioController {
           WindowGeometry.selectDisplay(bounds, displays)?.workArea;
 
       // Keep the OS minimum size consistent with the locked ratio. A plain
-      // 1280x720 minimum fights the ratio lock for wide videos: the clamp
-      // lets the window settle at an off-ratio size, and the plugin's
+      // normal-window minimum fights the ratio lock for wide videos: the
+      // clamp lets the window settle at an off-ratio size, and the plugin's
       // WM_SIZING handler then re-derives the dragged edge from the locked
       // ratio and shifts the window before the clamp snaps the size back.
       final minimumSize = minimumSizeForRatio(targetRatio, workArea);
