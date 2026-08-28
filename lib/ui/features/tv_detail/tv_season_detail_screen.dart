@@ -137,7 +137,6 @@ class _TvSeasonDetailContent extends ConsumerStatefulWidget {
 
 class _TvSeasonDetailContentState
     extends ConsumerState<_TvSeasonDetailContent> {
-  late final ScrollController _descriptionScrollController = ScrollController();
   late final FlyoutController _moreController = FlyoutController();
   late final SeasonAnalysisStatusController _seasonAnalysisStatusController;
 
@@ -166,7 +165,6 @@ class _TvSeasonDetailContentState
       notifyListeners: false,
     );
     _moreController.dispose();
-    _descriptionScrollController.dispose();
     _castScrollController.dispose();
     super.dispose();
   }
@@ -184,36 +182,11 @@ class _TvSeasonDetailContentState
   }
 
   void _showDescriptionDialog(BuildContext context, ItemResponse item) {
-    if (_descriptionScrollController.hasClients) {
-      _descriptionScrollController.jumpTo(0);
-    }
     showDialog(
       context: context,
-      builder: (context) => ContentDialog(
-        title: const Text('剧集简介'),
-        content: Scrollbar(
-          controller: _descriptionScrollController,
-          child: SingleChildScrollView(
-            controller: _descriptionScrollController,
-            primary: false,
-            child: Text(
-              item.overview ?? '暂无介绍',
-              style: FluentTheme.of(context)
-                  .typography
-                  .body
-                  ?.copyWith(height: 1.6),
-            ),
-          ),
-        ),
-        actions: [
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: AppButton(
-              child: const Text('关闭'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-        ],
+      builder: (_) => MediaDescriptionDialog(
+        title: '剧集简介',
+        content: item.overview ?? '暂无介绍',
       ),
     );
   }
