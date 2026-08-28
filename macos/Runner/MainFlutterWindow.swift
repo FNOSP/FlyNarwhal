@@ -27,6 +27,7 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
     registerLocalSubtitlePickerChannel(messenger: flutterViewController.engine.binaryMessenger)
     registerTopEdgeColorChannel(messenger: flutterViewController.engine.binaryMessenger)
+    registerDisplayEnumerationChannel(messenger: flutterViewController.engine.binaryMessenger)
     preWarmSubtitlePicker()
 
     self.titlebarAppearsTransparent = true
@@ -322,6 +323,60 @@ class MainFlutterWindow: NSWindow {
         self?.topEdgeCover?.fillColor = color
       }
       result(nil)
+    }
+  }
+
+  // MARK: - Display enumeration
+  //
+  // Mirrors the Windows `getAllDisplays` channel so Dart can validate window
+  // geometry against every connected screen (restore on the display the
+  // window was closed on, fall back to primary when that display is gone,
+  // follow the main window's display when opening the player).
+  private func registerDisplayEnumerationChannel(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "fly_narwhal/window_display_frame",
+      binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "getAllDisplays" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      result(MainFlutterWindow.buildAllDisplays())
+    }
+  }
+
+  /// All connected screens in the same top-left-origin coordinate space that
+  /// window_manager uses for getBounds/setBounds: NSScreen frames are
+  /// bottom-left-origin, flipped against `NSScreen.screens[0].frame.height`
+  /// (the exact baseline window_manager's NSRect.topLeft conversion uses).
+  private static func buildAllDisplays() -> [[String: Any]] {
+    let screens = NSScreen.screens
+    guard let baselineScreen = screens.first else { return [] }
+    let baselineHeight = baselineScreen.frame.height
+
+    func toTopLeftRect(_ rect: NSRect) -> [String: Any] {
+      return [
+        "x": Double(rect.origin.x),
+        "y": Double(baselineHeight - (rect.origin.y + rect.height)),
+        "width": Double(rect.width),
+        "height": Double(rect.height),
+      ]
+    }
+
+    return screens.map { screen in
+      let screenNumber =
+          (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
+              as? NSNumber)?.uint32Value ?? 0
+      return [
+        "id": "macos-display-\(screenNumber)",
+        "monitorBounds": toTopLeftRect(screen.frame),
+        "workArea": toTopLeftRect(screen.visibleFrame),
+        // screens.first is the screen carrying the menu bar (the designated
+        // primary display); NSScreen.main follows the focused window and
+        // must not be used here.
+        "isPrimary": screen === baselineScreen,
+        "scaleFactor": Double(screen.backingScaleFactor),
+      ]
     }
   }
 }

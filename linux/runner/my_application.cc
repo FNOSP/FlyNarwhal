@@ -21,6 +21,7 @@ namespace {
 constexpr char kWindowDisplayFrameChannelName[] =
     "fly_narwhal/window_display_frame";
 constexpr char kGetCurrentDisplayFrameMethod[] = "getCurrentDisplayFrame";
+constexpr char kGetAllDisplaysMethod[] = "getAllDisplays";
 
 GtkWindow* get_window(MyApplication* self) {
   if (self->view == nullptr) {
@@ -74,6 +75,65 @@ static FlMethodResponse* get_current_display_frame(MyApplication* self) {
   return FL_METHOD_RESPONSE(fl_method_success_response_new(result));
 }
 
+FlValue* build_rect_value(const GdkRectangle* rectangle) {
+  FlValue* rect = fl_value_new_map();
+  fl_value_set_string_take(rect, "x", fl_value_new_float(rectangle->x));
+  fl_value_set_string_take(rect, "y", fl_value_new_float(rectangle->y));
+  fl_value_set_string_take(rect, "width", fl_value_new_float(rectangle->width));
+  fl_value_set_string_take(rect, "height",
+                           fl_value_new_float(rectangle->height));
+  return rect;
+}
+
+static FlMethodResponse* get_all_displays(MyApplication* self) {
+  GdkDisplay* display = nullptr;
+  GtkWindow* window = get_window(self);
+  if (window != nullptr) {
+    GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+    if (gdk_window != nullptr) {
+      display = gdk_window_get_display(gdk_window);
+    }
+  }
+  if (display == nullptr) {
+    display = gdk_display_get_default();
+  }
+  if (display == nullptr) {
+    return FL_METHOD_RESPONSE(
+        fl_method_error_response_new("display-enumeration-error",
+                                     "No display is available.", nullptr));
+  }
+
+  g_autoptr(FlValue) displays = fl_value_new_list();
+  const int monitor_count = gdk_display_get_n_monitors(display);
+  for (int index = 0; index < monitor_count; index++) {
+    GdkMonitor* monitor = gdk_display_get_monitor(display, index);
+    if (monitor == nullptr) {
+      continue;
+    }
+
+    GdkRectangle geometry;
+    gdk_monitor_get_geometry(monitor, &geometry);
+    GdkRectangle workarea;
+    gdk_monitor_get_workarea(monitor, &workarea);
+
+    g_autofree gchar* id = g_strdup_printf("gdk-monitor-%d", index);
+    FlValue* entry = fl_value_new_map();
+    fl_value_set_string_take(entry, "id", fl_value_new_string(id));
+    fl_value_set_string_take(entry, "monitorBounds",
+                             build_rect_value(&geometry));
+    fl_value_set_string_take(entry, "workArea", build_rect_value(&workarea));
+    fl_value_set_string_take(entry, "isPrimary",
+                             fl_value_new_bool(gdk_monitor_is_primary(monitor)));
+    fl_value_set_string_take(
+        entry, "scaleFactor",
+        fl_value_new_float(
+            static_cast<double>(gdk_monitor_get_scale_factor(monitor))));
+    fl_value_append_take(displays, entry);
+  }
+
+  return FL_METHOD_RESPONSE(fl_method_success_response_new(displays));
+}
+
 static void display_frame_method_call_cb(FlMethodChannel* channel,
                                          FlMethodCall* method_call,
                                          gpointer user_data) {
@@ -83,6 +143,8 @@ static void display_frame_method_call_cb(FlMethodChannel* channel,
   g_autoptr(FlMethodResponse) response = nullptr;
   if (strcmp(method, kGetCurrentDisplayFrameMethod) == 0) {
     response = get_current_display_frame(self);
+  } else if (strcmp(method, kGetAllDisplaysMethod) == 0) {
+    response = get_all_displays(self);
   } else {
     response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
   }

@@ -15,33 +15,39 @@ class DesktopDisplayService {
     if (kIsWeb) {
       return const [];
     }
-    if (defaultTargetPlatform == TargetPlatform.windows) {
-      final result =
-          await _channel.invokeMethod<List<Object?>>('getAllDisplays');
-      if (result == null) {
-        return const [];
-      }
-
-      final parsed = result
-          .whereType<Map<Object?, Object?>>()
-          .map(_parseDisplay)
-          .whereType<DesktopDisplayGeometry>()
-          .toList(growable: false);
-      if (parsed.isNotEmpty) {
-        return parsed;
+    final supportsNativeEnumeration =
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux;
+    if (supportsNativeEnumeration) {
+      try {
+        final result =
+            await _channel.invokeMethod<List<Object?>>('getAllDisplays');
+        final parsed = result
+                ?.whereType<Map<Object?, Object?>>()
+                .map(_parseDisplay)
+                .whereType<DesktopDisplayGeometry>()
+                .toList(growable: false) ??
+            const <DesktopDisplayGeometry>[];
+        if (parsed.isNotEmpty) {
+          return parsed;
+        }
+      } catch (_) {
+        // A stale native binary without getAllDisplays (or a platform that
+        // cannot enumerate) must not break startup: fall through to the
+        // Flutter-view display below.
       }
     }
 
-    // macOS/Linux have no native display enumeration channel; fall back to the
-    // display the Flutter view is on so window-size clamping still has a
-    // screen ceiling instead of resizing unbounded.
+    // Fall back to the display the Flutter view is on so window-size
+    // clamping still has a screen ceiling instead of resizing unbounded.
     final fallback = flutterViewDisplay();
     return fallback == null ? const [] : [fallback];
   }
 
   /// The display the app's Flutter view is currently on, derived from the
-  /// engine's [PlatformDispatcher]. Used as the clamping ceiling on platforms
-  /// without native display enumeration (macOS/Linux).
+  /// engine's [PlatformDispatcher]. Used as the clamping ceiling when native
+  /// display enumeration is unavailable or fails.
   static DesktopDisplayGeometry? flutterViewDisplay() {
     final view = PlatformDispatcher.instance.implicitView;
     final display = view?.display;

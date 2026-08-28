@@ -6050,10 +6050,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         await Future<void>.delayed(const Duration(milliseconds: 16));
       }
       final displays = await _tryGetDisplays();
-      final restored = WindowGeometry.normalizeMainWindowBounds(
+      // The player follows the main window's display when they diverge
+      // (e.g. the app moved to another screen since the player last ran);
+      // on the same display it keeps its own remembered position.
+      final restored = WindowGeometry.normalizePlayerBounds(
         savedBounds,
-        displays,
-        fallbackSize: savedBounds.size,
+        displays: displays,
+        anchorBounds: _prePlayerWindowBounds,
         minimumSize: const Size(640, 360),
       );
       await windowManager.setBounds(restored);
