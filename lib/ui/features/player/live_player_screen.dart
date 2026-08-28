@@ -10,6 +10,9 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 
 import '../../../core/utils/log/app_talker.dart';
+import '../../../core/window/desktop_display_service.dart';
+import '../../../core/window/main_window_persistence_guard.dart';
+import '../../../core/window/window_geometry.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/providers.dart';
@@ -20,6 +23,7 @@ import 'controllers/desktop_pseudo_fullscreen_controller.dart';
 import 'controllers/pip_window_mode_controller.dart';
 import 'controllers/player_overlay_controller.dart';
 import 'controllers/player_session_coordinator.dart';
+import 'controllers/player_window_aspect_ratio_controller.dart';
 import 'services/player_service.dart';
 import 'utils/player_volume_helper.dart';
 import 'widgets/channel_select_flyout.dart';
@@ -68,14 +72,37 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   int _loadToken = 0;
   Timer? _playRecordTimer;
   Timer? _pipIdleTimer;
+  Timer? _pipBoundsSaveTimer;
+  Timer? _playerWindowSizeSaveTimer;
 
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<bool>? _bufferingSubscription;
   StreamSubscription<String>? _errorSubscription;
+  StreamSubscription<VideoParams>? _videoParamsSubscription;
 
   final DesktopPseudoFullscreenController _fullscreenController =
       DesktopPseudoFullscreenController();
   final PipWindowModeController _pipController = PipWindowModeController();
+  final PlayerWindowAspectRatioController _windowAspectRatioController =
+      PlayerWindowAspectRatioController();
+  String _windowAspectRatio = PlayerWindowAspectRatioController.autoSetting;
+  // Window session separation: the player route keeps its own geometry and
+  // must not leak resizes into the app window state used by other routes.
+  Rect? _prePlayerWindowBounds;
+  bool _prePlayerWasMaximized = false;
+  bool _windowPersistenceSuspended = false;
+  bool _windowSessionCaptured = false;
+  // True while this screen is programmatically restoring window geometry
+  // (player entry / route leave). Window-state events fired by our own
+  // maximize/unmaximize calls must not overwrite the persisted player window
+  // form, otherwise the exit-time unmaximize wipes the user's maximized
+  // preference and the next video opens floating.
+  bool _isRestoringWindowSession = false;
+  // Monotonic id pairing every player screen with the window session it
+  // captured, so a disposed screen never restores the app window over a newer
+  // player screen that has already taken over (e.g. direct video switches).
+  static int _windowSessionGeneration = 0;
+  int _windowSessionId = 0;
 
   bool get _isMacOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
   bool get _isDesktop => !kIsWeb;
@@ -89,8 +116,11 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     if (_isDesktop) {
       windowManager.addListener(this);
       unawaited(_syncFullscreenState());
+      unawaited(_captureWindowSession());
     }
     _volume = ref.read(playerSettingsManagerProvider).getVolume();
+    _windowAspectRatio =
+        ref.read(playerSettingsManagerProvider).getWindowAspectRatio();
     _initializePlayer();
   }
 
@@ -98,11 +128,20 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   void dispose() {
     _playRecordTimer?.cancel();
     _pipIdleTimer?.cancel();
+    _pipBoundsSaveTimer?.cancel();
+    _playerWindowSizeSaveTimer?.cancel();
     _playingSubscription?.cancel();
     _bufferingSubscription?.cancel();
     _errorSubscription?.cancel();
+    _videoParamsSubscription?.cancel();
     if (_isDesktop) {
       windowManager.removeListener(this);
+      unawaited(_windowAspectRatioController.release());
+      unawaited(_fullscreenController.exitForRouteLeave());
+      // Ensure the window is restored to its normal form when leaving while in
+      // PiP mode so the next route is not stuck in a tiny borderless window,
+      // then hand the window back to the app routes at its pre-player size.
+      unawaited(_tearDownWindowSession());
     }
     _player?.dispose();
     super.dispose();
@@ -136,6 +175,19 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       if (_isInitialized) {
         setState(() => _errorMessage = '播放出错,请尝试切换线路');
       }
+    });
+    // Tracks live decode-size changes so the AUTO window ratio keeps the
+    // window locked to the actual video aspect ratio, the same way PiP mode
+    // keeps its window matched to the video.
+    _videoParamsSubscription = player.stream.videoParams.listen((params) {
+      if (!mounted) return;
+      final width = params.w ?? 0;
+      final height = params.h ?? 0;
+      if (width <= 0 || height <= 0) return;
+      if (_windowAspectRatio != PlayerWindowAspectRatioController.autoSetting) {
+        return;
+      }
+      unawaited(_applyWindowAspectRatio());
     });
 
     await player.setVolume(uiVolumeToMpvVolume(_volume));
@@ -218,8 +270,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       }
       if (!mounted || token != _loadToken) return;
 
-      final headers =
-          ref.read(playerSessionCoordinatorProvider).buildPlayerHeaders();
+      final headers = _buildPlaybackHttpHeaders(playUri);
       await player.open(
         Media(playUri, httpHeaders: headers.isEmpty ? null : headers),
       );
@@ -229,6 +280,9 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
         _isLoading = false;
         _isInitialized = true;
       });
+      // Resize/lock the window per the window aspect ratio setting now that
+      // the new stream is known.
+      unawaited(_applyWindowAspectRatio());
       _startPlayRecordTimer();
       _queueLivePlayRecord();
       _showUi();
@@ -245,6 +299,36 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
         _errorMessage = '播放失败,请尝试切换线路';
       });
     }
+  }
+
+  /// Builds the HTTP headers for opening a live channel. NAS credentials
+  /// (Cookie / Authorization) are only attached when the URL is served by the
+  /// NAS itself; direct external IPTV URLs live on other hosts and must not
+  /// receive NAS credentials.
+  Map<String, String> _buildPlaybackHttpHeaders(String playUri) {
+    final isNasProxy = playUri.contains('/v/api/v1/media/range') ||
+        playUri.contains('/v/api/v1/wp/m3u8') ||
+        _isNasHostedUrl(playUri);
+    if (isNasProxy) {
+      return ref.read(playerSessionCoordinatorProvider).buildPlayerHeaders();
+    }
+    return const <String, String>{};
+  }
+
+  /// Whether [playUri] is served by the NAS itself and therefore needs NAS
+  /// auth. Covers links that live on the same host:port as the configured
+  /// base URL. The browser-based web player gets this for free via
+  /// same-origin cookies; mpv needs the headers attached explicitly. External
+  /// IPTV hosts must not receive NAS credentials.
+  bool _isNasHostedUrl(String playUri) {
+    final baseUrl = ref.read(preferencesManagerProvider).getBaseUrl();
+    if (baseUrl == null || baseUrl.isEmpty) return false;
+    final baseUri = Uri.tryParse(baseUrl);
+    final targetUri = Uri.tryParse(playUri);
+    if (baseUri == null || targetUri == null) return false;
+    final baseHost = baseUri.host;
+    if (baseHost.isEmpty) return false;
+    return targetUri.host == baseHost && targetUri.port == baseUri.port;
   }
 
   // ---------------------------------------------------------------- records
@@ -304,6 +388,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       if (mounted) {
         setState(() => _isFullscreen = isFullscreen);
       }
+      _syncWindowAspectRatioWithFullscreen(isFullscreen);
     } catch (e, st) {
       AppTalker.error(
         'LivePlayer',
@@ -329,6 +414,8 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
         _isPipHovered = true;
       });
       _overlayController.dismissTransientUi();
+      // PiP manages its own aspect ratio lock; hand the window over cleanly.
+      await _windowAspectRatioController.release();
       await _pipController.enter(videoAspectRatio: _resolveVideoAspectRatio());
       _restartPipIdleTimer();
     } catch (e, st) {
@@ -343,6 +430,8 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       } catch (_) {}
       if (mounted) {
         setState(() => _isPipMode = false);
+        // PiP exit cleared the ratio lock; restore the player's setting.
+        unawaited(_applyWindowAspectRatio());
         ref.read(toastManagerProvider.notifier).showToast(
               '进入画中画失败: $e',
               type: ToastType.failed,
@@ -366,6 +455,8 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
           visible: ref.read(playerOverlayControllerProvider).isUiVisible,
           force: true,
         );
+        // PiP cleared the aspect ratio lock; restore the player's setting.
+        unawaited(_applyWindowAspectRatio());
       }
     } catch (e, st) {
       AppTalker.error(
@@ -413,7 +504,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       await _exitPipMode();
     }
     if (!mounted) return;
-    await _fullscreenController.exitForRouteLeave();
+    await _restoreWindowModeBeforeLeave();
     if (!mounted) return;
     if (context.canPop()) {
       context.pop();
@@ -913,15 +1004,400 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     );
   }
 
+  // ------------------------------------------------- window session / ratio
+
+  /// Applies the current window aspect ratio setting to the main window,
+  /// mirroring the VOD player: AUTO mode locks the window to the video's own
+  /// ratio so the video frame and the window stay perfectly matched.
+  Future<void> _applyWindowAspectRatio() async {
+    if (!_isDesktop) return;
+    if (!_windowSessionCaptured) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (_isFullscreen || !_isInitialized) return;
+    // A maximized player window owns its shape. The persisted flag is checked
+    // in addition to the controller's own isMaximized() probe because macOS
+    // can transiently report a zoomed window as not maximized; the flag keeps
+    // the maximized window intact in that window of instability.
+    if (ref.read(playerSettingsManagerProvider).getPlayerWindowMaximized()) {
+      // The maximized window will be restored by the OS on un-maximize; keep
+      // the small ratio-aware minimum so that restore is not clamped.
+      unawaited(
+        _windowAspectRatioController.release(restoreNormalMinimumSize: false),
+      );
+      return;
+    }
+
+    // Delay slightly so the window state has settled, matching the VOD
+    // player's behavior right after window creation or state transitions.
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (_isFullscreen) return;
+    if (ref.read(playerSettingsManagerProvider).getPlayerWindowMaximized()) {
+      unawaited(
+        _windowAspectRatioController.release(restoreNormalMinimumSize: false),
+      );
+      return;
+    }
+
+    await _windowAspectRatioController.apply(
+      setting: _windowAspectRatio,
+      videoAspectRatio: _resolveVideoAspectRatio(),
+    );
+  }
+
+  /// Fullscreen owns the window shape: release the ratio lock while in it,
+  /// re-apply the setting once back in windowed mode.
+  void _syncWindowAspectRatioWithFullscreen(bool isFullscreen) {
+    if (!_isDesktop) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (isFullscreen) {
+      // Keep the ratio-aware (small) window minimum in place while
+      // fullscreen: the OS restores the pre-fullscreen frame on exit, and a
+      // raised minimum would clamp that restore, shifting small windows.
+      unawaited(
+        _windowAspectRatioController.release(restoreNormalMinimumSize: false),
+      );
+    } else {
+      unawaited(_applyWindowAspectRatio());
+    }
+  }
+
+  Future<void> _restoreWindowModeBeforeLeave() async {
+    if (!_isDesktop) {
+      return;
+    }
+
+    // Window-state events fired by the restore sequence below are our own,
+    // not user gestures; keep them from overwriting the persisted form.
+    _isRestoringWindowSession = true;
+    try {
+      // The player route owns the window ratio lock; release it so other
+      // routes can resize the window freely again.
+      await _windowAspectRatioController.release();
+      final isFullscreen = await _fullscreenController.exitForRouteLeave();
+      await _restoreAppWindowSession();
+      if (!mounted || _isFullscreen == isFullscreen) {
+        return;
+      }
+
+      setState(() => _isFullscreen = isFullscreen);
+    } finally {
+      _isRestoringWindowSession = false;
+    }
+  }
+
+  /// The player route keeps its own window geometry, separate from the rest
+  /// of the app (the KMP player window stores its size independently too).
+  /// While the player is open, main-window persistence is suspended and
+  /// player resizes are recorded into the player-geometry store instead, so
+  /// leaving the player no longer drags the other routes along.
+  Future<void> _captureWindowSession() async {
+    if (!_isDesktop) {
+      return;
+    }
+    // Claim the window session synchronously before any await so a disposed
+    // predecessor can see the takeover and skip its own window restore.
+    _windowSessionId = ++_windowSessionGeneration;
+    Rect? bounds;
+    var wasMaximized = false;
+    try {
+      bounds = await windowManager.getBounds();
+      wasMaximized = await windowManager.isMaximized();
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'LivePlayer',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'capture window session failed',
+      );
+    }
+    if (!mounted) {
+      return;
+    }
+    _prePlayerWindowBounds = bounds;
+    _prePlayerWasMaximized = wasMaximized;
+    _windowSessionCaptured = true;
+    AppTalker.info(
+      'WindowSession',
+      'captured app bounds=$bounds maximized=$wasMaximized',
+    );
+    MainWindowPersistenceGuard.suspend();
+    _windowPersistenceSuspended = true;
+    unawaited(_restorePlayerWindowBounds());
+  }
+
+  /// Restores the player window's own remembered geometry (position and
+  /// size), mirroring the KMP player window restoring its saved position and
+  /// size on open.
+  Future<void> _restorePlayerWindowBounds() async {
+    _isRestoringWindowSession = true;
+    try {
+      if (await windowManager.isFullScreen()) {
+        return;
+      }
+      // The player keeps its own window form: if it was last left maximized,
+      // re-enter maximize for this (possibly different) video instead of
+      // restoring the floating geometry. The pre-player maximized state seeds
+      // the player form too, so entering the player from a maximized app
+      // window keeps the window maximized across video switches.
+      final settingsManager = ref.read(playerSettingsManagerProvider);
+      final playerWindowMaximized =
+          settingsManager.getPlayerWindowMaximized() || _prePlayerWasMaximized;
+      if (playerWindowMaximized) {
+        if (!settingsManager.getPlayerWindowMaximized()) {
+          unawaited(settingsManager.setPlayerWindowMaximized(true));
+        }
+        if (!await windowManager.isMaximized()) {
+          await windowManager.maximize();
+        }
+        return;
+      }
+      final savedBounds = settingsManager.getPlayerWindowBounds();
+      if (savedBounds == null) {
+        return;
+      }
+      if (await windowManager.isMaximized()) {
+        await windowManager.unmaximize();
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+      }
+      final displays = await _tryGetDisplays();
+      // The player follows the main window's display when they diverge
+      // (e.g. the app moved to another screen since the player last ran);
+      // on the same display it keeps its own remembered position.
+      final restored = WindowGeometry.normalizePlayerBounds(
+        savedBounds,
+        displays: displays,
+        anchorBounds: _prePlayerWindowBounds,
+        minimumSize: const Size(640, 360),
+      );
+      await windowManager.setBounds(restored);
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'LivePlayer',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'restore player window bounds failed',
+      );
+    } finally {
+      _isRestoringWindowSession = false;
+    }
+  }
+
+  void _schedulePlayerWindowBoundsSave() {
+    if (!_isDesktop) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    _playerWindowSizeSaveTimer?.cancel();
+    _playerWindowSizeSaveTimer =
+        Timer(const Duration(milliseconds: 500), () async {
+      if (!mounted) return;
+      if (_isPipMode || _pipController.isPipMode) return;
+      try {
+        if (await windowManager.isMaximized() ||
+            await windowManager.isFullScreen()) {
+          return;
+        }
+        // isMaximized() can transiently report false for a maximized window on
+        // macOS (e.g. right after the ratio lock is released); the persisted
+        // maximized flag is the authoritative source, so never record the
+        // zoomed geometry as the player's floating bounds while it is set.
+        if (ref
+            .read(playerSettingsManagerProvider)
+            .getPlayerWindowMaximized()) {
+          return;
+        }
+        final bounds = await windowManager.getBounds();
+        if (!mounted) return;
+        // User resizes under the ratio lock update the window-ratio
+        // baseline; programmatic setBounds echoes are ignored there.
+        _windowAspectRatioController.observeSettledBounds(bounds);
+        await ref
+            .read(playerSettingsManagerProvider)
+            .setPlayerWindowBounds(bounds);
+      } catch (_) {
+        // Persistence is best-effort; never fail a window event on it.
+      }
+    });
+  }
+
+  /// Restores the app window to its pre-player geometry and re-enables
+  /// main-window persistence, so player-driven resizes never leak into the
+  /// other routes.
+  Future<void> _restoreAppWindowSession() async {
+    if (!_windowPersistenceSuspended) {
+      return;
+    }
+    _windowPersistenceSuspended = false;
+
+    if (!_isDesktop) {
+      MainWindowPersistenceGuard.resume();
+      return;
+    }
+
+    // A newer player screen (direct video switch) has already captured the
+    // window session: hand over without restoring app geometry over it.
+    final superseded = _windowSessionId != _windowSessionGeneration;
+    if (superseded) {
+      MainWindowPersistenceGuard.resume();
+      return;
+    }
+
+    _isRestoringWindowSession = true;
+
+    // Remember the player's final floating geometry for the next session.
+    if (!_isPipMode && !_pipController.isPipMode) {
+      try {
+        // The persisted maximized flag guards against isMaximized() briefly
+        // reporting false for a zoomed window; a zoomed geometry must never
+        // be recorded as the floating bounds.
+        if (!await windowManager.isMaximized() &&
+            !await windowManager.isFullScreen() &&
+            !ref
+                .read(playerSettingsManagerProvider)
+                .getPlayerWindowMaximized()) {
+          final bounds = await windowManager.getBounds();
+          await ref
+              .read(playerSettingsManagerProvider)
+              .setPlayerWindowBounds(bounds);
+        }
+      } catch (_) {
+        // Best-effort, same as the debounced saves.
+      }
+    }
+
+    final appBounds = _prePlayerWindowBounds;
+    final wasMaximized = _prePlayerWasMaximized;
+    _prePlayerWindowBounds = null;
+
+    try {
+      await _fullscreenController.exitForRouteLeave();
+      // Native fullscreen exits animate; wait for the window to settle
+      // before restoring the captured bounds.
+      for (var attempt = 0;
+          attempt < 15 && await windowManager.isFullScreen();
+          attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      if (appBounds != null && !await windowManager.isFullScreen()) {
+        if (await windowManager.isMaximized()) {
+          await windowManager.unmaximize();
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+        }
+        final displays = await _tryGetDisplays();
+        final restored = WindowGeometry.normalizeMainWindowBounds(
+          appBounds,
+          displays,
+          fallbackSize: appBounds.size,
+          minimumSize: const Size(640, 360),
+        );
+        await windowManager.setBounds(restored);
+        if (wasMaximized) {
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+          await windowManager.maximize();
+        }
+      }
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'LivePlayer',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'restore app window session failed',
+      );
+    } finally {
+      _isRestoringWindowSession = false;
+      MainWindowPersistenceGuard.resume();
+    }
+  }
+
+  Future<void> _tearDownWindowSession() async {
+    if (_pipController.isPipMode) {
+      await _pipController.exit();
+    }
+    await _restoreAppWindowSession();
+  }
+
+  Future<List<DesktopDisplayGeometry>> _tryGetDisplays() async {
+    try {
+      return await const DesktopDisplayService().getDisplays();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  void _schedulePipBoundsSave() {
+    if (!_isPipMode) {
+      return;
+    }
+    _pipBoundsSaveTimer?.cancel();
+    _pipBoundsSaveTimer = Timer(
+      const Duration(milliseconds: 400),
+      () => unawaited(_pipController.persistCurrentBounds()),
+    );
+  }
+
   // ------------------------------------------------------- window listener
 
   @override
   void onWindowEnterFullScreen() {
-    if (mounted) setState(() => _isFullscreen = true);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _isFullscreen = true);
+    _syncWindowAspectRatioWithFullscreen(true);
   }
 
   @override
   void onWindowLeaveFullScreen() {
-    if (mounted) setState(() => _isFullscreen = false);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _isFullscreen = false);
+    _syncWindowAspectRatioWithFullscreen(false);
+  }
+
+  @override
+  void onWindowMoved() {
+    _schedulePipBoundsSave();
+    _schedulePlayerWindowBoundsSave();
+  }
+
+  @override
+  void onWindowResized() {
+    _schedulePipBoundsSave();
+    _schedulePlayerWindowBoundsSave();
+  }
+
+  @override
+  void onWindowMaximize() {
+    if (!mounted || !_isDesktop) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (_isRestoringWindowSession) return;
+    // Maximize owns the window shape (like fullscreen/PiP): drop the ratio
+    // lock so the maximized window is left intact, and persist the player's
+    // maximized form so other videos also open maximized.
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setPlayerWindowMaximized(true),
+    );
+    // Keep the ratio-aware (small) window minimum while maximized: un-
+    // maximizing restores the pre-maximize frame, and a raised minimum
+    // would clamp that restore, shifting small windows.
+    unawaited(
+      _windowAspectRatioController.release(restoreNormalMinimumSize: false),
+    );
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    if (!mounted || !_isDesktop) return;
+    if (_isPipMode || _pipController.isPipMode) return;
+    if (_isRestoringWindowSession) return;
+    // The user returned to a floating window; persist that and re-apply the
+    // ratio lock.
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setPlayerWindowMaximized(false),
+    );
+    unawaited(_applyWindowAspectRatio());
   }
 }
