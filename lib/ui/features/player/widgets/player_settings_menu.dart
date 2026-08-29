@@ -29,6 +29,18 @@ const double _estimatedSettingsFlyoutHeight = 300;
 const double _audioPanelHeaderHeight = 46;
 const double _audioPanelMaxListHeight = 330;
 
+// Skip intro/outro panel palette and metrics, mirroring the web player's
+// manual skip settings (semi-design dark theme).
+const Color _skipTrackColor = Color(0x1FFFFFFF); // rgba(255,255,255,0.12)
+const Color _skipActiveColor = Color(0xFF0066FF);
+const Color _skipInputBorderColor = Color(0x1AFFFFFF); // rgba(255,255,255,0.1)
+const Color _skipInputFillColor = Color(0x1A010101); // rgba(1,1,1,0.1)
+const Color _skipCaptionColor = Color(0x99FFFFFF); // rgba(255,255,255,0.6)
+const double _skipThumbSize = 14;
+const double _skipSliderHeight = 20;
+const double _skipTimeInputWidth = 50;
+const double _skipTimeInputHeight = 28;
+
 // A hardware decoder API that mpv probed as usable for the current file,
 // shown in the 指定硬件解码器 sub-menu. [api] is the value passed to
 // `hwdec=...`; [label] is its human-readable name.
@@ -1751,30 +1763,45 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: widget.onBack,
-                child: const Row(
-                  children: [
-                    Icon(
-                      FluentIcons.chevron_left,
-                      size: 12,
-                      color: Colors.white,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      '跳过片头/片尾',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: widget.onBack,
+                      child: Row(
+                        children: [
+                          Icon(
+                            FluentIcons.chevron_left,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            '跳过片头/片尾',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '生效范围: ${widget.playingInfoCache?.item?.tvTitle ?? '未知'} 第 ${widget.playingInfoCache?.item?.seasonNumber ?? 0} 季',
+                    style: const TextStyle(
+                      color: Color(0xCCFFFFFF),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
             // Reset button
@@ -1791,22 +1818,23 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                       }
                     : null,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  height: 28,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     border: Border.all(
                       color: manualEnabled
-                          ? _defaultTextColor
-                          : _defaultTextColor.withValues(alpha: 0.5),
+                          ? _skipInputBorderColor
+                          : _skipInputBorderColor.withValues(alpha: 0.5),
                     ),
-                    borderRadius: BorderRadius.circular(50),
+                    borderRadius: BorderRadius.circular(9999),
                   ),
                   child: Text(
                     '重置',
                     style: TextStyle(
                       color: manualEnabled
-                          ? _defaultTextColor
-                          : _defaultTextColor.withValues(alpha: 0.5),
+                          ? const Color(0xCCFFFFFF)
+                          : const Color(0x66FFFFFF),
                       fontSize: 14,
                     ),
                   ),
@@ -1814,11 +1842,6 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '生效范围: ${widget.playingInfoCache?.item?.tvTitle ?? '未知'} 第 ${widget.playingInfoCache?.item?.seasonNumber ?? 0} 季',
-          style: const TextStyle(color: _defaultTextColor, fontSize: 12),
         ),
         const SizedBox(height: 8),
         if (widget.isSmartAnalysisGloballyEnabled)
@@ -1856,11 +1879,10 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
         const SizedBox(height: 8),
         // Skip opening
         _SkipSlider(
-          label: '跳过片头',
+          label: '片头时长',
           value: _skipOpening.toDouble(),
           maxValue: 600,
           enabled: manualEnabled,
-          currentPositionSeconds: widget.currentPositionMillis ~/ 1000,
           isReverse: false,
           onChanged: (value) {
             setState(() => _skipOpening = value.round());
@@ -1869,15 +1891,13 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
             widget.onConfigChanged(_skipOpening, _skipEnding);
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 32),
         // Skip ending
         _SkipSlider(
-          label: '跳过片尾',
+          label: '片尾时长',
           value: _skipEnding.toDouble(),
           maxValue: 600,
           enabled: manualEnabled,
-          currentPositionSeconds: widget.currentPositionMillis ~/ 1000,
-          totalDurationSeconds: widget.totalDurationMillis ~/ 1000,
           isReverse: true,
           onChanged: (value) {
             setState(() => _skipEnding = value.round());
@@ -1896,8 +1916,6 @@ class _SkipSlider extends StatelessWidget {
   final double value;
   final double maxValue;
   final bool enabled;
-  final int currentPositionSeconds;
-  final int totalDurationSeconds;
   final bool isReverse;
   final void Function(double) onChanged;
   final void Function(double) onChangeEnd;
@@ -1907,8 +1925,6 @@ class _SkipSlider extends StatelessWidget {
     required this.value,
     required this.maxValue,
     required this.enabled,
-    required this.currentPositionSeconds,
-    this.totalDurationSeconds = 0,
     required this.isReverse,
     required this.onChanged,
     required this.onChangeEnd,
@@ -1933,75 +1949,207 @@ class _SkipSlider extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Text(label,
-                      style: const TextStyle(
-                          color: _defaultTextColor, fontSize: 14)),
-                  const SizedBox(width: 4),
-                  Text(_formatDuration(value.round()),
-                      style: const TextStyle(
-                          color: _defaultTextColor, fontSize: 14)),
-                ],
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
               ),
-              if (!isReverse && currentPositionSeconds <= maxValue.toInt())
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: enabled
-                        ? () {
-                            onChanged(currentPositionSeconds.toDouble());
-                            onChangeEnd(currentPositionSeconds.toDouble());
-                          }
-                        : null,
-                    child: Text(
-                      '将当前时间 ${_formatDuration(currentPositionSeconds)} 设为片头',
-                      style: const TextStyle(
-                          color: _selectedTextColor, fontSize: 12),
-                    ),
+              const SizedBox(width: 8),
+              Container(
+                width: _skipTimeInputWidth,
+                height: _skipTimeInputHeight,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _skipInputFillColor,
+                  border: Border.all(color: _skipInputBorderColor),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _formatDuration(value.round()),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
                   ),
                 ),
-              if (isReverse &&
-                  totalDurationSeconds > currentPositionSeconds) ...[
-                Builder(builder: (context) {
-                  final remaining =
-                      totalDurationSeconds - currentPositionSeconds;
-                  if (remaining > maxValue.toInt()) {
-                    return const SizedBox.shrink();
-                  }
-                  return MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: enabled
-                          ? () {
-                              onChanged(remaining.toDouble());
-                              onChangeEnd(remaining.toDouble());
-                            }
-                          : null,
-                      child: Text(
-                        '将剩余时长 ${_formatDuration(remaining)} 设为片尾',
-                        style: const TextStyle(
-                            color: _selectedTextColor, fontSize: 12),
-                      ),
-                    ),
-                  );
-                }),
-              ],
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          Slider(
+          const SizedBox(height: 4),
+          _SkipSliderBar(
             value: value,
-            max: maxValue,
-            onChanged: enabled ? onChanged : null,
+            maxValue: maxValue,
+            enabled: enabled,
+            isReverse: isReverse,
+            onChanged: onChanged,
             onChangeEnd: onChangeEnd,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                isReverse ? '10 分钟' : '开始',
+                style: const TextStyle(
+                  color: _skipCaptionColor,
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                isReverse ? '结束' : '10 分钟',
+                style: const TextStyle(
+                  color: _skipCaptionColor,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+}
+
+class _SkipSliderBar extends StatelessWidget {
+  final double value;
+  final double maxValue;
+  final bool enabled;
+  final bool isReverse;
+  final void Function(double) onChanged;
+  final void Function(double) onChangeEnd;
+
+  const _SkipSliderBar({
+    required this.value,
+    required this.maxValue,
+    required this.enabled,
+    required this.isReverse,
+    required this.onChanged,
+    required this.onChangeEnd,
+  });
+
+  double _valueFromX(double x, double trackWidth) {
+    if (trackWidth <= 0) return value;
+    final fraction = (x / trackWidth).clamp(0.0, 1.0);
+    return (isReverse ? 1 - fraction : fraction) * maxValue;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _skipSliderHeight,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final trackWidth = constraints.maxWidth;
+          final fraction = (value / maxValue).clamp(0.0, 1.0);
+          // The thumb slides within [0, width - thumbSize] (same as the web
+          // player) while the active bar spans the full fraction of the
+          // track. For the ending slider the thumb sits mirrored so the blue
+          // bar between thumb and right edge represents the skipped duration.
+          final usable = trackWidth - _skipThumbSize;
+          final thumbPosition = isReverse ? 1 - fraction : fraction;
+          final thumbLeft = thumbPosition * (usable > 0 ? usable : 0);
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: enabled
+                ? (details) =>
+                    onChanged(_valueFromX(details.localPosition.dx, trackWidth))
+                : null,
+            onHorizontalDragStart: enabled
+                ? (details) =>
+                    onChanged(_valueFromX(details.localPosition.dx, trackWidth))
+                : null,
+            onHorizontalDragUpdate: enabled
+                ? (details) =>
+                    onChanged(_valueFromX(details.localPosition.dx, trackWidth))
+                : null,
+            onHorizontalDragEnd:
+                enabled ? (_) => onChangeEnd(value) : null,
+            child: CustomPaint(
+              size: Size(trackWidth, _skipSliderHeight),
+              painter: _SkipSliderPainter(
+                fraction: fraction,
+                thumbLeft: thumbLeft,
+                isReverse: isReverse,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SkipSliderPainter extends CustomPainter {
+  final double fraction;
+  final double thumbLeft;
+  final bool isReverse;
+
+  const _SkipSliderPainter({
+    required this.fraction,
+    required this.thumbLeft,
+    required this.isReverse,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const trackHeight = 4.0;
+    final trackRect = Rect.fromLTWH(
+      0,
+      (size.height - trackHeight) / 2,
+      size.width,
+      trackHeight,
+    );
+    final trackRRect =
+        RRect.fromRectAndRadius(trackRect, const Radius.circular(2));
+
+    canvas.drawRRect(trackRRect, Paint()..color = _skipTrackColor);
+
+    // Active portion, clipped to the rounded track. Mirrored for the ending
+    // slider: the bar runs from the thumb boundary to the right edge.
+    final activeBoundary = (isReverse ? 1 - fraction : fraction) * size.width;
+    final activeRect = isReverse
+        ? Rect.fromLTRB(
+            activeBoundary, trackRect.top, size.width, trackRect.bottom)
+        : Rect.fromLTRB(0, trackRect.top, activeBoundary, trackRect.bottom);
+    canvas
+      ..save()
+      ..clipRRect(trackRRect)
+      ..drawRect(activeRect, Paint()..color = _skipActiveColor)
+      ..restore();
+
+    // Thumb: 14px white circle with a 1px primary-blue border and a subtle
+    // drop shadow, matching the web player.
+    final thumbCenter =
+        Offset(thumbLeft + _skipThumbSize / 2, size.height / 2);
+    canvas.drawCircle(
+      thumbCenter + const Offset(0, 1),
+      _skipThumbSize / 2,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.05)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
+    );
+    canvas.drawCircle(
+      thumbCenter,
+      _skipThumbSize / 2,
+      Paint()..color = Colors.white,
+    );
+    canvas.drawCircle(
+      thumbCenter,
+      _skipThumbSize / 2 - 0.5,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = _skipActiveColor,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SkipSliderPainter oldDelegate) =>
+      oldDelegate.fraction != fraction ||
+      oldDelegate.thumbLeft != thumbLeft ||
+      oldDelegate.isReverse != isReverse;
 }
 
 /// Reports the size of [child] after it has been laid out.
