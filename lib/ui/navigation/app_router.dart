@@ -1,7 +1,9 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../tooling/driver_test_mode.dart';
 import '../features/home/home_screen.dart';
+import '../features/home/home_view_model.dart';
 import '../features/layout/main_layout.dart';
 import '../features/login/login_screen.dart';
 import '../features/media_library/media_library_screen.dart';
@@ -23,11 +25,51 @@ import '../../providers/providers.dart';
 const String _driverInitialRoute =
     String.fromEnvironment('DRIVER_INITIAL_ROUTE');
 
+/// Re-fetches the home "recently watched" list whenever the fullscreen player
+/// route is exited, so the home page shows the updated playback progress.
+///
+/// The player/live routes are declared OUTSIDE the [ShellRoute] (so they can
+/// render fullscreen without the app chrome) while /home lives inside it. With
+/// that nesting, a [RouteAware] on the home page never receives `didPopNext`
+/// when the player pops — the popped route's `previousRoute` is the shell
+/// wrapper route, not /home (verified via a debug [NavigatorObserver]).
+/// Observing the root [Navigator] directly catches every player exit
+/// regardless of the shell nesting.
+class _PlayerExitPlayListRefreshObserver extends NavigatorObserver {
+  _PlayerExitPlayListRefreshObserver(this._ref);
+
+  final Ref _ref;
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _maybeRefresh(route);
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _maybeRefresh(route);
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (oldRoute != null) {
+      _maybeRefresh(oldRoute);
+    }
+  }
+
+  void _maybeRefresh(Route<dynamic> route) {
+    final name = route.settings.name ?? '';
+    if (name != '/player/:guid' && name != '/live/:guid') return;
+    _ref.read(playListNotifierProvider.notifier).refresh();
+  }
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
   final prefs = ref.watch(preferencesManagerProvider);
   ref.watch(authRefreshProvider);
 
   return GoRouter(
+    observers: [
+      _PlayerExitPlayListRefreshObserver(ref),
+    ],
     initialLocation: (kDriverTestMode && _driverInitialRoute.isNotEmpty)
         ? _driverInitialRoute
         : '/login',
