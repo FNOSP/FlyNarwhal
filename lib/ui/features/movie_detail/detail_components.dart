@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../player/widgets/subtitle_selection_panel.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
+import 'package:fly_narwhal/ui/shared/media_category_icon.dart';
 
 const kAccentColor = Color(0xFF2173DF);
 
@@ -97,6 +98,10 @@ class DetailTags extends StatelessWidget {
   final Map<int, String> genresMap;
   final String? smartAnalysisStatusText;
 
+  /// 剧集详情页（Web /v/tv/episode/:guid）的标签栏仅展示「年份 / 时长」，
+  /// 不含评分、分级、类型、地区与媒体库名——与 Web 一致。
+  final bool isEpisode;
+
   const DetailTags({
     super.key,
     required this.item,
@@ -104,6 +109,7 @@ class DetailTags extends StatelessWidget {
     this.iso3166Map = const {},
     this.genresMap = const {},
     this.smartAnalysisStatusText,
+    this.isEpisode = false,
   });
 
   @override
@@ -111,7 +117,7 @@ class DetailTags extends StatelessWidget {
     final List<Widget> items = [];
 
     final voteAverage = double.tryParse(item.voteAverage) ?? 0.0;
-    if (voteAverage > 0) {
+    if (!isEpisode && voteAverage > 0) {
       items.add(Text(
         '${voteAverage.toStringAsFixed(1)} 分',
         style: const TextStyle(
@@ -121,7 +127,9 @@ class DetailTags extends StatelessWidget {
       ));
     }
 
-    if (item.contentRatings != null && item.contentRatings!.isNotEmpty) {
+    if (!isEpisode &&
+        item.contentRatings != null &&
+        item.contentRatings!.isNotEmpty) {
       items.add(Text(
         item.contentRatings!,
         style: TextStyle(
@@ -149,7 +157,7 @@ class DetailTags extends StatelessWidget {
       ));
     }
 
-    if (item.genres != null && item.genres!.isNotEmpty) {
+    if (!isEpisode && item.genres != null && item.genres!.isNotEmpty) {
       final genresText = item.genres!
           .map((id) => genresMap[id] ?? '')
           .where((s) => s.isNotEmpty)
@@ -170,7 +178,8 @@ class DetailTags extends StatelessWidget {
       }
     }
 
-    if (item.productionCountries != null &&
+    if (!isEpisode &&
+        item.productionCountries != null &&
         item.productionCountries!.isNotEmpty) {
       final countriesText = item.productionCountries!
           .map((c) {
@@ -210,21 +219,34 @@ class DetailTags extends StatelessWidget {
       ));
     }
 
-    if (item.ancestorName.isNotEmpty) {
-      items.add(Text(
-        item.ancestorName,
-        style: TextStyle(
-          color: FluentTheme.of(context)
-              .typography
-              .body
-              ?.color
-              ?.withValues(alpha: 0.8),
-          fontSize: 14,
-        ),
+    if (!isEpisode && item.ancestorName.isNotEmpty) {
+      final ancestorTextStyle = TextStyle(
+        color: FluentTheme.of(context)
+            .typography
+            .body
+            ?.color
+            ?.withValues(alpha: 0.8),
+        fontSize: 14,
+      );
+      // 复刻 Web：媒体库名前显示按库 category 选择的图标
+      // （Movie/TV/Mix/IPTV/Others，缺省按 Others）。
+      items.add(Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          buildMediaCategoryIcon(
+            category: item.ancestorCategory,
+            size: 16,
+            color: ancestorTextStyle.color,
+          ),
+          const SizedBox(width: 4),
+          Text(item.ancestorName, style: ancestorTextStyle),
+        ],
       ));
     }
 
-    if (smartAnalysisStatusText != null &&
+    if (!isEpisode &&
+        smartAnalysisStatusText != null &&
         smartAnalysisStatusText!.isNotEmpty) {
       items.add(Text(
         '智能片头/片尾检测状态：$smartAnalysisStatusText',

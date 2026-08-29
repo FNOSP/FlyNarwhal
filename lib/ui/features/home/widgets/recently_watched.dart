@@ -187,14 +187,16 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
       case 'Movie':
       case 'Video':
         ref.read(navigationStackProvider.notifier).pushPath('/home');
-        context.go('/movie/$itemGuid');
+        // Push (instead of go) so the home page stays mounted underneath and
+        // keeps its scroll position on return.
+        context.push('/movie/$itemGuid');
         return;
       case 'Episode':
         final parentGuid = widget.item.parentGuid?.trim();
         if (parentGuid == null || parentGuid.isEmpty) {
           return;
         }
-        context.go('/tv/season/$parentGuid');
+        context.push('/tv/season/$parentGuid');
         return;
       default:
         return;
@@ -360,10 +362,10 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                             .playerSourcePath = '/home';
                                         if (widget.item.type ==
                                             MediaType.liveChannel.value) {
-                                          context
-                                              .go('/live/${widget.item.guid}');
+                                          context.push(
+                                              '/live/${widget.item.guid}');
                                         } else {
-                                          context.go(
+                                          context.push(
                                               '/player/${widget.item.guid}');
                                         }
                                       },

@@ -58,6 +58,34 @@ class WindowGeometry {
     return displayWithLargestIntersection ?? _primaryDisplay(displays);
   }
 
+  /// Returns [size] with each axis shrunk to the work area of the target
+  /// display when it exceeds it; axes that already fit are left unchanged.
+  ///
+  /// The target display is chosen with [anchorBounds] when provided (the
+  /// display containing that rect), otherwise the primary display is used.
+  /// Sizes are compared in logical (scale-adjusted) units, matching how
+  /// [DesktopDisplayGeometry.workArea] is reported.
+  static Size fitSizeToWorkArea(
+    Size size,
+    List<DesktopDisplayGeometry> displays, {
+    Rect? anchorBounds,
+  }) {
+    if (displays.isEmpty) {
+      return size;
+    }
+    final display = anchorBounds != null
+        ? selectDisplay(anchorBounds, displays) ?? _primaryDisplay(displays)
+        : _primaryDisplay(displays);
+    final workArea = display.workArea;
+    if (workArea.width <= 0 || workArea.height <= 0) {
+      return size;
+    }
+    return Size(
+      size.width > workArea.width ? workArea.width : size.width,
+      size.height > workArea.height ? workArea.height : size.height,
+    );
+  }
+
   static Rect normalizeMainWindowBounds(
     Rect requestedBounds,
     List<DesktopDisplayGeometry> displays, {
@@ -91,6 +119,62 @@ class WindowGeometry {
       ),
       workArea,
     );
+  }
+
+  /// Restores the player window's remembered geometry, keeping it on the same
+  /// display as the main window when the user moved the main window to a
+  /// different display since the player last ran.
+  ///
+  /// When [anchorBounds] (the main window's bounds taken right before entering
+  /// the player) resolves to the same display as [savedBounds], the saved
+  /// position is kept; otherwise the player follows the main window: its size
+  /// is shrunk per axis to the anchor display's work area and the window is
+  /// centered on the main window's center, clamped to stay fully visible.
+  /// Without a usable anchor this behaves like [normalizeMainWindowBounds].
+  static Rect normalizePlayerBounds(
+    Rect savedBounds, {
+    required List<DesktopDisplayGeometry> displays,
+    Rect? anchorBounds,
+    Size minimumSize = const Size(640, 360),
+  }) {
+    if (displays.isEmpty ||
+        anchorBounds == null ||
+        !isValidBounds(anchorBounds)) {
+      return normalizeMainWindowBounds(
+        savedBounds,
+        displays,
+        fallbackSize: savedBounds.size,
+        minimumSize: minimumSize,
+      );
+    }
+
+    final anchorDisplay =
+        selectDisplay(anchorBounds, displays) ?? _primaryDisplay(displays);
+    final savedDisplay =
+        selectDisplay(savedBounds, displays) ?? _primaryDisplay(displays);
+
+    // Same display as the main window: keep the player's own remembered
+    // position (normalization clamps any axis overflowing the work area).
+    if (savedDisplay.id == anchorDisplay.id) {
+      return normalizeMainWindowBounds(
+        savedBounds,
+        displays,
+        fallbackSize: savedBounds.size,
+        minimumSize: minimumSize,
+      );
+    }
+
+    // The main window moved to a different display (or the player's display
+    // is gone): follow the main window, centered on its center.
+    final workArea = anchorDisplay.workArea;
+    final fittedSize =
+        _fitSizeToWorkArea(savedBounds.size, workArea, minimumSize);
+    final centered = Rect.fromCenter(
+      center: anchorBounds.center,
+      width: fittedSize.width,
+      height: fittedSize.height,
+    );
+    return _clampFullyVisible(centered, workArea);
   }
 
   static Rect normalizePipBounds(

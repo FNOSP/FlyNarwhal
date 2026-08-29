@@ -14,6 +14,7 @@ enum PlayerFlyoutType {
   settingsMenu,
   liveChannel,
   cloudPlayMode,
+  strmDirectPlay,
 }
 
 enum PlayerHoverZone {
@@ -32,6 +33,7 @@ enum PlayerHoverZone {
   playbackDetails,
   liveChannelControl,
   cloudPlayModeControl,
+  strmDirectPlayControl,
 }
 
 class PlayerOverlayState {
@@ -149,6 +151,8 @@ class PlayerOverlayController extends StateNotifier<PlayerOverlayState> {
         return PlayerHoverZone.liveChannelControl;
       case PlayerFlyoutType.cloudPlayMode:
         return PlayerHoverZone.cloudPlayModeControl;
+      case PlayerFlyoutType.strmDirectPlay:
+        return PlayerHoverZone.strmDirectPlayControl;
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:ui' show Offset, PlatformDispatcher, Rect, Size;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -10,20 +12,66 @@ class DesktopDisplayService {
       MethodChannel('fly_narwhal/window_display_frame');
 
   Future<List<DesktopDisplayGeometry>> getDisplays() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+    if (kIsWeb) {
       return const [];
     }
-
-    final result = await _channel.invokeMethod<List<Object?>>('getAllDisplays');
-    if (result == null) {
-      return const [];
+    final supportsNativeEnumeration =
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux;
+    if (supportsNativeEnumeration) {
+      try {
+        final result =
+            await _channel.invokeMethod<List<Object?>>('getAllDisplays');
+        final parsed = result
+                ?.whereType<Map<Object?, Object?>>()
+                .map(_parseDisplay)
+                .whereType<DesktopDisplayGeometry>()
+                .toList(growable: false) ??
+            const <DesktopDisplayGeometry>[];
+        if (parsed.isNotEmpty) {
+          return parsed;
+        }
+      } catch (_) {
+        // A stale native binary without getAllDisplays (or a platform that
+        // cannot enumerate) must not break startup: fall through to the
+        // Flutter-view display below.
+      }
     }
 
-    return result
-        .whereType<Map<Object?, Object?>>()
-        .map(_parseDisplay)
-        .whereType<DesktopDisplayGeometry>()
-        .toList(growable: false);
+    // Fall back to the display the Flutter view is on so window-size
+    // clamping still has a screen ceiling instead of resizing unbounded.
+    final fallback = flutterViewDisplay();
+    return fallback == null ? const [] : [fallback];
+  }
+
+  /// The display the app's Flutter view is currently on, derived from the
+  /// engine's [PlatformDispatcher]. Used as the clamping ceiling when native
+  /// display enumeration is unavailable or fails.
+  static DesktopDisplayGeometry? flutterViewDisplay() {
+    final view = PlatformDispatcher.instance.implicitView;
+    final display = view?.display;
+    if (display == null) {
+      return null;
+    }
+    final physicalSize = display.size;
+    final scaleFactor = display.devicePixelRatio;
+    if (physicalSize.width <= 0 ||
+        physicalSize.height <= 0 ||
+        scaleFactor <= 0) {
+      return null;
+    }
+    final logicalSize = Size(
+      physicalSize.width / scaleFactor,
+      physicalSize.height / scaleFactor,
+    );
+    return DesktopDisplayGeometry(
+      id: 'flutter-display-${display.id}',
+      monitorBounds: Offset.zero & logicalSize,
+      workArea: Offset.zero & logicalSize,
+      isPrimary: true,
+      scaleFactor: scaleFactor,
+    );
   }
 
   Future<Rect?> getCurrentMonitorBounds() async {

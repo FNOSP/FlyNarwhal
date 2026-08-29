@@ -11,6 +11,7 @@ import '../../../providers/global_refresh.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
 import '../../shared/window_caption.dart';
+import '../../shared/media_category_icon.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../search/widgets/capsule_search_box.dart';
 import '../update/update_badge.dart';
@@ -51,9 +52,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     // Register the macOS "open preferences" shortcut as a global
     // hardware-keyboard handler so it fires no matter which widget owns the
     // focus (including right after launch, when nothing is focused yet).
-    // The player pages (/player/:guid, /live/:guid) live outside the
-    // ShellRoute, so MainLayout is not mounted there and the handler stays
-    // inactive.
+    // The player pages (/player/:guid, /live/:guid) are pushed on top of the
+    // shell, so MainLayout stays mounted underneath; the handler ignores
+    // keys while a player page is on top.
     if (!kIsWeb && Platform.isMacOS) {
       HardwareKeyboard.instance.addHandler(_handleOpenSettingsKey);
     }
@@ -63,6 +64,13 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     // Only react to the initial key-down so holding the keys navigates
     // once instead of on every key repeat.
     if (event is! KeyDownEvent || !_openSettingsBinding.matches(event)) {
+      return false;
+    }
+    // Stay inactive while a fullscreen player page is pushed on top of the
+    // shell (MainLayout remains mounted underneath).
+    final location =
+        GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
+    if (location.startsWith('/player/') || location.startsWith('/live/')) {
       return false;
     }
     context.go('/settings');
@@ -144,29 +152,14 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     }
 
     Widget buildCategoryIcon(String category) {
-      String assetPath;
-      switch (category) {
-        case 'Movie':
-          assetPath = 'assets/images/movie.svg';
-          break;
-        case 'TV':
-          assetPath = 'assets/images/tv.svg';
-          break;
-        case 'Mix':
-          assetPath = 'assets/images/mix_media.svg';
-          break;
-        case 'IPTV':
-          // Live TV media library (e.g. 国内电视台).
-          assetPath = 'assets/images/live_tv.svg';
-          break;
-        case 'Others':
-          assetPath = 'assets/images/other_media.svg';
-          break;
-        default:
-          assetPath = 'assets/images/other_media.svg';
-          break;
-      }
-      return buildNavigationAssetIcon(assetPath);
+      final theme = FluentTheme.of(context);
+      final iconColor =
+          IconTheme.of(context).color ?? theme.iconTheme.color ?? Colors.white;
+      return buildMediaCategoryIcon(
+        category: category,
+        size: 14,
+        color: iconColor,
+      );
     }
 
     List<NavigationPaneItem> buildMediaDbItems() {
@@ -636,22 +629,19 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
       onKeyEvent: handleGlobalKeyEvent,
       child: Stack(
         children: [
-          // fluent_ui's minimal-mode layout (_buildMinimalView) reserves a
-          // 38px band at the top of the NavigationView for the window title
-          // bar and starts page content below it. We draw our own title bar
-          // above, so in minimal mode shift the whole view up 38px: the
-          // reserved band slides under the (later-painted, opaque) title bar
-          // and page content starts flush below it, exactly like the other
-          // display modes.
+          // In minimal mode fluent_ui reserves a band at the top of the view
+          // for its own title bar, whose square bottom edge used to cover the
+          // drawer's rounded top corners. Pass minimalReservedTopExtent: 0 so
+          // the band is not drawn and the drawer starts right below our title
+          // bar with both right corners rounded.
           Positioned(
-            top: isMinimalDisplayMode
-                ? kWindowTitleBarHeight - 38.0
-                : kWindowTitleBarHeight,
+            top: kWindowTitleBarHeight,
             left: 0,
             right: 0,
             bottom: 0,
             child: NavigationView(
               key: _navigationViewKey,
+              minimalReservedTopExtent: 0,
               pane: NavigationPane(
                 header: pane.header,
                 selected: selectedIndex >= 0 ? selectedIndex : null,

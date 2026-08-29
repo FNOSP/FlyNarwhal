@@ -415,7 +415,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
             onTap: () {
                 ref.read(navigationStackProvider.notifier).playerSourcePath =
                     GoRouterState.of(context).uri.toString();
-                context.go('/live/${item.guid}');
+                context.push('/live/${item.guid}');
               },
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 8 * scaleFactor),
@@ -512,12 +512,12 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                 onTap: () {
                 ref.read(navigationStackProvider.notifier).playerSourcePath =
                     GoRouterState.of(context).uri.toString();
-                context.go('/live/${item.guid}');
+                context.push('/live/${item.guid}');
               },
                 onPlayTap: () {
                   ref.read(navigationStackProvider.notifier).playerSourcePath =
                       GoRouterState.of(context).uri.toString();
-                  context.go('/live/${item.guid}');
+                  context.push('/live/${item.guid}');
                 },
                 onFavoriteToggle: _handleFavoriteToggle,
                 // 直播台无“已观看”/智能分析状态，故不传 onWatchedToggle /
@@ -582,14 +582,16 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                 onPlayTap: isDirectory
                     ? null
                     : () {
+                        // Record the source page for the player's back
+                        // button (VOD and live).
+                        ref
+                            .read(navigationStackProvider.notifier)
+                            .playerSourcePath =
+                            GoRouterState.of(context).uri.toString();
                         if (item.type == MediaType.liveChannel.value) {
-                          ref
-                              .read(navigationStackProvider.notifier)
-                              .playerSourcePath =
-                              GoRouterState.of(context).uri.toString();
-                          context.go('/live/${item.guid}');
+                          context.push('/live/${item.guid}');
                         } else {
-                          context.go('/player/${item.guid}');
+                          context.push('/player/${item.guid}');
                         }
                       },
                 onFavoriteToggle: _handleFavoriteToggle,
@@ -617,18 +619,20 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   }
 
   void _navigateGeneralLibraryItem(MediaItem item) {
+    // Push (instead of go) so the library page stays mounted underneath and
+    // keeps its scroll position on return.
     switch (MediaType.tryParse(item.type)) {
       case MediaType.tv:
-        context.go('/tv/${item.guid}');
+        context.push('/tv/${item.guid}');
         break;
       case MediaType.season:
-        context.go('/tv/season/${item.guid}');
+        context.push('/tv/season/${item.guid}');
         break;
       case MediaType.directory:
-        context.go('/folder/${item.guid}');
+        context.push('/folder/${item.guid}');
         break;
       default:
-        context.go('/movie/${item.guid}');
+        context.push('/movie/${item.guid}');
     }
   }
 
@@ -1139,42 +1143,49 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                           type: item.type,
                                           guid: item.guid,
                                           onTap: () {
+                                            // Push (instead of go) so the
+                                            // library page keeps its scroll
+                                            // position on return.
                                             switch (itemMediaType) {
                                               case MediaType.tv:
-                                                context.go('/tv/${item.guid}');
+                                                context.push(
+                                                    '/tv/${item.guid}');
                                                 break;
                                               case MediaType.season:
-                                                context.go(
+                                                context.push(
                                                     '/tv/season/${item.guid}');
                                                 break;
                                               case MediaType.directory:
-                                                context.go(
+                                                context.push(
                                                     '/folder/${item.guid}');
                                                 break;
                                               default:
                                                 context
-                                                    .go('/movie/${item.guid}');
+                                                    .push('/movie/${item.guid}');
                                             }
                                           },
                                           onPlayTap: isDirectory
                                               ? null
                                               : () {
+                                                  // Record the source page
+                                                  // for the player's back
+                                                  // button (VOD and live).
+                                                  ref
+                                                      .read(
+                                                          navigationStackProvider
+                                                              .notifier)
+                                                      .playerSourcePath =
+                                                      GoRouterState.of(
+                                                              context)
+                                                          .uri
+                                                          .toString();
                                                   if (item.type ==
                                                       MediaType
                                                           .liveChannel.value) {
-                                                    ref
-                                                        .read(
-                                                            navigationStackProvider
-                                                                .notifier)
-                                                        .playerSourcePath =
-                                                        GoRouterState.of(
-                                                                context)
-                                                            .uri
-                                                            .toString();
-                                                    context.go(
+                                                    context.push(
                                                         '/live/${item.guid}');
                                                   } else {
-                                                    context.go(
+                                                    context.push(
                                                         '/player/${item.guid}');
                                                   }
                                                 },

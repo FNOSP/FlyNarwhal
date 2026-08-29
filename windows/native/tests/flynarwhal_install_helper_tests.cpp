@@ -51,11 +51,16 @@ void TestFixedPolicy() {
   policy.log_path = L"C:\\logs\\install.log";
   const std::vector<std::wstring> arguments =
       helper::BuildFixedInstallerArguments(policy);
-  Expect(arguments.size() == 7, "fixed policy should contain seven arguments");
-  Expect(arguments[0] == L"/VERYSILENT", "silent flag should be fixed");
-  Expect(arguments[5] == L"/DIR=D:\\Program Files\\FlyNarwhal",
+  Expect(arguments.size() == 6, "fixed policy should contain six arguments");
+  Expect(arguments[0] == L"/SILENT", "silent flag should be fixed");
+  Expect(arguments[1] == L"/SUPPRESSMSGBOXES",
+         "message boxes should be suppressed");
+  Expect(arguments[2] == L"/NORESTART", "restart flag should be fixed");
+  Expect(arguments[3] == L"/CLOSEAPPLICATIONS",
+         "close applications flag should be fixed");
+  Expect(arguments[4] == L"/DIR=D:\\Program Files\\FlyNarwhal",
          "install root should preserve the caller supplied path");
-  Expect(arguments[6].rfind(L"/LOG=", 0) == 0,
+  Expect(arguments[5].rfind(L"/LOG=", 0) == 0,
          "log path should be policy supplied");
 }
 
@@ -96,6 +101,7 @@ void TestJournalRoundTripAndCancel() {
   journal.endpoint_version = L"2.1.0";
   journal.recovery_task_name = L"FlyNarwhal.UpdateRecovery." + transaction_id;
   journal.state = helper::TransactionState::prepared;
+  journal.package_mode = helper::PackageMode::portable;
 
   std::wstring error;
   Expect(helper::WriteJournalDurably(journal, &error),
@@ -107,6 +113,8 @@ void TestJournalRoundTripAndCancel() {
            "transaction ID should survive roundtrip");
     Expect(restored->state == helper::TransactionState::prepared,
            "state should survive roundtrip");
+    Expect(restored->package_mode == helper::PackageMode::portable,
+           "portable package mode should survive roundtrip");
     Expect(restored->update_log_path == journal.update_log_path,
            "update log path should survive roundtrip");
     Expect(restored->protected_helper_path == journal.protected_helper_path,

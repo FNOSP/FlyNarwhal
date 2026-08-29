@@ -28,6 +28,7 @@ import '../services/update/platform_update_installer.dart';
 import '../services/update/windows_native_update_installer.dart';
 import '../services/update/windows_native_updater_bridge.dart';
 import '../services/update/windows_platform_update_recovery.dart';
+import '../services/update/windows_portable_endpoint_registrar.dart';
 import '../services/update/windows_update_install_stage_store.dart';
 import '../services/update/windows_update_transaction_store.dart';
 import '../services/update/sha256_verifier.dart';
@@ -151,6 +152,15 @@ final windowsNativeUpdateInstallerProvider =
   );
 });
 
+/// Registers the protected updater endpoint for portable Windows bundles.
+final windowsPortableEndpointRegistrarProvider =
+    Provider<WindowsPortableEndpointRegistrar>((ref) {
+  return WindowsPortableEndpointRegistrar(
+    transactionStore: ref.watch(windowsUpdateTransactionStoreProvider),
+    appVersionService: ref.watch(appVersionServiceProvider),
+  );
+});
+
 final platformUpdateInstallerProvider =
     Provider<PlatformUpdateInstaller>((ref) {
   if (kIsWeb) {
@@ -240,12 +250,18 @@ final updateInstallFailureRecoveryProvider =
   }
   if (Platform.isWindows) {
     final transactionStore = ref.watch(windowsUpdateTransactionStoreProvider);
+    final registrar = ref.watch(windowsPortableEndpointRegistrarProvider);
     final recovery = WindowsPlatformUpdateRecovery(
       stageStore: ref.watch(windowsUpdateInstallStageStoreProvider),
       transactionStore: transactionStore,
       bridge: ref.watch(windowsDesktopUpdaterBridgeProvider),
     );
-    return recovery.recoverFailure;
+    return () async {
+      // Portable bundles must register the protected endpoint before any
+      // helper call, because query/recover also pass through the bootstrap.
+      await registrar.ensureRegistered();
+      return recovery.recoverFailure();
+    };
   }
   if (Platform.isMacOS) {
     final installer = ref.watch(macOSUpdateInstallerProvider);

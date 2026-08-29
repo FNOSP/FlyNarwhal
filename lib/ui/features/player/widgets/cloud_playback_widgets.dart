@@ -685,6 +685,11 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
   final VoidCallback onBack;
   final bool isProxyMode;
 
+  /// STRM media has no quality list and no direct/proxy switch: the error
+  /// page shows the STRM-specific cause hint and only 返回 / 重试 (mirrors
+  /// the web player's STRM playback-error page).
+  final bool isStrm;
+
   const CloudPlaybackErrorDialog({
     super.key,
     required this.onRetry,
@@ -693,6 +698,7 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
     required this.onSwitchDirect,
     required this.onBack,
     this.isProxyMode = false,
+    this.isStrm = false,
   });
 
   @override
@@ -711,14 +717,32 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: 8),
-              const Text(
-                '抱歉，播放出错了',
-                style: TextStyle(
-                  color: Color(0x99FFFFFF),
-                  fontSize: 16,
-                  height: 22 / 16,
+              if (isStrm)
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: 720),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 40),
+                    child: Text(
+                      'STRM 直连播放异常，可能原因：网盘挂载连接断开、触发网盘风控、'
+                      '网盘限制非会员操作、浏览器不支持该文件类型。',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0x99FFFFFF),
+                        fontSize: 18,
+                        height: 28 / 18,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                const Text(
+                  '抱歉，播放出错了',
+                  style: TextStyle(
+                    color: Color(0x99FFFFFF),
+                    fontSize: 16,
+                    height: 22 / 16,
+                  ),
                 ),
-              ),
               const SizedBox(height: 30),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -732,9 +756,10 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
                   _ErrorPageActionButton(
                     key: const ValueKey('player-cloud-error-retry'),
                     label: '重试',
+                    primary: isStrm,
                     onPressed: onRetry,
                   ),
-                  if (!isProxyMode) ...[
+                  if (!isStrm && !isProxyMode) ...[
                     const SizedBox(width: 16),
                     _ErrorPageActionButton(
                       key: const ValueKey('player-cloud-error-switch-quality'),
@@ -748,7 +773,7 @@ class CloudPlaybackErrorDialog extends StatelessWidget {
                       primary: true,
                       onPressed: onSwitchProxy,
                     ),
-                  ] else ...[
+                  ] else if (!isStrm) ...[
                     const SizedBox(width: 16),
                     _ErrorPageActionButton(
                       key: const ValueKey('player-cloud-error-switch-direct'),

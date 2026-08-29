@@ -94,6 +94,8 @@ class _ChangelogMarkdownView extends StatelessWidget {
         : theme.resources.cardBackgroundFillColorDefault;
     return MarkdownStyleSheet(
       p: bodyStyle,
+      blockSpacing: 10,
+      h2Padding: const EdgeInsets.only(top: 36, bottom: 12),
       a: bodyStyle?.copyWith(
         color: theme.accentColor,
         decoration: TextDecoration.underline,

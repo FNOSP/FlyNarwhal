@@ -6,6 +6,7 @@ import '../../../core/network/api_result.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
+import '../../../data/models/season_list_response.dart';
 import '../../../providers/providers.dart';
 
 part 'tv_season_detail_view_model.g.dart';
@@ -15,6 +16,7 @@ class TvSeasonDetailState {
   final ItemResponse? parentItem;
   final PlayInfoResponse? playInfo;
   final List<EpisodeListResponse> episodeList;
+  final List<SeasonListResponse> seasonList;
   final List<PersonList> personList;
   final Map<String, String> iso6391;
   final Map<String, String> iso6392;
@@ -27,6 +29,7 @@ class TvSeasonDetailState {
     this.parentItem,
     this.playInfo,
     this.episodeList = const [],
+    this.seasonList = const [],
     this.personList = const [],
     this.iso6391 = const {},
     this.iso6392 = const {},
@@ -40,6 +43,7 @@ class TvSeasonDetailState {
     ItemResponse? parentItem,
     PlayInfoResponse? playInfo,
     List<EpisodeListResponse>? episodeList,
+    List<SeasonListResponse>? seasonList,
     List<PersonList>? personList,
     Map<String, String>? iso6391,
     Map<String, String>? iso6392,
@@ -52,6 +56,7 @@ class TvSeasonDetailState {
       parentItem: parentItem ?? this.parentItem,
       playInfo: playInfo ?? this.playInfo,
       episodeList: episodeList ?? this.episodeList,
+      seasonList: seasonList ?? this.seasonList,
       personList: personList ?? this.personList,
       iso6391: iso6391 ?? this.iso6391,
       iso6392: iso6392 ?? this.iso6392,
@@ -81,6 +86,12 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
     return result.dataOrNull ?? const <EpisodeListResponse>[];
   }
 
+  Future<List<SeasonListResponse>> _fetchSeasonList(String parentGuid) async {
+    final remote = ref.read(mediaRemoteDataSourceProvider);
+    final result = await remote.getSeasonList(parentGuid);
+    return result.dataOrNull ?? const <SeasonListResponse>[];
+  }
+
   Future<void> _fetchStreamList() async {
     final remote = ref.read(mediaRemoteDataSourceProvider);
     await remote.getStreamList(guid);
@@ -102,6 +113,9 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
     final parentItemFuture = item.type == 'Season' && item.parentGuid.isNotEmpty
         ? _fetchItemDetail(item.parentGuid)
         : Future<ItemResponse?>.value(null);
+    final seasonListFuture = item.type == 'Season' && item.parentGuid.isNotEmpty
+        ? _fetchSeasonList(item.parentGuid)
+        : Future<List<SeasonListResponse>>.value(const []);
 
     final results = await Future.wait([
       _fetchPlayInfo(),
@@ -111,6 +125,7 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
       _safeApiRequest(() => tagRepo.getTag('iso6392')),
       _safeApiRequest(() => tagRepo.getTag('iso3166')),
       parentItemFuture,
+      seasonListFuture,
     ]);
 
     final playInfo = results[0] as PlayInfoResponse?;
@@ -123,12 +138,14 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
     final iso3166 =
         (results[5] as Map<String, String>?) ?? const <String, String>{};
     final parentItem = results[6] as ItemResponse?;
+    final seasonList = results[7] as List<SeasonListResponse>;
 
     return TvSeasonDetailState(
       item: item,
       parentItem: parentItem,
       playInfo: playInfo,
       episodeList: episodes,
+      seasonList: seasonList,
       personList: personList ?? const [],
       iso6391: iso6391,
       iso6392: iso6392,

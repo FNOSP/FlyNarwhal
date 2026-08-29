@@ -77,33 +77,66 @@ Future<void> bootstrapApp() async {
       await windowManager.setPreventClose(true);
 
       const defaultWindowSize = Size(1280, 720);
+      // Smallest size the user may shrink the main (non-player) window to.
+      const mainWindowMinimumSize = Size(800, 450);
       final savedState = MainWindowSettingsStore(prefs).read();
+
+      // Displays are resolved regardless of whether saved geometry exists:
+      // they validate restored bounds and shrink the default size on screens
+      // whose scaled work area is smaller than 1280x720 so the window never
+      // overflows the visible area.
+      List<DesktopDisplayGeometry> displays = const [];
+      try {
+        displays = await const DesktopDisplayService().getDisplays();
+      } catch (error, stackTrace) {
+        AppTalker.warning('Window', 'Display discovery failed: $error');
+        AppTalker.instance.handle(error, stackTrace);
+      }
+
       Rect? restoredBounds;
       if (savedState != null) {
-        try {
-          final displays = await const DesktopDisplayService().getDisplays();
-          restoredBounds = WindowGeometry.normalizeMainWindowBounds(
-            savedState.bounds,
-            displays,
-            fallbackSize: defaultWindowSize,
-            minimumSize: defaultWindowSize,
-          );
-        } catch (error, stackTrace) {
-          AppTalker.warning('Window', 'Display discovery failed: $error');
-          AppTalker.instance.handle(error, stackTrace);
-          restoredBounds = savedState.bounds;
-        }
+        restoredBounds = WindowGeometry.normalizeMainWindowBounds(
+          savedState.bounds,
+          displays,
+          fallbackSize: defaultWindowSize,
+          minimumSize: mainWindowMinimumSize,
+        );
       }
+
+      // Startup size for launches without restorable geometry: the default
+      // size with any axis exceeding the primary display's scaled work area
+      // shrunk to fit it (e.g. a portrait 1080p screen starts at
+      // 1080x720 instead of overflowing).
+      final startupSize = WindowGeometry.fitSizeToWorkArea(
+        defaultWindowSize,
+        displays,
+      );
+      // The minimum follows the same rule so displays with a smaller scaled
+      // work area never end up with a minimum larger than the visible area.
+      final minimumSize = WindowGeometry.fitSizeToWorkArea(
+        mainWindowMinimumSize,
+        displays,
+      );
+      AppTalker.info(
+        'Window',
+        'Startup size ${startupSize.width.toStringAsFixed(0)}x'
+            '${startupSize.height.toStringAsFixed(0)} '
+            '(default ${defaultWindowSize.width.toStringAsFixed(0)}x'
+            '${defaultWindowSize.height.toStringAsFixed(0)}, '
+            'minimum ${minimumSize.width.toStringAsFixed(0)}x'
+            '${minimumSize.height.toStringAsFixed(0)}, '
+            'displays=${displays.length}, restored=$restoredBounds)',
+      );
 
       final windowOptions = WindowOptions(
         title: '飞鲸影视',
-        size: restoredBounds?.size ?? defaultWindowSize,
+        size: restoredBounds?.size ?? startupSize,
         center: restoredBounds == null,
         titleBarStyle: TitleBarStyle.hidden,
       );
 
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
-        await windowManager.setMinimumSize(defaultWindowSize);
+        await windowManager.setMinimumSize(minimumSize);
         if (restoredBounds != null) {
           await windowManager.setBounds(restoredBounds);
         }

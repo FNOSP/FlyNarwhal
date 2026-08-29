@@ -23,6 +23,10 @@ class SpeedItem {
 
 @JsonSerializable()
 class CloudStorageInfo {
+  /// `cloud_storage_type` value the backend uses for STRM files (not a real
+  /// cloud drive; the NAS resolves the .strm content to a playable URL).
+  static const int strmCloudStorageType = 9001;
+
   @JsonKey(name: 'dav_username')
   final String? davUsername;
   final bool? valid;
@@ -61,6 +65,9 @@ class CloudStorageInfo {
   factory CloudStorageInfo.fromJson(Map<String, dynamic> json) =>
       _$CloudStorageInfoFromJson(json);
   Map<String, dynamic> toJson() => _$CloudStorageInfoToJson(this);
+
+  /// True when this media is an STRM file rather than a cloud-drive link.
+  bool get isStrm => cloudStorageType == strmCloudStorageType;
 }
 
 @JsonSerializable()

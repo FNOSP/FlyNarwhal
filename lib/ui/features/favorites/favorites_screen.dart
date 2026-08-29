@@ -579,35 +579,41 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                     type: item.type,
                                     guid: item.guid,
                                     onTap: () {
+                                      // Push (instead of go) so the favorites
+                                      // page keeps its scroll position on
+                                      // return.
                                       if (item.type == 'TV') {
-                                        context.go('/tv/${item.guid}');
+                                        context.push('/tv/${item.guid}');
                                       } else if (item.type == 'Season') {
-                                        context.go('/tv/season/${item.guid}');
+                                        context.push('/tv/season/${item.guid}');
                                       } else if (item.type == 'Directory') {
-                                        context.go('/folder/${item.guid}');
+                                        context.push('/folder/${item.guid}');
                                       } else {
-                                        context.go('/movie/${item.guid}');
+                                        context.push('/movie/${item.guid}');
                                       }
                                     },
                                     onPlayTap:
                                         item.type == 'Directory'
                                             ? null
                                             : () {
+                                                // Record the source page for
+                                                // the player's back button
+                                                // (VOD and live).
+                                                ref
+                                                    .read(
+                                                        navigationStackProvider
+                                                            .notifier)
+                                                    .playerSourcePath =
+                                                    GoRouterState.of(context)
+                                                        .uri
+                                                        .toString();
                                                 if (item.type ==
                                                     MediaType
                                                         .liveChannel.value) {
-                                                  ref
-                                                      .read(
-                                                          navigationStackProvider
-                                                              .notifier)
-                                                      .playerSourcePath =
-                                                      GoRouterState.of(context)
-                                                          .uri
-                                                          .toString();
                                                   context
-                                                      .go('/live/${item.guid}');
+                                                      .push('/live/${item.guid}');
                                                 } else {
-                                                  context.go(
+                                                  context.push(
                                                       '/player/${item.guid}');
                                                 }
                                               },

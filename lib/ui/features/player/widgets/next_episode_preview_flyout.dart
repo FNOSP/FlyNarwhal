@@ -86,6 +86,13 @@ class _NextEpisodePreviewFlyoutState extends State<NextEpisodePreviewFlyout>
   void dispose() {
     _hideTimer?.cancel();
     _hideOverlay();
+    // If the flyout is removed from the tree mid-hover (e.g. clicking its
+    // trigger to switch episode sets _nextEpisode to null), MouseRegion.onExit
+    // never fires and this strand's nextEpisode hover zone in the overlay
+    // controller, which then permanently blocks auto-hide. Clear it here.
+    if (_isExpanded || _isButtonHovered) {
+      widget.onHoverStateChanged?.call(false);
+    }
     _animationController.dispose();
     super.dispose();
   }

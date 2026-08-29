@@ -26,7 +26,9 @@ class PipWindowModeController {
 
   static const Size defaultPipSize = Size(320, 180);
   static const Size minimumPipSize = Size(280, 158);
-  static const Size _normalWindowMinimumSize = Size(1280, 720);
+  // The smallest the normal (non-PiP) player window may be shrunk to. Used to
+  // restore the window on PiP exit without growing a user-chosen small size.
+  static const Size _playerWindowMinimumSize = Size(640, 360);
   static const double _cornerMargin = 24;
   static const double _defaultPipWidth = 320;
   static const double _minimumPipWidth = 280;
@@ -163,8 +165,8 @@ class PipWindowModeController {
       final restoredBounds = WindowGeometry.normalizeMainWindowBounds(
         snapshot.bounds,
         displays,
-        fallbackSize: _normalWindowMinimumSize,
-        minimumSize: _normalWindowMinimumSize,
+        fallbackSize: _playerWindowMinimumSize,
+        minimumSize: _playerWindowMinimumSize,
       );
       await windowManager.setBounds(restoredBounds);
       if (snapshot.wasMaximized) {
@@ -267,15 +269,15 @@ class PipWindowModeController {
   Size _normalMinimumSizeForSnapshot(_PipWindowSnapshot snapshot) {
     final snapshotMinimumSize = snapshot.minimumSize;
     if (snapshotMinimumSize == null) {
-      return _normalWindowMinimumSize;
+      return _playerWindowMinimumSize;
     }
     final restoredWidth =
-        snapshotMinimumSize.width < _normalWindowMinimumSize.width
-            ? _normalWindowMinimumSize.width
+        snapshotMinimumSize.width < _playerWindowMinimumSize.width
+            ? _playerWindowMinimumSize.width
             : snapshotMinimumSize.width;
     final restoredHeight =
-        snapshotMinimumSize.height < _normalWindowMinimumSize.height
-            ? _normalWindowMinimumSize.height
+        snapshotMinimumSize.height < _playerWindowMinimumSize.height
+            ? _playerWindowMinimumSize.height
             : snapshotMinimumSize.height;
     return Size(restoredWidth, restoredHeight);
   }

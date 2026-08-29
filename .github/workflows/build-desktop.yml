@@ -268,12 +268,37 @@ jobs:
           $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([^+]+)').Matches[0].Groups[1].Value
           iscc "/DMyAppArch=${{ matrix.installer-arch }}" "/DMyAppVersion=$version" "/DFlutterBundleDir=$PWD\\build\\windows\\${{ matrix.architecture }}\\runner\\Release" installer/setup.iss
 
+      - name: Package Windows portable zip
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([^+]+)').Matches[0].Groups[1].Value
+          $bundle = Join-Path $PWD "build\windows\${{ matrix.architecture }}\runner\Release"
+          # The PORTABLE marker tells the running app it is a portable bundle
+          # (drives update asset selection and endpoint self-registration).
+          # It is written after iscc so the installer never ships it.
+          Set-Content -Path (Join-Path $bundle 'PORTABLE') -Value 'portable' -Encoding ascii -NoNewline
+          New-Item -ItemType Directory -Force -Path "build\portable" | Out-Null
+          $zipPath = Join-Path $PWD "build\portable\FlyNarwhal_Portable_Windows_${{ matrix.installer-arch }}_$version.zip"
+          Push-Location $bundle
+          try {
+            # Archive the bundle children at the zip root so the updater can
+            # extract the archive straight over the portable directory.
+            tar.exe -a -c -f $zipPath *
+          } finally {
+            Pop-Location
+          }
+          if ($LASTEXITCODE -ne 0) {
+            throw "Portable zip packaging failed with exit code $LASTEXITCODE."
+          }
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: |
             build/installer/FlyNarwhal_Setup_Windows_*.exe
+            build/portable/FlyNarwhal_Portable_Windows_*.zip
             build/macos/Build/Products/Release/*.dmg
             dist/**/*
           if-no-files-found: error
@@ -350,8 +375,9 @@ jobs:
           mkdir -p release-assets
           # Flatten installers so published asset names match SHA256SUMS entries.
           # Include all desktop packages produced by the build matrix:
-          # Windows (.exe), macOS (.dmg), Linux (.deb, .rpm, .pkg.tar.zst, .AppImage).
-          find artifacts -type f -name 'FlyNarwhal_Setup_*' -exec cp -f {} release-assets/ \;
+          # Windows (.exe + portable .zip), macOS (.dmg),
+          # Linux (.deb, .rpm, .pkg.tar.zst, .AppImage).
+          find artifacts -type f \( -name 'FlyNarwhal_Setup_*' -o -name 'FlyNarwhal_Portable_*' \) -exec cp -f {} release-assets/ \;
           count=$(find release-assets -type f | wc -l)
           if [ "$count" -eq 0 ]; then
             echo '::error::No FlyNarwhal installers found in the build artifacts.'

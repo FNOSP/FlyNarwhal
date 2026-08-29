@@ -1,7 +1,7 @@
 name: fly_narwhal
 description: "A new Flutter project."
 publish_to: 'none'
-version: 2.2.1-beta
+version: 2.3.1
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -79,11 +79,24 @@ dev_dependencies:
 # the *full* FFmpeg/mpv XCFramework (PGS/HDMV SUP bitmap subtitle support).
 # See third_party/media_kit_libs_macos_video_full/macos/Makefile for the
 # pinned upstream archive (libmpv-xcframeworks_v0.6.0_macos-universal-video-full).
+#
+# Override fluent_ui with a fork carrying two NavigationView fixes
+# (unfixed upstream as of 4.16.1), both on the fix/minimal-pane-reserved-top
+# branch (based on tag v4.16.1):
+# 1. Switching the display mode or toggling the compact overlay crashes with
+#    "_RenderLayoutBuilder was mutated" and a "_elements.contains(element)"
+#    assertion; each pane overlay position now gets its own key.
+# 2. A configurable minimalReservedTopExtent lets LeftMinimal show the drawer's
+#    rounded top corners instead of the hard-coded 38px square title-bar band.
 dependency_overrides:
   media_kit_libs_macos_video:
     path: third_party/media_kit_libs_macos_video_full
   media_kit_libs_windows_video:
     path: third_party/media_kit_libs_windows_video
+  fluent_ui:
+    git:
+      url: https://github.com/Jankin-Wu/fluent_ui.git
+      ref: fix/minimal-pane-reserved-top
 
 flutter:
   uses-material-design: true

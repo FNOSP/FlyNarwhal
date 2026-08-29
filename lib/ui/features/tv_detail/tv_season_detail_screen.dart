@@ -12,6 +12,7 @@ import '../../shared/common/app_loading_progress_ring.dart';
 
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
+import '../../../data/models/season_list_response.dart';
 import '../../../data/models/fly_narwhal/index.dart';
 import '../../../data/storage/preferences_manager.dart';
 import '../../../domain/entities/media_type.dart';
@@ -137,7 +138,6 @@ class _TvSeasonDetailContent extends ConsumerStatefulWidget {
 
 class _TvSeasonDetailContentState
     extends ConsumerState<_TvSeasonDetailContent> {
-  late final ScrollController _descriptionScrollController = ScrollController();
   late final FlyoutController _moreController = FlyoutController();
   late final SeasonAnalysisStatusController _seasonAnalysisStatusController;
 
@@ -166,7 +166,6 @@ class _TvSeasonDetailContentState
       notifyListeners: false,
     );
     _moreController.dispose();
-    _descriptionScrollController.dispose();
     _castScrollController.dispose();
     super.dispose();
   }
@@ -184,36 +183,11 @@ class _TvSeasonDetailContentState
   }
 
   void _showDescriptionDialog(BuildContext context, ItemResponse item) {
-    if (_descriptionScrollController.hasClients) {
-      _descriptionScrollController.jumpTo(0);
-    }
     showDialog(
       context: context,
-      builder: (context) => ContentDialog(
-        title: const Text('剧集简介'),
-        content: Scrollbar(
-          controller: _descriptionScrollController,
-          child: SingleChildScrollView(
-            controller: _descriptionScrollController,
-            primary: false,
-            child: Text(
-              item.overview ?? '暂无介绍',
-              style: FluentTheme.of(context)
-                  .typography
-                  .body
-                  ?.copyWith(height: 1.6),
-            ),
-          ),
-        ),
-        actions: [
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: AppButton(
-              child: const Text('关闭'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-        ],
+      builder: (_) => MediaDescriptionDialog(
+        title: '剧集简介',
+        content: item.overview ?? '暂无介绍',
       ),
     );
   }
@@ -571,17 +545,24 @@ class _TvSeasonDetailContentState
                 child: _EpisodeListSection(
                   episodes: widget.state.episodeList,
                   playInfo: widget.state.playInfo,
+                  seasonList: widget.state.seasonList,
+                  currentSeasonGuid: widget.guid,
+                  tvTitle: item.tvTitle,
                   baseUrl: widget.baseUrl,
                   httpHeaders: widget.httpHeaders,
                   cacheManager: widget.cacheManager,
                   prefsManager: widget.prefsManager,
                   userGuid: ref.watch(currentUserGuidProvider),
-                  onEpisodeTap: (episode) {
+                  onEpisodePlay: (episode) {
                     // Navigate to player screen for this episode
                     ref
                         .read(navigationStackProvider.notifier)
                         .playerSourcePath = '/tv/season/${widget.guid}';
-                    context.go('/player/${episode.guid}');
+                    context.push('/player/${episode.guid}');
+                  },
+                  onEpisodeOpenDetail: (episode) {
+                    // 点击海报空白区/标题区进入集详情页（复刻 Web）。
+                    context.go('/tv/episode/${episode.guid}');
                   },
                   onFavoriteToggle: (guid, isFavorite) {
                     return ref
@@ -698,7 +679,7 @@ class _TvSeasonDetailContentState
                   : widget.guid;
               ref.read(navigationStackProvider.notifier).playerSourcePath =
                   '/tv/season/${widget.guid}';
-              context.go('/player/$targetGuid');
+              context.push('/player/$targetGuid');
             }
           },
         ),
@@ -739,24 +720,32 @@ class _TvSeasonDetailContentState
 class _EpisodeListSection extends StatefulWidget {
   final List<EpisodeListResponse> episodes;
   final PlayInfoResponse? playInfo;
+  final List<SeasonListResponse> seasonList;
+  final String currentSeasonGuid;
+  final String tvTitle;
   final String baseUrl;
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
   final PreferencesManager prefsManager;
   final String? userGuid;
-  final ValueChanged<EpisodeListResponse> onEpisodeTap;
+  final ValueChanged<EpisodeListResponse> onEpisodePlay;
+  final ValueChanged<EpisodeListResponse> onEpisodeOpenDetail;
   final Future<bool> Function(String guid, bool isFavorite) onFavoriteToggle;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
 
   const _EpisodeListSection({
     required this.episodes,
     required this.playInfo,
+    required this.seasonList,
+    required this.currentSeasonGuid,
+    required this.tvTitle,
     required this.baseUrl,
     required this.httpHeaders,
     required this.cacheManager,
     required this.prefsManager,
     this.userGuid,
-    required this.onEpisodeTap,
+    required this.onEpisodePlay,
+    required this.onEpisodeOpenDetail,
     required this.onFavoriteToggle,
     required this.onWatchedToggle,
   });
@@ -816,27 +805,64 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
     super.dispose();
   }
 
+  String _buildSeasonSelectorLabel() {
+    final currentSeason = widget.seasonList.firstWhere(
+      (s) => s.guid == widget.currentSeasonGuid,
+      orElse: () => widget.seasonList.isNotEmpty
+          ? widget.seasonList.first
+          : throw StateError('season list is empty'),
+    );
+    if (currentSeason.seasonNumber > 0) {
+      return '第 ${currentSeason.seasonNumber} 季';
+    }
+    final title = currentSeason.title.trim();
+    return title.isNotEmpty ? title : '未知季';
+  }
+
+  void _showSeasonSelectionDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => _SeasonSelectionDialog(
+        tvTitle: widget.tvTitle,
+        seasons: widget.seasonList,
+        currentSeasonGuid: widget.currentSeasonGuid,
+        baseUrl: widget.baseUrl,
+        httpHeaders: widget.httpHeaders,
+        cacheManager: widget.cacheManager,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.episodes.isEmpty) {
       return const SizedBox.shrink();
     }
     final currentEpisodeNumber = widget.playInfo?.item.episodeNumber;
+    final hasMultipleSeasons = widget.seasonList.length > 1;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Expanded(
-              child: Text(
-                '剧集列表',
-                style: FluentTheme.of(context).typography.subtitle?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 26,
-                    ),
+            if (hasMultipleSeasons)
+              _SeasonSelectorButton(
+                key: const ValueKey('season-selector-button'),
+                label: _buildSeasonSelectorLabel(),
+                onPressed: () => _showSeasonSelectionDialog(context),
+              )
+            else
+              Expanded(
+                child: Text(
+                  '选集',
+                  style: FluentTheme.of(context).typography.subtitle?.copyWith(
+                        fontWeight: FontWeight.normal,
+                        fontSize: 20,
+                      ),
+                ),
               ),
-            ),
+            if (hasMultipleSeasons) const Spacer(),
             _EpisodeListViewToggle(
               isButtonView: _isButtonView,
               onChanged: _handleToggleView,
@@ -848,7 +874,8 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
           _EpisodeButtonGrid(
             episodes: widget.episodes,
             currentEpisodeNumber: currentEpisodeNumber,
-            onEpisodeTap: widget.onEpisodeTap,
+            // 序号视图点击某集进入集详情页（与卡片视图点击海报空白区一致）。
+            onEpisodeTap: widget.onEpisodeOpenDetail,
           )
         else
           ScrollRow(
@@ -865,7 +892,8 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
                 httpHeaders: widget.httpHeaders,
                 cacheManager: widget.cacheManager,
                 isCurrent: episode.episodeNumber == currentEpisodeNumber,
-                onTap: () => widget.onEpisodeTap(episode),
+                onPlay: () => widget.onEpisodePlay(episode),
+                onOpenDetail: () => widget.onEpisodeOpenDetail(episode),
                 onFavoriteToggle: (currentState) =>
                     widget.onFavoriteToggle(episode.guid, currentState),
                 onWatchedToggle: (currentState) =>
@@ -893,7 +921,8 @@ class _EpisodeCard extends StatefulWidget {
   final Map<String, String>? httpHeaders;
   final cache_manager.CacheManager cacheManager;
   final bool isCurrent;
-  final VoidCallback onTap;
+  final VoidCallback onPlay;
+  final VoidCallback onOpenDetail;
   final Future<bool> Function(bool currentState) onFavoriteToggle;
   final Future<bool> Function(bool currentState) onWatchedToggle;
 
@@ -903,7 +932,8 @@ class _EpisodeCard extends StatefulWidget {
     required this.httpHeaders,
     required this.cacheManager,
     required this.isCurrent,
-    required this.onTap,
+    required this.onPlay,
+    required this.onOpenDetail,
     required this.onFavoriteToggle,
     required this.onWatchedToggle,
   });
@@ -972,7 +1002,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
             text: const Text('播放本集'),
             onPressed: () {
               Flyout.of(context).close();
-              widget.onTap();
+              widget.onPlay();
             },
           ),
           MenuFlyoutItem(
@@ -1014,7 +1044,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: widget.onOpenDetail,
         child: SizedBox(
           width: _episodePosterWidth,
           child: Column(
@@ -1138,7 +1168,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                           onExit: (_) =>
                               setState(() => _isPlayButtonHovered = false),
                           child: GestureDetector(
-                            onTap: widget.onTap,
+                            onTap: widget.onPlay,
                             behavior: HitTestBehavior.opaque,
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
@@ -1538,6 +1568,282 @@ class _EpisodeNumberButtonState extends State<_EpisodeNumberButton> {
               fontSize: hasNumber ? 14 : 11,
               color: labelColor,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 分季切换按钮：镜像 Web 端剧集详情页「第 x 季 ⌄」胶囊下拉入口。
+class _SeasonSelectorButton extends StatefulWidget {
+  final String label;
+  final VoidCallback onPressed;
+
+  const _SeasonSelectorButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  State<_SeasonSelectorButton> createState() => _SeasonSelectorButtonState();
+}
+
+class _SeasonSelectorButtonState extends State<_SeasonSelectorButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final textColor = theme.typography.body?.color ?? Colors.white;
+    final borderColor = textColor.withValues(alpha: _hovered ? 0.3 : 0.15);
+    final backgroundColor =
+        _hovered ? textColor.withValues(alpha: 0.06) : Colors.transparent;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.label,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(width: 8),
+              SemiIcons.chevronDown(
+                size: 16,
+                color: textColor.withValues(alpha: 0.6),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 选季弹窗：参考「剧集简介」弹窗（MediaDescriptionDialog）的 ContentDialog
+/// 样式，列出父剧集下的所有季，点击切换到对应季页面。
+class _SeasonSelectionDialog extends StatelessWidget {
+  final String tvTitle;
+  final List<SeasonListResponse> seasons;
+  final String currentSeasonGuid;
+  final String baseUrl;
+  final Map<String, String>? httpHeaders;
+  final cache_manager.CacheManager cacheManager;
+
+  const _SeasonSelectionDialog({
+    required this.tvTitle,
+    required this.seasons,
+    required this.currentSeasonGuid,
+    required this.baseUrl,
+    this.httpHeaders,
+    required this.cacheManager,
+  });
+
+  String _buildSeasonLabel(SeasonListResponse season) {
+    if (season.seasonNumber > 0) return '第 ${season.seasonNumber} 季';
+    final title = season.title.trim();
+    return title.isNotEmpty ? title : '未知季';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ContentDialog(
+      constraints: const BoxConstraints(maxWidth: 640, maxHeight: 720),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              '《$tvTitle》共 ${seasons.length} 季',
+              style: FluentTheme.of(context).typography.subtitle,
+            ),
+          ),
+          AppIconButton(
+            icon: const Icon(FluentIcons.chrome_close),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final season in seasons)
+              _SeasonSelectionItem(
+                season: season,
+                posterUrl: _buildImageUrl(baseUrl, season.poster ?? ''),
+                httpHeaders: httpHeaders,
+                cacheManager: cacheManager,
+                label: _buildSeasonLabel(season),
+                isCurrent: season.guid == currentSeasonGuid,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.go('/tv/season/${season.guid}');
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SeasonSelectionItem extends StatefulWidget {
+  final SeasonListResponse season;
+  final String posterUrl;
+  final Map<String, String>? httpHeaders;
+  final cache_manager.CacheManager cacheManager;
+  final String label;
+  final bool isCurrent;
+  final VoidCallback onTap;
+
+  const _SeasonSelectionItem({
+    required this.season,
+    required this.posterUrl,
+    this.httpHeaders,
+    required this.cacheManager,
+    required this.label,
+    required this.isCurrent,
+    required this.onTap,
+  });
+
+  @override
+  State<_SeasonSelectionItem> createState() => _SeasonSelectionItemState();
+}
+
+class _SeasonSelectionItemState extends State<_SeasonSelectionItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final textColor = theme.typography.body?.color ?? Colors.white;
+    final voteAverage = double.tryParse(widget.season.voteAverage) ?? 0.0;
+
+    final backgroundColor = widget.isCurrent
+        ? textColor.withValues(alpha: 0.08)
+        : _hovered
+            ? textColor.withValues(alpha: 0.05)
+            : Colors.transparent;
+
+    return MouseRegion(
+      key: ValueKey('season-selection-item:${widget.season.guid}'),
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 72,
+                  height: 108,
+                  child: widget.posterUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: widget.posterUrl,
+                          httpHeaders: widget.httpHeaders,
+                          cacheManager: widget.cacheManager,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.grey[40],
+                            alignment: Alignment.center,
+                            child: const MediaPosterPlaceholder(
+                              type: MediaType.episode,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: Colors.grey[40],
+                          alignment: Alignment.center,
+                          child: const MediaPosterPlaceholder(
+                            type: MediaType.episode,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.label,
+                      style: theme.typography.bodyStrong?.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        if (widget.season.airDate != null &&
+                            widget.season.airDate!.length >= 4)
+                          Text(
+                            widget.season.airDate!.substring(0, 4),
+                            style: TextStyle(
+                              color: textColor.withValues(alpha: 0.7),
+                              fontSize: 14,
+                            ),
+                          ),
+                        if (voteAverage > 0) ...[
+                          const SizedBox(width: 12),
+                          Text(
+                            '${voteAverage.toStringAsFixed(1)} 分',
+                            style: const TextStyle(
+                              color: Color(0xFFFACC15),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      (widget.season.overview ?? '暂无介绍')
+                          .replaceAll('\n\n', '\n'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: textColor.withValues(alpha: 0.7),
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

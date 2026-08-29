@@ -913,6 +913,17 @@ class PlayerSessionCoordinator {
         );
       }
 
+      // STRM (9001): the NAS already resolved the .strm content into a
+      // playable URL when serving /stream, so play it directly (mirrors the
+      // web player, which never routes STRM through the media/range proxy).
+      if (cloudStorageType == CloudStorageInfo.strmCloudStorageType) {
+        return DirectPlayLinkResult(
+          playUri: quality.url,
+          playLinkRaw: quality.url,
+          effectiveStartMs: startPositionMs,
+        );
+      }
+
       // 115 Pan (3): m3u8 qualities are proxied through /wp/m3u8 with the
       // selected audio track appended; non-m3u8 uses the raw CDN URL.
       if (cloudStorageType == 3) {

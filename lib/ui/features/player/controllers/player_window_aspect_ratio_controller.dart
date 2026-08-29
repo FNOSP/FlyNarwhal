@@ -32,12 +32,17 @@ class PlayerWindowAspectRatioController {
     '21:9': 21 / 9,
   };
   static const String autoSetting = 'AUTO';
-  static const Duration _windowStateTransitionDelay =
-      Duration(milliseconds: 16);
-  static const Size _normalWindowMinimumSize = Size(1280, 720);
+  /// The standard window minimum restored by [release] so non-player routes
+  /// keep the app's normal window limits.
+  static const Size _normalWindowMinimumSize = Size(800, 450);
+  /// The smallest the player window may be shrunk to while a ratio lock is
+  /// active. Lower than [_normalWindowMinimumSize] so the user can make the
+  /// player window smaller; both the ratio-locked OS minimum and the
+  /// ratio-change target-size floor are derived from it.
+  static const Size _playerWindowMinimumSize = Size(640, 360);
   // Area of [_normalWindowMinimumSize]; kept as literals because Size
   // properties are not accessible in const expressions.
-  static const double _fallbackBaselineArea = 1280 * 720;
+  static const double _fallbackBaselineArea = 800 * 450;
   // Aspect ratios closer than this are considered identical, avoiding
   // redundant window resizing when repeated video-param events arrive.
   static const double _ratioEpsilon = 0.005;
@@ -70,6 +75,32 @@ class PlayerWindowAspectRatioController {
   /// Resolves the fixed ratio for settings like "16:9", or null for AUTO.
   static double? fixedRatioOf(String setting) => _fixedRatios[setting];
 
+  /// Smallest window size that satisfies both the player window minimum
+  /// ([_playerWindowMinimumSize]) and [ratio], so the OS minimum-size clamp
+  /// can never fight the ratio lock. The axis violating the ratio is grown
+  /// (never shrinking the other below the player minimum); [workArea] caps
+  /// the result with a uniform downscale so the ratio stays exact even on
+  /// small displays.
+  static Size minimumSizeForRatio(double ratio, Rect? workArea) {
+    var width = _playerWindowMinimumSize.width;
+    var height = _playerWindowMinimumSize.height;
+    // Grow width for ratios wider than 16:9, otherwise grow height.
+    if (width / height < ratio) {
+      width = (height * ratio).ceilToDouble();
+    } else {
+      height = (width / ratio).ceilToDouble();
+    }
+    if (workArea != null) {
+      final scale = math.min(
+        math.min(workArea.width / width, workArea.height / height),
+        1.0,
+      );
+      width *= scale;
+      height *= scale;
+    }
+    return Size(width.roundToDouble(), height.roundToDouble());
+  }
+
   /// Applies [setting] to the main window.
   ///
   /// [videoAspectRatio] (width / height) is required for AUTO mode; when it
@@ -100,9 +131,14 @@ class PlayerWindowAspectRatioController {
       final alreadyLocked = previousLockedRatio != null &&
           (previousLockedRatio - targetRatio).abs() < _ratioEpsilon;
 
-      if (await windowManager.isMaximized()) {
-        await windowManager.unmaximize();
-        await Future<void>.delayed(_windowStateTransitionDelay);
+      // The user may have maximized the window during playback (e.g. by
+      // double-clicking the title bar). Maximize owns the window shape just
+      // like fullscreen/PiP do, so leave the maximized window untouched and
+      // drop the ratio lock; it is re-applied when the user un-maximizes.
+      final isMaximized = await windowManager.isMaximized();
+      if (isMaximized) {
+        await release();
+        return;
       }
 
       final bounds = await windowManager.getBounds();
@@ -117,6 +153,17 @@ class PlayerWindowAspectRatioController {
           bounds.height > 0 ? bounds.width / bounds.height : targetRatio;
       final alreadyMatching =
           (currentRatio - targetRatio).abs() < _ratioEpsilon;
+      final displays = await _tryGetDisplays();
+      final workArea =
+          WindowGeometry.selectDisplay(bounds, displays)?.workArea;
+
+      // Keep the OS minimum size consistent with the locked ratio. A plain
+      // normal-window minimum fights the ratio lock for wide videos: the
+      // clamp lets the window settle at an off-ratio size, and the plugin's
+      // WM_SIZING handler then re-derives the dragged edge from the locked
+      // ratio and shifts the window before the clamp snaps the size back.
+      final minimumSize = minimumSizeForRatio(targetRatio, workArea);
+      await windowManager.setMinimumSize(minimumSize);
 
       AppTalker.info(
         'WindowRatio',
@@ -128,9 +175,6 @@ class PlayerWindowAspectRatioController {
       );
 
       if (!alreadyMatching) {
-        final displays = await _tryGetDisplays();
-        final workArea =
-            WindowGeometry.selectDisplay(bounds, displays)?.workArea;
         final targetSize = _calculateTargetSize(
           baselineArea: _baselineArea ?? _fallbackBaselineArea,
           targetRatio: targetRatio,
@@ -146,7 +190,7 @@ class PlayerWindowAspectRatioController {
           ),
           displays,
           fallbackSize: _normalWindowMinimumSize,
-          minimumSize: _normalWindowMinimumSize,
+          minimumSize: _playerWindowMinimumSize,
         );
         await windowManager.setBounds(targetBounds);
         _lastProgrammaticSize = await _measureSettledSize(targetBounds.size);
@@ -208,7 +252,18 @@ class PlayerWindowAspectRatioController {
   ///
   /// The baseline area is intentionally preserved so leaving and re-entering
   /// a mode restores the exact same window size.
-  Future<void> release() async {
+  ///
+  /// [restoreNormalMinimumSize] must be false for fullscreen/maximize
+  /// transitions: those states end with the OS (macOS system fullscreen/zoom
+  /// exit) or the pseudo-fullscreen controller restoring the pre-transition
+  /// window frame, and raising the minimum toward
+  /// [_normalWindowMinimumSize] clamps that restore for windows smaller
+  /// than it — the frame comes back enlarged and repositioned, and the
+  /// follow-up ratio re-apply then re-centers from that wrong frame,
+  /// drifting the window a little more on every round-trip. The ratio
+  /// re-apply that follows the transition installs the correct ratio-aware
+  /// minimum again.
+  Future<void> release({bool restoreNormalMinimumSize = true}) async {
     _appliedSetting = null;
     _lockedRatio = null;
     if (!_isDesktop) {
@@ -216,6 +271,30 @@ class PlayerWindowAspectRatioController {
     }
     try {
       await windowManager.setAspectRatio(0);
+      if (!restoreNormalMinimumSize) {
+        return;
+      }
+      // Restore the global minimum size once the ratio lock is released so
+      // other routes (and fullscreen/maximized transitions) get the normal
+      // window limits back. On displays whose scaled work area is smaller
+      // than the normal minimum, shrink it so the OS clamp cannot force the
+      // window outside the visible area.
+      final displays = await _tryGetDisplays();
+      Rect? windowBounds;
+      try {
+        final bounds = await windowManager.getBounds();
+        if (WindowGeometry.isValidBounds(bounds)) {
+          windowBounds = bounds;
+        }
+      } catch (_) {
+        // Anchor falls back to the primary display below.
+      }
+      final minimumSize = WindowGeometry.fitSizeToWorkArea(
+        _normalWindowMinimumSize,
+        displays,
+        anchorBounds: windowBounds,
+      );
+      await windowManager.setMinimumSize(minimumSize);
     } catch (error, stackTrace) {
       AppTalker.error(
         'WindowRatio',
@@ -260,8 +339,8 @@ class PlayerWindowAspectRatioController {
 
     final minimumScale = math.max(
       math.max(
-        _normalWindowMinimumSize.width / width,
-        _normalWindowMinimumSize.height / height,
+        _playerWindowMinimumSize.width / width,
+        _playerWindowMinimumSize.height / height,
       ),
       1.0,
     );
@@ -309,4 +388,5 @@ class PlayerWindowAspectRatioController {
       return const [];
     }
   }
+
 }
