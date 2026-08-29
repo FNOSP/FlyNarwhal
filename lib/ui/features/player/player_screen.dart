@@ -4235,6 +4235,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         quality,
         cache.currentQualities,
       );
+      if (isTargetDirectLink && cache.isUseDirectLink) {
+        // Already playing the original quality through a direct link (e.g.
+        // after the 8192 transcode fallback): there is no transcode session
+        // to renegotiate, so just sync the selection without touching playback.
+        _playingInfoCache = cache.copyWith(currentQuality: quality);
+        ref
+            .read(playerViewModelProvider.notifier)
+            .updatePlayingInfo(_playingInfoCache);
+        setState(() {
+          _isLoading = false;
+          _currentQuality = quality;
+          _currentResolution = quality.resolution;
+          _currentBitrate = quality.bitrate;
+        });
+        _refreshPlaybackDetailsImmediately();
+        return;
+      }
       _playingInfoCache = cache.copyWith(
         currentQuality: quality,
         isUseDirectLink: isTargetDirectLink,
@@ -4308,6 +4325,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       });
       _refreshPlaybackDetailsImmediately();
     } catch (e) {
+      // Restore the pre-switch session state: the optimistic cache update
+      // above already ran, and leaving it in place would make later switches
+      // believe the session is in a mode it is not actually in.
+      _playingInfoCache = cache;
+      ref.read(playerViewModelProvider.notifier).updatePlayingInfo(cache);
       AppTalker.warning('Player', 'switch quality failed: $e');
       ref
           .read(toastManagerProvider.notifier)
