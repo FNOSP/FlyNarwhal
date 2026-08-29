@@ -685,7 +685,6 @@ class PlayerSessionCoordinator {
   Future<PlayerSubtitleRefreshResult> refreshSubtitleStreams({
     required PlayingInfoCache cache,
     String? selectedSubtitleGuid,
-    String? targetTrimId,
   }) async {
     final videoStream = cache.currentVideoStream;
     if (videoStream == null) {
@@ -701,13 +700,7 @@ class PlayerSessionCoordinator {
     final currentGuid =
         selectedSubtitleGuid ?? cache.currentSubtitleStream?.guid;
 
-    SubtitleStream? nextSelectedSubtitle;
-    if (targetTrimId != null && targetTrimId.isNotEmpty) {
-      nextSelectedSubtitle = subtitleStreams
-          .where((subtitle) => subtitle.trimId == targetTrimId)
-          .firstOrNull;
-    }
-    nextSelectedSubtitle ??= subtitleStreams
+    final nextSelectedSubtitle = subtitleStreams
         .where((subtitle) => subtitle.guid == currentGuid)
         .firstOrNull;
 

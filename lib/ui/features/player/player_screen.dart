@@ -1136,14 +1136,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return _playingInfoCache?.currentFileStream?.path ?? '';
   }
 
-  Future<void> _refreshSubtitleStreams({String? targetTrimId}) async {
+  Future<void> _refreshSubtitleStreams() async {
     final cache = _playingInfoCache;
     if (cache == null) return;
 
     final result = await _sessionCoordinator.refreshSubtitleStreams(
       cache: cache,
       selectedSubtitleGuid: _selectedSubtitleGuid,
-      targetTrimId: targetTrimId,
     );
     _playingInfoCache = result.playingInfoCache;
     ref
@@ -1203,7 +1202,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     type: ToastType.success,
                     category: 'subtitle-download:${item.trimId}',
                   );
-              unawaited(_refreshSubtitleStreams(targetTrimId: item.trimId));
+              unawaited(_switchToDownloadedSubtitle(subtitleStream));
               return subtitleStream.guid;
             } catch (error) {
               if (mounted) {
@@ -1464,6 +1463,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           category: toastCategory,
         );
 
+    await _switchSubtitleWithSessionFlow(target);
+  }
+
+  /// After an online subtitle download, refresh the subtitle list and switch
+  /// playback to the downloaded subtitle. Mirrors the NAS-mark flow at
+  /// [_openAddNasSubtitleDialog] and the local-upload flow at
+  /// [_switchToUploadedSubtitle]: a plain refresh only moves the UI selection,
+  /// the running player applies the subtitle only through
+  /// [_switchSubtitleWithSessionFlow].
+  Future<void> _switchToDownloadedSubtitle(SubtitleStream downloaded) async {
+    try {
+      await _refreshSubtitleStreams();
+    } catch (error) {
+      AppTalker.warning(
+        'PlayerScreen',
+        'refresh subtitle streams after download failed: $error',
+      );
+    }
+    if (!mounted) return;
+
+    final target = _streamInfo?.subtitleStreams
+            ?.where((s) => s.guid == downloaded.guid)
+            .firstOrNull ??
+        downloaded;
     await _switchSubtitleWithSessionFlow(target);
   }
 
