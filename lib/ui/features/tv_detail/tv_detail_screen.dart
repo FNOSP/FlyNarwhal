@@ -669,7 +669,8 @@ class _SeasonListGridState extends State<_SeasonListGrid> {
 
           return SizedBox(
             width: itemWidth,
-            height: itemHeight + 60,
+            // 海报下方标题/副标题文字区预留高度，与网格页保持一致。
+            height: itemHeight + 64 * widget.scaleFactor,
             child: MoviePoster(
               posterPath: season.poster,
               title: season.title,

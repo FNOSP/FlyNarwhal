@@ -13,6 +13,7 @@ import '../../../providers/smart_analysis_controller.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/filter_box.dart';
 import '../../shared/movie_poster.dart';
+import '../../shared/responsive_poster_grid_delegate.dart';
 import '../../shared/sort_flyout.dart';
 import '../../shared/toast.dart';
 import '../home/home_view_model.dart';
@@ -553,19 +554,18 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                     'favorites-grid-$selectedCacheKey'),
                                 controller: scrollController,
                                 padding: EdgeInsets.all(16 * scaleFactor),
-                                gridDelegate:
-                                    SliverGridDelegateWithMaxCrossAxisExtent(
-                                  maxCrossAxisExtent: 160 * scaleFactor,
-                                  mainAxisSpacing: 8,
-                                  crossAxisSpacing: 0,
-                                  childAspectRatio: 0.6,
+                                // 复刻 Web 竖幅网格响应式规则：列数随可用宽度
+                                // 变化，海报填满列宽，横向间距固定 20px
+                                //（与 Web 一致）。
+                                gridDelegate: ResponsivePosterGridDelegate(
+                                  textBlockExtent: 64 * scaleFactor,
                                 ),
                                 itemCount: items.length,
                                 itemBuilder: (context, index) {
                                   final item = items[index];
-                                  const posterHeight = 200.0;
-                                  const posterWidth = posterHeight * 2 / 3;
-                                  return MoviePoster(
+                                  return LayoutBuilder(
+                                      builder: (context, constraints) {
+                                    return MoviePoster(
                                     title: item.title,
                                     subtitle: buildPosterSubtitle(item),
                                     posterPath: item.effectivePoster,
@@ -573,8 +573,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                     resolutions: item.mediaStream?.resolutions,
                                     isFavorite: item.isFavorite == 1,
                                     isWatched: (item.watched ?? 0) == 1,
-                                    width: posterWidth,
-                                    height: posterHeight,
+                                    width: constraints.maxWidth,
+                                    height: constraints.maxWidth * 3 / 2,
                                     scaleFactor: scaleFactor,
                                     type: item.type,
                                     guid: item.guid,
@@ -625,6 +625,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                         ? () => _showSmartAnalysisFlyout(item)
                                         : null,
                                   );
+                                  });
                                 },
                               ),
                   ),

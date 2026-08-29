@@ -18,6 +18,7 @@ import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/common/fn_cached_image.dart';
 import '../../shared/common/media_poster_placeholder.dart';
 import '../../shared/movie_poster.dart';
+import '../../shared/responsive_poster_grid_delegate.dart';
 import '../../shared/filter_box.dart';
 import '../../shared/layout_flyout.dart';
 import '../../shared/sort_flyout.dart';
@@ -930,8 +931,6 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
             _showAnalysisToast(targetType, item.guid, previous, next),
       );
     }
-    const posterHeight = 200.0;
-    const posterWidth = posterHeight * 2 / 3;
     final mediaDbTitle = _resolveMediaDbTitle(mediaDbList);
     // 文件夹视图标题取 jump_list 末项（当前文件夹名），缺失时回退到所属库名。
     final folderTitle = libraryData?.jumpList.isNotEmpty == true
@@ -1111,12 +1110,11 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                   : GridView.builder(
                                       controller: _scrollController,
                                       padding: EdgeInsets.all(16 * scaleFactor),
-                                      gridDelegate:
-                                          SliverGridDelegateWithMaxCrossAxisExtent(
-                                        maxCrossAxisExtent: 180 * scaleFactor,
-                                        mainAxisSpacing: 8,
-                                        crossAxisSpacing: 0,
-                                        childAspectRatio: 0.6,
+                                      // 复刻 Web 竖幅网格响应式规则：列数随
+                                      // 可用宽度变化，海报填满列宽，横向间距
+                                      // 固定 20px（与 Web 一致）。
+                                      gridDelegate: ResponsivePosterGridDelegate(
+                                        textBlockExtent: 64 * scaleFactor,
                                       ),
                                       itemCount: items.length,
                                       itemBuilder: (context, index) {
@@ -1126,7 +1124,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                         final isDirectory =
                                             itemMediaType ==
                                                 MediaType.directory;
-                                        return MoviePoster(
+                                        return LayoutBuilder(
+                                            builder: (context, constraints) {
+                                          return MoviePoster(
                                           title: item.title,
                                           // 文件夹卡片仅显示标题（与 Web 一致）。
                                           subtitle:
@@ -1137,8 +1137,8 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                               item.mediaStream?.resolutions,
                                           isFavorite: item.isFavorite == 1,
                                           isWatched: (item.watched ?? 0) == 1,
-                                          width: posterWidth,
-                                          height: posterHeight,
+                                          width: constraints.maxWidth,
+                                          height: constraints.maxWidth * 3 / 2,
                                           scaleFactor: scaleFactor,
                                           type: item.type,
                                           guid: item.guid,
@@ -1199,6 +1199,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                                   _showSmartAnalysisFlyout(item)
                                               : null,
                                         );
+                                        });
                                       },
                                     ),
                 ),

@@ -22,7 +22,12 @@ class MoviePoster extends ConsumerStatefulWidget {
   final String title;
   final String? subtitle;
   final List<String>? resolutions;
+
+  /// 海报最终布局宽度（逻辑像素）。调用方如需窗口缩放，须自行乘
+  /// [scaleFactor] 后传入；响应式网格场景直接传网格列宽即可。
   final double width;
+
+  /// 海报最终布局高度（逻辑像素），语义同 [width]。
   final double height;
   final double scaleFactor;
   final String? score;
@@ -113,8 +118,9 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
     double snap(double v) => (v * pixelRatio).roundToDouble() / pixelRatio;
     // Snap poster dimensions to physical pixels to avoid a 1px seam between
     // the image and the semi-transparent overlay at fractional DPI boundaries.
-    final scaledWidth = snap(widget.width * scaleFactor);
-    final scaledHeight = snap(widget.height * scaleFactor);
+    // width/height 已是最终布局尺寸（调用方自行负责缩放），此处仅做像素对齐。
+    final scaledWidth = snap(widget.width);
+    final scaledHeight = snap(widget.height);
     final mediaType = MediaType.tryParse(widget.type);
     final showFavoriteButton = mediaType != MediaType.season;
     // 目录不可播放：无论调用方是否误传 onPlayTap，均不渲染播放按钮。
