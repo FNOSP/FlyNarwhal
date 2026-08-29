@@ -22,6 +22,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.3.1] - 2026-08-29
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Added
+
+- **Windows 便携版**：新增 Windows 便携版（zip）安装包，支持应用内自更新。
+- **剧集分季切换**：剧集分季详情页新增分季切换功能，可直接跳转至其他分季详情页。
+- **多显示器窗口记忆**：记住窗口所在显示器，主窗口跨屏移动时播放器窗口跟随。
+
+### Changed
+
+- **窗口最小尺寸**：主窗口最小尺寸降低至 800×450，在小屏幕启动时窗口自动适配。
+
+### Fixed
+
+- **返回页面定位**：从详情页或播放器返回后，恢复之前浏览的位置。
+- **跳过片头片尾**：修复跳过片头片尾设置不生效的问题。
+- **弹幕显示时机**：修复视频未开始播放时弹幕提前显示的问题。
+- **播放器窗口尺寸**：修复全屏、最大化与画面比例切换时窗口尺寸异常的问题。
+- **界面细节优化**：优化剧集简介弹框样式与左侧导航抽屉圆角显示。
+
 ## [2.3.0-beta] - 2026-08-24
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
