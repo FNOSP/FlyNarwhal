@@ -63,6 +63,7 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
           segments: event.segments,
           durationMilliseconds: event.segments.durationMilliseconds,
         );
+        _applySegmentsToCurrentPosition();
       case IntroUndoRequested():
         _undoIntro();
       case OutroCancelRequested():
@@ -100,6 +101,48 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
       isAutoPlayEnabled: event.isAutoPlayEnabled,
       nextEpisodeLoadPhase: event.nextEpisodeLoadPhase,
     );
+  }
+
+  /// Re-evaluate the resolved segments against the current playhead when they
+  /// change mid-session (e.g. the user manually edits skip intro/outro while
+  /// playing). The natural-crossing detection in [_handlePositionChanged] only
+  /// fires when playback crosses a boundary, so a manual edit that lands the
+  /// playhead inside a segment would otherwise never apply until the next
+  /// episode or replay. This makes an edit take effect immediately: if the
+  /// current position is inside the intro, skip to its end; if inside the
+  /// credits, show the outro prompt.
+  void _applySegmentsToCurrentPosition() {
+    final position = state.currentPositionMilliseconds;
+    final isNaturalPlayback =
+        state.mediaOpened && state.isPlaying && !state.isUserSeeking;
+    if (!isNaturalPlayback || state.isPlaybackEndVisible) {
+      return;
+    }
+
+    // Intro: jump to the end of the intro when the playhead sits inside it.
+    final intro = state.segments.introSegment;
+    if (intro != null &&
+        state.pendingIntroSegment == null &&
+        state.lastSkippedIntroSegment == null &&
+        !state.isIntroUndoVisible &&
+        !state.isOutroPromptVisible &&
+        !_hasActiveIntroSuppression(position) &&
+        intro.contains(position)) {
+      _triggerIntro(intro);
+      return;
+    }
+
+    // Outro: show the skip-credits prompt when the playhead sits inside them.
+    final credits = state.segments.creditsSegment;
+    if (credits != null &&
+        !state.isOutroCancelled &&
+        !state.isOutroPromptVisible &&
+        state.pendingIntroSegment == null &&
+        !state.isIntroUndoVisible &&
+        !_hasActiveIntroSuppression(position) &&
+        credits.contains(position)) {
+      _triggerOutro();
+    }
   }
 
   void _handlePositionChanged(int positionMilliseconds) {

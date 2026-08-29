@@ -2052,9 +2052,13 @@ class _SkipSliderBar extends StatelessWidget {
           final thumbLeft = thumbPosition * (usable > 0 ? usable : 0);
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapDown: enabled
-                ? (details) =>
-                    onChanged(_valueFromX(details.localPosition.dx, trackWidth))
+            onTapUp: enabled
+                ? (details) {
+                    final v =
+                        _valueFromX(details.localPosition.dx, trackWidth);
+                    onChanged(v);
+                    onChangeEnd(v);
+                  }
                 : null,
             onHorizontalDragStart: enabled
                 ? (details) =>

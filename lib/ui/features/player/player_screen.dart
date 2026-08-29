@@ -5245,7 +5245,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '跳过设置已保存',
+            '设置成功',
             type: ToastType.success,
             category: 'skip-config',
           );
@@ -5259,7 +5259,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .updatePlayingInfo(_playingInfoCache);
       _resolveAndDispatchSkipSegments();
       ref.read(toastManagerProvider.notifier).showToast(
-            '保存跳过设置失败: $error',
+            '设置失败: $error',
             type: ToastType.failed,
             category: 'skip-config',
           );
@@ -5360,7 +5360,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } catch (error) {
       if (!mounted) return false;
       ref.read(toastManagerProvider.notifier).showToast(
-            '保存智能跳过设置失败: $error',
+            '设置失败: $error',
             type: ToastType.failed,
             category: 'smart-skip-setting',
           );
