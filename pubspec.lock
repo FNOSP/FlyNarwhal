@@ -413,8 +413,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "fix/navigation-overlay-keys"
-      resolved-ref: a3f96b597a117854dcb1b9b923fd418edf2e9893
+      ref: "fix/minimal-pane-reserved-top"
+      resolved-ref: ac4f676570b9cee281d66fc42be471c57240a619
       url: "https://github.com/Jankin-Wu/fluent_ui.git"
     source: git
     version: "4.16.1"

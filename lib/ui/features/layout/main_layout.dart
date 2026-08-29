@@ -629,22 +629,19 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
       onKeyEvent: handleGlobalKeyEvent,
       child: Stack(
         children: [
-          // fluent_ui's minimal-mode layout (_buildMinimalView) reserves a
-          // 38px band at the top of the NavigationView for the window title
-          // bar and starts page content below it. We draw our own title bar
-          // above, so in minimal mode shift the whole view up 38px: the
-          // reserved band slides under the (later-painted, opaque) title bar
-          // and page content starts flush below it, exactly like the other
-          // display modes.
+          // In minimal mode fluent_ui reserves a band at the top of the view
+          // for its own title bar, whose square bottom edge used to cover the
+          // drawer's rounded top corners. Pass minimalReservedTopExtent: 0 so
+          // the band is not drawn and the drawer starts right below our title
+          // bar with both right corners rounded.
           Positioned(
-            top: isMinimalDisplayMode
-                ? kWindowTitleBarHeight - 38.0
-                : kWindowTitleBarHeight,
+            top: kWindowTitleBarHeight,
             left: 0,
             right: 0,
             bottom: 0,
             child: NavigationView(
               key: _navigationViewKey,
+              minimalReservedTopExtent: 0,
               pane: NavigationPane(
                 header: pane.header,
                 selected: selectedIndex >= 0 ? selectedIndex : null,
