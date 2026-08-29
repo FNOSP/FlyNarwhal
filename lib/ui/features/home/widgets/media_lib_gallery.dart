@@ -90,18 +90,20 @@ class MediaLibGallery extends ConsumerWidget {
                   type: item.type,
                   guid: item.guid,
                   onTap: () {
+                    // Push (instead of go) so the home page stays mounted
+                    // underneath and keeps its scroll position on return.
                     switch (MediaType.tryParse(item.type)) {
                       case MediaType.tv:
-                        context.go('/tv/${item.guid}');
+                        context.push('/tv/${item.guid}');
                         break;
                       case MediaType.season:
-                        context.go('/tv/season/${item.guid}');
+                        context.push('/tv/season/${item.guid}');
                         break;
                       case MediaType.directory:
-                        context.go('/folder/${item.guid}');
+                        context.push('/folder/${item.guid}');
                         break;
                       default:
-                        context.go('/movie/${item.guid}');
+                        context.push('/movie/${item.guid}');
                     }
                   },
                   onPlayTap: isDirectory

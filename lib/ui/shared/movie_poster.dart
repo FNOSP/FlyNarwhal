@@ -398,7 +398,9 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
 
     // 目录项进入文件夹视图，无需预取详情。
     if (MediaType.tryParse(widget.type) == MediaType.directory) {
-      context.go('/folder/${widget.guid}');
+      // Push (instead of go) so the source page stays mounted underneath
+      // and keeps its scroll position on return.
+      context.push('/folder/${widget.guid}');
       return;
     }
 
@@ -408,18 +410,20 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
         .prefetchItemDetail(widget.guid!));
 
     final mediaType = MediaType.tryParse(widget.type);
+    // Push (instead of go) so the source page stays mounted underneath the
+    // detail page and keeps its scroll position on return.
     switch (mediaType) {
       case MediaType.movie:
       case MediaType.video:
         ref.read(navigationStackProvider.notifier).pushPath('/home');
-        context.go('/movie/${widget.guid}');
+        context.push('/movie/${widget.guid}');
         break;
       case MediaType.tv:
         ref.read(navigationStackProvider.notifier).pushPath('/home');
-        context.go('/tv/${widget.guid}');
+        context.push('/tv/${widget.guid}');
         break;
       case MediaType.season:
-        context.go('/tv/season/${widget.guid}');
+        context.push('/tv/season/${widget.guid}');
         break;
       case MediaType.liveChannel:
         ref.read(navigationStackProvider.notifier).playerSourcePath =
@@ -429,7 +433,7 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
         context.push('/live/${widget.guid}');
         break;
       case MediaType.directory:
-        context.go('/folder/${widget.guid}');
+        context.push('/folder/${widget.guid}');
         break;
       case MediaType.episode:
       case null:

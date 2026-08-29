@@ -619,18 +619,20 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   }
 
   void _navigateGeneralLibraryItem(MediaItem item) {
+    // Push (instead of go) so the library page stays mounted underneath and
+    // keeps its scroll position on return.
     switch (MediaType.tryParse(item.type)) {
       case MediaType.tv:
-        context.go('/tv/${item.guid}');
+        context.push('/tv/${item.guid}');
         break;
       case MediaType.season:
-        context.go('/tv/season/${item.guid}');
+        context.push('/tv/season/${item.guid}');
         break;
       case MediaType.directory:
-        context.go('/folder/${item.guid}');
+        context.push('/folder/${item.guid}');
         break;
       default:
-        context.go('/movie/${item.guid}');
+        context.push('/movie/${item.guid}');
     }
   }
 
@@ -1141,21 +1143,25 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                           type: item.type,
                                           guid: item.guid,
                                           onTap: () {
+                                            // Push (instead of go) so the
+                                            // library page keeps its scroll
+                                            // position on return.
                                             switch (itemMediaType) {
                                               case MediaType.tv:
-                                                context.go('/tv/${item.guid}');
+                                                context.push(
+                                                    '/tv/${item.guid}');
                                                 break;
                                               case MediaType.season:
-                                                context.go(
+                                                context.push(
                                                     '/tv/season/${item.guid}');
                                                 break;
                                               case MediaType.directory:
-                                                context.go(
+                                                context.push(
                                                     '/folder/${item.guid}');
                                                 break;
                                               default:
                                                 context
-                                                    .go('/movie/${item.guid}');
+                                                    .push('/movie/${item.guid}');
                                             }
                                           },
                                           onPlayTap: isDirectory

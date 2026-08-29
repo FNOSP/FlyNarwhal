@@ -579,14 +579,17 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                     type: item.type,
                                     guid: item.guid,
                                     onTap: () {
+                                      // Push (instead of go) so the favorites
+                                      // page keeps its scroll position on
+                                      // return.
                                       if (item.type == 'TV') {
-                                        context.go('/tv/${item.guid}');
+                                        context.push('/tv/${item.guid}');
                                       } else if (item.type == 'Season') {
-                                        context.go('/tv/season/${item.guid}');
+                                        context.push('/tv/season/${item.guid}');
                                       } else if (item.type == 'Directory') {
-                                        context.go('/folder/${item.guid}');
+                                        context.push('/folder/${item.guid}');
                                       } else {
-                                        context.go('/movie/${item.guid}');
+                                        context.push('/movie/${item.guid}');
                                       }
                                     },
                                     onPlayTap:
