@@ -19,7 +19,6 @@ import '../../../providers/providers.dart';
 import '../../../providers/file_providers.dart';
 import '../../shared/common/fn_cached_image.dart';
 import 'detail_components.dart';
-import '../../shared/common/img_loading_progress_ring.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import '../../shared/dialogs/file_media_info_dialog.dart';
@@ -1151,10 +1150,6 @@ class _LogoTitleState extends State<_LogoTitle> {
                 color: Colors.white,
                 height: 1.1,
               ),
-        ),
-        placeholder: (context, url) => const Align(
-          alignment: Alignment.centerLeft,
-          child: ImgLoadingProgressRing(),
         ),
       ),
     );

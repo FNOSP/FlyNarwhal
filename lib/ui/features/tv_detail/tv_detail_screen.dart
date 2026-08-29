@@ -15,7 +15,6 @@ import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/smart_analysis_controller.dart';
 import '../movie_detail/detail_components.dart';
-import '../../shared/common/img_loading_progress_ring.dart';
 import '../../shared/movie_poster.dart';
 import '../../shared/toast.dart';
 import 'tv_detail_view_model.dart';
@@ -801,10 +800,6 @@ class _LogoTitleState extends State<_LogoTitle> {
                 color: Colors.white,
                 height: 1.1,
               ),
-        ),
-        placeholder: (context, url) => const Align(
-          alignment: Alignment.centerLeft,
-          child: ImgLoadingProgressRing(),
         ),
       ),
     );
