@@ -1414,10 +1414,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         mediaGuid: mediaGuid,
       );
       if (!mounted || uploaded == null) return;
-      await _switchToUploadedSubtitle(
-        uploaded: uploaded,
-        toastCategory: 'local-subtitle:$mediaGuid',
-      );
+      await _switchToUploadedSubtitle(uploaded: uploaded);
     } finally {
       _isUploadingLocalSubtitle = false;
     }
@@ -1431,7 +1428,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// [SubtitleControlFlyout] reads.
   Future<void> _switchToUploadedSubtitle({
     required SubtitleStream uploaded,
-    required String toastCategory,
   }) async {
     try {
       await _refreshSubtitleStreams();
@@ -1448,21 +1444,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             .firstOrNull ??
         uploaded;
 
-    final languageName = FnDataConvertor.getLanguageName(
-      target.language,
-      _iso6391Map,
-      _iso6392Map,
-    );
-    final format = target.format.isNotEmpty ? target.format.toUpperCase() : '';
-    final switchToast = format.isEmpty
-        ? '字幕正在切换至：$languageName'
-        : '字幕正在切换至：$languageName $format';
-    ref.read(toastManagerProvider.notifier).showToast(
-          switchToast,
-          type: ToastType.info,
-          category: toastCategory,
-        );
-
+    // The "字幕正在切换至" toast is emitted by [_switchSubtitleWithSessionFlow],
+    // the single choke point shared by every subtitle-switch path.
     await _switchSubtitleWithSessionFlow(target);
   }
 
@@ -4539,6 +4522,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (videoStream == null || fileStream == null) return;
 
     final previousSubtitle = cache.currentSubtitleStream;
+    // Announce the subtitle switch with an info toast, mirroring the web
+    // player. Every user-triggered switch (manual menu pick, online download,
+    // local upload, NAS mark/add) funnels through this method, so a single
+    // toast covers them all. Shown only when switching to a different subtitle:
+    // never on switch-off, never on the initial restore, and not when
+    // re-selecting the already-active track.
+    if (subtitle != null && subtitle.guid != previousSubtitle?.guid) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            _subtitleSwitchToastText(subtitle),
+            type: ToastType.info,
+            category: 'subtitle-switch',
+          );
+    }
     final isDirectLinkEmbeddedSwitch = subtitle != null &&
         subtitle.isExternal != 1 &&
         cache.isUseDirectLink &&
@@ -4631,6 +4627,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         });
       }
     }
+  }
+
+  /// Builds the toast text shown when switching to a new subtitle, matching the
+  /// web player's "字幕正在切换至：{language} {FORMAT}" format (format uppercased,
+  /// omitted when empty).
+  String _subtitleSwitchToastText(SubtitleStream subtitle) {
+    final languageName = FnDataConvertor.getLanguageName(
+      subtitle.language,
+      _iso6391Map,
+      _iso6392Map,
+    );
+    final format =
+        subtitle.format.isNotEmpty ? subtitle.format.toUpperCase() : '';
+    return format.isEmpty
+        ? '字幕正在切换至：$languageName'
+        : '字幕正在切换至：$languageName $format';
   }
 
   Future<void> _handleBack() async {
