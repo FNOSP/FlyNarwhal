@@ -1745,11 +1745,6 @@ class _SeasonSelectionItemState extends State<_SeasonSelectionItem> {
         : _hovered
             ? textColor.withValues(alpha: 0.05)
             : Colors.transparent;
-    final borderColor = widget.isCurrent
-        ? const Color(0xFF2173DF)
-        : _hovered
-            ? textColor.withValues(alpha: 0.2)
-            : Colors.transparent;
 
     return MouseRegion(
       key: ValueKey('season-selection-item:${widget.season.guid}'),
@@ -1765,7 +1760,6 @@ class _SeasonSelectionItemState extends State<_SeasonSelectionItem> {
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1823,19 +1817,7 @@ class _SeasonSelectionItemState extends State<_SeasonSelectionItem> {
                             ),
                           ),
                         if (voteAverage > 0) ...[
-                          if (widget.season.airDate != null &&
-                              widget.season.airDate!.length >= 4)
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 8),
-                              child: Text(
-                                '/',
-                                style: TextStyle(
-                                  color: textColor.withValues(alpha: 0.4),
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
+                          const SizedBox(width: 12),
                           Text(
                             '${voteAverage.toStringAsFixed(1)} 分',
                             style: const TextStyle(
