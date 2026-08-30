@@ -18,6 +18,7 @@ import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/filter_box.dart';
 import '../../shared/layout_flyout.dart';
 import '../../shared/movie_poster.dart';
+import '../../shared/responsive_poster_grid_delegate.dart';
 import '../../shared/sort_flyout.dart';
 import '../../shared/toast.dart';
 import '../home/home_view_model.dart';
@@ -840,41 +841,40 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   }
 
   Widget _buildVerticalGrid(List<MediaItem> items, double scaleFactor) {
-    const posterHeight = 200.0;
-    const posterWidth = posterHeight * 2 / 3;
     return GridView.builder(
       controller: _scrollController,
       padding: EdgeInsets.all(16 * scaleFactor),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 180 * scaleFactor,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 0,
-        childAspectRatio: 0.6,
+      // 复刻 Web 竖幅网格响应式规则：列数随可用宽度变化，海报填满列宽，
+      // 横向间距固定 20px（与 Web 一致）。
+      gridDelegate: ResponsivePosterGridDelegate(
+        textBlockExtent: 64 * scaleFactor,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
         final isDirectory =
             MediaType.tryParse(item.type) == MediaType.directory;
-        return MoviePoster(
-          title: item.title,
-          // 文件夹卡片仅显示标题（与 Web 一致）。
-          subtitle: isDirectory ? null : buildPosterSubtitle(item),
-          posterPath: item.effectivePoster,
-          score: item.voteAverage,
-          resolutions: item.mediaStream?.resolutions,
-          isFavorite: item.isFavorite == 1,
-          isWatched: (item.watched ?? 0) == 1,
-          width: posterWidth,
-          height: posterHeight,
-          scaleFactor: scaleFactor,
-          type: item.type,
-          guid: item.guid,
-          onTap: () => _navigateItem(item),
-          onPlayTap: isDirectory ? null : () => _playItem(item),
-          onFavoriteToggle: _handleFavoriteToggle,
-          onWatchedToggle: _handleWatchedToggle,
-        );
+        return LayoutBuilder(builder: (context, constraints) {
+          return MoviePoster(
+            title: item.title,
+            // 文件夹卡片仅显示标题（与 Web 一致）。
+            subtitle: isDirectory ? null : buildPosterSubtitle(item),
+            posterPath: item.effectivePoster,
+            score: item.voteAverage,
+            resolutions: item.mediaStream?.resolutions,
+            isFavorite: item.isFavorite == 1,
+            isWatched: (item.watched ?? 0) == 1,
+            width: constraints.maxWidth,
+            height: constraints.maxWidth * 3 / 2,
+            scaleFactor: scaleFactor,
+            type: item.type,
+            guid: item.guid,
+            onTap: () => _navigateItem(item),
+            onPlayTap: isDirectory ? null : () => _playItem(item),
+            onFavoriteToggle: _handleFavoriteToggle,
+            onWatchedToggle: _handleWatchedToggle,
+          );
+        });
       },
     );
   }

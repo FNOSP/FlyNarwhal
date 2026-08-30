@@ -22,6 +22,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.3.2] - 2026-08-30
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Added
+
+- **在线字幕切换提示**：切换字幕时会显示切换提示，方便确认当前生效的字幕。
+- **海报墙响应式布局**：媒体库海报墙随窗口宽度自动调整每行海报数量，与飞牛影视 Web 端显示效果一致。
+
+### Fixed
+
+- **av1 视频转码**：修复 av1 视频转码播放失败的问题。
+- **在线字幕切换**：修复下载在线字幕后未真正应用到当前播放的问题。
+- **快捷键**：优化搜索快捷键的触发逻辑，确保在所有界面下可靠生效。
+- **观看记录刷新**：退出播放器后自动刷新最近观看列表。
+- **界面细节优化**：优化光标悬停在播放进度条上时的时长显示与字幕搜索弹框的显示效果。
+
 ## [2.3.1] - 2026-08-29
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**

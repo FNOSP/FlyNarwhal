@@ -247,6 +247,11 @@ class PlayerSessionCoordinator {
       startPositionMs: historyMs,
       baseUrl: baseUrl,
     );
+    // A direct-link session always streams the original quality, including
+    // the 8192 fallback that may override a lower saved quality request.
+    final effectiveQuality = resolved.isDirectLink
+        ? (qualities.firstOrNull ?? currentQuality)
+        : currentQuality;
     final preparedPlaySource = await preparePlaySourceForMediaKit(
       playUri: resolved.playUri,
       currentSubtitleStream: currentSubtitleStream,
@@ -261,7 +266,7 @@ class PlayerSessionCoordinator {
       currentAudioStream: currentAudioStream,
       currentSubtitleStream: currentSubtitleStream,
       currentQualities: qualities,
-      currentQuality: currentQuality,
+      currentQuality: effectiveQuality,
       currentAudioStreamList: audioStreams,
       currentSubtitleStreamList: subtitleStreams,
       playLink: resolved.isDirectLink ? null : resolved.playLinkRaw,
@@ -282,7 +287,7 @@ class PlayerSessionCoordinator {
       streamInfo: streamInfo,
       playingInfoCache: playingInfoCache,
       qualities: qualities,
-      currentQuality: currentQuality,
+      currentQuality: effectiveQuality,
       episodeList: const [],
       currentEpisode: null,
       nextEpisode: null,
@@ -685,7 +690,6 @@ class PlayerSessionCoordinator {
   Future<PlayerSubtitleRefreshResult> refreshSubtitleStreams({
     required PlayingInfoCache cache,
     String? selectedSubtitleGuid,
-    String? targetTrimId,
   }) async {
     final videoStream = cache.currentVideoStream;
     if (videoStream == null) {
@@ -701,13 +705,7 @@ class PlayerSessionCoordinator {
     final currentGuid =
         selectedSubtitleGuid ?? cache.currentSubtitleStream?.guid;
 
-    SubtitleStream? nextSelectedSubtitle;
-    if (targetTrimId != null && targetTrimId.isNotEmpty) {
-      nextSelectedSubtitle = subtitleStreams
-          .where((subtitle) => subtitle.trimId == targetTrimId)
-          .firstOrNull;
-    }
-    nextSelectedSubtitle ??= subtitleStreams
+    final nextSelectedSubtitle = subtitleStreams
         .where((subtitle) => subtitle.guid == currentGuid)
         .firstOrNull;
 
@@ -745,14 +743,26 @@ class PlayerSessionCoordinator {
     QualityResponse? quality,
     int startTimestamp = 0,
   }) {
-    // Web logic: force h264 when the toggle is on or the source uses the
-    // HEVC "rext" profile; forced_sdr only applies to non-SDR sources.
+    // Web logic: the transcode target encoder is always h264 or hevc, never
+    // the source codec (requesting e.g. av1 as the target makes the server
+    // reject the session with ParameterError 8192). Force h264 when the
+    // toggle is on or the source uses the HEVC "rext" profile; otherwise
+    // transcode modern codecs (hevc/av1/vp8/vp9) to hevc and everything else
+    // to h264. The client always decodes hevc (mpv), so unlike the web
+    // player no capability check is needed. forced_sdr only applies to
+    // non-SDR sources.
     final isSdrSource = videoStream.colorRangeType.toLowerCase() == 'sdr';
     final useH264 = forceH264 || videoStream.profile.toLowerCase() == 'rext';
+    const hevcTranscodeSources = {'hevc', 'av1', 'vp8', 'vp9'};
+    final videoEncoder = useH264
+        ? 'h264'
+        : hevcTranscodeSources.contains(videoStream.codecName.toLowerCase())
+            ? 'hevc'
+            : 'h264';
     return PlayPlayRequest(
       mediaGuid: fileStream.guid,
       videoGuid: videoStream.guid,
-      videoEncoder: useH264 ? 'h264' : videoStream.codecName,
+      videoEncoder: videoEncoder,
       resolution: quality?.resolution ?? videoStream.resolutionType,
       bitrate: quality?.bitrate ?? videoStream.bps,
       startTimestamp: startTimestamp,
@@ -1141,11 +1151,14 @@ class PlayerSessionCoordinator {
         mediaGuid: playInfo.mediaGuid,
         startPositionMs: startPositionMs,
       );
+      // The fallback plays the original file through the direct link, so the
+      // session must be marked as a direct-link session: there is no transcode
+      // session to quit/reset later, and exit/quality-switch flows rely on it.
       return _ResolvedPlayLink(
         playUri: directLink.playUri,
         playLinkRaw: directLink.playLinkRaw,
         effectiveStartMs: directLink.effectiveStartMs,
-        isDirectLink: false,
+        isDirectLink: true,
       );
     }
   }

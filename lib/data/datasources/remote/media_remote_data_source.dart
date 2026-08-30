@@ -619,7 +619,10 @@ class MediaRemoteDataSource {
     );
     if (baseResponse.code != ResponseCodes.success ||
         baseResponse.data == null) {
-      throw Exception(baseResponse.msg);
+      // Keep the business code in the message: callers (e.g. the player's
+      // direct-link fallback) match on it, and the server may return an
+      // empty msg which would otherwise produce an unreadable exception.
+      throw Exception('code=${baseResponse.code} msg=${baseResponse.msg}');
     }
     return baseResponse.data!;
   }

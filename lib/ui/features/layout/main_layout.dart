@@ -49,6 +49,12 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
   @override
   void initState() {
     super.initState();
+    // Register the focus-search shortcut as a global hardware-keyboard handler
+    // so it fires no matter which node owns the focus. A Focus.onKeyEvent on
+    // _shortcutFocusNode would stop receiving events once the primary focus
+    // moves outside this widget's subtree — e.g. clicking a non-focusable area
+    // parks focus on the shell route's ModalScope, an ANCESTOR of this tree.
+    HardwareKeyboard.instance.addHandler(_handleFocusSearchKey);
     // Register the macOS "open preferences" shortcut as a global
     // hardware-keyboard handler so it fires no matter which widget owns the
     // focus (including right after launch, when nothing is focused yet).
@@ -58,6 +64,34 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     if (!kIsWeb && Platform.isMacOS) {
       HardwareKeyboard.instance.addHandler(_handleOpenSettingsKey);
     }
+  }
+
+  bool _handleFocusSearchKey(KeyEvent event) {
+    // Only react to the initial key-down so holding the key focuses
+    // once instead of on every key repeat.
+    if (event is! KeyDownEvent) {
+      return false;
+    }
+    final shortcutStore = ref.read(shortcutSettingsStoreProvider);
+    // While the search input is focused, bare text-input keys must type into
+    // the field instead of re-triggering the shortcut.
+    if (_searchFocusNode.hasFocus &&
+        shortcutStore.shouldSuppressFocusSearchInput(event)) {
+      return false;
+    }
+    if (!shortcutStore.matches(event, ShortcutActionId.focusSearch)) {
+      return false;
+    }
+    // Stay inactive while a fullscreen player page is pushed on top of the
+    // shell (MainLayout remains mounted underneath). The player pages bind
+    // their own keys (e.g. F = fullscreen) and must not be preempted.
+    final location =
+        GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
+    if (location.startsWith('/player/') || location.startsWith('/live/')) {
+      return false;
+    }
+    _searchFocusNode.requestFocus();
+    return true;
   }
 
   bool _handleOpenSettingsKey(KeyEvent event) {
@@ -79,6 +113,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleFocusSearchKey);
     if (!kIsWeb && Platform.isMacOS) {
       HardwareKeyboard.instance.removeHandler(_handleOpenSettingsKey);
     }
@@ -476,20 +511,11 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
       _navigationViewKey.currentState?.togglePane();
     }
 
-    KeyEventResult handleGlobalKeyEvent(FocusNode node, KeyEvent event) {
-      if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
-        return KeyEventResult.ignored;
-      }
-      final shortcutStore = ref.read(shortcutSettingsStoreProvider);
-      if (shortcutStore.shouldSuppressFocusSearchInput(event)) {
-        return KeyEventResult.ignored;
-      }
-      if (shortcutStore.matches(event, ShortcutActionId.focusSearch)) {
-        _searchFocusNode.requestFocus();
-        return KeyEventResult.handled;
-      }
-      return KeyEventResult.ignored;
-    }
+    // The focus-search shortcut is handled by _handleFocusSearchKey, a global
+    // HardwareKeyboard handler registered in initState — a Focus.onKeyEvent
+    // here would miss key events whenever the primary focus moves outside
+    // this subtree (e.g. clicking a non-focusable area parks focus on the
+    // shell route's ModalScope, an ancestor of this tree).
 
     // Traffic light buttons area dimensions for macOS
     const double kTrafficLightLeftPadding = 20.0;
@@ -626,7 +652,6 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     return Focus(
       focusNode: _shortcutFocusNode,
       autofocus: true,
-      onKeyEvent: handleGlobalKeyEvent,
       child: Stack(
         children: [
           // In minimal mode fluent_ui reserves a band at the top of the view

@@ -179,8 +179,7 @@ class ShortcutSettingsStore {
       title: '聚焦搜索输入框',
       category: ShortcutCategory.search,
       defaultBinding: ShortcutBinding(
-        primary: ShortcutKeyBinding(LogicalKeyboardKey.enter.keyId),
-        secondary: ShortcutKeyBinding(LogicalKeyboardKey.numpadEnter.keyId),
+        primary: ShortcutKeyBinding(LogicalKeyboardKey.keyF.keyId),
       ),
     ),
     ShortcutActionDefinition(
@@ -349,11 +348,23 @@ class ShortcutSettingsStore {
     return getBinding(actionId).matches(event);
   }
 
+  /// Whether [event] is a bare text-input key that should NOT trigger the
+  /// focus-search action while the search input is focused (so the letter can
+  /// be typed into the field instead). Callers must gate this on the search
+  /// input actually having focus — applying it unconditionally would make
+  /// bare letter/digit focus-search bindings unfireable everywhere.
   bool shouldSuppressFocusSearchInput(KeyEvent event) {
     final keyboard = HardwareKeyboard.instance;
     if (keyboard.isControlPressed ||
         keyboard.isAltPressed ||
         keyboard.isMetaPressed) {
+      return false;
+    }
+    // The Enter key opens the search box and must be handled before text-editing
+    // shortcuts, so it is never suppressed. Other focus-search keys (e.g. F) can
+    // be typed into a focused text field, so they are suppressed there.
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
       return false;
     }
     return _isTextInputKey(event.logicalKey);
