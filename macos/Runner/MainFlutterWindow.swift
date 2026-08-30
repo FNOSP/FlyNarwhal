@@ -26,13 +26,10 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     registerLocalSubtitlePickerChannel(messenger: flutterViewController.engine.binaryMessenger)
-    registerTopEdgeColorChannel(messenger: flutterViewController.engine.binaryMessenger)
-    registerDisplayEnumerationChannel(messenger: flutterViewController.engine.binaryMessenger)
     preWarmSubtitlePicker()
 
     self.titlebarAppearsTransparent = true
     self.styleMask.insert(.fullSizeContentView)
-    installTopEdgeCover()
 
     self.standardWindowButton(.closeButton)?.isHidden = false
     self.standardWindowButton(.miniaturizeButton)?.isHidden = false
@@ -43,19 +40,6 @@ class MainFlutterWindow: NSWindow {
     // Relayout traffic light buttons after window initialization
     DispatchQueue.main.async {
       self.relayoutWindowButtons()
-      self.installTopEdgeCover()
-    }
-
-    // window_manager / flutter_acrylic can recreate or reorder the titlebar
-    // container during startup and on style changes, which orphans the top
-    // edge cover. Re-assert it (idempotently) whenever the window updates.
-    for name in [NSWindow.didBecomeKeyNotification,
-                 NSWindow.didResizeNotification,
-                 NSWindow.didUpdateNotification] {
-      NotificationCenter.default.addObserver(
-        forName: name, object: self, queue: .main) { [weak self] _ in
-        self?.installTopEdgeCover()
-      }
     }
 
     // Fix: retarget Edit ▸ Paste once the menu bar is loaded. Deferred so the
@@ -256,139 +240,5 @@ class MainFlutterWindow: NSWindow {
       NSLayoutConstraint(item: zoomButton, attribute: .top, relatedBy: .equal, toItem: titlebarView, attribute: .top, multiplier: 1, constant: topPadding),
       NSLayoutConstraint(item: zoomButton, attribute: .left, relatedBy: .equal, toItem: titlebarView, attribute: .left, multiplier: 1, constant: leftPadding + (buttonWidth + buttonSpacing) * 2)
     ])
-  }
-
-  // MARK: - Top edge cover
-  //
-  // macOS draws a ~1px highlight along the very top edge of a titled window
-  // (brightest when the window is key), which shows up as a light hairline
-  // above the dark custom caption. It is painted above the content view, so
-  // it cannot be covered from Flutter. Overlay it with a 2pt strip pinned to
-  // the top of the titlebar container view — that view is kept above the
-  // other frame subviews by AppKit (acrylic/window_manager reorder the frame
-  // view's subviews during startup, which buries overlays added there).
-  private var topEdgeCover: TopEdgeCoverView?
-  // Last color pushed from the Dart side, so a cover recreated after a
-  // titlebar-container rebuild immediately uses the app-theme color instead
-  // of waiting for the next Dart push.
-  private var topEdgeColor: NSColor = .windowBackgroundColor
-
-  private func installTopEdgeCover() {
-    guard let closeButton = standardWindowButton(.closeButton),
-          let container = closeButton.superview?.superview else { return }
-    // The container can be recreated after startup (e.g. when window_manager
-    // inserts .fullSizeContentView), and AppKit re-adds its decoration view
-    // (which paints the top-edge highlight) above the cover, so only skip
-    // when the cover is attached to the current container AND on top.
-    if let cover = topEdgeCover,
-       cover.superview === container,
-       container.subviews.last === cover {
-      return
-    }
-    let cover = topEdgeCover ?? TopEdgeCoverView()
-    cover.removeFromSuperview()
-    cover.fillColor = topEdgeColor
-    cover.frame = NSRect(x: 0,
-                         y: container.bounds.height - 2,
-                         width: container.bounds.width,
-                         height: 2)
-    cover.autoresizingMask = [.width, .minYMargin]
-    container.addSubview(cover)
-    topEdgeCover = cover
-  }
-
-  /// Method channel letting the Dart side push the current caption background
-  /// color, so the cover matches the app theme (which follows app settings,
-  /// not the system appearance).
-  private func registerTopEdgeColorChannel(messenger: FlutterBinaryMessenger) {
-    let channel = FlutterMethodChannel(
-      name: "fly_narwhal/window",
-      binaryMessenger: messenger)
-    channel.setMethodCallHandler { [weak self] call, result in
-      guard call.method == "setTopEdgeColor",
-            let args = call.arguments as? [String: Any],
-            let r = args["r"] as? Int,
-            let g = args["g"] as? Int,
-            let b = args["b"] as? Int else {
-        result(FlutterMethodNotImplemented)
-        return
-      }
-      let a = (args["a"] as? Int) ?? 255
-      let color = NSColor(srgbRed: CGFloat(r) / 255,
-                          green: CGFloat(g) / 255,
-                          blue: CGFloat(b) / 255,
-                          alpha: CGFloat(a) / 255)
-      DispatchQueue.main.async {
-        self?.topEdgeColor = color
-        self?.topEdgeCover?.fillColor = color
-      }
-      result(nil)
-    }
-  }
-
-  // MARK: - Display enumeration
-  //
-  // Mirrors the Windows `getAllDisplays` channel so Dart can validate window
-  // geometry against every connected screen (restore on the display the
-  // window was closed on, fall back to primary when that display is gone,
-  // follow the main window's display when opening the player).
-  private func registerDisplayEnumerationChannel(messenger: FlutterBinaryMessenger) {
-    let channel = FlutterMethodChannel(
-      name: "fly_narwhal/window_display_frame",
-      binaryMessenger: messenger)
-    channel.setMethodCallHandler { call, result in
-      guard call.method == "getAllDisplays" else {
-        result(FlutterMethodNotImplemented)
-        return
-      }
-      result(MainFlutterWindow.buildAllDisplays())
-    }
-  }
-
-  /// All connected screens in the same top-left-origin coordinate space that
-  /// window_manager uses for getBounds/setBounds: NSScreen frames are
-  /// bottom-left-origin, flipped against `NSScreen.screens[0].frame.height`
-  /// (the exact baseline window_manager's NSRect.topLeft conversion uses).
-  private static func buildAllDisplays() -> [[String: Any]] {
-    let screens = NSScreen.screens
-    guard let baselineScreen = screens.first else { return [] }
-    let baselineHeight = baselineScreen.frame.height
-
-    func toTopLeftRect(_ rect: NSRect) -> [String: Any] {
-      return [
-        "x": Double(rect.origin.x),
-        "y": Double(baselineHeight - (rect.origin.y + rect.height)),
-        "width": Double(rect.width),
-        "height": Double(rect.height),
-      ]
-    }
-
-    return screens.map { screen in
-      let screenNumber =
-          (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
-              as? NSNumber)?.uint32Value ?? 0
-      return [
-        "id": "macos-display-\(screenNumber)",
-        "monitorBounds": toTopLeftRect(screen.frame),
-        "workArea": toTopLeftRect(screen.visibleFrame),
-        // screens.first is the screen carrying the menu bar (the designated
-        // primary display); NSScreen.main follows the focused window and
-        // must not be used here.
-        "isPrimary": screen === baselineScreen,
-        "scaleFactor": Double(screen.backingScaleFactor),
-      ]
-    }
-  }
-}
-
-/// Covers the window's top-edge highlight with the caption background color.
-final class TopEdgeCoverView: NSView {
-  var fillColor: NSColor = .windowBackgroundColor {
-    didSet { needsDisplay = true }
-  }
-
-  override func draw(_ dirtyRect: NSRect) {
-    fillColor.setFill()
-    bounds.fill()
   }
 }
