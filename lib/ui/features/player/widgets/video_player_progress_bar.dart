@@ -5,7 +5,7 @@ import '../models/resolved_skip_segments.dart';
 const playerProgressBarKey = ValueKey('player-progress-bar');
 const playerProgressBarCanvasKey = ValueKey('player-progress-bar-canvas');
 const playerProgressBarTimestampKey = ValueKey('player-progress-bar-timestamp');
-const _hoverTimestampWidth = 60.0;
+const _hoverTimestampMinWidth = 60.0;
 
 // Format duration to HH:MM:SS or MM:SS
 String formatDurationToDateTime(int milliseconds) {
@@ -79,6 +79,7 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
   bool _hasActiveInteraction = false;
   double _hoverPositionX = 0.0;
   double _layoutWidth = 0.0;
+  double _hoverTimestampWidth = _hoverTimestampMinWidth;
 
   bool get _showDetails => _isHovered || _isDragging;
 
@@ -99,6 +100,25 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     final end = segment.endMilliseconds.clamp(0, widget.totalDuration);
     if (end <= start) return null;
     return (start / widget.totalDuration, end / widget.totalDuration);
+  }
+
+  double _measureHoverTimestampWidth(int totalDuration) {
+    final text = formatDurationToDateTime(totalDuration);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final width = painter.width + 16;
+    painter.dispose();
+    return width > _hoverTimestampMinWidth ? width : _hoverTimestampMinWidth;
   }
 
   void _seekAt(Offset offset, double width) {
@@ -172,6 +192,8 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               _layoutWidth = constraints.maxWidth;
+              _hoverTimestampWidth =
+                  _measureHoverTimestampWidth(widget.totalDuration);
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -194,8 +216,10 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
                     Positioned(
                       left: _calculateTimestampPosition(),
                       bottom: barHeight + 8,
-                      child: SizedBox(
-                        width: _hoverTimestampWidth,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minWidth: _hoverTimestampMinWidth,
+                        ),
                         child: _HoverTimestamp(
                           key: playerProgressBarTimestampKey,
                           hoverProgress: _hoverPositionX / _layoutWidth,
@@ -428,6 +452,8 @@ class _HoverTimestamp extends StatelessWidget {
       ),
       child: Text(
         timeText,
+        maxLines: 1,
+        softWrap: false,
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
