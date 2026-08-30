@@ -112,8 +112,7 @@ class StreamResponse {
 
   /// Cloud-storage media that exposes direct-link qualities (Quark/Baidu …).
   bool get isCloudDirectMedia =>
-      cloudStorageInfo != null &&
-      (directLinkQualities?.isNotEmpty ?? false);
+      cloudStorageInfo != null && (directLinkQualities?.isNotEmpty ?? false);
 }
 
 /// One entry of `direct_link_qualities` returned for cloud media. `resolution`
@@ -242,13 +241,15 @@ class MediaTranscodeAudio {
   final int channels;
   final String encoder;
 
-  MediaTranscodeAudio({
+  const MediaTranscodeAudio({
     required this.channels,
     required this.encoder,
   });
 
-  factory MediaTranscodeAudio.fromJson(Map<String, dynamic> json) =>
-      _$MediaTranscodeAudioFromJson(json);
+  factory MediaTranscodeAudio.fromJson(Map json) => MediaTranscodeAudio(
+        channels: (json['channels'] as num?)?.toInt() ?? 0,
+        encoder: json['encoder'] as String? ?? '',
+      );
   Map<String, dynamic> toJson() => _$MediaTranscodeAudioToJson(this);
 }
 
@@ -270,7 +271,7 @@ class MediaTranscodeVideo {
   @JsonKey(name: 'transcodingRate')
   final String transcodingRate;
 
-  MediaTranscodeVideo({
+  const MediaTranscodeVideo({
     required this.corruptedFrames,
     required this.decodeMethod,
     required this.droppedFrames,
@@ -281,8 +282,16 @@ class MediaTranscodeVideo {
     required this.transcodingRate,
   });
 
-  factory MediaTranscodeVideo.fromJson(Map<String, dynamic> json) =>
-      _$MediaTranscodeVideoFromJson(json);
+  factory MediaTranscodeVideo.fromJson(Map json) => MediaTranscodeVideo(
+        corruptedFrames: (json['corruptedFrames'] as num?)?.toInt() ?? 0,
+        decodeMethod: (json['decodeMethod'] as num?)?.toInt() ?? 0,
+        droppedFrames: (json['droppedFrames'] as num?)?.toInt() ?? 0,
+        dynamicRange: json['dynamicRange'] as String? ?? '',
+        encodeMethod: (json['encodeMethod'] as num?)?.toInt() ?? 0,
+        encoder: json['encoder'] as String? ?? '',
+        selectedGpu: json['selectedGpu'] as String? ?? '',
+        transcodingRate: json['transcodingRate'] as String? ?? '',
+      );
   Map<String, dynamic> toJson() => _$MediaTranscodeVideoToJson(this);
 }
 
@@ -310,8 +319,35 @@ class MediaTranscodeResponse {
     required this.video,
   });
 
+  // The server omits fields like `audio` depending on codec / transcode stage,
+  // so every field falls back to an empty value instead of a hard cast.
   factory MediaTranscodeResponse.fromJson(Map<String, dynamic> json) =>
-      _$MediaTranscodeResponseFromJson(json);
+      MediaTranscodeResponse(
+        audio: json['audio'] == null
+            ? const MediaTranscodeAudio(channels: 0, encoder: '')
+            : MediaTranscodeAudio.fromJson(json['audio'] as Map),
+        bitrate: (json['bitrate'] as num?)?.toInt() ?? 0,
+        reqId: json['reqid'] as String? ?? '',
+        resolution: json['resolution'] as String? ?? '',
+        result: json['result'] as String? ?? '',
+        transcoded: json['transcoded'] as bool? ?? false,
+        transcodingReason: (json['transcodingReason'] as List?)
+                ?.whereType<num>()
+                .map((e) => e.toInt())
+                .toList() ??
+            const [],
+        video: json['video'] == null
+            ? const MediaTranscodeVideo(
+                corruptedFrames: 0,
+                decodeMethod: 0,
+                droppedFrames: 0,
+                dynamicRange: '',
+                encodeMethod: 0,
+                encoder: '',
+                selectedGpu: '',
+                transcodingRate: '')
+            : MediaTranscodeVideo.fromJson(json['video'] as Map),
+      );
   Map<String, dynamic> toJson() => _$MediaTranscodeResponseToJson(this);
 }
 
