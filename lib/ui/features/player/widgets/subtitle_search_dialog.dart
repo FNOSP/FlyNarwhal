@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../data/models/subtitle_models.dart';
@@ -163,11 +165,24 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
 
   void _close(BuildContext context) => Navigator.of(context).pop();
 
+  // Reference size at full screen; the card scales with the smaller window
+  // dimension while keeping this 4:3 aspect ratio fixed.
+  static const double _cardWidth = 600;
+  static const double _cardHeight = 453;
+  static const double _minScale = 0.55;
+  static const double _maxScale = 1.2;
+
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final cardWidth = screenSize.width * 0.6;
-    final cardHeight = screenSize.height * 0.72;
+    // The dialog route's canvas is the whole screen even in fullscreen, so the
+    // smaller of width/height drives the scale (capped for very large displays).
+    final scale = (math.min(screenSize.width, screenSize.height) / 680)
+        .clamp(_minScale, _maxScale);
+    final cardWidth =
+        math.min(_cardWidth * scale, screenSize.width * 0.94);
+    final cardHeight =
+        math.min(_cardHeight * scale, screenSize.height * 0.94);
 
     // The route's modal barrier (see the call site) draws the scrim and closes
     // the dialog on outside taps. The card only needs to absorb hits so taps on
@@ -178,8 +193,8 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
       child: Listener(
         behavior: HitTestBehavior.opaque,
         child: Container(
-          width: cardWidth.clamp(640.0, 1080.0),
-          height: cardHeight.clamp(420.0, 820.0),
+          width: cardWidth,
+          height: cardHeight,
           decoration: BoxDecoration(
             color: _cardBackgroundColor,
             borderRadius: BorderRadius.circular(24),
