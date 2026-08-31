@@ -43,6 +43,9 @@ const double _episodePosterHeight = 140;
 const double _episodePosterWidth = _episodePosterHeight * 16 / 9;
 const double _episodeCardSpacing = 16;
 const double _episodeRowHeight = 244;
+// Nudge the season selection dialog scrollbar right so it stops hugging the
+// season cards' trailing edge (negative crossAxisMargin shifts right).
+const double _seasonDialogScrollbarOffset = 8;
 
 class TvSeasonDetailScreen extends ConsumerWidget {
   final String guid;
@@ -1641,7 +1644,7 @@ class _SeasonSelectorButtonState extends State<_SeasonSelectorButton> {
 
 /// 选季弹窗：参考「剧集简介」弹窗（MediaDescriptionDialog）的 ContentDialog
 /// 样式，列出父剧集下的所有季，点击切换到对应季页面。
-class _SeasonSelectionDialog extends StatelessWidget {
+class _SeasonSelectionDialog extends StatefulWidget {
   final String tvTitle;
   final List<SeasonListResponse> seasons;
   final String currentSeasonGuid;
@@ -1658,6 +1661,19 @@ class _SeasonSelectionDialog extends StatelessWidget {
     required this.cacheManager,
   });
 
+  @override
+  State<_SeasonSelectionDialog> createState() => _SeasonSelectionDialogState();
+}
+
+class _SeasonSelectionDialogState extends State<_SeasonSelectionDialog> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   String _buildSeasonLabel(SeasonListResponse season) {
     if (season.seasonNumber > 0) return '第 ${season.seasonNumber} 季';
     final title = season.title.trim();
@@ -1673,7 +1689,7 @@ class _SeasonSelectionDialog extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              '《$tvTitle》共 ${seasons.length} 季',
+              '《${widget.tvTitle}》共 ${widget.seasons.length} 季',
               style: FluentTheme.of(context).typography.subtitle,
             ),
           ),
@@ -1683,25 +1699,46 @@ class _SeasonSelectionDialog extends StatelessWidget {
           ),
         ],
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final season in seasons)
-              _SeasonSelectionItem(
-                season: season,
-                posterUrl: _buildImageUrl(baseUrl, season.poster ?? ''),
-                httpHeaders: httpHeaders,
-                cacheManager: cacheManager,
-                label: _buildSeasonLabel(season),
-                isCurrent: season.guid == currentSeasonGuid,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  context.go('/tv/season/${season.guid}');
-                },
-              ),
-          ],
+      // On macOS the app's ScrollBehavior attaches a CupertinoScrollbar, which
+      // hard-codes its cross-axis margin and ignores ScrollbarThemeData.
+      // Disable that scrollbar and attach a fluent Scrollbar so crossAxisMargin
+      // can nudge the thumb right, off the season cards' trailing edge.
+      content: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: Scrollbar(
+          // Desktop scroll views do not attach to the PrimaryScrollController,
+          // so the scrollbar needs an explicit controller.
+          controller: _scrollController,
+          // Match the CupertinoScrollbar's show-while-scrolling-then-fade
+          // behavior; fluent Scrollbar defaults to an always-visible thumb.
+          thumbVisibility: false,
+          style: const ScrollbarThemeData(
+            crossAxisMargin: -_seasonDialogScrollbarOffset,
+            hoveringCrossAxisMargin: -_seasonDialogScrollbarOffset,
+          ),
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final season in widget.seasons)
+                  _SeasonSelectionItem(
+                    season: season,
+                    posterUrl:
+                        _buildImageUrl(widget.baseUrl, season.poster ?? ''),
+                    httpHeaders: widget.httpHeaders,
+                    cacheManager: widget.cacheManager,
+                    label: _buildSeasonLabel(season),
+                    isCurrent: season.guid == widget.currentSeasonGuid,
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.go('/tv/season/${season.guid}');
+                    },
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
