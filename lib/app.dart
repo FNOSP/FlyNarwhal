@@ -193,6 +193,7 @@ Future<void> _runKmpMigration(SharedPreferences preferences) async {
 
     // Sync migrated login history to the key used by PreferencesManager.
     _syncMigratedLoginHistory(preferences, accountSettingsStore);
+    _syncMigratedFallbackDeviceId(preferences, accountSettingsStore);
   } catch (error, stackTrace) {
     AppTalker.warning('Migration', 'KMP migration failed: $error');
     AppTalker.instance.handle(error, stackTrace);
@@ -214,6 +215,23 @@ void _syncMigratedLoginHistory(
   }
   preferences.setString(targetKey, migratedJson);
   AppTalker.info('Migration', 'Login history synced to PreferencesManager key');
+}
+
+/// Copies the KMP-migrated fallback device id so it stays stable across runs.
+void _syncMigratedFallbackDeviceId(
+  SharedPreferences preferences,
+  AccountSettingsStore accountSettingsStore,
+) {
+  const targetKey = 'fallback_device_id';
+  if (preferences.getString(targetKey) != null) {
+    return;
+  }
+  final migratedId = accountSettingsStore.readGlobal<String>('fallbackDeviceId');
+  if (migratedId == null || migratedId.trim().isEmpty) {
+    return;
+  }
+  preferences.setString(targetKey, migratedId.trim());
+  AppTalker.info('Migration', 'KMP fallback device id synced to PreferencesManager key');
 }
 
 bool _isDesktopPlatform() {
