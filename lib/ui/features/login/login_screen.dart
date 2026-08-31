@@ -580,7 +580,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Center(
               child: AdaptiveLiquidGlassLayer(
                 settings:
-                    const LiquidGlassSettings(thickness: 24.0, blur: 12.0),
+                    const LiquidGlassSettings(thickness: 28.0, blur: 8.0, refractiveIndex: 1.8),
+                quality: GlassQuality.premium,
                 child: GlassContainer(
                   width: 420,
                   padding:
@@ -723,6 +724,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     _autoLoginFromHistory = false;
                                   }),
                                   activeColor: _primaryBlue,
+                                  useOwnLayer: true,
+                                  quality: GlassQuality.standard,
                                 ),
                               ),
                             ],
@@ -1024,6 +1027,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ref.read(toastManagerProvider.notifier).showToast(
               '用户名或密码错误',
               type: ToastType.failed,
+              style: ToastStyle.liquidGlass,
               duration: const Duration(seconds: 3),
             );
         return;

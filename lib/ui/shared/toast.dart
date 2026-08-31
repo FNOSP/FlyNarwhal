@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:uuid/uuid.dart';
 
 import 'window_caption.dart';
@@ -16,6 +17,31 @@ enum ToastType {
   info,
   warning,
 }
+
+/// Visual style of a toast.
+///
+/// [ToastStyle.fluent] is the classic solid surface used by all existing
+/// callers. [ToastStyle.liquidGlass] renders the toast on a maximally
+/// transparent liquid glass surface so the backdrop stays visible and
+/// refracted through the glass.
+enum ToastStyle {
+  fluent,
+  liquidGlass,
+}
+
+/// Liquid glass settings shared by liquid glass styled toasts.
+///
+/// Tuned for maximum transparency: no glass tint, no whitening veil and a
+/// low blur, while a higher thickness plus refraction keeps the backdrop
+/// visibly warped by the glass.
+const LiquidGlassSettings _liquidGlassToastSettings = LiquidGlassSettings(
+  glassColor: Color.fromARGB(0, 255, 255, 255),
+  thickness: 32,
+  blur: 1,
+  whitenStrength: 0,
+  refractiveIndex: 2.0,
+  lightIntensity: 0.4,
+);
 
 // Build warning message based on missing FlyNarwhal config fields
 String buildFlyNarwhalConfigWarning({
@@ -33,6 +59,7 @@ class ToastMessage {
     required this.id,
     required this.message,
     required this.type,
+    required this.style,
     required this.duration,
     required this.category,
     required this.revision,
@@ -41,6 +68,7 @@ class ToastMessage {
   final String id;
   final String message;
   final ToastType type;
+  final ToastStyle style;
   final Duration duration;
   final String? category;
   final int revision;
@@ -48,6 +76,7 @@ class ToastMessage {
   ToastMessage copyWith({
     String? message,
     ToastType? type,
+    ToastStyle? style,
     Duration? duration,
     int? revision,
   }) {
@@ -55,6 +84,7 @@ class ToastMessage {
       id: id,
       message: message ?? this.message,
       type: type ?? this.type,
+      style: style ?? this.style,
       duration: duration ?? this.duration,
       category: category,
       revision: revision ?? this.revision,
@@ -113,6 +143,7 @@ class ToastManager extends StateNotifier<List<ToastMessage>> {
   void showToast(
     String message, {
     ToastType type = ToastType.success,
+    ToastStyle style = ToastStyle.fluent,
     Duration duration = _defaultToastDuration,
     String? category,
   }) {
@@ -132,6 +163,7 @@ class ToastManager extends StateNotifier<List<ToastMessage>> {
       updatedToasts[existingIndex] = updatedToasts[existingIndex].copyWith(
         message: normalizedMessage,
         type: type,
+        style: style,
         duration: normalizedDuration,
         revision: _takeNextRevision(),
       );
@@ -145,6 +177,7 @@ class ToastManager extends StateNotifier<List<ToastMessage>> {
         id: _uuid.v4(),
         message: normalizedMessage,
         type: type,
+        style: style,
         duration: normalizedDuration,
         category: category,
         revision: _takeNextRevision(),
@@ -335,13 +368,10 @@ class _ToastItemState extends State<_ToastItem>
   @override
   Widget build(BuildContext context) {
     final presentation = widget.toast.type.presentation;
-    final isDarkTheme = FluentTheme.of(context).brightness == Brightness.dark;
-    final backgroundColor =
-        isDarkTheme ? const Color(0xFF414249) : const Color(0xFFFFFFFF);
-    final borderColor =
-        isDarkTheme ? const Color(0xFF565860) : const Color(0xFFE5E6EB);
-    final textColor =
-        isDarkTheme ? const Color(0xFFF5F5F6) : const Color(0xFF1D2129);
+
+    final Widget body = widget.toast.style == ToastStyle.liquidGlass
+        ? _buildLiquidGlassBody(presentation)
+        : _buildFluentBody(presentation);
 
     return Semantics(
       liveRegion: true,
@@ -350,53 +380,82 @@ class _ToastItemState extends State<_ToastItem>
         position: _offsetAnimation,
         child: FadeTransition(
           opacity: _opacityAnimation,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: borderColor),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x2E000000),
-                  blurRadius: 14,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                ExcludeSemantics(
-                  child: SvgPicture.asset(
-                    presentation.assetPath,
-                    width: 16,
-                    height: 16,
-                    colorFilter: ColorFilter.mode(
-                      presentation.iconColor,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    widget.toast.message,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      height: 1,
-                    ),
-                  ),
-                ),
-              ],
+          child: body,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFluentBody(ToastPresentation presentation) {
+    final isDarkTheme = FluentTheme.of(context).brightness == Brightness.dark;
+    final backgroundColor =
+        isDarkTheme ? const Color(0xFF414249) : const Color(0xFFFFFFFF);
+    final borderColor =
+        isDarkTheme ? const Color(0xFF565860) : const Color(0xFFE5E6EB);
+    final textColor =
+        isDarkTheme ? const Color(0xFFF5F5F6) : const Color(0xFF1D2129);
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x2E000000),
+            blurRadius: 14,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: _buildToastContent(presentation, textColor),
+    );
+  }
+
+  Widget _buildLiquidGlassBody(ToastPresentation presentation) {
+    final isDarkTheme = FluentTheme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkTheme ? Colors.white : Colors.black;
+
+    return GlassContainer(
+      useOwnLayer: true,
+      settings: _liquidGlassToastSettings,
+      shape: const LiquidRoundedSuperellipse(borderRadius: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      child: _buildToastContent(presentation, textColor),
+    );
+  }
+
+  Widget _buildToastContent(ToastPresentation presentation, Color textColor) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        ExcludeSemantics(
+          child: SvgPicture.asset(
+            presentation.assetPath,
+            width: 16,
+            height: 16,
+            colorFilter: ColorFilter.mode(
+              presentation.iconColor,
+              BlendMode.srcIn,
             ),
           ),
         ),
-      ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            widget.toast.message,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              height: 1,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

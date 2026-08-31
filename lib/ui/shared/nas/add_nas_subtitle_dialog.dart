@@ -23,12 +23,14 @@ class AddNasSubtitleDialog extends ConsumerStatefulWidget {
   final String title;
   final String currentPath;
   final Function(List<String>) onConfirm;
+  final ToastStyle toastStyle;
 
   const AddNasSubtitleDialog({
     super.key,
     required this.title,
     required this.currentPath,
     required this.onConfirm,
+    this.toastStyle = ToastStyle.fluent,
   });
 
   @override
@@ -192,6 +194,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
                     if (_selectedFilePaths.length > _maxMarkableSubtitles) {
                       ref.read(toastManagerProvider.notifier).showToast(
                             '最多选择 $_maxMarkableSubtitles 个文件',
+                            style: widget.toastStyle,
                             type: ToastType.warning,
                             category: 'nas-subtitle-limit',
                           );

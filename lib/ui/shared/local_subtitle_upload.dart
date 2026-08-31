@@ -93,6 +93,7 @@ Future<({List<XFile> files, String? directory})> openLocalSubtitleFiles(
 Future<SubtitleStream?> pickAndUploadLocalSubtitles({
   required WidgetRef ref,
   required String mediaGuid,
+  ToastStyle toastStyle = ToastStyle.fluent,
 }) async {
   final toastCategory = 'local-subtitle:$mediaGuid';
   final toastManager = ref.read(toastManagerProvider.notifier);
@@ -126,6 +127,7 @@ Future<SubtitleStream?> pickAndUploadLocalSubtitles({
     }
   } catch (error) {
     toastManager.showToast(
+      style: toastStyle,
       '选择字幕文件失败: $error',
       type: ToastType.failed,
       category: toastCategory,
@@ -136,6 +138,7 @@ Future<SubtitleStream?> pickAndUploadLocalSubtitles({
 
   if (files.length > kMaxUploadableLocalSubtitles) {
     toastManager.showToast(
+      style: toastStyle,
       '最多选择 $kMaxUploadableLocalSubtitles 个文件',
       type: ToastType.warning,
       category: toastCategory,
@@ -153,6 +156,7 @@ Future<SubtitleStream?> pickAndUploadLocalSubtitles({
   });
   if (hasInvalid) {
     toastManager.showToast(
+      style: toastStyle,
       '只能选择 ${allowedExtensions.join(', ')} 格式的文件',
       type: ToastType.warning,
       category: toastCategory,
@@ -184,18 +188,21 @@ Future<SubtitleStream?> pickAndUploadLocalSubtitles({
 
   if (successCount == 0) {
     toastManager.showToast(
+      style: toastStyle,
       '添加字幕失败，请重试',
       type: ToastType.failed,
       category: toastCategory,
     );
   } else if (failureCount > 0) {
     toastManager.showToast(
+      style: toastStyle,
       '部分字幕添加成功，其中 $failureCount 个失败',
       type: ToastType.warning,
       category: toastCategory,
     );
   } else {
     toastManager.showToast(
+      style: toastStyle,
       '添加字幕成功',
       type: ToastType.success,
       category: toastCategory,

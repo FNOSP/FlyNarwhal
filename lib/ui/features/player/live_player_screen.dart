@@ -434,6 +434,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
         unawaited(_applyWindowAspectRatio());
         ref.read(toastManagerProvider.notifier).showToast(
               '进入画中画失败: $e',
+              style: ToastStyle.liquidGlass,
               type: ToastType.failed,
             );
       }
