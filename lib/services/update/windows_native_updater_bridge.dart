@@ -163,11 +163,15 @@ final class ProcessWindowsNativeUpdaterBridge
             standardError.isEmpty ? standardOutput : standardError;
         final transactionWasNotFound =
             technicalDetail == 'No active transaction exists.';
+        final transactionMismatch = technicalDetail ==
+            'Active transaction belongs to a different transaction.';
         final code = transactionWasNotFound
             ? 'windows_transaction_not_found'
-            : _codeForFailure(result.exitCode, technicalDetail);
+            : (transactionMismatch
+                ? 'windows_active_transaction_mismatch'
+                : _codeForFailure(result.exitCode, technicalDetail));
         return WindowsNativeUpdaterResponse(
-          status: transactionWasNotFound
+          status: (transactionWasNotFound || transactionMismatch)
               ? WindowsNativeTransactionStatus.unknown
               : _statusForExitCode(result.exitCode),
           code: code,

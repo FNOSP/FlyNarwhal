@@ -1773,8 +1773,12 @@ int RunQuery(const std::wstring& transaction_id) {
   }
   std::wstring error;
   const auto journal = ReadJournal(&error);
-  if (!journal || journal->bindings.transaction_id != transaction_id) {
+  if (!journal) {
     std::wcerr << error << L'\n';
+    return 4;
+  }
+  if (journal->bindings.transaction_id != transaction_id) {
+    std::wcerr << L"Active transaction belongs to a different transaction.\n";
     return 4;
   }
   if (!journal->update_log_path.empty()) {
@@ -1837,12 +1841,20 @@ int RunRecover(const std::wstring& transaction_id) {
     LogInfo(std::wstring(L"Recover requested for transaction: ") +
             journal->bindings.transaction_id);
   }
-  if (!journal || !LoadValidatedEndpoint(&descriptor, &policy, &error) ||
+  if (!journal) {
+    LogError(error);
+    std::wcerr << error << L'\n';
+    return 2;
+  }
+  if (journal->bindings.transaction_id != transaction_id) {
+    std::wcerr << L"Active transaction belongs to a different transaction.\n";
+    return 2;
+  }
+  if (!LoadValidatedEndpoint(&descriptor, &policy, &error) ||
       !ValidateCurrentProtectedExecutable(
           descriptor, policy, GetCurrentExecutablePath(),
           ComputeFileSha256(GetCurrentExecutablePath()), false, transaction_id,
-          &error) ||
-      journal->bindings.transaction_id != transaction_id) {
+          &error)) {
     LogError(error);
     std::wcerr << error << L'\n';
     return 2;
