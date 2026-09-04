@@ -22,6 +22,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.3.3] - 2026-09-05
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Added
+
+- **账号登录引导**：登录时未填写服务器地址、用户名或密码会给出明确提示。
+- **错误提示优化**：播放器与登录页的提示统一为液态玻璃风格，并显示更清晰的错误原因。
+- **选集视图切换**：播放器选集弹窗新增视图模式切换，与剧集详情页体验保持一致。
+
+### Fixed
+
+- **Windows 更新稳定性**：修复 Windows 安装助手因残留其他事务记录导致更新失败的问题。
+- **播放性能**：修复 Windows 播放期间反复查询硬件信息导致的卡顿。
+- **分季弹框细节**：优化剧集分季选择弹框的滚动条位置，避免遮挡卡片。
+- **画质按钮**：视频分辨率尚未加载完成前不再显示画质按钮。
+- **选集弹窗**：修复选集弹窗切换选集后偶发的状态更新异常。
+
 ## [2.3.2] - 2026-08-30
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
