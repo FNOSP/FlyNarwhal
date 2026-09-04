@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -124,6 +125,9 @@ class PlayerDeviceContextService {
   final Uuid _uuid;
   final FileExists _fileExists;
 
+  PlayerDeviceContext? _cachedContext;
+  Completer<PlayerDeviceContext>? _pendingContext;
+
   Future<List<String>> loadSupportedHwdecApis() async {
     if (Platform.isWindows) {
       return _loadWindowsSupportedHwdecApis();
@@ -138,12 +142,35 @@ class PlayerDeviceContextService {
   }
 
   Future<PlayerDeviceContext> loadContext() async {
-    final deviceIdResult = await _resolveDeviceId();
-    return PlayerDeviceContext(
-      deviceId: deviceIdResult.id,
-      deviceIdType: deviceIdResult.type,
-      deviceName: await _resolveDeviceName(),
-    );
+    final cached = _cachedContext;
+    if (cached != null) {
+      return cached;
+    }
+
+    final pending = _pendingContext;
+    if (pending != null) {
+      return pending.future;
+    }
+
+    final completer = Completer<PlayerDeviceContext>();
+    _pendingContext = completer;
+
+    try {
+      final deviceIdResult = await _resolveDeviceId();
+      final context = PlayerDeviceContext(
+        deviceId: deviceIdResult.id,
+        deviceIdType: deviceIdResult.type,
+        deviceName: await _resolveDeviceName(),
+      );
+      _cachedContext = context;
+      completer.complete(context);
+      return context;
+    } catch (e, st) {
+      completer.completeError(e, st);
+      rethrow;
+    } finally {
+      _pendingContext = null;
+    }
   }
 
   Future<({String id, String type})> _resolveDeviceId() async {
