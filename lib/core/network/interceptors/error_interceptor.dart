@@ -1,9 +1,8 @@
-import 'dart:io' show SocketException;
-
 import 'package:dio/dio.dart';
 import '../../../core/error/error_handler.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/utils/log/app_talker.dart';
+import '../../../core/utils/log/error_describer.dart';
 
 /// Dio interceptor that converts errors to ApiResult
 class ErrorInterceptor extends Interceptor {
@@ -43,13 +42,5 @@ class ErrorInterceptor extends Interceptor {
   /// Extracts the readable cause from the underlying error. App-level classes
   /// are obfuscated in release builds, so relying on toString() alone would
   /// print `Instance of 'gOa'`.
-  static String _describeError(Object? error) {
-    if (error == null) return 'null';
-    if (error is SocketException) {
-      final osError = error.osError;
-      final osErrorText = osError == null ? '' : ' osError=$osError';
-      return 'SocketException: ${error.message}$osErrorText';
-    }
-    return '${error.runtimeType}: $error';
-  }
+  static String _describeError(Object? error) => ErrorDescriber.describe(error);
 }

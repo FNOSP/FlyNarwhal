@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:system_info2/system_info2.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:talker_flutter/talker_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -165,7 +164,12 @@ Future<void> bootstrapApp() async {
       ),
     );
   }, (error, stackTrace) {
-    AppTalker.instance.handle(error, stackTrace);
+    AppTalker.error(
+      'Zone',
+      message: ErrorDescriber.formatUncaughtError(error, stackTrace),
+      error: error,
+      stackTrace: stackTrace,
+    );
   });
 }
 
