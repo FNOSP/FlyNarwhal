@@ -5604,7 +5604,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
           const SizedBox(width: _trailingControlSpacing),
         ],
-        if (_qualities.isNotEmpty)
+        if (_qualities.isNotEmpty && _currentResolution.isNotEmpty)
           QualityControlFlyout(
             qualities: _qualities,
             currentResolution: _currentResolution,
