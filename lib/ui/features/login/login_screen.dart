@@ -155,7 +155,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       AppTalker.info('Login', 'nas login: normalizedUrl="$url"');
       if (url.isEmpty) {
         AppTalker.warning('Login', 'nas login: empty url, abort');
-        _showToast('请输入 FN ID');
+        _showToast('请输入 IP:Port、域名或 FN ID');
         return;
       }
       final shouldAutoLogin =
@@ -183,6 +183,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
       _openFnConnectWebView(url: probeUrl, isProbe: true);
+      return;
+    }
+
+    if (host.trim().isEmpty) {
+      _showToast('请输入 IP、域名或 FN ID');
+      return;
+    }
+    if (username.trim().isEmpty) {
+      _showToast('请输入用户名');
+      return;
+    }
+    if (password.isEmpty) {
+      _showToast('请输入密码');
       return;
     }
 
