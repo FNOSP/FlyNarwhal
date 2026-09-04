@@ -113,7 +113,7 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
     // MouseRegion.onExit fires), its episodeControl hover zone is stranded in
     // the overlay controller and permanently blocks auto-hide. Clear it here.
     if (_isExpanded || _isButtonHovered || _popupHovered) {
-      widget.onHoverStateChanged?.call(false);
+      _notifyHoveredAfterFrame(false, force: true);
     }
     _animationController.dispose();
     super.dispose();
@@ -320,11 +320,14 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
 
   /// Delivers a hover-state change after the current frame, so consumers can
   /// safely modify providers (force-close runs during the build phase).
-  void _notifyHoveredAfterFrame(bool hovered) {
+  /// [force] skips the `_isExpanded` guard; used when the flyout is being
+  /// disposed and must clear stranded hover state even though `_isExpanded` may
+  /// still be true.
+  void _notifyHoveredAfterFrame(bool hovered, {bool force = false}) {
     final callback = widget.onHoverStateChanged;
     if (callback == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _isExpanded) return;
+      if (!mounted || (_isExpanded && !force)) return;
       callback(hovered);
     });
   }
