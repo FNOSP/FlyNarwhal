@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
+import '../../shared/common/episode_view_mode_toggle.dart';
 
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
@@ -866,7 +867,7 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
                 ),
               ),
             if (hasMultipleSeasons) const Spacer(),
-            _EpisodeListViewToggle(
+            EpisodeViewModeToggle(
               isButtonView: _isButtonView,
               onChanged: _handleToggleView,
             ),
@@ -1363,98 +1364,6 @@ class _EpisodePosterActionButtonState
                   color: widget.isActive ? widget.activeColor : Colors.white,
                 ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 选集列表视图切换开关（胶囊分段控件），镜像 Web 端 `title="切换为卡片视图/序号视图"`。
-/// 左侧 desktop 图标=卡片视图，右侧 grid 图标=序号按钮视图，滑动浮标指示当前状态。
-class _EpisodeListViewToggle extends StatefulWidget {
-  final bool isButtonView;
-  final ValueChanged<bool> onChanged;
-
-  const _EpisodeListViewToggle({
-    required this.isButtonView,
-    required this.onChanged,
-  });
-
-  @override
-  State<_EpisodeListViewToggle> createState() => _EpisodeListViewToggleState();
-}
-
-class _EpisodeListViewToggleState extends State<_EpisodeListViewToggle> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    final iconColor =
-        theme.typography.body?.color?.withValues(alpha: 0.85) ?? Colors.white;
-    final borderColor =
-        iconColor.withValues(alpha: _hovered ? 0.3 : 0.15);
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => widget.onChanged(!widget.isButtonView),
-        child: Tooltip(
-          message: widget.isButtonView ? '切换为卡片视图' : '切换为序号视图',
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 68,
-            height: 36,
-            padding: const EdgeInsets.all(1),
-            decoration: BoxDecoration(
-              color: theme.scaffoldBackgroundColor,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: borderColor),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // 滑动浮标
-                AnimatedAlign(
-                  duration: const Duration(milliseconds: 200),
-                  alignment: widget.isButtonView
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: SemiIcons.desktop(
-                          size: 20,
-                          color: iconColor,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: SemiIcons.grid(
-                          size: 20,
-                          color: iconColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
           ),
         ),
       ),
