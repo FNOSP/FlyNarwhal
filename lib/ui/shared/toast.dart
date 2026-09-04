@@ -31,16 +31,22 @@ enum ToastStyle {
 
 /// Liquid glass settings shared by liquid glass styled toasts.
 ///
-/// Tuned for maximum transparency: no glass tint, no whitening veil and a
-/// low blur, while a higher thickness plus refraction keeps the backdrop
-/// visibly warped by the glass.
+/// Tuned for a subtly dark, smoky glass look: a faint dark backer takes the
+/// edge off bright backgrounds, edge absorption darkens the rim, and Fresnel
+/// highlight is restrained. The overall feel stays transparent and airy rather
+/// than heavy.
 const LiquidGlassSettings _liquidGlassToastSettings = LiquidGlassSettings(
   glassColor: Color.fromARGB(0, 255, 255, 255),
-  thickness: 32,
-  blur: 1,
+  thickness: 40,
+  blur: 3,
   whitenStrength: 0,
-  refractiveIndex: 2.0,
-  lightIntensity: 0.4,
+  refractiveIndex: 7.0,
+  lightIntensity: 0.5,
+  ambientRim: 0.2,
+  glowIntensity: 0.5,
+  fresnelStrength: 0.8,
+  edgeAbsorption: 0.08,
+  backerColor: Color.fromARGB(25, 0, 0, 0),
 );
 
 // Build warning message based on missing FlyNarwhal config fields
@@ -423,6 +429,7 @@ class _ToastItemState extends State<_ToastItem>
       settings: _liquidGlassToastSettings,
       shape: const LiquidRoundedSuperellipse(borderRadius: 14),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      quality: GlassQuality.standard,
       child: _buildToastContent(presentation, textColor),
     );
   }
