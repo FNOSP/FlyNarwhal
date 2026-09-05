@@ -8,6 +8,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import '../../../../core/utils/date_utils.dart';
 import '../../../../data/models/episode_list_response.dart';
 import '../../../../domain/entities/media_type.dart';
+import '../../../shared/common/episode_view_mode_toggle.dart';
 import '../../../shared/common/media_poster_placeholder.dart';
 
 const Color _episodeFlyoutBackgroundColor = Color(0xCC000000);
@@ -113,7 +114,7 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
     // MouseRegion.onExit fires), its episodeControl hover zone is stranded in
     // the overlay controller and permanently blocks auto-hide. Clear it here.
     if (_isExpanded || _isButtonHovered || _popupHovered) {
-      widget.onHoverStateChanged?.call(false);
+      _notifyHoveredAfterFrame(false, force: true);
     }
     _animationController.dispose();
     super.dispose();
@@ -320,11 +321,14 @@ class _EpisodeSelectionFlyoutState extends State<EpisodeSelectionFlyout>
 
   /// Delivers a hover-state change after the current frame, so consumers can
   /// safely modify providers (force-close runs during the build phase).
-  void _notifyHoveredAfterFrame(bool hovered) {
+  /// [force] skips the `_isExpanded` guard; used when the flyout is being
+  /// disposed and must clear stranded hover state even though `_isExpanded` may
+  /// still be true.
+  void _notifyHoveredAfterFrame(bool hovered, {bool force = false}) {
     final callback = widget.onHoverStateChanged;
     if (callback == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _isExpanded) return;
+      if (!mounted || (_isExpanded && !force)) return;
       callback(hovered);
     });
   }
@@ -493,9 +497,11 @@ class _EpisodeFlyoutContentState extends State<_EpisodeFlyoutContent> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                _ViewModeToggle(
-                  isGridView: widget.isGridView,
-                  onViewModeChanged: widget.onViewModeChanged,
+                EpisodeViewModeToggle(
+                  isButtonView: !widget.isGridView,
+                  onChanged: (isButtonView) {
+                    widget.onViewModeChanged(!isButtonView);
+                  },
                 ),
               ],
             ),
@@ -531,96 +537,6 @@ class _EpisodeFlyoutContentState extends State<_EpisodeFlyoutContent> {
                   ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ViewModeToggle extends StatelessWidget {
-  final bool isGridView;
-  final void Function(bool) onViewModeChanged;
-
-  const _ViewModeToggle({
-    required this.isGridView,
-    required this.onViewModeChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 38,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ViewModeButton(
-            icon: FluentIcons.t_v_monitor,
-            isSelected: !isGridView,
-            onPressed: () => onViewModeChanged(false),
-          ),
-          const SizedBox(width: 2),
-          _ViewModeButton(
-            icon: FluentIcons.grid_view_medium,
-            isSelected: isGridView,
-            onPressed: () => onViewModeChanged(true),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ViewModeButton extends StatefulWidget {
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onPressed;
-
-  const _ViewModeButton({
-    required this.icon,
-    required this.isSelected,
-    required this.onPressed,
-  });
-
-  @override
-  State<_ViewModeButton> createState() => _ViewModeButtonState();
-}
-
-class _ViewModeButtonState extends State<_ViewModeButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onPressed,
-        child: Container(
-          width: 34,
-          height: 30,
-          decoration: BoxDecoration(
-            color: widget.isSelected
-                ? Colors.white.withValues(alpha: 0.14)
-                : (_isHovered
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.transparent),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            widget.icon,
-            size: 17,
-            color: widget.isSelected || _isHovered
-                ? Colors.white
-                : Colors.white.withValues(alpha: 0.72),
-          ),
-        ),
       ),
     );
   }

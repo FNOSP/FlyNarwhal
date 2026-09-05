@@ -49,7 +49,8 @@ final class WindowsPlatformUpdateRecovery {
         'WindowsUpdateRecovery',
         'Helper query returned ${queryResponse.status.name} during recovery.',
       );
-      if (queryResponse.code == 'windows_transaction_not_found') {
+      if (queryResponse.code == 'windows_transaction_not_found' ||
+          queryResponse.code == 'windows_active_transaction_mismatch') {
         await _transactionStore.clearActive(
           transactionId: indexedReceipt.transactionId,
         );

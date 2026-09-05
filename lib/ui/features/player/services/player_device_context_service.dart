@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -124,24 +125,8 @@ class PlayerDeviceContextService {
   final Uuid _uuid;
   final FileExists _fileExists;
 
-  static const Set<String> _invalidValues = {
-    'unknown',
-    'none',
-    'default string',
-    'to be filled by o.e.m.',
-    '00000000-0000-0000-0000-000000000000',
-    'not available',
-    'system serial number',
-    'chassis serial number',
-    'to be filled by oem',
-    'system product name',
-    'ffffffff-ffff-ffff-ffff-ffffffffffff',
-    '03000200-0400-0500-0006-000700080009',
-    '5ekpm18320000397',
-    'fefefefe-fefe-fefe-fefe-fefefefefefe',
-    'not applicable',
-    'standard',
-  };
+  PlayerDeviceContext? _cachedContext;
+  Completer<PlayerDeviceContext>? _pendingContext;
 
   Future<List<String>> loadSupportedHwdecApis() async {
     if (Platform.isWindows) {
@@ -157,50 +142,47 @@ class PlayerDeviceContextService {
   }
 
   Future<PlayerDeviceContext> loadContext() async {
-    final deviceIdResult = await _resolveDeviceId();
-    return PlayerDeviceContext(
-      deviceId: deviceIdResult.id,
-      deviceIdType: deviceIdResult.type,
-      deviceName: await _resolveDeviceName(),
-    );
+    final cached = _cachedContext;
+    if (cached != null) {
+      return cached;
+    }
+
+    final pending = _pendingContext;
+    if (pending != null) {
+      return pending.future;
+    }
+
+    final completer = Completer<PlayerDeviceContext>();
+    _pendingContext = completer;
+
+    try {
+      final deviceIdResult = await _resolveDeviceId();
+      final context = PlayerDeviceContext(
+        deviceId: deviceIdResult.id,
+        deviceIdType: deviceIdResult.type,
+        deviceName: await _resolveDeviceName(),
+      );
+      _cachedContext = context;
+      completer.complete(context);
+      return context;
+    } catch (e, st) {
+      completer.completeError(e, st);
+      rethrow;
+    } finally {
+      _pendingContext = null;
+    }
   }
 
   Future<({String id, String type})> _resolveDeviceId() async {
-    // Follow the KMP priority: hardware serial, hardware UUID, baseboard,
-    // then fall back to a persisted UUID.
-    final candidates = <({Future<String?> value, String type})>[
-      (
-        value: _queryWindowsValue('(Get-CimInstance Win32_BIOS).SerialNumber'),
-        type: 'hardware_serial',
-      ),
-      (
-        value: _queryWindowsValue(
-          '(Get-CimInstance Win32_ComputerSystemProduct).UUID',
-        ),
-        type: 'hardware_uuid',
-      ),
-      (
-        value: _queryWindowsValue(
-            '(Get-CimInstance Win32_BaseBoard).SerialNumber'),
-        type: 'baseboard_serial',
-      ),
-    ];
-
-    for (final candidate in candidates) {
-      final value = await candidate.value;
-      if (_isValidId(value)) {
-        return (id: value!.trim(), type: candidate.type);
-      }
-    }
-
-    // Reuse the persisted fallback device id once hardware identifiers fail.
+    // Always use a persisted id; the startup migration syncs the KMP-migrated
+    // id into this key so it is reused as-is instead of generating a new one.
     final savedId = _preferencesManager.getFallbackDeviceId();
     if (savedId != null && savedId.isNotEmpty) {
       return (id: savedId, type: 'persisted_uuid');
     }
 
     // Persist a generated id so subsequent requests stay stable.
-    final generatedId = 'jvm_${_uuid.v4()}';
+    final generatedId = 'flutter_${_uuid.v4()}';
     await _preferencesManager.saveFallbackDeviceId(generatedId);
     return (id: generatedId, type: 'generated_uuid');
   }
@@ -345,25 +327,6 @@ class PlayerDeviceContextService {
         .toList();
   }
 
-  bool _isValidId(String? value) {
-    if (value == null) {
-      return false;
-    }
-
-    final normalized = value.trim().toLowerCase();
-    if (normalized.isEmpty) {
-      return false;
-    }
-    if (_invalidValues.contains(normalized)) {
-      return false;
-    }
-    if (normalized.length <= 3) {
-      return false;
-    }
-    return !normalized.split('').every(
-          (char) => char == '0' || char == '1' || char == 'x' || char == '-',
-        );
-  }
 }
 
 final playerDeviceContextServiceProvider =

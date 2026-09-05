@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/services.dart' show MethodChannel;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:system_info2/system_info2.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:talker_flutter/talker_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -34,8 +32,6 @@ import 'ui/navigation/app_router.dart';
 import 'ui/shared/toast.dart';
 
 MainWindowLifecycleController? mainWindowLifecycleController;
-
-const _windowChannel = MethodChannel('fly_narwhal/window');
 
 Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
@@ -168,7 +164,12 @@ Future<void> bootstrapApp() async {
       ),
     );
   }, (error, stackTrace) {
-    AppTalker.instance.handle(error, stackTrace);
+    AppTalker.error(
+      'Zone',
+      message: ErrorDescriber.formatUncaughtError(error, stackTrace),
+      error: error,
+      stackTrace: stackTrace,
+    );
   });
 }
 
@@ -196,6 +197,7 @@ Future<void> _runKmpMigration(SharedPreferences preferences) async {
 
     // Sync migrated login history to the key used by PreferencesManager.
     _syncMigratedLoginHistory(preferences, accountSettingsStore);
+    _syncMigratedFallbackDeviceId(preferences, accountSettingsStore);
   } catch (error, stackTrace) {
     AppTalker.warning('Migration', 'KMP migration failed: $error');
     AppTalker.instance.handle(error, stackTrace);
@@ -217,6 +219,23 @@ void _syncMigratedLoginHistory(
   }
   preferences.setString(targetKey, migratedJson);
   AppTalker.info('Migration', 'Login history synced to PreferencesManager key');
+}
+
+/// Copies the KMP-migrated fallback device id so it stays stable across runs.
+void _syncMigratedFallbackDeviceId(
+  SharedPreferences preferences,
+  AccountSettingsStore accountSettingsStore,
+) {
+  const targetKey = 'fallback_device_id';
+  if (preferences.getString(targetKey) != null) {
+    return;
+  }
+  final migratedId = accountSettingsStore.readGlobal<String>('fallbackDeviceId');
+  if (migratedId == null || migratedId.trim().isEmpty) {
+    return;
+  }
+  preferences.setString(targetKey, migratedId.trim());
+  AppTalker.info('Migration', 'KMP fallback device id synced to PreferencesManager key');
 }
 
 bool _isDesktopPlatform() {
@@ -309,25 +328,6 @@ class MyApp extends ConsumerWidget {
         : settings.darkMode;
 
     final router = ref.watch(routerProvider);
-
-    // Push the caption background color to the native top-edge cover strip
-    // (see MainFlutterWindow) so it matches the app theme, which follows app
-    // settings rather than the system appearance.
-    if (!kIsWeb && Platform.isMacOS) {
-      final captionBackground =
-          isDark ? const Color(0xFF202020) : const Color(0xFFF3F3F3);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(
-          _windowChannel.invokeMethod('setTopEdgeColor', {
-            'a': (captionBackground.a * 255).round(),
-            'r': (captionBackground.r * 255).round(),
-            'g': (captionBackground.g * 255).round(),
-            'b': (captionBackground.b * 255).round(),
-          }),
-        );
-      });
-    }
-
     return FluentApp.router(
       title: '飞鲸影视',
       debugShowCheckedModeBanner: false,

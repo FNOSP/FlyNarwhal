@@ -1163,6 +1163,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (currentFile == null || currentFile.guid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
             '当前文件信息缺失，无法搜索字幕',
+            style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'subtitle-search:${widget.guid}',
           );
@@ -1199,6 +1200,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               if (!mounted) return subtitleStream.guid;
               ref.read(toastManagerProvider.notifier).showToast(
                     '下载成功',
+                    style: ToastStyle.liquidGlass,
                     type: ToastType.success,
                     category: 'subtitle-download:${item.trimId}',
                   );
@@ -1208,6 +1210,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               if (mounted) {
                 ref.read(toastManagerProvider.notifier).showToast(
                       '下载字幕失败: $error',
+                      style: ToastStyle.liquidGlass,
                       type: ToastType.failed,
                       category: 'subtitle-download:${item.trimId}',
                     );
@@ -1224,6 +1227,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               if (!mounted) return;
               ref.read(toastManagerProvider.notifier).showToast(
                     '已创建字幕下载任务',
+                    style: ToastStyle.liquidGlass,
                     type: ToastType.success,
                     category: 'subtitle-predownload:${item.trimId}',
                   );
@@ -1231,6 +1235,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               if (mounted) {
                 ref.read(toastManagerProvider.notifier).showToast(
                       '创建字幕下载任务失败，请重试',
+                      style: ToastStyle.liquidGlass,
                       type: ToastType.failed,
                       category: 'subtitle-predownload:${item.trimId}',
                     );
@@ -1273,6 +1278,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
             '删除字幕成功',
+            style: ToastStyle.liquidGlass,
             type: ToastType.success,
             category: 'subtitle-delete:${subtitle.guid}',
           );
@@ -1281,6 +1287,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
             '删除字幕失败: $error',
+            style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'subtitle-delete:${subtitle.guid}',
           );
@@ -1301,6 +1308,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
             '已创建字幕下载任务',
+            style: ToastStyle.liquidGlass,
             type: ToastType.success,
             category: 'subtitle-predownload-flyout:${subtitle.guid}',
           );
@@ -1308,6 +1316,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
             '创建字幕下载任务失败，请重试',
+            style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'subtitle-predownload-flyout:${subtitle.guid}',
           );
@@ -1320,6 +1329,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (mediaGuid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
             '当前文件信息缺失，无法添加 NAS 字幕',
+            style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'nas-subtitle:${widget.guid}',
           );
@@ -1333,6 +1343,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         builder: (_) => AddNasSubtitleDialog(
           title: '添加 NAS 字幕文件',
           currentPath: _resolveCurrentFilePath(),
+          toastStyle: ToastStyle.liquidGlass,
           onConfirm: (paths) async {
             try {
               final markResult = await ref
@@ -1341,6 +1352,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               if (!mounted) return;
               ref.read(toastManagerProvider.notifier).showToast(
                     'NAS 字幕添加成功',
+                    style: ToastStyle.liquidGlass,
                     type: ToastType.success,
                     category: 'nas-subtitle:$mediaGuid',
                   );
@@ -1369,6 +1381,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   error.code == ResponseCodes.subtitleAlreadyMarked) {
                 toastManager.showToast(
                   '该文件已被添加为字幕',
+                  style: ToastStyle.liquidGlass,
                   type: ToastType.info,
                   category: 'nas-subtitle:$mediaGuid',
                 );
@@ -1376,6 +1389,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               }
               toastManager.showToast(
                 '添加 NAS 字幕失败: $error',
+                style: ToastStyle.liquidGlass,
                 type: ToastType.failed,
                 category: 'nas-subtitle:$mediaGuid',
               );
@@ -1398,6 +1412,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (mediaGuid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
             '当前文件信息缺失，无法上传字幕',
+            style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'local-subtitle:${widget.guid}',
           );
@@ -1412,6 +1427,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final uploaded = await pickAndUploadLocalSubtitles(
         ref: ref,
         mediaGuid: mediaGuid,
+        toastStyle: ToastStyle.liquidGlass,
       );
       if (!mounted || uploaded == null) return;
       await _switchToUploadedSubtitle(uploaded: uploaded);
@@ -1856,6 +1872,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
               '切换原画失败: $e',
+              style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'playback-source:${widget.guid}',
             );
@@ -1976,6 +1993,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
               '切换字幕失败: $e',
+              style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'subtitle-switch:${widget.guid}',
             );
@@ -2277,6 +2295,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     ref.read(toastManagerProvider.notifier).showToast(
           '切换字幕失败: $error',
+          style: ToastStyle.liquidGlass,
           type: ToastType.failed,
           category: 'subtitle-switch:${widget.guid}',
         );
@@ -2884,6 +2903,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
       ref.read(toastManagerProvider.notifier).showToast(
             '加载失败: $e',
+            style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'playback-load:${widget.guid}',
           );
@@ -3241,6 +3261,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final label = milliseconds < 0 ? '快退至' : '快进至';
     ref.read(toastManagerProvider.notifier).showToast(
           '$label：${formatDurationToDateTime(target)}',
+          style: ToastStyle.liquidGlass,
           type: ToastType.info,
           category: 'seek',
         );
@@ -3253,6 +3274,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _lastVolumeBeforeMute = 0.0;
     ref.read(toastManagerProvider.notifier).showToast(
           '当前音量：${(clampedVolume * 100).toInt()}%',
+          style: ToastStyle.liquidGlass,
           type: ToastType.info,
           category: 'volume',
         );
@@ -3265,6 +3287,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _setVolume(0.0);
       ref.read(toastManagerProvider.notifier).showToast(
             '静音',
+            style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'volume',
           );
@@ -3274,6 +3297,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _setVolume(restoreVolume);
       ref.read(toastManagerProvider.notifier).showToast(
             '解除静音：${(restoreVolume * 100).toInt()}%',
+            style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'volume',
           );
@@ -3299,7 +3323,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast('切换全屏失败: $error', type: ToastType.failed);
+            .showToast('切换全屏失败: $error', style: ToastStyle.liquidGlass, type: ToastType.failed);
       }
     }
   }
@@ -3558,6 +3582,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
               '切换播放设置失败: $e',
+              style: ToastStyle.liquidGlass,
               type: ToastType.failed,
             );
         setState(() => _isLoading = false);
@@ -3632,7 +3657,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null || !_isInitialized) {
       ref
           .read(toastManagerProvider.notifier)
-          .showToast('播放器尚未准备完成', type: ToastType.info);
+          .showToast('播放器尚未准备完成', style: ToastStyle.liquidGlass, type: ToastType.info);
       return;
     }
 
@@ -3678,7 +3703,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         unawaited(_applyWindowAspectRatio());
         ref
             .read(toastManagerProvider.notifier)
-            .showToast('进入画中画失败: $error', type: ToastType.failed);
+            .showToast('进入画中画失败: $error', style: ToastStyle.liquidGlass, type: ToastType.failed);
       }
     } finally {
       _isPipTransitioning = false;
@@ -3720,7 +3745,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast('退出画中画失败: $error', type: ToastType.failed);
+            .showToast('退出画中画失败: $error', style: ToastStyle.liquidGlass, type: ToastType.failed);
       }
     } finally {
       _isPipTransitioning = false;
@@ -3843,7 +3868,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast('切换画质失败: $e', type: ToastType.failed);
+            .showToast('切换画质失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
         setState(() => _isLoading = false);
       }
     }
@@ -3965,7 +3990,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         mode == CloudPlayMode.direct ? '网盘直连播放' : 'NAS 代理播放';
     ref
         .read(toastManagerProvider.notifier)
-        .showToast('播放方式切换至 $label', type: ToastType.success);
+        .showToast('播放方式切换至 $label', style: ToastStyle.liquidGlass, type: ToastType.success);
 
     final switchToken = ++_cloudSwitchToken;
     setState(() {
@@ -4061,7 +4086,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ref
               .read(toastManagerProvider.notifier)
               .showToast('NAS 代理播放失败，正在切换为网盘直连播放',
-                  type: ToastType.info);
+                  style: ToastStyle.liquidGlass, type: ToastType.info);
           if (!_isCurrentCloudSwitch(switchToken)) return;
           final directEntered = await _enterCloudDirectMode(
             switchToken: switchToken,
@@ -4098,7 +4123,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast('切换播放方式失败: $e', type: ToastType.failed);
+            .showToast('切换播放方式失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
         setState(() => _isLoading = false);
       }
     }
@@ -4333,7 +4358,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       AppTalker.warning('Player', 'switch quality failed: $e');
       ref
           .read(toastManagerProvider.notifier)
-          .showToast('切换画质失败: $e', type: ToastType.failed);
+          .showToast('切换画质失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
       setState(() => _isLoading = false);
     }
   }
@@ -4404,6 +4429,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _requestedAudioGuid = null;
         ref.read(toastManagerProvider.notifier).showToast(
               '切换音频失败: $error',
+              style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'player-audio-switch',
             );
@@ -4553,6 +4579,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (subtitle != null && subtitle.guid != previousSubtitle?.guid) {
       ref.read(toastManagerProvider.notifier).showToast(
             _subtitleSwitchToastText(subtitle),
+            style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'subtitle-switch',
           );
@@ -4640,7 +4667,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       AppTalker.warning('Player', 'switch subtitle failed: $e');
       ref
           .read(toastManagerProvider.notifier)
-          .showToast('切换字幕失败: $e', type: ToastType.failed);
+          .showToast('切换字幕失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
       if (mounted) {
         setState(() {
           _isSubtitleSwitching = false;
@@ -5303,6 +5330,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
             '设置成功',
+            style: ToastStyle.liquidGlass,
             type: ToastType.success,
             category: 'skip-config',
           );
@@ -5317,6 +5345,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _resolveAndDispatchSkipSegments();
       ref.read(toastManagerProvider.notifier).showToast(
             '设置失败: $error',
+            style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'skip-config',
           );
@@ -5342,6 +5371,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
             ),
+            style: ToastStyle.liquidGlass,
             type: ToastType.warning,
             category: 'fly-narwhal-config',
           );
@@ -5366,6 +5396,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       } else {
         ref.read(toastManagerProvider.notifier).showToast(
               '请求弹幕接口失败，请检查飞鲸服务端配置',
+              style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'danmaku-load-error',
             );
@@ -5388,6 +5419,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
                 missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
               ),
+              style: ToastStyle.liquidGlass,
               type: ToastType.warning,
               category: 'fly-narwhal-config',
             );
@@ -5400,6 +5432,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (!succeeded) {
           ref.read(toastManagerProvider.notifier).showToast(
                 '请求智能片头片尾接口失败，请检查飞鲸服务端配置',
+                style: ToastStyle.liquidGlass,
                 type: ToastType.failed,
                 category: 'smart-skip-load-error',
               );
@@ -5418,6 +5451,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return false;
       ref.read(toastManagerProvider.notifier).showToast(
             '设置失败: $error',
+            style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'smart-skip-setting',
           );
@@ -5570,7 +5604,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
           const SizedBox(width: _trailingControlSpacing),
         ],
-        if (_qualities.isNotEmpty)
+        if (_qualities.isNotEmpty && _currentResolution.isNotEmpty)
           QualityControlFlyout(
             qualities: _qualities,
             currentResolution: _currentResolution,
@@ -5676,6 +5710,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
                     missingAuthCode: !settings.hasFlyNarwhalAuthCode,
                   ),
+                  style: ToastStyle.liquidGlass,
                   type: ToastType.warning,
                   category: 'fly-narwhal-config',
                 );
@@ -6417,6 +6452,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _showFeatureComingSoon(String feature) {
     ref
         .read(toastManagerProvider.notifier)
-        .showToast('$feature 暂未接入', type: ToastType.info);
+        .showToast('$feature 暂未接入', style: ToastStyle.liquidGlass, type: ToastType.info);
   }
 }

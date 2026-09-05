@@ -173,7 +173,8 @@ final class WindowsNativeUpdateInstaller implements PlatformUpdateInstaller {
         'Stale transaction ${receipt.transactionId} queried as ${staleState.status.name} (code ${staleState.code}).',
       );
       final staleIsGone =
-          staleState.code == 'windows_transaction_not_found';
+          staleState.code == 'windows_transaction_not_found' ||
+              staleState.code == 'windows_active_transaction_mismatch';
       // manualActionRequired is terminal on the native side; without it a
       // stuck journal would block every future install forever.
       final staleIsTerminal =

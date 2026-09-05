@@ -155,7 +155,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       AppTalker.info('Login', 'nas login: normalizedUrl="$url"');
       if (url.isEmpty) {
         AppTalker.warning('Login', 'nas login: empty url, abort');
-        _showErrorDialog('请输入 FN ID');
+        _showToast('请输入 IP:Port、域名或 FN ID');
         return;
       }
       final shouldAutoLogin =
@@ -179,10 +179,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       AppTalker.info('Login', 'probe: normalizedUrl="$probeUrl"');
       if (probeUrl.isEmpty) {
         AppTalker.warning('Login', 'probe: empty url, abort');
-        _showErrorDialog('请输入正确的 IP、域名或 FN ID');
+        _showToast('请输入正确的 IP、域名或 FN ID');
         return;
       }
       _openFnConnectWebView(url: probeUrl, isProbe: true);
+      return;
+    }
+
+    if (host.trim().isEmpty) {
+      _showToast('请输入 IP、域名或 FN ID');
+      return;
+    }
+    if (username.trim().isEmpty) {
+      _showToast('请输入用户名');
+      return;
+    }
+    if (password.isEmpty) {
+      _showToast('请输入密码');
       return;
     }
 
@@ -245,7 +258,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _networkMessageProcessor = _NetworkMessageProcessor(
       dioClient: dioClient,
       preferencesManager: prefs,
-      onError: _showErrorDialog,
+      onError: _showToast,
       setCookie: _setWebViewCookie,
       loadUrl: _loadWebViewUrl,
       onLoginSuccess: _onNasLoginSuccess,
@@ -580,7 +593,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Center(
               child: AdaptiveLiquidGlassLayer(
                 settings:
-                    const LiquidGlassSettings(thickness: 24.0, blur: 12.0),
+                    const LiquidGlassSettings(thickness: 28.0, blur: 8.0, refractiveIndex: 1.8),
+                quality: GlassQuality.premium,
                 child: GlassContainer(
                   width: 420,
                   padding:
@@ -723,6 +737,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     _autoLoginFromHistory = false;
                                   }),
                                   activeColor: _primaryBlue,
+                                  useOwnLayer: true,
+                                  quality: GlassQuality.standard,
                                 ),
                               ),
                             ],
@@ -1021,17 +1037,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _handleLoginError(Object error) {
     if (error is LoginException) {
       if (error.code == -15) {
-        ref.read(toastManagerProvider.notifier).showToast(
-              '用户名或密码错误',
-              type: ToastType.failed,
-              duration: const Duration(seconds: 3),
-            );
+        _showToast('用户名或密码错误');
         return;
       }
-      _showErrorDialog(error.message);
+      _showToast(error.message);
       return;
     }
-    _showErrorDialog(error.toString());
+    _showToast(_humanizeLoginError(error));
+  }
+
+  /// Translates low-level network errors into plain Chinese text for users.
+  /// Keep the original class names out of the toast; release obfuscation makes
+  /// them unreadable anyway (e.g. `Instance of 'wNa'`).
+  String _humanizeLoginError(Object error) {
+    if (error is DioException) {
+      final statusCode = error.response?.statusCode;
+      if (statusCode != null) {
+        return '服务器返回错误（HTTP $statusCode），请检查服务状态。';
+      }
+      switch (error.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+          return '连接服务器超时，请确认服务器地址或网络状态。';
+        case DioExceptionType.connectionError:
+          return '无法连接到服务器，请检查地址、端口或网络。';
+        case DioExceptionType.badCertificate:
+          return 'SSL 证书验证失败，请检查 HTTPS 设置或服务器证书。';
+        case DioExceptionType.cancel:
+          return '登录请求已取消。';
+        case DioExceptionType.unknown:
+        case DioExceptionType.badResponse:
+          return '登录失败，请检查服务器地址或稍后再试。';
+      }
+    }
+    return '登录失败，请检查网络或服务器设置。';
+  }
+
+  void _showToast(String message) {
+    ref.read(toastManagerProvider.notifier).showToast(
+          message,
+          type: ToastType.failed,
+          style: ToastStyle.liquidGlass,
+          duration: const Duration(seconds: 3),
+        );
   }
 
   void _showForgotPasswordDialog() {
@@ -1045,25 +1094,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       primaryButtonText: '确认',
       onPrimaryPressed: () {},
       autoDismiss: true,
-    );
-  }
-
-  void _showErrorDialog(String message) {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (context) => ContentDialog(
-        title: const Text('Error'),
-        content: Text(message),
-        actions: [
-          _withClickCursor(
-            AppButton(
-              child: const Text('OK'),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

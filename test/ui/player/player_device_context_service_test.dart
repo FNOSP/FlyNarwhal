@@ -9,60 +9,17 @@ import 'package:fly_narwhal/ui/features/player/services/player_device_context_se
 void main() {
   group('PlayerDeviceContextService', () {
     test(
-      'Given valid hardware serial, When loading device context, Then it prefers the hardware serial and system name',
+      'Given a KMP-migrated fallback device id, When loading device context, Then it reuses the migrated id',
       () async {
         // Given
-        SharedPreferences.setMockInitialValues({});
+        SharedPreferences.setMockInitialValues({
+          'fallback_device_id': 'jvm_123e4567-e89b-12d3-a456-426614174000',
+        });
         final prefs = await SharedPreferences.getInstance();
         final service = PlayerDeviceContextService(
           PreferencesManager(prefs),
-          processRunner: (executable, arguments) async {
-            final script = arguments.last;
-            if (script.contains('Win32_BIOS')) {
-              return ProcessResult(0, 0, 'PF2FL9KE', '');
-            }
-            if (script.contains('Win32_ComputerSystem).Name')) {
-              return ProcessResult(0, 0, 'JANKINWU_PC', '');
-            }
-            return ProcessResult(0, 0, '', '');
-          },
-        );
-
-        // When
-        final context = await service.loadContext();
-
-        // Then
-        expect(context.deviceId, equals('PF2FL9KE'));
-        expect(context.deviceName, equals('JANKINWU_PC'));
-      },
-    );
-
-    test(
-      'Given invalid primary identifiers, When loading device context, Then it falls back to the next valid hardware identifier',
-      () async {
-        // Given
-        SharedPreferences.setMockInitialValues({});
-        final prefs = await SharedPreferences.getInstance();
-        final service = PlayerDeviceContextService(
-          PreferencesManager(prefs),
-          processRunner: (executable, arguments) async {
-            final script = arguments.last;
-            if (script.contains('Win32_BIOS')) {
-              return ProcessResult(0, 0, 'To Be Filled By O.E.M.', '');
-            }
-            if (script.contains('Win32_ComputerSystemProduct).UUID')) {
-              return ProcessResult(
-                0,
-                0,
-                '820C0BC8-459C-11EB-80EA-8C8CAA67E7AD',
-                '',
-              );
-            }
-            if (script.contains('Win32_ComputerSystem).Name')) {
-              return ProcessResult(0, 0, 'JANKINWU_PC', '');
-            }
-            return ProcessResult(0, 0, '', '');
-          },
+          processRunner: (executable, arguments) async =>
+              ProcessResult(0, 0, '', ''),
         );
 
         // When
@@ -71,30 +28,22 @@ void main() {
         // Then
         expect(
           context.deviceId,
-          equals('820C0BC8-459C-11EB-80EA-8C8CAA67E7AD'),
+          equals('jvm_123e4567-e89b-12d3-a456-426614174000'),
         );
+        expect(context.deviceIdType, equals('persisted_uuid'));
       },
     );
 
     test(
-      'Given all hardware identifiers fail, When loading device context twice, Then it persists and reuses a generated fallback id',
+      'Given no persisted device id, When loading device context twice, Then it persists and reuses a generated fallback id',
       () async {
         // Given
         SharedPreferences.setMockInitialValues({});
         final prefs = await SharedPreferences.getInstance();
         final service = PlayerDeviceContextService(
           PreferencesManager(prefs),
-          processRunner: (executable, arguments) async {
-            final script = arguments.last;
-            if (script.contains('Win32_ComputerSystem).Name')) {
-              return ProcessResult(0, 0, '', '');
-            }
-            if (script.contains('Win32_ComputerSystem).DNSHostName')) {
-              return ProcessResult(0, 0, '', '');
-            }
-            return ProcessResult(
-                0, 0, '00000000-0000-0000-0000-000000000000', '');
-          },
+          processRunner: (executable, arguments) async =>
+              ProcessResult(0, 0, '', ''),
         );
 
         // When
@@ -102,7 +51,8 @@ void main() {
         final secondContext = await service.loadContext();
 
         // Then
-        expect(firstContext.deviceId, startsWith('jvm_'));
+        expect(firstContext.deviceId, startsWith('flutter_'));
+        expect(firstContext.deviceIdType, equals('generated_uuid'));
         expect(secondContext.deviceId, equals(firstContext.deviceId));
         expect(
           prefs.getString('fallback_device_id'),
