@@ -645,8 +645,16 @@ class MediaRemoteDataSource {
       data,
       (json) => PersonResponse.fromJson(json as Map<String, dynamic>),
     );
-    if (baseResponse.code != ResponseCodes.success ||
-        baseResponse.data == null) {
+    if (baseResponse.code != ResponseCodes.success) {
+      // Keep the business code so callers can tell "person record missing"
+      // (rendered as an empty state) apart from real failures.
+      throw FailureInfo(
+        message: baseResponse.msg,
+        code: baseResponse.code,
+        displayMessage: baseResponse.msg,
+      );
+    }
+    if (baseResponse.data == null) {
       throw Exception(baseResponse.msg);
     }
     return baseResponse.data!;

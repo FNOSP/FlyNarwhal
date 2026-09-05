@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../core/network/api_result.dart';
 import '../../../data/models/person_models.dart';
 import '../../../providers/global_refresh.dart';
 import '../../shared/common/fn_cached_image.dart';
@@ -49,25 +51,70 @@ class PersonDetailScreen extends ConsumerWidget {
         content: detailState.when(
           data: (state) => _PersonDetailContent(state: state),
           loading: () => const Center(child: AppLoadingProgressRing()),
-          error: (error, stack) => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('加载失败: $error'),
-                const SizedBox(height: 16),
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: AppButton(
-                    child: const Text('重试'),
-                    onPressed: () => ref
-                        .read(personDetailNotifierProvider(guid).notifier)
-                        .refresh(),
+          error: (error, stack) {
+            // The server has no record for this person (e.g. a credits entry
+            // whose person row was never scraped); the web client shows its
+            // generic empty state instead of an error, so mirror that.
+            if (error is PersonNotFoundException) {
+              return const _PersonNoData();
+            }
+            final message = error is FailureInfo
+                ? (error.displayMessage.isEmpty
+                      ? error.message
+                      : error.displayMessage)
+                : '$error';
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('加载失败: $message'),
+                  const SizedBox(height: 16),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: AppButton(
+                      child: const Text('重试'),
+                      onPressed: () => ref
+                          .read(personDetailNotifierProvider(guid).notifier)
+                          .refresh(),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
+                ],
+              ),
+            );
+          },
         ),
+      ),
+    );
+  }
+}
+
+/// Empty state shown when the server has no record for the person, matching
+/// the web client's generic "无数据" placeholder (same artwork as favorites).
+class _PersonNoData extends StatelessWidget {
+  const _PersonNoData();
+
+  @override
+  Widget build(BuildContext context) {
+    final scaleFactor = resolveWindowScaleFactor(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SvgPicture.asset(
+            'assets/images/empty_folder.svg',
+            width: 160 * scaleFactor,
+            height: 150 * scaleFactor,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '无数据',
+            style: FluentTheme.of(context).typography.body?.copyWith(
+                  color: FluentTheme.of(context)
+                      .resources
+                      .textFillColorSecondary,
+                ),
+          ),
+        ],
       ),
     );
   }

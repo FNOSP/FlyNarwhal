@@ -144,6 +144,10 @@ class ResponseCodes {
   /// Business code from /v/api/v1/subtitle/mark: every submitted file is
   /// already registered as a subtitle, so nothing new was added.
   static const int subtitleAlreadyMarked = -50;
+
+  /// Business code returned when the requested resource does not exist
+  /// (e.g. GET /v/api/v1/person/{guid} for a person with no stored record).
+  static const int notFoundBusiness = -6;
 }
 
 /// Storage keys

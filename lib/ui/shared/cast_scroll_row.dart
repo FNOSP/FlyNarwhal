@@ -101,6 +101,16 @@ class _CastAvatar extends ConsumerStatefulWidget {
 class _CastAvatarState extends ConsumerState<_CastAvatar> {
   bool _hovered = false;
 
+  // Mirrors the web personJobMap (common.person.job.*): known jobs are shown
+  // localized, anything else falls back to the raw job string.
+  static const Map<String, String> _jobLabels = {
+    'Director': '导演',
+    'Screenplay': '编剧',
+    'Writer': '编剧',
+    'Producer': '制片人',
+    'Actor': '演员',
+  };
+
   // Navigate to person detail page, mirroring Compose CastAvatar
   void _handleTap() {
     final personGuid = widget.person.personGuid;
@@ -123,9 +133,14 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
     final nameColor = _hovered
         ? FluentTheme.of(context).accentColor
         : FluentTheme.of(context).typography.body?.color;
-    final role = widget.person.job == 'Actor'
-        ? '饰 ${widget.person.role}'
-        : widget.person.job;
+    final person = widget.person;
+    final displayName = person.name.trim().isNotEmpty
+        ? person.name
+        : person.originalName.trim();
+    // Web: actors show "饰 <role>", other jobs show the localized job label.
+    final role = person.job == 'Actor'
+        ? '饰 ${person.role}'
+        : _jobLabels[person.job] ?? person.job;
 
     return SizedBox(
       width: CastScrollRow.itemWidth,
@@ -177,17 +192,21 @@ class _CastAvatarState extends ConsumerState<_CastAvatar> {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
-                widget.person.name,
-                style: FluentTheme.of(context).typography.caption?.copyWith(
-                      fontSize: 12,
-                      color: nameColor,
-                    ),
-                maxLines: 1,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
+              // Persons without any stored name (e.g. an unscraped director)
+              // only show their job line, like the web cast row.
+              if (displayName.isNotEmpty) ...[
+                Text(
+                  displayName,
+                  style: FluentTheme.of(context).typography.caption?.copyWith(
+                        fontSize: 12,
+                        color: nameColor,
+                      ),
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+              ],
               Text(
                 role,
                 style: FluentTheme.of(context).typography.caption?.copyWith(
