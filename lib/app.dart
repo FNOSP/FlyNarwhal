@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,8 @@ import 'ui/navigation/app_router.dart';
 import 'ui/shared/toast.dart';
 
 MainWindowLifecycleController? mainWindowLifecycleController;
+
+const _windowChannel = MethodChannel('fly_narwhal/window');
 
 Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
@@ -328,6 +331,27 @@ class MyApp extends ConsumerWidget {
         : settings.darkMode;
 
     final router = ref.watch(routerProvider);
+
+    // Soften the highlight macOS draws along the top edge of the window: the
+    // native dimmer strip (MainFlutterWindow) blends this caption color over
+    // the hairline at partial alpha, so the edge stays visible but quieter.
+    // The app theme follows app settings rather than the system appearance,
+    // so the color has to be pushed from here.
+    if (!kIsWeb && Platform.isMacOS) {
+      final captionBackground =
+          isDark ? const Color(0xFF202020) : const Color(0xFFF3F3F3);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(
+          _windowChannel.invokeMethod('setTopEdgeDimColor', {
+            'a': 128, // ~50%: dims the highlight without hiding it
+            'r': (captionBackground.r * 255).round(),
+            'g': (captionBackground.g * 255).round(),
+            'b': (captionBackground.b * 255).round(),
+          }),
+        );
+      });
+    }
+
     return FluentApp.router(
       title: '飞鲸影视',
       debugShowCheckedModeBanner: false,

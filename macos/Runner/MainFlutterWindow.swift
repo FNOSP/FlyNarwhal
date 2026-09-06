@@ -26,10 +26,12 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     registerLocalSubtitlePickerChannel(messenger: flutterViewController.engine.binaryMessenger)
+    registerTopEdgeDimmerChannel(messenger: flutterViewController.engine.binaryMessenger)
     preWarmSubtitlePicker()
 
     self.titlebarAppearsTransparent = true
     self.styleMask.insert(.fullSizeContentView)
+    installTopEdgeDimmer()
 
     self.standardWindowButton(.closeButton)?.isHidden = false
     self.standardWindowButton(.miniaturizeButton)?.isHidden = false
@@ -40,6 +42,19 @@ class MainFlutterWindow: NSWindow {
     // Relayout traffic light buttons after window initialization
     DispatchQueue.main.async {
       self.relayoutWindowButtons()
+      self.installTopEdgeDimmer()
+    }
+
+    // window_manager / flutter_acrylic can recreate or reorder the titlebar
+    // container during startup and on style changes, which orphans the top
+    // edge dimmer. Re-assert it (idempotently) whenever the window updates.
+    for name in [NSWindow.didBecomeKeyNotification,
+                 NSWindow.didResizeNotification,
+                 NSWindow.didUpdateNotification] {
+      NotificationCenter.default.addObserver(
+        forName: name, object: self, queue: .main) { [weak self] _ in
+        self?.installTopEdgeDimmer()
+      }
     }
 
     // Fix: retarget Edit ▸ Paste once the menu bar is loaded. Deferred so the
@@ -240,5 +255,90 @@ class MainFlutterWindow: NSWindow {
       NSLayoutConstraint(item: zoomButton, attribute: .top, relatedBy: .equal, toItem: titlebarView, attribute: .top, multiplier: 1, constant: topPadding),
       NSLayoutConstraint(item: zoomButton, attribute: .left, relatedBy: .equal, toItem: titlebarView, attribute: .left, multiplier: 1, constant: leftPadding + (buttonWidth + buttonSpacing) * 2)
     ])
+  }
+
+  // MARK: - Top edge dimmer
+  //
+  // macOS paints a ~1px highlight along the very top edge of a titled window
+  // (brightest while key), which reads as a light hairline above the dark
+  // custom caption. It is drawn above the content view, so Flutter cannot
+  // touch it. Rather than hiding the hairline, soften it: overlay a 2pt strip
+  // of the caption color at partial alpha. Over the caption the strip blends
+  // the caption color into itself (invisible), while over the highlight it
+  // pulls the bright line toward the caption color, keeping the edge visible
+  // but much quieter. Pinned to the top of the titlebar container view —
+  // AppKit keeps that view above the other frame subviews (acrylic /
+  // window_manager reorder the frame view's subviews during startup, which
+  // buries overlays added there).
+  private var topEdgeDimmer: TopEdgeDimmerView?
+  // Last color pushed from the Dart side, so a dimmer recreated after a
+  // titlebar-container rebuild immediately uses the app-theme color instead
+  // of waiting for the next Dart push.
+  private var topEdgeDimColor: NSColor = .windowBackgroundColor
+
+  private func installTopEdgeDimmer() {
+    guard let closeButton = standardWindowButton(.closeButton),
+          let container = closeButton.superview?.superview else { return }
+    // The container can be recreated after startup (e.g. when window_manager
+    // inserts .fullSizeContentView), and AppKit re-adds its decoration view
+    // (which paints the top-edge highlight) above the dimmer, so only skip
+    // when the dimmer is attached to the current container AND on top.
+    if let dimmer = topEdgeDimmer,
+       dimmer.superview === container,
+       container.subviews.last === dimmer {
+      return
+    }
+    let dimmer = topEdgeDimmer ?? TopEdgeDimmerView()
+    dimmer.removeFromSuperview()
+    dimmer.fillColor = topEdgeDimColor
+    dimmer.frame = NSRect(x: 0,
+                          y: container.bounds.height - 2,
+                          width: container.bounds.width,
+                          height: 2)
+    dimmer.autoresizingMask = [.width, .minYMargin]
+    container.addSubview(dimmer)
+    topEdgeDimmer = dimmer
+  }
+
+  /// Method channel letting the Dart side push the current caption background
+  /// color, so the dimmer matches the app theme (which follows app settings,
+  /// not the system appearance).
+  private func registerTopEdgeDimmerChannel(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "fly_narwhal/window",
+      binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "setTopEdgeDimColor",
+            let args = call.arguments as? [String: Any],
+            let r = args["r"] as? Int,
+            let g = args["g"] as? Int,
+            let b = args["b"] as? Int else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let a = (args["a"] as? Int) ?? 128
+      let color = NSColor(srgbRed: CGFloat(r) / 255,
+                          green: CGFloat(g) / 255,
+                          blue: CGFloat(b) / 255,
+                          alpha: CGFloat(a) / 255)
+      DispatchQueue.main.async {
+        self?.topEdgeDimColor = color
+        self?.topEdgeDimmer?.fillColor = color
+      }
+      result(nil)
+    }
+  }
+}
+
+/// Softens the window's top-edge highlight by blending the caption background
+/// color over it at partial alpha.
+final class TopEdgeDimmerView: NSView {
+  var fillColor: NSColor = .windowBackgroundColor {
+    didSet { needsDisplay = true }
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    fillColor.setFill()
+    bounds.fill()
   }
 }
