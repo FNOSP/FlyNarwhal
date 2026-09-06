@@ -785,6 +785,14 @@ class PlayerSessionCoordinator {
     List<QualityResponse> qualities,
   ) {
     if (_requiresHlsPlayback(videoStream)) {
+      AppTalker.info(
+        'Player',
+        'direct-link decision: HLS required (DolbyVision profile '
+            '${videoStream.dvProfile}) codec=${videoStream.codecName} '
+            'colorRangeType=${videoStream.colorRangeType} '
+            'resolutionType=${videoStream.resolutionType} '
+            'bps=${videoStream.bps} -> transcode',
+      );
       return false;
     }
     final originalQuality = qualities.firstOrNull;
@@ -792,6 +800,20 @@ class PlayerSessionCoordinator {
         originalQuality != null &&
         quality.resolution == originalQuality.resolution &&
         quality.bitrate == originalQuality.bitrate;
+    // Log the full decision so an unexpected transcode can be traced to either
+    // a non-original quality selection or an empty/mismatched quality list.
+    AppTalker.info(
+      'Player',
+      'direct-link decision: ${isOriginalQuality ? "direct" : "transcode"} '
+          'codec=${videoStream.codecName} '
+          'colorRangeType=${videoStream.colorRangeType} '
+          'dvProfile=${videoStream.dvProfile} '
+          'resolutionType=${videoStream.resolutionType} '
+          'bps=${videoStream.bps} '
+          'selected=${quality?.resolution}/${quality?.bitrate} '
+          'original=${originalQuality?.resolution}/${originalQuality?.bitrate} '
+          'qualityCount=${qualities.length}',
+    );
     return isOriginalQuality;
   }
 
@@ -1110,12 +1132,29 @@ class PlayerSessionCoordinator {
     // so the direct link must be skipped while either setting is on. Cloud
     // proxy sessions also always go through play/play (the plain direct link
     // without a quality index would stream the wrong CDN file).
+    if (forceTranscode || transcodeForced) {
+      // This branch short-circuits supportsDirectLink, so log the forced
+      // reason here to keep every transcode decision traceable.
+      AppTalker.info(
+        'Player',
+        'direct-link decision: transcode forced '
+            '(forceTranscode=$forceTranscode '
+            'forceH264=$forceH264 forceSdrColor=$forceSdrColor) '
+            'codec=${videoStream.codecName} '
+            'colorRangeType=${videoStream.colorRangeType} '
+            'resolutionType=${videoStream.resolutionType}',
+      );
+    }
     if (!forceTranscode &&
         !transcodeForced &&
         supportsDirectLink(videoStream, currentQuality, qualities)) {
       final directLink = await getDirectPlayLink(
         mediaGuid: videoStream.mediaGuid,
         startPositionMs: startPositionMs,
+      );
+      AppTalker.info(
+        'Player',
+        'resolved play link: direct-link uri=${directLink.playUri}',
       );
       return _ResolvedPlayLink(
         playUri: directLink.playUri,
@@ -1135,6 +1174,13 @@ class PlayerSessionCoordinator {
         startTimestamp: startPositionMs ~/ 1000,
       );
       final response = await _playerService.playVideo(request);
+      AppTalker.info(
+        'Player',
+        'resolved play link: transcode '
+            'videoEncoder=${request.videoEncoder} '
+            'resolution=${request.resolution} bitrate=${request.bitrate} '
+            'uri=${response.playLink}',
+      );
       return _ResolvedPlayLink(
         playUri: absolutePlayUrl(baseUrl, response.playLink),
         playLinkRaw: response.playLink,
@@ -1150,6 +1196,10 @@ class PlayerSessionCoordinator {
       final directLink = await getDirectPlayLink(
         mediaGuid: playInfo.mediaGuid,
         startPositionMs: startPositionMs,
+      );
+      AppTalker.info(
+        'Player',
+        'resolved play link: direct-link via 8192 fallback uri=${directLink.playUri}',
       );
       // The fallback plays the original file through the direct link, so the
       // session must be marked as a direct-link session: there is no transcode

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -73,6 +74,7 @@ import 'widgets/player_settings_menu.dart';
 import 'widgets/skip_intro_prompt.dart';
 import 'widgets/skip_outro_prompt.dart';
 import 'widgets/playback_end_overlay.dart';
+import 'widgets/playback_details_morph.dart';
 import 'widgets/playback_details_overlay.dart';
 import 'widgets/subtitle_control_flyout.dart';
 import 'widgets/subtitle_search_dialog.dart';
@@ -203,6 +205,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   MediaTranscodeResponse? _playbackDetailsTranscodeStatus;
   Timer? _playbackDetailsRefreshTimer;
   bool _isFetchingPlaybackDetails = false;
+  final PlaybackDetailsMorphController _playbackDetailsMorphController =
+      PlaybackDetailsMorphController();
+  final GlobalKey _playbackDetailsButtonKey = GlobalKey();
+  bool _playbackDetailsAnimClosing = false;
+  int _playbackDetailsMorphGeneration = 0;
   List<AudioTrack> _embeddedAudioTracks = const <AudioTrack>[];
   int _audioSwitchToken = 0;
   final DirectLinkAudioTrackResolver _directLinkAudioTrackResolver =
@@ -246,6 +253,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Remote cloud containers (e.g. a 24 GB 4K MKV over the NAS proxy) can take
   // far longer to open than local files; verification gets a longer window.
   static const Duration _cloudDirectVerifyTimeout = Duration(seconds: 20);
+
+  /// Opening a large local file directly (e.g. a 4K HEVC remux) can take well
+  /// past a few seconds before mpv reports a duration, so the verification
+  /// window is generous enough to avoid a needless HLS transcode fallback.
+  static const Duration _localDirectVerifyTimeout = Duration(seconds: 30);
   // Window session separation: the player route keeps its own geometry and
   // must not leak resizes into the app window state used by other routes.
   Rect? _prePlayerWindowBounds;
@@ -1520,6 +1532,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _streamInfo = null;
     _playingInfoCache = null;
     _isPlaybackDetailsVisible = false;
+    _playbackDetailsAnimClosing = false;
+    _playbackDetailsMorphGeneration++;
     _playbackDetailsTranscodeStatus = null;
     _playbackDetailsRefreshTimer?.cancel();
     _playbackDetailsRefreshTimer = null;
@@ -1849,7 +1863,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final startPositionMs = _player!.state.position.inMilliseconds;
       await _reopenPlaybackWithDirectLink(startPositionMs: startPositionMs);
 
-      final verified = await _verifyPlaybackStarted();
+      final verified = await _verifyPlaybackStarted(
+        label: 'quit-reopen-direct',
+      );
       if (!verified && mounted) {
         await _fallbackToHlsFromDirectLink(startPositionMs: startPositionMs);
       }
@@ -2579,10 +2595,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
       if (!mounted || requestToken != _loadRequestToken) return;
 
+      final isCloudDirect =
+          _playingInfoCache?.directLinkQualities.isNotEmpty ?? false;
       final verified = await _verifyPlaybackStarted(
-        timeout: (_playingInfoCache?.directLinkQualities.isNotEmpty ?? false)
+        timeout: isCloudDirect
             ? _cloudDirectVerifyTimeout
-            : const Duration(seconds: 3),
+            : _localDirectVerifyTimeout,
+        label: isCloudDirect ? 'open-cloud-direct' : 'open-local-direct',
       );
       if (verified) return;
     } catch (e) {
@@ -2612,32 +2631,79 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// which indicates the container was successfully opened. An mpv error
   /// event during the window short-circuits the wait. Cloud direct links can
   /// take much longer than local files (huge remote containers), so callers
-  /// pass a longer timeout for netdisk sessions.
+  /// pass a longer timeout for netdisk sessions. [label] identifies the call
+  /// path in the logs so a timeout/failure can be traced back to its trigger.
   Future<bool> _verifyPlaybackStarted({
-    Duration timeout = const Duration(seconds: 3),
+    Duration timeout = _localDirectVerifyTimeout,
+    String label = 'playback',
   }) async {
     final player = _player;
-    if (player == null) return false;
+    if (player == null) {
+      AppTalker.warning(
+        'Player',
+        '[$label] playback verification skipped: player is null',
+      );
+      return false;
+    }
 
     var errored = false;
-    final errorSub = player.stream.error.listen((_) => errored = true);
+    String? lastError;
+    final errorSub = player.stream.error.listen((message) {
+      errored = true;
+      lastError = message;
+    });
+    final stopwatch = Stopwatch()..start();
     try {
       final attempts = (timeout.inMilliseconds / 500).ceil();
       for (int attempt = 0; attempt < attempts; attempt++) {
         await Future<void>.delayed(const Duration(milliseconds: 500));
-        if (!mounted) return false;
-        if (errored) return false;
+        if (!mounted) {
+          AppTalker.warning(
+            'Player',
+            '[$label] playback verification aborted: widget unmounted after '
+                '${stopwatch.elapsedMilliseconds}ms',
+          );
+          return false;
+        }
+        if (errored) {
+          AppTalker.warning(
+            'Player',
+            '[$label] playback verification failed: mpv error after '
+                '${stopwatch.elapsedMilliseconds}ms: $lastError',
+          );
+          return false;
+        }
         final state = player.state;
         if (state.duration.inMilliseconds > 0 && state.width != null) {
+          AppTalker.info(
+            'Player',
+            '[$label] playback verified in ${stopwatch.elapsedMilliseconds}ms '
+                '(duration=${state.duration.inMilliseconds}ms '
+                'size=${state.width}x${state.height})',
+          );
           return true;
         }
       }
     } finally {
       await errorSub.cancel();
     }
+    // Timeout: dump the full player state so the next occurrence shows whether
+    // mpv never opened the container (duration=0, width=null), opened it but
+    // has not decoded a frame yet (duration>0, width=null), or stalled mid
+    // network (buffer/buffering/position values).
+    final state = player.state;
     AppTalker.warning(
       'Player',
-      'direct link verification failed: player reports no duration after ${timeout.inSeconds}s',
+      '[$label] playback verification timed out after '
+          '${stopwatch.elapsedMilliseconds}ms (limit ${timeout.inSeconds}s): '
+          'duration=${state.duration.inMilliseconds}ms '
+          'size=${state.width}x${state.height} '
+          'position=${state.position.inMilliseconds}ms '
+          'buffer=${state.buffer.inMilliseconds}ms '
+          'buffering=${state.buffering} '
+          'playing=${state.playing} '
+          'completed=${state.completed} '
+          'errored=$errored lastError=$lastError',
     );
     return false;
   }
@@ -2790,6 +2856,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (isCloudProxy) {
             final verified = await _verifyPlaybackStarted(
               timeout: const Duration(seconds: 20),
+              label: 'open-cloud-proxy',
             );
             if (!verified && mounted && requestToken == _loadRequestToken) {
               setState(() {
@@ -3516,7 +3583,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final verified = await _verifyPlaybackStarted(
           timeout: (_playingInfoCache?.directLinkQualities.isNotEmpty ?? false)
               ? _cloudDirectVerifyTimeout
-              : const Duration(seconds: 3),
+              : _localDirectVerifyTimeout,
+          label: 'restart-transcode-settings',
         );
         if (!verified && mounted) {
           if (_playingInfoCache?.directLinkQualities.isNotEmpty ?? false) {
@@ -3839,6 +3907,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       final verified = await _verifyPlaybackStarted(
         timeout: _cloudDirectVerifyTimeout,
+        label: 'switch-cloud-direct-quality',
       );
       if (!verified && mounted && _isCurrentCloudSwitch(switchToken)) {
         // The newly selected direct quality could not be opened; guide the
@@ -4071,6 +4140,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
           final proxyVerified = await _verifyPlaybackStarted(
             timeout: const Duration(seconds: 20),
+            label: 'switch-cloud-play-mode-proxy',
           );
           if (!proxyVerified) {
             throw Exception('NAS proxy playback verification failed');
@@ -4213,6 +4283,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!_isCurrentCloudSwitch(switchToken)) return false;
     final verified = await _verifyPlaybackStarted(
       timeout: _cloudDirectVerifyTimeout,
+      label: 'enter-cloud-direct-mode',
     );
     if (!verified && mounted && _isCurrentCloudSwitch(switchToken)) {
       return false;
@@ -4875,10 +4946,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
           if (_isInitialized && !_isPipMode)
-            AnimatedOpacity(
-              opacity: overlayState.isUiVisible ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 200),
-              child: Stack(
+            // Positioned.fill keeps this subtree from sizing the parent
+            // Stack to its (overlay-sized) children, so the playback details
+            // morph can compute the button's position via localToGlobal from
+            // inside the top bar.
+            Positioned.fill(
+              child: AnimatedOpacity(
+                  opacity: overlayState.isUiVisible ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Stack(
                 children: [
                   Positioned(
                     top: 0,
@@ -4960,6 +5036,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ],
               ),
             ),
+          ),
           // The “播放详细信息” panel is deliberately rendered OUTSIDE the
           // AnimatedOpacity that fades the transport controls, so it stays on
           // screen when the controls auto-hide. Its open state is independent
@@ -4968,26 +5045,59 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // remains until explicitly closed.
           if (_isInitialized &&
               !_isPipMode &&
-              _isPlaybackDetailsVisible &&
-              _playingInfoCache != null)
-            Positioned(
-              top: 56,
-              right: 20,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width - 32,
-                  maxHeight: MediaQuery.of(context).size.height - 76,
-                ),
-                child: PlaybackDetailsPanel(
-                  key: const ValueKey('player-playback-details-panel'),
-                  cache: _playingInfoCache!,
-                  transcodeStatus: _playbackDetailsTranscodeStatus,
-                  bufferedSeconds: _isInitialized
-                      ? ((_bufferedPosition - _currentPosition) / 1000)
-                          .clamp(0.0, double.infinity)
-                      : null,
-                  onClose: _closePlaybackDetails,
-                ),
+              (_isPlaybackDetailsVisible || _playbackDetailsAnimClosing))
+            Positioned.fill(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final cache = _playingInfoCache;
+                  if (cache == null) return const SizedBox.shrink();
+                  final maxWidth = constraints.maxWidth - 32;
+                  final maxHeight = constraints.maxHeight - 76;
+                  final spawnSize = _isMacOS ? 30.0 : 34.0;
+                  final spawnRect = _resolvePlaybackDetailsSpawnRect(
+                    context,
+                    Rect.fromLTWH(
+                      constraints.maxWidth - 20 - spawnSize,
+                      56 - spawnSize,
+                      spawnSize,
+                      spawnSize,
+                    ),
+                  );
+                  return PlaybackDetailsMorph(
+                    key: ValueKey(
+                      'player-playback-details-morph-'
+                      '$_playbackDetailsMorphGeneration',
+                    ),
+                    controller: _playbackDetailsMorphController,
+                    maxSize: Size(
+                      math.min(560.0, maxWidth),
+                      math.min(530.0, maxHeight),
+                    ),
+                    anchor: spawnRect.bottomRight,
+                    spawnRect: spawnRect,
+                    onSettled: () => _handlePlaybackDetailsMorphSettled(
+                      _playbackDetailsMorphGeneration,
+                    ),
+                    header: PlayerActionButton.icon(
+                      key: const ValueKey('player-playback-details-close'),
+                      iconData: FluentIcons.chrome_close,
+                      onPressed: _closePlaybackDetails,
+                      tooltip: '关闭',
+                      size: 30,
+                      iconSize: 14,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: PlaybackDetailsPanel(
+                      key: const ValueKey('player-playback-details-panel'),
+                      cache: cache,
+                      transcodeStatus: _playbackDetailsTranscodeStatus,
+                      bufferedSeconds: _isInitialized
+                          ? ((_bufferedPosition - _currentPosition) / 1000)
+                              .clamp(0.0, double.infinity)
+                          : null,
+                    ),
+                  );
+                },
               ),
             ),
           if (_isInitialized && _isPipMode) _buildPipOverlay(),
@@ -5783,6 +5893,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _closePlaybackDetails();
       return;
     }
+    // A close morph that is still collapsing snaps straight to the closed
+    // state before the panel re-spawns from the trigger.
+    _playbackDetailsAnimClosing = false;
+    _playbackDetailsMorphGeneration++;
     setState(() => _isPlaybackDetailsVisible = true);
     _showUi();
     _refreshPlaybackDetailsTranscodeStatus();
@@ -5795,17 +5909,54 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Closes the “播放详细信息” panel. Kept a single code path so the panel's
-  /// close button and the top-bar toggle run the exact same cleanup. The panel
-  /// is rendered independently of the control overlay, so closing it simply
-  /// flips the visibility flag, stops the transcode polling and re-arms the
-  /// control auto-hide timer.
+  /// close button and the top-bar toggle run the exact same cleanup. The
+  /// panel collapses back into its trigger button with the liquid morph
+  /// animation; the widget tree is disposed once the morph has settled
+  /// (see [_handlePlaybackDetailsMorphSettled]).
   void _closePlaybackDetails() {
-    if (_isPlaybackDetailsVisible) {
-      setState(() => _isPlaybackDetailsVisible = false);
-    }
+    if (!_isPlaybackDetailsVisible) return;
+    setState(() => _isPlaybackDetailsVisible = false);
+    _playbackDetailsAnimClosing = true;
+    _playbackDetailsMorphController.close();
+    _stopPlaybackDetailsPolling();
+    _showUi();
+  }
+
+  void _stopPlaybackDetailsPolling() {
     _playbackDetailsRefreshTimer?.cancel();
     _playbackDetailsRefreshTimer = null;
-    _showUi();
+  }
+
+  /// Fires when the panel morph has come to rest. Opening just clears the
+  /// closing flag; closing disposes the morph subtree so the glass layer
+  /// stops rendering.
+  void _handlePlaybackDetailsMorphSettled(int generation) {
+    if (generation != _playbackDetailsMorphGeneration || !mounted) return;
+    if (_isPlaybackDetailsVisible) return;
+    if (!_playbackDetailsAnimClosing) return;
+    setState(() => _playbackDetailsAnimClosing = false);
+  }
+
+  /// The “播放详细信息” trigger button's rect, converted into the panel's
+  /// `Positioned.fill` local coordinate space. The liquid morph ghosts this
+  /// rect as its spawn blob and collapses back into it on close, while the
+  /// panel body's top-right corner stays pinned to the rect's bottom-right
+  /// corner. A fresh value is recomputed every rebuild to follow
+  /// fullscreen/windowed layout changes. Falls back to [fallback] when the
+  /// trigger isn't laid out yet (first frame) or is gone (controls hidden).
+  Rect _resolvePlaybackDetailsSpawnRect(
+    BuildContext stackContext,
+    Rect fallback,
+  ) {
+    final buttonContext = _playbackDetailsButtonKey.currentContext;
+    if (buttonContext == null || !buttonContext.mounted) return fallback;
+    final buttonBox = buttonContext.findRenderObject();
+    if (buttonBox is! RenderBox || !buttonBox.hasSize) return fallback;
+    final topLeft = buttonBox.localToGlobal(
+      Offset.zero,
+      ancestor: stackContext.findRenderObject(),
+    );
+    return topLeft & buttonBox.size;
   }
 
   /// Mirrors the web player's play-type derivation: direct-link sessions are
@@ -5924,17 +6075,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               BorderRadius.circular(_isMacOS ? 15 : 17),
                         ),
                         const SizedBox(width: 4),
-                        PlayerActionButton.icon(
-                          key: const ValueKey(
-                            'player-playback-details-button',
-                          ),
-                          iconData: FluentIcons.info,
-                          onPressed: _togglePlaybackDetails,
-                          tooltip: '播放详细信息',
-                          size: _isMacOS ? 30 : 34,
-                          iconSize: _isMacOS ? 16 : 18,
-                          borderRadius: BorderRadius.circular(
-                            _isMacOS ? 15 : 17,
+                        // The GlobalKey lets the playback details morph
+                        // measure the trigger's rect as its spawn anchor (see
+                        // _resolvePlaybackDetailsSpawnRect).
+                        Builder(
+                          key: _playbackDetailsButtonKey,
+                          builder: (context) => PlayerActionButton.icon(
+                            key: const ValueKey(
+                              'player-playback-details-button',
+                            ),
+                            iconData: FluentIcons.info,
+                            onPressed: _togglePlaybackDetails,
+                            tooltip: '播放详细信息',
+                            size: _isMacOS ? 30 : 34,
+                            iconSize: _isMacOS ? 16 : 18,
+                            borderRadius: BorderRadius.circular(
+                              _isMacOS ? 15 : 17,
+                            ),
                           ),
                         ),
                       ],
