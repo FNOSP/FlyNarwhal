@@ -40,13 +40,15 @@ const LiquidGlassSettings _liquidGlassToastSettings = LiquidGlassSettings(
   thickness: 40,
   blur: 3,
   whitenStrength: 0,
-  refractiveIndex: 7.0,
+  refractiveIndex: 10.0,
   lightIntensity: 0.5,
   ambientRim: 0.2,
-  glowIntensity: 0.5,
+  ambientStrength: 0.2,
+  glowIntensity: 0.75,
   fresnelStrength: 0.8,
-  edgeAbsorption: 0.08,
-  backerColor: Color.fromARGB(25, 0, 0, 0),
+  edgeAbsorption: 0.31,
+  // shadowElevation: 2.0,
+  // backerColor: Color.fromARGB(5, 0, 0, 0),
 );
 
 // Build warning message based on missing FlyNarwhal config fields
