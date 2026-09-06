@@ -1,20 +1,12 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../core/utils/file_utils.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
-import 'player_action_button.dart';
 
-const Color _panelBackground = Color(0x99000000);
-const Color _panelBorder = Color(0x33FFFFFF);
 const Color _titleTextColor = Color(0xE6FFFFFF);
 const Color _secondaryTextColor = Color(0xC8FFFFFF);
-const double _panelWidth = 560;
-const double _panelHeight = 530;
-const double _panelRadius = 16;
 const double _columnGap = 24;
 
 const Map<int, String> _transcodingReasonMap = {
@@ -64,18 +56,19 @@ String _trimTrailingZeros(String value) {
 /// Top-right playback details panel mirroring the web player's
 /// “播放详细信息” overlay: play type, live playback/transcode statistics and
 /// the media source information (container / file size / video / audio).
+///
+/// Renders only the content; the surface is provided by the liquid glass
+/// container wrapping it (see `PlaybackDetailsMorph`).
 class PlaybackDetailsPanel extends StatelessWidget {
   final PlayingInfoCache cache;
   final MediaTranscodeResponse? transcodeStatus;
   final double? bufferedSeconds;
-  final VoidCallback onClose;
 
   const PlaybackDetailsPanel({
     super.key,
     required this.cache,
     this.transcodeStatus,
     this.bufferedSeconds,
-    required this.onClose,
   });
 
   bool get _isTranscoded => transcodeStatus?.transcoded ?? false;
@@ -129,81 +122,55 @@ class PlaybackDetailsPanel extends StatelessWidget {
     final videoStream = cache.currentVideoStream;
     final audioStream = cache.currentAudioStream;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(_panelRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
-        child: Container(
-          constraints: const BoxConstraints(
-            maxWidth: _panelWidth,
-            maxHeight: _panelHeight,
-          ),
-          decoration: BoxDecoration(
-            color: _panelBackground,
-            borderRadius: BorderRadius.circular(_panelRadius),
-            border: Border.all(color: _panelBorder),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: SingleChildScrollView(
-            child: IntrinsicWidth(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _detailLine('播放类型', _playTypeLabel),
-                            if (_isTranscoded &&
-                                _transcodingReasonText.isNotEmpty)
-                              _detailLine('转码原因', _transcodingReasonText),
-                          ],
-                        ),
-                      ),
-                      PlayerActionButton.icon(
-                        key: const ValueKey('player-playback-details-close'),
-                        iconData: FluentIcons.chrome_close,
-                        onPressed: onClose,
-                        tooltip: '关闭',
-                        size: 30,
-                        iconSize: 14,
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (_hasPlaybackInfo) ...[
-                    _sectionTitle('播放信息'),
-                    const SizedBox(height: 8),
-                    _buildPlaybackInfoRows(),
-                    const SizedBox(height: 16),
+    return IntrinsicWidth(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _detailLine('播放类型', _playTypeLabel),
+                    if (_isTranscoded &&
+                        _transcodingReasonText.isNotEmpty)
+                      _detailLine('转码原因', _transcodingReasonText),
                   ],
-                  _sectionTitle('媒体源信息'),
-                  const SizedBox(height: 8),
-                  if (videoStream?.wrapper.isNotEmpty ?? false)
-                    _detailLine('封装容器', videoStream!.wrapper),
-                  if (fileStream != null && fileStream.size > 0)
-                    _detailLine(
-                      '文件大小',
-                      FileUtils.formatFileSize(fileStream.size),
-                    ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildVideoGroup(videoStream)),
-                      const SizedBox(width: _columnGap),
-                      Expanded(child: _buildAudioGroup(audioStream)),
-                    ],
-                  ),
-                ],
+                ),
               ),
-            ),
+              // Reserve space for the fixed close button that lives outside
+              // the scroll view so content doesn't run underneath it.
+              const SizedBox(width: 30),
+            ],
           ),
-        ),
+          const SizedBox(height: 16),
+          if (_hasPlaybackInfo) ...[
+            _sectionTitle('播放信息'),
+            const SizedBox(height: 8),
+            _buildPlaybackInfoRows(),
+            const SizedBox(height: 16),
+          ],
+          _sectionTitle('媒体源信息'),
+          const SizedBox(height: 8),
+          if (videoStream?.wrapper.isNotEmpty ?? false)
+            _detailLine('封装容器', videoStream!.wrapper),
+          if (fileStream != null && fileStream.size > 0)
+            _detailLine(
+              '文件大小',
+              FileUtils.formatFileSize(fileStream.size),
+            ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildVideoGroup(videoStream)),
+              const SizedBox(width: _columnGap),
+              Expanded(child: _buildAudioGroup(audioStream)),
+            ],
+          ),
+        ],
       ),
     );
   }
