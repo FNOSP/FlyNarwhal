@@ -85,13 +85,30 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     // Stay inactive while a fullscreen player page is pushed on top of the
     // shell (MainLayout remains mounted underneath). The player pages bind
     // their own keys (e.g. F = fullscreen) and must not be preempted.
-    final location =
-        GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
-    if (location.startsWith('/player/') || location.startsWith('/live/')) {
+    if (_isPlayerRouteOnTop()) {
       return false;
     }
     _searchFocusNode.requestFocus();
     return true;
+  }
+
+  /// The matched location of the top route, including routes pushed on top of
+  /// the shell with `context.push` (e.g. the player pages).
+  /// `currentConfiguration.uri` only reflects page-based (go) routes and keeps
+  /// reporting the shell page while a pushed route is on top, so it must not
+  /// be used to detect whether a player page is active.
+  String _topRouteLocation() {
+    final configuration =
+        GoRouter.of(context).routerDelegate.currentConfiguration;
+    if (configuration.isEmpty) {
+      return '';
+    }
+    return configuration.last.matchedLocation;
+  }
+
+  bool _isPlayerRouteOnTop() {
+    final location = _topRouteLocation();
+    return location.startsWith('/player/') || location.startsWith('/live/');
   }
 
   bool _handleOpenSettingsKey(KeyEvent event) {
@@ -102,9 +119,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     }
     // Stay inactive while a fullscreen player page is pushed on top of the
     // shell (MainLayout remains mounted underneath).
-    final location =
-        GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
-    if (location.startsWith('/player/') || location.startsWith('/live/')) {
+    if (_isPlayerRouteOnTop()) {
       return false;
     }
     context.go('/settings');
