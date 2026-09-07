@@ -18,9 +18,11 @@ const Color _defaultTextColor = Color(0xC8FFFFFF);
 const Color _hoverBackgroundColor = Color(0x1AFFFFFF);
 const int _hideDelayMs = 200;
 const int _animationDurationMs = 200;
-const double _settingsFlyoutLeftOffset = -160;
+// Keep these in sync: the flyout is horizontally centered on the settings
+// button, so the left offset must be -(_settingsFlyoutWidth / 2).
+const double _settingsFlyoutLeftOffset = -170;
 const double _settingsFlyoutBridgeOffset = 40;
-const double _settingsFlyoutWidth = 320;
+const double _settingsFlyoutWidth = 330;
 const double _settingsFlyoutMinBridgeWidth = 56;
 const double _settingsFlyoutBridgeHorizontalPadding = 12;
 const double _estimatedSettingsFlyoutHeight = 300;

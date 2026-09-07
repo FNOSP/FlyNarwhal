@@ -23,6 +23,12 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
   static const Duration nextEpisodeWaitTimeout = Duration(seconds: 5);
   static const int introConfirmationToleranceMilliseconds = 200;
   static const int contentAfterCreditsToleranceMilliseconds = 1000;
+  // A playhead this close to a segment boundary counts as "at the boundary",
+  // not "inside" the segment. The skip-settings shortcut that sets the intro
+  // end (or credits start) to the current time lands the playhead within one
+  // second of the new boundary by construction; treating that as "inside"
+  // would fire a sub-second auto-skip plus undo prompt right after the tap.
+  static const int segmentBoundaryToleranceMilliseconds = 1000;
 
   final SkipTimerFactory _timerFactory;
   final StreamController<PlayerSkipAction> _actionsController =
@@ -110,7 +116,11 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
   /// playhead inside a segment would otherwise never apply until the next
   /// episode or replay. This makes an edit take effect immediately: if the
   /// current position is inside the intro, skip to its end; if inside the
-  /// credits, show the outro prompt.
+  /// credits, show the outro prompt. Positions within
+  /// [segmentBoundaryToleranceMilliseconds] of the intro end or credits start
+  /// are exempt — the skip-settings shortcuts that set a boundary to the
+  /// current time park the playhead there by construction, and firing an
+  /// immediate skip for them would undo the user's own edit.
   void _applySegmentsToCurrentPosition() {
     final position = state.currentPositionMilliseconds;
     final isNaturalPlayback =
@@ -120,6 +130,8 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
     }
 
     // Intro: jump to the end of the intro when the playhead sits inside it.
+    // Positions within the boundary tolerance of the intro end are excluded:
+    // setting the intro to the current time parks the playhead there.
     final intro = state.segments.introSegment;
     if (intro != null &&
         state.pendingIntroSegment == null &&
@@ -127,12 +139,16 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
         !state.isIntroUndoVisible &&
         !state.isOutroPromptVisible &&
         !_hasActiveIntroSuppression(position) &&
-        intro.contains(position)) {
+        intro.contains(position) &&
+        intro.endMilliseconds - position >
+            segmentBoundaryToleranceMilliseconds) {
       _triggerIntro(intro);
       return;
     }
 
     // Outro: show the skip-credits prompt when the playhead sits inside them.
+    // The same boundary tolerance applies at the credits start, where the
+    // "set ending to remaining time" shortcut parks the playhead.
     final credits = state.segments.creditsSegment;
     if (credits != null &&
         !state.isOutroCancelled &&
@@ -140,7 +156,9 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
         state.pendingIntroSegment == null &&
         !state.isIntroUndoVisible &&
         !_hasActiveIntroSuppression(position) &&
-        credits.contains(position)) {
+        credits.contains(position) &&
+        position - credits.startMilliseconds >
+            segmentBoundaryToleranceMilliseconds) {
       _triggerOutro();
     }
   }
