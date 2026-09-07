@@ -1832,7 +1832,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '生效范围: ${widget.playingInfoCache?.item?.tvTitle ?? '未知'} 第 ${widget.playingInfoCache?.item?.seasonNumber ?? 0} 季',
+                    '生效范围: 《${widget.playingInfoCache?.item?.tvTitle ?? '未知'}》 第 ${widget.playingInfoCache?.item?.seasonNumber ?? 0} 季',
                     style: const TextStyle(
                       color: Color(0xCCFFFFFF),
                       fontSize: 12,
