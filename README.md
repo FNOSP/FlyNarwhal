@@ -43,13 +43,13 @@
 
 > 最终效果以实际发布版本为准
 
-![image-login_screen](./img/login_screen.png)
+![image-login_screen](img/login_screen.png)
 
-![image-home_screen](./img/home_screen.png)
+![image-home_screen](img/home_screen.png)
 
-![image-player_screen_player_one](./img/player_screen_player_one.png)
+![image-player_screen_player_one](img/player_screen_player_one.png)
 
-![image-player_screen_8k](./img/player_screen_8k.png)
+![image-player_screen_8k](img/player_screen_8k.png)
 
 ## 核心特性
 
