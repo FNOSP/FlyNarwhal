@@ -43,11 +43,13 @@
 
 > 最终效果以实际发布版本为准
 
-![image-20251230020234381](http://oss.jankinwu.com/img/image-20251230020234381.png)
+![image-login_screen](./img/login_screen.png)
 
-![image-20251230020717917](http://oss.jankinwu.com/img/image-20251230020717917.png)
+![image-home_screen](./img/home_screen.png)
 
-![image-20251230021217242](http://oss.jankinwu.com/img/image-20251230021217242.png)
+![image-player_screen_player_one](./img/player_screen_player_one.png)
+
+![image-player_screen_8k](./img/player_screen_8k.png)
 
 ## 核心特性
 
