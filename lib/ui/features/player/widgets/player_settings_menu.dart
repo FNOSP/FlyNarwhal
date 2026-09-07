@@ -326,6 +326,13 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         autoPlayChanged) {
       _requestOverlayRebuild();
     }
+    // The skip-settings shortcut buttons display the live playback position,
+    // so keep the open flyout in sync with position ticks.
+    if (_currentScreen == 'SkipConfig' &&
+        (oldWidget.currentPositionMillis != widget.currentPositionMillis ||
+            oldWidget.totalDurationMillis != widget.totalDurationMillis)) {
+      _requestOverlayRebuild();
+    }
   }
 
   double get _safePopupBottomOffset =>
@@ -903,6 +910,7 @@ class _MainSettingsScreen extends StatelessWidget {
             MediaType.tryParse(playingInfoCache?.item?.type) ==
                 MediaType.episode)
           _SettingsMenuItem(
+            key: const ValueKey('player-settings-skip-config'),
             title: '跳过片头/片尾',
             value: _getSkipText(playingInfoCache?.playConfig),
             onClick: onNavigateToSkipConfig,
@@ -1754,6 +1762,33 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
     }
   }
 
+  // Mirrors the web player's skip-settings shortcut: the opening button's
+  // visibility is gated on floor(current) within (0, 600] while its value
+  // rounds the current position up; the ending button shows the floored
+  // remaining time and hides once that leaves (0, 600].
+  int get _currentSecondsFloor => widget.currentPositionMillis ~/ 1000;
+
+  int get _currentSecondsCeil => (widget.currentPositionMillis + 999) ~/ 1000;
+
+  int get _remainingSeconds {
+    final remaining =
+        widget.totalDurationMillis - widget.currentPositionMillis;
+    final seconds = (remaining < 0 ? 0 : remaining) ~/ 1000;
+    return seconds;
+  }
+
+  bool _isValidShortcutSeconds(int seconds) => seconds > 0 && seconds <= 600;
+
+  bool get _openingShortcutVisible =>
+      _isValidShortcutSeconds(_currentSecondsFloor);
+
+  int get _openingShortcutSeconds => _currentSecondsCeil;
+
+  bool get _endingShortcutVisible =>
+      _isValidShortcutSeconds(_remainingSeconds);
+
+  int get _endingShortcutSeconds => _remainingSeconds;
+
   @override
   Widget build(BuildContext context) {
     final manualEnabled = !widget.isSavingSkipConfig &&
@@ -1884,6 +1919,13 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
           maxValue: 600,
           enabled: manualEnabled,
           isReverse: false,
+          setCurrentTimeSeconds:
+              _openingShortcutVisible ? _openingShortcutSeconds : null,
+          onSetCurrentTime: () {
+            setState(() =>
+                _skipOpening = _openingShortcutSeconds.clamp(0, 600).toInt());
+            widget.onConfigChanged(_skipOpening, _skipEnding);
+          },
           onChanged: (value) {
             setState(() => _skipOpening = value.round());
           },
@@ -1899,6 +1941,13 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
           maxValue: 600,
           enabled: manualEnabled,
           isReverse: true,
+          setCurrentTimeSeconds:
+              _endingShortcutVisible ? _endingShortcutSeconds : null,
+          onSetCurrentTime: () {
+            setState(() =>
+                _skipEnding = _endingShortcutSeconds.clamp(0, 600).toInt());
+            widget.onConfigChanged(_skipOpening, _skipEnding);
+          },
           onChanged: (value) {
             setState(() => _skipEnding = value.round());
           },
@@ -1917,6 +1966,9 @@ class _SkipSlider extends StatelessWidget {
   final double maxValue;
   final bool enabled;
   final bool isReverse;
+  // Seconds shown in the one-click shortcut button; null hides the button.
+  final int? setCurrentTimeSeconds;
+  final VoidCallback? onSetCurrentTime;
   final void Function(double) onChanged;
   final void Function(double) onChangeEnd;
 
@@ -1926,6 +1978,8 @@ class _SkipSlider extends StatelessWidget {
     required this.maxValue,
     required this.enabled,
     required this.isReverse,
+    this.setCurrentTimeSeconds,
+    this.onSetCurrentTime,
     required this.onChanged,
     required this.onChangeEnd,
   });
@@ -1943,6 +1997,11 @@ class _SkipSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shortcutSeconds = setCurrentTimeSeconds;
+    final showShortcut = enabled && shortcutSeconds != null;
+    final shortcutLabel = isReverse
+        ? '将当前剩余时长 ${_formatDuration(shortcutSeconds ?? 0)} 设为片尾'
+        : '将当前时间 ${_formatDuration(shortcutSeconds ?? 0)} 设为片头';
     return Opacity(
       opacity: enabled ? 1.0 : 0.5,
       child: Column(
@@ -1975,6 +2034,16 @@ class _SkipSlider extends StatelessWidget {
                   ),
                 ),
               ),
+              if (showShortcut) ...[
+                const Spacer(),
+                _SetCurrentTimeButton(
+                  key: ValueKey(isReverse
+                      ? 'player-skip-set-ending'
+                      : 'player-skip-set-opening'),
+                  label: shortcutLabel,
+                  onTap: onSetCurrentTime,
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 4),
@@ -2007,6 +2076,52 @@ class _SkipSlider extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// One-click shortcut mirroring the web player's borderless brand button:
+// sets the opening/ending to the current position (or remaining time).
+class _SetCurrentTimeButton extends StatefulWidget {
+  final String label;
+  final VoidCallback? onTap;
+
+  const _SetCurrentTimeButton({super.key, required this.label, this.onTap});
+
+  @override
+  State<_SetCurrentTimeButton> createState() => _SetCurrentTimeButtonState();
+}
+
+class _SetCurrentTimeButtonState extends State<_SetCurrentTimeButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          height: 24,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _hovered && enabled ? const Color(0x0AFFFFFF) : null,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              color: _skipActiveColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
       ),
     );
   }
