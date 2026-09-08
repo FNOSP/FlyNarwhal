@@ -354,21 +354,31 @@ class MediaDescription extends StatefulWidget {
 class _MediaDescriptionState extends State<MediaDescription> {
   static const String _moreLabel = '更多';
   static const double _moreGap = 4;
+  // 测量与渲染布局差异的安全余量：避免“恰好填满”的临界状态
+  // 把“更多”按钮挤到被 maxLines 裁掉的下一行。
+  static const double _layoutSlack = 1.0;
 
   @override
   Widget build(BuildContext context) {
     final maxLines = widget.isSeason ? 2 : 4;
     final processedOverview = widget.overview.replaceAll('\n\n', '\n');
-    final bodyStyle = TextStyle(
-      color: FluentTheme.of(context)
-          .typography
-          .body
-          ?.color
-          ?.withValues(alpha: 0.8),
-      fontSize: 15,
-      height: 1.5,
-    );
+    // 测量用样式必须与 Text.rich 实际渲染继承的字体一致（含 DefaultTextStyle
+    // 的 fontFamily 等），否则 TextPainter 与 RenderParagraph 对同一文本的
+    // 换行宽度不一致，“更多”按钮会在窄宽度下被挤出裁掉。
+    final bodyStyle = DefaultTextStyle.of(context).style.merge(
+          TextStyle(
+            color: FluentTheme.of(context)
+                .typography
+                .body
+                ?.color
+                ?.withValues(alpha: 0.8),
+            fontSize: 15,
+            height: 1.5,
+          ),
+        );
     const moreStyle = TextStyle(color: kAccentColor, fontSize: 15, height: 1.5);
+    final measuredMoreStyle =
+        DefaultTextStyle.of(context).style.merge(moreStyle);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -388,7 +398,7 @@ class _MediaDescriptionState extends State<MediaDescription> {
         }
 
         final moreWidth = (TextPainter(
-          text: const TextSpan(text: _moreLabel, style: moreStyle),
+          text: TextSpan(text: _moreLabel, style: measuredMoreStyle),
           textDirection: TextDirection.ltr,
         )..layout())
             .width;
@@ -409,7 +419,7 @@ class _MediaDescriptionState extends State<MediaDescription> {
           // 未占满 maxLines 时无需预留;占满则最后一行需为“更多”留出空间。
           // 注意:此处不能用 WidgetSpan 占位——裸 TextPainter 无法布局占位组件。
           return lines.length < maxLines ||
-              lines.last.width + reservedWidth <= maxWidth;
+              lines.last.width + reservedWidth + _layoutSlack <= maxWidth;
         }
 
         // 二分查找能放下“更多”按钮的最长前缀
@@ -432,9 +442,12 @@ class _MediaDescriptionState extends State<MediaDescription> {
           textDirection: TextDirection.ltr,
         );
         truncatedPainter.layout(maxWidth: maxWidth);
-        final lastLineWidth = truncatedPainter.computeLineMetrics().last.width;
+        final lastLineWidth =
+            truncatedPainter.computeLineMetrics().lastOrNull?.width ?? 0.0;
+        // 留出安全余量，避免“恰好填满”的临界宽度把按钮挤到被裁掉的下一行。
         final spacerWidth =
-            (maxWidth - lastLineWidth - reservedWidth).clamp(0.0, maxWidth);
+            (maxWidth - lastLineWidth - reservedWidth - _layoutSlack)
+                .clamp(0.0, maxWidth);
 
         return Text.rich(
           TextSpan(children: [
