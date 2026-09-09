@@ -41,6 +41,16 @@ const _kSystemLoaderPaths = <String>{
   'libutil.so.1',
 };
 
+// PulseAudio's private helper library is dlopened by libpulse.so.0 under a
+// hard-coded, version-pinned soname (e.g. libpulsecommon-16.1.so). Bundling
+// the build host's copy makes the app crash on any distro shipping a newer
+// or older PulseAudio — e.g. an Ubuntu Noble (16.1) bundle fails to start on
+// Arch with libpulse 17.0 because /usr/lib/pulseaudio/ is shadowed by the
+// bundle and libpulsecommon-16.1.so cannot be loaded. The public ABI
+// (libpulse.so.0) stays bundled; the versioned helper always resolves from
+// the target system, matching what every other AppImage does.
+final _kDlopenedVersionedLibs = RegExp(r'^libpulsecommon-[0-9.]+\.so$');
+
 Future<int> main(List<String> arguments) async {
   if (arguments.length != 2) {
     stderr.writeln(
@@ -188,6 +198,10 @@ Future<bool> _isSystemLoader(
   for (final prefix in _kSystemLibPrefixes) {
     if (path.startsWith('$prefix/')) return true;
   }
+  // dlopened version-pinned private libs must always come from the target
+  // system, even when they were fetched into an extra search root.
+  final baseName = path.split('/').last;
+  if (_kDlopenedVersionedLibs.hasMatch(baseName)) return true;
   return false;
 }
 
