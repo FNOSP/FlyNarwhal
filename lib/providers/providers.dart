@@ -24,13 +24,17 @@ import '../data/storage/preferences_manager.dart';
 import '../data/storage/shortcut_settings_store.dart';
 import '../data/storage/user_settings_migrator.dart';
 import '../domain/repositories/i_tag_repository.dart';
+import '../ui/shared/toast.dart';
 import 'danmaku_controller.dart';
 import 'fly_narwhal_connection_test_notifier.dart';
 import 'smart_analysis_controller.dart';
 import 'smart_analysis_status_controller.dart';
+import 'smart_skip_config_controller.dart';
 import 'smart_skip_settings_controller.dart';
+import 'skip_switches_controller.dart';
 import 'season_analysis_status_controller.dart';
 import 'episode_analysis_controller.dart';
+import 'update_providers.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences not initialized');
@@ -218,6 +222,8 @@ final flyNarwhalRemoteDataSourceProvider =
   final prefsManager = ref.watch(preferencesManagerProvider);
   final flyNarwhalSettings = ref.watch(flyNarwhalSettingsProvider);
   final runtimeConfiguration = ref.watch(runtimeConfigurationProvider);
+  final clientVersionCache = ref.watch(_flyNarwhalClientVersionCacheProvider);
+  DateTime? lastClientVersionToastAt;
   return FlyNarwhalRemoteDataSource(
     getToken: () => prefsManager.getToken() ?? '',
     getCookie: () => prefsManager.getCookie() ?? '',
@@ -225,8 +231,45 @@ final flyNarwhalRemoteDataSourceProvider =
     getFlyNarwhalBaseUrl: () => flyNarwhalSettings.baseUrl ?? '',
     getFlyNarwhalServerEnabled: () => flyNarwhalSettings.enabled,
     getAuthCode: () => flyNarwhalSettings.authCode ?? '',
+    getClientVersion: () => clientVersionCache.value,
+    onClientVersionTooLow: (message) {
+      // Polling loops would otherwise stack the same upgrade prompt.
+      final now = DateTime.now();
+      if (lastClientVersionToastAt != null &&
+          now.difference(lastClientVersionToastAt!) <
+              const Duration(seconds: 15)) {
+        return;
+      }
+      lastClientVersionToastAt = now;
+      ref.read(toastManagerProvider.notifier).showToast(
+            message,
+            type: ToastType.failed,
+            category: 'fly-narwhal-client-version',
+          );
+    },
     runtimeConfiguration: runtimeConfiguration,
   );
+});
+
+final smartSkipConfigControllerProvider = StateNotifierProvider<
+    SmartSkipConfigController, SmartSkipConfigState>((ref) {
+  return SmartSkipConfigController(
+    ref.watch(flyNarwhalRemoteDataSourceProvider),
+  );
+});
+
+class _ClientVersionCache {
+  String value = '';
+}
+
+// 版本头注入是同步的，这里提前把 APP_FULL_VERSION/pubspec 解析结果缓存成字符串。
+final _flyNarwhalClientVersionCacheProvider =
+    Provider<_ClientVersionCache>((ref) {
+  final cache = _ClientVersionCache();
+  ref.read(currentAppVersionProvider.future).then((version) {
+    cache.value = version;
+  }).catchError((_) {});
+  return cache;
 });
 
 final flyNarwhalConnectionTestProvider = StateNotifierProvider<
@@ -247,6 +290,7 @@ final smartAnalysisControllerProvider = StateNotifierProvider<
           .read(seasonAnalysisStatusControllerProvider.notifier)
           .startForcedPolling(seasonGuid);
     },
+    resolveUserGuid: () => ref.read(currentUserGuidProvider),
   );
 });
 
@@ -261,6 +305,17 @@ final smartSkipSettingsControllerProvider =
     StateNotifierProvider<SmartSkipSettingsController, SmartSkipSettingsState>(
         (ref) {
   final controller = SmartSkipSettingsController(
+    ref.watch(preferencesManagerProvider),
+  );
+  ref.listen<AsyncValue<UserInfo?>>(userInfoProvider, (previous, next) {
+    controller.updateUserInfo(next.valueOrNull);
+  }, fireImmediately: true);
+  return controller;
+});
+
+final skipSwitchesControllerProvider =
+    StateNotifierProvider<SkipSwitchesController, SkipSwitchesState>((ref) {
+  final controller = SkipSwitchesController(
     ref.watch(preferencesManagerProvider),
   );
   ref.listen<AsyncValue<UserInfo?>>(userInfoProvider, (previous, next) {

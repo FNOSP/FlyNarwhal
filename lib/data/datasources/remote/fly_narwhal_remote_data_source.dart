@@ -26,9 +26,15 @@ class FlyNarwhalRemoteDataSource {
   final String Function() getFlyNarwhalBaseUrl;
   final bool Function() getFlyNarwhalServerEnabled;
   final String Function() getAuthCode;
+  final String Function()? getClientVersion;
+  final void Function(String message)? onClientVersionTooLow;
   final RuntimeConfiguration? _runtimeConfiguration;
   final FlyNarwhalResponseCrypto _crypto;
   final Dio _dio;
+
+  /// Server-side business code meaning the client version is below the
+  /// server's configured minimum (ResultCodes.CLIENT_VERSION_TOO_LOW).
+  static const int clientVersionTooLowCode = 4001;
 
   FlyNarwhalRemoteDataSource({
     required this.getToken,
@@ -37,6 +43,8 @@ class FlyNarwhalRemoteDataSource {
     required this.getFlyNarwhalBaseUrl,
     bool Function()? getFlyNarwhalServerEnabled,
     required this.getAuthCode,
+    this.getClientVersion,
+    this.onClientVersionTooLow,
     RuntimeConfiguration? runtimeConfiguration,
     Dio? dio,
     FlyNarwhalResponseCrypto? crypto,
@@ -124,6 +132,22 @@ class FlyNarwhalRemoteDataSource {
         parameters: <String, dynamic>{'episodeGuid': episodeGuid},
         fromJsonT: (json) => EpisodeSegmentsResponse.fromJson(
             Map<String, dynamic>.from(json as Map)));
+  }
+
+  Future<ApiResult<SmartAnalysisResult<SmartSkipConfig>>> getSmartSkipConfig({
+    required String userGuid,
+  }) {
+    return _get(ApiEndpoints.flyNarwhalSmartSkipConfig,
+        parameters: <String, dynamic>{'user_guid': userGuid},
+        fromJsonT: (json) => SmartSkipConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  Future<ApiResult<SmartAnalysisResult<String>>> saveSmartSkipConfig({
+    required SaveSmartSkipConfigRequest request,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalSmartSkipConfig,
+        data: request.toJson(), fromJsonT: (json) => json?.toString() ?? '');
   }
 
   Future<ApiResult<SmartAnalysisResult<String>>> setFnBaseUrl(
@@ -428,6 +452,13 @@ class FlyNarwhalRemoteDataSource {
         authCode: authCode,
       ),
     };
+    // The server enforces a minimum client version via this header on all
+    // /api/** endpoints except /api/config/**; omitting it keeps legacy
+    // behavior (always allowed).
+    final clientVersion = getClientVersion?.call() ?? '';
+    if (clientVersion.isNotEmpty) {
+      headers['X-Client-Version'] = clientVersion;
+    }
     final token = getToken();
     final cookie = getCookie();
     if (token.isNotEmpty) {
@@ -453,6 +484,11 @@ class FlyNarwhalRemoteDataSource {
       (json) => json,
     );
     if (!result.isSuccess()) {
+      if (result.code == clientVersionTooLowCode) {
+        // The server rejected this client version; surface its message once
+        // (the category keeps fast polling loops from stacking duplicates).
+        onClientVersionTooLow?.call(result.msg);
+      }
       throw FailureInfo(
         message: result.msg,
         code: result.code,

@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../domain/entities/media_type.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
+import '../../../../providers/providers.dart';
 import '../../../../tooling/driver_test_mode.dart';
 import '../../../shared/tip_box.dart';
+import '../models/resolved_skip_segments.dart';
 import 'player_action_button.dart';
 import 'player_settings_components.dart';
 
@@ -818,6 +821,11 @@ class _SettingsFlyoutContent extends StatelessWidget {
           isSavingSkipConfig: isSavingSkipConfig,
           isFlyNarwhalServerAvailable: isFlyNarwhalServerAvailable,
           onFlyNarwhalConfigMissing: onFlyNarwhalConfigMissing,
+          onNavigateToSmartSkipConfig: () => onNavigate('SmartSkipConfig'),
+        );
+      case 'SmartSkipConfig':
+        return _SmartSkipConfigSettingsScreen(
+          onBack: () => onNavigate('SkipConfig'),
         );
       default:
         return MeasureSize(
@@ -1723,6 +1731,8 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
   final bool isFlyNarwhalServerAvailable;
   // Called when user tries to enable smart skip without full config
   final VoidCallback? onFlyNarwhalConfigMissing;
+  // Opens the server-side smart skip analysis configuration screen.
+  final VoidCallback? onNavigateToSmartSkipConfig;
 
   const _SkipConfigSettingsScreen({
     required this.playingInfoCache,
@@ -1736,6 +1746,7 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
     required this.isSavingSkipConfig,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
+    this.onNavigateToSmartSkipConfig,
   });
 
   @override
@@ -1911,6 +1922,14 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                     );
                   },
           ),
+        if (widget.isSmartAnalysisGloballyEnabled && _smartSkipEnabled) ...[
+          const SizedBox(height: 4),
+          _SettingsMenuItem(
+            key: const ValueKey('player-settings-smart-skip-config-entry'),
+            title: '智能跳过配置',
+            onClick: widget.onNavigateToSmartSkipConfig,
+          ),
+        ],
         const SizedBox(height: 8),
         const Divider(),
         const SizedBox(height: 8),
@@ -2321,5 +2340,98 @@ class _MeasureSizeState extends State<MeasureSize> {
   @override
   Widget build(BuildContext context) {
     return widget.child;
+  }
+}
+
+/// Per-user playback skip switches (intro/credits/recap/preview), persisted
+/// locally per user. The server-side analysis configuration lives in the
+/// settings page dialog; this screen only controls skip behavior.
+class _SmartSkipConfigSettingsScreen extends ConsumerStatefulWidget {
+  final VoidCallback onBack;
+
+  const _SmartSkipConfigSettingsScreen({required this.onBack});
+
+  @override
+  ConsumerState<_SmartSkipConfigSettingsScreen> createState() =>
+      _SmartSkipConfigSettingsScreenState();
+}
+
+class _SmartSkipConfigSettingsScreenState
+    extends ConsumerState<_SmartSkipConfigSettingsScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(skipSwitchesControllerProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: widget.onBack,
+            child: Row(
+              children: [
+                Icon(FluentIcons.chevron_left, size: 12, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  '智能跳过配置',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '播放到对应分段时自动跳过，按当前账号保存',
+          style: TextStyle(color: Color(0xCCFFFFFF), fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        _switchRow(
+          title: '跳过片头',
+          checked: state.skipIntro,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.intro, value),
+        ),
+        _switchRow(
+          title: '跳过片尾',
+          checked: state.skipCredits,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.credits, value),
+        ),
+        _switchRow(
+          title: '跳过前情提要',
+          checked: state.skipRecap,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.recap, value),
+        ),
+        _switchRow(
+          title: '跳过下集预告',
+          checked: state.skipPreview,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.preview, value),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  void _setSwitch(SkipSegmentKind kind, bool value) {
+    unawaited(
+      ref.read(skipSwitchesControllerProvider.notifier).setSwitch(kind, value),
+    );
+  }
+
+  Widget _switchRow({
+    required String title,
+    required bool checked,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return PlayerSettingsToggleRow(
+      title: title,
+      checked: checked,
+      onChanged: onChanged,
+    );
   }
 }

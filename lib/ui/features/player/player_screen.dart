@@ -35,6 +35,7 @@ import '../../../providers/danmaku_controller.dart';
 import '../../../providers/episode_analysis_controller.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/smart_skip_settings_controller.dart';
+import '../../../providers/skip_switches_controller.dart';
 import 'controllers/intro_skip_controller.dart';
 import 'controllers/intro_skip_state.dart';
 import 'controllers/player_seek_executor.dart';
@@ -1011,6 +1012,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       },
     );
 
+    ref.listenManual<SkipSwitchesState>(
+      skipSwitchesControllerProvider,
+      (previous, next) {
+        if (!mounted) return;
+        if (previous?.skipIntro == next.skipIntro &&
+            previous?.skipCredits == next.skipCredits &&
+            previous?.skipRecap == next.skipRecap &&
+            previous?.skipPreview == next.skipPreview) {
+          return;
+        }
+        _resolveAndDispatchSkipSegments();
+        setState(() {});
+      },
+    );
+
     ref.listenManual<EpisodeAnalysisState>(
       episodeAnalysisControllerProvider,
       (previous, next) {
@@ -1053,12 +1069,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final smartSegments = _effectiveSmartSkipEnabled()
         ? ref.read(episodeAnalysisControllerProvider).smartSegments
         : null;
+    final switches = ref.read(skipSwitchesControllerProvider);
     _resolvedSkipSegments = _skipSegmentResolver.resolve(
       episodeGuid: cache?.itemGuid ?? _currentItemGuid,
       smartSegments: smartSegments,
       manualSkipOpeningSeconds: playConfig?.skipOpening ?? 0,
       manualSkipEndingSeconds: playConfig?.skipEnding ?? 0,
       durationMilliseconds: _duration > 0 ? _duration : null,
+      switches: SkipSwitches(
+        intro: switches.skipIntro,
+        recap: switches.skipRecap,
+        credits: switches.skipCredits,
+        preview: switches.skipPreview,
+      ),
     );
     _introSkipController.dispatch(SegmentsChanged(_resolvedSkipSegments));
   }
@@ -5134,10 +5157,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   List<Widget> _buildSkipAndEndOverlays() {
     final state = _introSkipState;
-    final credits = state.segments.creditsSegment;
-    final hasContentAfterCredits = credits != null &&
+    final activeOutro = state.activeOutroSegment;
+    final hasContentAfterCredits = activeOutro != null &&
         state.durationMilliseconds != null &&
-        credits.endMilliseconds < state.durationMilliseconds! - 1000;
+        activeOutro.endMilliseconds < state.durationMilliseconds! - 1000;
     final item = _playInfo?.item ?? _playingInfoCache?.item;
 
     return [
@@ -5146,6 +5169,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           countdown: state.introUndoRemainingSeconds,
           isPip: _isPipMode,
           onHoverChanged: _handleSkipPromptHover,
+          message: state.lastSkippedIntroSegment == null
+              ? '已自动跳过片头'
+              : '已自动跳过${skipSegmentLabel(state.lastSkippedIntroSegment!.kinds)}',
           onUndo: () {
             _introSkipController.dispatch(const IntroUndoRequested());
           },
@@ -5158,6 +5184,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           nextEpisodePhase: state.nextEpisodeLoadPhase,
           isPip: _isPipMode,
           onHoverChanged: _handleSkipPromptHover,
+          subject: activeOutro == null
+              ? '片尾'
+              : skipSegmentLabel(activeOutro.kinds),
           onCancel: () {
             _introSkipController.dispatch(const OutroCancelRequested());
           },
@@ -5369,8 +5398,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       currentPosition: _currentPosition,
       totalDuration: _duration,
       buffered: bufferedProgressRatio,
-      introSegment: _resolvedSkipSegments.introSegment,
-      creditsSegment: _resolvedSkipSegments.creditsSegment,
+      segments: _resolvedSkipSegments.allSegmentRanges,
       showHoverTimestamp: false,
       onSeek: _seekTo,
     );
@@ -5388,8 +5416,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         currentPosition: _currentPosition,
         totalDuration: _duration,
         buffered: bufferedProgressRatio,
-        introSegment: _resolvedSkipSegments.introSegment,
-        creditsSegment: _resolvedSkipSegments.creditsSegment,
+        segments: _resolvedSkipSegments.allSegmentRanges,
         onSeek: _seekTo,
       ),
     );

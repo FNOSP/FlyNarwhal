@@ -129,37 +129,31 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
       return;
     }
 
-    // Intro: jump to the end of the intro when the playhead sits inside it.
-    // Positions within the boundary tolerance of the intro end are excluded:
-    // setting the intro to the current time parks the playhead there.
-    final intro = state.segments.introSegment;
-    if (intro != null &&
+    // Intro role: jump to the end of the segment when the playhead sits in it.
+    final introRole = _introRoleSegmentContaining(position);
+    if (introRole != null &&
         state.pendingIntroSegment == null &&
         state.lastSkippedIntroSegment == null &&
         !state.isIntroUndoVisible &&
         !state.isOutroPromptVisible &&
         !_hasActiveIntroSuppression(position) &&
-        intro.contains(position) &&
-        intro.endMilliseconds - position >
+        introRole.endMilliseconds - position >
             segmentBoundaryToleranceMilliseconds) {
-      _triggerIntro(intro);
+      _triggerIntro(introRole);
       return;
     }
 
-    // Outro: show the skip-credits prompt when the playhead sits inside them.
-    // The same boundary tolerance applies at the credits start, where the
-    // "set ending to remaining time" shortcut parks the playhead.
-    final credits = state.segments.creditsSegment;
-    if (credits != null &&
+    // Outro role: show the countdown prompt when the playhead sits in it.
+    final outroRole = _outroRoleSegmentContaining(position);
+    if (outroRole != null &&
         !state.isOutroCancelled &&
         !state.isOutroPromptVisible &&
         state.pendingIntroSegment == null &&
         !state.isIntroUndoVisible &&
         !_hasActiveIntroSuppression(position) &&
-        credits.contains(position) &&
-        position - credits.startMilliseconds >
+        position - outroRole.startMilliseconds >
             segmentBoundaryToleranceMilliseconds) {
-      _triggerOutro();
+      _triggerOutro(outroRole);
     }
   }
 
@@ -209,12 +203,20 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
       return;
     }
 
-    if (_shouldTriggerIntro(previousPosition, positionMilliseconds)) {
-      _triggerIntro(state.segments.introSegment!);
+    final crossingIntro = _crossedIntroRoleSegment(
+      previousPosition,
+      positionMilliseconds,
+    );
+    if (crossingIntro != null) {
+      _triggerIntro(crossingIntro);
       return;
     }
-    if (_shouldTriggerOutro(previousPosition, positionMilliseconds)) {
-      _triggerOutro();
+    final crossingOutro = _crossedOutroRoleSegment(
+      previousPosition,
+      positionMilliseconds,
+    );
+    if (crossingOutro != null) {
+      _triggerOutro(crossingOutro);
     }
   }
 
@@ -222,8 +224,9 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
     IntroSkipState currentState,
     int positionMilliseconds,
   ) {
-    final credits = currentState.segments.creditsSegment;
-    if (credits == null) {
+    final active = currentState.activeOutroSegment;
+    final outroSegments = currentState.segments.outroRoleSegments;
+    if (outroSegments.isEmpty || active == null) {
       if (currentState.isOutroPromptVisible) {
         _outroCountdownTimer?.cancel();
       }
@@ -231,72 +234,102 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
         isOutroPromptVisible: false,
         outroRemainingSeconds: 0,
         isOutroCancelled: false,
+        activeOutroSegment: null,
       );
     }
 
-    final isBeforeCredits = positionMilliseconds < credits.startMilliseconds;
-    final isAfterCredits = positionMilliseconds >= credits.endMilliseconds;
-    if (!isBeforeCredits && !isAfterCredits) {
+    final isBeforeSegment = positionMilliseconds < active.startMilliseconds;
+    final isAfterSegment = positionMilliseconds >= active.endMilliseconds;
+    if (!isBeforeSegment && !isAfterSegment) {
       return currentState;
     }
     _outroCountdownTimer?.cancel();
     return currentState.copyWith(
       isOutroPromptVisible: false,
       outroRemainingSeconds: 0,
-      isOutroCancelled: isBeforeCredits ? false : currentState.isOutroCancelled,
+      isOutroCancelled: isBeforeSegment ? false : currentState.isOutroCancelled,
     );
   }
 
-  bool _shouldTriggerIntro(
+  /// First intro-role segment whose start boundary was just crossed by natural
+  /// playback (or the very first position report of the session).
+  ResolvedSkipSegment? _crossedIntroRoleSegment(
     int? previousPosition,
     int currentPosition,
   ) {
-    final intro = state.segments.introSegment;
-    if (intro == null ||
-        state.pendingIntroSegment != null ||
+    if (state.pendingIntroSegment != null ||
         state.lastSkippedIntroSegment != null ||
         state.isIntroUndoVisible ||
         state.isOutroPromptVisible ||
-        state.introSuppressedUntilMilliseconds != null ||
-        !intro.contains(currentPosition)) {
-      return false;
+        state.introSuppressedUntilMilliseconds != null) {
+      return null;
     }
-
-    // If this session resumed at or past the intro end, the intro was already
-    // watched — never auto-skip it again. Without this guard, a quality switch
-    // that reopens an HLS stream transiently reports position ~0 (the mpv
-    // `start` property is ignored for HLS until the correction seek applies),
-    // and the crossing detection below mistakes that 0->small jump for natural
-    // playback crossing the intro start.
-    if (state.effectiveStartPositionMilliseconds >= intro.endMilliseconds) {
-      return false;
+    for (final segment in state.segments.introRoleSegments) {
+      if (!segment.segment.contains(currentPosition)) {
+        continue;
+      }
+      // If this session resumed at or past the segment end, the segment was
+      // already watched — never auto-skip it again. Without this guard, a
+      // quality switch that reopens an HLS stream transiently reports
+      // position ~0 (the mpv `start` property is ignored for HLS until the
+      // correction seek applies), and the crossing detection below mistakes
+      // that 0->small jump for natural playback crossing the segment start.
+      if (state.effectiveStartPositionMilliseconds >=
+          segment.endMilliseconds) {
+        continue;
+      }
+      if (previousPosition == null) {
+        return segment;
+      }
+      if (previousPosition <= segment.startMilliseconds &&
+          currentPosition >= segment.startMilliseconds) {
+        return segment;
+      }
     }
-
-    if (previousPosition == null) {
-      return true;
-    }
-    return previousPosition <= intro.startMilliseconds &&
-        currentPosition >= intro.startMilliseconds;
+    return null;
   }
 
-  bool _shouldTriggerOutro(
+  ResolvedSkipSegment? _crossedOutroRoleSegment(
     int? previousPosition,
     int currentPosition,
   ) {
-    final credits = state.segments.creditsSegment;
-    if (credits == null ||
-        previousPosition == null ||
+    if (previousPosition == null ||
         state.isOutroCancelled ||
         state.isOutroPromptVisible ||
         state.isPlaybackEndVisible ||
         state.pendingIntroSegment != null ||
         state.isIntroUndoVisible ||
-        _hasActiveIntroSuppression(currentPosition) ||
-        !credits.contains(currentPosition)) {
-      return false;
+        _hasActiveIntroSuppression(currentPosition)) {
+      return null;
     }
-    return previousPosition < credits.startMilliseconds &&
-        currentPosition >= credits.startMilliseconds;
+    for (final segment in state.segments.outroRoleSegments) {
+      if (!segment.segment.contains(currentPosition)) {
+        continue;
+      }
+      if (previousPosition < segment.startMilliseconds &&
+          currentPosition >= segment.startMilliseconds) {
+        return segment;
+      }
+    }
+    return null;
+  }
+
+  ResolvedSkipSegment? _introRoleSegmentContaining(int position) {
+    for (final segment in state.segments.introRoleSegments) {
+      if (segment.segment.contains(position)) {
+        return segment;
+      }
+    }
+    return null;
+  }
+
+  ResolvedSkipSegment? _outroRoleSegmentContaining(int position) {
+    for (final segment in state.segments.outroRoleSegments) {
+      if (segment.segment.contains(position)) {
+        return segment;
+      }
+    }
+    return null;
   }
 
   bool _hasActiveIntroSuppression(int currentPosition) {
@@ -304,7 +337,7 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
     return suppressionEnd != null && currentPosition < suppressionEnd;
   }
 
-  void _triggerIntro(SkipSegmentMillis intro) {
+  void _triggerIntro(ResolvedSkipSegment intro) {
     state = state.copyWith(pendingIntroSegment: intro);
     _emitAction(
       SeekTo(
@@ -321,8 +354,8 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
       return;
     }
     // Restore the resumed position when the auto-skip jumped over it
-    // (start position before the intro end); otherwise fall back to the
-    // intro start for a fresh play or a resume already past the intro.
+    // (start position before the segment end); otherwise fall back to the
+    // segment start for a fresh play or a resume already past the segment.
     final startPosition = state.effectiveStartPositionMilliseconds;
     final undoTarget =
         startPosition > 0 && startPosition < skippedIntro.endMilliseconds
@@ -344,10 +377,11 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
     );
   }
 
-  void _triggerOutro() {
+  void _triggerOutro(ResolvedSkipSegment outro) {
     state = state.copyWith(
       isOutroPromptVisible: true,
       outroRemainingSeconds: outroCountdownDuration.inSeconds,
+      activeOutroSegment: outro,
     );
     _scheduleOutroCountdownTick();
   }
@@ -413,17 +447,17 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
   }
 
   void _decideOutroCompletion() {
-    final credits = state.segments.creditsSegment;
-    if (credits == null) {
+    final outro = state.activeOutroSegment;
+    if (outro == null) {
       return;
     }
     final durationMilliseconds =
         state.durationMilliseconds ?? state.segments.durationMilliseconds;
     final hasContentAfterCredits = durationMilliseconds == null ||
-        credits.endMilliseconds <
+        outro.endMilliseconds <
             durationMilliseconds - contentAfterCreditsToleranceMilliseconds;
     if (!state.isAutoPlayEnabled || hasContentAfterCredits) {
-      _emitOutroSeek(credits.endMilliseconds);
+      _emitOutroSeek(outro.endMilliseconds);
       return;
     }
     _decideNextEpisode(
@@ -437,6 +471,7 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
     state = state.copyWith(
       isOutroPromptVisible: false,
       outroRemainingSeconds: 0,
+      activeOutroSegment: null,
     );
     if (!state.isAutoPlayEnabled) {
       _showPlaybackEnd();
@@ -533,6 +568,7 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
       isOutroPromptVisible: false,
       outroRemainingSeconds: 0,
       isOutroCancelled: false,
+      activeOutroSegment: null,
       pendingCompletionDecision: null,
     );
   }

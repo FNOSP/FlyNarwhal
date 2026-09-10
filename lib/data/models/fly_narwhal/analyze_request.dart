@@ -4,6 +4,7 @@ class AnalyzeRequest {
   final List<QueuedEpisode> episodes;
   final String tvTitle;
   final int seasonNumber;
+  final String? userGuid;
 
   const AnalyzeRequest({
     required this.seasonGuid,
@@ -11,6 +12,7 @@ class AnalyzeRequest {
     required this.episodes,
     required this.tvTitle,
     required this.seasonNumber,
+    this.userGuid,
   });
 
   factory AnalyzeRequest.fromJson(Map<String, dynamic> json) {
@@ -25,6 +27,7 @@ class AnalyzeRequest {
           .toList(),
       tvTitle: json['tv_title']?.toString() ?? '',
       seasonNumber: _readInt(json['season_number']),
+      userGuid: json['user_guid']?.toString(),
     );
   }
 
@@ -35,6 +38,7 @@ class AnalyzeRequest {
       'episodes': episodes.map((episode) => episode.toJson()).toList(),
       'tv_title': tvTitle,
       'season_number': seasonNumber,
+      if (userGuid != null && userGuid!.isNotEmpty) 'user_guid': userGuid,
     };
   }
 }

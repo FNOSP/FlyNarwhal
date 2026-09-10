@@ -18,6 +18,7 @@ import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/changelog_dialog.dart';
 import 'widgets/shortcut_settings_dialog.dart';
+import 'widgets/smart_skip_config_dialog.dart';
 import 'widgets/support_author_item.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 
@@ -564,6 +565,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         onPressed:
                                             _openFlyNarwhalAuthCodeDialog,
                                         child: const Text('填写授权码'),
+                                      ),
+                                    ),
+                                    CardExpanderItem(
+                                      key: const ValueKey(
+                                        'settings-fly-narwhal-smart-skip-config',
+                                      ),
+                                      icon: const Icon(
+                                        FluentIcons.auto_enhance_on,
+                                      ),
+                                      heading: const Text('智能跳过配置'),
+                                      caption: const Text(
+                                        '智能分析片头片尾时使用的服务端参数，按当前账号保存',
+                                      ),
+                                      trailing: AppButton(
+                                        key: const ValueKey(
+                                          'settings-smart-skip-config-open',
+                                        ),
+                                        onPressed: () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) =>
+                                                const SmartSkipConfigDialog(),
+                                          );
+                                        },
+                                        child: const Text('配置'),
                                       ),
                                     ),
                                   ],
