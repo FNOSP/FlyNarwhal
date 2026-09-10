@@ -66,6 +66,7 @@ class SmartAnalysisController
   final MediaRemoteDataSource _mediaRemoteDataSource;
   final AnalysisDelay _delay;
   final StartSeasonPolling _startSeasonPolling;
+  final String? Function() _resolveUserGuid;
   final Set<String> _submittingSeasonGuids = <String>{};
 
   SmartAnalysisController(
@@ -73,8 +74,10 @@ class SmartAnalysisController
     this._mediaRemoteDataSource, {
     AnalysisDelay? delay,
     StartSeasonPolling? startSeasonPolling,
+    String? Function()? resolveUserGuid,
   })  : _delay = delay ?? Future<void>.delayed,
         _startSeasonPolling = startSeasonPolling ?? _ignorePollingRequest,
+        _resolveUserGuid = resolveUserGuid ?? (() => null),
         super(const SmartAnalysisSubmissionState());
 
   static void _ignorePollingRequest(String seasonGuid) {}
@@ -227,6 +230,8 @@ class SmartAnalysisController
         episodes: queuedEpisodes,
         tvTitle: tvTitle,
         seasonNumber: seasonNumber,
+        // The server loads this user's SmartSkipConfig when running analysis.
+        userGuid: _resolveUserGuid(),
       ),
     ))
         .getOrThrow();
