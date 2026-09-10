@@ -33,10 +33,7 @@ class VideoPlayerProgressBar extends StatefulWidget {
     this.onInteractionStart,
     this.onInteractionEnd,
     this.onInteractionCancel,
-    this.introSegment,
-    this.creditsSegment,
-    @Deprecated('Use introSegment instead.') this.introSegmentMillis,
-    @Deprecated('Use creditsSegment instead.') this.creditsSegmentMillis,
+    this.segments = const <SkipSegmentMillis>[],
     this.showHoverTimestamp = true,
   });
 
@@ -47,27 +44,11 @@ class VideoPlayerProgressBar extends StatefulWidget {
   final VoidCallback? onInteractionStart;
   final VoidCallback? onInteractionEnd;
   final VoidCallback? onInteractionCancel;
-  final SkipSegmentMillis? introSegment;
-  final SkipSegmentMillis? creditsSegment;
-  final (int, int)? introSegmentMillis;
-  final (int, int)? creditsSegmentMillis;
+
+  /// Skip segments (intro/credits/recap/preview) drawn as markers on the
+  /// track. All share the same marker style and color.
+  final List<SkipSegmentMillis> segments;
   final bool showHoverTimestamp;
-
-  SkipSegmentMillis? get effectiveIntroSegment =>
-      introSegment ?? _convertLegacySegment(introSegmentMillis);
-
-  SkipSegmentMillis? get effectiveCreditsSegment =>
-      creditsSegment ?? _convertLegacySegment(creditsSegmentMillis);
-
-  static SkipSegmentMillis? _convertLegacySegment((int, int)? segment) {
-    if (segment == null || segment.$1 < 0 || segment.$2 <= segment.$1) {
-      return null;
-    }
-    return SkipSegmentMillis(
-      startMilliseconds: segment.$1,
-      endMilliseconds: segment.$2,
-    );
-  }
 
   @override
   State<VideoPlayerProgressBar> createState() => _VideoPlayerProgressBarState();
@@ -88,11 +69,14 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     return widget.currentPosition / widget.totalDuration;
   }
 
-  (double, double)? get _introRangeRatio =>
-      _calculateRangeRatio(widget.effectiveIntroSegment);
-
-  (double, double)? get _creditsRangeRatio =>
-      _calculateRangeRatio(widget.effectiveCreditsSegment);
+  List<(double, double)> get _segmentRangeRatios {
+    final ranges = <(double, double)>[];
+    for (final segment in widget.segments) {
+      final ratio = _calculateRangeRatio(segment);
+      if (ratio != null) ranges.add(ratio);
+    }
+    return ranges;
+  }
 
   (double, double)? _calculateRangeRatio(SkipSegmentMillis? segment) {
     if (widget.totalDuration <= 0 || segment == null) return null;
@@ -203,8 +187,7 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
                     painter: _ProgressBarPainter(
                       progress: _progress,
                       buffered: widget.buffered,
-                      introRangeRatio: _introRangeRatio,
-                      creditsRangeRatio: _creditsRangeRatio,
+                      segmentRangeRatios: _segmentRangeRatios,
                       showDetails: _showDetails,
                       barHeight: barHeight,
                       thumbRadius: thumbRadius,
@@ -246,8 +229,7 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
 class _ProgressBarPainter extends CustomPainter {
   final double progress;
   final double buffered;
-  final (double, double)? introRangeRatio;
-  final (double, double)? creditsRangeRatio;
+  final List<(double, double)> segmentRangeRatios;
   final bool showDetails;
   final double barHeight;
   final double thumbRadius;
@@ -255,8 +237,7 @@ class _ProgressBarPainter extends CustomPainter {
   _ProgressBarPainter({
     required this.progress,
     required this.buffered,
-    this.introRangeRatio,
-    this.creditsRangeRatio,
+    required this.segmentRangeRatios,
     required this.showDetails,
     required this.barHeight,
     required this.thumbRadius,
@@ -279,16 +260,10 @@ class _ProgressBarPainter extends CustomPainter {
       bgPaint,
     );
 
-    // 2. Intro segment marker
-    if (introRangeRatio != null) {
+    // 2. Skip segment markers (intro/credits/recap/preview, same style)
+    for (final range in segmentRangeRatios) {
       _drawSegmentMarker(
-          canvas, size, introRangeRatio!, trackYCenter, trackStrokeWidth);
-    }
-
-    // 3. Credits segment marker
-    if (creditsRangeRatio != null) {
-      _drawSegmentMarker(
-          canvas, size, creditsRangeRatio!, trackYCenter, trackStrokeWidth);
+          canvas, size, range, trackYCenter, trackStrokeWidth);
     }
 
     // 4. Buffered progress
@@ -365,18 +340,9 @@ class _ProgressBarPainter extends CustomPainter {
   void _drawSegmentMarkers(Canvas canvas, Size size, double trackYCenter) {
     final markerXList = <double>[];
 
-    if (introRangeRatio != null) {
-      final startX = introRangeRatio!.$1.clamp(0.0, 1.0) * size.width;
-      final endX = introRangeRatio!.$2.clamp(0.0, 1.0) * size.width;
-      if (endX > startX) {
-        markerXList.add(startX);
-        markerXList.add(endX);
-      }
-    }
-
-    if (creditsRangeRatio != null) {
-      final startX = creditsRangeRatio!.$1.clamp(0.0, 1.0) * size.width;
-      final endX = creditsRangeRatio!.$2.clamp(0.0, 1.0) * size.width;
+    for (final range in segmentRangeRatios) {
+      final startX = range.$1.clamp(0.0, 1.0) * size.width;
+      final endX = range.$2.clamp(0.0, 1.0) * size.width;
       if (endX > startX) {
         markerXList.add(startX);
         markerXList.add(endX);
@@ -413,11 +379,23 @@ class _ProgressBarPainter extends CustomPainter {
   bool shouldRepaint(covariant _ProgressBarPainter oldDelegate) {
     return progress != oldDelegate.progress ||
         buffered != oldDelegate.buffered ||
-        introRangeRatio != oldDelegate.introRangeRatio ||
-        creditsRangeRatio != oldDelegate.creditsRangeRatio ||
+        !_listsEqual(segmentRangeRatios, oldDelegate.segmentRangeRatios) ||
         showDetails != oldDelegate.showDetails ||
         barHeight != oldDelegate.barHeight ||
         thumbRadius != oldDelegate.thumbRadius;
+  }
+
+  static bool _listsEqual(
+    List<(double, double)> current,
+    List<(double, double)> previous,
+  ) {
+    if (!identical(current, previous) && current.length != previous.length) {
+      return false;
+    }
+    for (var i = 0; i < current.length; i++) {
+      if (current[i] != previous[i]) return false;
+    }
+    return true;
   }
 }
 

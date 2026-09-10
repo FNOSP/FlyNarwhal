@@ -1,16 +1,25 @@
 class EpisodeSegmentsResponse {
   final EpisodeSegment? intro;
   final EpisodeSegment? credits;
+  final EpisodeSegment? recap;
+  final EpisodeSegment? preview;
+  final EpisodeSegment? commercial;
 
   const EpisodeSegmentsResponse({
     this.intro,
     this.credits,
+    this.recap,
+    this.preview,
+    this.commercial,
   });
 
   factory EpisodeSegmentsResponse.fromJson(Map<String, dynamic> json) {
     return EpisodeSegmentsResponse(
       intro: _readSegment(json['intro']),
       credits: _readSegment(json['credits']),
+      recap: _readSegment(json['recap']),
+      preview: _readSegment(json['preview']),
+      commercial: _readSegment(json['commercial']),
     );
   }
 
@@ -18,6 +27,9 @@ class EpisodeSegmentsResponse {
     return <String, dynamic>{
       'intro': intro?.toJson(),
       'credits': credits?.toJson(),
+      'recap': recap?.toJson(),
+      'preview': preview?.toJson(),
+      'commercial': commercial?.toJson(),
     };
   }
 

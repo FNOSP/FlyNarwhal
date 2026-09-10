@@ -85,6 +85,8 @@ class ApiEndpoints {
   static const String flyNarwhalSeasonStatus = '/api/analysis/season/status';
   static const String flyNarwhalAnalysisStatus = '/api/analysis/status';
   static const String flyNarwhalSegments = '/api/analysis/segments';
+  static const String flyNarwhalSmartSkipConfig =
+      '/api/analysis/smart-skip-config';
   static const String flyNarwhalFnBaseUrl = '/api/config/fn-base-url';
   static const String flyNarwhalDanmaku = '/api/danmu/get';
 

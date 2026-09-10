@@ -15,6 +15,10 @@ class PreferencesManager {
   static const String _keyEpisodeListViewType = 'episode_list_view_type';
   static const String _keyFallbackDeviceId = 'fallback_device_id';
   static const String _keySmartSkipEnabled = 'smart_skip_enabled';
+  static const String _keySkipIntro = 'skip_intro';
+  static const String _keySkipCredits = 'skip_credits';
+  static const String _keySkipRecap = 'skip_recap';
+  static const String _keySkipPreview = 'skip_preview';
 
   final SharedPreferences _prefs;
 
@@ -152,6 +156,30 @@ class PreferencesManager {
     }
     return getSmartSkipEnabledForUser(normalizedUserGuid) ?? true;
   }
+
+  bool getSkipIntro({String? userGuid}) =>
+      _readBoolScoped(_keySkipIntro, userGuid, defaultValue: true);
+
+  Future<void> saveSkipIntro(bool value, {String? userGuid}) =>
+      _writeBoolScoped(_keySkipIntro, userGuid, value);
+
+  bool getSkipCredits({String? userGuid}) =>
+      _readBoolScoped(_keySkipCredits, userGuid, defaultValue: true);
+
+  Future<void> saveSkipCredits(bool value, {String? userGuid}) =>
+      _writeBoolScoped(_keySkipCredits, userGuid, value);
+
+  bool getSkipRecap({String? userGuid}) =>
+      _readBoolScoped(_keySkipRecap, userGuid, defaultValue: true);
+
+  Future<void> saveSkipRecap(bool value, {String? userGuid}) =>
+      _writeBoolScoped(_keySkipRecap, userGuid, value);
+
+  bool getSkipPreview({String? userGuid}) =>
+      _readBoolScoped(_keySkipPreview, userGuid, defaultValue: true);
+
+  Future<void> saveSkipPreview(bool value, {String? userGuid}) =>
+      _writeBoolScoped(_keySkipPreview, userGuid, value);
 
   // 作用域读取：未登录读全局键；登录态只读 <guid>::<key>，无命中返回默认值。
   // 不再做"懒迁移"复制：迁移由 UserSettingsMigrator 统一处理并删除全局值。

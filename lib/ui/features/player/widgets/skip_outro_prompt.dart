@@ -13,10 +13,11 @@ String resolveOutroPromptMessage({
   required bool autoPlayEnabled,
   required bool hasContentAfterCredits,
   required NextEpisodeLoadPhase nextEpisodePhase,
+  String subject = '片尾',
 }) {
   final safeCountdown = countdown < 0 ? 0 : countdown;
   if (!autoPlayEnabled || hasContentAfterCredits) {
-    return '$safeCountdown 秒后跳过片尾';
+    return '$safeCountdown 秒后跳过$subject';
   }
   if (nextEpisodePhase == NextEpisodeLoadPhase.available) {
     return '$safeCountdown 秒后播放下一集';
@@ -34,6 +35,7 @@ class SkipOutroPrompt extends StatelessWidget {
     required this.onCancel,
     this.isPip = false,
     this.onHoverChanged,
+    this.subject = '片尾',
   });
 
   final int countdown;
@@ -43,6 +45,7 @@ class SkipOutroPrompt extends StatelessWidget {
   final VoidCallback onCancel;
   final bool isPip;
   final ValueChanged<bool>? onHoverChanged;
+  final String subject;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +57,7 @@ class SkipOutroPrompt extends StatelessWidget {
         autoPlayEnabled: autoPlayEnabled,
         hasContentAfterCredits: hasContentAfterCredits,
         nextEpisodePhase: nextEpisodePhase,
+        subject: subject,
       ),
       undoLabel: '取消',
       countdown: 0,
