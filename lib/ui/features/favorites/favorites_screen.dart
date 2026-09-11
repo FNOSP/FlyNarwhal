@@ -588,6 +588,18 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                         context.push('/tv/season/${item.guid}');
                                       } else if (item.type == 'Directory') {
                                         context.push('/folder/${item.guid}');
+                                      } else if (item.type == 'LiveChannel') {
+                                        // 直播频道没有可进的内容详情页：与播放
+                                        // 按钮一致，点击非播放区域也直接进直播
+                                        // 播放器。
+                                        ref
+                                            .read(navigationStackProvider
+                                                .notifier)
+                                            .playerSourcePath =
+                                            GoRouterState.of(context)
+                                                .uri
+                                                .toString();
+                                        context.push('/live/${item.guid}');
                                       } else {
                                         context.push('/movie/${item.guid}');
                                       }
