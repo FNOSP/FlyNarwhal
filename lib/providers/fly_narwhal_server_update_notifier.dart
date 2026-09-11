@@ -116,6 +116,7 @@ final class FlyNarwhalServerUpdateNotifier
       AppTalker.info('FlyNarwhalServerUpdate', '检查服务端版本...');
       final result = await _dataSource.getVersion();
       final current = result.dataOrNull?.data?.trim() ?? '';
+      if (!mounted) return;
       if (current.isEmpty) {
         AppTalker.error(
           'FlyNarwhalServerUpdate',
@@ -157,6 +158,7 @@ final class FlyNarwhalServerUpdateNotifier
         stackTrace: stackTrace,
         message: '检查服务端更新异常',
       );
+      if (!mounted) return;
       state = FlyNarwhalServerUpdateState(
         phase: FlyNarwhalServerUpdatePhase.failed,
         message: '检查服务端更新异常: $error',
@@ -184,6 +186,7 @@ final class FlyNarwhalServerUpdateNotifier
         '拉取服务端 release: v$targetVersion',
       );
       final release = await _fetchServerRelease('v$targetVersion');
+      if (!mounted) return;
       if (release == null) {
         AppTalker.warning(
           'FlyNarwhalServerUpdate',
@@ -223,6 +226,7 @@ final class FlyNarwhalServerUpdateNotifier
         hash: asset.digest,
         proxyUrl: _getProxyUrl(),
       );
+      if (!mounted) return;
       if (!started) {
         return;
       }
@@ -235,6 +239,7 @@ final class FlyNarwhalServerUpdateNotifier
         stackTrace: stackTrace,
         message: '服务端更新失败',
       );
+      if (!mounted) return;
       state = state.copyWith(
         phase: FlyNarwhalServerUpdatePhase.failed,
         message: '服务端更新失败: $error',
@@ -277,6 +282,7 @@ final class FlyNarwhalServerUpdateNotifier
       proxyUrl: proxyUrl,
     )) {
       AppTalker.info('FlyNarwhalServerUpdate', '服务端更新状态: $status');
+      if (!mounted) return false;
       state = state.copyWith(message: status);
       if (status.contains('started') || status.contains('restart')) {
         return true;
@@ -294,8 +300,10 @@ final class FlyNarwhalServerUpdateNotifier
     var connected = false;
     while (_now().isBefore(deadline)) {
       await Future<void>.delayed(_recoveryPollInterval);
+      if (!mounted) return;
       try {
         final result = await _dataSource.getVersion();
+        if (!mounted) return;
         final version = result.dataOrNull?.data?.trim() ?? '';
         if (result.isSuccess && version.isNotEmpty) {
           connected = true;
@@ -312,6 +320,7 @@ final class FlyNarwhalServerUpdateNotifier
         // 重启期间的连接中断是正常现象，继续轮询。
       }
     }
+    if (!mounted) return;
     if (!connected) {
       state = state.copyWith(
         phase: FlyNarwhalServerUpdatePhase.failed,
@@ -324,6 +333,7 @@ final class FlyNarwhalServerUpdateNotifier
       );
     }
     await Future<void>.delayed(_recoveryPollInterval);
+    if (!mounted) return;
     state = state.copyWith(clearMessage: true);
   }
 
