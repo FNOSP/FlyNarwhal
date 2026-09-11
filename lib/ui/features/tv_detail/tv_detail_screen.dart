@@ -235,21 +235,38 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     AsyncValue<String>? previous,
     AsyncValue<String>? next,
   ) {
-    if (next == null || next.isLoading || identical(previous, next)) return;
+    if (next == null || identical(previous, next)) return;
+    final baseCategory = 'smart-analysis:${targetType.name}:$targetGuid';
+    if (next.isLoading) {
+      // Immediate feedback while the slow collection/submit runs (KMP parity).
+      ref.read(toastManagerProvider.notifier).showToast(
+            SmartAnalysisController.queuedLoadingMessage,
+            type: ToastType.success,
+            category: baseCategory,
+          );
+      return;
+    }
     next.when(
       data: (message) {
         ref.read(toastManagerProvider.notifier).showToast(
               message,
               type: ToastType.success,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
       loading: () {},
       error: (error, stackTrace) {
+        final isSubmissionFailure =
+            error is SmartAnalysisSubmissionException &&
+                error.preparingStarted;
         ref.read(toastManagerProvider.notifier).showToast(
-              error.toString(),
+              isSubmissionFailure
+                  ? '分析请求提交失败，请稍后重试'
+                  : error is SmartAnalysisUserMessageException
+                      ? error.message
+                      : error.toString(),
               type: ToastType.failed,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
     );
@@ -468,6 +485,12 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                         showSmartAnalysis:
                             ref.watch(settingsProvider).flyNarwhalServerEnabled,
                         onAnalyze: _handleAnalyzeSeason,
+                        isSeasonSubmitting: (seasonGuid) => ref
+                            .read(smartAnalysisControllerProvider)
+                            .isSubmitting(
+                              SmartAnalysisTargetType.season,
+                              seasonGuid,
+                            ),
                         onWatchedToggle: (guid, isWatched) async {
                           return _handleToggleSeasonWatched(guid, isWatched);
                         },
@@ -581,6 +604,7 @@ class _SeasonListGrid extends StatefulWidget {
   final bool showSmartAnalysis;
   final ValueChanged<SeasonListResponse> onAnalyze;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
+  final bool Function(String seasonGuid) isSeasonSubmitting;
 
   const _SeasonListGrid({
     required this.seasons,
@@ -589,6 +613,7 @@ class _SeasonListGrid extends StatefulWidget {
     required this.showSmartAnalysis,
     required this.onAnalyze,
     required this.onWatchedToggle,
+    required this.isSeasonSubmitting,
   });
 
   @override
@@ -616,10 +641,12 @@ class _SeasonListGridState extends State<_SeasonListGrid> {
           MenuFlyoutItem(
             key: ValueKey('season-smart-analysis-${season.guid}'),
             text: const Text('智能分析片头/片尾'),
-            onPressed: () {
-              Flyout.of(context).close();
-              widget.onAnalyze(season);
-            },
+            onPressed: widget.isSeasonSubmitting(season.guid)
+                ? null
+                : () {
+                    Flyout.of(context).close();
+                    widget.onAnalyze(season);
+                  },
           ),
         ],
       ),

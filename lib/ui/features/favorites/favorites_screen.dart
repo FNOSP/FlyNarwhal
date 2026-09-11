@@ -261,21 +261,38 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     AsyncValue<String>? previous,
     AsyncValue<String>? next,
   ) {
-    if (next == null || next.isLoading || identical(previous, next)) return;
+    if (next == null || identical(previous, next)) return;
+    final baseCategory = 'smart-analysis:${targetType.name}:$targetGuid';
+    if (next.isLoading) {
+      // Immediate feedback while the slow collection/submit runs (KMP parity).
+      ref.read(toastManagerProvider.notifier).showToast(
+            SmartAnalysisController.queuedLoadingMessage,
+            type: ToastType.success,
+            category: baseCategory,
+          );
+      return;
+    }
     next.when(
       data: (message) {
         ref.read(toastManagerProvider.notifier).showToast(
               message,
               type: ToastType.success,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
       loading: () {},
       error: (error, stackTrace) {
+        final isSubmissionFailure =
+            error is SmartAnalysisSubmissionException &&
+                error.preparingStarted;
         ref.read(toastManagerProvider.notifier).showToast(
-              error.toString(),
+              isSubmissionFailure
+                  ? '分析请求提交失败，请稍后重试'
+                  : error is SmartAnalysisUserMessageException
+                      ? error.message
+                      : error.toString(),
               type: ToastType.failed,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
     );

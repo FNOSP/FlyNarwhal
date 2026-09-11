@@ -290,6 +290,13 @@ final smartAnalysisControllerProvider = StateNotifierProvider<
           .read(seasonAnalysisStatusControllerProvider.notifier)
           .startForcedPolling(seasonGuid);
     },
+    // Draw the "准备中" status immediately after PREPARING is accepted,
+    // before the slow episode collection and analyze submission.
+    startSeasonPreparedPolling: (seasonGuid) {
+      ref
+          .read(seasonAnalysisStatusControllerProvider.notifier)
+          .startPolling(seasonGuid);
+    },
     resolveUserGuid: () => ref.read(currentUserGuidProvider),
   );
 });
