@@ -46,10 +46,63 @@ const _kSystemLoaderPaths = <String>{
 // the build host's copy makes the app crash on any distro shipping a newer
 // or older PulseAudio — e.g. an Ubuntu Noble (16.1) bundle fails to start on
 // Arch with libpulse 17.0 because /usr/lib/pulseaudio/ is shadowed by the
-// bundle and libpulsecommon-16.1.so cannot be loaded. The public ABI
-// (libpulse.so.0) stays bundled; the versioned helper always resolves from
-// the target system, matching what every other AppImage does.
+// bundle and libpulsecommon-16.1.so cannot be loaded. The versioned helper
+// always resolves from the target system, matching what every other AppImage
+// does.
 final _kDlopenedVersionedLibs = RegExp(r'^libpulsecommon-[0-9.]+\.so$');
+
+// Driver-boundary libraries must be resolved from the machine the app runs
+// on, not the machine it was built on. libmpv depends on them, so the
+// dependency walk below would otherwise copy the build host's copies into the
+// bundle.
+//
+// Observed failure (Ubuntu Noble build running on Arch Linux ARM): the bundle
+// carried Ubuntu's glvnd dispatcher libGLdispatch.so.0, which cannot
+// enumerate the host's Mesa vendor, so libepoxy aborted the app at startup
+// with "No provider of eglGetPlatformDisplayEXT found" before the first
+// frame. A host-provided glvnd/EGL stack fixes it because the dispatcher then
+// loads the host's vendor driver (libEGL_mesa.so.0 via glvnd's
+// /usr/share/glvnd/egl_vendor.d).
+//
+// The scope is deliberately narrow. The rest of the graphics stack stays
+// bundled because it is a self-consistent ABI layer that works across
+// distros, and because libmpv links some of it unconditionally:
+//   * libXss.so.1 and libXpresent.so.1 are hard NEEDED entries of the Ubuntu
+//     libmpv/SDL2 build, but Arch does not ship those sonames at all. Excluding
+//     them turns a working bundle into a loader failure ("cannot open shared
+//     object file"), so they are bundled.
+//   * The X11/XCB client stack is likewise bundled: it is only ever a client
+//     of whatever X server is present, and libXss/libXpresent need it.
+// Application dependencies (libass, libplacebo, FFmpeg, libvulkan) are
+// unaffected by this list.
+final _kHostDriverLibs = RegExp(
+  '^('
+  // glvnd dispatch layer -> host vendor driver (Mesa, NVIDIA, ...)
+  'libEGL|libGL|libGLX|libGLdispatch|libOpenGL|libGLESv2|'
+  // Kernel DRM/KMS and the GBM buffer allocator.
+  'libgbm|libdrm|'
+  // Wayland client protocol + xkb keymap (must match the compositor).
+  'libwayland-client|libwayland-egl|libwayland-cursor|libwayland-server|libxkbcommon|'
+  // Audio servers: libpulse.so.0 hard-codes a version-pinned
+  // libpulsecommon-NN.so soname resolved from the host, and its RUNPATH is
+  // the Debian-only /usr/lib/<arch>-linux-gnu/pulseaudio.
+  'libpulse|libpulse-simple|'
+  // GTK3 and its text/rendering stack. The app links libgtk-3.so.0 from the
+  // host, so it always pulls in GTK's own Pango/Cairo/HarfBuzz/freetype at
+  // runtime. Shipping the build host's older copies alongside it splits the
+  // stack across two versions and the host's newer objects abort with
+  // "undefined symbol" (observed: Arch's libpangoft2-1.0.so.0 needs
+  // pango_font_description_get_width, absent from Ubuntu Noble's Pango).
+  // These libraries come in as libmpv/libass dependencies, hence the
+  // exclusion.
+  'libgtk-3|libgdk-3|libatk|libpangocairo|libpangoft2|libpango-1\\.0|'
+  'libcairo-gobject|libcairo|libharfbuzz|libfreetype|libfontconfig|'
+  'libgdk_pixbuf|libepoxy'
+  // Trailing qualifier: XCB's sibling libraries append a word
+  // (libxcb-dri3.so.0) while pango/atk/cairo append a version
+  // (libpango-1.0.so.0, libatk-1.0.so.0).
+  r')(-[a-z0-9.]+)?\.so(\.[0-9.]+)?$',
+);
 
 Future<int> main(List<String> arguments) async {
   if (arguments.length != 2) {
@@ -144,17 +197,129 @@ Future<int> main(List<String> arguments) async {
     return 1;
   }
 
-  // 4. RPATH enforcement: the Linux Flutter app already sets
-  //    $ORIGIN/lib (see linux/CMakeLists.txt), so the copy above is enough
-  //    on x86_64/arm64. Surface a warning if RPATH appears wrong so a
-  //    future CMake change doesn't silently regress this.
+  // 4. RPATH normalization. The Flutter Linux plugin template links every
+  //    plugin with an absolute INSTALL_RPATH baked to the build machine's
+  //    CMake ephemeral directory (e.g.
+  //    /home/runner/work/<proj>/linux/flutter/ephemeral). A DT_RUNPATH is
+  //    searched for the dependencies of the object that carries it, and it
+  //    takes precedence over the executable's own $ORIGIN/lib, so on an
+  //    installed copy the plugins look for libmpv.so.2 (and friends) under a
+  //    directory that does not exist and the app dies in the loader with
+  //    "libmpv.so.2: cannot open shared object file".
+  //
+  //    The AppImage hid this because its AppRun exports LD_LIBRARY_PATH, which
+  //    is also consulted for transitive dependencies; the .deb/.rpm/.pacman
+  //    builds exec the binary directly and therefore failed.
+  //
+  //    Rewrite every bundled object to a relocatable $ORIGIN-equivalent rpath
+  //    so the install is self-contained. The executable keeps $ORIGIN/lib
+  //    (libraries live one level down); libraries live alongside each other in
+  //    lib/, so $ORIGIN is enough for them.
   final exe = _pickBundleExecutable(bundleDir);
   if (exe == null) {
     stderr.writeln('Could not locate bundle executable under ${bundleDir.path}');
     return 1;
   }
+  final normalized = await _normalizeRunpaths(
+    bundleDir: bundleDir,
+    libDir: libOut,
+    executable: exe,
+  );
+  if (!normalized) return 1;
+
   stdout.writeln('libmpv bundle ready: ${libOut.path} (entry: ${exe.path})');
   return 0;
+}
+
+/// Rewrites the rpath of the bundle executable and every shared object in
+/// [libDir] so the bundle resolves its own libraries after being installed to
+/// an arbitrary prefix. Returns false (after reporting) if patchelf fails.
+///
+/// Objects that need no rewrite are skipped: the executable already carries
+/// $ORIGIN/lib and the Flutter engine already carries $ORIGIN.
+Future<bool> _normalizeRunpaths({
+  required Directory bundleDir,
+  required Directory libDir,
+  required File executable,
+}) async {
+  if (!await _hasPatchelf()) {
+    stderr.writeln(
+      'patchelf is required to normalize bundle rpaths. Install it '
+      '(e.g. `apt-get install -y patchelf`) before building Linux releases.',
+    );
+    return false;
+  }
+
+  final targets = <File>[
+    executable,
+    ...await _collectSharedObjects(bundleDir),
+  ];
+  for (final target in targets) {
+    final desired = target.path == executable.path ? r'$ORIGIN/lib' : r'$ORIGIN';
+    final current = await _readRunpath(target);
+    if (current == desired) continue;
+    final result = await Process.run('patchelf', [
+      '--set-rpath',
+      desired,
+      target.path,
+    ]);
+    if (result.exitCode != 0) {
+      stderr.writeln(
+        'patchelf --set-rpath $desired failed for ${target.path}: '
+        '${result.stderr}',
+      );
+      return false;
+    }
+    if (current.isNotEmpty) {
+      stdout.writeln(
+        'Normalized rpath of ${target.uri.pathSegments.last}: '
+        '$current -> $desired',
+      );
+    }
+  }
+  return true;
+}
+
+Future<bool> _hasPatchelf() async {
+  try {
+    final result = await Process.run('patchelf', ['--version']);
+    return result.exitCode == 0;
+  } on ProcessException {
+    return false;
+  }
+}
+
+/// Every regular file under the bundle (lib/ plus the executable's directory)
+/// that is an ELF shared object.
+Future<List<File>> _collectSharedObjects(Directory bundleDir) async {
+  final objects = <File>[];
+  await for (final entity in bundleDir.list(recursive: true, followLinks: false)) {
+    if (entity is! File) continue;
+    final name = entity.uri.pathSegments.last;
+    if (!name.contains('.so')) continue;
+    final header = await _readMagic(entity);
+    if (header != _elfMagic) continue;
+    objects.add(entity);
+  }
+  return objects;
+}
+
+const _elfMagic = '\x7FELF';
+
+Future<String> _readMagic(File file) async {
+  final handle = await file.open();
+  try {
+    final bytes = await handle.read(4);
+    return String.fromCharCodes(bytes);
+  } finally {
+    await handle.close();
+  }
+}
+
+Future<String> _readRunpath(File file) async {
+  final result = await Process.run('patchelf', ['--print-rpath', file.path]);
+  if (result.exitCode != 0) return '';
+  return (result.stdout as String).trim();
 }
 
 Future<File?> _findLibmpv(Directory root) async {
@@ -202,6 +367,7 @@ Future<bool> _isSystemLoader(
   // system, even when they were fetched into an extra search root.
   final baseName = path.split('/').last;
   if (_kDlopenedVersionedLibs.hasMatch(baseName)) return true;
+  if (_kHostDriverLibs.hasMatch(baseName)) return true;
   return false;
 }
 
