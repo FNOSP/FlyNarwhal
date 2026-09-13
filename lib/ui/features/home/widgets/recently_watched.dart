@@ -198,6 +198,12 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
         }
         context.push('/tv/season/$parentGuid');
         return;
+      case 'LiveChannel':
+        // 直播频道没有可进的内容详情页：与海报卡片一致，点击非播放区域
+        // 也直接进直播播放器，而不是落到 default 变成无响应。
+        ref.read(navigationStackProvider.notifier).playerSourcePath = '/home';
+        context.push('/live/$itemGuid');
+        return;
       default:
         return;
     }

@@ -604,6 +604,19 @@ X-AppImage-Version=$version
 SELF="\$(readlink -f "\$0")"
 HERE="\$(dirname "\$SELF")"
 export LD_LIBRARY_PATH="\$HERE/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+# libpulse dlopens its version-pinned private helper (libpulsecommon-X.Y.so)
+# from /usr/lib*/pulseaudio. The bundle intentionally excludes that helper so
+# it must resolve from the host; append the standard locations to pick it up
+# on distros whose default loader path differs.
+for d in /usr/lib/pulseaudio /usr/lib64/pulseaudio \\
+         /usr/lib/\$(uname -m)-linux-gnu/pulseaudio; do
+  [ -d "\$d" ] || continue
+  case ":\$LD_LIBRARY_PATH:" in
+    *":\$d:"*) ;;
+    *) LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:\$d" ;;
+  esac
+done
+export LD_LIBRARY_PATH
 exec "\$HERE/fly_narwhal" "\$@"
 ''');
   final chmodResult = await Process.run('chmod', <String>['+x', appRun.path]);

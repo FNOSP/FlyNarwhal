@@ -108,6 +108,23 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
     if (oldWidget.isActiveControl && !widget.isActiveControl) {
       _forceCloseFlyout();
     }
+    // The popup lives in a root OverlayEntry, so a parent rebuild does not
+    // reach it. Push the new selection (and quality list) into the entry, or
+    // the reopened popup keeps showing the quality that was current when the
+    // entry was first inserted.
+    //
+    // Deferred to after the frame: rebuilding the entry here would recreate
+    // the popup's MouseRegions while MouseTracker is mid device-update, which
+    // trips a framework re-entrancy assertion.
+    if ((oldWidget.currentResolution != widget.currentResolution ||
+            oldWidget.currentBitrate != widget.currentBitrate ||
+            oldWidget.qualities != widget.qualities) &&
+        _overlayEntry != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _overlayEntry?.markNeedsBuild();
+      });
+    }
   }
 
   double get _currentFlyoutWidth => 320;

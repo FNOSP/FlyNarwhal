@@ -5,6 +5,9 @@ import '../../../data/utils/fn_data_convertor.dart';
 import 'app_dialog.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 
+/// Web 复刻：空状态占位图尺寸。
+const double _emptyStateImageSize = 100;
+
 /// 复刻自 http://192.168.31.73:5666 的"文件媒体信息"弹窗。
 ///
 /// 视觉与字段顺序与网页完全一致：每张轨道卡片为三列等宽的"标签:值"列表，
@@ -117,7 +120,7 @@ class FileMediaInfoDialog extends StatelessWidget {
                       iso6391Map: iso6391Map,
                       iso6392Map: iso6392Map)
                 else
-                  const _EmptyCard(),
+                  const _EmptyCard(useIllustration: true),
               ],
             ),
             const SizedBox(height: 28),
@@ -126,7 +129,7 @@ class FileMediaInfoDialog extends StatelessWidget {
               title: '音频',
               children: [
                 if (audioStreams.isEmpty)
-                  const _EmptyCard()
+                  const _EmptyCard(useIllustration: true)
                 else
                   ...audioStreams.map((s) => _AudioTrackCard(
                       stream: s,
@@ -140,7 +143,7 @@ class FileMediaInfoDialog extends StatelessWidget {
               title: '字幕',
               children: [
                 if (subtitleStreams.isEmpty)
-                  const _EmptyCard()
+                  const _EmptyCard(useIllustration: true)
                 else
                   ...subtitleStreams.map(
                     (s) => _SubtitleTrackCard(
@@ -180,9 +183,13 @@ class FileMediaInfoDialog extends StatelessWidget {
   }
 }
 
-/// 空状态占位卡片（与网页一致：200px 高居中）。
+/// 空状态占位卡片（与网页一致：200px 高，空状态时显示占位图）。
 class _EmptyCard extends StatelessWidget {
-  const _EmptyCard();
+  const _EmptyCard({this.useIllustration = false});
+
+  /// 当为 true 时展示 Web 同款的空状态占位图；
+  /// 否则展示默认的「暂无数据」文字。
+  final bool useIllustration;
 
   @override
   Widget build(BuildContext context) {
@@ -194,10 +201,16 @@ class _EmptyCard extends StatelessWidget {
         color: FileMediaInfoDialog._cardSurface,
         borderRadius: BorderRadius.circular(4),
       ),
-      child: const Text(
-        '暂无数据',
-        style: TextStyle(color: FileMediaInfoDialog._textColor1),
-      ),
+      child: useIllustration
+          ? Image.asset(
+              'assets/images/empty_state.png',
+              width: _emptyStateImageSize,
+              height: _emptyStateImageSize,
+            )
+          : const Text(
+              '暂无数据',
+              style: TextStyle(color: FileMediaInfoDialog._textColor1),
+            ),
     );
   }
 }

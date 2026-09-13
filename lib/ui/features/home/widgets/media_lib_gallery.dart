@@ -102,6 +102,15 @@ class MediaLibGallery extends ConsumerWidget {
                       case MediaType.directory:
                         context.push('/folder/${item.guid}');
                         break;
+                      case MediaType.liveChannel:
+                        // 直播频道没有可进的内容详情页：与播放按钮一致，
+                        // 点击非播放区域也直接进直播播放器。
+                        ref
+                            .read(navigationStackProvider.notifier)
+                            .playerSourcePath =
+                            GoRouterState.of(context).uri.toString();
+                        context.push('/live/${item.guid}');
+                        break;
                       default:
                         context.push('/movie/${item.guid}');
                     }

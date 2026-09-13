@@ -69,6 +69,14 @@ final class FlyNarwhalServerUpdateNotifier
         _now = now ?? DateTime.now,
         super(const FlyNarwhalServerUpdateState());
 
+  /// Master switch for the server version check and self-update.
+  ///
+  /// Temporarily disabled: the client must not probe the server version nor
+  /// trigger server self-updates. All trigger paths (startup scheduler, server
+  /// toggle, login change, manual client check) funnel through
+  /// [checkServerUpdate], so gating here covers every entry point.
+  static const bool enabled = false;
+
   static const Duration _checkCooldown = Duration(seconds: 10);
   static const Duration _updateCooldown = Duration(seconds: 60);
   static const Duration _recoveryTimeout = Duration(minutes: 5);
@@ -90,6 +98,7 @@ final class FlyNarwhalServerUpdateNotifier
   /// Checks the server version and triggers a self-update when it is behind
   /// [targetVersion]. Idempotent: single-flight plus a short cooldown.
   Future<void> checkServerUpdate() async {
+    if (!enabled) return;
     if (!_isEnabled()) return;
     if (_checkRunning) return;
     final now = _now();

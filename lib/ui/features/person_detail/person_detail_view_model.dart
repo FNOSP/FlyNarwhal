@@ -1,6 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../core/network/api_result.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../data/models/person_models.dart';
 import '../../../providers/providers.dart';
 
@@ -35,6 +35,13 @@ class PersonDetailState {
   }
 }
 
+/// The server has no record for this person guid (business code -6). The web
+/// client renders its generic empty state instead of an error, so the page
+/// does the same.
+class PersonNotFoundException implements Exception {
+  const PersonNotFoundException();
+}
+
 @riverpod
 class PersonDetailNotifier extends _$PersonDetailNotifier {
   Future<PersonDetailState> _load(String guid) async {
@@ -47,19 +54,27 @@ class PersonDetailNotifier extends _$PersonDetailNotifier {
       return result.dataOrNull ?? const <PersonItemList>[];
     }
 
-    final results = await Future.wait([
-      remote.getPerson(guid),
+    final personResult = await remote.getPerson(guid);
+    if (personResult.isFailure) {
+      final failure = personResult.failureOrNull;
+      if (failure?.code == ResponseCodes.notFoundBusiness) {
+        throw const PersonNotFoundException();
+      }
+      throw failure ?? const PersonNotFoundException();
+    }
+    final person = personResult.getOrThrow();
+
+    final works = await Future.wait([
       worksByJob('Actor'),
       worksByJob('Director'),
       worksByJob('Screenplay'),
     ]);
 
-    final person = (results[0] as ApiResult<PersonResponse>).getOrThrow();
     return PersonDetailState(
       person: person,
-      actorWorks: results[1] as List<PersonItemList>,
-      directorWorks: results[2] as List<PersonItemList>,
-      screenplayWorks: results[3] as List<PersonItemList>,
+      actorWorks: works[0],
+      directorWorks: works[1],
+      screenplayWorks: works[2],
     );
   }
 
