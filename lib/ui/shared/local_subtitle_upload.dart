@@ -26,8 +26,7 @@ const MethodChannel _localSubtitlePickerChannel =
     MethodChannel('fly_narwhal/local_subtitle_picker');
 
 /// 字幕选择面板的关闭动画时长之后才弹出系统文件选择器，
-/// 避免面板关闭动画与原生面板同帧出现时的视觉抖动（播放器中还有
-/// media_kit 主线程等帧的问题，此处保持同样的时序）。
+/// 避免面板关闭动画与原生面板同帧出现时的视觉抖动。
 const int _localSubtitlePickerOpenDelayMs = 250;
 
 Future<({List<XFile> files, String? directory})> openLocalSubtitleFiles(
@@ -37,10 +36,9 @@ Future<({List<XFile> files, String? directory})> openLocalSubtitleFiles(
   // Windows and macOS both use the native picker channel instead of
   // file_selector: on Windows the plugin runs the dialog on the platform
   // thread, and on macOS it presents the panel as a window sheet whose
-  // slide-in/out animation blocks the main thread — media_kit waits on the
-  // main thread for every video frame, so both freeze the picture. The
-  // native channels avoid that (worker thread on Windows, standalone
-  // non-sheet panel on macOS).
+  // slide-in/out animation blocks the main thread — which stalls video
+  // playback. The native channels avoid that (worker thread on Windows,
+  // standalone non-sheet panel on macOS).
   if (Platform.isWindows || Platform.isMacOS) {
     final response = await _localSubtitlePickerChannel.invokeMethod<Object?>(
       'openLocalSubtitles',

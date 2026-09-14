@@ -1,0 +1,538 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:fvp/mdk.dart' as mdk;
+
+import '../../../../core/utils/log/app_talker.dart';
+
+/// Decoded video size, mirroring the fields the player screens read from
+/// media_kit's `VideoParams`.
+///
+/// [dw]/[dh] are the pixel-aspect-corrected display size (what the picture
+/// actually looks like); [w]/[h] are the raw decoded size. Window auto-ratio
+/// logic prefers the display size.
+class VideoSize {
+  const VideoSize({
+    required this.w,
+    required this.h,
+    required this.dw,
+    required this.dh,
+  });
+
+  final int w;
+  final int h;
+  final int dw;
+  final int dh;
+}
+
+/// Thin adapter over the fvp/mdk backend player that presents the subset of
+/// the media_kit API this app relies on.
+///
+/// mdk is an imperative, callback-driven player: playback position is a plain
+/// getter rather than an event stream, and there is no texture widget. This
+/// class closes those two gaps so the player screens keep consuming
+/// `Stream<Duration>` / `Stream<bool>` / `Stream<VideoSize>` values and a
+/// single view widget.
+class MdkPlayerAdapter {
+  MdkPlayerAdapter({bool lowLatency = false}) {
+    _player = mdk.Player();
+    if (lowLatency) {
+      _player.setBufferRange(min: 0);
+    }
+    _player.onStateChanged(_handleStateChanged);
+    _player.onMediaStatus(_handleMediaStatus);
+    _player.onEvent(_handleEvent);
+  }
+
+  /// How often the synthesized position/buffer streams are refreshed. mdk only
+  /// exposes `position` as a getter, so it has to be polled.
+  static const Duration _tickInterval = Duration(milliseconds: 200);
+
+  late final mdk.Player _player;
+  Timer? _ticker;
+
+  final _positionController = StreamController<Duration>.broadcast();
+  final _bufferController = StreamController<Duration>.broadcast();
+  final _durationController = StreamController<Duration>.broadcast();
+  final _playingController = StreamController<bool>.broadcast();
+  final _bufferingController = StreamController<bool>.broadcast();
+  final _completedController = StreamController<bool>.broadcast();
+  final _errorController = StreamController<String>.broadcast();
+  final _videoSizeController = StreamController<VideoSize>.broadcast();
+  final _trackListController = StreamController<void>.broadcast();
+
+  int _lastPositionMs = 0;
+  bool _disposed = false;
+  bool _hasLoadedMedia = false;
+  bool _subtitlesRendered = true;
+
+  /// Playback position stream, synthesized from the 200ms ticker plus explicit
+  /// emits on seek and after opening media.
+  Stream<Duration> get position => _positionController.stream;
+
+  /// Buffer-ahead position stream: the end of the buffered range, matching what
+  /// media_kit reported.
+  Stream<Duration> get buffer => _bufferController.stream;
+
+  Stream<Duration> get duration => _durationController.stream;
+  Stream<bool> get playing => _playingController.stream;
+  Stream<bool> get buffering => _bufferingController.stream;
+  Stream<bool> get completed => _completedController.stream;
+  Stream<String> get error => _errorController.stream;
+  Stream<VideoSize> get videoParams => _videoSizeController.stream;
+
+  /// Emits whenever the media's stream list changes (new media loaded), so
+  /// callers can re-read [audioStreams]/[subtitleStreams].
+  Stream<void> get trackListChanges => _trackListController.stream;
+
+  int get positionMs => _disposed ? 0 : _player.position;
+
+  /// Media duration. `mediaInfo` is only populated once media has loaded, so
+  /// this reports 0 (matching media_kit's pre-load state) until then.
+  int get durationMs {
+    if (_disposed || !_hasLoadedMedia) return 0;
+    return _player.mediaInfo.duration;
+  }
+
+  bool get isPlaying => !_disposed && _player.state == mdk.PlaybackState.playing;
+
+  double get volume => _disposed ? 0 : _player.volume;
+  bool get mute => !_disposed && _player.mute;
+  double get playbackRate => _disposed ? 1 : _player.playbackRate;
+
+  /// Raw mdk player, for properties and decoders this adapter does not wrap.
+  mdk.Player get raw => _player;
+
+  VideoSize? get videoSize => _readVideoSize();
+
+  int? get activeSubtitleIndex {
+    if (_disposed) return null;
+    final track = _player.activeSubtitleTracks;
+    return track.isEmpty ? null : track.first;
+  }
+
+  int? get activeAudioIndex {
+    if (_disposed) return null;
+    final track = _player.activeAudioTracks;
+    return track.isEmpty ? null : track.first;
+  }
+
+  /// Audio stream list of the currently loaded media.
+  List<mdk.AudioStreamInfo> get audioStreams => _loadedMediaInfo?.audio ?? const [];
+
+  /// Subtitle stream list of the currently loaded media. Includes externally
+  /// added tracks, which appear after the embedded ones.
+  List<mdk.SubtitleStreamInfo> get subtitleStreams =>
+      _loadedMediaInfo?.subtitle ?? const [];
+
+  mdk.MediaInfo? get _loadedMediaInfo {
+    if (_disposed || !_hasLoadedMedia) return null;
+    return _player.mediaInfo;
+  }
+
+  /// Opens [uri], applying custom HTTP headers and an optional start position.
+  ///
+  /// Playback starts automatically, matching the previous player's `open()`
+  /// behaviour (callers never issue a separate play call after opening). Use
+  /// [pause] to hold on the first frame.
+  ///
+  /// Returns true when the media prepared successfully. On failure an error is
+  /// emitted on [error] and this returns false.
+  Future<bool> open({
+    required String uri,
+    Map<String, String>? httpHeaders,
+    int startPositionMs = 0,
+  }) async {
+    if (_disposed) return false;
+    _hasLoadedMedia = false;
+    _lastPositionMs = 0;
+
+    _player.setProperty('avio.headers', _encodeHeaders(httpHeaders));
+
+    await _player.updateTexture(width: -1);
+    _player.media = uri;
+
+    final result = await _player.prepare(position: startPositionMs);
+    if (_disposed) return false;
+
+    if (result < 0) {
+      _errorController.add('media prepare failed (code $result)');
+      return false;
+    }
+
+    await _player.updateTexture();
+    if (_disposed) return false;
+
+    _hasLoadedMedia = true;
+    // prepare() leaves the player paused on the first frame.
+    _player.state = mdk.PlaybackState.playing;
+    _emitPosition(startPositionMs);
+    _emitDuration();
+    _emitVideoSize();
+    _trackListController.add(null);
+    _startTicker();
+    return true;
+  }
+
+  void play() {
+    if (_disposed) return;
+    _player.state = mdk.PlaybackState.playing;
+    _startTicker();
+  }
+
+  void pause() {
+    if (_disposed) return;
+    _player.state = mdk.PlaybackState.paused;
+    _stopTicker();
+    _emitPosition(_player.position);
+  }
+
+  void stop() {
+    if (_disposed) return;
+    _stopTicker();
+    _player.state = mdk.PlaybackState.stopped;
+    _emitPosition(0);
+  }
+
+  Future<void> seek(Duration target) async {
+    if (_disposed) return;
+    await _player.seek(position: target.inMilliseconds);
+    if (_disposed) return;
+    _emitPosition(target.inMilliseconds);
+  }
+
+  /// Volume uses the app's UI scale (0-100) so existing call sites, including
+  /// the macOS gain in `player_volume_helper.dart`, keep working unchanged.
+  /// mdk expects a raw multiplier where 1.0 is the source level.
+  void setVolume(double uiVolume) {
+    if (_disposed) return;
+    _player.volume = (uiVolume / 100.0).clamp(0.0, 1.0);
+  }
+
+  void setMute(bool value) {
+    if (_disposed) return;
+    _player.mute = value;
+  }
+
+  void setRate(double rate) {
+    if (_disposed) return;
+    _player.playbackRate = rate;
+  }
+
+  /// Selects an embedded audio track by its mdk stream index.
+  void setAudioTrack(int index) {
+    if (_disposed) return;
+    _player.activeAudioTracks = [index];
+  }
+
+  /// Selects a subtitle track by its mdk stream index. Passing null turns
+  /// subtitles off.
+  void setSubtitleTrack(int? index) {
+    if (_disposed) return;
+    _player.activeSubtitleTracks = index == null ? const [] : [index];
+    _applySubtitleVisibility();
+  }
+
+  /// Loads an external subtitle from decoded text content.
+  ///
+  /// mdk takes a URL/path for external subtitles rather than raw text, so the
+  /// content is written to [subtitleCacheDirectory] and loaded from there.
+  /// Returns the new track's index, or null when it could not be added.
+  ///
+  /// The file name encodes [title]/[language] so the track can be matched back
+  /// to the server-side subtitle stream, since mdk exposes no other metadata
+  /// for externally added tracks.
+  Future<int?> addExternalSubtitle(
+    String content, {
+    required Directory subtitleCacheDirectory,
+    String? title,
+    String? language,
+    String? format,
+  }) async {
+    if (_disposed) return null;
+    final extension = _normalizeSubtitleFormat(format);
+    final fileName = _externalSubtitleFileName(
+      title: title,
+      language: language,
+      extension: extension,
+    );
+    final file = File('${subtitleCacheDirectory.path}/$fileName');
+    await file.parent.create(recursive: true);
+    await file.writeAsString(content, flush: true);
+    if (_disposed) return null;
+
+    // Replacing an external track: mdk keeps the previous one until it is
+    // cleared explicitly.
+    _player.setMedia('', mdk.MediaType.subtitle);
+
+    final before = subtitleStreams.length;
+    _player.setMedia(file.path, mdk.MediaType.subtitle);
+    final streams = subtitleStreams;
+    if (streams.length <= before) return null;
+
+    final index = streams.last.index;
+    _externalSubtitleTitles[index] = _externalSubtitleLabel(
+      title: title,
+      language: language,
+      extension: extension,
+    );
+    _player.activeSubtitleTracks = [index];
+    _applySubtitleVisibility();
+    return index;
+  }
+
+  /// Drops the externally loaded subtitle track.
+  ///
+  /// mdk keeps an external track active until it is cleared, so switching back
+  /// to an embedded track requires this first.
+  void removeExternalSubtitle() {
+    if (_disposed) return;
+    _player.setMedia('', mdk.MediaType.subtitle);
+    _externalSubtitleTitles.clear();
+  }
+
+  /// Turns subtitle rendering off without discarding the selected track.
+  void hideSubtitles() {
+    if (_disposed) return;
+    _subtitlesRendered = false;
+    _applySubtitleVisibility();
+  }
+
+  void showSubtitles() {
+    if (_disposed) return;
+    _subtitlesRendered = true;
+    _applySubtitleVisibility();
+  }
+
+  void _applySubtitleVisibility() {
+    _player.setProperty('subtitle', _subtitlesRendered ? '1' : '0');
+  }
+
+  /// The name under which an externally added subtitle track is labelled,
+  /// matching what the track resolvers compare against.
+  String externalSubtitleLabelAt(int index) =>
+      _externalSubtitleTitles[index] ?? '';
+
+  final _externalSubtitleTitles = <int, String>{};
+
+  void setProperty(String name, String value) {
+    if (_disposed) return;
+    _player.setProperty(name, value);
+  }
+
+  String? getProperty(String name) => _disposed ? null : _player.getProperty(name);
+
+  void setBufferRange({int min = -1, int max = -1, bool drop = false}) {
+    if (_disposed) return;
+    _player.setBufferRange(min: min, max: max, drop: drop);
+  }
+
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    _stopTicker();
+    _player.onStateChanged(null);
+    _player.onMediaStatus(null);
+    _player.onEvent(null);
+    _player.dispose();
+    await _positionController.close();
+    await _bufferController.close();
+    await _durationController.close();
+    await _playingController.close();
+    await _bufferingController.close();
+    await _completedController.close();
+    await _errorController.close();
+    await _videoSizeController.close();
+    await _trackListController.close();
+  }
+
+  void _handleStateChanged(mdk.PlaybackState oldState, mdk.PlaybackState newState) {
+    if (_disposed) return;
+    _playingController.add(newState == mdk.PlaybackState.playing);
+    if (newState == mdk.PlaybackState.stopped) {
+      _stopTicker();
+      _emitPosition(_player.position);
+      _completedController.add(true);
+    }
+  }
+
+  bool _handleMediaStatus(mdk.MediaStatus oldStatus, mdk.MediaStatus newStatus) {
+    if (_disposed) return true;
+
+    final wasBuffering = oldStatus.test(mdk.MediaStatus.buffering);
+    final isBuffering = newStatus.test(mdk.MediaStatus.buffering);
+    if (wasBuffering != isBuffering) {
+      _bufferingController.add(isBuffering);
+    }
+
+    final wasLoaded = oldStatus.test(mdk.MediaStatus.loaded);
+    final isLoaded = newStatus.test(mdk.MediaStatus.loaded);
+    if (!wasLoaded && isLoaded) {
+      _emitDuration();
+      _emitVideoSize();
+      _trackListController.add(null);
+    }
+
+    final wasEnd = oldStatus.test(mdk.MediaStatus.end);
+    final isEnd = newStatus.test(mdk.MediaStatus.end);
+    if (!wasEnd && isEnd) {
+      _stopTicker();
+      _emitPosition(_player.position);
+      _completedController.add(true);
+    }
+    return true;
+  }
+
+  void _handleEvent(mdk.MediaEvent event) {
+    if (_disposed) return;
+    if (event.category == 'decoder.video' ||
+        (event.category == 'video' && event.detail == 'size')) {
+      _emitVideoSize();
+      _trackListController.add(null);
+      return;
+    }
+    // The `error` field is not an error flag: mdk uses it as a numeric payload
+    // (buffering progress, thread ids, frame timestamps). Only the categories
+    // below indicate a real failure.
+    if (_isErrorCategory(event.category)) {
+      final detail = event.detail.isEmpty ? event.category : event.detail;
+      AppTalker.warning('Player', 'mdk error event: $detail');
+      _errorController.add(detail);
+      return;
+    }
+    AppTalker.info('Player', 'mdk event: ${event.category} - ${event.detail}');
+  }
+
+  static bool _isErrorCategory(String category) {
+    return category.contains('error') || category.contains('invalid');
+  }
+
+  void _startTicker() {
+    _ticker ??= Timer.periodic(_tickInterval, (_) => _tick());
+  }
+
+  void _stopTicker() {
+    _ticker?.cancel();
+    _ticker = null;
+  }
+
+  void _tick() {
+    if (_disposed || !_hasLoadedMedia) return;
+    final current = _player.position;
+    if (current != _lastPositionMs) {
+      _emitPosition(current);
+      final buffered = _player.buffered();
+      _bufferController.add(Duration(milliseconds: current + buffered));
+    }
+  }
+
+  void _emitPosition(int milliseconds) {
+    if (milliseconds < 0) return;
+    _lastPositionMs = milliseconds;
+    if (!_positionController.isClosed) {
+      _positionController.add(Duration(milliseconds: milliseconds));
+    }
+  }
+
+  void _emitDuration() {
+    final duration = durationMs;
+    if (duration <= 0) return;
+    if (!_durationController.isClosed) {
+      _durationController.add(Duration(milliseconds: duration));
+    }
+  }
+
+  void _emitVideoSize() {
+    final size = _readVideoSize();
+    if (size == null) return;
+    if (!_videoSizeController.isClosed) {
+      _videoSizeController.add(size);
+    }
+  }
+
+  VideoSize? _readVideoSize() {
+    final info = _loadedMediaInfo;
+    if (info == null) return null;
+    final streams = info.video;
+    if (streams == null || streams.isEmpty) return null;
+    final stream = streams.first;
+    final codec = stream.codec;
+    if (codec.width <= 0 || codec.height <= 0) return null;
+
+    // mdk reports the raw frame size plus a pixel aspect ratio; the display
+    // size corrects for anamorphic sources. A 90/270 degree rotation swaps
+    // the axes.
+    final rawWidth = codec.width;
+    final rawHeight = (codec.height / codec.par).round();
+    if (stream.rotation % 180 == 90) {
+      return VideoSize(
+        w: rawHeight,
+        h: rawWidth,
+        dw: rawHeight,
+        dh: rawWidth,
+      );
+    }
+    return VideoSize(w: rawWidth, h: rawHeight, dw: rawWidth, dh: rawHeight);
+  }
+
+  static String _encodeHeaders(Map<String, String>? headers) {
+    if (headers == null || headers.isEmpty) return '';
+    final buffer = StringBuffer();
+    headers.forEach((key, value) {
+      buffer.write('$key: $value\r\n');
+    });
+    return buffer.toString();
+  }
+
+  static String _externalSubtitleFileName({
+    String? title,
+    String? language,
+    required String extension,
+  }) {
+    final stem = (title == null || title.isEmpty) ? 'subtitle' : title;
+    final languagePart =
+        (language == null || language.isEmpty) ? '' : '_$language';
+    final safeStem = stem.replaceAll(RegExp(r'[^\w\-.]'), '_');
+    return 'fvp_sub_$safeStem$languagePart.$extension';
+  }
+
+  static String _externalSubtitleLabel({
+    String? title,
+    String? language,
+    required String extension,
+  }) {
+    final stem = (title == null || title.isEmpty) ? 'subtitle' : title;
+    final languageSuffix =
+        (language == null || language.isEmpty) ? '' : '.$language';
+    return '$stem$languageSuffix.$extension';
+  }
+
+  static String _normalizeSubtitleFormat(String? format) {
+    if (format == null || format.isEmpty) return 'srt';
+    final normalized = format.toLowerCase().trim();
+    return switch (normalized) {
+      'subrip' => 'srt',
+      'ass' || 'ssa' => 'ass',
+      'vtt' || 'webvtt' => 'vtt',
+      'pgs' || 'sup' => 'sup',
+      _ => normalized,
+    };
+  }
+
+  @visibleForTesting
+  static String debugNormalizeSubtitleFormat(String? format) =>
+      _normalizeSubtitleFormat(format);
+
+  @visibleForTesting
+  static String debugSubtitleFileName({
+    String? title,
+    String? language,
+    required String extension,
+  }) =>
+      _externalSubtitleFileName(
+        title: title,
+        language: language,
+        extension: extension,
+      );
+}

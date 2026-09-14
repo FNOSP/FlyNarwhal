@@ -12,7 +12,7 @@ import '../../../../data/storage/player_settings_store.dart';
 
 /// Controls switching the main player window in and out of a compact
 /// picture-in-picture (PiP) form factor while reusing the same window and the
-/// same media_kit player instance.
+/// same underlying player instance.
 ///
 /// Entering captures the current window geometry, removes the window frame,
 /// pins the window on top, shrinks it to a corner, and keeps it resizable so

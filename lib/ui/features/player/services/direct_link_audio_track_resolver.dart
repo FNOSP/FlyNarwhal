@@ -1,18 +1,25 @@
-import 'package:media_kit/media_kit.dart';
+import 'package:fvp/mdk.dart' as mdk;
 
 import '../../../../core/utils/log/app_talker.dart';
 import '../../../../data/models/movie_detail_models.dart';
 
+/// Matches a server-side audio stream onto an embedded audio track of the
+/// currently playing media.
+///
+/// mdk exposes no track ids, only indexes into `MediaInfo.audio`, so the
+/// resolved result is the stream index to hand to `setActiveTracks`.
 class DirectLinkAudioTrackResolver {
   const DirectLinkAudioTrackResolver();
 
-  List<AudioTrack> embeddedTracksOf(List<AudioTrack> audioTracks) {
+  List<mdk.AudioStreamInfo> embeddedTracksOf(
+    List<mdk.AudioStreamInfo> audioTracks,
+  ) {
     return audioTracks.where(_isEmbeddedTrack).toList(growable: false);
   }
 
-  AudioTrack? resolve({
+  mdk.AudioStreamInfo? resolve({
     required List<AudioStream> audioStreams,
-    required List<AudioTrack> audioTracks,
+    required List<mdk.AudioStreamInfo> audioTracks,
     required AudioStream targetAudio,
   }) {
     final embeddedTracks = embeddedTracksOf(audioTracks);
@@ -63,12 +70,12 @@ class DirectLinkAudioTrackResolver {
     return null;
   }
 
-  bool _isEmbeddedTrack(AudioTrack track) {
-    return track.id != 'auto' && track.id != 'no' && track.uri == false;
-  }
+  /// Every stream in `MediaInfo.audio` belongs to the open media, so it is
+  /// embedded by definition.
+  bool _isEmbeddedTrack(mdk.AudioStreamInfo track) => true;
 
   bool _matchesTitleLanguageAndCodec(
-    AudioTrack track,
+    mdk.AudioStreamInfo track,
     AudioStream audioStream,
   ) {
     final normalizedTitle = _normalize(audioStream.title);
@@ -80,13 +87,13 @@ class DirectLinkAudioTrackResolver {
       return false;
     }
 
-    return _normalize(track.title) == normalizedTitle &&
-        _normalize(track.language) == normalizedLanguage &&
-        _normalize(track.codec) == normalizedCodec;
+    return _trackTitle(track) == normalizedTitle &&
+        _trackLanguage(track) == normalizedLanguage &&
+        _normalize(track.codec.codec) == normalizedCodec;
   }
 
   bool _matchesTitleAndLanguage(
-    AudioTrack track,
+    mdk.AudioStreamInfo track,
     AudioStream audioStream,
   ) {
     final normalizedTitle = _normalize(audioStream.title);
@@ -95,12 +102,12 @@ class DirectLinkAudioTrackResolver {
       return false;
     }
 
-    return _normalize(track.title) == normalizedTitle &&
-        _normalize(track.language) == normalizedLanguage;
+    return _trackTitle(track) == normalizedTitle &&
+        _trackLanguage(track) == normalizedLanguage;
   }
 
   bool _matchesLanguageAndChannelCount(
-    AudioTrack track,
+    mdk.AudioStreamInfo track,
     AudioStream audioStream,
   ) {
     final normalizedLanguage = _normalize(audioStream.language);
@@ -108,11 +115,17 @@ class DirectLinkAudioTrackResolver {
       return false;
     }
 
-    return _normalize(track.language) == normalizedLanguage &&
-        track.channelscount == audioStream.channels;
+    return _trackLanguage(track) == normalizedLanguage &&
+        track.codec.channels == audioStream.channels;
   }
 
-  String _normalize(String? value) {
+  static String _trackTitle(mdk.AudioStreamInfo track) =>
+      _normalize(track.metadata['title']);
+
+  static String _trackLanguage(mdk.AudioStreamInfo track) =>
+      _normalize(track.metadata['language']);
+
+  static String _normalize(String? value) {
     return (value ?? '').trim().toLowerCase();
   }
 }

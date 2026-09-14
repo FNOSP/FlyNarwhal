@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
@@ -8,13 +9,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:fvp/mdk.dart' as mdk;
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../domain/entities/media_type.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/dialogs/app_dialog.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 import '../../../core/network/api_result.dart';
 import '../../../core/constants/app_constants.dart';
@@ -42,6 +43,8 @@ import 'models/player_seek_origin.dart';
 import 'models/player_skip_action.dart';
 import 'models/resolved_skip_segments.dart';
 import 'services/skip_segment_resolver.dart';
+import 'services/mdk_player_adapter.dart';
+import 'services/mdk_video_view.dart';
 import 'services/direct_link_audio_track_resolver.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
@@ -118,20 +121,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       Duration(seconds: 3);
   static const Duration _directLinkEmbeddedAudioTracksTimeout =
       Duration(seconds: 3);
-  static const String _defaultMpvSubtitleFontSize = '60';
-  static const String _defaultMpvSubtitlePosition = '100';
-  static const String _defaultMpvCachePauseWait = '1.0';
-  static const String _directLinkMpvCachePauseWait = '0.1';
-  static const String _defaultMpvCachePause = 'yes';
-  static const String _directLinkMpvCachePause = 'no';
-  static const String _defaultMpvReadAheadSeconds = '120';
-  static const String _directLinkMpvReadAheadSeconds = '120';
-  static const String _defaultMpvDemuxerMaxBytes = '268435456';
-  static const String _directLinkMpvDemuxerMaxBytes = '268435456';
+  static const String _defaultSubtitleFontSize = '60';
+
+  /// Vertical space the subtitle bottom margin is measured against when the
+  /// user moves the subtitle position slider, in video pixels.
+  static const double _subtitleMaxVerticalMargin = 200;
+
+  /// Seconds of media to keep buffered ahead, per playback mode. mdk's buffer
+  /// range is expressed in milliseconds.
+  static const int _defaultReadAheadSeconds = 120;
+  static const int _directLinkReadAheadSeconds = 120;
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
-  Player? _player;
-  VideoController? _videoController;
+  MdkPlayerAdapter? _player;
   bool _isInitialized = false;
   bool _isLoading = true;
   bool _isPlaying = false;
@@ -154,9 +156,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   StreamSubscription<Duration>? _durationSubscription;
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<bool>? _completedSubscription;
-  StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<PlayerSkipAction>? _skipActionSubscription;
-  StreamSubscription<VideoParams>? _videoParamsSubscription;
+  StreamSubscription<VideoSize>? _videoParamsSubscription;
   void Function()? _removeIntroSkipStateListener;
   late final IntroSkipController _introSkipController;
   IntroSkipState _introSkipState = IntroSkipState.initial();
@@ -210,11 +211,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   final GlobalKey _playbackDetailsButtonKey = GlobalKey();
   bool _playbackDetailsAnimClosing = false;
   int _playbackDetailsMorphGeneration = 0;
-  List<AudioTrack> _embeddedAudioTracks = const <AudioTrack>[];
+  List<mdk.AudioStreamInfo> _embeddedAudioTracks = const [];
   int _audioSwitchToken = 0;
   final DirectLinkAudioTrackResolver _directLinkAudioTrackResolver =
       const DirectLinkAudioTrackResolver();
-  List<SubtitleTrack> _embeddedSubtitleTracks = const <SubtitleTrack>[];
+  List<mdk.SubtitleStreamInfo> _embeddedSubtitleTracks = const [];
+  StreamSubscription<void>? _subtitleTrackListSubscription;
   String? _pendingEmbeddedSubtitleGuid;
   SubtitleStream? _pendingEmbeddedSubtitlePrevious;
   int _embeddedSubtitleSwitchToken = 0;
@@ -236,7 +238,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // platform's known candidates so the menu is never empty, then refined by
   // the background probe once a file is loaded.
   late List<HwdecOption> _availableHwdec;
-  bool _hwdecProbeDone = false;
   late final EpisodeAnalysisController _episodeAnalysisController;
   bool _isPipMode = false;
   bool _isPipHovered = false;
@@ -393,12 +394,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _initializePlayer() async {
-    _player = Player(
-      configuration: const PlayerConfiguration(libass: true),
-    );
-    await _applyDefaultMpvSubtitleSettings(_player!);
-    await _applyDecodeMode(_player!);
-    _videoController = VideoController(_player!);
+    _player = MdkPlayerAdapter();
+    _applyDefaultSubtitleSettings(_player!);
+    _applyDecodeMode(_player!);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
     _setupPlayerBufferListener();
@@ -462,175 +460,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _applyDefaultMpvSubtitleSettings(Player player) async {
-    final platform = player.platform;
-    if (platform is! NativePlayer) {
-      return;
-    }
-
-    await platform.setProperty(
-      'sub-font-size',
-      _defaultMpvSubtitleFontSize,
-    );
-    await platform.setProperty(
-      'sub-pos',
-      _defaultMpvSubtitlePosition,
-    );
+  void _applyDefaultSubtitleSettings(MdkPlayerAdapter player) {
+    player.setProperty('subtitle.font.size', _defaultSubtitleFontSize);
+    // mdk aligns subtitles to the bottom edge by default; the legacy default
+    // position sat flush with the frame bottom.
+    player.setProperty('subtitle.alignment.y', '1');
+    player.setProperty('subtitle.margin.y', _subtitleMarginForPosition(1.0));
   }
 
-  /// Applies the user's decode mode to mpv via the [hwdec] property. mpv
-  /// re-initializes the video decoder on change, so this takes effect for the
+  /// Applies the user's decode mode. `auto` lets mdk pick a hardware decoder
+  /// when one is available; `no` forces the software decoder. Decoder changes
+  /// re-initialize the video decoder in place, so this takes effect for the
   /// currently playing stream without reopening.
-  Future<void> _applyDecodeMode(Player player) async {
-    final platform = player.platform;
-    if (platform is! NativePlayer) {
-      return;
-    }
-    await platform.setProperty('hwdec', _decodeMode);
+  void _applyDecodeMode(MdkPlayerAdapter player) {
+    final decoders = _decodeMode == 'no'
+        ? const <String>['FFmpeg']
+        : _hardwarePreferredDecoders();
+    player.raw.setDecoders(mdk.MediaType.video, decoders);
   }
 
-  /// Probes which hardware decoders (hwdec APIs) actually work for the current
-  /// file on this machine, without disturbing the active player. Because mpv's
-  /// `hwdec-current` does not reliably update when `hwdec` is changed live on
-  /// a playing instance (mpv issue #4289), each candidate is tried by opening
-  /// the same [playUri] on a short-lived, picture-less dedicated [Player] and
-  /// reading back `hwdec-current`. Runs once, in the background, with a
-  /// timeout. The candidate list is already filtered by device/runtime support;
-  /// this probe only narrows it down further for the current stream when mpv
-  /// can confirm a concrete API.
-  Future<void> _probeAvailableHwdec({required String playUri}) async {
-    if (_hwdecProbeDone || playUri.isEmpty) {
-      return;
+  /// Decoder preference for the "auto" decode mode: hardware first, software
+  /// as the fallback mdk switches to when hardware decoding fails.
+  List<String> _hardwarePreferredDecoders() {
+    if (Platform.isMacOS) return const ['VT', 'FFmpeg'];
+    if (Platform.isWindows) {
+      return const ['MFT:d3d=11', 'D3D11', 'CUDA', 'FFmpeg'];
     }
-    _hwdecProbeDone = true;
-
-    final fallbackOptions = List<HwdecOption>.from(_availableHwdec);
-    final candidates = fallbackOptions.map((option) => option.api).toList();
-    if (candidates.isEmpty) {
-      return;
-    }
-
-    final found = <HwdecOption>[];
-
-    // Share the same referrer/origin headers as the real playback so the
-    // source is reachable during the probe.
-    final headers = _buildPlaybackHttpHeaders(playUri);
-    Player? probePlayer;
-    try {
-      // The probe only inspects `hwdec-current`; it must never produce sound.
-      // Without `muted`, this second player audibly replays the start of the
-      // stream while probing (the bug where resume playback was briefly
-      // followed by ~1-2s of the opening audio).
-      probePlayer = Player(
-        configuration: const PlayerConfiguration(libass: false, muted: true),
-      );
-      final platform = probePlayer.platform;
-      for (final api in candidates) {
-        if (platform is! NativePlayer) {
-          break;
-        }
-        try {
-          if (probePlayer.state.playing) {
-            await probePlayer.stop();
-          }
-          // Apply hwdec before opening so the decoder initializes with it
-          // from the start. Setting `hwdec` on an already-playing instance
-          // doesn't reliably update `hwdec-current` (mpv issue #4289), which
-          // is exactly the path the old open-then-set ordering exercised.
-          await platform.setProperty('hwdec', api);
-          await probePlayer.open(Media(playUri, httpHeaders: headers));
-          // A non-empty result means the api engaged for this stream.
-          final current = await _waitForHwdecCurrent(platform, api);
-          if (current.isNotEmpty && !found.any((option) => option.api == api)) {
-            found.add(HwdecOption(api: api, label: _hwdecApiLabel(api)));
-          }
-        } catch (_) {
-          // A candidate needs its own decoder and file support (e.g. HEVC
-          // vs. AVC); fallthrough to the next one.
-        }
-      }
-
-      // Also read the active player's chosen hwdec so current-stream success
-      // can still narrow the list even if the probe player times out.
-      final activePlayer = _player;
-      final activePlatform = activePlayer?.platform;
-      if (activePlatform is NativePlayer) {
-        try {
-          final activeCurrent =
-              await activePlatform.getProperty('hwdec-current');
-          if (activeCurrent.isNotEmpty &&
-              activeCurrent != 'no' &&
-              activeCurrent != 'auto' &&
-              !found.any(
-                (o) =>
-                    o.api == activeCurrent || activeCurrent == '${o.api}-copy',
-              )) {
-            final normalizedApi = activeCurrent.endsWith('-copy')
-                ? activeCurrent.substring(0, activeCurrent.length - 5)
-                : activeCurrent;
-            if (candidates.contains(normalizedApi)) {
-              found.add(
-                HwdecOption(
-                  api: normalizedApi,
-                  label: _hwdecApiLabel(normalizedApi),
-                ),
-              );
-            }
-          }
-        } catch (_) {
-          // The active player may have been disposed mid-probe; ignore.
-        }
-      }
-
-      if (mounted && found.isNotEmpty) {
-        setState(() => _availableHwdec = List.unmodifiable(found));
-      }
-    } catch (e, st) {
-      AppTalker.error(
-        'Player',
-        error: e,
-        stackTrace: st,
-        message: 'hwdec probe failed',
-      );
-    } finally {
-      try {
-        await probePlayer?.dispose();
-      } catch (_) {}
-    }
+    if (Platform.isLinux) return const ['VAAPI', 'CUDA', 'VDPAU', 'FFmpeg'];
+    return const ['FFmpeg'];
   }
 
-  /// Polls mpv's `hwdec-current` after switching [api] on a probe player. The
-  /// value only becomes non-empty/reflecting the api once the decoder for the
-  /// current stream has been re-initialized; a decoupled read would falsely
-  /// report the fallback. Returns empty if it never converges within the
-  /// timeout.
-  ///
-  /// MediaKit renders via libmpv's OpenGL render API (`mpv_render_context`),
-  /// where hardware frames cannot be handed to the renderer zero-copy; mpv
-  /// falls back to copy-back and reports `hwdec-current` with a `-copy`
-  /// suffix (e.g. `videotoolbox-copy`). So an api both exact- and `-copy`-
-  /// matched counts as usable. `hwdec` is still stored/returned as the plain
-  /// api (mpv accepts it and just uses the copy variant).
-  Future<String> _waitForHwdecCurrent(
-    NativePlayer platform,
-    String api,
-  ) async {
-    const attempts = 40;
-    const step = Duration(milliseconds: 100);
-    for (var i = 0; i < attempts; i++) {
-      if (!mounted) {
-        return '';
-      }
-      final current = await platform.getProperty('hwdec-current');
-      if (current == api || current == '$api-copy') {
-        return current;
-      }
-      await Future<void>.delayed(step);
-    }
-    return '';
+  /// Translates the subtitle vertical-position setting (0.0 = bottom,
+  /// 1.0 = top) into mdk's bottom margin in video pixels.
+  String _subtitleMarginForPosition(double verticalPosition) {
+    final clamped = verticalPosition.clamp(0.0, 1.0);
+    final margin = ((1 - clamped) * _subtitleMaxVerticalMargin).round();
+    return margin.toString();
   }
 
-  /// Human-readable label for a hwdec API probe candidate.
+  /// Human-readable label for a hardware decoder API reported by the device
+  /// context service.
   String _hwdecApiLabel(String api) {
     return switch (api) {
       'videotoolbox' => 'VideoToolbox',
@@ -643,55 +512,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     };
   }
 
-  Future<void> _applyDirectLinkCachePolicy(Player player) async {
-    final platform = player.platform;
-    if (platform is! NativePlayer) {
-      return;
-    }
-
+  /// Buffers ahead of the play position. Direct-link playback keeps the same
+  /// window as proxied playback; mdk's range is a duration rather than a byte
+  /// budget, so the previous byte cap has no equivalent.
+  void _applyDirectLinkCachePolicy(MdkPlayerAdapter player) {
     final isDirectLink = _playingInfoCache?.isUseDirectLink == true;
-    final cachePauseWait =
-        isDirectLink ? _directLinkMpvCachePauseWait : _defaultMpvCachePauseWait;
-    final cachePause =
-        isDirectLink ? _directLinkMpvCachePause : _defaultMpvCachePause;
     final readAheadSeconds = isDirectLink
-        ? _directLinkMpvReadAheadSeconds
-        : _defaultMpvReadAheadSeconds;
-    final demuxerMaxBytes = isDirectLink
-        ? _directLinkMpvDemuxerMaxBytes
-        : _defaultMpvDemuxerMaxBytes;
-    await platform.setProperty(
-      'cache',
-      'yes',
-      waitForInitialization: false,
-    );
-    await platform.setProperty(
-      'demuxer-readahead-secs',
-      readAheadSeconds,
-      waitForInitialization: false,
-    );
-    await platform.setProperty(
-      'demuxer-max-bytes',
-      demuxerMaxBytes,
-      waitForInitialization: false,
-    );
-    await platform.setProperty(
-      'cache-pause-wait',
-      cachePauseWait,
-      waitForInitialization: false,
-    );
-    await platform.setProperty(
-      'cache-pause',
-      cachePause,
-      waitForInitialization: false,
-    );
+        ? _directLinkReadAheadSeconds
+        : _defaultReadAheadSeconds;
+    player.setBufferRange(min: 0, max: readAheadSeconds * 1000);
   }
 
   void _setupPlayerPositionListener() {
     _positionSubscription?.cancel();
     final player = _player;
     if (player == null) return;
-    _positionSubscription = player.stream.position.listen((position) {
+    _positionSubscription = player.position.listen((position) {
       final positionMilliseconds = position.inMilliseconds;
       if (mounted && _currentPosition != positionMilliseconds) {
         setState(() => _currentPosition = positionMilliseconds);
@@ -709,7 +545,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player == null) return;
 
-    _bufferSubscription = player.stream.buffer.listen((bufferPosition) {
+    _bufferSubscription = player.buffer.listen((bufferPosition) {
       final bufferMilliseconds = bufferPosition.inMilliseconds;
       if (mounted && _bufferedPosition != bufferMilliseconds) {
         setState(() => _bufferedPosition = bufferMilliseconds);
@@ -731,7 +567,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _durationSubscription?.cancel();
     final player = _player;
     if (player == null) return;
-    _durationSubscription = player.stream.duration.listen((duration) {
+    _durationSubscription = player.duration.listen((duration) {
       final durationMilliseconds = duration.inMilliseconds;
       if (durationMilliseconds <= 0 || durationMilliseconds == _duration) {
         return;
@@ -751,9 +587,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player == null) return;
 
-    _isPlaying = player.state.playing;
+    _isPlaying = player.isPlaying;
     _introSkipController.dispatch(PlayingChanged(_isPlaying));
-    _playingSubscription = player.stream.playing.listen((isPlaying) {
+    _playingSubscription = player.playing.listen((isPlaying) {
       _handlePlaybackStateChanged(isPlaying);
       _introSkipController.dispatch(PlayingChanged(isPlaying));
     });
@@ -764,7 +600,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player == null) return;
 
-    _completedSubscription = player.stream.completed.listen((completed) {
+    _completedSubscription = player.completed.listen((completed) {
       if (!completed || !mounted) return;
       _handlePlaybackCompleted();
     });
@@ -778,10 +614,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player == null) return;
 
-    _videoParamsSubscription = player.stream.videoParams.listen((params) {
+    _videoParamsSubscription = player.videoParams.listen((params) {
       if (!mounted) return;
-      final width = params.w ?? 0;
-      final height = params.h ?? 0;
+      final width = params.w;
+      final height = params.h;
       AppTalker.info(
         'WindowRatio',
         'videoParams: w=$width h=$height dw=${params.dw} dh=${params.dh}',
@@ -808,24 +644,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _resetDirectLinkEmbeddedSubtitleState() {
     _audioSwitchToken++;
-    _embeddedAudioTracks = const <AudioTrack>[];
-    _tracksSubscription?.cancel();
-    _tracksSubscription = null;
-    _embeddedSubtitleTracks = const <SubtitleTrack>[];
+    _embeddedAudioTracks = const [];
+    _subtitleTrackListSubscription?.cancel();
+    _subtitleTrackListSubscription = null;
+    _embeddedSubtitleTracks = const [];
     _clearPendingEmbeddedSubtitleSwitch(advanceToken: true);
   }
 
-  void _syncEmbeddedSubtitleTracks(Tracks tracks) {
+  void _syncEmbeddedSubtitleTracks(List<mdk.SubtitleStreamInfo> subtitleStreams) {
     _embeddedSubtitleTracks =
-        _directLinkSubtitleTrackResolver.embeddedTracksOf(tracks.subtitle);
+        _directLinkSubtitleTrackResolver.embeddedTracksOf(subtitleStreams);
   }
 
   void _setupDirectLinkEmbeddedSubtitleTracking() {
-    _tracksSubscription?.cancel();
-    _tracksSubscription = null;
+    _subtitleTrackListSubscription?.cancel();
+    _subtitleTrackListSubscription = null;
 
     if (!_shouldTrackDirectLinkEmbeddedSubtitles) {
-      _embeddedSubtitleTracks = const <SubtitleTrack>[];
+      _embeddedSubtitleTracks = const [];
       return;
     }
 
@@ -834,9 +670,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
 
-    _syncEmbeddedSubtitleTracks(player.state.tracks);
-    _tracksSubscription = player.stream.tracks.listen((tracks) {
-      _syncEmbeddedSubtitleTracks(tracks);
+    _syncEmbeddedSubtitleTracks(player.subtitleStreams);
+    _subtitleTrackListSubscription = player.trackListChanges.listen((_) {
+      _syncEmbeddedSubtitleTracks(player.subtitleStreams);
       final pendingGuid = _pendingEmbeddedSubtitleGuid;
       final currentSubtitleGuid =
           _playingInfoCache?.currentSubtitleStream?.guid;
@@ -849,9 +685,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
-  /// Waits until [player.stream.tracks] first reports at least one real
-  /// embedded subtitle track. Returns [true] if tracks became available
-  /// before the timeout; [false] on timeout, disposal, or request staleness.
+  /// Waits until the player reports at least one real embedded subtitle track.
+  /// Returns [true] if tracks became available before the timeout; [false] on
+  /// timeout, disposal, or request staleness.
   Future<bool> _waitForDirectLinkEmbeddedSubtitleTracks({
     required SubtitleStream? subtitleStream,
     required int loadToken,
@@ -864,7 +700,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null) return false;
 
     final completer = Completer<bool>();
-    StreamSubscription<Tracks>? subscription;
+    StreamSubscription<void>? subscription;
     Timer? timeoutTimer;
 
     void cleanup() {
@@ -879,13 +715,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     });
 
-    subscription = player.stream.tracks.listen((tracks) {
-      final embeddedTracks =
-          _directLinkSubtitleTrackResolver.embeddedTracksOf(tracks.subtitle);
+    subscription = player.trackListChanges.listen((_) {
+      final embeddedTracks = _directLinkSubtitleTrackResolver
+          .embeddedTracksOf(player.subtitleStreams);
       if (embeddedTracks.isNotEmpty) {
         cleanup();
         if (!completer.isCompleted) {
-          _syncEmbeddedSubtitleTracks(tracks);
+          _syncEmbeddedSubtitleTracks(player.subtitleStreams);
           completer.complete(true);
         }
       }
@@ -978,7 +814,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       (previous, next) {
         if (!mounted || _areSubtitleSettingsEqual(previous, next)) return;
         if (_isCurrentSubtitleMpvAdjustable) {
-          unawaited(_applySubtitleSettingsToMpv(next));
+          _applySubtitleSettingsToMpv(next);
           return;
         }
         if (previous?.offsetSeconds != next.offsetSeconds) {
@@ -1095,7 +931,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _openEpisode(nextEpisode);
         }
       case PausePlayback():
-        await _player?.pause();
+        _player?.pause();
       case ShowPlaybackEnd():
         if (mounted) setState(() {});
       case AwaitNextEpisode():
@@ -1646,27 +1482,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player == null) return;
     _resetDirectLinkEmbeddedSubtitleState();
-    await _applyDirectLinkCachePolicy(player);
-
-    // Set mpv native start property so decoding positions from the desired
-    // point. This is the most reliable way for history-progress resume.
-    final platform = player.platform;
-    if (platform is NativePlayer) {
-      if (startPositionMs > 0) {
-        final seconds = (startPositionMs / 1000).toStringAsFixed(3);
-        await platform.setProperty('start', seconds);
-      } else {
-        // Clear any residual start property from a previous open.
-        await platform.setProperty('start', 'none');
-      }
-    }
+    _applyDirectLinkCachePolicy(player);
 
     final headers = _buildPlaybackHttpHeaders(playUri);
+    // Starting the decoder at the resume position is the most reliable way to
+    // restore history progress; `_verifyAndCorrectResume` still runs below as
+    // a fallback for sources that ignore the start position.
     await player.open(
-      Media(
-        playUri,
-        httpHeaders: headers.isEmpty ? null : headers,
-      ),
+      uri: playUri,
+      httpHeaders: headers.isEmpty ? null : headers,
+      startPositionMs: startPositionMs,
     );
     _setupDirectLinkEmbeddedSubtitleTracking();
     if (_playingInfoCache?.isUseDirectLink == true) {
@@ -1719,7 +1544,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final cache = cacheOverride ?? _playingInfoCache;
     if (player == null || cache == null) return;
 
-    final targetMs = positionMs ?? player.state.position.inMilliseconds;
+    final targetMs = positionMs ?? _player?.positionMs ?? 0;
     if (targetMs < 0) return;
 
     unawaited(() async {
@@ -1860,7 +1685,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     try {
-      final startPositionMs = _player!.state.position.inMilliseconds;
+      final startPositionMs = _player?.positionMs ?? 0;
       await _reopenPlaybackWithDirectLink(startPositionMs: startPositionMs);
 
       final verified = await _verifyPlaybackStarted(
@@ -1958,7 +1783,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ))
               .subtitlePlaylistUrl
           : null;
-      final startPositionMs = _player?.state.position.inMilliseconds ?? 0;
+      final startPositionMs = _player?.positionMs ?? 0;
       _prepareHlsSubtitleOverlayMode(
         subtitleStream: cache.currentSubtitleStream,
         subtitlePlaylistUrl: subtitlePlaylistUrl,
@@ -2033,9 +1858,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     //   So wait for duration > 0 (stream loaded) before the correction seek.
     for (int attempt = 0; attempt < 30; attempt++) {
       await Future<void>.delayed(const Duration(milliseconds: 300));
-      final state = player.state;
-      final positionMs = state.position.inMilliseconds;
-      final durationMs = state.duration.inMilliseconds;
+      final positionMs = player.positionMs;
+      final durationMs = player.durationMs;
       if (positionMs > 0 && (positionMs - startPositionMs).abs() <= 3000) {
         return;
       }
@@ -2044,7 +1868,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }
 
-    final currentPosition = player.state.position.inMilliseconds;
+    final currentPosition = _player?.positionMs ?? 0;
     final deviation = (currentPosition - startPositionMs).abs();
 
     if (deviation <= 3000) {
@@ -2061,9 +1885,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // If the seek was still dropped (stream not fully ready), retry once now
     // that duration is known so the correction is not silently lost.
-    final afterSeekPosition = player.state.position.inMilliseconds;
+    final afterSeekPosition = _player?.positionMs ?? 0;
     final afterSeekDeviation = (afterSeekPosition - startPositionMs).abs();
-    if (afterSeekDeviation > 3000 && player.state.duration.inMilliseconds > 0) {
+    if (afterSeekDeviation > 3000 && player.durationMs > 0) {
       await _seekExecutor.performSeek(
         targetMilliseconds: startPositionMs,
         origin: PlayerSeekOrigin.resumeCorrection,
@@ -2151,35 +1975,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isDirectLinkEmbeddedSubtitle(subtitleStream);
   }
 
-  Future<void> _applySubtitleSettingsToMpv(SubtitleSettings settings) async {
+  void _applySubtitleSettingsToMpv(SubtitleSettings settings) {
     final player = _player;
     if (player == null || !_isCurrentSubtitleMpvAdjustable) {
       return;
     }
 
-    final platform = player.platform;
-    if (platform is! NativePlayer) {
-      return;
-    }
-
-    final subPos = ((1 - settings.verticalPosition.clamp(0.0, 1.0)) * 100)
-        .round()
-        .clamp(0, 100);
     try {
-      await platform.setProperty(
-        'sub-delay',
-        (-settings.offsetSeconds).toStringAsFixed(3),
+      player.setProperty(
+        'subtitle.scale',
+        settings.fontScale.toStringAsFixed(3),
       );
-      await platform.setProperty(
-          'sub-scale', settings.fontScale.toStringAsFixed(3));
-      await platform.setProperty('sub-font', AppFonts.primary);
-      // Let sub-pos move ASS subtitles that rely on style margins. Has no
-      // effect on absolutely-positioned (\pos/\move) danmaku tracks.
-      await platform.setProperty('sub-ass-force-margins', 'yes');
-      await platform.setProperty('sub-pos', subPos.toString());
-      await platform.setProperty('sub-visibility', 'yes');
+      player.setProperty('subtitle.font', AppFonts.primary);
+      player.setProperty(
+        'subtitle.margin.y',
+        _subtitleMarginForPosition(settings.verticalPosition),
+      );
+      player.showSubtitles();
+      // The subtitle offset slider has no backend equivalent in mdk, which
+      // exposes no delay property; the setting still drives the Dart-rendered
+      // HLS overlay below, but not the native subtitle renderer.
     } catch (e) {
-      AppTalker.warning('Player', 'apply subtitle settings to mpv failed: $e');
+      AppTalker.warning('Player', 'apply subtitle settings failed: $e');
     }
   }
 
@@ -2205,26 +2022,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
 
         _clearPositionLockedSubtitle();
-        await player.setSubtitleTrack(SubtitleTrack.no());
-        await player.setSubtitleTrack(
-          SubtitleTrack.data(
-            content,
-            title:
-                subtitleStream.title.isNotEmpty ? subtitleStream.title : null,
-            language: subtitleStream.language.isNotEmpty
-                ? subtitleStream.language
-                : null,
-          ),
+        player.removeExternalSubtitle();
+        player.hideSubtitles();
+        final cacheDirectory = await getApplicationSupportDirectory();
+        if (!mounted || loadToken != _loadRequestToken) {
+          return;
+        }
+        await player.addExternalSubtitle(
+          content,
+          subtitleCacheDirectory: cacheDirectory,
+          title:
+              subtitleStream.title.isNotEmpty ? subtitleStream.title : null,
+          language: subtitleStream.language.isNotEmpty
+              ? subtitleStream.language
+              : null,
+          format: subtitleStream.format,
         );
         _updatePositionLockedSubtitle(content, subtitleStream.format);
-        await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+        _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
       } catch (e) {
         AppTalker.warning('Player', 'apply external subtitle async failed: $e');
       }
     }());
   }
 
-  SubtitleTrack? _resolveDirectLinkSubtitleTrack(
+  mdk.SubtitleStreamInfo? _resolveDirectLinkSubtitleTrack(
       SubtitleStream subtitleStream) {
     final cache = _playingInfoCache;
     if (cache == null) {
@@ -2252,29 +2074,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     _clearPositionLockedSubtitle();
-    final platform = player.platform;
     try {
-      if (platform is NativePlayer) {
-        // Use mpv sid directly to avoid the heavier synchronized track-switch
-        // path on hot subtitle interactions.
-        await platform.setProperty(
-          'sid',
-          targetTrack.id,
-          waitForInitialization: false,
-        );
-      } else {
-        await player.setSubtitleTrack(targetTrack);
-      }
+      // An external track outranks embedded ones in mdk, so drop it before
+      // selecting an embedded index.
+      player.removeExternalSubtitle();
+      player.setSubtitleTrack(targetTrack.index);
     } catch (error) {
       AppTalker.warning(
         'Player',
-        'lightweight sid switch failed, fallback to setSubtitleTrack: $error',
+        'embedded subtitle switch failed: $error',
       );
-      await player.setSubtitleTrack(targetTrack);
+      return false;
     }
 
     _pendingEmbeddedSubtitleGuid = null;
-    await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+    _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
     return true;
   }
 
@@ -2379,14 +2193,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (subtitleStream == null) {
       _clearPendingEmbeddedSubtitleSwitch();
       _clearPositionLockedSubtitle();
-      await player.setSubtitleTrack(SubtitleTrack.no());
+      player.setSubtitleTrack(null);
       return;
     }
 
     if (_useHlsSubtitleOverlay && subtitleStream.isExternal != 1) {
       _clearPendingEmbeddedSubtitleSwitch();
       _clearPositionLockedSubtitle();
-      await player.setSubtitleTrack(SubtitleTrack.no());
+      player.setSubtitleTrack(null);
       return;
     }
 
@@ -2416,7 +2230,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       _clearPendingEmbeddedSubtitleSwitch();
       _clearPositionLockedSubtitle();
-      await player.setSubtitleTrack(SubtitleTrack.no());
+      player.removeExternalSubtitle();
+      player.hideSubtitles();
       final content = await ref
           .read(playerServiceProvider)
           .downloadExternalSubtitle(subtitleStream.guid);
@@ -2431,21 +2246,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return;
       }
 
-      await player.setSubtitleTrack(
-        SubtitleTrack.data(
-          content,
-          title: subtitleStream.title.isNotEmpty ? subtitleStream.title : null,
-          language: subtitleStream.language.isNotEmpty
-              ? subtitleStream.language
-              : null,
-        ),
+      final cacheDirectory = await getApplicationSupportDirectory();
+      if (!mounted || player != _player) {
+        return;
+      }
+      await player.addExternalSubtitle(
+        content,
+        subtitleCacheDirectory: cacheDirectory,
+        title: subtitleStream.title.isNotEmpty ? subtitleStream.title : null,
+        language: subtitleStream.language.isNotEmpty
+            ? subtitleStream.language
+            : null,
+        format: subtitleStream.format,
       );
       _updatePositionLockedSubtitle(content, subtitleStream.format);
-      await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+      _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
     } catch (e) {
       AppTalker.warning('Player', 'apply external subtitle failed: $e');
       if (player == _player) {
-        await player.setSubtitleTrack(SubtitleTrack.no());
+        player.setSubtitleTrack(null);
       }
       if (strict) {
         rethrow;
@@ -2648,7 +2467,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     var errored = false;
     String? lastError;
-    final errorSub = player.stream.error.listen((message) {
+    final errorSub = player.error.listen((message) {
       errored = true;
       lastError = message;
     });
@@ -2673,13 +2492,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
           return false;
         }
-        final state = player.state;
-        if (state.duration.inMilliseconds > 0 && state.width != null) {
+        final durationMs = player.durationMs;
+        final size = player.videoSize;
+        if (durationMs > 0 && size != null) {
           AppTalker.info(
             'Player',
             '[$label] playback verified in ${stopwatch.elapsedMilliseconds}ms '
-                '(duration=${state.duration.inMilliseconds}ms '
-                'size=${state.width}x${state.height})',
+                '(duration=${durationMs}ms size=${size.w}x${size.h})',
           );
           return true;
         }
@@ -2687,22 +2506,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } finally {
       await errorSub.cancel();
     }
-    // Timeout: dump the full player state so the next occurrence shows whether
-    // mpv never opened the container (duration=0, width=null), opened it but
-    // has not decoded a frame yet (duration>0, width=null), or stalled mid
-    // network (buffer/buffering/position values).
-    final state = player.state;
+    // Timeout: dump the player state so the next occurrence shows whether the
+    // media never opened (duration=0, size=null), opened but has not decoded a
+    // frame yet (duration>0, size=null), or stalled mid network.
+    final size = player.videoSize;
     AppTalker.warning(
       'Player',
       '[$label] playback verification timed out after '
           '${stopwatch.elapsedMilliseconds}ms (limit ${timeout.inSeconds}s): '
-          'duration=${state.duration.inMilliseconds}ms '
-          'size=${state.width}x${state.height} '
-          'position=${state.position.inMilliseconds}ms '
-          'buffer=${state.buffer.inMilliseconds}ms '
-          'buffering=${state.buffering} '
-          'playing=${state.playing} '
-          'completed=${state.completed} '
+          'duration=${player.durationMs}ms '
+          'size=${size == null ? 'null' : '${size.w}x${size.h}'} '
+          'position=${player.positionMs}ms '
+          'playing=${player.isPlaying} '
           'errored=$errored lastError=$lastError',
     );
     return false;
@@ -2897,16 +2712,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
 
       _volume = ref.read(playerSettingsManagerProvider).getVolume();
-      await _player!.setVolume(uiVolumeToMpvVolume(_volume));
+      _player!.setVolume(uiVolumeToMpvVolume(_volume));
 
       _speed = ref.read(playerSettingsManagerProvider).getSpeed();
-      await _player!.setRate(_speed);
+      _player!.setRate(_speed);
 
       setState(() {
         _isLoading = false;
         _isInitialized = true;
-        _isPlaying = _player?.state.playing ?? false;
-        final playerDuration = _player?.state.duration.inMilliseconds ?? 0;
+        _isPlaying = _player?.isPlaying ?? false;
+        final playerDuration = _player?.durationMs ?? 0;
         final serviceDuration =
             result.playingInfoCache.currentVideoStream!.duration > 0
                 ? result.playingInfoCache.currentVideoStream!.duration * 1000
@@ -2948,13 +2763,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
       // Start the initial idle countdown after playback state is finalized.
       _showUi();
-
-      // Probe which hardware decoders actually work for this file (in the
-      // background, without touching the active player) so the
-      // 指定硬件解码器 menu can list them.
-      unawaited(
-        _probeAvailableHwdec(playUri: result.preparedPlaySource.playUri),
-      );
 
       _fetchEpisodeContextAsync(requestToken);
 
@@ -3025,7 +2833,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _startPlayRecordTimer() {
     _playRecordTimer?.cancel();
     _playRecordTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      final position = _player?.state.position.inMilliseconds ?? 0;
+      final position = _player?.positionMs ?? 0;
       if (position > 0 && position != _lastRecordedPosition) {
         _lastRecordedPosition = position;
         _queuePlayRecordUpdate(positionMs: position);
@@ -3202,7 +3010,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _togglePlayPause() {
     if (_player == null) return;
-    if (_player!.state.playing) {
+    if (_player?.isPlaying ?? false) {
       _player!.pause();
     } else {
       _player!.play();
@@ -3222,7 +3030,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _seekRelative(int milliseconds) {
     if (_player == null) return;
-    final current = _player!.state.position.inMilliseconds;
+    final current = _player?.positionMs ?? 0;
     final target = (current + milliseconds).clamp(0, _duration).toInt();
     final origin =
         _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
@@ -3320,7 +3128,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _seekRelativeWithToast(int milliseconds) {
     final player = _player;
     if (player == null) return;
-    final current = player.state.position.inMilliseconds;
+    final current = _player?.positionMs ?? 0;
     final target = (current + milliseconds).clamp(0, _duration).toInt();
     final origin =
         _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
@@ -3400,17 +3208,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// the window to what is actually displayed, falling back to the raw decode
   /// size and then to the negotiated stream info.
   double? _resolveVideoAspectRatio() {
-    final state = _player?.state;
-    final params = state?.videoParams;
-    final displayWidth = params?.dw ?? 0;
-    final displayHeight = params?.dh ?? 0;
-    if (displayWidth > 0 && displayHeight > 0) {
-      return displayWidth / displayHeight;
-    }
-    final liveWidth = state?.width ?? 0;
-    final liveHeight = state?.height ?? 0;
-    if (liveWidth > 0 && liveHeight > 0) {
-      return liveWidth / liveHeight;
+    final size = _player?.videoSize;
+    if (size != null && size.dh > 0 && size.dw > 0) {
+      return size.dw / size.dh;
     }
     final videoStream = _playingInfoCache?.currentVideoStream;
     if (videoStream != null &&
@@ -3536,7 +3336,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     unawaited(ref.read(playerSettingsManagerProvider).setDecodeMode(mode));
     final player = _player;
     if (player != null) {
-      unawaited(_applyDecodeMode(player));
+      _applyDecodeMode(player);
     }
   }
 
@@ -3556,7 +3356,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     try {
       setState(() => _isLoading = true);
-      final currentPosition = player.state.position.inMilliseconds;
+      final currentPosition = _player?.positionMs ?? 0;
       final currentPlayLink = cache.playLink;
       final hasTranscodeSession = !cache.isUseDirectLink &&
           currentPlayLink != null &&
@@ -3659,41 +3459,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _buildVideoView() {
-    final controller = _videoController!;
+    final controller = _player!;
+    // A fixed 画面比例 mode stretches the picture into a box of that ratio,
+    // contain-fitted in the player area; PiP covers its window instead.
     final ratio = _isPipMode ? null : _videoFillModeRatio;
-    if (ratio == null) {
-      return Video(
-        controller: controller,
-        controls: NoVideoControls,
-        fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
-      );
-    }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final maxW = constraints.maxWidth;
-        final maxH = constraints.maxHeight;
-        if (maxW <= 0 || maxH <= 0) return const SizedBox.shrink();
-        double width;
-        double height;
-        if (maxW / maxH > ratio) {
-          height = maxH;
-          width = maxH * ratio;
-        } else {
-          width = maxW;
-          height = maxW / ratio;
-        }
-        return Center(
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: Video(
-              controller: controller,
-              controls: NoVideoControls,
-              fit: BoxFit.fill,
-            ),
-          ),
-        );
-      },
+    return MdkVideoView(
+      controller: controller,
+      cover: _isPipMode,
+      fillRatio: ratio,
     );
   }
 
@@ -3879,7 +3652,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final switchToken = ++_cloudSwitchToken;
     setState(() => _isLoading = true);
     try {
-      final currentPosition = player.state.position.inMilliseconds;
+      final currentPosition = _player?.positionMs ?? 0;
       final directLink = await _sessionCoordinator.getDirectPlayLink(
         mediaGuid: videoStream.mediaGuid,
         startPositionMs: currentPosition,
@@ -4067,7 +3840,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _cloudPlaybackErrorVisible = false;
     });
     try {
-      final currentPosition = player.state.position.inMilliseconds;
+      final currentPosition = _player?.positionMs ?? 0;
       if (mode == CloudPlayMode.direct) {
         final entered = await _enterCloudDirectMode(
           switchToken: switchToken,
@@ -4324,7 +4097,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     try {
       setState(() => _isLoading = true);
-      final currentPosition = player.state.position.inMilliseconds;
+      final currentPosition = _player?.positionMs ?? 0;
       final currentPlayLink = cache.playLink;
       final isTargetDirectLink = _sessionCoordinator.supportsDirectLink(
         videoStream,
@@ -4458,7 +4231,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (!_isCurrentAudioSwitch(switchToken)) {
           return;
         }
-        await _applyDirectLinkAudioTrack(audioTrack);
+        _applyDirectLinkAudioTrack(audioTrack);
       } else {
         final playLink = cache.playLink;
         if (playLink == null || playLink.isEmpty) {
@@ -4469,7 +4242,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             .resetAudio(
               MediaPRequest(
                 playLink: playLink,
-                startTimestamp: player.state.position.inMilliseconds ~/ 1000,
+                startTimestamp: _player?.positionMs ?? 0 ~/ 1000,
                 clearCache: true,
                 audioEncoder: 'aac',
                 channels: 2,
@@ -4518,11 +4291,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<AudioTrack> _resolveDirectLinkAudioTrack(
+  Future<mdk.AudioStreamInfo> _resolveDirectLinkAudioTrack(
     AudioStream audio,
     int switchToken,
   ) async {
-    AudioTrack? resolveCurrentTracks() {
+    mdk.AudioStreamInfo? resolveCurrentTracks() {
       return _directLinkAudioTrackResolver.resolve(
         audioStreams:
             _playingInfoCache?.currentAudioStreamList ?? const <AudioStream>[],
@@ -4532,7 +4305,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     _embeddedAudioTracks = _directLinkAudioTrackResolver.embeddedTracksOf(
-      _player!.state.tracks.audio,
+      _player?.audioStreams ?? const [],
     );
     final immediateTrack = resolveCurrentTracks();
     if (immediateTrack != null) {
@@ -4543,16 +4316,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null) {
       throw StateError('播放器尚未初始化');
     }
-    final completer = Completer<AudioTrack>();
-    late final StreamSubscription<Tracks> subscription;
+    final completer = Completer<mdk.AudioStreamInfo>();
+    late final StreamSubscription<void> subscription;
     final timeoutTimer = Timer(_directLinkEmbeddedAudioTracksTimeout, () {
       if (!completer.isCompleted) {
         completer.completeError(StateError('等待音频轨道超时'));
       }
     });
-    subscription = player.stream.tracks.listen((tracks) {
+    subscription = player.trackListChanges.listen((_) {
       _embeddedAudioTracks =
-          _directLinkAudioTrackResolver.embeddedTracksOf(tracks.audio);
+          _directLinkAudioTrackResolver.embeddedTracksOf(player.audioStreams);
       final resolvedTrack = resolveCurrentTracks();
       if (resolvedTrack != null && !completer.isCompleted) {
         completer.complete(resolvedTrack);
@@ -4590,7 +4363,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!_isCurrentAudioSwitch(switchToken)) {
         return;
       }
-      await _applyDirectLinkAudioTrack(targetTrack);
+      _applyDirectLinkAudioTrack(targetTrack);
     } catch (error, stackTrace) {
       AppTalker.error(
         'Player',
@@ -4601,28 +4374,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _applyDirectLinkAudioTrack(AudioTrack audioTrack) async {
+  void _applyDirectLinkAudioTrack(mdk.AudioStreamInfo audioTrack) {
     final player = _player;
     if (player == null) {
       throw StateError('播放器尚未初始化');
     }
-    final platform = player.platform;
-    if (platform is NativePlayer) {
-      try {
-        await platform.setProperty(
-          'aid',
-          audioTrack.id,
-          waitForInitialization: false,
-        );
-        return;
-      } catch (error) {
-        AppTalker.warning(
-          'Player',
-          'mpv aid switch failed, fallback to setAudioTrack: $error',
-        );
-      }
-    }
-    await player.setAudioTrack(audioTrack);
+    player.setAudioTrack(audioTrack.index);
   }
 
   bool _isCurrentAudioSwitch(int switchToken) {
@@ -4674,7 +4431,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isLoading = !isDirectLinkEmbeddedSwitch;
       });
       _requestedSubtitleGuid = subtitle?.guid;
-      final currentPosition = player.state.position.inMilliseconds;
+      final currentPosition = _player?.positionMs ?? 0;
       final initialPlayLink = cache.playLink;
       final updatedCache = cache.copyWith(
         previousSubtitle: previousSubtitle,
@@ -4835,7 +4592,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _durationSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
-    _tracksSubscription?.cancel();
+    _subtitleTrackListSubscription?.cancel();
     _videoParamsSubscription?.cancel();
     _skipActionSubscription?.cancel();
     _removeIntroSkipStateListener?.call();
@@ -4884,7 +4641,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             onDoubleTap: _handleVideoDoubleTap,
             child: Container(
               color: Colors.black,
-              child: _isInitialized && _videoController != null
+              child: _isInitialized && _player != null
                   ? _buildVideoView()
                   : const Center(child: AppLoadingProgressRing()),
             ),
@@ -4897,10 +4654,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   return PlayerDanmakuOverlay(
                     danmakuList: danmakuState.danmakuList,
                     position: position,
-                    // Gate danmaku on real playback readiness: media_kit's
-                    // playing flag flips true as soon as mpv starts loading,
-                    // long before the first frame renders, which would let
-                    // danmaku fly over the loading spinner.
+                    // Gate danmaku on real playback readiness: the playing flag flips
+                    // true as soon as the player starts loading, long before the
+                    // first frame renders, which would let danmaku fly over the
+                    // loading spinner.
                     isPlaying: _isPlaying && _isInitialized && !_isLoading,
                     playbackRate: _speed,
                     isVisible: danmakuState.isVisible,
@@ -5208,7 +4965,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _introSkipController.dispatch(const MediaOpened());
     unawaited(() async {
       await _performSeek(replayTarget, PlayerSeekOrigin.settings);
-      await _player?.play();
+      _player?.play();
     }());
   }
 

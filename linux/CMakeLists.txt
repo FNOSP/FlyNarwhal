@@ -34,17 +34,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Profile" "Release")
 endif()
 
-# Bundle a full libmpv (with PGS/HDMV SUP bitmap subtitle support) into the
-# Linux app on every build type, not just release. When the build host does
-# not have `libmpv.so.2` installed (or the system copy lacks the PGS decoder),
-# the Dart scripts download a self-contained closure from the Ubuntu 24.04
-# apt pool into <project>/build/linux/libmpv_cache/ and use that as the
-# bundler source. Set `-DFLY_NARWHAL_FETCH_FULL_LIBMPV=OFF` to skip the
-# download attempt (system libmpv is still used when present).
-option(FLY_NARWHAL_FETCH_FULL_LIBMPV
-  "Bundle full libmpv into every Linux build (downloads when host has none)"
-  ON)
-
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
@@ -79,13 +68,6 @@ set_target_properties(${BINARY_NAME}
   PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/intermediates_do_not_run"
 )
-
-# === Full libmpv bundling =================================================
-# The POST_BUILD hook for bundling full libmpv lives in runner/CMakeLists.txt:
-# add_custom_command(TARGET ...) must be declared in the same directory scope
-# where the target is created (the runner subdirectory), otherwise CMake
-# rejects it with "TARGET was not created in this directory".
-
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.

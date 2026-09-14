@@ -901,7 +901,7 @@ class PlayerSessionCoordinator {
     );
 
     // Always resolve HLS masters to the concrete video playlist because
-    // media_kit can stall on subtitle-bearing master playlists.
+    // The backend can stall on subtitle-bearing master playlists.
     final useSubtitleOverlay = currentSubtitleStream != null &&
         currentSubtitleStream.isExternal != 1 &&
         result.subtitlePlaylistUrl != null &&
@@ -986,7 +986,7 @@ class PlayerSessionCoordinator {
         ? '?direct_link_quality_index=$directLinkQualityIndex'
         : '';
     final fullUrl = '$base$controlPlayLink$qualityQuery';
-    // mpv (media_kit) cannot open the backend's "?range=bytes=offset-"
+    // The player backend cannot open the server's "?range=bytes=offset-"
     // query-style direct link; it does not translate the query into a real
     // HTTP Range request, so the stream fails to open. The backend, however,
     // honours the standard HTTP Range header (verified: probing the base URL

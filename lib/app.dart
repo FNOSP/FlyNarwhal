@@ -8,7 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:system_info2/system_info2.dart';
-import 'package:media_kit/media_kit.dart';
+import 'package:fvp/fvp.dart' as fvp;
+import 'package:fvp/mdk.dart' as mdk;
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -36,6 +37,26 @@ MainWindowLifecycleController? mainWindowLifecycleController;
 
 const _windowChannel = MethodChannel('fly_narwhal/window');
 
+/// Routes the playback backend's internal logs into the app logger so decoder
+/// and network problems surface in the same place as everything else.
+void _configurePlaybackBackend() {
+  mdk.setLogHandler((level, message) {
+    final trimmed =
+        message.endsWith('\n') ? message.substring(0, message.length - 1) : message;
+    switch (level) {
+      case mdk.LogLevel.error:
+        AppTalker.error('Player', error: trimmed, message: 'mdk error');
+      case mdk.LogLevel.warning:
+        AppTalker.warning('Player', 'mdk: $trimmed');
+      case mdk.LogLevel.info:
+      case mdk.LogLevel.debug:
+      case mdk.LogLevel.all:
+      case mdk.LogLevel.off:
+        break;
+    }
+  });
+}
+
 Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
   await runZonedGuarded(() async {
@@ -48,9 +69,10 @@ Future<void> bootstrapApp() async {
 
     AppTalker.info('Bootstrap', 'Bootstrap start');
 
-    // Initialize MediaKit before any player widgets are built.
-    MediaKit.ensureInitialized();
-    AppTalker.info('Bootstrap', 'MediaKit initialized');
+    // Register the fvp/mdk playback backend before any player is created.
+    fvp.registerWith();
+    _configurePlaybackBackend();
+    AppTalker.info('Bootstrap', 'fvp (mdk) initialized');
 
     // Preferences are needed before the desktop window is shown so its saved
     // geometry can be validated against the current display arrangement.

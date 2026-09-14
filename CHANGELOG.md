@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **播放内核更换为 fvp**：播放器由 media_kit / libmpv 更换为 fvp（基于 libmdk / FFmpeg），支持 Windows / macOS / Linux 全部 CPU 架构的硬件解码与本地解码；不再随包分发定制 libmpv，安装包体积与构建链路一并简化。原有播放功能（进度恢复、直链播放、字幕与音轨切换、画质切换、片头片尾跳过、弹幕、PiP 与全屏）保持可用。
+
 ### Fixed
 
 ## [2.3.4] - 2026-09-13
@@ -40,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **直播频道播放**：修复了在首页、媒体库、收藏和最近观看中点击直播频道无法进入播放的问题。
+- **直播频道播放**：修复了点击直播频道海报没有跳转到播放器而是进入详情页的问题。
 - **播放器快捷键**：修复了播放时按 F 键会跳转到搜索框、导致播放器快捷键失效的问题。
 - **画质切换**：修复了切换画质后，已经展开的画质菜单仍显示旧画质的问题。
 - **影片简介**：修复了窗口变窄时简介的「更多」按钮被遮挡、无法展开的问题。

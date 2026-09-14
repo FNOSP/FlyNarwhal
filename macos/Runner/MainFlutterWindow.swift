@@ -5,8 +5,9 @@ import UniformTypeIdentifiers
 class MainFlutterWindow: NSWindow {
   // Presented as a standalone floating panel instead of a window sheet: the
   // sheet slide-in/out animation runs as a blocking animation loop on the main
-  // thread, and media_kit waits on the main thread for every video frame
-  // (DispatchQueue.main.sync in VideoOutput), so sheets freeze the picture.
+  // thread, which froze the picture with the previous libmpv-based player
+  // (it waited on the main thread for every video frame) and would equally
+  // stall the merged UI/platform thread on any player doing main-thread work.
   // The panel instance is created once and reused: creating an NSOpenPanel
   // costs a synchronous XPC round trip to the out-of-process open/save panel
   // service on the main thread (~145ms warm, ~570ms cold), which also freezes

@@ -5,8 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 
 import '../../../core/utils/log/app_talker.dart';
@@ -24,6 +22,8 @@ import 'controllers/pip_window_mode_controller.dart';
 import 'controllers/player_overlay_controller.dart';
 import 'controllers/player_session_coordinator.dart';
 import 'controllers/player_window_aspect_ratio_controller.dart';
+import 'services/mdk_player_adapter.dart';
+import 'services/mdk_video_view.dart';
 import 'services/player_service.dart';
 import 'utils/player_volume_helper.dart';
 import 'widgets/channel_select_flyout.dart';
@@ -52,8 +52,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   static const Duration _pipIdleHideDuration = Duration(seconds: 3);
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'live-player');
-  Player? _player;
-  VideoController? _videoController;
+  MdkPlayerAdapter? _player;
 
   bool _isLoading = true;
   bool _isInitialized = false;
@@ -78,7 +77,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<bool>? _bufferingSubscription;
   StreamSubscription<String>? _errorSubscription;
-  StreamSubscription<VideoParams>? _videoParamsSubscription;
+  StreamSubscription<VideoSize>? _videoParamsSubscription;
 
   final DesktopPseudoFullscreenController _fullscreenController =
       DesktopPseudoFullscreenController();
@@ -143,16 +142,15 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       // then hand the window back to the app routes at its pre-player size.
       unawaited(_tearDownWindowSession());
     }
-    _player?.dispose();
+    unawaited(_player?.dispose());
     super.dispose();
   }
 
   Future<void> _initializePlayer() async {
-    _player = Player(configuration: const PlayerConfiguration(libass: true));
-    _videoController = VideoController(_player!);
+    _player = MdkPlayerAdapter();
     final player = _player!;
 
-    _playingSubscription = player.stream.playing.listen((isPlaying) {
+    _playingSubscription = player.playing.listen((isPlaying) {
       if (!mounted) return;
       setState(() => _isPlaying = isPlaying);
       // Keep the overlay pinned while paused, resume idle hiding on play.
@@ -165,13 +163,13 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       }
       _showUi();
     });
-    _bufferingSubscription = player.stream.buffering.listen((buffering) {
+    _bufferingSubscription = player.buffering.listen((buffering) {
       if (!mounted) return;
       setState(() => _isBuffering = buffering);
     });
-    _errorSubscription = player.stream.error.listen((error) {
+    _errorSubscription = player.error.listen((error) {
       if (!mounted || error.isEmpty) return;
-      AppTalker.warning('LivePlayer', 'mpv error: $error');
+      AppTalker.warning('LivePlayer', 'player error: $error');
       if (_isInitialized) {
         setState(() => _errorMessage = '播放出错,请尝试切换线路');
       }
@@ -179,10 +177,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     // Tracks live decode-size changes so the AUTO window ratio keeps the
     // window locked to the actual video aspect ratio, the same way PiP mode
     // keeps its window matched to the video.
-    _videoParamsSubscription = player.stream.videoParams.listen((params) {
+    _videoParamsSubscription = player.videoParams.listen((params) {
       if (!mounted) return;
-      final width = params.w ?? 0;
-      final height = params.h ?? 0;
+      final width = params.w;
+      final height = params.h;
       if (width <= 0 || height <= 0) return;
       if (_windowAspectRatio != PlayerWindowAspectRatioController.autoSetting) {
         return;
@@ -190,7 +188,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       unawaited(_applyWindowAspectRatio());
     });
 
-    await player.setVolume(uiVolumeToMpvVolume(_volume));
+    player.setVolume(uiVolumeToMpvVolume(_volume));
     unawaited(_loadPlayInfo());
     if (mounted) {
       _playerFocusNode.requestFocus();
@@ -272,7 +270,8 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
 
       final headers = _buildPlaybackHttpHeaders(playUri);
       await player.open(
-        Media(playUri, httpHeaders: headers.isEmpty ? null : headers),
+        uri: playUri,
+        httpHeaders: headers.isEmpty ? null : headers,
       );
       if (!mounted || token != _loadToken) return;
 
@@ -365,10 +364,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   void _togglePlayPause() {
     final player = _player;
     if (player == null || !_isInitialized) return;
-    if (player.state.playing) {
-      unawaited(player.pause());
+    if (player.isPlaying) {
+      player.pause();
     } else {
-      unawaited(player.play());
+      player.play();
     }
   }
 
@@ -470,13 +469,11 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
   }
 
   double? _resolveVideoAspectRatio() {
-    final state = _player?.state;
-    final width = state?.width;
-    final height = state?.height;
-    if (width == null || height == null || width <= 0 || height <= 0) {
+    final size = _player?.videoSize;
+    if (size == null || size.dh <= 0) {
       return null;
     }
-    return width / height;
+    return size.dw / size.dh;
   }
 
   void _showPipControls() {
@@ -605,11 +602,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
               child: Container(
                 key: const ValueKey('live-video'),
                 color: Colors.black,
-                child: _isInitialized && _videoController != null
-                    ? Video(
-                        controller: _videoController!,
-                        controls: NoVideoControls,
-                        fit: _isPipMode ? BoxFit.cover : BoxFit.contain,
+                child: _isInitialized && _player != null
+                    ? MdkVideoView(
+                        controller: _player!,
+                        cover: _isPipMode,
                       )
                     : const SizedBox.shrink(),
               ),

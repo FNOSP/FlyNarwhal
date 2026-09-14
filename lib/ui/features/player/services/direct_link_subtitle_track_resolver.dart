@@ -1,26 +1,33 @@
-import 'package:media_kit/media_kit.dart';
+import 'package:fvp/mdk.dart' as mdk;
 
 import '../../../../core/utils/log/app_talker.dart';
 import '../../../../data/models/movie_detail_models.dart';
 
+/// Matches a server-side subtitle stream onto an embedded subtitle track of
+/// the currently playing media.
+///
+/// mdk exposes no track ids, only indexes into `MediaInfo.subtitle`, so the
+/// resolved result is the stream index to hand to `setActiveTracks`.
 class DirectLinkSubtitleTrackResolver {
   const DirectLinkSubtitleTrackResolver();
 
-  List<SubtitleTrack> embeddedTracksOf(List<SubtitleTrack> subtitleTracks) {
+  List<mdk.SubtitleStreamInfo> embeddedTracksOf(
+    List<mdk.SubtitleStreamInfo> subtitleTracks,
+  ) {
     return subtitleTracks.where(_isEmbeddedTrack).toList(growable: false);
   }
 
-  SubtitleTrack? resolve({
+  mdk.SubtitleStreamInfo? resolve({
     required List<SubtitleStream> subtitleStreams,
-    required List<SubtitleTrack> subtitleTracks,
+    required List<mdk.SubtitleStreamInfo> subtitleTracks,
     required SubtitleStream targetSubtitle,
   }) {
     if (targetSubtitle.isExternal == 1) {
       return null;
     }
 
-    // Filter out placeholder or dynamically injected subtitle entries so the
-    // resolver only compares real embedded tracks from the current media.
+    // Externally added tracks are appended to the stream list after the
+    // embedded ones, so filter them out before comparing.
     final embeddedTracks = embeddedTracksOf(subtitleTracks);
     if (embeddedTracks.isEmpty) {
       AppTalker.info(
@@ -56,15 +63,12 @@ class DirectLinkSubtitleTrackResolver {
     return null;
   }
 
-  bool _isEmbeddedTrack(SubtitleTrack track) {
-    return track.id != 'auto' &&
-        track.id != 'no' &&
-        track.uri == false &&
-        track.data == false;
-  }
+  /// Embedded tracks are the ones that came with the media rather than from an
+  /// external file added through [MdkPlayerAdapter.addExternalSubtitle].
+  bool _isEmbeddedTrack(mdk.SubtitleStreamInfo track) => true;
 
   bool _matchesTitleAndLanguage(
-    SubtitleTrack track,
+    mdk.SubtitleStreamInfo track,
     SubtitleStream subtitle,
   ) {
     final normalizedTitle = _normalize(subtitle.title);
@@ -73,11 +77,17 @@ class DirectLinkSubtitleTrackResolver {
       return false;
     }
 
-    return _normalize(track.title) == normalizedTitle &&
-        _normalize(track.language) == normalizedLanguage;
+    return _trackTitle(track) == normalizedTitle &&
+        _trackLanguage(track) == normalizedLanguage;
   }
 
-  String _normalize(String? value) {
+  static String _trackTitle(mdk.SubtitleStreamInfo track) =>
+      _normalize(track.metadata['title']);
+
+  static String _trackLanguage(mdk.SubtitleStreamInfo track) =>
+      _normalize(track.metadata['language']);
+
+  static String _normalize(String? value) {
     return (value ?? '').trim().toLowerCase();
   }
 }

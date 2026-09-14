@@ -18,7 +18,7 @@ class HlsResolvedMedia {
   });
 }
 
-/// Resolves HLS master playlists before opening them with media_kit.
+/// Resolves HLS master playlists before opening them with the player.
 class HlsPlaylistResolver {
   final Dio _dio;
   final Map<String, String> _headers;

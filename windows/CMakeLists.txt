@@ -58,83 +58,8 @@ endfunction()
 # Flutter library and tool build rules.
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 
-function(ENSURE_VERIFIED_WINDOWS_ARCHIVE ARCHIVE_NAME ARCHIVE_URL ARCHIVE_MD5)
-  set(ARCHIVE_PATH "${CMAKE_BINARY_DIR}/${ARCHIVE_NAME}")
-  set(ARCHIVE_NEEDS_DOWNLOAD TRUE)
-
-  # Drop stale or empty archives so plugin CMake files don't fail on corrupt
-  # cached downloads left behind by previous configure attempts.
-  if (EXISTS "${ARCHIVE_PATH}")
-    file(SIZE "${ARCHIVE_PATH}" ARCHIVE_SIZE)
-    file(MD5 "${ARCHIVE_PATH}" ARCHIVE_HASH)
-    if (ARCHIVE_SIZE GREATER 0 AND ARCHIVE_HASH STREQUAL ARCHIVE_MD5)
-      set(ARCHIVE_NEEDS_DOWNLOAD FALSE)
-    else()
-      file(REMOVE "${ARCHIVE_PATH}")
-    endif()
-  endif()
-
-  # Pre-download large third-party archives with PowerShell because CMake's
-  # file(DOWNLOAD) has intermittently produced zero-byte files in this setup.
-  if (ARCHIVE_NEEDS_DOWNLOAD)
-    file(TO_NATIVE_PATH "${ARCHIVE_PATH}" ARCHIVE_PATH_NATIVE)
-    execute_process(
-      COMMAND powershell -NoProfile -ExecutionPolicy Bypass -Command
-        "$ProgressPreference = 'SilentlyContinue'; $url = '${ARCHIVE_URL}'; $out = '${ARCHIVE_PATH_NATIVE}'; for ($i = 1; $i -le 3; $i++) { try { Invoke-WebRequest -Uri $url -OutFile $out -MaximumRedirection 10 -UseBasicParsing; if ((Test-Path $out) -and ((Get-Item $out).Length -gt 0)) { exit 0 } } catch { if (Test-Path $out) { Remove-Item $out -Force }; if ($i -eq 3) { throw }; Start-Sleep -Seconds 1 }; if (Test-Path $out) { Remove-Item $out -Force }; Start-Sleep -Seconds 1 }; exit 1"
-      RESULT_VARIABLE ARCHIVE_DOWNLOAD_RESULT
-      ERROR_VARIABLE ARCHIVE_DOWNLOAD_ERROR
-    )
-    if (NOT ARCHIVE_DOWNLOAD_RESULT EQUAL 0)
-      message(FATAL_ERROR "Failed to pre-download ${ARCHIVE_NAME}: ${ARCHIVE_DOWNLOAD_ERROR}")
-    endif()
-  endif()
-
-  if (NOT EXISTS "${ARCHIVE_PATH}")
-    message(FATAL_ERROR "Verified archive is missing after download: ${ARCHIVE_PATH}")
-  endif()
-
-  file(SIZE "${ARCHIVE_PATH}" ARCHIVE_SIZE)
-  if (ARCHIVE_SIZE EQUAL 0)
-    message(FATAL_ERROR "Verified archive is empty after download: ${ARCHIVE_PATH}")
-  endif()
-
-  file(MD5 "${ARCHIVE_PATH}" ARCHIVE_HASH)
-  if (NOT ARCHIVE_HASH STREQUAL ARCHIVE_MD5)
-    message(FATAL_ERROR
-      "Verified archive checksum mismatch for ${ARCHIVE_NAME}: expected ${ARCHIVE_MD5}, got ${ARCHIVE_HASH}"
-    )
-  endif()
-endfunction()
-
-# Full libmpv download module (for PGS/HDMV bitmap subtitle support)
-include(cmake/full_libmpv.cmake)
-
 # Normalize Windows plugin links before including generated plugin rules.
 if (WIN32)
-  # Pre-seed archives downloaded by media_kit so plugin configure steps do not
-  # get stuck on zero-byte caches produced by file(DOWNLOAD).
-
-  # -------------------------------------------------------------------------
-  # Download & extract full libmpv for bitmap subtitle (PGS/HDMV/SUP) support.
-  # The extracted DLL overrides media_kit's stripped build during install.
-  # -------------------------------------------------------------------------
-  ensure_full_libmpv_windows()
-
-  # media_kit_libs_windows_video is overridden locally and downloads its own
-  # arm64 archives, so the x86_64 helper pre-downloads are only useful on x64.
-  if(NOT FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64")
-    ensure_verified_windows_archive(
-      "mpv-dev-x86_64-20230924-git-652a1dd.7z"
-      "https://github.com/media-kit/libmpv-win32-video-build/releases/download/2023-09-24/mpv-dev-x86_64-20230924-git-652a1dd.7z"
-      "a832ef24b3a6ff97cd2560b5b9d04cd8"
-    )
-    ensure_verified_windows_archive(
-      "ANGLE.7z"
-      "https://github.com/alexmercerind/flutter-windows-ANGLE-OpenGL-ES/releases/download/v1.0.1/ANGLE.7z"
-      "e866f13e8d552348058afaafe869b1ed"
-    )
-  endif()
-
   set(FLUTTER_PLUGIN_DEPENDENCIES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../.flutter-plugins-dependencies")
   set(FLUTTER_PLUGIN_LINKS_DIR "${FLUTTER_MANAGED_DIR}/ephemeral/.plugin_symlinks")
   set(FLUTTER_PLUGIN_LINKS_STAMP "${FLUTTER_MANAGED_DIR}/ephemeral/.plugin_symlinks.stamp")
@@ -257,42 +182,11 @@ install(FILES "${FLUTTER_INSTALL_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_D
 install(FILES "${FLUTTER_INSTALL_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
-# media_kit_libs_windows_video ships x86_64 prebuilts by default; on arm64 we
-# use a local override with arm64 binaries. Strip the binaries that are not
-# provided (or not needed) on arm64, but keep the arm64 ANGLE DLLs that the
-# video plugin links against at runtime.
-if(FLUTTER_TARGET_PLATFORM STREQUAL "windows-arm64" AND PLUGIN_BUNDLED_LIBRARIES)
-  set(FLYNARWHAL_X64_ONLY_BUNDLED_LIBRARY_NAMES
-    "libmpv-2.dll"
-    "d3dcompiler_47.dll"
-    "vk_swiftshader.dll"
-    "vulkan-1.dll"
-    "zlib.dll"
-  )
-  set(FLYNARWHAL_FILTERED_BUNDLED_LIBRARIES "")
-  foreach(FLYNARWHAL_BUNDLED_LIBRARY IN LISTS PLUGIN_BUNDLED_LIBRARIES)
-    get_filename_component(FLYNARWHAL_BUNDLED_LIBRARY_NAME "${FLYNARWHAL_BUNDLED_LIBRARY}" NAME)
-    if(FLYNARWHAL_BUNDLED_LIBRARY_NAME IN_LIST FLYNARWHAL_X64_ONLY_BUNDLED_LIBRARY_NAMES)
-      message(STATUS "Skipping x86_64-only bundled library for arm64: ${FLYNARWHAL_BUNDLED_LIBRARY_NAME}")
-    else()
-      list(APPEND FLYNARWHAL_FILTERED_BUNDLED_LIBRARIES "${FLYNARWHAL_BUNDLED_LIBRARY}")
-    endif()
-  endforeach()
-  set(PLUGIN_BUNDLED_LIBRARIES "${FLYNARWHAL_FILTERED_BUNDLED_LIBRARIES}")
-endif()
-
 if(PLUGIN_BUNDLED_LIBRARIES)
   install(FILES "${PLUGIN_BUNDLED_LIBRARIES}"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
-
-# Override the stripped libmpv-2.dll bundled by media_kit with a full-featured
-# build that supports bitmap subtitles (PGS/HDMV/SUP). This install rule runs
-# after the plugin's, so it replaces the stripped DLL in the bundle.
-install(FILES "${FULL_LIBMPV_DLL}"
-  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-  COMPONENT Runtime)
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")

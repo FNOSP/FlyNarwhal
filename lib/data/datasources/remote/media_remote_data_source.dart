@@ -185,7 +185,7 @@ class MediaRemoteDataSource {
     return result;
   }
 
-  /// Download external subtitle content for media_kit rendering.
+  /// Download external subtitle content for local rendering.
   Future<ApiResult<String>> downloadExternalSubtitle(String guid) async {
     final result = await _dioClient.get<String>(
       ApiEndpoints.subtitleDownloadByGuid(guid),

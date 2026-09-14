@@ -173,15 +173,13 @@ jobs:
         run: |
           sudo apt-get update
           # Flutter's Linux desktop build requires the GTK3 dev headers and
-          # toolchain (clang/cmake/ninja/pkg-config) in addition to the
-          # libmpv runtime used for the full PGS/HDMV SUP bundle. The release
-          # packaging additionally needs dpkg-deb (preinstalled), fpm for the
-          # .rpm and .pkg.tar.zst, appimagetool for the .AppImage, and
-          # patchelf to rewrite the plugins' build-machine-absolute rpath.
+          # toolchain (clang/cmake/ninja/pkg-config). The release packaging
+          # additionally needs dpkg-deb (preinstalled), fpm for the .rpm and
+          # .pkg.tar.zst, appimagetool for the .AppImage, and patchelf to
+          # rewrite the plugins' build-machine-absolute rpath.
           sudo apt-get install -y \
             clang cmake ninja-build pkg-config \
             libgtk-3-dev liblzma-dev \
-            gcc mpv libmpv-dev \
             rpm ruby-dev libarchive-tools \
             patchelf
           sudo gem install fpm --no-document
@@ -197,18 +195,6 @@ jobs:
           chmod +x /tmp/appimagetool
           sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
           appimagetool --appimage-extract-and-run --version
-          # Verify the runtime libmpv can decode PGS/HDMV SUP subtitles so the
-          # bundle script can rely on the system copy. mpv is built against
-          # FFmpeg, so `mpv --list-options` exposes decoder availability.
-          ffmpeg_decoders="$(ffmpeg -decoders 2>/dev/null || true)"
-          if [ -z "$ffmpeg_decoders" ]; then
-            sudo apt-get install -y ffmpeg
-          fi
-          if ! ffmpeg -decoders 2>/dev/null | grep -q 'hdmv_pgs_subtitle'; then
-            echo '::error::Installed ffmpeg/mpv does not expose hdmv_pgs_subtitle; cannot bundle a full libmpv for PGS/HDMV SUP support.'
-            ffmpeg -decoders | head -20 || true
-            exit 1
-          fi
 
       - name: Check out verified private obfuscator
         uses: actions/checkout@v4

@@ -50,7 +50,7 @@ class PlayerService {
     return _unwrapResult(result);
   }
 
-  // Download external subtitle content for media_kit rendering.
+  // Download external subtitle content for local rendering.
   Future<String> downloadExternalSubtitle(String guid) async {
     final result = await _mediaRemoteDataSource.downloadExternalSubtitle(guid);
     return _unwrapResult(result);
