@@ -579,10 +579,11 @@ packages:
   fvp:
     dependency: "direct main"
     description:
-      name: fvp
-      sha256: "19a605fb32c2ee7a0b594ed51a2dd5fd5e8326bfa287ffd88c3e1ef0289d9afc"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "feat/macos-hdr-edr-rendering-0.23"
+      resolved-ref: "76260672e50d1e3fb5eff880fa198c8ee7e5c9d9"
+      url: "https://github.com/Jankin-Wu/fvp.git"
+    source: git
     version: "0.23.0"
   glob:
     dependency: transitive

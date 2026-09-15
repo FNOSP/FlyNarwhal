@@ -49,6 +49,7 @@ import 'services/direct_link_audio_track_resolver.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
 import 'services/player_device_context_service.dart';
+import 'services/hdr_display_capability.dart';
 import 'services/play_record_request_builder.dart';
 import 'controllers/desktop_pseudo_fullscreen_controller.dart';
 import 'controllers/pip_window_mode_controller.dart';
@@ -395,6 +396,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _initializePlayer() async {
     _player = MdkPlayerAdapter();
+    // Re-read EDR capability for the display the window is on right now; the
+    // app may have started on one display and been moved before playback.
+    await ref.read(hdrDisplayCapabilityProvider).refresh();
+    _player!.hdrRenderPathEnabled = _hdrRenderAvailable;
     _applyDefaultSubtitleSettings(_player!);
     _applyDecodeMode(_player!);
     _setupPlayerPlaybackListener();
@@ -609,6 +614,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// Tracks live decode-size changes so the AUTO window ratio keeps the
   /// window locked to the actual video aspect ratio, the same way PiP mode
   /// keeps its window matched to the video.
+  /// Whether the current session is presenting HDR through the native
+  /// platform view rather than the Flutter texture.
+  ///
+  /// Falls back to a never-changing notifier before the player exists, so the
+  /// overlay builders can subscribe unconditionally.
+  ValueListenable<bool> get _hdrRenderPathActiveListenable =>
+      _player?.hdrRenderPathActive ?? _alwaysFalse;
+
+  static final ValueNotifier<bool> _alwaysFalse = ValueNotifier<bool>(false);
+
   void _setupVideoParamsListener() {
     _videoParamsSubscription?.cancel();
     final player = _player;
@@ -1474,6 +1489,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return targetUri.host == baseHost && targetUri.port == baseUri.port;
   }
 
+  /// Whether the display the player window is on can show extended dynamic
+  /// range content.
+  ///
+  /// When true, HDR sources render through the fork's native platform view so
+  /// the picture keeps its HDR range instead of being tone mapped into the
+  /// 8-bit Flutter texture.
+  ///
+  /// Known limitation: the platform-view path currently renders video without
+  /// audio. The texture path is unaffected, so SDR sources still play with
+  /// sound; only HDR sources on an EDR-capable display lose it.
+  bool get _hdrRenderAvailable {
+    if (!_isDesktopPlatform()) return false;
+    if (_isPipMode) return false;
+    return ref.read(hdrDisplayCapabilityProvider).isAvailable;
+  }
+
   Future<void> _openMediaWithResume({
     required String playUri,
     required int startPositionMs,
@@ -1488,10 +1519,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Starting the decoder at the resume position is the most reliable way to
     // restore history progress; `_verifyAndCorrectResume` still runs below as
     // a fallback for sources that ignore the start position.
+    player.hdrRenderPathEnabled = _hdrRenderAvailable;
     await player.open(
       uri: playUri,
       httpHeaders: headers.isEmpty ? null : headers,
       startPositionMs: startPositionMs,
+      preferHdrRenderPath: _hdrRenderAvailable,
     );
     _setupDirectLinkEmbeddedSubtitleTracking();
     if (_playingInfoCache?.isUseDirectLink == true) {
@@ -4641,42 +4674,79 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             onDoubleTap: _handleVideoDoubleTap,
             child: Container(
               color: Colors.black,
-              child: _isInitialized && _player != null
-                  ? _buildVideoView()
-                  : const Center(child: AppLoadingProgressRing()),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Mounted unconditionally once the player exists so the
+                  // subtree never swaps its children. The HDR render path is a
+                  // native platform view, and Flutter detaches/re-attaches a
+                  // native view whenever its element is moved or replaced —
+                  // which re-runs the renderer's setup on the live player,
+                  // silencing its audio and stalling seeks. Overlaying the
+                  // spinner instead of swapping children keeps it attached.
+                  if (_isInitialized && _player != null)
+                    _buildVideoView(),
+                  if (!_isInitialized || _player == null)
+                    const Center(child: AppLoadingProgressRing()),
+                ],
+              ),
             ),
           ),
           Positioned.fill(
             child: IgnorePointer(
-              child: ValueListenableBuilder<Duration>(
-                valueListenable: _danmakuPosition,
-                builder: (context, position, _) {
-                  return PlayerDanmakuOverlay(
-                    danmakuList: danmakuState.danmakuList,
-                    position: position,
-                    // Gate danmaku on real playback readiness: the playing flag flips
-                    // true as soon as the player starts loading, long before the
-                    // first frame renders, which would let danmaku fly over the
-                    // loading spinner.
-                    isPlaying: _isPlaying && _isInitialized && !_isLoading,
-                    playbackRate: _speed,
-                    isVisible: danmakuState.isVisible,
-                    settings: danmakuState.settings,
-                    loadStatus: danmakuState.loadStatus,
-                    resetGeneration: _danmakuResetGeneration,
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _hdrRenderPathActiveListenable,
+                builder: (context, hdrActive, _) {
+                  // The HDR platform view is a native layer that composites
+                  // above Flutter's own layers, so anything the player draws
+                  // over the video area would be hidden behind it. Danmaku is
+                  // dropped in that mode rather than silently covering the
+                  // picture.
+                  if (hdrActive) {
+                    return const SizedBox.shrink();
+                  }
+                  return ValueListenableBuilder<Duration>(
+                    valueListenable: _danmakuPosition,
+                    builder: (context, position, _) {
+                      return PlayerDanmakuOverlay(
+                        danmakuList: danmakuState.danmakuList,
+                        position: position,
+                        // Gate danmaku on real playback readiness: the playing flag flips
+                        // true as soon as the player starts loading, long before the
+                        // first frame renders, which would let danmaku fly over the
+                        // loading spinner.
+                        isPlaying: _isPlaying && _isInitialized && !_isLoading,
+                        playbackRate: _speed,
+                        isVisible: danmakuState.isVisible,
+                        settings: danmakuState.settings,
+                        loadStatus: danmakuState.loadStatus,
+                        resetGeneration: _danmakuResetGeneration,
+                      );
+                    },
                   );
                 },
               ),
             ),
           ),
           Positioned.fill(
-            child: ValueListenableBuilder<List<String>>(
-              valueListenable: _hlsSubtitleTexts,
-              builder: (context, lines, _) {
-                return PlayerSubtitleOverlay(
-                  lines: lines,
-                  visible: _useHlsSubtitleOverlay,
-                  settings: subtitleSettings,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _hdrRenderPathActiveListenable,
+              builder: (context, hdrActive, _) {
+                // HDR mode renders subtitles natively (mdk draws the selected
+                // track into the video layer); the Flutter overlay would be
+                // hidden behind the native view.
+                if (hdrActive) {
+                  return const SizedBox.shrink();
+                }
+                return ValueListenableBuilder<List<String>>(
+                  valueListenable: _hlsSubtitleTexts,
+                  builder: (context, lines, _) {
+                    return PlayerSubtitleOverlay(
+                      lines: lines,
+                      visible: _useHlsSubtitleOverlay,
+                      settings: subtitleSettings,
+                    );
+                  },
                 );
               },
             ),

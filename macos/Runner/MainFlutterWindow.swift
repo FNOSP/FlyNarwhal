@@ -309,6 +309,13 @@ class MainFlutterWindow: NSWindow {
       name: "fly_narwhal/window",
       binaryMessenger: messenger)
     channel.setMethodCallHandler { [weak self] call, result in
+      if call.method == "isEdrAvailable" {
+        // EDR headroom is a property of the display the window is on, and it
+        // changes as the user moves the window or adjusts brightness, so this
+        // is queried on demand rather than cached.
+        result(self?.isEdrAvailable() ?? false)
+        return
+      }
       guard call.method == "setTopEdgeDimColor",
             let args = call.arguments as? [String: Any],
             let r = args["r"] as? Int,
@@ -328,6 +335,18 @@ class MainFlutterWindow: NSWindow {
       }
       result(nil)
     }
+  }
+
+  /// Whether the display currently hosting this window can present extended
+  /// dynamic range content.
+  ///
+  /// macOS reports the ratio of the brightest renderable value to SDR white.
+  /// A value above 1.0 means HDR highlights can be displayed without clipping;
+  /// on an SDR display it is exactly 1.0.
+  private func isEdrAvailable() -> Bool {
+    let screen = self.screen ?? NSScreen.main
+    guard let screen else { return false }
+    return screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1.0
   }
 }
 

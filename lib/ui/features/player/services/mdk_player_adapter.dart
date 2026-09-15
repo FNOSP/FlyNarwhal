@@ -137,19 +137,30 @@ class MdkPlayerAdapter {
   /// behaviour (callers never issue a separate play call after opening). Use
   /// [pause] to hold on the first frame.
   ///
+  /// When [preferHdrRenderPath] is set and the decoded stream turns out to be
+  /// HDR, the player renders through a platform view instead of a Flutter
+  /// texture. The Flutter texture path is 8-bit and caps output at SDR, so HDR
+  /// sources can only reach the display through the platform view's
+  /// EDR-enabled CAMetalLayer.
+  ///
   /// Returns true when the media prepared successfully. On failure an error is
   /// emitted on [error] and this returns false.
   Future<bool> open({
     required String uri,
     Map<String, String>? httpHeaders,
     int startPositionMs = 0,
+    bool preferHdrRenderPath = false,
   }) async {
     if (_disposed) return false;
     _hasLoadedMedia = false;
     _lastPositionMs = 0;
+    _usingHdrRenderPath = false;
 
     _player.setProperty('avio.headers', _encodeHeaders(httpHeaders));
 
+    // The stream's colour metadata is only known after the container is
+    // parsed, so probe without a texture, decide, then create the render
+    // target that matches the decision.
     await _player.updateTexture(width: -1);
     _player.media = uri;
 
@@ -161,7 +172,17 @@ class MdkPlayerAdapter {
       return false;
     }
 
-    await _player.updateTexture();
+    if (preferHdrRenderPath && _isHdrStream()) {
+      final switched = await _player.usePlatformView();
+      if (switched) {
+        _usingHdrRenderPath = true;
+        hdrRenderPathActive.value = true;
+        _hdrRenderPathController.add(true);
+      }
+    }
+    if (!_usingHdrRenderPath) {
+      await _player.updateTexture();
+    }
     if (_disposed) return false;
 
     _hasLoadedMedia = true;
@@ -173,6 +194,50 @@ class MdkPlayerAdapter {
     _trackListController.add(null);
     _startTicker();
     return true;
+  }
+
+  /// Whether HDR sources should be presented through the platform-view
+  /// renderer. Set by the player screen from the platform/display capability.
+  bool _hdrRenderPathEnabled = false;
+
+  set hdrRenderPathEnabled(bool value) {
+    _hdrRenderPathEnabled = value;
+  }
+
+  /// Whether the current media is being rendered through the platform view.
+  /// While true the Flutter-side video widgets and subtitle overlay must not
+  /// be used: the native layer composites above Flutter's own layers.
+  bool get isUsingHdrRenderPath => _usingHdrRenderPath;
+
+  bool _usingHdrRenderPath = false;
+
+  /// Whether the current media is rendering through the platform view, as a
+  /// listenable so the video widget can swap its renderer.
+  final hdrRenderPathActive = ValueNotifier<bool>(false);
+
+  /// Emits true when a session switches to the platform-view renderer, so the
+  /// UI can swap the video widget and drop overlays it can no longer show.
+  final _hdrRenderPathController = StreamController<bool>.broadcast();
+  Stream<bool> get hdrRenderPathChanges => _hdrRenderPathController.stream;
+
+  /// The player's native handle, used as the platform view's `player`
+  /// creation parameter.
+  int get nativeHandle => _player.nativeHandle;
+
+  /// True when the decoded video carries an HDR transfer function.
+  ///
+  /// Reads the decoder's own colour space rather than the backend's
+  /// `color_range_type`, so the decision reflects what is actually being
+  /// decoded — a transcoded session may deliver SDR even for an HDR source.
+  bool _isHdrStream() {
+    if (!_hdrRenderPathEnabled) return false;
+    final videos = _player.mediaInfo.video;
+    if (videos == null || videos.isEmpty) {
+      return false;
+    }
+    final codec = videos.first.codec;
+    final isHdr = codec.colorSpace == mdk.ColorSpace.bt2100PQ;
+    return isHdr;
   }
 
   void play() {
@@ -345,6 +410,8 @@ class MdkPlayerAdapter {
     await _errorController.close();
     await _videoSizeController.close();
     await _trackListController.close();
+    await _hdrRenderPathController.close();
+    hdrRenderPathActive.dispose();
   }
 
   void _handleStateChanged(mdk.PlaybackState oldState, mdk.PlaybackState newState) {

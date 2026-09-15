@@ -86,6 +86,12 @@ dependency_overrides:
     git:
       url: https://github.com/Jankin-Wu/fluent_ui.git
       ref: fix/minimal-pane-reserved-top
+  # Fork: macOS platform-view renderer so HDR sources can present as HDR
+  # instead of being tone mapped into the SDR Flutter texture.
+  fvp:
+    git:
+      url: https://github.com/Jankin-Wu/fvp.git
+      ref: feat/macos-hdr-edr-rendering-0.23
 
 flutter:
   uses-material-design: true
