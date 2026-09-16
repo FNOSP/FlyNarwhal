@@ -114,6 +114,11 @@ Future<void> _runProtectedBuild({
     }
     if (platform == 'linux') {
       stdout.writeln(
+        'Copy the system libass.so.9 into the bundle and normalize the '
+        "runpath of the executable (\$ORIGIN/lib) and of every bundled shared "
+        "object (\$ORIGIN) with patchelf.",
+      );
+      stdout.writeln(
         'Package the bundle into a .deb via dpkg-deb, a .rpm via fpm, a '
         '.pkg.tar.zst via fpm, and an .AppImage via appimagetool under dist/.',
       );
@@ -143,6 +148,10 @@ Future<void> _runProtectedBuild({
       bundleDirectory: bundleDirectory,
       architecture: architecture,
     );
+    // Must run after the engine patch: that step replaces
+    // lib/libflutter_linux_gtk.so, so any rpath normalization done before it
+    // would be discarded along with the original engine.
+    await _completeLinuxBundle(bundleDirectory: bundleDirectory);
     await _runLinuxPackaging(
       bundleDirectory: bundleDirectory,
       architecture: architecture,
@@ -310,10 +319,200 @@ Future<String> _flutterFrameworkVersion() async {
   return version;
 }
 
+/// mdk dlopens libass at runtime to render subtitles (it is deliberately not
+/// an ELF NEEDED entry, so a missing libass degrades to silently rendering no
+/// subtitles instead of failing to start). The mdk Linux SDK ships no libass
+/// -- unlike the Windows and macOS SDKs, which bundle it -- and fvp leaves the
+/// plugin's bundled-library list to the SDK. Upstream's guidance is to use the
+/// system libass, which is what this does: the library is copied into the
+/// bundle so every package format stays self-contained and no distribution
+/// dependency has to be declared.
+///
+/// The same pass rewrites the runpath of the executable and of every bundled
+/// shared object. Flutter plugins record their build-machine absolute path in
+/// DT_RUNPATH, and DT_RUNPATH takes precedence over LD_LIBRARY_PATH, so a
+/// plugin left unnormalized resolves its siblings from the CI working
+/// directory instead of the installed bundle. Only the AppImage exports
+/// LD_LIBRARY_PATH; the .deb, .rpm and pacman packages rely on the runpath
+/// alone.
+Future<void> _completeLinuxBundle({required String bundleDirectory}) async {
+  final libDirectory = Directory('$bundleDirectory/lib');
+  if (!await libDirectory.exists()) {
+    _fail('Linux bundle has no lib/ directory: ${libDirectory.path}');
+  }
+
+  final libassSource = await _findSystemLibass();
+  // libass.so.9 is a symlink to the real versioned file on Debian and Ubuntu;
+  // copy the target so the bundle never carries a dangling link.
+  final resolvedSource = await File(libassSource).resolveSymbolicLinks();
+  final libassTarget = File('${libDirectory.path}/libass.so.9');
+  await File(resolvedSource).copy(libassTarget.path);
+  // The SONAME is kept as-is: libass.so.9 is the exact name mdk dlopens, so
+  // renaming it would make the library undiscoverable.
+  stdout.writeln('Bundled libass: $resolvedSource -> ${libassTarget.path}');
+
+  await _normalizeRunpaths(
+    bundleDir: Directory(bundleDirectory),
+    libDir: libDirectory,
+    executable: File('$bundleDirectory/fly_narwhal'),
+  );
+}
+
+/// Locates the system libass runtime. ldconfig's cache is authoritative where
+/// it is available; the globs cover hosts whose libass lives outside the
+/// loader's default search path.
+Future<String> _findSystemLibass() async {
+  const soname = 'libass.so.9';
+  try {
+    final result = await Process.run('ldconfig', const <String>['-p']);
+    if (result.exitCode == 0) {
+      for (final line in (result.stdout as String).split('\n')) {
+        if (!line.contains(soname)) {
+          continue;
+        }
+        final arrow = line.indexOf('=>');
+        if (arrow < 0) {
+          continue;
+        }
+        final path = line.substring(arrow + 2).trim();
+        if (path.endsWith(soname) && await File(path).exists()) {
+          return path;
+        }
+      }
+    }
+  } on ProcessException {
+    // ldconfig is unavailable; fall through to the globs.
+  }
+
+  final candidates = <String>[
+    for (final root in const <String>['/usr/lib', '/usr/lib64', '/lib'])
+      ...(await _globLibass('$root/$soname')),
+    for (final root in const <String>['/usr/lib', '/lib'])
+      ...(await _globLibass('$root/*/$soname')),
+  ];
+  if (candidates.isEmpty) {
+    _fail(
+      'Could not find $soname on this host. mdk dlopens libass to render '
+      'subtitles and the mdk Linux SDK does not ship one, so the release '
+      'bundle must carry the system library. Install it with '
+      '`apt-get install -y libass9` (or the equivalent package for this '
+      'distribution) before building Linux releases.',
+    );
+  }
+  return candidates.first;
+}
+
+Future<List<String>> _globLibass(String pattern) async {
+  final result = await Process.run('sh', <String>[
+    '-c',
+    'ls -d $pattern 2>/dev/null',
+  ]);
+  if (result.exitCode != 0) {
+    return const <String>[];
+  }
+  return (result.stdout as String)
+      .split('\n')
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .toList();
+}
+
+/// Rewrites the rpath of the bundle executable and every shared object in
+/// [libDir] so the bundle resolves its own libraries after being installed to
+/// an arbitrary prefix. Returns false (after reporting) if patchelf fails.
+///
+/// Objects that need no rewrite are skipped: the executable already carries
+/// $ORIGIN/lib and the Flutter engine already carries $ORIGIN.
+Future<bool> _normalizeRunpaths({
+  required Directory bundleDir,
+  required Directory libDir,
+  required File executable,
+}) async {
+  if (!await _hasPatchelf()) {
+    _fail(
+      'patchelf is required to normalize bundle rpaths. Install it '
+      '(e.g. `apt-get install -y patchelf`) before building Linux releases.',
+    );
+  }
+
+  final targets = <File>[executable, ...await _collectSharedObjects(bundleDir)];
+  for (final target in targets) {
+    final desired = target.path == executable.path
+        ? r'$ORIGIN/lib'
+        : r'$ORIGIN';
+    final current = await _readRunpath(target);
+    if (current == desired) continue;
+    final result = await Process.run('patchelf', [
+      '--set-rpath',
+      desired,
+      target.path,
+    ]);
+    if (result.exitCode != 0) {
+      _fail(
+        'patchelf --set-rpath $desired failed for ${target.path}: '
+        '${result.stderr}',
+      );
+    }
+    if (current.isNotEmpty) {
+      stdout.writeln(
+        'Normalized rpath of ${target.uri.pathSegments.last}: '
+        '$current -> $desired',
+      );
+    }
+  }
+  return true;
+}
+
+Future<bool> _hasPatchelf() async {
+  try {
+    final result = await Process.run('patchelf', ['--version']);
+    return result.exitCode == 0;
+  } on ProcessException {
+    return false;
+  }
+}
+
+/// Every regular file under the bundle (lib/ plus the executable's directory)
+/// that is an ELF shared object.
+Future<List<File>> _collectSharedObjects(Directory bundleDir) async {
+  final objects = <File>[];
+  await for (final entity in bundleDir.list(
+    recursive: true,
+    followLinks: false,
+  )) {
+    if (entity is! File) continue;
+    final name = entity.uri.pathSegments.last;
+    if (!name.contains('.so')) continue;
+    final header = await _readMagic(entity);
+    if (header != _elfMagic) continue;
+    objects.add(entity);
+  }
+  return objects;
+}
+
+const _elfMagic = '\x7FELF';
+
+Future<String> _readMagic(File file) async {
+  final handle = await file.open();
+  try {
+    final bytes = await handle.read(4);
+    return String.fromCharCodes(bytes);
+  } finally {
+    await handle.close();
+  }
+}
+
+Future<String> _readRunpath(File file) async {
+  final result = await Process.run('patchelf', ['--print-rpath', file.path]);
+  if (result.exitCode != 0) return '';
+  return (result.stdout as String).trim();
+}
+
 Future<void> _runLinuxPackaging({
   required String bundleDirectory,
   required String architecture,
 }) async {
+  await _validateLinuxBundle(bundleDirectory: bundleDirectory);
   // The .deb, the .rpm and the pacman package share the same staged payload;
   // the AppImage is assembled separately from the raw bundle because it needs a
   // relative Exec/Icon layout instead of absolute /opt paths.
@@ -680,6 +879,9 @@ Future<void> _validatePacmanPackage(File package) async {
   if (!output.contains('.PKGINFO')) {
     _fail('pacman package missing .PKGINFO metadata: ${package.path}');
   }
+  if (!output.contains('libass.so.9')) {
+    _fail('pacman package is missing libass.so.9: ${package.path}');
+  }
 }
 
 String _updateArch(String architecture) =>
@@ -694,6 +896,50 @@ Future<void> _validatePackageExists(File package) async {
   if (size == 0) {
     _fail('Package is empty: ${package.path}');
   }
+}
+
+/// Verifies the Linux bundle is self-contained for its subtitle renderer and
+/// that no object kept a build-machine-absolute runpath. Runs before packaging
+/// so a broken bundle fails the release instead of shipping silently.
+Future<void> _validateLinuxBundle({required String bundleDirectory}) async {
+  final libass = File('$bundleDirectory/lib/libass.so.9');
+  if (!await libass.exists()) {
+    _fail(
+      'libass.so.9 is missing from the Linux bundle; mdk would silently '
+      'render no subtitles. Expected at ${libass.path}.',
+    );
+  }
+  if (await libass.length() == 0) {
+    _fail('libass.so.9 in the Linux bundle is empty: ${libass.path}');
+  }
+
+  final executable = File('$bundleDirectory/fly_narwhal');
+  final targets = <File>[
+    if (await executable.exists()) executable,
+    ...await _collectSharedObjects(Directory(bundleDirectory)),
+  ];
+  for (final target in targets) {
+    final name = target.uri.pathSegments.last;
+    final runpath = await _readRunpath(target);
+    final desired = target.path == executable.path
+        ? r'$ORIGIN/lib'
+        : r'$ORIGIN';
+    if (runpath != desired) {
+      _fail(
+        'Unexpected runpath on $name: expected $desired, found '
+        '${runpath.isEmpty ? '(none)' : runpath}.',
+      );
+    }
+    for (final leak in const <String>['/home/runner', '/Users/', 'build/']) {
+      if (runpath.contains(leak)) {
+        _fail('Leaked build-machine path "$leak" in the runpath of $name');
+      }
+    }
+  }
+  stdout.writeln(
+    'Linux bundle is self-contained: libass.so.9 bundled, '
+    '${targets.length} runpath(s) normalized.',
+  );
 }
 
 /// Validates a Debian package with dpkg-deb.
@@ -712,6 +958,18 @@ Future<void> _validateDebPackage(File deb) async {
   );
   if (result.exitCode != 0) {
     _fail('dpkg-deb validation failed for ${deb.path}: ${result.stderr}');
+  }
+  final contents = await Process.run(
+    'dpkg-deb',
+    <String>['--contents', deb.path],
+  );
+  if (contents.exitCode != 0) {
+    _fail(
+      'dpkg-deb --contents failed for ${deb.path}: ${contents.stderr}',
+    );
+  }
+  if (!contents.stdout.toString().contains('libass.so.9')) {
+    _fail('Debian package is missing libass.so.9: ${deb.path}');
   }
 }
 
@@ -738,6 +996,13 @@ Future<void> _validateRpmPackage(File rpm, String architecture) async {
       'rpm output was:\n$output',
     );
   }
+  final files = await Process.run('rpm', <String>['-qpl', rpm.path]);
+  if (files.exitCode != 0) {
+    _fail('rpm -qpl failed for ${rpm.path}: ${files.stderr}');
+  }
+  if (!files.stdout.toString().contains('libass.so.9')) {
+    _fail('RPM package is missing libass.so.9: ${rpm.path}');
+  }
 }
 
 /// Validates an AppImage by checking it is executable and the embedded runtime
@@ -762,6 +1027,22 @@ Future<void> _validateAppImagePackage(File appImage) async {
     _fail(
       'AppImage runtime validation failed for ${appImage.path}: ${result.stderr}',
     );
+  }
+  // --appimage-list reads the embedded squashfs image without mounting it,
+  // so it stays headless-safe like the version check above.
+  final listing = await Process.run(
+    appImage.path,
+    <String>['--appimage-extract-and-run', '--appimage-list'],
+    environment: <String, String>{...Platform.environment},
+  );
+  if (listing.exitCode != 0) {
+    _fail(
+      'AppImage content listing failed for ${appImage.path}: '
+      '${listing.stderr}',
+    );
+  }
+  if (!listing.stdout.toString().contains('libass.so.9')) {
+    _fail('AppImage is missing libass.so.9: ${appImage.path}');
   }
 }
 
