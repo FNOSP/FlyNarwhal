@@ -224,6 +224,7 @@ class MdkPlayerAdapter {
     _hasLoadedMedia = false;
     _lastPositionMs = 0;
     _usingHdrRenderPath = false;
+    _externalSubtitleLoaded = false;
 
     _player.setProperty('avio.headers', _encodeHeaders(httpHeaders));
 
@@ -307,6 +308,12 @@ class MdkPlayerAdapter {
   /// Reads the decoder's own colour space rather than the backend's
   /// `color_range_type`, so the decision reflects what is actually being
   /// decoded — a transcoded session may deliver SDR even for an HDR source.
+  ///
+  /// PQ and HLG are the two BT.2100 HDR transfer functions; scRGB (linear,
+  /// values above 1.0) can carry the same extended range. All three must go
+  /// through the platform-view renderer: the Flutter texture path is 8-bit and
+  /// its Metal blit deadlocks on 10-bit HDR buffers, freezing playback after
+  /// the first frame.
   bool _isHdrStream() {
     if (!_hdrRenderPathEnabled) return false;
     final videos = _player.mediaInfo.video;
@@ -314,7 +321,10 @@ class MdkPlayerAdapter {
       return false;
     }
     final codec = videos.first.codec;
-    final isHdr = codec.colorSpace == mdk.ColorSpace.bt2100PQ;
+    final colorSpace = codec.colorSpace;
+    final isHdr = colorSpace == mdk.ColorSpace.bt2100PQ ||
+        colorSpace == mdk.ColorSpace.bt2100hlg ||
+        colorSpace == mdk.ColorSpace.scrgb;
     return isHdr;
   }
 
@@ -346,6 +356,34 @@ class MdkPlayerAdapter {
     _emitPosition(target.inMilliseconds);
   }
 
+  /// Whether mdk is in the middle of an internal seek.
+  bool get isSeeking =>
+      !_disposed && _player.mediaStatus.test(mdk.MediaStatus.seeking);
+
+  /// Waits until an in-flight internal seek finishes.
+  ///
+  /// Issuing a new seek while mdk is still flushing a previous one (the
+  /// `prepare()` resume seek, a track-change seek) can deadlock its pipeline:
+  /// the reader stops delivering packets, the seek never completes and
+  /// playback is frozen at the seek target forever. Callers that schedule a
+  /// seek right after opening media must let the initial seek finish first.
+  ///
+  /// Returns true once mdk is idle, or false when [timeout] elapsed while a
+  /// seek was still in flight (the caller decides whether to proceed).
+  Future<bool> waitForSeekIdle({
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    while (!_disposed &&
+        _player.mediaStatus.test(mdk.MediaStatus.seeking) &&
+        stopwatch.elapsed < timeout) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    final idle = !_disposed &&
+        !_player.mediaStatus.test(mdk.MediaStatus.seeking);
+    return idle;
+  }
+
   /// Volume uses the app's UI scale (0-100) so existing call sites, including
   /// the macOS gain in `player_volume_helper.dart`, keep working unchanged.
   /// mdk expects a raw multiplier where 1.0 is the source level.
@@ -365,10 +403,17 @@ class MdkPlayerAdapter {
   }
 
   /// Selects an embedded audio track by its container stream index.
+  ///
+  /// Setting the already-active track is skipped: mdk still runs a full
+  /// deactivate/reactivate cycle for it, which besides being wasted work can
+  /// trip mdk's deactivate-path deadlock while the pipeline is still filling
+  /// after a seek.
   void setAudioTrack(int streamIndex) {
     if (_disposed) return;
     final ordinal = _trackOrdinal(audioStreams, streamIndex);
     if (ordinal < 0) return;
+    final active = _player.activeAudioTracks;
+    if (active.length == 1 && active.first == ordinal) return;
     _player.activeAudioTracks = [ordinal];
   }
 
@@ -376,11 +421,19 @@ class MdkPlayerAdapter {
   /// subtitles off.
   void setSubtitleTrack(int? streamIndex) {
     if (_disposed) return;
+    final active = _player.activeSubtitleTracks;
     if (streamIndex == null) {
-      _player.activeSubtitleTracks = const [];
+      // Same rationale as setAudioTrack: skip the no-op deactivate cycle.
+      if (active.isNotEmpty) {
+        _player.activeSubtitleTracks = const [];
+      }
     } else {
       final ordinal = _trackOrdinal(subtitleStreams, streamIndex);
       if (ordinal < 0) {
+        _applySubtitleVisibility();
+        return;
+      }
+      if (active.length == 1 && active.first == ordinal) {
         _applySubtitleVisibility();
         return;
       }
@@ -436,6 +489,7 @@ class MdkPlayerAdapter {
     if (ordinal >= 0) {
       _player.activeSubtitleTracks = [ordinal];
     }
+    _externalSubtitleLoaded = true;
     _applySubtitleVisibility();
     return index;
   }
@@ -443,12 +497,19 @@ class MdkPlayerAdapter {
   /// Drops the externally loaded subtitle track.
   ///
   /// mdk keeps an external track active until it is cleared, so switching back
-  /// to an embedded track requires this first.
+  /// to an embedded track requires this first. Skipped when no external track
+  /// is loaded: `setMedia('', subtitle)` still runs a deactivate cycle inside
+  /// mdk for nothing, which can trip its deactivate-path deadlock.
   void removeExternalSubtitle() {
     if (_disposed) return;
+    if (!_externalSubtitleLoaded) return;
+    _externalSubtitleLoaded = false;
     _player.setMedia('', mdk.MediaType.subtitle);
     _externalSubtitleTitles.clear();
   }
+
+  /// Whether an external subtitle file is currently loaded into the player.
+  bool _externalSubtitleLoaded = false;
 
   /// Turns subtitle rendering off without discarding the selected track.
   void hideSubtitles() {

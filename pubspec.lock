@@ -589,7 +589,7 @@ packages:
     description:
       path: "."
       ref: "feat/macos-native-danmaku-overlay"
-      resolved-ref: "8152e1cf724bb8fe89eeaa0ee5a4b7b5197fc593"
+      resolved-ref: "4e5abb327007f660a76b199a744b2de0e1b16896"
       url: "https://github.com/Jankin-Wu/fvp.git"
     source: git
     version: "0.38.1"

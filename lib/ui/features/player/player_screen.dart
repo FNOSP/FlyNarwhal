@@ -1599,6 +1599,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       startPositionMs: startPositionMs,
       preferHdrRenderPath: _hdrRenderAvailable,
     );
+    // mdk's FrameReader deadlocks when a track deactivate job runs while the
+    // decode threads are still starved right after open (the reader joins a
+    // decode thread blocked forever on an empty packet FIFO). Sparse-keyframe
+    // sources — e.g. HLG remuxes with ~10s keyframe gaps — starve for seconds
+    // and made this reproducible. Wait until playback is verifiably flowing
+    // before applying the initial track selection; no-op track changes are
+    // additionally suppressed inside the adapter.
+    await _waitForPlaybackFlowing(player);
     _setupDirectLinkEmbeddedSubtitleTracking();
     if (_playingInfoCache?.isUseDirectLink == true) {
       await _applyInitialDirectLinkAudioTrack();
@@ -1952,6 +1960,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  /// Waits until mdk's pipeline is verifiably consuming packets and being
+  /// refilled before the first track selection runs.
+  ///
+  /// Applying a track change enqueues deactivate jobs in mdk's reader; a
+  /// deactivate joins the stream's decode thread, which — while the pipeline
+  /// is still starved right after open (empty packet FIFOs, seek flush in
+  /// flight on sparse-keyframe sources) — never wakes, deadlocking the reader
+  /// and freezing playback ~1s in. Once the clock has advanced and the buffer
+  /// is refilling, the decode threads cycle through their queues and the join
+  /// completes normally. Bounded so slow/live sources still get their tracks
+  /// applied on a best-effort basis.
+  Future<void> _waitForPlaybackFlowing(MdkPlayerAdapter player) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 8));
+    final basePosition = player.positionMs;
+    while (DateTime.now().isBefore(deadline)) {
+      if (!mounted) return;
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      if (!mounted) return;
+      final advanced = player.positionMs - basePosition;
+      final bufferedMs = player.raw.buffered();
+      if (advanced >= 1500 && bufferedMs > 1000) {
+        return;
+      }
+    }
+  }
+
   Future<void> _verifyAndCorrectResume(int startPositionMs) async {
     final player = _player;
     if (player == null || startPositionMs <= 0) return;
@@ -1981,8 +2015,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
 
+    // The correction is only meaningful when the start position was IGNORED
+    // (playback sitting near the beginning instead of the resume point, as
+    // HLS/transcode streams used to). When mdk honored the resume but the
+    // file's own keyframe layout landed the first frame seconds away (sparse
+    // keyframes, timestamp gaps in remuxed files), re-seeking lands on the
+    // very same spot again — while discarding the buffer the source spent
+    // seconds delivering, which on a throttled cloud direct link costs tens
+    // of seconds and can look like a permanent freeze. Treat a position at
+    // or past the halfway mark to the target as "honored" and accept it.
+    if (currentPosition * 2 >= startPositionMs) {
+      return;
+    }
+
     // mpv start property didn't fully apply. Correct through the runtime seek
     // executor without classifying the correction as a user interaction.
+    //
+    // mdk deadlocks when a seek is issued while its initial (prepare-time)
+    // seek is still flushing — the pipeline freezes at the seek target and
+    // never recovers. The correction routinely lands inside that window (it
+    // fires as soon as duration is known), so wait for the player to go
+    // idle first.
+    await player.waitForSeekIdle();
     await _seekExecutor.performSeek(
       targetMilliseconds: startPositionMs,
       origin: PlayerSeekOrigin.resumeCorrection,
@@ -1994,6 +2048,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final afterSeekPosition = _player?.positionMs ?? 0;
     final afterSeekDeviation = (afterSeekPosition - startPositionMs).abs();
     if (afterSeekDeviation > 3000 && player.durationMs > 0) {
+      await player.waitForSeekIdle();
       await _seekExecutor.performSeek(
         targetMilliseconds: startPositionMs,
         origin: PlayerSeekOrigin.resumeCorrection,
