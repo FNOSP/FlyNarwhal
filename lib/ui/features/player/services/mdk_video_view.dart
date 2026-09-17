@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'mdk_player_adapter.dart';
@@ -45,7 +46,7 @@ class MdkVideoView extends StatelessWidget {
             // rebuilds the player screen triggers (the 200ms position ticker).
             // Without it Flutter recreates the platform view every rebuild,
             // which re-attaches the renderer to the player over and over and
-            // silences its audio.
+            // stalls its output.
             key: const ValueKey<String>('hdr-platform-view'),
             controller: controller,
           );
@@ -147,9 +148,19 @@ class _HdrPlatformViewState extends State<_HdrPlatformView> {
   }
 
   Widget _createPlatformView(VideoSize size) {
-    return widget.controller.raw.buildPlatformView(
-      width: size.w,
-      height: size.h,
+    final player = widget.controller.raw;
+    return AppKitView(
+      key: ValueKey<String>('fvp-platform-view-${player.nativeHandle}'),
+      viewType: 'fvp/video-view',
+      layoutDirection: TextDirection.ltr,
+      creationParams: <String, Object>{
+        'player': player.nativeHandle,
+        'width': size.w,
+        'height': size.h,
+        'tunnel': false,
+      },
+      creationParamsCodec: const StandardMessageCodec(),
+      onPlatformViewCreated: (_) {},
     );
   }
 

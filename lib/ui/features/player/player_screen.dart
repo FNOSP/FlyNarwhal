@@ -1495,10 +1495,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// When true, HDR sources render through the fork's native platform view so
   /// the picture keeps its HDR range instead of being tone mapped into the
   /// 8-bit Flutter texture.
-  ///
-  /// Known limitation: the platform-view path currently renders video without
-  /// audio. The texture path is unaffected, so SDR sources still play with
-  /// sound; only HDR sources on an EDR-capable display lose it.
   bool get _hdrRenderAvailable {
     if (!_isDesktopPlatform()) return false;
     if (_isPipMode) return false;

@@ -40,9 +40,17 @@ class MdkPlayerAdapter {
     if (lowLatency) {
       _player.setBufferRange(min: 0);
     }
-    _player.onStateChanged(_handleStateChanged);
-    _player.onMediaStatus(_handleMediaStatus);
-    _player.onEvent(_handleEvent);
+    // fvp 0.38 exposes player notifications as broadcast streams instead of
+    // single callback slots; keep the subscriptions to cancel them on dispose.
+    _playerSubscriptions.addAll([
+      _player.onStateChanged.listen(
+        (event) => _handleStateChanged(event.oldValue, event.newValue),
+      ),
+      _player.onMediaStatus.listen(
+        (event) => _handleMediaStatus(event.oldValue, event.newValue),
+      ),
+      _player.onEvent.listen(_handleEvent),
+    ]);
   }
 
   /// How often the synthesized position/buffer streams are refreshed. mdk only
@@ -51,6 +59,7 @@ class MdkPlayerAdapter {
 
   late final mdk.Player _player;
   Timer? _ticker;
+  final List<StreamSubscription<dynamic>> _playerSubscriptions = [];
 
   final _positionController = StreamController<Duration>.broadcast();
   final _bufferController = StreamController<Duration>.broadcast();
@@ -66,6 +75,20 @@ class MdkPlayerAdapter {
   bool _disposed = false;
   bool _hasLoadedMedia = false;
   bool _subtitlesRendered = true;
+
+  /// True while [open] is in flight. Switching media stops the previous
+  /// playback, and mdk delivers that as a `stopped` state event; without this
+  /// guard the stop of the OLD media is misread as the NEW session finishing,
+  /// popping the playback-end overlay in the middle of a quality switch.
+  bool _openingMedia = false;
+
+  /// True between an explicit [stop] call and the resulting `stopped` event,
+  /// so an app-initiated stop is not reported as playback completion.
+  bool _stopRequested = false;
+
+  /// How close to the end the position must be for a `stopped` event to count
+  /// as real playback completion.
+  static const int _completedProximityMs = 1500;
 
   /// Playback position stream, synthesized from the 200ms ticker plus explicit
   /// emits on seek and after opening media.
@@ -109,13 +132,40 @@ class MdkPlayerAdapter {
   int? get activeSubtitleIndex {
     if (_disposed) return null;
     final track = _player.activeSubtitleTracks;
-    return track.isEmpty ? null : track.first;
+    if (track.isEmpty) return null;
+    return _streamIndexOfOrdinal(subtitleStreams, track.first);
   }
 
   int? get activeAudioIndex {
     if (_disposed) return null;
     final track = _player.activeAudioTracks;
-    return track.isEmpty ? null : track.first;
+    if (track.isEmpty) return null;
+    return _streamIndexOfOrdinal(audioStreams, track.first);
+  }
+
+  /// Converts a container stream index (what `StreamInfo.index` reports and
+  /// what the rest of the app works in) to mdk's per-type track ordinal — the
+  /// position of the stream within [streams], which is what `setActiveTracks`
+  /// and `activeTracks` actually use. Returns -1 when not found.
+  ///
+  /// These two numbering schemes differ whenever a media has streams of more
+  /// than one type: e.g. a file laid out as video=stream0, audio=stream1 has a
+  /// single audio track whose container index is 1 but whose audio ordinal is
+  /// 0. Feeding the container index (1) to `setActiveTracks` asks for a
+  /// non-existent 2nd audio track; mdk deactivates the real track, ignores the
+  /// invalid ordinal, and leaves the player with no active audio — silence.
+  int _trackOrdinal(List<mdk.StreamInfo> streams, int streamIndex) {
+    for (var i = 0; i < streams.length; i++) {
+      if (streams[i].index == streamIndex) return i;
+    }
+    return -1;
+  }
+
+  /// Inverse of [_trackOrdinal]: converts an mdk per-type track ordinal back to
+  /// the container stream index. Returns null when out of range.
+  int? _streamIndexOfOrdinal(List<mdk.StreamInfo> streams, int ordinal) {
+    if (ordinal < 0 || ordinal >= streams.length) return null;
+    return streams[ordinal].index;
   }
 
   /// Audio stream list of the currently loaded media.
@@ -152,16 +202,40 @@ class MdkPlayerAdapter {
     bool preferHdrRenderPath = false,
   }) async {
     if (_disposed) return false;
+    _openingMedia = true;
+    try {
+      return await _openInternal(
+        uri: uri,
+        httpHeaders: httpHeaders,
+        startPositionMs: startPositionMs,
+        preferHdrRenderPath: preferHdrRenderPath,
+      );
+    } finally {
+      _openingMedia = false;
+    }
+  }
+
+  Future<bool> _openInternal({
+    required String uri,
+    Map<String, String>? httpHeaders,
+    int startPositionMs = 0,
+    bool preferHdrRenderPath = false,
+  }) async {
     _hasLoadedMedia = false;
     _lastPositionMs = 0;
     _usingHdrRenderPath = false;
 
     _player.setProperty('avio.headers', _encodeHeaders(httpHeaders));
 
-    // The stream's colour metadata is only known after the container is
-    // parsed, so probe without a texture, decide, then create the render
-    // target that matches the decision.
-    await _player.updateTexture(width: -1);
+    // Assign the media before probing for its video size. fvp resolves
+    // `updateTexture` from a per-media size completer that is only completed by
+    // this media's own `loading -> loaded` transition; with no media assigned
+    // nothing ever completes it and the await never returns, which strands
+    // `open()` — and with it the caller's loading flag — forever.
+    //
+    // `prepare()` is what drives that transition, so it runs before the probe:
+    // the probe then finds the size already resolved rather than waiting on a
+    // decode that would not start until prepare() ran.
     _player.media = uri;
 
     final result = await _player.prepare(position: startPositionMs);
@@ -171,6 +245,10 @@ class MdkPlayerAdapter {
       _errorController.add('media prepare failed (code $result)');
       return false;
     }
+
+    // Drop any render target from the previous media now that the new
+    // container is parsed and its size known.
+    await _player.updateTexture(width: -1);
 
     if (preferHdrRenderPath && _isHdrStream()) {
       final switched = await _player.usePlatformView();
@@ -255,6 +333,7 @@ class MdkPlayerAdapter {
 
   void stop() {
     if (_disposed) return;
+    _stopRequested = true;
     _stopTicker();
     _player.state = mdk.PlaybackState.stopped;
     _emitPosition(0);
@@ -285,17 +364,28 @@ class MdkPlayerAdapter {
     _player.playbackRate = rate;
   }
 
-  /// Selects an embedded audio track by its mdk stream index.
-  void setAudioTrack(int index) {
+  /// Selects an embedded audio track by its container stream index.
+  void setAudioTrack(int streamIndex) {
     if (_disposed) return;
-    _player.activeAudioTracks = [index];
+    final ordinal = _trackOrdinal(audioStreams, streamIndex);
+    if (ordinal < 0) return;
+    _player.activeAudioTracks = [ordinal];
   }
 
-  /// Selects a subtitle track by its mdk stream index. Passing null turns
+  /// Selects a subtitle track by its container stream index. Passing null turns
   /// subtitles off.
-  void setSubtitleTrack(int? index) {
+  void setSubtitleTrack(int? streamIndex) {
     if (_disposed) return;
-    _player.activeSubtitleTracks = index == null ? const [] : [index];
+    if (streamIndex == null) {
+      _player.activeSubtitleTracks = const [];
+    } else {
+      final ordinal = _trackOrdinal(subtitleStreams, streamIndex);
+      if (ordinal < 0) {
+        _applySubtitleVisibility();
+        return;
+      }
+      _player.activeSubtitleTracks = [ordinal];
+    }
     _applySubtitleVisibility();
   }
 
@@ -342,7 +432,10 @@ class MdkPlayerAdapter {
       language: language,
       extension: extension,
     );
-    _player.activeSubtitleTracks = [index];
+    final ordinal = _trackOrdinal(subtitleStreams, index);
+    if (ordinal >= 0) {
+      _player.activeSubtitleTracks = [ordinal];
+    }
     _applySubtitleVisibility();
     return index;
   }
@@ -397,9 +490,10 @@ class MdkPlayerAdapter {
     if (_disposed) return;
     _disposed = true;
     _stopTicker();
-    _player.onStateChanged(null);
-    _player.onMediaStatus(null);
-    _player.onEvent(null);
+    for (final subscription in _playerSubscriptions) {
+      await subscription.cancel();
+    }
+    _playerSubscriptions.clear();
     _player.dispose();
     await _positionController.close();
     await _bufferController.close();
@@ -420,12 +514,33 @@ class MdkPlayerAdapter {
     if (newState == mdk.PlaybackState.stopped) {
       _stopTicker();
       _emitPosition(_player.position);
-      _completedController.add(true);
+      final stopRequested = _stopRequested;
+      _stopRequested = false;
+      // A `stopped` event alone does not mean the media finished: switching
+      // media stops the previous playback (delivered asynchronously, possibly
+      // after the new open() completed), and an explicit stop() is not a
+      // completion either. Only report completion when the position actually
+      // reached the end.
+      final nearEnd = _isPositionNearEnd();
+      if (!_openingMedia && !stopRequested && nearEnd) {
+        _completedController.add(true);
+      }
     }
   }
 
-  bool _handleMediaStatus(mdk.MediaStatus oldStatus, mdk.MediaStatus newStatus) {
-    if (_disposed) return true;
+  /// Whether the current position is at (or within [_completedProximityMs] of)
+  /// the media's end. Live streams have no end, and an unknown duration cannot
+  /// prove completion.
+  bool _isPositionNearEnd() {
+    if (_player.isLive) return false;
+    if (!_hasLoadedMedia) return false;
+    final duration = _player.mediaInfo.duration;
+    if (duration <= 0) return false;
+    return _player.position >= duration - _completedProximityMs;
+  }
+
+  void _handleMediaStatus(mdk.MediaStatus oldStatus, mdk.MediaStatus newStatus) {
+    if (_disposed) return;
 
     final wasBuffering = oldStatus.test(mdk.MediaStatus.buffering);
     final isBuffering = newStatus.test(mdk.MediaStatus.buffering);
@@ -446,9 +561,12 @@ class MdkPlayerAdapter {
     if (!wasEnd && isEnd) {
       _stopTicker();
       _emitPosition(_player.position);
-      _completedController.add(true);
+      // Ignore an end delivered for the previous media while a new one is
+      // being opened (quality switch): it is not this session's completion.
+      if (!_openingMedia) {
+        _completedController.add(true);
+      }
     }
-    return true;
   }
 
   void _handleEvent(mdk.MediaEvent event) {

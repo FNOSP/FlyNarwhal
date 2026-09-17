@@ -50,7 +50,7 @@ dependencies:
 
   
   # Video Player
-  fvp: ^0.23.0
+  fvp: ^0.38.1
   
   # Animation
   lottie: ^3.1.0
@@ -91,7 +91,7 @@ dependency_overrides:
   fvp:
     git:
       url: https://github.com/Jankin-Wu/fvp.git
-      ref: feat/macos-hdr-edr-rendering-0.23
+      ref: feat/macos-hdr-edr-rendering
 
 flutter:
   uses-material-design: true
