@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -48,6 +49,7 @@ import 'services/mdk_video_view.dart';
 import 'services/direct_link_audio_track_resolver.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
+import 'services/native_player_danmaku_render_controller.dart';
 import 'services/player_device_context_service.dart';
 import 'services/hdr_display_capability.dart';
 import 'services/play_record_request_builder.dart';
@@ -194,6 +196,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ValueNotifier<Duration>(Duration.zero);
   int _danmakuResetGeneration = 0;
   bool _useHlsSubtitleOverlay = false;
+  /// The native danmaku renderer currently driving the HDR platform view, when
+  /// that path is active. Held so the subtitle overlay can reach the same
+  /// native view, and so a stale controller can be dropped.
+  NativePlayerDanmakuRenderController? _nativeDanmakuController;
   // True when the active external subtitle uses absolute positioning
   // (\pos/\move on most events, e.g. danmaku), making sub-pos ineffective.
   bool _isPositionLockedSubtitle = false;
@@ -623,6 +629,77 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _player?.hdrRenderPathActive ?? _alwaysFalse;
 
   static final ValueNotifier<bool> _alwaysFalse = ValueNotifier<bool>(false);
+
+  /// Creates the renderer for the danmaku the HDR platform view draws itself.
+  ///
+  /// Returns null before the player exists; the overlay then falls back to the
+  /// Flutter canvas renderer, which is also the path used whenever HDR is not
+  /// active.
+  PlayerDanmakuRenderControllerFactory? get _nativeDanmakuFactory {
+    final player = _player;
+    if (player == null) {
+      return null;
+    }
+    return () => _trackNativeDanmakuController(
+      NativePlayerDanmakuRenderController(nativeHandle: player.nativeHandle),
+    );
+  }
+
+  /// Registers [controller] so the subtitle overlay can push its lines to the
+  /// same native view, and clears the slot on disposal.
+  NativePlayerDanmakuRenderController _trackNativeDanmakuController(
+    NativePlayerDanmakuRenderController controller,
+  ) {
+    _nativeDanmakuController = controller;
+    return controller;
+  }
+
+  /// Pushes the HLS subtitle lines to the native overlay drawn by the HDR
+  /// platform view.
+  ///
+  /// The bottom padding is resolved here rather than natively so the native
+  /// side does not have to duplicate the widget's text-height estimate; the
+  /// value sent is the same one [PlayerSubtitleOverlay] would have used.
+  void _pushNativeSubtitleLines(List<String> lines) {
+    final controller = _nativeDanmakuController;
+    if (controller == null || controller.isDisposed) {
+      return;
+    }
+    if (!_useHlsSubtitleOverlay || lines.isEmpty) {
+      controller.setSubtitleLines(
+        lines: const [],
+        fontSize: 1,
+        bottomPadding: 0,
+        opacity: 0,
+      );
+      return;
+    }
+
+    const minBottomPadding = 40.0;
+    const topSafeInset = 40.0;
+    final settings = ref.read(subtitleSettingsProvider);
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final fontSize = settings.fontSize * settings.fontScale;
+    final lineCount = lines.where((line) => line.isNotEmpty).length;
+    final estimatedTextHeight =
+        ((lineCount <= 0 ? 1 : lineCount) * fontSize * 1.35) + 16.0;
+    final maxBottomPadding = (screenHeight - topSafeInset - estimatedTextHeight)
+        .clamp(minBottomPadding, screenHeight - topSafeInset);
+    final bottomPadding =
+        lerpDouble(
+          minBottomPadding,
+          maxBottomPadding,
+          settings.verticalPosition.clamp(0.0, 1.0),
+        ) ??
+        minBottomPadding;
+
+    controller.setSubtitleLines(
+      lines: lines,
+      fontSize: fontSize,
+      bottomPadding: bottomPadding,
+      opacity: 1.0,
+    );
+  }
 
   void _setupVideoParamsListener() {
     _videoParamsSubscription?.cancel();
@@ -4693,14 +4770,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               child: ValueListenableBuilder<bool>(
                 valueListenable: _hdrRenderPathActiveListenable,
                 builder: (context, hdrActive, _) {
-                  // The HDR platform view is a native layer that composites
-                  // above Flutter's own layers, so anything the player draws
-                  // over the video area would be hidden behind it. Danmaku is
-                  // dropped in that mode rather than silently covering the
-                  // picture.
-                  if (hdrActive) {
-                    return const SizedBox.shrink();
-                  }
                   return ValueListenableBuilder<Duration>(
                     valueListenable: _danmakuPosition,
                     builder: (context, position, _) {
@@ -4717,6 +4786,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         settings: danmakuState.settings,
                         loadStatus: danmakuState.loadStatus,
                         resetGeneration: _danmakuResetGeneration,
+                        // The HDR platform view is a native layer that composites
+                        // above Flutter's own layers, so a Flutter-drawn overlay
+                        // would be hidden behind the picture. That path draws the
+                        // danmaku natively instead, on the same player.
+                        renderControllerFactory: hdrActive ? _nativeDanmakuFactory : null,
                       );
                     },
                   );
@@ -4728,15 +4802,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             child: ValueListenableBuilder<bool>(
               valueListenable: _hdrRenderPathActiveListenable,
               builder: (context, hdrActive, _) {
-                // HDR mode renders subtitles natively (mdk draws the selected
-                // track into the video layer); the Flutter overlay would be
-                // hidden behind the native view.
-                if (hdrActive) {
-                  return const SizedBox.shrink();
-                }
                 return ValueListenableBuilder<List<String>>(
                   valueListenable: _hlsSubtitleTexts,
                   builder: (context, lines, _) {
+                    // The HDR platform view composites above Flutter's layers,
+                    // so the overlay is drawn by the native view alongside the
+                    // danmaku rather than as a widget.
+                    if (hdrActive) {
+                      _pushNativeSubtitleLines(lines);
+                      return const SizedBox.shrink();
+                    }
                     return PlayerSubtitleOverlay(
                       lines: lines,
                       visible: _useHlsSubtitleOverlay,

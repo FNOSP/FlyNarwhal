@@ -85,7 +85,7 @@ SPEC CHECKSUMS:
   file_selector_macos: 9e9e068e90ebee155097d00e89ae91edb2374db7
   flutter_inappwebview_macos: c2d68649f9f8f1831bfcd98d73fd6256366d9d1d
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  fvp: 3b8bd5288c31057debb408b58d009f1ca10074f4
+  fvp: c745fe2c1ee9f4238fa5f27499836884faa6ef33
   macos_window_utils: 23f54331a0fd51eea9e0ed347253bf48fd379d1d
   mdk: d04505395fc419371541c5092b15b0e9c555b8a4
   OrderedSet: e539b66b644ff081c73a262d24ad552a69be3a94

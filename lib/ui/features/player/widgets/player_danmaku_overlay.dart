@@ -42,11 +42,46 @@ class PlayerDanmakuRenderOptions {
 abstract interface class PlayerDanmakuRenderController {
   Widget buildView(Key key, PlayerDanmakuRenderOptions options);
   void add(PlayerDanmakuRenderItem item);
+
+  /// Whether this controller wants the whole comment list rather than being fed
+  /// comments one at a time as they come due.
+  ///
+  /// A controller that draws natively keeps its own playback clock, which runs
+  /// at frame rate rather than the rate this widget is rebuilt at, so it has to
+  /// dispatch from the list itself. Returning true makes the widget hand the
+  /// list over and stop calling [add].
+  bool get wantsWholeList;
+
+  /// Replaces the comments shown. Only called when [wantsWholeList] is true.
+  void setDanmakuList(List<PlayerDanmakuListEntry> entries);
+
   void updateOptions(PlayerDanmakuRenderOptions options);
   void pause();
   void resume();
   void clear();
   void dispose();
+}
+
+/// One comment as handed to a [PlayerDanmakuRenderController] that dispatches
+/// on its own clock.
+///
+/// Everything the native side needs to place the comment is resolved here, so
+/// the renderer never has to re-derive the Flutter-side mappings.
+class PlayerDanmakuListEntry {
+  const PlayerDanmakuListEntry({
+    required this.startMs,
+    required this.text,
+    required this.argb,
+    required this.type,
+  });
+
+  final int startMs;
+  final String text;
+
+  /// Packed 0xAARRGGBB.
+  final int argb;
+
+  final PlayerDanmakuType type;
 }
 
 typedef PlayerDanmakuRenderControllerFactory = PlayerDanmakuRenderController
@@ -192,6 +227,28 @@ class _PlayerDanmakuOverlayState extends State<PlayerDanmakuOverlay> {
       widget.position.inMilliseconds - _dispatchLookBehindMs,
     );
     _lastPositionMs = widget.position.inMilliseconds;
+    _handOverDanmakuList();
+  }
+
+  /// Hands the whole comment list to a renderer that dispatches on its own
+  /// clock, so it can schedule comments between this widget's rebuilds.
+  void _handOverDanmakuList() {
+    if (!_renderController.wantsWholeList) {
+      return;
+    }
+    _renderController.setDanmakuList([
+      for (var index = 0; index < _preparedDanmaku.length; index++)
+        _toListEntry(_preparedDanmaku[index], _startTimesMs[index]),
+    ]);
+  }
+
+  PlayerDanmakuListEntry _toListEntry(Danmaku danmaku, int startMs) {
+    return PlayerDanmakuListEntry(
+      startMs: startMs,
+      text: danmaku.text,
+      argb: parseDanmakuColor(danmaku.color).toARGB32(),
+      type: mapDanmakuType(danmaku.mode),
+    );
   }
 
   void _resetTimeline(int positionMs) {
@@ -214,6 +271,11 @@ class _PlayerDanmakuOverlayState extends State<PlayerDanmakuOverlay> {
   }
 
   void _dispatchDueDanmaku(int positionMs) {
+    // A whole-list renderer dispatches natively off its own clock; feeding it
+    // individual comments here would duplicate and mis-time them.
+    if (_renderController.wantsWholeList) {
+      return;
+    }
     while (_nextDanmakuIndex < _preparedDanmaku.length) {
       final startTimeMs = _startTimesMs[_nextDanmakuIndex];
       if (startTimeMs > positionMs) {
@@ -316,6 +378,14 @@ class CanvasPlayerDanmakuRenderController
   canvas.DanmakuController<void>? _controller;
   PlayerDanmakuRenderOptions? _latestOptions;
   bool _shouldRun = true;
+
+  /// The canvas renderer is driven comment by comment as they come due, so it
+  /// has no use for the whole list.
+  @override
+  bool get wantsWholeList => false;
+
+  @override
+  void setDanmakuList(List<PlayerDanmakuListEntry> entries) {}
 
   @override
   Widget buildView(Key key, PlayerDanmakuRenderOptions options) {

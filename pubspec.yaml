@@ -87,11 +87,13 @@ dependency_overrides:
       url: https://github.com/Jankin-Wu/fluent_ui.git
       ref: fix/minimal-pane-reserved-top
   # Fork: macOS platform-view renderer so HDR sources can present as HDR
-  # instead of being tone mapped into the SDR Flutter texture.
+  # instead of being tone mapped into the SDR Flutter texture, plus a native
+  # danmaku/subtitle overlay for that path (Flutter widgets cannot composite
+  # above the platform view).
   fvp:
     git:
       url: https://github.com/Jankin-Wu/fvp.git
-      ref: feat/macos-hdr-edr-rendering
+      ref: feat/macos-native-danmaku-overlay
 
 flutter:
   uses-material-design: true

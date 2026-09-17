@@ -588,8 +588,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "feat/macos-hdr-edr-rendering"
-      resolved-ref: "70e30e22f6f3b2b132153c184102d68e70c0662b"
+      ref: "feat/macos-native-danmaku-overlay"
+      resolved-ref: "8152e1cf724bb8fe89eeaa0ee5a4b7b5197fc593"
       url: "https://github.com/Jankin-Wu/fvp.git"
     source: git
     version: "0.38.1"
