@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import '../error/error_handler.dart';
 import '../network/api_result.dart';
+import 'external_http_adapter.dart'
+    if (dart.library.io) 'external_http_adapter_io.dart';
 import 'response_decoder.dart' as response_decoder;
 import 'interceptors/index.dart';
 
@@ -29,10 +32,39 @@ class DioClientConfig {
   });
 }
 
+/// A binary HTTP response whose body remains a stream.
+class DioStreamResponse {
+  const DioStreamResponse({
+    required this.statusCode,
+    required this.headers,
+    required this.stream,
+  });
+
+  final int statusCode;
+  final Map<String, List<String>> headers;
+  final Stream<Uint8List> stream;
+}
+
 /// Enhanced Dio client with interceptors and error handling
 class DioClient {
   final Dio _dio;
   final DioClientConfig _config;
+
+  /// An isolated client for provider URLs. NAS credentials, request signing,
+  /// retries and body logging must never be inherited by these requests.
+  DioClient.external({
+    DioClientConfig config = const DioClientConfig(),
+    HttpClientAdapter? adapter,
+  })  : _dio = Dio(BaseOptions(
+          connectTimeout: config.connectTimeout,
+          receiveTimeout: config.receiveTimeout,
+          sendTimeout: config.sendTimeout,
+          responseType: ResponseType.stream,
+          followRedirects: true,
+        )),
+        _config = config {
+    _dio.httpClientAdapter = adapter ?? createExternalHttpAdapter();
+  }
 
   /// Constructor with callback functions for auth
   DioClient.withCallbacks({
@@ -100,6 +132,54 @@ class DioClient {
   void updateBaseUrl(String url) {
     _dio.options.baseUrl = url;
   }
+
+  /// Opens a raw response without decoding JSON or buffering the whole body.
+  /// HTTP statuses remain available to the caller for range validation.
+  /// [cancelToken] also cancels body reception after headers have arrived.
+  Future<ApiResult<DioStreamResponse>> getStream(
+    Uri uri, {
+    required Map<String, String> headers,
+    required CancelToken cancelToken,
+  }) async {
+    try {
+      final response = await _dio.getUri<ResponseBody>(
+        uri,
+        cancelToken: cancelToken,
+        options: Options(
+          headers: headers,
+          responseType: ResponseType.stream,
+          validateStatus: (_) => true,
+        ),
+      );
+      final body = response.data;
+      if (body == null) {
+        return ResultFailure(FailureInfo.fromMessage('Empty HTTP response'));
+      }
+      return Success(DioStreamResponse(
+        statusCode: body.statusCode,
+        headers: body.headers,
+        stream: body.stream,
+      ));
+    } on DioException catch (error) {
+      // A CDN URL may contain signed credentials. Keep provider errors and
+      // request details out of user-visible/loggable failure strings.
+      final failure = ErrorHandler.handleDioError(error.copyWith(
+        message: 'CDN network request failed',
+      ));
+      return ResultFailure(FailureInfo(
+        message: failure.message,
+        code: failure.code,
+        displayMessage: failure.displayMessage,
+      ));
+    } catch (_) {
+      return ResultFailure(
+        FailureInfo.fromMessage('CDN network request failed'),
+      );
+    }
+  }
+
+  /// Releases sockets and cancels outstanding requests owned by this client.
+  void close() => _dio.close(force: true);
 
   /// GET request with ApiResult
   Future<ApiResult<T>> get<T>(
