@@ -423,6 +423,13 @@ class MdkPlayerAdapter {
     if (_disposed) return;
     final active = _player.activeSubtitleTracks;
     if (streamIndex == null) {
+      // Turning subtitles off must clear the render flag too, not just the
+      // active track. `_applySubtitleVisibility()` below re-writes the
+      // `subtitle` property from `_subtitlesRendered`, so leaving that flag
+      // true would clear the track and then immediately switch the renderer
+      // back on: the track list reads empty while the subtitle is still on
+      // screen. mdk's renderer keys on the property, not on the track.
+      _subtitlesRendered = false;
       // Same rationale as setAudioTrack: skip the no-op deactivate cycle.
       if (active.isNotEmpty) {
         _player.activeSubtitleTracks = const [];
@@ -437,6 +444,9 @@ class MdkPlayerAdapter {
         _applySubtitleVisibility();
         return;
       }
+      // Keep the render flag in step with the selection: a track that was
+      // switched off earlier must render again once the user picks one.
+      _subtitlesRendered = true;
       _player.activeSubtitleTracks = [ordinal];
     }
     _applySubtitleVisibility();
@@ -490,7 +500,10 @@ class MdkPlayerAdapter {
       _player.activeSubtitleTracks = [ordinal];
     }
     _externalSubtitleLoaded = true;
-    _applySubtitleVisibility();
+    // Loading the file must not change whether subtitles are rendered: this
+    // can run while the user has subtitles switched off (the off path still
+    // applies settings), and forcing the property back on would silently undo
+    // that choice.
     return index;
   }
 

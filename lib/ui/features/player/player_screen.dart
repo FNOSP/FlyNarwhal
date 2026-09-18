@@ -2152,7 +2152,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         'subtitle.margin.y',
         _subtitleMarginForPosition(settings.verticalPosition),
       );
-      player.showSubtitles();
+      // Re-enable rendering only when a subtitle is selected. This runs after
+      // every subtitle change, including switching to "关闭", where an
+      // unconditional show would turn subtitles back on immediately.
+      //
+      // Read from the cache rather than [_selectedSubtitleGuid]: the switch
+      // flow writes the target stream to the cache before applying the track,
+      // while the guid is only assigned afterwards — reading that here would
+      // report "off" mid-switch and hide the subtitle just picked.
+      if (_playingInfoCache?.currentSubtitleStream != null) {
+        player.showSubtitles();
+      }
       // The subtitle offset slider has no backend equivalent in mdk, which
       // exposes no delay property; the setting still drives the Dart-rendered
       // HLS overlay below, but not the native subtitle renderer.
@@ -2354,6 +2364,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (subtitleStream == null) {
       _clearPendingEmbeddedSubtitleSwitch();
       _clearPositionLockedSubtitle();
+      // An externally loaded subtitle is a separate mdk subtitle *media*, not
+      // just an active track: clearing the track alone leaves the file loaded.
+      // Drop the media first so switching subtitles off really unloads it.
+      player.removeExternalSubtitle();
       player.setSubtitleTrack(null);
       return;
     }
