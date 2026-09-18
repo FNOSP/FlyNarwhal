@@ -3,6 +3,10 @@ import 'movie_detail_models.dart';
 
 part 'player_models.g.dart';
 
+/// The transport is explicit because NAS playback can also resolve to an
+/// original-file direct link without selecting the cloud direct-play mode.
+enum PlaybackTransport { standard, quarkCdnRange }
+
 // Speed options for playback
 class SpeedItem {
   final String label;
