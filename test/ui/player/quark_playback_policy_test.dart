@@ -89,7 +89,8 @@ void main() {
     () {
       for (final cache in [
         null,
-        _session(index: null), // NAS original-file / error 8192 fallback.
+        // NAS original-file / error 8192 fallback.
+        _session(index: null),
         _session(direct: false),
         _session(cloudType: 1),
         _session(cloudType: CloudStorageInfo.strmCloudStorageType),

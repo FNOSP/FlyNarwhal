@@ -357,14 +357,8 @@ class _FakeCdn implements CdnRangeSource {
     }
     if (probe || autoRespond) request.complete(empty: total == 0);
     return Success(CdnRangeResponse(
-      statusCode: total == 0 ? 416 : 206,
-      headers: {
-        'content-range': [
-          total == 0 ? 'bytes */0' : 'bytes $start-$end/$total'
-        ],
-        'content-length': ['${end - start + 1}'],
-        'content-type': ['video/mp4'],
-      },
+      totalLength: total,
+      contentType: 'video/mp4',
       stream: request.body.stream,
     ));
   }

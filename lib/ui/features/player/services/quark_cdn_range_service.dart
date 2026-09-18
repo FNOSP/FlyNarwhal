@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/network/api_result.dart';
 import '../../../../data/datasources/remote/cdn_range_remote_data_source.dart';
 import 'cdn_range_policy.dart';
 
@@ -274,55 +275,24 @@ class CdnRangeSession {
       ))
           .getOrThrow();
       unreadBody = response.stream;
-      String? header(String name) {
-        for (final entry in response.headers.entries) {
-          if (entry.key.toLowerCase() == name) return entry.value.join(', ');
-        }
-        return null;
-      }
-
-      // An empty resource has no byte 0. It is metadata, never a download.
-      if (probe &&
-          response.statusCode == 416 &&
-          header('content-range')?.trim() == 'bytes */0') {
-        token.cancel('Empty source');
+      // The data source has already cancelled an empty resource's probe body.
+      if (probe && response.totalLength == 0) {
         final chunk =
-            _DownloadedChunk(Uint8List(0), 0, header('content-type'), lease);
+            _DownloadedChunk(Uint8List(0), 0, response.contentType, lease);
         lease = null;
         request.chunks.add(chunk);
         return _ChunkOutcome.success(chunk);
       }
-      if (response.statusCode != 206) {
-        throw CdnRangeFailure('CDN 分片请求失败（HTTP ${response.statusCode}）');
-      }
-      final encoding = header('content-encoding')?.trim().toLowerCase();
-      if (encoding != null && encoding != 'identity') {
-        throw const CdnRangeFailure('CDN 返回了不支持的压缩数据');
-      }
-      final match = RegExp(r'^bytes (\d+)-(\d+)/(\d+)$')
-          .firstMatch(header('content-range')?.trim() ?? '');
-      if (match == null) throw const CdnRangeFailure('CDN 缺少有效的资源范围');
-      final start = int.tryParse(match[1]!);
-      final end = int.tryParse(match[2]!);
-      final total = int.tryParse(match[3]!);
-      if (start != range.start ||
-          end != range.end ||
-          total == null ||
-          total <= range.end ||
-          (!probe && total != _length)) {
+      // Keep cross-request resource consistency in the playback session.
+      final total = response.totalLength;
+      if (total <= range.end || (!probe && total != _length)) {
         throw const CdnRangeFailure('CDN 返回的资源范围或大小不一致');
-      }
-      final contentLength = header('content-length');
-      if (contentLength != null &&
-          int.tryParse(contentLength) != range.length) {
-        throw const CdnRangeFailure('CDN 返回的分片长度不一致');
       }
       unreadBody = null;
       final bytes = await _collect(response.stream, range.length, token);
       _checkActive();
       if (request.cancelled) throw const CdnRangeCancelled();
-      final chunk =
-          _DownloadedChunk(bytes, total, header('content-type'), lease);
+      final chunk = _DownloadedChunk(bytes, total, response.contentType, lease);
       lease = null;
       request.chunks.add(chunk);
       return _ChunkOutcome.success(chunk);
@@ -333,15 +303,19 @@ class CdnRangeSession {
             ? const CdnRangeCancelled()
             : error is CdnRangeFailure
                 ? error
-                : const CdnRangeFailure('CDN 分片读取失败，请重试'),
+                : error is FailureInfo
+                    ? CdnRangeFailure(error.displayMessage)
+                    : const CdnRangeFailure('CDN 分片读取失败，请重试'),
       );
     } finally {
-      // Invalid headers and empty files never enter _collect. Explicitly
-      // cancel their bodies before returning the connection's budget slot.
+      // Rejected resource metadata and empty files never enter _collect.
+      // Cancel their bodies before returning the connection's budget slot.
       if (unreadBody != null) {
         try {
           await unreadBody.listen((_) {}, onError: (Object _) {}).cancel();
-        } catch (_) {/* Cancellation may race a remote disconnect. */}
+        } catch (_) {
+          // Cancellation may race a remote disconnect.
+        }
       }
       request.tokens.remove(token);
       lease?.release();
@@ -421,8 +395,9 @@ class CdnRangeSession {
 /// Only binds loopback. An unpredictable per-source path prevents reuse of an
 /// old player URL after a quality/episode switch.
 class QuarkCdnRangeService {
-  QuarkCdnRangeService({CdnRangeSource? source, this.budget, this.onError})
-      : _source = source ?? CdnRangeRemoteDataSource();
+  QuarkCdnRangeService(
+      {required CdnRangeSource source, this.budget, this.onError})
+      : _source = source;
 
   final CdnRangeSource _source;
   final CdnRangeBudget? budget;
@@ -557,7 +532,9 @@ class QuarkCdnRangeService {
         } catch (_) {
           try {
             await response.close();
-          } catch (_) {/* Already disconnected. */}
+          } catch (_) {
+            // Already disconnected.
+          }
         }
       }
     } finally {
@@ -565,7 +542,9 @@ class QuarkCdnRangeService {
       await cancelBody();
       try {
         await incoming?.cancel();
-      } catch (_) {/* Already disconnected. */} finally {
+      } catch (_) {
+        // Already disconnected.
+      } finally {
         _sockets.remove(socket);
       }
     }

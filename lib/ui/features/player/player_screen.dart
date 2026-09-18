@@ -34,6 +34,7 @@ import '../../../providers/file_providers.dart';
 import '../../../providers/danmaku_controller.dart';
 import '../../../providers/episode_analysis_controller.dart';
 import '../../../providers/providers.dart';
+import '../../../providers/quark_cdn_range_providers.dart';
 import '../../../providers/smart_skip_settings_controller.dart';
 import 'controllers/intro_skip_controller.dart';
 import 'controllers/intro_skip_state.dart';
@@ -1726,7 +1727,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       var effectiveUri = playUri;
       if (transport == PlaybackTransport.quarkCdnRange) {
-        final service = QuarkCdnRangeService(
+        final service = ref.read(quarkCdnRangeServiceFactoryProvider)(
           onError: (error) {
             if (!mounted || generation != _playbackSourceGeneration) return;
             AppTalker.warning(
@@ -1955,13 +1956,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       qualities: directQualities,
       cloudStorageType: cloudStorageType,
     );
-    final visibleQualities = filtered.qualities.isNotEmpty || cloudStorageType == 4
-        ? filtered.qualities
-        : directQualities;
-    final visibleOriginalIndices = filtered.originalIndices.isNotEmpty || cloudStorageType == 4
-        ? filtered.originalIndices
-        : List<int>.generate(directQualities.length, (i) => i);
-    final originalIndex = isCloud ? (visibleOriginalIndices.firstOrNull ?? 0) : null;
+    final visibleQualities =
+        filtered.qualities.isNotEmpty || cloudStorageType == 4
+            ? filtered.qualities
+            : directQualities;
+    final visibleOriginalIndices =
+        filtered.originalIndices.isNotEmpty || cloudStorageType == 4
+            ? filtered.originalIndices
+            : List<int>.generate(directQualities.length, (i) => i);
+    final originalIndex =
+        isCloud ? (visibleOriginalIndices.firstOrNull ?? 0) : null;
     final directLink = await _sessionCoordinator.getDirectPlayLink(
       mediaGuid: videoStream.mediaGuid,
       startPositionMs: startPositionMs,
@@ -4463,17 +4467,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       qualities: directQualities,
       cloudStorageType: cloudStorageType,
     );
-    final visibleQualities = filtered.qualities.isNotEmpty || cloudStorageType == 4
-        ? filtered.qualities
-        : directQualities;
-    final visibleOriginalIndices = filtered.originalIndices.isNotEmpty || cloudStorageType == 4
-        ? filtered.originalIndices
-        : List<int>.generate(directQualities.length, (i) => i);
+    final visibleQualities =
+        filtered.qualities.isNotEmpty || cloudStorageType == 4
+            ? filtered.qualities
+            : directQualities;
+    final visibleOriginalIndices =
+        filtered.originalIndices.isNotEmpty || cloudStorageType == 4
+            ? filtered.originalIndices
+            : List<int>.generate(directQualities.length, (i) => i);
     final visibleIndex = PlayerSessionCoordinator.defaultDirectLinkQualityIndex(
       visibleQualities,
       savedResolution: savedResolution,
     );
-    final originalIndex = visibleOriginalIndices.isEmpty ? 0 : visibleOriginalIndices[visibleIndex];
+    final originalIndex = visibleOriginalIndices.isEmpty
+        ? 0
+        : visibleOriginalIndices[visibleIndex];
     final directLink = await _sessionCoordinator.getDirectPlayLink(
       mediaGuid: videoStream.mediaGuid,
       startPositionMs: startPositionMs,
@@ -4493,14 +4501,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _sessionCoordinator.ensureDirectPlayRecordLink(cache.playRecordLink),
       directLinkQualityIndex: originalIndex,
       currentQualities: convertedQualities,
-      currentQuality: convertedQualities.isEmpty ? null : convertedQualities[visibleIndex],
+      currentQuality:
+          convertedQualities.isEmpty ? null : convertedQualities[visibleIndex],
     );
     ref
         .read(playerViewModelProvider.notifier)
         .updatePlayingInfo(_playingInfoCache);
     setState(() {
       _qualities = convertedQualities;
-      _currentQuality = convertedQualities.isEmpty ? null : convertedQualities[visibleIndex];
+      _currentQuality =
+          convertedQualities.isEmpty ? null : convertedQualities[visibleIndex];
       _currentResolution = _currentQuality?.resolution ?? '';
       _currentBitrate = _currentQuality?.bitrate;
     });
@@ -5350,7 +5360,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (_isInitialized && _isPipMode) _buildPipOverlay(),
           if (_cloudPlaybackErrorVisible &&
               ((_playingInfoCache?.streamInfo?.isCloudDirectMedia ?? false) ||
-                  _playingInfoCache?.streamInfo?.cloudStorageInfo?.cloudStorageType == 4))
+                  _playingInfoCache
+                          ?.streamInfo?.cloudStorageInfo?.cloudStorageType ==
+                      4))
             CloudPlaybackErrorDialog(
               key: const ValueKey('player-cloud-playback-error'),
               isProxyMode: _cloudPlaybackErrorIsProxy,

@@ -30,8 +30,7 @@ void main() {
       expect(source.requests, hasLength(1));
     });
 
-    test(
-        'Given an empty CDN resource, when probe returns 416, then length is zero',
+    test('Given an empty CDN resource, when probed, then length is zero',
         () async {
       final source = _ControlledSource(0);
       final budget = CdnRangeBudget();
@@ -40,15 +39,12 @@ void main() {
       addTearDown(session.close);
       final initialized = session.initialize();
       final request = await source.requestAt(0);
-      request.respond(
-          status: 416,
-          headerOverrides: {'content-range': 'bytes */0'},
-          bytes: Uint8List(0));
+      request.respond(bytes: Uint8List(0));
 
       await initialized;
       expect(session.totalLength, 0);
       expect(budget.occupiedSlots, 0);
-      expect(request.token.isCancelled, isTrue);
+      expect(request.ended, isTrue);
       expect(errors, isEmpty);
     });
 
@@ -300,7 +296,7 @@ void main() {
           .read(CdnByteRange(start: 0, end: source.totalLength - 1))
           .listen((_) {}, onError: streamErrors.add);
       await source.requestAt(3);
-      source.requests[1].respondHeaders();
+      source.requests[1].respondMetadata();
       await source.requests[1].bodyListening.future;
 
       await subscription.cancel();
@@ -332,7 +328,7 @@ void main() {
         done.add(finished.future);
       }
       await source.requestAt(3);
-      source.requests[1].respondHeaders();
+      source.requests[1].respondMetadata();
       await source.requests[1].bodyListening.future;
 
       final firstClose = session.close();
@@ -393,8 +389,8 @@ void main() {
       await source.requestAt(3);
       expect(source.requests.skip(1).map((request) => request.start),
           [0, _chunk, 2 * _chunk]);
-      source.requests[1].respondHeaders();
-      source.requests[3].respondHeaders();
+      source.requests[1].respondMetadata();
+      source.requests[3].respondMetadata();
       await source.requests[1].bodyListening.future;
       await source.requests[3].bodyListening.future;
       expect(budget.occupiedSlots, 3);
@@ -430,15 +426,13 @@ void main() {
         final session = _session(source, budget, errors: errors);
         addTearDown(session.close);
         final initialized = session.initialize();
-        (await source.requestAt(0))
-            .respond(headerOverrides: {'content-type': mime});
+        (await source.requestAt(0)).respond(contentType: mime);
         await initialized;
         expect(session.contentType, mime);
 
         final result =
             session.read(const CdnByteRange(start: 2, end: 5)).toList();
-        (await source.requestAt(1))
-            .respond(headerOverrides: {'content-type': mime});
+        (await source.requestAt(1)).respond(contentType: mime);
 
         _expectBytes(await result, 2, 4);
         expect(source.requests, hasLength(2));
@@ -448,34 +442,13 @@ void main() {
     }
 
     final invalidResponses = <String, void Function(_PendingRequest)>{
-      'HTTP 200 ignoring Range': (request) => request.respond(status: 200),
-      'HTTP 403': (request) => request.respond(status: 403),
-      'missing Content-Range': (request) =>
-          request.respond(headerOverrides: {'content-range': null}),
-      'malformed Content-Range': (request) =>
-          request.respond(headerOverrides: {'content-range': 'bytes 0-3/*'}),
-      'different start/end': (request) =>
-          request.respond(headerOverrides: {'content-range': 'bytes 1-4/10'}),
-      'different total length': (request) =>
-          request.respond(headerOverrides: {'content-range': 'bytes 0-3/11'}),
-      'total below endpoint': (request) =>
-          request.respond(headerOverrides: {'content-range': 'bytes 0-3/3'}),
-      'different Content-Length': (request) =>
-          request.respond(headerOverrides: {'content-length': '3'}),
+      'data source rejection': (request) => request.reject(),
+      'different total length': (request) => request.respond(totalLength: 11),
+      'total below endpoint': (request) => request.respond(totalLength: 3),
       'truncated body': (request) => request.respond(bytes: Uint8List(3)),
       'oversized body': (request) => request.respond(bytes: Uint8List(5)),
-      'compressed body': (request) =>
-          request.respond(headerOverrides: {'content-encoding': 'gzip'}),
-      'HLS MIME with HTTP 200 ignoring Range': (request) => request.respond(
-          status: 200,
-          headerOverrides: {'content-type': 'application/vnd.apple.mpegurl'}),
-      'HLS MIME with mismatched byte range': (request) =>
-          request.respond(headerOverrides: {
-            'content-type': 'application/vnd.apple.mpegurl',
-            'content-range': 'bytes 1-4/10',
-          }),
       'upstream stream error': (request) {
-        request.respondHeaders();
+        request.respondMetadata();
         request.body.addError(StateError('source stream failed'));
       },
     };
@@ -530,7 +503,7 @@ void main() {
     });
 
     test(
-        'Given invalid probe metadata, when initialized, then fails before reading media',
+        'Given a rejected probe, when initialized, then fails before reading media',
         () async {
       final source = _ControlledSource(10);
       final budget = CdnRangeBudget();
@@ -539,8 +512,7 @@ void main() {
       addTearDown(session.close);
       final rejected =
           expectLater(session.initialize(), throwsA(isA<CdnRangeFailure>()));
-      (await source.requestAt(0))
-          .respond(headerOverrides: {'content-range': 'bytes 0-1/10'});
+      (await source.requestAt(0)).reject();
 
       await rejected;
       expect(source.requests, hasLength(1));
@@ -549,7 +521,7 @@ void main() {
     });
 
     test(
-        'Given no Content-Length, when valid bytes arrive, then validates actual length',
+        'Given several stream events, when valid bytes arrive, then validates actual length',
         () async {
       final source = _ControlledSource(10);
       final session = _session(source, CdnRangeBudget());
@@ -558,7 +530,7 @@ void main() {
       final result =
           session.read(const CdnByteRange(start: 2, end: 5)).toList();
       final request = await source.requestAt(1);
-      request.respondHeaders(headerOverrides: {'content-length': null});
+      request.respondMetadata();
       request.body.add(_bytes(2, 1));
       request.body.add(_bytes(3, 2));
       request.body.add(_bytes(5, 1));
@@ -726,31 +698,21 @@ class _PendingRequest {
     if (log != null) log.active--;
   }
 
-  void respondHeaders(
-      {int status = 206, Map<String, String?> headerOverrides = const {}}) {
-    final values = <String, String>{
-      'content-range': 'bytes $start-$end/${source.totalLength}',
-      'content-length': '${end - start + 1}',
-      'content-type': 'video/mp4',
-    };
-    for (final entry in headerOverrides.entries) {
-      if (entry.value == null) {
-        values.remove(entry.key);
-      } else {
-        values[entry.key] = entry.value!;
-      }
-    }
+  void respondMetadata({int? totalLength, String contentType = 'video/mp4'}) {
     response.complete(Success(CdnRangeResponse(
-        statusCode: status,
-        headers: values.map((name, value) => MapEntry(name, [value])),
+        totalLength: totalLength ?? source.totalLength,
+        contentType: contentType,
         stream: body.stream)));
   }
 
+  void reject() {
+    response
+        .complete(ResultFailure(FailureInfo.fromMessage('CDN 返回的资源范围或大小不一致')));
+  }
+
   void respond(
-      {int status = 206,
-      Map<String, String?> headerOverrides = const {},
-      Uint8List? bytes}) {
-    respondHeaders(status: status, headerOverrides: headerOverrides);
+      {int? totalLength, String contentType = 'video/mp4', Uint8List? bytes}) {
+    respondMetadata(totalLength: totalLength, contentType: contentType);
     body.add(bytes ?? _bytes(start, end - start + 1));
     unawaited(body.close());
   }
