@@ -7,6 +7,7 @@ import 'dart:ui' show lerpDouble;
 import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -49,6 +50,7 @@ import 'services/mdk_video_view.dart';
 import 'services/direct_link_audio_track_resolver.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
+import 'services/external_subtitle_cues.dart';
 import 'services/native_player_danmaku_render_controller.dart';
 import 'services/player_device_context_service.dart';
 import 'services/hdr_display_capability.dart';
@@ -124,11 +126,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       Duration(seconds: 3);
   static const Duration _directLinkEmbeddedAudioTracksTimeout =
       Duration(seconds: 3);
-  static const String _defaultSubtitleFontSize = '60';
-
+  // mdk's text-subtitle canvas is libass' default 384x288 script resolution
+  // (the subtitle.size property cannot change it), so margins applied through
+  // mdk text-style properties are expressed in 288-canvas pixels: 200 on the
+  // 1080p reference maps to 53 here. External SRT/VTT subtitles don't use
+  // this path — they are drawn by the compositor overlay instead.
   /// Vertical space the subtitle bottom margin is measured against when the
-  /// user moves the subtitle position slider, in video pixels.
-  static const double _subtitleMaxVerticalMargin = 200;
+  /// user moves the subtitle position slider, in 288-canvas pixels.
+  static const double _subtitleMaxVerticalMargin = 53;
+
+  /// External SRT/VTT subtitles are drawn by the native compositor overlay
+  /// instead of mdk's libass renderer, which force-draws a black background
+  /// box on text subtitle tracks that no file style or player property can
+  /// remove. mdk still decodes the track and reports the active cue text via
+  /// onSubtitleText, which feeds the overlay.
+  bool _useExternalSubtitleOverlay = false;
+  final ValueNotifier<List<String>> _externalSubtitleTexts =
+      ValueNotifier(const []);
+  List<ExternalSubtitleCue> _externalSubtitleCues = const [];
+  Timer? _externalSubtitleOverlayTimer;
 
   /// Seconds of media to keep buffered ahead, per playback mode. mdk's buffer
   /// range is expressed in milliseconds.
@@ -472,11 +488,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _applyDefaultSubtitleSettings(MdkPlayerAdapter player) {
-    player.setProperty('subtitle.font.size', _defaultSubtitleFontSize);
-    // mdk aligns subtitles to the bottom edge by default; the legacy default
-    // position sat flush with the frame bottom.
-    player.setProperty('subtitle.alignment.y', '1');
-    player.setProperty('subtitle.margin.y', _subtitleMarginForPosition(1.0));
+    // Intentionally empty: any non-default text-style property set here makes
+    // mdk enable a selective libass style override for text subtitle tracks,
+    // and that override force-draws a black background box (BorderStyle 3 +
+    // black BackColour) that no file style or later property can remove.
+    // Subtitle styling is applied per selection in _applySubtitleSettingsToMpv
+    // instead; external text subtitles carry their style in the generated ASS
+    // file and only receive subtitle.scale.
   }
 
   /// Applies the user's decode mode. `auto` lets mdk pick a hardware decoder
@@ -661,11 +679,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// side does not have to duplicate the widget's text-height estimate; the
   /// value sent is the same one [PlayerSubtitleOverlay] would have used.
   void _pushNativeSubtitleLines(List<String> lines) {
-    final controller = _nativeDanmakuController;
+    // The controller is normally created with the danmaku renderer; subtitle
+    // overlays must work with danmaku off too, so create it lazily here.
+    var controller = _nativeDanmakuController;
     if (controller == null || controller.isDisposed) {
-      return;
+      final player = _player;
+      if (player == null) return;
+      controller = _trackNativeDanmakuController(
+        NativePlayerDanmakuRenderController(nativeHandle: player.nativeHandle),
+      );
     }
-    if (!_useHlsSubtitleOverlay || lines.isEmpty) {
+    if ((!_useHlsSubtitleOverlay && !_useExternalSubtitleOverlay) ||
+        lines.isEmpty) {
       controller.setSubtitleLines(
         lines: const [],
         fontSize: 1,
@@ -905,6 +930,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       subtitleSettingsProvider,
       (previous, next) {
         if (!mounted || _areSubtitleSettingsEqual(previous, next)) return;
+        if (_useExternalSubtitleOverlay) {
+          // The overlay reads size/position/scale at push time; re-push the
+          // active cue so slider changes apply immediately.
+          _pushNativeSubtitleLines(_externalSubtitleTexts.value);
+          return;
+        }
         if (_isCurrentSubtitleMpvAdjustable) {
           _applySubtitleSettingsToMpv(next);
           return;
@@ -2136,13 +2167,167 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isDirectLinkEmbeddedSubtitle(subtitleStream);
   }
 
+  /// External subtitle formats drawn by the compositor overlay instead of
+  /// mdk's libass renderer: SRT/VTT. mdk force-draws a black background box
+  /// on those text tracks; ASS/SSA keep their file-controlled mdk rendering.
+  bool _isExternalOverlayFormat(String? format) {
+    final normalized = format?.toLowerCase().trim();
+    return normalized == 'vtt' ||
+        normalized == 'webvtt' ||
+        normalized == 'srt' ||
+        normalized == 'subrip';
+  }
+
+  /// Routes the active external subtitle cue text into the native compositor
+  /// overlay and turns mdk's own subtitle rendering off. mdk's onSubtitleText
+  /// only bursts the whole track at decode time, so visibility is driven from
+  /// the parsed cues and the playback position instead (same pattern as the
+  /// HLS subtitle repository, including the offset setting).
+  void _enableExternalSubtitleOverlay(
+    MdkPlayerAdapter player,
+    String content,
+    String format,
+  ) {
+    final cues = parseExternalSubtitleCues(content, format);
+    if (cues == null || cues.isEmpty) {
+      // Unparseable content: fall back to mdk's own rendering.
+      _disableExternalSubtitleOverlay();
+      _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+      return;
+    }
+    _externalSubtitleCues = cues;
+    _useExternalSubtitleOverlay = true;
+    player.hideSubtitles();
+    _externalSubtitleOverlayTimer?.cancel();
+    _externalSubtitleOverlayTimer = Timer.periodic(
+      const Duration(milliseconds: 200),
+      (_) => _updateExternalSubtitleOverlayLines(),
+    );
+    _updateExternalSubtitleOverlayLines();
+  }
+
+  void _updateExternalSubtitleOverlayLines() {
+    if (!_useExternalSubtitleOverlay) return;
+    final player = _player;
+    if (player == null) return;
+    // Match the HLS repository convention: the offset shifts the effective
+    // position, not the cue windows.
+    final effectivePositionMs = player.positionMs -
+        (ref.read(subtitleSettingsProvider).offsetSeconds * 1000).round();
+    List<String> lines = const [];
+    for (final cue in _externalSubtitleCues) {
+      if (effectivePositionMs >= cue.startMs &&
+          effectivePositionMs < cue.endMs) {
+        lines = cue.lines;
+        break;
+      }
+    }
+    if (!listEquals(_externalSubtitleTexts.value, lines)) {
+      _setExternalSubtitleLines(lines);
+    }
+    // The native compositor is driven outside the widget build: pushing from a
+    // builder would send platform messages mid-build, which collides with the
+    // mouse tracker's frame-phase hit testing.
+    if (player.hdrRenderPathActive.value) {
+      _pushNativeSubtitleLines(lines);
+    }
+  }
+
+  /// Updates the overlay notifier, deferring past a frame phase when the
+  /// timer lands inside one (mutating listenables mid-frame trips Flutter's
+  /// MouseTracker re-entrancy assertion in debug builds).
+  void _setExternalSubtitleLines(List<String> lines) {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      Future(() => _externalSubtitleTexts.value = lines);
+      return;
+    }
+    _externalSubtitleTexts.value = lines;
+  }
+
+  void _disableExternalSubtitleOverlay() {
+    if (!_useExternalSubtitleOverlay) return;
+    _useExternalSubtitleOverlay = false;
+    _externalSubtitleOverlayTimer?.cancel();
+    _externalSubtitleOverlayTimer = null;
+    _externalSubtitleCues = const [];
+    _externalSubtitleTexts.value = const [];
+  }
+
   void _applySubtitleSettingsToMpv(SubtitleSettings settings) {
     final player = _player;
     if (player == null || !_isCurrentSubtitleMpvAdjustable) {
       return;
     }
 
+    final currentStream = _playingInfoCache?.currentSubtitleStream;
+    if (currentStream != null && _isSupportedExternalSubtitle(currentStream)) {
+      // External text subtitles are normalised to ASS with the full style in
+      // the file. Any player text-style property that differs from mdk's
+      // documented default makes mdk enable a selective libass style override
+      // for the track, and that override force-draws a black background box
+      // (BorderStyle 3 + black BackColour) the file cannot prevent — so reset
+      // the style properties to their defaults (in case a previous embedded
+      // text selection left non-default values on this player) and only set
+      // the scale, which is documented for all subtitle types.
+      player.setProperty('subtitle.font', '');
+      player.setProperty('subtitle.font.size', '22');
+      player.setProperty('subtitle.border', '1.2');
+      player.setProperty('subtitle.shadow', '0');
+      player.setProperty('subtitle.box', '0');
+      player.setProperty('subtitle.color', '0xffffffff');
+      player.setProperty('subtitle.color.outline', '0x000000ff');
+      player.setProperty('subtitle.color.background', '0');
+      player.setProperty(
+        'subtitle.scale',
+        settings.fontScale.toStringAsFixed(3),
+      );
+      player.showSubtitles();
+      return;
+    }
+
+    if (currentStream != null && currentStream.isBitmap == 1) {
+      // Bitmap subtitles (PGS/SUP) render from their own pictures; mdk's
+      // selective style override would still force a background box onto
+      // them if any text-style property differs from the defaults, so only
+      // the scale (documented for all subtitle types) is set here.
+      player.setProperty(
+        'subtitle.scale',
+        settings.fontScale.toStringAsFixed(3),
+      );
+      player.showSubtitles();
+      return;
+    }
+
     try {
+      // Web-parity styling for mdk's libass text renderer: bottom-centred,
+      // white with a black outline, no background box, moderate size. mdk only
+      // honours these for plain-text (SRT/VTT) tracks; ASS/SSA render from the
+      // file's own style and only [subtitle.scale] applies to them.
+      player.setProperty('subtitle.alignment.y', '1'); // bottom
+      player.setProperty('subtitle.alignment.x', '0'); // centre
+      // mdk hands text subtitles to libass through a 384x288 PlayRes script
+      // (ffmpeg's subrip encoder output; "PlayResY is not set, defaulting to
+      // 288"), so font.size is in 288-canvas pixels, not video pixels.
+      // Normalise the 1080p-referenced setting to that canvas so the text
+      // keeps a constant on-screen size, like the web player; fall back to a
+      // raw 288-canvas value before the setting is sane.
+      final fontSize = settings.fontSize * 288.0 / 1080.0;
+      player.setProperty('subtitle.font.size', fontSize.toStringAsFixed(1));
+      player.setProperty('subtitle.color', '0xffffffff');
+      // Colours are 0xAARRGGBB: the outline alpha must be ff or it renders
+      // fully transparent.
+      player.setProperty('subtitle.color.outline', '0xff000000');
+      player.setProperty('subtitle.border', '2');
+      // box < 0 disables the background box outright (box >= 0 keeps a box
+      // with that edge width); shadow 0 then leaves neither box nor shadow.
+      player.setProperty('subtitle.box', '-1');
+      player.setProperty('subtitle.shadow', '0');
+      // Belt and braces: if mdk still draws the box, a fully transparent
+      // background colour makes it invisible. The value must be non-zero —
+      // mdk treats 0 as "keep the default colour" and skips the override.
+      player.setProperty('subtitle.color.background', '0x00000001');
       player.setProperty(
         'subtitle.scale',
         settings.fontScale.toStringAsFixed(3),
@@ -2210,7 +2395,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           format: subtitleStream.format,
         );
         _updatePositionLockedSubtitle(content, subtitleStream.format);
-        _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+        if (_isExternalOverlayFormat(subtitleStream.format)) {
+          _enableExternalSubtitleOverlay(
+            player,
+            content,
+            subtitleStream.format,
+          );
+        } else {
+          _disableExternalSubtitleOverlay();
+          _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+        }
       } catch (e) {
         AppTalker.warning('Player', 'apply external subtitle async failed: $e');
       }
@@ -2249,6 +2443,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // An external track outranks embedded ones in mdk, so drop it before
       // selecting an embedded index.
       player.removeExternalSubtitle();
+      _disableExternalSubtitleOverlay();
       player.setSubtitleTrack(targetTrack.index);
     } catch (error) {
       AppTalker.warning(
@@ -2368,6 +2563,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // just an active track: clearing the track alone leaves the file loaded.
       // Drop the media first so switching subtitles off really unloads it.
       player.removeExternalSubtitle();
+      _disableExternalSubtitleOverlay();
       player.setSubtitleTrack(null);
       return;
     }
@@ -2435,7 +2631,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         format: subtitleStream.format,
       );
       _updatePositionLockedSubtitle(content, subtitleStream.format);
-      _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+      if (_isExternalOverlayFormat(subtitleStream.format)) {
+        _enableExternalSubtitleOverlay(player, content, subtitleStream.format);
+      } else {
+        _disableExternalSubtitleOverlay();
+        _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+      }
     } catch (e) {
       AppTalker.warning('Player', 'apply external subtitle failed: $e');
       if (player == _player) {
@@ -4773,6 +4974,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _removeIntroSkipStateListener?.call();
     _introSkipController.dispose();
     _disposeHlsSubtitleSession();
+    _externalSubtitleOverlayTimer?.cancel();
+    _disableExternalSubtitleOverlay();
     _playRecordTimer?.cancel();
     _playbackDetailsRefreshTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
@@ -4780,6 +4983,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playerFocusNode.dispose();
     _player?.dispose();
     _hlsSubtitleTexts.dispose();
+    _externalSubtitleTexts.dispose();
     _danmakuPosition.dispose();
     super.dispose();
   }
@@ -4873,18 +5077,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               builder: (context, hdrActive, _) {
                 return ValueListenableBuilder<List<String>>(
                   valueListenable: _hlsSubtitleTexts,
-                  builder: (context, lines, _) {
-                    // The HDR platform view composites above Flutter's layers,
-                    // so the overlay is drawn by the native view alongside the
-                    // danmaku rather than as a widget.
-                    if (hdrActive) {
-                      _pushNativeSubtitleLines(lines);
-                      return const SizedBox.shrink();
-                    }
-                    return PlayerSubtitleOverlay(
-                      lines: lines,
-                      visible: _useHlsSubtitleOverlay,
-                      settings: subtitleSettings,
+                  builder: (context, hlsLines, _) {
+                    return ValueListenableBuilder<List<String>>(
+                      valueListenable: _externalSubtitleTexts,
+                      builder: (context, externalLines, _) {
+                        // External SRT/VTT cues outrank the HLS overlay when
+                        // both sessions somehow overlap.
+                        final useExternal = _useExternalSubtitleOverlay &&
+                            externalLines.isNotEmpty;
+                        final lines = useExternal ? externalLines : hlsLines;
+                        // The HDR platform view composites above Flutter's layers,
+                        // so the overlay is drawn by the native view alongside the
+                        // danmaku rather than as a widget. The push is deferred
+                        // out of the build phase: sending platform messages from
+                        // a builder collides with the mouse tracker's frame-phase
+                        // hit testing (MouseTracker re-entrancy assertion).
+                        if (hdrActive) {
+                          Future(() => _pushNativeSubtitleLines(lines));
+                          return const SizedBox.shrink();
+                        }
+                        return PlayerSubtitleOverlay(
+                          lines: lines,
+                          visible: useExternal || _useHlsSubtitleOverlay,
+                          settings: subtitleSettings,
+                        );
+                      },
                     );
                   },
                 );

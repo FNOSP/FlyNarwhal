@@ -589,7 +589,7 @@ packages:
     description:
       path: "."
       ref: "feat/macos-hdr-edr-rendering"
-      resolved-ref: "4e5abb327007f660a76b199a744b2de0e1b16896"
+      resolved-ref: "55582804dff3208f3211a96880b76f3569337ab8"
       url: "https://github.com/Jankin-Wu/fvp.git"
     source: git
     version: "0.38.1"

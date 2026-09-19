@@ -598,11 +598,12 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                     snapToCenter: true,
                     centerValue: 1.0,
                     snapThreshold: 0.04,
+                    // The rendered size is fontSize * fontScale, so the slider
+                    // only drives the scale: its centre (1.0) leaves the
+                    // default size untouched, and it stays linear instead of
+                    // compounding with a rewritten fontSize.
                     onChanged: (value) => onSettingsChanged(
-                      settings.copyWith(
-                        fontScale: value,
-                        fontSize: 24.0 * value,
-                      ),
+                      settings.copyWith(fontScale: value),
                     ),
                   ),
                   const Spacer(),
