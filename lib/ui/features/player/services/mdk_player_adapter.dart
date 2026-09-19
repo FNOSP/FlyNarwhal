@@ -37,6 +37,11 @@ class VideoSize {
 class MdkPlayerAdapter {
   MdkPlayerAdapter({bool lowLatency = false}) {
     _player = mdk.Player();
+    // Enable mdk's demuxer cache for network sources. Without it the demuxer
+    // holds no read-ahead window, so `buffered()` and `bufferedTimeRanges()`
+    // both report zero for every HTTP(S) stream and the progress bar has no
+    // buffered segment to draw. The value is the cache window in milliseconds.
+    _player.setProperty('demux.buffer.ranges', '$_demuxBufferRangesMs');
     if (lowLatency) {
       _player.setBufferRange(min: 0);
     }
@@ -57,8 +62,13 @@ class MdkPlayerAdapter {
   /// exposes `position` as a getter, so it has to be polled.
   static const Duration _tickInterval = Duration(milliseconds: 200);
 
+  /// Read-ahead window the demuxer keeps for network sources, matching the
+  /// buffer range the player screen requests.
+  static const int _demuxBufferRangesMs = 120000;
+
   late final mdk.Player _player;
   Timer? _ticker;
+  Timer? _bufferTicker;
   final List<StreamSubscription<dynamic>> _playerSubscriptions = [];
 
   final _positionController = StreamController<Duration>.broadcast();
@@ -72,6 +82,11 @@ class MdkPlayerAdapter {
   final _trackListController = StreamController<void>.broadcast();
 
   int _lastPositionMs = 0;
+
+  /// Last buffered-range end pushed to [buffer]. Ranges can regress when the
+  /// demuxer trims its cache, and the UI should not move its buffered segment
+  /// backwards, so only forward progress is emitted.
+  int _lastBufferedMs = 0;
   bool _disposed = false;
   bool _hasLoadedMedia = false;
   bool _subtitlesRendered = true;
@@ -223,6 +238,7 @@ class MdkPlayerAdapter {
   }) async {
     _hasLoadedMedia = false;
     _lastPositionMs = 0;
+    _lastBufferedMs = 0;
     _usingHdrRenderPath = false;
     _externalSubtitleLoaded = false;
 
@@ -271,6 +287,7 @@ class MdkPlayerAdapter {
     _emitDuration();
     _emitVideoSize();
     _trackListController.add(null);
+    _stopBufferTicker();
     _startTicker();
     return true;
   }
@@ -331,6 +348,7 @@ class MdkPlayerAdapter {
   void play() {
     if (_disposed) return;
     _player.state = mdk.PlaybackState.playing;
+    _stopBufferTicker();
     _startTicker();
   }
 
@@ -338,6 +356,10 @@ class MdkPlayerAdapter {
     if (_disposed) return;
     _player.state = mdk.PlaybackState.paused;
     _stopTicker();
+    // The demuxer keeps filling its cache while playback is held, so the
+    // buffered range has to keep reaching the UI even though the position no
+    // longer advances.
+    _startBufferTicker();
     _emitPosition(_player.position);
   }
 
@@ -345,6 +367,7 @@ class MdkPlayerAdapter {
     if (_disposed) return;
     _stopRequested = true;
     _stopTicker();
+    _stopBufferTicker();
     _player.state = mdk.PlaybackState.stopped;
     _emitPosition(0);
   }
@@ -353,6 +376,11 @@ class MdkPlayerAdapter {
     if (_disposed) return;
     await _player.seek(position: target.inMilliseconds);
     if (_disposed) return;
+    // Seeking backwards removes the cached range ahead of the old position, so
+    // the monotonic buffered-end guard has to restart from the new position.
+    if (target.inMilliseconds < _lastBufferedMs) {
+      _lastBufferedMs = target.inMilliseconds;
+    }
     _emitPosition(target.inMilliseconds);
   }
 
@@ -564,6 +592,7 @@ class MdkPlayerAdapter {
     if (_disposed) return;
     _disposed = true;
     _stopTicker();
+    _stopBufferTicker();
     for (final subscription in _playerSubscriptions) {
       await subscription.cancel();
     }
@@ -587,6 +616,7 @@ class MdkPlayerAdapter {
     _playingController.add(newState == mdk.PlaybackState.playing);
     if (newState == mdk.PlaybackState.stopped) {
       _stopTicker();
+      _stopBufferTicker();
       _emitPosition(_player.position);
       final stopRequested = _stopRequested;
       _stopRequested = false;
@@ -676,14 +706,47 @@ class MdkPlayerAdapter {
     _ticker = null;
   }
 
+  /// Polls the buffered range while playback is paused. mdk's demuxer keeps
+  /// reading ahead when the clock is stopped, so the buffered segment has to
+  /// keep updating even though position does not.
+  void _startBufferTicker() {
+    _bufferTicker ??= Timer.periodic(_tickInterval, (_) => _emitBuffer(_player.position));
+  }
+
+  void _stopBufferTicker() {
+    _bufferTicker?.cancel();
+    _bufferTicker = null;
+  }
+
   void _tick() {
     if (_disposed || !_hasLoadedMedia) return;
     final current = _player.position;
     if (current != _lastPositionMs) {
       _emitPosition(current);
-      final buffered = _player.buffered();
-      _bufferController.add(Duration(milliseconds: current + buffered));
     }
+    _emitBuffer(current);
+  }
+
+  /// Emits the end of the buffered range.
+  ///
+  /// Two signals describe how far ahead playback is buffered, and neither is
+  /// sufficient alone. The demuxer's time ranges report the cache window, whose
+  /// end often lags the play head for HTTP sources; `buffered()` reports a
+  /// read-ahead duration from the current position, but reads 0 while the
+  /// demuxer is still filling. Taking the furthest of the two keeps the bar
+  /// moving for both buffered and unbuffered sources.
+  void _emitBuffer(int current) {
+    if (_bufferController.isClosed) return;
+    var end = current + _player.buffered();
+    for (final range in _player.bufferedTimeRanges()) {
+      final rangeEnd = range.end.inMilliseconds;
+      if (rangeEnd > end) end = rangeEnd;
+    }
+    if (end <= _lastBufferedMs) {
+      return;
+    }
+    _lastBufferedMs = end;
+    _bufferController.add(Duration(milliseconds: end));
   }
 
   void _emitPosition(int milliseconds) {
