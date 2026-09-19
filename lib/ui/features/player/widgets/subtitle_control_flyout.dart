@@ -35,6 +35,9 @@ class SubtitleControlFlyout extends StatefulWidget {
   final void Function(SubtitleStream)? onRequestDelete;
   final void Function(SubtitleStream)? onPredownloadSimilar;
 
+  /// 当前播放的是否为剧集（有同系列其他集可下载字幕）。
+  final bool isEpisode;
+
   const SubtitleControlFlyout({
     super.key,
     required this.subtitles,
@@ -54,6 +57,7 @@ class SubtitleControlFlyout extends StatefulWidget {
     this.onHoverStateChanged,
     this.onRequestDelete,
     this.onPredownloadSimilar,
+    this.isEpisode = false,
   });
 
   @override
@@ -487,6 +491,7 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
               },
               onRequestDelete: widget.onRequestDelete,
               onPredownloadSimilar: widget.onPredownloadSimilar,
+              isEpisode: widget.isEpisode,
             ),
     );
   }

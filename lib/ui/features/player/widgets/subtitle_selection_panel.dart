@@ -45,6 +45,10 @@ class SubtitleSelectionPanel extends StatefulWidget {
   final ValueChanged<SubtitleStream>? onRequestDelete;
   final ValueChanged<SubtitleStream>? onPredownloadSimilar;
 
+  /// 当前播放的是否为剧集（有同系列其他集可下载字幕）；为 false 时
+  /// 隐藏"为其他集下载相似字幕"入口。
+  final bool isEpisode;
+
   /// 使用 Fluent Acrylic 毛玻璃背景；否则使用播放器默认的深色实底。
   final bool useAcrylicBackground;
 
@@ -65,6 +69,7 @@ class SubtitleSelectionPanel extends StatefulWidget {
     this.onOpenAddLocalSubtitle,
     this.onRequestDelete,
     this.onPredownloadSimilar,
+    this.isEpisode = false,
     this.useAcrylicBackground = false,
     this.autoHideScrollbar = false,
   });
@@ -138,7 +143,8 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
   }
 
   bool _hasPredownloadButton(SubtitleStream subtitle) {
-    return subtitle.isExternal == 1 &&
+    return widget.isEpisode &&
+        subtitle.isExternal == 1 &&
         subtitle.sourceId.isNotEmpty &&
         widget.onPredownloadSimilar != null;
   }

@@ -1190,6 +1190,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         barrierDismissible: true,
         builder: (_) => SubtitleSearchDialog(
           mediaFileName: currentFile.fileName,
+          canDownloadForOtherEpisodes: _isPlayingEpisode,
           initialSubtitleGuidByTrimId: {
             for (final subtitle
                 in _playingInfoCache?.currentSubtitleStreamList ?? const [])
@@ -5800,6 +5801,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onOpenAddLocalSubtitle: _pickAndUploadLocalSubtitle,
           onRequestDelete: _handleRequestDeleteSubtitle,
           onPredownloadSimilar: _handlePredownloadSimilarSubtitle,
+          isEpisode: _isPlayingEpisode,
         ),
         const SizedBox(width: _trailingControlSpacing),
         PlayerSettingsMenu(
@@ -6548,6 +6550,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     return _useHlsSubtitleOverlay &&
         (subtitleStream != null || _hlsSubtitleTexts.value.isNotEmpty);
+  }
+
+  /// Whether the media being played is an episode of a series, i.e. it has
+  /// sibling episodes that a subtitle can also be fetched for.
+  bool get _isPlayingEpisode {
+    final cache = _playingInfoCache;
+    return cache?.isEpisode == true ||
+        MediaType.tryParse(cache?.item?.type) == MediaType.episode;
   }
 
   String get _displayTitle {

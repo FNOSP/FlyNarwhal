@@ -12,6 +12,7 @@ import '../../../core/network/api_result.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/file_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
+import '../../../domain/entities/media_type.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     as cache_manager;
 import '../../../providers/global_refresh.dart';
@@ -389,6 +390,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
       return;
     }
     final mediaGuid = currentFile.guid;
+    // Only episodes of a series have sibling episodes to fetch subtitles for.
+    final isPlayingEpisode =
+        MediaType.tryParse(widget.state.item?.type) == MediaType.episode;
 
     setState(() => _showSubtitleSearchDialog = true);
     try {
@@ -398,6 +402,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         barrierDismissible: true,
         builder: (_) => SubtitleSearchDialog(
           mediaFileName: currentFile.fileName,
+          canDownloadForOtherEpisodes: isPlayingEpisode,
           initialSubtitleGuidByTrimId: {
             for (final subtitle in widget.state.streamList?.subtitleStreams ??
                 const <SubtitleStream>[])
@@ -733,6 +738,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           onAddLocalSubtitle: _pickAndUploadLocalSubtitle,
           onRequestDelete: _handleDeleteSubtitle,
           onPredownloadSimilar: _handlePredownloadSimilarSubtitle,
+          isEpisode:
+              MediaType.tryParse(widget.state.item?.type) == MediaType.episode,
         ));
       }
       if (audioSelectorVisible) {
