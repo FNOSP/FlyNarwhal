@@ -128,6 +128,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   static const String _directLinkMpvReadAheadSeconds = '120';
   static const String _defaultMpvDemuxerMaxBytes = '268435456';
   static const String _directLinkMpvDemuxerMaxBytes = '268435456';
+  bool _isCachePauseActive = false;
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
   Player? _player;
@@ -137,6 +138,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isPlaying = false;
   bool _isFullscreen = false;
   int _currentPosition = 0;
+  // The last position this app explicitly seeked to. mpv reports time-pos
+  // optimistically (it echoes the requested target before any data is
+  // decoded), so a burst of relative seeks that reads player.state.position
+  // as its base compounds the optimistic echo and points every seek past
+  // where mpv's real playhead is. Relative seeks must anchor on the last
+  // commanded target instead.
+  int _lastCommandedSeekTarget = 0;
+  DateTime? _lastPositionTickAt;
+  Timer? _keySeekDebounceTimer;
+  int? _pendingKeySeekTarget;
+  PlayerSeekOrigin? _pendingKeySeekOrigin;
+  DateTime? _keySeekBurstStartedAt;
+  static const Duration _keySeekQuietWindow = Duration(milliseconds: 220);
+  static const Duration _keySeekReleaseDelay = Duration(milliseconds: 600);
+  static const Duration _seekConvergenceCheckDelay = Duration(milliseconds: 700);
+  int _seekConvergenceToken = 0;
   int _bufferedPosition = 0;
   int _duration = 0;
   double _volume = 1.0;
@@ -652,8 +669,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final isDirectLink = _playingInfoCache?.isUseDirectLink == true;
     final cachePauseWait =
         isDirectLink ? _directLinkMpvCachePauseWait : _defaultMpvCachePauseWait;
-    final cachePause =
-        isDirectLink ? _directLinkMpvCachePause : _defaultMpvCachePause;
     final readAheadSeconds = isDirectLink
         ? _directLinkMpvReadAheadSeconds
         : _defaultMpvReadAheadSeconds;
@@ -680,9 +695,71 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       cachePauseWait,
       waitForInitialization: false,
     );
+    // Direct links start with cache-pause disabled so a fast local/CDN source
+    // never pauses on a briefly empty cache. But a slow link then never builds
+    // a read-ahead lead: mpv plays out the small decoded window, hits a
+    // permanent underrun, and any forward seek lands in unfetched territory
+    // that takes minutes to refetch. Keep the disabled policy only while the
+    // link keeps up; once a direct-link source starts starving, allow mpv to
+    // pause and rebuild the cache so it can resume promptly instead of
+    // freezing. Non-direct (HLS/transcode) sessions always pause as before.
     await platform.setProperty(
       'cache-pause',
-      cachePause,
+      isDirectLink ? _directLinkMpvCachePause : _defaultMpvCachePause,
+      waitForInitialization: false,
+    );
+  }
+
+  /// Whether a starving direct-link source should be allowed to pause on the
+  /// cache. Returns false for non-direct sessions and while the cache leads the
+  /// playhead, so the adaptive switch only fires under an actual underrun.
+  ///
+  /// [positionMilliseconds] is judged against the last commanded target rather
+  /// than taken at face value: mpv's `time-pos` echoes a seek target before any
+  /// data is decoded, so a raw reading reads "the cache is behind" whenever the
+  /// echo sits past the buffered end, flipping cache-pause on and freezing
+  /// playback permanently against a source that never refetches the abandoned
+  /// position. Only starve when there is no cache lead at either the reported
+  /// position or the target mpv is actually heading to.
+  bool _shouldPauseCacheForStarvingDirectLink({
+    required bool isDirectLink,
+    required int positionMilliseconds,
+    required int bufferMilliseconds,
+    required bool isBuffering,
+  }) {
+    if (!isDirectLink) {
+      return true;
+    }
+    if (!isBuffering) {
+      return false;
+    }
+    const leadMilliseconds = 1000;
+    final effectivePosition = positionMilliseconds > _lastCommandedSeekTarget
+        ? _lastCommandedSeekTarget
+        : positionMilliseconds;
+    return bufferMilliseconds - effectivePosition < leadMilliseconds;
+  }
+
+  Future<void> _updateAdaptiveCachePausePolicy() async {
+    final platform = _player?.platform;
+    if (platform is! NativePlayer) {
+      return;
+    }
+    final shouldPauseCache = _shouldPauseCacheForStarvingDirectLink(
+      isDirectLink: _playingInfoCache?.isUseDirectLink == true,
+      // Use the commanded anchor, not the optimistic echo, so a rewind burst
+      // cannot make this think the cache is starved past its own target.
+      positionMilliseconds: _lastCommandedSeekTarget,
+      bufferMilliseconds: _bufferedPosition,
+      isBuffering: _player?.state.buffering ?? false,
+    );
+    if (shouldPauseCache == _isCachePauseActive) {
+      return;
+    }
+    _isCachePauseActive = shouldPauseCache;
+    await platform.setProperty(
+      'cache-pause',
+      shouldPauseCache ? 'yes' : 'no',
       waitForInitialization: false,
     );
   }
@@ -693,6 +770,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null) return;
     _positionSubscription = player.stream.position.listen((position) {
       final positionMilliseconds = position.inMilliseconds;
+      // A position tick is an optimistic echo when it snapped straight onto a
+      // commanded target instead of advancing with wall-clock time; such a
+      // tick must not re-anchor the relative-seek base. Only a tick that moved
+      // roughly in step with the elapsed real time since the previous tick
+      // counts as genuine playback progress.
+      _updateSeekAnchorFromPosition(positionMilliseconds);
       if (mounted && _currentPosition != positionMilliseconds) {
         setState(() => _currentPosition = positionMilliseconds);
       } else {
@@ -701,7 +784,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _hlsSubtitleRepository?.onPlaybackPosition(positionMilliseconds);
       _danmakuPosition.value = position;
       _introSkipController.dispatch(PositionChanged(positionMilliseconds));
+      unawaited(_updateAdaptiveCachePausePolicy());
     });
+  }
+
+  /// Re-anchor [_lastCommandedSeekTarget] to a position tick only when the
+  /// tick reflects genuine forward playback progress rather than mpv's
+  /// optimistic seek echo, so a burst of relative seeks does not compound the
+  /// echo into ever-larger targets.
+  void _updateSeekAnchorFromPosition(int positionMilliseconds) {
+    final player = _player;
+    if (player == null) {
+      return;
+    }
+    final now = DateTime.now();
+    final previousTickAt = _lastPositionTickAt;
+    final elapsedMs =
+        previousTickAt == null ? 0 : now.difference(previousTickAt).inMilliseconds;
+    _lastPositionTickAt = now;
+    if (elapsedMs <= 0 ||
+        !player.state.playing ||
+        player.state.buffering) {
+      return;
+    }
+    // Natural playback advances the playhead by roughly the elapsed wall-clock
+    // time (scaled by playback speed). An echo jumps far more or moves
+    // backwards, so it fails this band and is ignored.
+    final expected = elapsedMs * _speed;
+    final tolerance = expected.abs() * 0.5 + 1500;
+    final delta = positionMilliseconds - _lastCommandedSeekTarget;
+    final isNaturalAdvance = delta >= 0 && (delta - expected).abs() <= tolerance;
+    if (isNaturalAdvance) {
+      _lastCommandedSeekTarget = positionMilliseconds;
+    }
   }
 
   void _setupPlayerBufferListener() {
@@ -1522,6 +1637,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playRecordTimer?.cancel();
     _lastRecordedPosition = 0;
     _currentPosition = 0;
+    _lastCommandedSeekTarget = 0;
+    _lastPositionTickAt = null;
     _duration = 0;
     _selectedAudioGuid = null;
     _selectedSubtitleGuid = null;
@@ -2654,6 +2771,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       lastError = message;
     });
     final stopwatch = Stopwatch()..start();
+    // A direct-link source that cannot fetch from the requested position opens
+    // the container but never decodes a frame: duration is known while
+    // size stays null and the buffer stays empty. Grinding through the full
+    // timeout only delays the fallback, and on a slow link the fallback request
+    // then races the user leaving the screen. Fail fast once that stalled-open
+    // shape has held long enough that it is clearly not just slow startup.
+    const stalledOpenGrace = Duration(seconds: 8);
     try {
       final attempts = (timeout.inMilliseconds / 500).ceil();
       for (int attempt = 0; attempt < attempts; attempt++) {
@@ -2683,6 +2807,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 'size=${state.width}x${state.height})',
           );
           return true;
+        }
+        final isStalledOpen = state.duration.inMilliseconds > 0 &&
+            state.width == null &&
+            state.buffer.inMilliseconds <= 0;
+        if (isStalledOpen &&
+            stopwatch.elapsedMilliseconds >= stalledOpenGrace.inMilliseconds) {
+          AppTalker.warning(
+            'Player',
+            '[$label] playback verification aborted early: container opened but '
+                'no frame decoded after ${stopwatch.elapsedMilliseconds}ms '
+                '(duration=${state.duration.inMilliseconds}ms '
+                'buffer=${state.buffer.inMilliseconds}ms '
+                'position=${state.position.inMilliseconds}ms)',
+          );
+          return false;
         }
       }
     } finally {
@@ -3223,11 +3362,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _seekRelative(int milliseconds) {
     if (_player == null) return;
-    final current = _player!.state.position.inMilliseconds;
-    final target = (current + milliseconds).clamp(0, _duration).toInt();
+    final target = (_resolveRelativeSeekBase() + milliseconds)
+        .clamp(0, _duration)
+        .toInt();
     final origin =
         _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
-    unawaited(_performSeek(target, origin));
+    _scheduleCoalescedSeek(target, origin);
+  }
+
+  /// The position a relative seek must be measured from. mpv's
+  /// `player.state.position` echoes the requested target optimistically, so
+  /// using it as the base makes a burst of arrow-key seeks compound the echo
+  /// and run away from the real playhead. Anchor on the app's last commanded
+  /// target, re-anchored by genuine playback ticks in the position listener;
+  /// take the later of that and the last authoritative position to stay
+  /// correct right after a fresh open or a resume correction.
+  int _resolveRelativeSeekBase() {
+    final reported = _player?.state.position.inMilliseconds ?? 0;
+    return reported > _lastCommandedSeekTarget
+        ? reported
+        : _lastCommandedSeekTarget;
   }
 
   void _seekTo(double progress) {
@@ -3243,6 +3397,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     int targetMilliseconds,
     PlayerSeekOrigin origin,
   ) async {
+    // Record the commanded target before awaiting the seek: this is the
+    // authoritative anchor a subsequent relative seek must use, since mpv's
+    // reported position echoes the request optimistically.
+    final clampedTarget = targetMilliseconds.clamp(0, _duration).toInt();
+    _lastCommandedSeekTarget = clampedTarget;
     await _seekExecutor.performSeek(
       targetMilliseconds: targetMilliseconds,
       origin: origin,
@@ -3321,11 +3480,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _seekRelativeWithToast(int milliseconds) {
     final player = _player;
     if (player == null) return;
-    final current = player.state.position.inMilliseconds;
-    final target = (current + milliseconds).clamp(0, _duration).toInt();
+    final base = _resolveRelativeSeekBase();
+    final target = (base + milliseconds).clamp(0, _duration).toInt();
     final origin =
         _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
-    unawaited(_performSeek(target, origin));
+    _scheduleCoalescedSeek(target, origin);
     final label = milliseconds < 0 ? '快退至' : '快进至';
     ref.read(toastManagerProvider.notifier).showToast(
           '$label：${formatDurationToDateTime(target)}',
@@ -3333,6 +3492,126 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           type: ToastType.info,
           category: 'seek',
         );
+  }
+
+  /// Seek to [target] once the key-seek burst settles. A held arrow key emits
+  /// an auto-repeat event every ~80ms; forwarding each one to mpv overruns its
+  /// seek queue, which silently drops almost all of them and settles far from
+  /// the final target (observed: 719 commands, 25 low-level seeks, mpv 130s
+  /// off). Holding the newest target and issuing a single seek after a short
+  /// quiet window keeps mpv's landing point equal to the last press. The quiet
+  /// window is extended on every press; [_keySeekReleaseDelay] bounds the total
+  /// wait so a continuously-held key still advances in steps.
+  void _scheduleCoalescedSeek(int target, PlayerSeekOrigin origin) {
+    _pendingKeySeekTarget = target;
+    _pendingKeySeekOrigin = origin;
+    _keySeekDebounceTimer?.cancel();
+    final startedAt = _keySeekBurstStartedAt;
+    if (startedAt == null) {
+      _keySeekBurstStartedAt = DateTime.now();
+      _keySeekDebounceTimer = Timer(_keySeekQuietWindow, _flushCoalescedSeek);
+      return;
+    }
+    final heldFor = DateTime.now().difference(startedAt);
+    if (heldFor >= _keySeekReleaseDelay) {
+      // Long continuous hold: commit the accumulated step now and start a new
+      // window so the seek keeps up with the user without flooding mpv.
+      _flushCoalescedSeek();
+      return;
+    }
+    final remaining = _keySeekReleaseDelay - heldFor;
+    final delay = remaining < _keySeekQuietWindow ? remaining : _keySeekQuietWindow;
+    _keySeekDebounceTimer = Timer(delay, _flushCoalescedSeek);
+  }
+
+  void _flushCoalescedSeek() {
+    _keySeekDebounceTimer?.cancel();
+    _keySeekDebounceTimer = null;
+    _keySeekBurstStartedAt = null;
+    final target = _pendingKeySeekTarget;
+    final origin = _pendingKeySeekOrigin;
+    _pendingKeySeekTarget = null;
+    _pendingKeySeekOrigin = null;
+    if (target == null || origin == null) {
+      return;
+    }
+    unawaited(_performSeek(target, origin));
+    unawaited(_confirmSeekConverged(target));
+  }
+
+  /// mpv's seek pipeline lags behind a burst of seeks, and forward playback
+  /// keeps advancing in the meantime, so a cleared burst can leave the real
+  /// playhead far past the last commanded target (observed: commanded 525s,
+  /// resumed at 963s). Confirm the completed seek actually landed near the
+  /// target; if playback overtook it, re-issue the seek until it converges.
+  Future<void> _confirmSeekConverged(int target) async {
+    _seekConvergenceToken++;
+    final token = _seekConvergenceToken;
+    const toleranceMs = 3000;
+    const maxAttempts = 4;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      await Future<void>.delayed(_seekConvergenceCheckDelay);
+      if (token != _seekConvergenceToken || !mounted) {
+        return;
+      }
+      final platform = _player?.platform;
+      if (platform is! NativePlayer) {
+        return;
+      }
+      if (_pendingKeySeekTarget != null) {
+        // A new burst started; its own flush will confirm instead.
+        return;
+      }
+      final completedSeekMs = await _readCompletedSeekMilliseconds(platform);
+      // Converge only on mpv's completed-seek reading. The reported position is
+      // the optimistic echo and always equals the target right after a seek, so
+      // treating it as confirmation makes this check a no-op.
+      final converged =
+          completedSeekMs != null &&
+              (completedSeekMs - target).abs() <= toleranceMs;
+      if (converged) {
+        return;
+      }
+      // mpv did not report a completed seek (property unavailable or no seek
+      // recorded): we cannot verify, so stop rather than re-issue blindly.
+      if (completedSeekMs == null) {
+        return;
+      }
+      // A starving link cannot complete any seek; re-issuing only piles more
+      // abandoned targets onto it. Leave the seek in mpv's queue and let it
+      // settle once data arrives.
+      if (_player?.state.buffering == true) {
+        return;
+      }
+      // Playback ran past the target during the burst; re-issue the seek.
+      _lastCommandedSeekTarget = target;
+      await _player?.seek(Duration(milliseconds: target));
+    }
+  }
+
+  Future<int?> _readCompletedSeekMilliseconds(NativePlayer platform) async {
+    try {
+      final raw = await platform.getProperty('demuxer-cache-state');
+      final text = raw.toString();
+      if (text.isEmpty) {
+        return null;
+      }
+      final marker = '"debug-seeking":';
+      final index = text.indexOf(marker);
+      if (index < 0) {
+        return null;
+      }
+      final start = index + marker.length;
+      final end = text.indexOf(',', start);
+      final slice = end < 0 ? text.substring(start) : text.substring(start, end);
+      final seconds = double.tryParse(slice);
+      if (seconds == null) {
+        return null;
+      }
+      return (seconds * 1000).round();
+    } catch (_) {
+      return null;
+    }
   }
 
   void _changeVolumeBy(double delta) {
@@ -4831,6 +5110,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _pipBoundsSaveTimer?.cancel();
     _pipIdleTimer?.cancel();
     _playerWindowSizeSaveTimer?.cancel();
+    _keySeekDebounceTimer?.cancel();
     _positionSubscription?.cancel();
     _bufferSubscription?.cancel();
     _durationSubscription?.cancel();
@@ -4863,11 +5143,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     final playerCursor = _isInitialized &&
             !_isPipMode &&
-            !overlayState.isUiVisible &&
-            // Keep the cursor clickable while the “播放详细信息” panel is open
-            // even after the transport controls auto-hide, so the user can
-            // still scroll it / press its close button.
-            !_isPlaybackDetailsVisible
+            !overlayState.isUiVisible
         ? SystemMouseCursors.none
         : SystemMouseCursors.click;
 
