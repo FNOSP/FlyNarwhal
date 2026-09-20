@@ -592,9 +592,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             top: showWindowCaption ? kWindowTitleBarHeight : 0,
             child: Center(
               child: AdaptiveLiquidGlassLayer(
-                settings:
-                    const LiquidGlassSettings(thickness: 28.0, blur: 8.0, refractiveIndex: 1.8),
-                quality: GlassQuality.premium,
+                settings: const LiquidGlassSettings(
+                  thickness: 28.0,
+                  blur: 8.0,
+                  refractiveIndex: 1.8,
+                ),
+                // Keep grouped login controls on the cross-platform shader path.
+                quality: GlassQuality.standard,
                 child: GlassContainer(
                   width: 420,
                   padding:
