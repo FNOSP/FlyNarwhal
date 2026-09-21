@@ -57,6 +57,7 @@ import 'controllers/player_overlay_controller.dart';
 import 'controllers/player_session_coordinator.dart';
 import 'services/player_service.dart';
 import 'services/playback_network_policy.dart';
+import 'services/playback_seek_diagnostics.dart';
 import 'services/playback_http_headers.dart';
 import 'services/quark_playback_policy.dart';
 import 'controllers/playback_source_controller.dart';
@@ -197,6 +198,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   late final IntroSkipController _introSkipController;
   IntroSkipState _introSkipState = IntroSkipState.initial();
   late final PlayerSeekExecutor _seekExecutor;
+  int _seekDiagnosticsGeneration = 0;
   final SkipSegmentResolver _skipSegmentResolver = const SkipSegmentResolver();
   ResolvedSkipSegments _resolvedSkipSegments = ResolvedSkipSegments.empty();
   NextEpisodeLoadPhase _nextEpisodeLoadPhase = NextEpisodeLoadPhase.idle;
@@ -345,7 +347,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _introSkipController.actions.listen(_handleSkipAction);
     _seekExecutor = PlayerSeekExecutor(
       playerAdapter: CallbackPlayerSeekAdapter((targetMilliseconds) async {
-        await _player?.seek(Duration(milliseconds: targetMilliseconds));
+        final player = _player;
+        if (player == null) return;
+        final platform = player.platform;
+        Future<void> submit() =>
+            player.seek(Duration(milliseconds: targetMilliseconds));
+        if (!playbackSeekDiagnosticsEnabled || platform is! NativePlayer) {
+          await submit();
+          return;
+        }
+        final generation = ++_seekDiagnosticsGeneration;
+        final sourceGeneration = _playbackSourceGeneration;
+        await PlaybackSeekDiagnostics(
+          readProperty: platform.getProperty,
+          writeLog: (message) => AppTalker.info('SeekDiagnostic', message),
+          isCurrent: () =>
+              mounted &&
+              identical(_player, player) &&
+              generation == _seekDiagnosticsGeneration &&
+              sourceGeneration == _playbackSourceGeneration,
+        ).seek(targetMilliseconds: targetMilliseconds, submit: submit);
       }),
       authoritativeDurationMilliseconds: () => _duration,
       resetDanmaku: () => _danmakuResetGeneration++,
@@ -1813,7 +1834,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _handlePlaybackSourceError(Object error) {
     if (!mounted) return;
     final player = _player;
-    AppTalker.warning('Player', 'Quark CDN range playback failed: $error');
+    final state = player?.state;
+    AppTalker.error(
+      'Player',
+      error: error,
+      message: 'Quark CDN range playback failed: $error; '
+          'generation=$_playbackSourceGeneration '
+          'positionMs=${state?.position.inMilliseconds} '
+          'bufferMs=${state?.buffer.inMilliseconds} '
+          'durationMs=${state?.duration.inMilliseconds} '
+          'playing=${state?.playing} buffering=${state?.buffering} '
+          'completed=${state?.completed} loading=$_isLoading '
+          'decodeMode=$_decodeMode',
+    );
     setState(() {
       _isLoading = false;
       _cloudPlaybackErrorVisible = true;

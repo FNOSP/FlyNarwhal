@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:uuid/uuid.dart';
+
 import 'cdn_proxy.dart';
 import 'cdn_proxy_constants.dart';
+import 'cdn_range_diagnostics.dart';
 import 'cdn_range_policy.dart';
 import 'cdn_range_session.dart';
 
@@ -14,6 +17,7 @@ class CdnProxyService implements CdnProxy {
       {required CdnRangeSource source,
       this.budget,
       this.onError,
+      this.diagnostics,
       this.idleTimeout = CdnProxyDefaults.idleTimeout,
       this.retryDelay = CdnProxyDefaults.retryDelay,
       this.socketFlush,
@@ -23,6 +27,7 @@ class CdnProxyService implements CdnProxy {
   final CdnRangeSource _source;
   final CdnRangeBudget? budget;
   final void Function(Object)? onError;
+  final CdnRangeDiagnostics? diagnostics;
   final Duration idleTimeout;
   final Duration retryDelay;
 
@@ -55,6 +60,7 @@ class CdnProxyService implements CdnProxy {
       uri: uri,
       headers: headers,
       budget: budget,
+      diagnostics: diagnostics,
       idleTimeout: idleTimeout,
       retryDelay: retryDelay,
       onError: (error) {

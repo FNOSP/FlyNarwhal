@@ -1,5 +1,5 @@
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_source.dart';
 import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_errors.dart';
+import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_source.dart';
 import 'dart:async';
 import 'dart:typed_data';
 

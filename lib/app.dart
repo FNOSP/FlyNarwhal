@@ -51,6 +51,12 @@ Future<void> bootstrapApp() async {
     await setupErrorHooks(talker);
 
     AppTalker.info('Bootstrap', 'Bootstrap start');
+    const diagnosticBuild =
+        String.fromEnvironment('FLYNARWHAL_DIAGNOSTIC_BUILD');
+    if (diagnosticBuild.isNotEmpty) {
+      AppTalker.info('Bootstrap', 'Diagnostic build: $diagnosticBuild; '
+          'cdn=${const bool.fromEnvironment('FLYNARWHAL_CDN_DIAGNOSTICS')}');
+    }
 
     // Initialize MediaKit before any player widgets are built.
     MediaKit.ensureInitialized();
@@ -456,3 +462,4 @@ class _MouseBackNavigationListener extends StatelessWidget {
     }
   }
 }
+

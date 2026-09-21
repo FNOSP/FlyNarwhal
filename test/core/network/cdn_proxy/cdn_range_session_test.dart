@@ -1,27 +1,78 @@
+import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_errors.dart';
 import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_session.dart';
 import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_source.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_errors.dart';
 import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_constants.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/core/network/api_result.dart';
 import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_policy.dart';
+import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_diagnostics.dart';
 
 const _chunk = CdnProxyDefaults.chunkSize;
 final _uri = Uri.parse('https://cdn.example.test/movie.mp4?signature=private');
 
 void main() {
   group('CdnRangeSession', () {
+    final diagnosticErrors = <String, Object>{
+      'socket reset': const SocketException('secret CDN URL',
+          osError: OSError('secret address', 10054)),
+    };
+    for (final entry in diagnosticErrors.entries) {
+      test(
+          'Given ${entry.key} after partial bytes, when playback fails, then exports original cause and chunk context',
+          () async {
+        final logs = <String>[];
+        final source = _ControlledSource(10);
+        final budget = CdnRangeBudget();
+        final session = _session(source, budget, diagnostics:
+            CdnRangeDiagnostics(writeLog: (message, {required failure}) {
+          if (failure) logs.add(message);
+        }));
+        addTearDown(session.close);
+        await _initialize(session, source);
+        final rejected = expectLater(
+            session.read(const CdnByteRange(start: 2, end: 5)).toList(),
+            throwsA(isA<CdnRangeFailure>()));
+        final request = await source.requestAt(1);
+        request.respondMetadata();
+        request.body.add(Uint8List(2));
+        request.body.addError(entry.value);
+        await rejected;
+
+        final report = jsonDecode(logs.single) as Map<String, dynamic>;
+        final chunks = report['recentChunks'] as List;
+        expect(chunks.first['outcome'], 'success');
+        expect(chunks.last, containsPair('start', 2));
+        expect(chunks.last, containsPair('receivedBytes', 2));
+        expect(chunks.last, containsPair('expectedBytes', 4));
+        expect(chunks.last, containsPair('stage', 'body'));
+        expect(chunks.last['error'], describeCdnDiagnosticError(entry.value));
+        expect(logs.single, isNot(contains('secret')));
+        expect(logs.single, isNot(contains('private')));
+        expect(logs.single, isNot(contains('signature')));
+        expect(budget.occupiedSlots, 0);
+      });
+    }
+
     test(
         'Given a stalled body, when idle deadline expires, then retries its whole range without delivering partial bytes',
         () async {
+      final failures = <String>[];
+      final reports = <Map<String, dynamic>>[];
       final errors = <Object>[];
       final source = _ControlledSource(10);
       final session = _session(source, CdnRangeBudget(),
-          errors: errors, idleTimeout: const Duration(milliseconds: 20));
+          errors: errors,
+          idleTimeout: const Duration(milliseconds: 20), diagnostics:
+              CdnRangeDiagnostics(writeLog: (message, {required failure}) {
+        if (failure) failures.add(message);
+        reports.add(jsonDecode(message) as Map<String, dynamic>);
+      }));
       addTearDown(session.close);
       await _initialize(session, source);
       final result =
@@ -30,6 +81,12 @@ void main() {
       request.respondMetadata();
       request.body.add(Uint8List.fromList([255, 255]));
       final retry = await source.requestAt(2);
+      final report =
+          reports.singleWhere((report) => report['event'] == 'chunk_retry');
+      final chunk = report['chunk'] as Map<String, dynamic>;
+      expect(chunk['receivedBytes'], 2);
+      expect(chunk['error']['type'], 'TimeoutException');
+      expect(chunk['error']['timeoutMs'], 20);
       expect(request.ended, isTrue);
       expect(request.token.isCancelled, isTrue);
       expect(session.budget.occupiedSlots, 1);
@@ -37,6 +94,7 @@ void main() {
       expect(identical(retry.token, request.token), isFalse);
       retry.respond();
       _expectBytes(await result, 2, 4);
+      expect(failures, isEmpty);
       expect(errors, isEmpty);
       expect(session.budget.occupiedSlots, 0);
     });
@@ -50,9 +108,15 @@ void main() {
           'Given ${type.name} after partial bytes, when the same range recovers, then emits only complete retry bytes',
           () async {
         final errors = <Object>[];
+        final failures = <String>[];
+        final reports = <Map<String, dynamic>>[];
         final source = _ControlledSource(10);
         final budget = CdnRangeBudget();
-        final session = _session(source, budget, errors: errors);
+        final session = _session(source, budget, errors: errors, diagnostics:
+            CdnRangeDiagnostics(writeLog: (message, {required failure}) {
+          if (failure) failures.add(message);
+          reports.add(jsonDecode(message) as Map<String, dynamic>);
+        }));
         addTearDown(session.close);
         await _initialize(session, source);
         final result =
@@ -72,6 +136,15 @@ void main() {
         expect(identical(retry.token, request.token), isFalse);
         retry.respond();
         _expectBytes(await result, 2, 4);
+        final report =
+            reports.singleWhere((report) => report['event'] == 'chunk_retry');
+        final chunk = report['chunk'] as Map<String, dynamic>;
+        expect(chunk['receivedBytes'], 2);
+        expect(chunk['stage'], 'body');
+        expect(chunk['outcome'], 'retrying');
+        expect(jsonEncode(report), isNot(contains('signature')));
+        expect(jsonEncode(report), isNot(contains('private')));
+        expect(failures, isEmpty);
         expect(errors, isEmpty);
         expect(budget.peakOccupiedSlots, 1);
         expect(budget.occupiedSlots, 0);
@@ -84,7 +157,12 @@ void main() {
       final source = _ControlledSource(10);
       final budget = CdnRangeBudget();
       final errors = <Object>[];
-      final session = _session(source, budget, errors: errors);
+      final reports = <Map<String, dynamic>>[];
+      final session = _session(source, budget, errors: errors, diagnostics:
+          CdnRangeDiagnostics(writeLog: (message, {required failure}) {
+        expect(failure, isFalse);
+        reports.add(jsonDecode(message) as Map<String, dynamic>);
+      }));
       addTearDown(session.close);
       await _initialize(session, source);
       final result =
@@ -102,6 +180,14 @@ void main() {
           hasLength(13));
       retry.respond();
       _expectBytes(await result, 2, 4);
+      final retries =
+          reports.where((report) => report['event'] == 'chunk_retry').toList();
+      expect(retries, hasLength(12));
+      expect(retries.map((report) => report['attempt']),
+          List.generate(12, (index) => index + 1));
+      expect(retries.every((report) => report['retryDelayMs'] == 0), isTrue);
+      expect(retries.every((report) => report['chunk']['stage'] == 'headers'),
+          isTrue);
       expect(errors, isEmpty);
       expect(source.peakActive, 1);
       expect(budget.peakOccupiedSlots, 1);
@@ -138,9 +224,16 @@ void main() {
         final budget = CdnRangeBudget();
         final errors = <Object>[];
         final streamErrors = <Object>[];
+        final retrying = Completer<void>();
         final finished = Completer<void>();
         final session = _session(source, budget,
-            errors: errors, retryDelay: const Duration(days: 1));
+            errors: errors, retryDelay: const Duration(days: 1), diagnostics:
+                CdnRangeDiagnostics(writeLog: (message, {required failure}) {
+          expect(failure, isFalse);
+          if ((jsonDecode(message) as Map)['event'] == 'chunk_retry') {
+            retrying.complete();
+          }
+        }));
         addTearDown(session.close);
         await _initialize(session, source);
         final subscription = session
@@ -149,7 +242,7 @@ void main() {
                 onError: streamErrors.add, onDone: finished.complete);
         final request = await source.requestAt(1);
         request.rejectTimeout();
-        await request.token.whenCancel;
+        await retrying.future;
         await _drainMicrotasks();
         expect(budget.occupiedSlots, 1);
         expect(request.ended, isTrue);
@@ -175,14 +268,21 @@ void main() {
       final source = _ControlledSource(10);
       final budget = CdnRangeBudget();
       final errors = <Object>[];
+      final retrying = Completer<void>();
       final session = _session(source, budget,
-          errors: errors, retryDelay: const Duration(days: 1));
+          errors: errors, retryDelay: const Duration(days: 1), diagnostics:
+              CdnRangeDiagnostics(writeLog: (message, {required failure}) {
+        expect(failure, isFalse);
+        if ((jsonDecode(message) as Map)['event'] == 'chunk_retry') {
+          retrying.complete();
+        }
+      }));
       addTearDown(session.close);
       final initialized =
           expectLater(session.initialize(), throwsA(isA<CdnRangeCancelled>()));
       final request = await source.requestAt(0);
       request.rejectTimeout();
-      await request.token.whenCancel;
+      await retrying.future;
       await _drainMicrotasks();
       expect(budget.occupiedSlots, 1);
       await session.close().timeout(const Duration(seconds: 1));
@@ -231,6 +331,25 @@ void main() {
       expect(budget.peakOccupiedSlots, 3);
       expect(budget.occupiedSlots, 0);
       expect(errors, isEmpty);
+    });
+
+    test(
+        'Given active diagnostics, when a source is closed, then cancellation is not reported as a playback failure',
+        () async {
+      final failures = <String>[];
+      final source = _ControlledSource(10);
+      final session = _session(source, CdnRangeBudget(), diagnostics:
+          CdnRangeDiagnostics(writeLog: (message, {required failure}) {
+        if (failure) failures.add(message);
+      }));
+      await _initialize(session, source);
+      final cancelled = expectLater(
+          session.read(const CdnByteRange(start: 2, end: 5)).toList(),
+          throwsA(isA<CdnRangeCancelled>()));
+      (await source.requestAt(1)).respondMetadata();
+      await session.close();
+      await cancelled;
+      expect(failures, isEmpty);
     });
 
     test('Given a CDN resource, when initialized, then probes exactly byte 0',
@@ -782,6 +901,7 @@ void main() {
 
 CdnRangeSession _session(_ControlledSource source, CdnRangeBudget budget,
         {List<Object>? errors,
+        CdnRangeDiagnostics? diagnostics,
         Duration retryDelay = Duration.zero,
         Duration idleTimeout = const Duration(seconds: 20)}) =>
     CdnRangeSession(
@@ -790,6 +910,7 @@ CdnRangeSession _session(_ControlledSource source, CdnRangeBudget budget,
       headers: const {'cookie': 'provider=value'},
       budget: budget,
       onError: errors?.add,
+      diagnostics: diagnostics,
       retryDelay: retryDelay,
       idleTimeout: idleTimeout,
     );

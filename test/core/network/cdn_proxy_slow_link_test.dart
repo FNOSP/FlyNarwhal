@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/core/network/api_result.dart';
 import 'package:fly_narwhal/core/network/cdn_proxy/cdn_http_transport.dart';
 import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_service.dart';
+import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_diagnostics.dart';
 import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_session.dart';
 import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_source.dart';
 import 'package:fly_narwhal/data/datasources/remote/cdn_range_remote_data_source.dart';
@@ -34,6 +35,7 @@ void main() {
         expect(result.payloadErrors, 0,
             reason: 'Check every byte across ranges.');
         expect(result.bodyAttempts, hasLength(3));
+        expect(result.retryReports, isEmpty);
         expect(result.upstreamRequests, 3, reason: 'No range was retried.');
         expect(result.peakUpstreamRequests, 3);
         expect(result.peakBudget, 3);
@@ -63,6 +65,8 @@ void main() {
       _expectIdleRetry(result, const Duration(seconds: 10));
       expect(
           result.bodyAttempts.first.errorType, DioExceptionType.receiveTimeout);
+      expect(result.retryReports.single['chunk']['error']['dioType'],
+          'receiveTimeout');
     },
     timeout: const Timeout(Duration(seconds: 30)),
   );
@@ -77,6 +81,9 @@ void main() {
         receiveTimeout: const Duration(seconds: 60),
       );
       _expectIdleRetry(result, const Duration(seconds: 20));
+      expect(result.retryReports.single['chunk']['error']['type'],
+          'TimeoutException');
+      expect(result.retryReports.single['chunk']['error']['timeoutMs'], 20000);
       expect(result.bodyAttempts.first.errorType, isNull);
     },
     timeout: const Timeout(Duration(seconds: 40)),
@@ -88,6 +95,7 @@ void _expectIdleRetry(_SlowLinkResult result, Duration expectedIdle) {
   expect(result.payloadErrors, 0,
       reason: 'The invalid first-attempt prefix must never reach the client.');
   expect(result.upstreamRequests, 2);
+  expect(result.retryReports, hasLength(1));
   expect(result.bodyAttempts, hasLength(2));
   for (final attempt in result.bodyAttempts) {
     expect((attempt.start, attempt.end), (0, fixtureMiB - 1));
@@ -133,10 +141,15 @@ Future<_SlowLinkResult> _exercise({
   );
   final budget = CdnRangeBudget();
   final serviceErrors = <Object>[];
+  final retryReports = <Map<String, dynamic>>[];
   final service = CdnProxyService(
     source: source,
     budget: budget,
     onError: serviceErrors.add,
+    diagnostics: CdnRangeDiagnostics(writeLog: (message, {required failure}) {
+      final report = jsonDecode(message) as Map<String, dynamic>;
+      if (report['event'] == 'chunk_retry') retryReports.add(report);
+    }),
   );
   final client = HttpClient()..findProxy = (_) => 'DIRECT';
   try {
@@ -166,6 +179,7 @@ Future<_SlowLinkResult> _exercise({
       receivedBytes: receivedBytes,
       payloadErrors: payloadErrors,
       bodyAttempts: attempts,
+      retryReports: retryReports,
       headersLatency: headersLatency,
       firstBodyLatency: firstBodyLatency!,
       upstreamRequests: fixture.bodyRequests.length,
@@ -181,6 +195,7 @@ Future<_SlowLinkResult> _exercise({
       'receiveTimeoutMs': receiveTimeout.inMilliseconds,
       'headersMs': result.headersLatency.inMilliseconds,
       'firstBodyMs': result.firstBodyLatency.inMilliseconds,
+      'retryCount': result.retryReports.length,
       'bodyRequests': attempts.length,
       'verifiedBytes': receivedBytes,
       'occupiedAfterClose': result.occupiedAfterClose,
@@ -261,6 +276,7 @@ class _SlowLinkResult {
       required this.receivedBytes,
       required this.payloadErrors,
       required this.bodyAttempts,
+      required this.retryReports,
       required this.headersLatency,
       required this.firstBodyLatency,
       required this.upstreamRequests,
@@ -275,6 +291,7 @@ class _SlowLinkResult {
   final int receivedBytes;
   final int payloadErrors;
   final List<_Attempt> bodyAttempts;
+  final List<Map<String, dynamic>> retryReports;
   final Duration headersLatency;
   final Duration firstBodyLatency;
   final int upstreamRequests;

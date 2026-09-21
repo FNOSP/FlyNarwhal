@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/network/cdn_proxy/cdn_http_transport.dart';
 import '../core/network/cdn_proxy/cdn_proxy.dart';
 import '../core/network/cdn_proxy/cdn_proxy_service.dart';
+import '../core/network/cdn_proxy/cdn_range_diagnostics.dart';
+import '../core/utils/log/app_talker.dart';
 import '../data/datasources/remote/cdn_range_remote_data_source.dart';
 
 typedef CdnRangeSourceFactory = CdnRangeSource Function();
@@ -23,5 +25,17 @@ final quarkCdnRangeServiceFactoryProvider =
   return ({onError}) => CdnProxyService(
         source: createSource(),
         onError: onError,
+        diagnostics: cdnRangeDiagnosticsEnabled
+            ? CdnRangeDiagnostics(writeLog: _writeDiagnosticLog)
+            : null,
       );
 });
+
+void _writeDiagnosticLog(String message, {required bool failure}) {
+  if (failure) {
+    AppTalker.error('CdnDiagnostic',
+        error: const CdnRangeFailure('CDN session failed'), message: message);
+  } else {
+    AppTalker.info('CdnDiagnostic', message);
+  }
+}

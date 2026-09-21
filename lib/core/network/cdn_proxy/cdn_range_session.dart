@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
+
 import '../api_result.dart';
 import 'cdn_proxy_constants.dart';
 import 'cdn_proxy_errors.dart';
 import 'cdn_range_source.dart';
+import 'cdn_range_diagnostics.dart';
 import 'cdn_range_policy.dart';
 
 /// A slot is held until its data is consumed, not merely until HTTP finishes.
@@ -135,6 +138,7 @@ class CdnRangeSession {
     this.onError,
     this.idleTimeout = CdnProxyDefaults.idleTimeout,
     this.retryDelay = CdnProxyDefaults.retryDelay,
+    this.diagnostics,
   })  : headers = Map.unmodifiable(headers),
         budget = budget ?? _sharedBudget;
 
@@ -146,6 +150,7 @@ class CdnRangeSession {
   final void Function(Object)? onError;
   final Duration idleTimeout;
   final Duration retryDelay;
+  final CdnRangeDiagnostics? diagnostics;
   final Set<_ReadRequest> _requests = {};
   final Set<Future<_ChunkOutcome>> _inFlight = {};
   int? _length;
@@ -174,6 +179,7 @@ class CdnRangeSession {
       _contentType = chunk.contentType;
       chunk.release();
       _checkActive();
+      diagnostics?.initialized(totalLength, idleTimeout);
     } catch (error) {
       if (!_closed && !request.cancelled) _fail(error);
       rethrow;
@@ -268,10 +274,16 @@ class CdnRangeSession {
       {required bool probe}) async {
     _RangeLease? lease;
     try {
-      while (true) {
+      for (var attempt = 1;; attempt++) {
         final token = CancelToken();
         request.tokens.add(token);
         Stream<Uint8List>? unreadBody;
+        final trace = diagnostics?.begin(
+          start: range.start,
+          end: range.end,
+          probe: probe,
+        );
+        var outcome = 'cancelled';
         try {
           _checkActive();
           if (request.cancelled) throw const CdnRangeCancelled();
@@ -280,6 +292,7 @@ class CdnRangeSession {
           lease ??= await budget._acquire(token);
           _checkActive();
           if (request.cancelled) throw const CdnRangeCancelled();
+          trace?.admitted();
           final response = (await source.open(
             uri: uri,
             headers: headers,
@@ -288,6 +301,7 @@ class CdnRangeSession {
             cancelToken: token,
           ))
               .getOrThrow();
+          trace?.headersReceived(response.totalLength);
           unreadBody = response.stream;
           // The data source has already cancelled an empty resource's probe body.
           if (probe && response.totalLength == 0) {
@@ -295,6 +309,7 @@ class CdnRangeSession {
                 _DownloadedChunk(Uint8List(0), 0, response.contentType, lease);
             lease = null;
             request.chunks.add(chunk);
+            outcome = 'success';
             return _ChunkOutcome.success(chunk);
           }
           // Keep cross-request resource consistency in the playback session.
@@ -303,20 +318,30 @@ class CdnRangeSession {
             throw const CdnRangeFailure('CDN 返回的资源范围或大小不一致');
           }
           unreadBody = null;
-          final bytes = await _collect(response.stream, range.length, token);
+          final bytes =
+              await _collect(response.stream, range.length, token, trace);
           _checkActive();
           if (request.cancelled) throw const CdnRangeCancelled();
           final chunk =
               _DownloadedChunk(bytes, total, response.contentType, lease);
           lease = null;
           request.chunks.add(chunk);
+          outcome = 'success';
           return _ChunkOutcome.success(chunk);
         } catch (error) {
+          trace?.failed(error);
           token.cancel('CDN range attempt stopped');
-          if (request.cancelled || _closed || !_isTimeout(error)) {
+          if (!request.cancelled && !_closed && _isTimeout(error)) {
+            outcome = 'retrying';
+            if (trace != null) {
+              diagnostics?.retrying(trace, attempt: attempt, delay: retryDelay);
+            }
+          } else {
+            outcome = request.cancelled || _closed ? 'cancelled' : 'failed';
             rethrow;
           }
         } finally {
+          if (trace != null) diagnostics?.finish(trace, outcome);
           // Each attempt discards partial bytes and releases its connection
           // before retrying the same range with a fresh cancellation token.
           if (unreadBody != null) {
@@ -365,6 +390,7 @@ class CdnRangeSession {
     Stream<Uint8List> stream,
     int expected,
     CancelToken token,
+    CdnRangeTrace? trace,
   ) async {
     final bytes = Uint8List(expected);
     var count = 0;
@@ -376,6 +402,7 @@ class CdnRangeSession {
 
     subscription = stream.timeout(idleTimeout).listen((data) {
       if (done.isCompleted) return;
+      trace?.received(data.length);
       if (count + data.length > expected) {
         fail(const CdnRangeFailure('CDN 分片超过请求范围'));
         return;
@@ -384,6 +411,7 @@ class CdnRangeSession {
       count += data.length;
     }, onError: (Object error) {
       if (done.isCompleted) return;
+      trace?.failed(error);
       // Preserve the typed cause until the retry policy has inspected it.
       // The download boundary sanitizes any terminal error before reporting it.
       fail(error);
@@ -416,6 +444,10 @@ class CdnRangeSession {
         ? error
         : const CdnRangeFailure('CDN 分片读取失败，请重试');
     _failure = safeError;
+    diagnostics?.failed(
+      occupiedSlots: budget.occupiedSlots,
+      activeReaders: _requests.length,
+    );
     for (final request in _requests.toList()) {
       request.cancel();
     }
