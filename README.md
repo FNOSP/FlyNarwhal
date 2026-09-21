@@ -178,6 +178,65 @@ flutter build linux --release
   
   
 
+## 贡献指南
+
+欢迎提交 Issue 与 Pull Request。为便于审阅与合入，请遵循以下约定。
+
+### 分支约定
+
+- **`dev-2.x` 是开发分支**，日常的功能开发、问题修复都提到这个分支上。
+- **`master` 是发布分支**，只在版本发布成功后才会由 `dev-2.x` 合入，请勿直接向 `master` 提交 PR。
+
+提交 PR 时请确认目标分支为 `dev-2.x`。
+
+### Commit 规范
+
+本项目使用 [Conventional Commits](https://www.conventionalcommits.org/)，格式为：
+
+```text
+<type>(<scope>): <description>
+```
+
+- `type` 常用取值：`feat`、`fix`、`docs`、`style`、`refactor`、`chore`、`build`、`ci`、`release`。
+- `scope` 为受影响的模块，常用如 `player`、`login`、`ui`、`settings`、`linux`、`windows`、`macos`、`changelog` 等。
+- `description` 使用**英文**，简洁描述改动内容，不加句末句号。
+
+示例：
+
+```text
+feat(player): support bounded Quark CDN direct playback
+fix(login): keep fields visible in Windows release builds
+docs(readme): add contributing guidelines
+```
+
+### 代码约定
+
+- 提交前请运行静态分析，确保无新增告警：
+
+  ```bash
+  flutter analyze
+  ```
+
+- 涉及模型或 Provider 的改动，请重新生成代码后再提交（见上文「生成代码」）：
+
+  ```bash
+  dart run build_runner build --delete-conflicting-outputs
+  ```
+
+- 新增或修复行为时请补充对应的测试，并确保测试通过：
+
+  ```bash
+  flutter test
+  ```
+
+- 请保持与现有代码风格一致，避免在同一个 PR 中混入无关的重构或格式化改动。
+
+### PR 约定
+
+- PR 描述请说明**改动目的与影响范围**，而不仅是罗列改了哪些文件。
+- 若涉及播放、网络等易出问题的模块，请在描述中写明**验证方式**（实机验证了哪些平台与场景）。
+- 推荐一个 PR 聚焦一件事，便于审阅与回滚。
+
 ## 常见问题
 
 #### 1. 此客户端播放视频是否支持硬解？
