@@ -442,9 +442,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       rethrow;
     }
     if (!mounted || !identical(_player, player)) return;
-    await _applyDecodeMode(player);
-    if (!mounted || !identical(_player, player)) return;
-    _videoController = VideoController(player);
+    // VideoController applies hwdec during its asynchronous initialization.
+    // Pass the saved mode here so its default cannot reset it to auto.
+    _videoController = VideoController(
+      player,
+      configuration: VideoControllerConfiguration(hwdec: _decodeMode),
+    );
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
     _setupPlayerBufferListener();
