@@ -15,6 +15,224 @@ final _uri = Uri.parse('https://cdn.example.test/movie.mp4?signature=private');
 
 void main() {
   group('CdnRangeSession', () {
+    test(
+        'Given a stalled body, when idle deadline expires, then retries its whole range without delivering partial bytes',
+        () async {
+      final errors = <Object>[];
+      final source = _ControlledSource(10);
+      final session = _session(source, CdnRangeBudget(),
+          errors: errors, idleTimeout: const Duration(milliseconds: 20));
+      addTearDown(session.close);
+      await _initialize(session, source);
+      final result =
+          session.read(const CdnByteRange(start: 2, end: 5)).toList();
+      final request = await source.requestAt(1);
+      request.respondMetadata();
+      request.body.add(Uint8List.fromList([255, 255]));
+      final retry = await source.requestAt(2);
+      expect(request.ended, isTrue);
+      expect(request.token.isCancelled, isTrue);
+      expect(session.budget.occupiedSlots, 1);
+      expect((retry.start, retry.end), (2, 5));
+      expect(identical(retry.token, request.token), isFalse);
+      retry.respond();
+      _expectBytes(await result, 2, 4);
+      expect(errors, isEmpty);
+      expect(session.budget.occupiedSlots, 0);
+    });
+
+    for (final type in [
+      DioExceptionType.connectionTimeout,
+      DioExceptionType.sendTimeout,
+      DioExceptionType.receiveTimeout,
+    ]) {
+      test(
+          'Given ${type.name} after partial bytes, when the same range recovers, then emits only complete retry bytes',
+          () async {
+        final errors = <Object>[];
+        final source = _ControlledSource(10);
+        final budget = CdnRangeBudget();
+        final session = _session(source, budget, errors: errors);
+        addTearDown(session.close);
+        await _initialize(session, source);
+        final result =
+            session.read(const CdnByteRange(start: 2, end: 5)).toList();
+        final request = await source.requestAt(1);
+        request.respondMetadata();
+        request.body.add(Uint8List.fromList([255, 255]));
+        request.body.addError(DioException(
+          requestOptions: RequestOptions(path: _uri.toString()),
+          type: type,
+          message: 'private signed URL',
+        ));
+        final retry = await source.requestAt(2);
+        expect((retry.start, retry.end), (2, 5));
+        expect(request.ended, isTrue);
+        expect(request.token.isCancelled, isTrue);
+        expect(identical(retry.token, request.token), isFalse);
+        retry.respond();
+        _expectBytes(await result, 2, 4);
+        expect(errors, isEmpty);
+        expect(budget.peakOccupiedSlots, 1);
+        expect(budget.occupiedSlots, 0);
+      });
+    }
+
+    test(
+        'Given twelve consecutive header timeouts, when a later attempt succeeds, then has no retry count limit or playback failure',
+        () async {
+      final source = _ControlledSource(10);
+      final budget = CdnRangeBudget();
+      final errors = <Object>[];
+      final session = _session(source, budget, errors: errors);
+      addTearDown(session.close);
+      await _initialize(session, source);
+      final result =
+          session.read(const CdnByteRange(start: 2, end: 5)).toList();
+      for (var attempt = 1; attempt <= 12; attempt++) {
+        final request = await source.requestAt(attempt);
+        expect((request.start, request.end), (2, 5));
+        request.rejectTimeout();
+      }
+      final retry = await source.requestAt(13);
+      expect(budget.occupiedSlots, 1);
+      expect(source.requests.skip(1).take(12).every((request) => request.ended),
+          isTrue);
+      expect(source.requests.skip(1).map((request) => request.token).toSet(),
+          hasLength(13));
+      retry.respond();
+      _expectBytes(await result, 2, 4);
+      expect(errors, isEmpty);
+      expect(source.peakActive, 1);
+      expect(budget.peakOccupiedSlots, 1);
+      expect(budget.occupiedSlots, 0);
+    });
+
+    test(
+        'Given an initial probe times out repeatedly, when its next attempt succeeds, then initializes without notifying playback failure',
+        () async {
+      final source = _ControlledSource(10);
+      final budget = CdnRangeBudget();
+      final errors = <Object>[];
+      final session = _session(source, budget, errors: errors);
+      addTearDown(session.close);
+      final initialized = session.initialize();
+      for (var attempt = 0; attempt < 4; attempt++) {
+        final request = await source.requestAt(attempt);
+        expect((request.start, request.end), (0, 0));
+        request.rejectTimeout();
+      }
+      (await source.requestAt(4)).respond();
+      await initialized;
+      expect(session.totalLength, 10);
+      expect(errors, isEmpty);
+      expect(source.peakActive, 1);
+      expect(budget.occupiedSlots, 0);
+    });
+
+    for (final closeSession in [false, true]) {
+      test(
+          'Given a range waiting a day before retry, when ${closeSession ? 'session closes' : 'subscription cancels'}, then cancels immediately and releases its slot',
+          () async {
+        final source = _ControlledSource(10);
+        final budget = CdnRangeBudget();
+        final errors = <Object>[];
+        final streamErrors = <Object>[];
+        final finished = Completer<void>();
+        final session = _session(source, budget,
+            errors: errors, retryDelay: const Duration(days: 1));
+        addTearDown(session.close);
+        await _initialize(session, source);
+        final subscription = session
+            .read(const CdnByteRange(start: 2, end: 5))
+            .listen((_) => fail('Timed-out range must not emit bytes'),
+                onError: streamErrors.add, onDone: finished.complete);
+        final request = await source.requestAt(1);
+        request.rejectTimeout();
+        await request.token.whenCancel;
+        await _drainMicrotasks();
+        expect(budget.occupiedSlots, 1);
+        expect(request.ended, isTrue);
+        expect(source.requests, hasLength(2));
+        if (closeSession) {
+          await session.close().timeout(const Duration(seconds: 1));
+          await finished.future;
+          expect(streamErrors, everyElement(isA<CdnRangeCancelled>()));
+        } else {
+          await subscription.cancel().timeout(const Duration(seconds: 1));
+          expect(streamErrors, isEmpty);
+        }
+        expect(budget.occupiedSlots, 0);
+        expect(source.requests, hasLength(2));
+        expect(source.active, 0);
+        expect(errors, isEmpty);
+      });
+    }
+
+    test(
+        'Given a probe waiting a day before retry, when closed, then aborts initialization immediately without a playback failure',
+        () async {
+      final source = _ControlledSource(10);
+      final budget = CdnRangeBudget();
+      final errors = <Object>[];
+      final session = _session(source, budget,
+          errors: errors, retryDelay: const Duration(days: 1));
+      addTearDown(session.close);
+      final initialized =
+          expectLater(session.initialize(), throwsA(isA<CdnRangeCancelled>()));
+      final request = await source.requestAt(0);
+      request.rejectTimeout();
+      await request.token.whenCancel;
+      await _drainMicrotasks();
+      expect(budget.occupiedSlots, 1);
+      await session.close().timeout(const Duration(seconds: 1));
+      await initialized;
+      expect(source.requests, hasLength(1));
+      expect(source.active, 0);
+      expect(budget.occupiedSlots, 0);
+      expect(errors, isEmpty);
+    });
+
+    test(
+        'Given the first chunk times out while later chunks and another reader occupy the window, when retried, then preserves ordered delivery and the three-slot budget',
+        () async {
+      final source = _ControlledSource(3 * _chunk + 7);
+      final budget = CdnRangeBudget();
+      final errors = <Object>[];
+      final session = _session(source, budget, errors: errors);
+      addTearDown(session.close);
+      await _initialize(session, source);
+      final emitted = <Uint8List>[];
+      final finished = Completer<void>();
+      session.read(const CdnByteRange(start: 0, end: 3 * _chunk - 1)).listen(
+          emitted.add,
+          onError: finished.completeError,
+          onDone: finished.complete);
+      await source.requestAt(3);
+      final other = session
+          .read(const CdnByteRange(start: 3 * _chunk, end: 3 * _chunk + 6))
+          .toList();
+      source.requests[3].respond();
+      source.requests[2].respond();
+      await source.requests[3].bodyEnded.future;
+      await source.requests[2].bodyEnded.future;
+      source.requests[1].rejectTimeout();
+      final retry = await source.requestAt(4);
+      expect((retry.start, retry.end), (0, _chunk - 1));
+      expect(emitted, isEmpty);
+      expect(source.requests, hasLength(5));
+      expect(budget.occupiedSlots, 3);
+      retry.respond();
+      (await source.requestAt(5)).respond();
+      await finished.future;
+      _expectBytes(emitted, 0, 3 * _chunk);
+      _expectBytes(await other, 3 * _chunk, 7);
+      expect(source.peakActive, 3);
+      expect(budget.peakOccupiedSlots, 3);
+      expect(budget.occupiedSlots, 0);
+      expect(errors, isEmpty);
+    });
+
     test('Given a CDN resource, when initialized, then probes exactly byte 0',
         () async {
       final source = _ControlledSource(12345);
@@ -563,13 +781,17 @@ void main() {
 }
 
 CdnRangeSession _session(_ControlledSource source, CdnRangeBudget budget,
-        {List<Object>? errors}) =>
+        {List<Object>? errors,
+        Duration retryDelay = Duration.zero,
+        Duration idleTimeout = const Duration(seconds: 20)}) =>
     CdnRangeSession(
       source: source,
       uri: _uri,
       headers: const {'cookie': 'provider=value'},
       budget: budget,
       onError: errors?.add,
+      retryDelay: retryDelay,
+      idleTimeout: idleTimeout,
     );
 
 Future<void> _initialize(
@@ -710,6 +932,14 @@ class _PendingRequest {
   void reject() {
     response
         .complete(ResultFailure(FailureInfo.fromMessage('CDN 返回的资源范围或大小不一致')));
+  }
+
+  void rejectTimeout() {
+    response.complete(const ResultFailure(CdnRequestFailure(
+      message: 'Response receive timeout',
+      displayMessage: 'Response receive timeout',
+      isTimeout: true,
+    )));
   }
 
   void respond(

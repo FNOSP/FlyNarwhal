@@ -197,6 +197,52 @@ void main() {
     });
 
     test(
+        'Given a partial CDN body times out, when the retry succeeds, then the same HTTP response contains complete ordered bytes',
+        () async {
+      final harness = await _Harness.open(128);
+      addTearDown(harness.close);
+      final request = await harness.client().getUrl(harness.uri);
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=10-19');
+      final response = await request.close().timeout(_deadline);
+      final received = _collect(response);
+      final first = await harness.source.requestAt(1);
+      first.body.add(Uint8List.fromList([255, 255]));
+      first.body.addError(TimeoutException('CDN body stalled'));
+
+      final retry = await harness.source.requestAt(2);
+      expect(first.token.isCancelled, isTrue);
+      expect((retry.start, retry.end), (10, 19));
+      expect(harness.errors, isEmpty);
+      retry.complete();
+
+      expect(await received, _bytes(10, 10));
+      expect(response.statusCode, 206);
+      expect(harness.errors, isEmpty);
+      await _waitForIdle(harness.budget);
+    });
+
+    test(
+        'Given a CDN timeout is retrying, when the HTTP client disconnects, then retries stop and the slot is freed',
+        () async {
+      final harness = await _Harness.open(128);
+      addTearDown(harness.close);
+      final client = harness.client();
+      final request = await client.getUrl(harness.uri);
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=10-19');
+      final response = await request.close().timeout(_deadline);
+      final bodyEnded = response.drain<void>().catchError((Object _) {});
+      final first = await harness.source.requestAt(1);
+      first.body.addError(TimeoutException('CDN body stalled'));
+      await first.cancelled.future.timeout(_deadline);
+
+      client.close(force: true);
+      await bodyEnded.timeout(_deadline);
+      await _waitForIdle(harness.budget);
+      expect(harness.source.requests, hasLength(2));
+      expect(harness.errors, isEmpty);
+    });
+
+    test(
         'Given CDN fails after headers, when streaming, then terminates the response body',
         () async {
       final harness = await _Harness.open(128);
@@ -241,6 +287,226 @@ void main() {
       expect(harness.errors, isEmpty);
     });
 
+    test(
+        'Given a real stopped reader, when service closes, then releases its occupied budget',
+        () async {
+      final harness = await _Harness.open(6 * _chunk);
+      addTearDown(harness.close);
+      final socket =
+          await RawSocket.connect(harness.uri.host, harness.uri.port);
+      addTearDown(socket.close);
+      socket.setRawOption(RawSocketOption.fromInt(
+          RawSocketOption.levelSocket, Platform.isLinux ? 8 : 0x1002, 1024));
+      final headersReceived = Completer<void>();
+      var headers = '';
+      final incoming = socket.listen((event) {
+        if (event != RawSocketEvent.read) return;
+        final bytes = socket.read();
+        if (bytes == null) return;
+        headers += String.fromCharCodes(bytes);
+        if (headers.contains('\r\n\r\n') && !headersReceived.isCompleted) {
+          socket.readEventsEnabled = false;
+          headersReceived.complete();
+        }
+      });
+      addTearDown(incoming.cancel);
+      final request = 'GET ${harness.uri.path} HTTP/1.1\r\n'
+          'Host: ${harness.uri.host}\r\nConnection: close\r\n\r\n';
+      expect(socket.write(request.codeUnits), request.length);
+      await headersReceived.future.timeout(_deadline);
+      await harness.source.requestAt(3);
+      final upstream = harness.source.requests.skip(1).toList();
+      for (final request in upstream) {
+        request.complete();
+      }
+      await Future.wait(upstream.map((request) => request.body.done))
+          .timeout(_deadline);
+      expect(harness.budget.occupiedSlots, 3);
+      expect(harness.service.activeWriterCount, 1);
+      await harness.service.close().timeout(_deadline);
+      expect(harness.service.activeWriterCount, 0);
+      expect(harness.budget.occupiedSlots, 0);
+      expect(harness.errors, isEmpty);
+    });
+    for (final lateDetachError in [false, true]) {
+      test(
+          'Given socket ownership is pending, when service closes, then handles its late result (lateDetachError=$lateDetachError)',
+          () async {
+        final detached = Completer<Socket>();
+        final releaseSocket = Completer<void>();
+        final harness = await _Harness.open(128,
+            socketDetach: (response, writeHeaders) async {
+          final socket =
+              await response.detachSocket(writeHeaders: writeHeaders);
+          detached.complete(socket);
+          await releaseSocket.future;
+          if (lateDetachError) {
+            // A failing detacher retains responsibility for its own socket.
+            socket.destroy();
+            throw const SocketException('Late detach failure');
+          }
+          return socket;
+        });
+        addTearDown(harness.close);
+        final response = await (await harness.client().getUrl(harness.uri))
+            .close()
+            .timeout(_deadline);
+        final bodyEnded =
+            expectLater(_collect(response), throwsA(isA<HttpException>()));
+        await detached.future.timeout(_deadline);
+        expect(harness.service.activeWriterCount, 1);
+
+        await harness.service.close().timeout(_deadline);
+        expect(harness.service.activeWriterCount, 0);
+        expect(harness.budget.occupiedSlots, 0);
+        expect(harness.source.closeCount, 1);
+        expect(harness.source.requests, hasLength(1));
+        releaseSocket.complete();
+        await bodyEnded.timeout(_deadline);
+        await Future<void>(() {});
+        expect(harness.service.activeWriterCount, 0);
+        expect(harness.source.requests, hasLength(1));
+        expect(harness.errors, isEmpty);
+      });
+    }
+    for (final lateError in [false, true]) {
+      test(
+          'Given an unfinished flush, when close repeats, then joins writers and reuses all slots (lateError=$lateError)',
+          () async {
+        final flushStarted = Completer<void>();
+        final flushing = Completer<void>();
+        final harness = await _Harness.open(3 * _chunk, socketFlush: (_) {
+          flushStarted.complete();
+          return flushing.future;
+        });
+        addTearDown(harness.close);
+        final response = await (await harness.client().getUrl(harness.uri))
+            .close()
+            .timeout(_deadline);
+        final bodyEnded = response.drain<void>().catchError((Object _) {});
+        await harness.source.requestAt(3);
+        harness.source.requests[1].complete();
+        await flushStarted.future.timeout(_deadline);
+        expect(harness.service.activeWriterCount, 1);
+        expect(harness.budget.occupiedSlots, 3);
+
+        final firstClose = harness.service.close();
+        expect(identical(firstClose, harness.service.close()), isTrue);
+        await firstClose.timeout(_deadline);
+        await bodyEnded.timeout(_deadline);
+        expect(flushing.isCompleted, isFalse);
+        expect(harness.service.activeWriterCount, 0);
+        expect(harness.budget.occupiedSlots, 0);
+        expect(harness.source.closeCount, 1);
+        expect(harness.source.requests, hasLength(4));
+        expect(
+            harness.source.requests
+                .skip(1)
+                .every((request) => request.token.isCancelled),
+            isTrue);
+        expect(harness.errors, isEmpty);
+
+        // All three slots must be useful to a subsequent source, not merely
+        // counted as free while an old response continues to write.
+        final replacement = await _Harness.open(128, budget: harness.budget);
+        addTearDown(replacement.close);
+        final responses = <HttpClientResponse>[];
+        for (var index = 0; index < 3; index++) {
+          final request = await replacement.client().getUrl(replacement.uri);
+          request.headers.set(HttpHeaders.rangeHeader, 'bytes=$index-$index');
+          responses.add(await request.close().timeout(_deadline));
+        }
+        await replacement.source.requestAt(3);
+        expect(harness.budget.occupiedSlots, 3);
+        for (final request in replacement.source.requests.skip(1)) {
+          request.complete();
+        }
+        for (var index = 0; index < responses.length; index++) {
+          expect(await _collect(responses[index]), [index]);
+        }
+        await _waitForIdle(harness.budget);
+        await _waitForWriters(replacement.service, 0);
+
+        // A losing flush future can fail after its writer has been collected.
+        // flutter_test fails this test if that late error escapes the zone.
+        if (lateError) {
+          flushing.completeError(StateError('Late downstream flush failure'));
+        } else {
+          flushing.complete();
+        }
+        await Future<void>(() {});
+        expect(harness.service.activeWriterCount, 0);
+        expect(harness.source.requests, hasLength(4));
+      });
+    }
+
+    for (final flushFirst in [true, false]) {
+      test(
+          'Given flush completion and close race, then cleanup is idempotent (flushFirst=$flushFirst)',
+          () async {
+        final flushStarted = Completer<void>();
+        final flushing = Completer<void>();
+        final harness = await _Harness.open(128, socketFlush: (_) {
+          flushStarted.complete();
+          return flushing.future;
+        });
+        addTearDown(harness.close);
+        final request = await harness.client().getUrl(harness.uri);
+        request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-9');
+        final response = await request.close().timeout(_deadline);
+        final bodyEnded = response.drain<void>().catchError((Object _) {});
+        (await harness.source.requestAt(1)).complete();
+        await flushStarted.future.timeout(_deadline);
+
+        if (flushFirst) flushing.complete();
+        final closing = harness.service.close();
+        if (!flushFirst) flushing.complete();
+        expect(identical(closing, harness.service.close()), isTrue);
+        await closing.timeout(_deadline);
+        await bodyEnded.timeout(_deadline);
+        expect(harness.service.activeWriterCount, 0);
+        expect(harness.budget.occupiedSlots, 0);
+        expect(harness.source.closeCount, 1);
+        expect(harness.errors, isEmpty);
+      });
+    }
+
+    test(
+        'Given one writer is flushing, when another reader fails terminally, then cancels every writer',
+        () async {
+      final flushStarted = Completer<void>();
+      final flushing = Completer<void>();
+      final harness = await _Harness.open(3 * _chunk, socketFlush: (_) {
+        flushStarted.complete();
+        return flushing.future;
+      });
+      addTearDown(harness.close);
+      final first = await harness.client().getUrl(harness.uri);
+      first.headers.set(HttpHeaders.rangeHeader, 'bytes=0-${2 * _chunk - 1}');
+      final firstResponse = await first.close().timeout(_deadline);
+      final firstEnded = firstResponse.drain<void>().catchError((Object _) {});
+      (await harness.source.requestAt(1)).complete();
+      await flushStarted.future.timeout(_deadline);
+      final second = await harness.client().getUrl(harness.uri);
+      second.headers.set(
+          HttpHeaders.rangeHeader, 'bytes=${2 * _chunk}-${2 * _chunk + 9}');
+      final secondResponse = await second.close().timeout(_deadline);
+      final secondEnded =
+          secondResponse.drain<void>().catchError((Object _) {});
+      final failing = await harness.source.requestAt(3);
+      expect(harness.service.activeWriterCount, 2);
+
+      failing.body.addError(StateError('Terminal CDN failure'));
+      await _waitForWriters(harness.service, 0);
+      await Future.wait([firstEnded, secondEnded]).timeout(_deadline);
+      expect(flushing.isCompleted, isFalse);
+      expect(harness.budget.occupiedSlots, 0);
+      expect(failing.token.isCancelled, isTrue);
+      expect(harness.errors, hasLength(1));
+      expect(harness.errors.single, isA<CdnRangeFailure>());
+      flushing.completeError(StateError('Late flush after terminal failure'));
+      await Future<void>(() {});
+    });
     for (final failureFirst in [true, false]) {
       test(
           'Given CDN failure and client disconnect race (failureFirst=$failureFirst), then cleanup has no uncaught errors',
@@ -285,6 +551,16 @@ Future<void> _waitForIdle(CdnRangeBudget budget) async {
   }
 }
 
+Future<void> _waitForWriters(CdnProxyService service, int count) async {
+  final deadline = DateTime.now().add(_deadline);
+  while (service.activeWriterCount != count) {
+    if (DateTime.now().isAfter(deadline)) {
+      throw TimeoutException('CDN writers did not finish', _deadline);
+    }
+    await Future<void>(() {});
+  }
+}
+
 Future<List<int>> _collect(HttpClientResponse response) =>
     response.fold<List<int>>(
         <int>[], (bytes, data) => bytes..addAll(data)).timeout(_deadline);
@@ -301,12 +577,20 @@ class _Harness {
   final Uri uri;
   final _clients = <HttpClient>[];
 
-  static Future<_Harness> open(int total, {bool autoRespond = false}) async {
+  static Future<_Harness> open(int total,
+      {bool autoRespond = false,
+      CdnRangeBudget? budget,
+      Future<void> Function(Socket)? socketFlush,
+      Future<Socket> Function(HttpResponse, bool)? socketDetach}) async {
     final source = _FakeCdn(total, autoRespond: autoRespond);
-    final budget = CdnRangeBudget();
+    budget ??= CdnRangeBudget();
     final errors = <Object>[];
-    final service =
-        CdnProxyService(source: source, budget: budget, onError: errors.add);
+    final service = CdnProxyService(
+        source: source,
+        budget: budget,
+        onError: errors.add,
+        socketFlush: socketFlush,
+        socketDetach: socketDetach);
     final uri = await service.open(
         uri: Uri.parse('https://cdn.invalid/media.mp4'),
         headers: const {'cookie': 'fake=value'}).timeout(_deadline);
@@ -331,6 +615,7 @@ class _FakeCdn implements CdnRangeSource {
   _FakeCdn(this.total, {required this.autoRespond});
   final int total;
   final bool autoRespond;
+  int closeCount = 0;
   final requests = <_FakeRequest>[];
   final _waiters = <(int, Completer<_FakeRequest>)>[];
 
@@ -367,6 +652,7 @@ class _FakeCdn implements CdnRangeSource {
 
   @override
   void close() {
+    closeCount++;
     for (final request in requests) {
       request.token.cancel('Fake source closed');
     }

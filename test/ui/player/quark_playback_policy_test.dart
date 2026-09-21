@@ -135,7 +135,7 @@ void main() {
         expect(activeTransport, PlaybackTransport.standard);
         expect(previousFallbackCalls, hls ? 1 : 0);
       }
-      expect(events, ['network-timeout=60', 'network-timeout=5']);
+      expect(events, ['network-timeout=0', 'network-timeout=5']);
     },
   );
 }

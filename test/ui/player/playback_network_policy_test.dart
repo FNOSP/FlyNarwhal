@@ -5,8 +5,53 @@ import 'package:fly_narwhal/ui/features/player/models/playback_source_spec.dart'
 import 'package:fly_narwhal/ui/features/player/services/playback_network_policy.dart';
 
 void main() {
+  group('stalled playback startup', () {
+    test(
+        'standard startup fails after the grace period only without video or cache',
+        () {
+      bool abort({
+        Duration elapsed = const Duration(seconds: 8),
+        Duration duration = const Duration(minutes: 10),
+        bool hasVideo = false,
+        Duration buffered = Duration.zero,
+      }) =>
+          shouldAbortStalledPlaybackStart(
+            transport: PlaybackTransport.standard,
+            elapsed: elapsed,
+            mediaDuration: duration,
+            hasVideo: hasVideo,
+            buffered: buffered,
+          );
+      expect(abort(elapsed: const Duration(milliseconds: 7999)), isFalse);
+      expect(abort(), isTrue);
+      expect(abort(duration: Duration.zero), isFalse);
+      expect(abort(hasVideo: true), isFalse);
+      expect(abort(buffered: const Duration(milliseconds: 1)), isFalse);
+    });
+
+    test(
+        'Quark CDN startup keeps waiting for timeout recovery beyond the standard deadline',
+        () {
+      for (final elapsed in [
+        const Duration(seconds: 8),
+        const Duration(minutes: 1),
+        const Duration(days: 1),
+      ]) {
+        expect(
+            shouldAbortStalledPlaybackStart(
+              transport: PlaybackTransport.quarkCdnRange,
+              elapsed: elapsed,
+              mediaDuration: const Duration(minutes: 10),
+              hasVideo: false,
+              buffered: Duration.zero,
+            ),
+            isFalse);
+      }
+    });
+  });
+
   test(
-    'Given consecutive standard and Quark sources, when opening each, then the native timeout is applied before open and restored after Quark',
+    'Given consecutive standard and Quark sources, when opening each, then the native timeout is disabled for Quark before open and restored afterward',
     () async {
       final events = <String>[];
       String? nativeTimeout;
@@ -28,8 +73,7 @@ void main() {
         );
       }
 
-      expect(
-          events, ['set:5', 'open:5', 'set:60', 'open:60', 'set:5', 'open:5']);
+      expect(events, ['set:5', 'open:5', 'set:0', 'open:0', 'set:5', 'open:5']);
     },
   );
 

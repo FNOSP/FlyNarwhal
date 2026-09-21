@@ -17,16 +17,16 @@ class PlaybackOpenPolicy {
     waitForRecovery: false,
     stalledStartTimeout: Duration(seconds: 8),
   );
-  static const cdnBuffered = PlaybackOpenPolicy._(
-    networkTimeout: Duration(seconds: 60),
-    waitForRecovery: false,
-    stalledStartTimeout: Duration(seconds: 8),
+  static const cdnRecovery = PlaybackOpenPolicy._(
+    networkTimeout: Duration.zero,
+    waitForRecovery: true,
+    stalledStartTimeout: null,
   );
 
   static PlaybackOpenPolicy forTransport(PlaybackTransport transport) =>
       switch (transport) {
         PlaybackTransport.standard => standard,
-        PlaybackTransport.quarkCdnRange => cdnBuffered,
+        PlaybackTransport.quarkCdnRange => cdnRecovery,
       };
 
   bool shouldAbortStalledStart({
@@ -44,8 +44,8 @@ class PlaybackOpenPolicy {
   }
 }
 
-/// A buffered CDN source can wait longer for a full chunk; each standard
-/// source restores media_kit's original timeout after a source switch.
+/// CDN retries keep the player's HTTP read open; each standard source restores
+/// media_kit's original timeout so policy cannot leak across source switches.
 Future<void> openWithPlaybackNetworkPolicy({
   required PlaybackTransport transport,
   required Future<void> Function() open,

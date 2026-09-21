@@ -429,12 +429,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _initializePlayer() async {
-    _player = Player(
+    if (!mounted) return;
+    final player = Player(
       configuration: const PlayerConfiguration(libass: true),
     );
-    await _applyDefaultMpvSubtitleSettings(_player!);
-    await _applyDecodeMode(_player!);
-    _videoController = VideoController(_player!);
+    _player = player;
+    try {
+      await _applyDefaultMpvSubtitleSettings(player);
+    } catch (_) {
+      // Disposal can finish while mpv is still initializing its properties.
+      if (!mounted || !identical(_player, player)) return;
+      rethrow;
+    }
+    if (!mounted || !identical(_player, player)) return;
+    await _applyDecodeMode(player);
+    if (!mounted || !identical(_player, player)) return;
+    _videoController = VideoController(player);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
     _setupPlayerBufferListener();
@@ -444,7 +454,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _setupProviderListeners();
 
     await _loadAndPlayMedia();
-    if (mounted) {
+    if (mounted && identical(_player, player)) {
       _playerFocusNode.requestFocus();
     }
   }
@@ -453,6 +463,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // concrete decoder never gets applied on unsupported hardware.
   Future<void> _initializePlayerSession() async {
     await _restoreSupportedHwdecState();
+    if (!mounted) return;
     await _initializePlayer();
   }
 
@@ -466,6 +477,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final supportedApis = await ref
           .read(playerDeviceContextServiceProvider)
           .loadSupportedHwdecApis();
+      if (!mounted) return;
       final supportedOptions = List<HwdecOption>.unmodifiable(
         supportedApis
             .map((api) => HwdecOption(api: api, label: _hwdecApiLabel(api)))
@@ -488,6 +500,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         await settingsManager.setDecodeMode(sanitizedDecodeMode);
       }
     } catch (error, stackTrace) {
+      if (!mounted) return;
       AppTalker.warning('Player', 'Failed to resolve hwdec support: $error');
       AppTalker.instance.handle(error, stackTrace);
       _availableHwdec = const [];
@@ -508,6 +521,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       'sub-font-size',
       _defaultMpvSubtitleFontSize,
     );
+    if (!mounted || !identical(_player, player)) return;
     await platform.setProperty(
       'sub-pos',
       _defaultMpvSubtitlePosition,
@@ -1088,7 +1102,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _setupProviderListeners() {
-    if (_hasSetupProviderListeners) return;
+    if (!mounted || _hasSetupProviderListeners) return;
     _hasSetupProviderListeners = true;
 
     ref.listenManual<MediaPState>(
