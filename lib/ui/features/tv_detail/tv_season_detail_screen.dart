@@ -8,6 +8,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../shared/common/app_load_error_view.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/common/episode_view_mode_toggle.dart';
 
@@ -95,23 +96,10 @@ class TvSeasonDetailScreen extends ConsumerWidget {
           prefsManager: prefsManager,
         ),
         loading: () => const Center(child: AppLoadingProgressRing()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('加载失败: $error'),
-              const SizedBox(height: 16),
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: AppButton(
-                  child: const Text('重试'),
-                  onPressed: () => ref
-                      .read(tvSeasonDetailNotifierProvider(guid).notifier)
-                      .refresh(),
-                ),
-              ),
-            ],
-          ),
+        error: (error, stack) => AppLoadErrorView(
+          error: error,
+          onRetry: () =>
+              ref.read(tvSeasonDetailNotifierProvider(guid).notifier).refresh(),
         ),
       ),
     );
@@ -287,8 +275,8 @@ class _TvSeasonDetailContentState
       ref.read(castScrollReturnTargetProvider.notifier).state = null;
       if (index < 0 || !_castScrollController.hasClients) return;
       final position = _castScrollController.position;
-      final offset = index *
-          (CastScrollRow.itemWidth + CastScrollRow.defaultItemSpacing);
+      final offset =
+          index * (CastScrollRow.itemWidth + CastScrollRow.defaultItemSpacing);
       _castScrollController.jumpTo(
         offset.clamp(position.minScrollExtent, position.maxScrollExtent),
       );

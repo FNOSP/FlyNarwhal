@@ -7,6 +7,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../shared/common/app_load_error_view.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 
 import '../../../data/models/movie_detail_models.dart';
@@ -18,7 +19,6 @@ import '../movie_detail/detail_components.dart';
 import '../../shared/movie_poster.dart';
 import '../../shared/toast.dart';
 import 'tv_detail_view_model.dart';
-import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 String _buildImageUrl(String baseUrl, String path) {
   if (baseUrl.isEmpty || path.isEmpty) return '';
@@ -80,23 +80,10 @@ class TvDetailScreen extends ConsumerWidget {
             cacheManager: cacheManager,
           ),
           loading: () => const Center(child: AppLoadingProgressRing()),
-          error: (error, stack) => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('加载失败: $error'),
-                const SizedBox(height: 16),
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: AppButton(
-                    child: const Text('重试'),
-                    onPressed: () => ref
-                        .read(tvDetailNotifierProvider(guid).notifier)
-                        .refresh(),
-                  ),
-                ),
-              ],
-            ),
+          error: (error, stack) => AppLoadErrorView(
+            error: error,
+            onRetry: () =>
+                ref.read(tvDetailNotifierProvider(guid).notifier).refresh(),
           ),
         ),
       ),

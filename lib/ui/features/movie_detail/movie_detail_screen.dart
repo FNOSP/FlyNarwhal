@@ -18,6 +18,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/file_providers.dart';
+import '../../shared/common/app_load_error_view.dart';
+import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/common/fn_cached_image.dart';
 import 'detail_components.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
@@ -113,24 +115,12 @@ class MovieDetailScreen extends ConsumerWidget {
               httpHeaders: httpHeaders,
               cacheManager: cacheManager,
             ),
-            loading: () => const Center(child: ProgressRing()),
-            error: (error, stack) => Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('加载失败: $error'),
-                  const SizedBox(height: 16),
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: AppButton(
-                      child: const Text('重试'),
-                      onPressed: () => ref
-                          .read(movieDetailNotifierProvider(guid).notifier)
-                          .refresh(),
-                    ),
-                  ),
-                ],
-              ),
+            loading: () => const Center(child: AppLoadingProgressRing()),
+            error: (error, stack) => AppLoadErrorView(
+              error: error,
+              onRetry: () => ref
+                  .read(movieDetailNotifierProvider(guid).notifier)
+                  .refresh(),
             ),
           ),
         ));
@@ -628,8 +618,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
       ref.read(castScrollReturnTargetProvider.notifier).state = null;
       if (index < 0 || !_castScrollController.hasClients) return;
       final position = _castScrollController.position;
-      final offset = index *
-          (CastScrollRow.itemWidth + CastScrollRow.defaultItemSpacing);
+      final offset =
+          index * (CastScrollRow.itemWidth + CastScrollRow.defaultItemSpacing);
       _castScrollController.jumpTo(
         offset.clamp(position.minScrollExtent, position.maxScrollExtent),
       );
@@ -643,7 +633,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
 
     _maybeRestoreCastScroll();
 
-    final authDirs = ref.watch(authorizedDirsProvider).valueOrNull ?? const <AuthDir>[];
+    final authDirs =
+        ref.watch(authorizedDirsProvider).valueOrNull ?? const <AuthDir>[];
 
     final windowHeight = MediaQuery.of(context).size.height;
     final pixelRatio = MediaQuery.of(context).devicePixelRatio;
@@ -692,9 +683,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final currentVideoStream =
         streamList?.videoStreams.elementAtOrNull(_selectedVideoStreamIndex);
     final isStreamNotExist = currentVideoStream?.isNotExist ?? false;
-    final hasAudioForCurrentMedia = streamList?.audioStreams
-            .any((s) => s.mediaGuid == _currentMediaGuid) ??
-        false;
+    final hasAudioForCurrentMedia =
+        streamList?.audioStreams.any((s) => s.mediaGuid == _currentMediaGuid) ??
+            false;
     final hasSubtitleForCurrentMedia = streamList?.subtitleStreams
             .any((s) => s.mediaGuid == _currentMediaGuid) ??
         false;
@@ -722,8 +713,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         rowChildren.add(SubtitleStreamSelector(
           selectedLabel: subtitleLabel,
           subtitles: subtitleStreams,
-          selectedSubtitleGuid:
-              _selectedSubtitleGuid == '_no_display_' ? null : _selectedSubtitleGuid,
+          selectedSubtitleGuid: _selectedSubtitleGuid == '_no_display_'
+              ? null
+              : _selectedSubtitleGuid,
           iso6391Map: widget.state.iso6391,
           iso6392Map: widget.state.iso6392,
           onChanged: (guid) {
@@ -746,9 +738,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         final audioStreams = streamList.audioStreams
             .where((s) => s.mediaGuid == _currentMediaGuid)
             .toList();
-        final currentAudio = audioStreams
-            .where((s) => s.guid == _selectedAudioGuid)
-            .firstOrNull;
+        final currentAudio =
+            audioStreams.where((s) => s.guid == _selectedAudioGuid).firstOrNull;
         final audioLabel = currentAudio == null
             ? '音频'
             : '${FnDataConvertor.getLanguageName(currentAudio.language, widget.state.iso6391, widget.state.iso6392)}音频';
@@ -1486,7 +1477,8 @@ class _MediaInfoSection extends StatelessWidget {
   /// - 当前视频流为占位流（`ext1 == -1`，如 STRM）且该媒体没有字幕/音频流；
   /// - 或无当前视频流且不存在任何真实视频流。
   bool _shouldHideStreamInfo(VideoStream? currentVideoStream) {
-    final videoStreams = state.streamList?.videoStreams ?? const <VideoStream>[];
+    final videoStreams =
+        state.streamList?.videoStreams ?? const <VideoStream>[];
     if (currentVideoStream == null) {
       return !videoStreams.any((s) => !s.isNotExist);
     }
