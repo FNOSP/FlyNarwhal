@@ -85,6 +85,11 @@ class _ShortcutSettingsDialogState
     Navigator.of(context).pop();
   }
 
+  void _onCancel() {
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppDialog(
@@ -98,6 +103,8 @@ class _ShortcutSettingsDialogState
       onPrimaryPressed: _onConfirm,
       secondaryButtonText: '恢复默认',
       onSecondaryPressed: _resetToDefaults,
+      tertiaryButtonText: '取消',
+      onTertiaryPressed: _onCancel,
       content: Focus(
         autofocus: true,
         onKeyEvent: _handleCaptureKeyEvent,
