@@ -23,6 +23,9 @@ class SemiIcons {
   static SvgPicture grid({double size = 20, Color? color}) =>
       _icon('grid', size, color);
 
+  static SvgPicture sslCertificate({double size = 20, Color? color}) =>
+      _icon('ssl_certificate', size, color);
+
   static SvgPicture _icon(String name, double size, Color? color) {
     return SvgPicture.asset(
       '$_assetDir/$name.svg',

@@ -13,6 +13,7 @@ import '../../../core/utils/log/app_talker.dart';
 import '../../../core/window/desktop_display_service.dart';
 import '../../../core/window/main_window_persistence_guard.dart';
 import '../../../core/window/window_geometry.dart';
+import '../../../core/network/ssl/player_ssl_trust.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/providers.dart';
@@ -271,6 +272,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       if (!mounted || token != _loadToken) return;
 
       final headers = _buildPlaybackHttpHeaders(playUri);
+      await applySslTrustToPlayer(player, Uri.parse(playUri));
       await player.open(
         Media(playUri, httpHeaders: headers.isEmpty ? null : headers),
       );

@@ -30,6 +30,7 @@ import '../../../data/storage/shortcut_settings_store.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../core/utils/app_fonts.dart';
 import '../../../core/utils/log/app_talker.dart';
+import '../../../core/network/ssl/player_ssl_trust.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/danmaku_controller.dart';
 import '../../../providers/episode_analysis_controller.dart';
@@ -555,6 +556,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // doesn't reliably update `hwdec-current` (mpv issue #4289), which
           // is exactly the path the old open-then-set ordering exercised.
           await platform.setProperty('hwdec', api);
+          await applySslTrustToPlayer(probePlayer, Uri.parse(playUri));
           await probePlayer.open(Media(playUri, httpHeaders: headers));
           // A non-empty result means the api engaged for this stream.
           final current = await _waitForHwdecCurrent(platform, api);
@@ -1780,6 +1782,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     final headers = _buildPlaybackHttpHeaders(playUri);
+    // mpv fetches the media bytes over its own native HTTP stack, so the Dio
+    // trust work does not reach it. Trusted hosts need tls-verify relaxed here
+    // too, and it must happen before open.
+    await applySslTrustToPlayer(player, Uri.parse(playUri));
     await player.open(
       Media(
         playUri,

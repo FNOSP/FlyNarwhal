@@ -19,6 +19,7 @@ import '../../shared/toast.dart';
 
 import '../../../core/error/login_exception.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/network/ssl/ssl_error_detector.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/login_history.dart';
 import '../../../data/storage/preferences_manager.dart';
@@ -1058,6 +1059,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final statusCode = error.response?.statusCode;
       if (statusCode != null) {
         return '服务器返回错误（HTTP $statusCode），请检查服务状态。';
+      }
+      // A TLS failure normally arrives as `DioExceptionType.unknown` wrapping a
+      // HandshakeException, not as `badCertificate`, so inspect the cause chain
+      // before falling through to the generic messages.
+      if (isCertificateException(error.error ?? error)) {
+        return 'SSL 证书验证失败，请检查 HTTPS 设置或服务器证书。';
       }
       switch (error.type) {
         case DioExceptionType.connectionTimeout:
