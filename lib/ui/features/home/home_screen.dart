@@ -9,6 +9,9 @@ import '../../../providers/providers.dart';
 import 'widgets/media_lib_card_row.dart';
 import 'widgets/media_lib_gallery.dart';
 import 'widgets/recently_watched.dart';
+import 'widgets/continue_watching_more_menu.dart';
+import '../../../data/models/home_models.dart';
+import '../../../domain/entities/media_type.dart';
 import '../../shared/toast.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 
@@ -118,6 +121,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         onFavoriteToggle: _handleFavoriteToggle,
                         onWatchedToggle: _handleWatchedToggle,
                         onItemRemoved: _onItemRemoved,
+                        onMoreAction: _handleContinueWatchAction,
                       );
                     },
                     loading: () => const SizedBox.shrink(),
@@ -268,5 +272,144 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     setState(() {
       _itemsToBeRemoved.add(guid);
     });
+  }
+
+  // Handle a "更多" menu action on a recently-watched card.
+  void _handleContinueWatchAction(
+    ContinueWatchAction action,
+    PlayDetailResponse item,
+  ) {
+    switch (action) {
+      case ContinueWatchAction.removeFromContinue:
+        unawaited(_removeFromContinueWatching(item));
+      case ContinueWatchAction.resume:
+        _openPlayer(item, fromBeginning: false);
+      case ContinueWatchAction.restart:
+        _openPlayer(item, fromBeginning: true);
+      case ContinueWatchAction.deleteVideo:
+        unawaited(_confirmDeleteVideo(item));
+    }
+  }
+
+  void _openPlayer(PlayDetailResponse item, {required bool fromBeginning}) {
+    final guid = item.guid.trim();
+    if (guid.isEmpty) return;
+    ref.read(navigationStackProvider.notifier).playerSourcePath = '/home';
+    if (item.type == MediaType.liveChannel.value) {
+      context.push('/live/$guid');
+      return;
+    }
+    context.push(
+      '/player/$guid${fromBeginning ? '?from_beginning=1' : ''}',
+    );
+  }
+
+  Future<void> _removeFromContinueWatching(PlayDetailResponse item) async {
+    final guid = item.guid.trim();
+    if (guid.isEmpty) return;
+    final dataSource = ref.read(mediaRemoteDataSourceProvider);
+    try {
+      final result = await dataSource.deletePlayRecord(guid);
+      final ok = result.isSuccess && result.dataOrNull == true;
+      ref.read(toastManagerProvider.notifier).showToast(
+            ok ? '已从“继续观看”中移除' : '移除失败',
+            type: ok ? ToastType.success : ToastType.failed,
+            category: 'continue-remove:$guid',
+          );
+      if (ok && mounted) {
+        _onItemRemoved(guid);
+        unawaited(ref.read(playListNotifierProvider.notifier).refresh());
+      }
+    } catch (e) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            '移除失败：$e',
+            type: ToastType.failed,
+            category: 'continue-remove:$guid',
+          );
+    }
+  }
+
+  Future<void> _confirmDeleteVideo(PlayDetailResponse item) async {
+    final guid = item.guid.trim();
+    if (guid.isEmpty) return;
+    final title = buildPlayDetailTitle(item);
+    // Web offers both paths side by side: remove the library entry only, or
+    // also delete the underlying file from disk.
+    final deleteFile = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => ContentDialog(
+        constraints: const BoxConstraints(maxWidth: 560),
+        title: Text('删除 《$title》'),
+        content: const Text(
+          '从媒体库移除后，所选视频文件将不再被扫描添加到当前媒体库中。请确认是否同时删除关联的视频文件。',
+        ),
+        // A single action wrapping the row: fluent expands every action to
+        // equal width, which would stretch 取消 to match the confirm buttons.
+        actions: [
+          Row(
+            children: [
+              // Compact buttons: fluent's Button fills its constraints, so
+              // each is wrapped in an intrinsic-width Align.
+              Align(
+                widthFactor: 1.0,
+                child: Button(
+                  key: const ValueKey('continue-delete-cancel'),
+                  child: const Text('取消'),
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                ),
+              ),
+              const Spacer(),
+              Align(
+                widthFactor: 1.0,
+                child: Button(
+                  key: const ValueKey('continue-delete-with-file'),
+                  style: ButtonStyle(
+                    foregroundColor: const WidgetStatePropertyAll(
+                      kDangerDefaultColor,
+                    ),
+                    backgroundColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
+                  ),
+                  child: const Text('移除并删除文件'),
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Align(
+                widthFactor: 1.0,
+                child: FilledButton(
+                  key: const ValueKey('continue-delete-only'),
+                  child: const Text('仅移除'),
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    if (deleteFile == null || !mounted) return;
+
+    final dataSource = ref.read(mediaRemoteDataSourceProvider);
+    try {
+      final result = await dataSource.deleteItem(guid, deleteFile: deleteFile);
+      final ok = result.isSuccess && result.dataOrNull == true;
+      ref.read(toastManagerProvider.notifier).showToast(
+            ok ? '已删除' : '删除失败',
+            type: ok ? ToastType.success : ToastType.failed,
+            category: 'continue-delete:$guid',
+          );
+      if (ok && mounted) {
+        _onItemRemoved(guid);
+        unawaited(ref.read(playListNotifierProvider.notifier).refresh());
+      }
+    } catch (e) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            '删除失败：$e',
+            type: ToastType.failed,
+            category: 'continue-delete:$guid',
+          );
+    }
   }
 }

@@ -10,6 +10,7 @@ import '../../../../providers/providers.dart';
 import '../../../shared/common/fn_cached_image.dart';
 import '../../../shared/common/media_poster_placeholder.dart';
 import '../../../shared/common/scroll_row.dart';
+import 'continue_watching_more_menu.dart';
 
 // Accent color for watched state
 const Color kAccentColorDefault = Color(0xFF2173DF);
@@ -29,6 +30,8 @@ class RecentlyWatched extends ConsumerWidget {
           String guid, bool currentState, Function(bool success) callback)?
       onWatchedToggle;
   final Function(String guid)? onItemRemoved;
+  final void Function(ContinueWatchAction action, PlayDetailResponse item)?
+      onMoreAction;
 
   const RecentlyWatched({
     super.key,
@@ -39,6 +42,7 @@ class RecentlyWatched extends ConsumerWidget {
     this.onFavoriteToggle,
     this.onWatchedToggle,
     this.onItemRemoved,
+    this.onMoreAction,
   });
 
   @override
@@ -69,6 +73,7 @@ class RecentlyWatched extends ConsumerWidget {
               onFavoriteToggle: onFavoriteToggle,
               onWatchedToggle: onWatchedToggle,
               onItemRemoved: onItemRemoved,
+              onMoreAction: onMoreAction,
             );
           },
         ),
@@ -87,6 +92,8 @@ class RecentlyWatchedItem extends ConsumerStatefulWidget {
           String guid, bool currentState, Function(bool success) callback)?
       onWatchedToggle;
   final Function(String guid)? onItemRemoved;
+  final void Function(ContinueWatchAction action, PlayDetailResponse item)?
+      onMoreAction;
 
   const RecentlyWatchedItem({
     super.key,
@@ -95,6 +102,7 @@ class RecentlyWatchedItem extends ConsumerStatefulWidget {
     this.onFavoriteToggle,
     this.onWatchedToggle,
     this.onItemRemoved,
+    this.onMoreAction,
   });
 
   @override
@@ -110,6 +118,7 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
   bool _isVisible = true;
   bool _isRemoved = false;
   Timer? _removeTimer;
+  final FlyoutController _moreMenuController = FlyoutController();
 
   @override
   void initState() {
@@ -133,6 +142,7 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
   @override
   void dispose() {
     _removeTimer?.cancel();
+    _moreMenuController.dispose();
     super.dispose();
   }
 
@@ -174,6 +184,17 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
           });
         }
       },
+    );
+  }
+
+  void _showMoreMenu() {
+    final onMoreAction = widget.onMoreAction;
+    if (onMoreAction == null) return;
+    showContinueWatchMenu(
+      context: context,
+      controller: _moreMenuController,
+      item: widget.item,
+      onAction: (action) => onMoreAction(action, widget.item),
     );
   }
 
@@ -420,12 +441,18 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                         scaleFactor: scaleFactor,
                                         onPressed: _handleFavoriteToggle,
                                       ),
-                                      _PosterIconButton(
-                                        icon: FluentIcons.more,
-                                        isActive: false,
-                                        activeColor: Colors.white,
-                                        scaleFactor: scaleFactor,
-                                        onPressed: () {},
+                                      FlyoutTarget(
+                                        controller: _moreMenuController,
+                                        child: _PosterIconButton(
+                                          key: ValueKey(
+                                            'recently-watched-more-${widget.itemIndex}',
+                                          ),
+                                          icon: FluentIcons.more,
+                                          isActive: false,
+                                          activeColor: Colors.white,
+                                          scaleFactor: scaleFactor,
+                                          onPressed: _showMoreMenu,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -492,6 +519,7 @@ class _PosterIconButton extends StatefulWidget {
   final VoidCallback? onPressed;
 
   const _PosterIconButton({
+    super.key,
     this.icon,
     this.svgAssetPath,
     required this.isActive,

@@ -338,6 +338,16 @@ class MediaRemoteDataSource {
     return result;
   }
 
+  /// 移除续播记录（对齐 Web `DELETE /play/record`），用于「从继续观看中移除」。
+  Future<ApiResult<bool>> deletePlayRecord(String guid) async {
+    final result = await _dioClient.delete<bool>(
+      ApiEndpoints.playRecord,
+      data: ItemGuidRequest(itemGuid: guid).toJson(),
+      converter: (data) => _parseSuccessResponse(data),
+    );
+    return result;
+  }
+
   /// Persist live-channel (IPTV) playback progress.
   Future<ApiResult<bool>> updateLivePlayRecord(
       LivePlayRecordRequest request) async {
