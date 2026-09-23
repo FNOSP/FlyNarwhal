@@ -181,7 +181,17 @@ class _CloudAccountChipState extends State<CloudAccountChip>
   void didUpdateWidget(CloudAccountChip oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isActiveControl && !widget.isActiveControl) {
-      _forceCloseFlyout();
+      // didUpdateWidget runs during the build phase, but _forceCloseFlyout
+      // mutates an AnimationController value (notifying AnimatedBuilder
+      // listeners), calls setState, removes an OverlayEntry and notifies the
+      // parent's Riverpod provider — none of which are allowed mid-build.
+      // Defer the close to right after the frame; one frame of latency is
+      // imperceptible and still prevents the stacking flyouts.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _forceCloseFlyout();
+        }
+      });
     }
   }
 

@@ -2417,6 +2417,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         !_useHlsSubtitleOverlay;
   }
 
+  /// 网盘直连播放且当前选择的是转码画质（非原画）。此时网盘方不提供内置
+  /// 字幕轨道（对齐 web 端 `isDirectLinkEnabled && !isRemuxQuality`，STRM
+  /// 除外）：字幕列表需隐藏内置字幕并提示「直连播放缺失内置字幕」。
+  bool get _isDirectLinkTranscodePlayback {
+    final cache = _playingInfoCache;
+    if (cache == null || !cache.isUseDirectLink) return false;
+    final streamInfo = cache.streamInfo;
+    if (streamInfo == null || !streamInfo.isCloudDirectMedia) return false;
+    return PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
+      directLinkQualities: cache.directLinkQualities,
+      directLinkQualityIndex: cache.directLinkQualityIndex,
+      cloudStorageType: streamInfo.cloudStorageInfo?.cloudStorageType,
+      isStrm: streamInfo.cloudStorageInfo?.isStrm ?? false,
+    );
+  }
+
+  /// 传给字幕面板的列表：直连转码播放时过滤掉内置字幕（对齐 web 端
+  /// `p_` 过滤器：仅保留 isExternal / extraFile 字幕）。
+  List<SubtitleStream> get _subtitleStreamsForPanel {
+    final cache = _playingInfoCache;
+    final all = cache?.currentSubtitleStreamList ?? const <SubtitleStream>[];
+    if (!_isDirectLinkTranscodePlayback) return all;
+    return all
+        .where((subtitle) => subtitle.isExternal == 1 || subtitle.extraFile == 1)
+        .toList();
+  }
+
   // Detect subtitles that pin every event to absolute coordinates via
   // \pos/\move (e.g. danmaku). For those, the global sub-pos has no effect,
   // so the vertical-position control should be disabled in the UI.
@@ -6438,7 +6465,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           const SizedBox(width: _trailingControlSpacing),
         ],
         SubtitleControlFlyout(
-          subtitles: _playingInfoCache?.currentSubtitleStreamList ?? const [],
+          subtitles: _subtitleStreamsForPanel,
           selectedSubtitleGuid: _selectedSubtitleGuid,
           iso6391Map: _iso6391Map,
           iso6392Map: _iso6392Map,
@@ -6448,6 +6475,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           yOffset: _controlFlyoutOffset,
           isActiveControl:
               overlayState.activeFlyout == PlayerFlyoutType.subtitle,
+          showDirectLinkSubtitleHint: _isDirectLinkTranscodePlayback,
           onHoverStateChanged: (hovered) => _handleFlyoutHoverStateChanged(
               PlayerFlyoutType.subtitle, hovered),
           onSubtitleSettingsChanged: (settings) =>

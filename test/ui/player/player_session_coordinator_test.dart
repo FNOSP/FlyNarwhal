@@ -335,11 +335,197 @@ video/main.m3u8
     );
   });
 
+  group('PlayerSessionCoordinator.isDirectLinkTranscodePlayback', () {
+    final original = DirectLinkQuality(
+      resolution: 'Original',
+      bitrate: 24000000,
+      url: 'https://cloud.example/original.mp4',
+    );
+    final transcode = DirectLinkQuality(
+      resolution: '1080p',
+      bitrate: 8000000,
+      url: 'https://cloud.example/transcode.mp4',
+    );
+
+    test(
+      'Given original quality or an equivalent refreshed URL, When classifying direct playback, Then internal subtitles remain available',
+      () {
+        final qualities = [
+          original,
+          DirectLinkQuality(
+            resolution: original.resolution,
+            bitrate: original.bitrate,
+            url: 'https://cloud.example/refreshed.mp4?sign=new',
+          ),
+        ];
+
+        for (final index in [0, 1]) {
+          expect(
+            PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
+              directLinkQualities: qualities,
+              directLinkQualityIndex: index,
+              cloudStorageType: 4,
+              isStrm: false,
+            ),
+            isFalse,
+          );
+        }
+      },
+    );
+
+    for (final change in ['resolution', 'bitrate']) {
+      test(
+        'Given a selected quality with different $change, When classifying direct playback, Then it is a transcode',
+        () {
+          final selected = DirectLinkQuality(
+            resolution: change == 'resolution' ? '1080p' : original.resolution,
+            bitrate: change == 'bitrate' ? 8000000 : original.bitrate,
+            url: 'https://cloud.example/transcode.mp4',
+          );
+
+          expect(
+            PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
+              directLinkQualities: [original, selected],
+              directLinkQualityIndex: 1,
+              cloudStorageType: 4,
+              isStrm: false,
+            ),
+            isTrue,
+          );
+        },
+      );
+    }
+
+    test(
+      'Given STRM playback with different selected quality, When classifying direct playback, Then the cloud transcode restriction does not apply',
+      () {
+        expect(
+          PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
+            directLinkQualities: [original, transcode],
+            directLinkQualityIndex: 1,
+            cloudStorageType: CloudStorageInfo.strmCloudStorageType,
+            isStrm: true,
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'Given no direct-link qualities, When classifying direct playback, Then it is not a transcode',
+      () {
+        expect(
+          PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
+            directLinkQualities: const [],
+            directLinkQualityIndex: 0,
+            cloudStorageType: null,
+            isStrm: false,
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    for (final index in <int?>[null, -1, 2]) {
+      test(
+        'Given invalid selected index $index, When classifying direct playback, Then it is not a transcode',
+        () {
+          expect(
+            PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
+              directLinkQualities: [original, transcode],
+              directLinkQualityIndex: index,
+              cloudStorageType: 4,
+              isStrm: false,
+            ),
+            isFalse,
+          );
+        },
+      );
+    }
+
+    for (final provider in [1, 5]) {
+      test(
+        'Given provider $provider hides an initial HLS quality, When classifying stored selections, Then the original list indices are preserved',
+        () {
+          final qualities = [
+            DirectLinkQuality(
+              resolution: '720p',
+              bitrate: 4000000,
+              isM3u8: true,
+              url: 'https://cloud.example/hidden.m3u8',
+            ),
+            original,
+            transcode,
+          ];
+
+          expect(
+            PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
+              directLinkQualities: qualities,
+              directLinkQualityIndex: 1,
+              cloudStorageType: provider,
+              isStrm: false,
+            ),
+            isFalse,
+          );
+          expect(
+            PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
+              directLinkQualities: qualities,
+              directLinkQualityIndex: 2,
+              cloudStorageType: provider,
+              isStrm: false,
+            ),
+            isTrue,
+          );
+        },
+      );
+    }
+
+    test(
+      'Given all qualities are filtered HLS entries, When classifying direct playback, Then the original list provides the reference quality',
+      () {
+        final qualities = [
+          DirectLinkQuality(
+            resolution: 'Original',
+            bitrate: 24000000,
+            isM3u8: true,
+            url: 'https://cloud.example/original.m3u8',
+          ),
+          DirectLinkQuality(
+            resolution: '1080p',
+            bitrate: 8000000,
+            isM3u8: true,
+            url: 'https://cloud.example/transcode.m3u8',
+          ),
+        ];
+
+        expect(
+          PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
+            directLinkQualities: qualities,
+            directLinkQualityIndex: 0,
+            cloudStorageType: 1,
+            isStrm: false,
+          ),
+          isFalse,
+        );
+        expect(
+          PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
+            directLinkQualities: qualities,
+            directLinkQualityIndex: 1,
+            cloudStorageType: 1,
+            isStrm: false,
+          ),
+          isTrue,
+        );
+      },
+    );
+  });
+
   group('PlayerSessionCoordinator.getDirectPlayLink', () {
     test(
       'Given STRM media, When resolving the direct play link, Then it plays the NAS-resolved URL directly',
       () async {
-        const strmUrl = 'http://192.168.31.73:8024/smartstrm_fid/movie.mkv?sign=abc';
+        const strmUrl =
+            'http://192.168.31.73:8024/smartstrm_fid/movie.mkv?sign=abc';
         final result = await coordinator.getDirectPlayLink(
           mediaGuid: 'media-guid',
           startPositionMs: 16000,
