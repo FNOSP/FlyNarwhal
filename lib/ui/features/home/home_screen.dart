@@ -13,6 +13,7 @@ import 'widgets/continue_watching_more_menu.dart';
 import '../../../data/models/home_models.dart';
 import '../../../domain/entities/media_type.dart';
 import '../../shared/toast.dart';
+import '../../shared/dialogs/app_dialog.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -335,59 +336,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final title = buildPlayDetailTitle(item);
     // Web offers both paths side by side: remove the library entry only, or
     // also delete the underlying file from disk.
-    final deleteFile = await showDialog<bool>(
+    final deleteFile = await showAppDialog<bool>(
       context: context,
-      builder: (dialogContext) => ContentDialog(
-        constraints: const BoxConstraints(maxWidth: 560),
-        title: Text('删除 《$title》'),
-        content: const Text(
-          '从媒体库移除后，所选视频文件将不再被扫描添加到当前媒体库中。请确认是否同时删除关联的视频文件。',
-        ),
-        // A single action wrapping the row: fluent expands every action to
-        // equal width, which would stretch 取消 to match the confirm buttons.
-        actions: [
-          Row(
-            children: [
-              // Compact buttons: fluent's Button fills its constraints, so
-              // each is wrapped in an intrinsic-width Align.
-              Align(
-                widthFactor: 1.0,
-                child: Button(
-                  key: const ValueKey('continue-delete-cancel'),
-                  child: const Text('取消'),
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                ),
-              ),
-              const Spacer(),
-              Align(
-                widthFactor: 1.0,
-                child: Button(
-                  key: const ValueKey('continue-delete-with-file'),
-                  style: ButtonStyle(
-                    foregroundColor: const WidgetStatePropertyAll(
-                      kDangerDefaultColor,
-                    ),
-                    backgroundColor: const WidgetStatePropertyAll(
-                      Colors.transparent,
-                    ),
-                  ),
-                  child: const Text('移除并删除文件'),
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Align(
-                widthFactor: 1.0,
-                child: FilledButton(
-                  key: const ValueKey('continue-delete-only'),
-                  child: const Text('仅移除'),
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                ),
-              ),
-            ],
-          ),
-        ],
+      title: '删除 《$title》',
+      content: const Text(
+        '从媒体库移除后，所选视频文件将不再被扫描添加到当前媒体库中。请确认是否同时删除关联的视频文件。',
       ),
+      tertiaryButtonText: '取消',
+      tertiaryResult: null,
+      secondaryButtonText: '移除并删除文件',
+      secondaryButtonType: AppDialogButtonType.danger,
+      secondaryResult: true,
+      primaryButtonText: '仅移除',
+      primaryResult: false,
     );
     if (deleteFile == null || !mounted) return;
 
