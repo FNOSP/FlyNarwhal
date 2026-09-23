@@ -583,36 +583,6 @@ class _SeasonListGrid extends StatefulWidget {
 }
 
 class _SeasonListGridState extends State<_SeasonListGrid> {
-  late final FlyoutController _seasonMoreController = FlyoutController();
-
-  @override
-  void dispose() {
-    _seasonMoreController.dispose();
-    super.dispose();
-  }
-
-  void _showSeasonFlyout(SeasonListResponse season) {
-    if (_seasonMoreController.isOpen) {
-      _seasonMoreController.close();
-      return;
-    }
-    _seasonMoreController.showFlyout<void>(
-      placementMode: FlyoutPlacementMode.bottomCenter,
-      builder: (context) => MenuFlyout(
-        items: [
-          MenuFlyoutItem(
-            key: ValueKey('season-smart-analysis-${season.guid}'),
-            text: const Text('智能分析片头/片尾'),
-            onPressed: () {
-              Flyout.of(context).close();
-              widget.onAnalyze(season);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
@@ -658,37 +628,114 @@ class _SeasonListGridState extends State<_SeasonListGrid> {
             width: itemWidth,
             // 海报下方标题/副标题文字区预留高度，与网格页保持一致。
             height: itemHeight + 64 * widget.scaleFactor,
-            child: MoviePoster(
-              posterPath: season.poster,
-              title: season.title,
+            child: _SeasonPosterCard(
+              season: season,
               subtitle: subtitle,
-              score: season.voteAverage,
-              isFavorite: season.isFavorite == 1,
-              isWatched: season.watched == 1,
-              width: itemWidth,
-              height: itemHeight,
+              itemWidth: itemWidth,
+              itemHeight: itemHeight,
               scaleFactor: widget.scaleFactor,
-              type: season.type,
-              guid: season.guid,
-              mediaTitle: widget.itemTitle,
-              seasonNumber: season.seasonNumber,
-              onMoreTap: widget.showSmartAnalysis
-                  ? () => _showSeasonFlyout(season)
-                  : null,
-              onWatchedToggle: (guid, currentState, callback) async {
-                final success =
-                    await widget.onWatchedToggle(guid, currentState);
-                callback(success);
-              },
-              resolutions: season.mediaStream.resolutions,
-              onPlayTap: () {
-                context.go('/tv/season/${season.guid}');
-              },
+              itemTitle: widget.itemTitle,
+              showSmartAnalysis: widget.showSmartAnalysis,
+              onAnalyze: widget.onAnalyze,
+              onWatchedToggle: widget.onWatchedToggle,
             ),
           );
         }).toList(),
       );
     });
+  }
+}
+
+/// 单个剧季海报卡。每张卡持有自己的 FlyoutController 并包在 FlyoutTarget 里，
+/// 因为 fluent_ui 的 FlyoutController 一次只能 attach 一个 target——共用同一个
+/// controller 会让「更多」菜单错误地锚定到最后构建的那张卡上。
+class _SeasonPosterCard extends StatefulWidget {
+  final SeasonListResponse season;
+  final String subtitle;
+  final double itemWidth;
+  final double itemHeight;
+  final double scaleFactor;
+  final String itemTitle;
+  final bool showSmartAnalysis;
+  final ValueChanged<SeasonListResponse> onAnalyze;
+  final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
+
+  const _SeasonPosterCard({
+    required this.season,
+    required this.subtitle,
+    required this.itemWidth,
+    required this.itemHeight,
+    required this.scaleFactor,
+    required this.itemTitle,
+    required this.showSmartAnalysis,
+    required this.onAnalyze,
+    required this.onWatchedToggle,
+  });
+
+  @override
+  State<_SeasonPosterCard> createState() => _SeasonPosterCardState();
+}
+
+class _SeasonPosterCardState extends State<_SeasonPosterCard> {
+  final FlyoutController _moreController = FlyoutController();
+
+  @override
+  void dispose() {
+    _moreController.dispose();
+    super.dispose();
+  }
+
+  void _showSeasonFlyout() {
+    if (_moreController.isOpen) {
+      _moreController.close();
+      return;
+    }
+    final season = widget.season;
+    _moreController.showFlyout<void>(
+      placementMode: FlyoutPlacementMode.bottomCenter,
+      builder: (context) => MenuFlyout(
+        items: [
+          MenuFlyoutItem(
+            key: ValueKey('season-smart-analysis-${season.guid}'),
+            text: const Text('智能分析片头/片尾'),
+            onPressed: () {
+              Flyout.of(context).close();
+              widget.onAnalyze(season);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final season = widget.season;
+    return MoviePoster(
+      posterPath: season.poster,
+      title: season.title,
+      subtitle: widget.subtitle,
+      score: season.voteAverage,
+      isFavorite: season.isFavorite == 1,
+      isWatched: season.watched == 1,
+      width: widget.itemWidth,
+      height: widget.itemHeight,
+      scaleFactor: widget.scaleFactor,
+      type: season.type,
+      guid: season.guid,
+      mediaTitle: widget.itemTitle,
+      seasonNumber: season.seasonNumber,
+      onMoreTap: widget.showSmartAnalysis ? _showSeasonFlyout : null,
+      moreFlyoutController: widget.showSmartAnalysis ? _moreController : null,
+      onWatchedToggle: (guid, currentState, callback) async {
+        final success = await widget.onWatchedToggle(guid, currentState);
+        callback(success);
+      },
+      resolutions: season.mediaStream.resolutions,
+      onPlayTap: () {
+        context.go('/tv/season/${season.guid}');
+      },
+    );
   }
 }
 
