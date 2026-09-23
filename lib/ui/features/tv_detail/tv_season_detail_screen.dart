@@ -1026,7 +1026,10 @@ class _EpisodeCardState extends State<_EpisodeCard> {
         ? Colors.white.withValues(alpha: 0.3)
         : Colors.white.withValues(alpha: 0.1);
     final playButtonSize = _isPlayButtonHovered ? 56.0 : 48.0;
-    const actionBottom = 14.0;
+    // Web's episode card lifts the play button 12px above the card's vertical
+    // center (play-mask__btn--with-offset), leaving room above the icon row.
+    const playButtonOffset = -12.0;
+    const actionBottom = 8.0;
     final progress = widget.episode.duration > 0
         ? (widget.episode.ts / widget.episode.duration).clamp(0.0, 1.0)
         : 0.0;
@@ -1087,7 +1090,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                         duration: const Duration(milliseconds: 200),
                         opacity: _hovered ? 0 : 1,
                         child: Container(
-                          height: _episodePosterHeight / 2,
+                          height: 76,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.bottomCenter,
@@ -1130,7 +1133,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                       right: 0,
                       bottom: 0,
                       child: SizedBox(
-                        height: 5,
+                        height: 3,
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
@@ -1149,31 +1152,35 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                         ),
                       ),
                     ),
-                    Center(
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 200),
-                        opacity: _hovered ? 1 : 0,
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          onEnter: (_) =>
-                              setState(() => _isPlayButtonHovered = true),
-                          onExit: (_) =>
-                              setState(() => _isPlayButtonHovered = false),
-                          child: GestureDetector(
-                            onTap: widget.onPlay,
-                            behavior: HitTestBehavior.opaque,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: playButtonSize,
-                              height: playButtonSize,
-                              alignment: Alignment.center,
-                              child: SvgPicture.asset(
-                                'assets/images/play_circle.svg',
+                    Align(
+                      alignment: Alignment.center,
+                      child: Transform.translate(
+                        offset: const Offset(0, playButtonOffset),
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: _hovered ? 1 : 0,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            onEnter: (_) =>
+                                setState(() => _isPlayButtonHovered = true),
+                            onExit: (_) =>
+                                setState(() => _isPlayButtonHovered = false),
+                            child: GestureDetector(
+                              onTap: widget.onPlay,
+                              behavior: HitTestBehavior.opaque,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
                                 width: playButtonSize,
                                 height: playButtonSize,
-                                colorFilter: const ColorFilter.mode(
-                                  Colors.white,
-                                  BlendMode.srcIn,
+                                alignment: Alignment.center,
+                                child: SvgPicture.asset(
+                                  'assets/images/play_circle.svg',
+                                  width: playButtonSize,
+                                  height: playButtonSize,
+                                  colorFilter: const ColorFilter.mode(
+                                    Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1200,7 +1207,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                                 activeColor: const Color(0xFF2173DF),
                                 onPressed: _handleWatchedToggle,
                               ),
-                              const SizedBox(width: 14),
+                              const SizedBox(width: 12),
                               _EpisodePosterActionButton(
                                 svgAssetPath: _isFavorite
                                     ? 'assets/images/favorite_fill.svg'
@@ -1209,7 +1216,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                                 activeColor: const Color(0xFFFF0420),
                                 onPressed: _handleFavoriteToggle,
                               ),
-                              const SizedBox(width: 14),
+                              const SizedBox(width: 12),
                               FlyoutTarget(
                                 controller: _moreController,
                                 child: _EpisodePosterActionButton(
@@ -1319,15 +1326,15 @@ class _EpisodePosterActionButtonState
         onTap: widget.onPressed,
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
-          width: 28,
-          height: 28,
+          width: 36,
+          height: 36,
           child: Stack(
             alignment: Alignment.center,
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                width: 28,
-                height: 28,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: _isHovered
                       ? Colors.black.withValues(alpha: 0.5)
@@ -1338,8 +1345,8 @@ class _EpisodePosterActionButtonState
               if (widget.svgAssetPath != null)
                 SvgPicture.asset(
                   widget.svgAssetPath!,
-                  width: 16,
-                  height: 16,
+                  width: 20,
+                  height: 20,
                   colorFilter: ColorFilter.mode(
                     widget.isActive ? widget.activeColor : Colors.white,
                     BlendMode.srcIn,
@@ -1348,7 +1355,7 @@ class _EpisodePosterActionButtonState
               else if (widget.icon != null)
                 Icon(
                   widget.icon,
-                  size: 16,
+                  size: 20,
                   color: widget.isActive ? widget.activeColor : Colors.white,
                 ),
             ],
