@@ -388,46 +388,50 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                   ),
                                 ),
                               ),
-                              Center(
-                                child: AnimatedOpacity(
-                                  duration: const Duration(milliseconds: 200),
-                                  opacity: isHovered ? 1 : 0,
-                                  child: MouseRegion(
-                                    cursor: SystemMouseCursors.click,
-                                    onEnter: (_) => setState(
-                                        () => _isPlayButtonHovered = true),
-                                    onExit: (_) => setState(
-                                        () => _isPlayButtonHovered = false),
-                                    child: GestureDetector(
-                                      key: ValueKey(
-                                        'recently-watched-play-${widget.itemIndex}',
-                                      ),
-                                      onTap: () {
-                                        ref
-                                            .read(navigationStackProvider
-                                                .notifier)
-                                            .playerSourcePath = '/home';
-                                        if (widget.item.type ==
-                                            MediaType.liveChannel.value) {
-                                          context.push(
-                                              '/live/${widget.item.guid}');
-                                        } else {
-                                          context.push(
-                                              '/player/${widget.item.guid}');
-                                        }
-                                      },
-                                      child: AnimatedContainer(
-                                        duration:
-                                            const Duration(milliseconds: 200),
-                                        width: playButtonSize,
-                                        height: playButtonSize,
-                                        child: SvgPicture.asset(
-                                          'assets/images/play_circle.svg',
+                              Align(
+                                alignment: Alignment.center,
+                                child: Transform.translate(
+                                  offset: Offset(0, -12 * scaleFactor),
+                                  child: AnimatedOpacity(
+                                    duration: const Duration(milliseconds: 200),
+                                    opacity: isHovered ? 1 : 0,
+                                    child: MouseRegion(
+                                      cursor: SystemMouseCursors.click,
+                                      onEnter: (_) => setState(
+                                          () => _isPlayButtonHovered = true),
+                                      onExit: (_) => setState(
+                                          () => _isPlayButtonHovered = false),
+                                      child: GestureDetector(
+                                        key: ValueKey(
+                                          'recently-watched-play-${widget.itemIndex}',
+                                        ),
+                                        onTap: () {
+                                          ref
+                                              .read(navigationStackProvider
+                                                  .notifier)
+                                              .playerSourcePath = '/home';
+                                          if (widget.item.type ==
+                                              MediaType.liveChannel.value) {
+                                            context.push(
+                                                '/live/${widget.item.guid}');
+                                          } else {
+                                            context.push(
+                                                '/player/${widget.item.guid}');
+                                          }
+                                        },
+                                        child: AnimatedContainer(
+                                          duration:
+                                              const Duration(milliseconds: 200),
                                           width: playButtonSize,
                                           height: playButtonSize,
-                                          colorFilter: const ColorFilter.mode(
-                                            Colors.white,
-                                            BlendMode.srcIn,
+                                          child: SvgPicture.asset(
+                                            'assets/images/play_circle.svg',
+                                            width: playButtonSize,
+                                            height: playButtonSize,
+                                            colorFilter: const ColorFilter.mode(
+                                              Colors.white,
+                                              BlendMode.srcIn,
+                                            ),
                                           ),
                                         ),
                                       ),
