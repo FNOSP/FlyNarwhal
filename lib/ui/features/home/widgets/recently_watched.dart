@@ -320,6 +320,26 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                 ),
                               if (!isLiveChannel)
                                 Align(
+                                  alignment: Alignment.bottomCenter,
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: 76 * scaleFactor,
+                                    child: const DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.bottomCenter,
+                                          end: Alignment.topCenter,
+                                          colors: [
+                                            Color(0xB3000000),
+                                            Color(0x00000000),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (!isLiveChannel)
+                                Align(
                                   alignment: Alignment.bottomLeft,
                                   child: SizedBox(
                                     width: double.infinity,
@@ -416,12 +436,16 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                 ),
                               ),
                               Positioned(
-                                right: 8,
-                                bottom: 8,
+                                left: 0,
+                                right: 0,
+                                bottom: 8 * scaleFactor,
+                                height: 36 * scaleFactor,
                                 child: AnimatedOpacity(
                                   duration: const Duration(milliseconds: 200),
                                   opacity: isHovered ? 1 : 0,
                                   child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
                                     children: [
                                       _PosterIconButton(
                                         svgAssetPath: _isWatched
@@ -432,6 +456,7 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                         scaleFactor: scaleFactor,
                                         onPressed: _handleWatchedToggle,
                                       ),
+                                      SizedBox(width: 12 * scaleFactor),
                                       _PosterIconButton(
                                         svgAssetPath: _isFavorite
                                             ? 'assets/images/favorite_fill.svg'
@@ -441,6 +466,7 @@ class _RecentlyWatchedItemState extends ConsumerState<RecentlyWatchedItem>
                                         scaleFactor: scaleFactor,
                                         onPressed: _handleFavoriteToggle,
                                       ),
+                                      SizedBox(width: 12 * scaleFactor),
                                       FlyoutTarget(
                                         controller: _moreMenuController,
                                         child: _PosterIconButton(
@@ -537,8 +563,8 @@ class _PosterIconButtonState extends State<_PosterIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = 16.0 * widget.scaleFactor;
-    final buttonSize = 28.0 * widget.scaleFactor;
+    final iconSize = 20.0 * widget.scaleFactor;
+    final buttonSize = 36.0 * widget.scaleFactor;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
