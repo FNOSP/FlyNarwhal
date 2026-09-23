@@ -1,7 +1,7 @@
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_errors.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_session.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_source.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_constants.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_errors.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_session.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_constants.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -9,7 +9,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/core/network/api_result.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_service.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_service.dart';
 
 const _deadline = Duration(seconds: 4);
 const _chunk = CdnProxyDefaults.chunkSize;

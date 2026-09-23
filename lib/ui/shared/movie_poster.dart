@@ -38,6 +38,10 @@ class MoviePoster extends ConsumerStatefulWidget {
   final VoidCallback? onFavoriteTap;
   final VoidCallback? onWatchedTap;
   final VoidCallback? onMoreTap;
+  /// 「更多」按钮的 flyout 锚点。调用方若用 FlyoutController 弹菜单，必须把该
+  /// controller 传进来，否则 showFlyout 的 isAttached 断言会失败；每张海报须各
+  /// 自持有一个 controller（flyout 一次只能 attach 一个 target）。
+  final FlyoutController? moreFlyoutController;
   final String? type;
   final String? guid;
   final String? mediaTitle;
@@ -66,6 +70,7 @@ class MoviePoster extends ConsumerStatefulWidget {
     this.onFavoriteTap,
     this.onWatchedTap,
     this.onMoreTap,
+    this.moreFlyoutController,
     this.type,
     this.guid,
     this.mediaTitle,
@@ -129,6 +134,9 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
             mediaType == MediaType.video ||
             widget.onPlayTap != null);
     final actionInset = 8.0 * scaleFactor;
+    // Web's poster card lifts the play button 12px above the card's vertical
+    // center (play-mask__btn--with-offset), clearing the icon row below it.
+    final playButtonOffset = -12.0 * scaleFactor;
 
     // Play button sizes (matching Kotlin implementation)
     final normalPlayButtonSize = 48.0 * scaleFactor;
@@ -266,31 +274,35 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                           ),
                           // Show play button for playable types only
                           if (showPlayButton)
-                            Center(
-                              child: AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
-                                opacity: isHovered ? 1 : 0,
-                                child: MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  onEnter: (_) => setState(
-                                      () => _isPlayButtonHovered = true),
-                                  onExit: (_) => setState(
-                                      () => _isPlayButtonHovered = false),
-                                  child: GestureDetector(
-                                    onTap: widget.onPlayTap ??
-                                        () => _handlePlay(context),
-                                    child: AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 200),
-                                      width: playButtonSize,
-                                      height: playButtonSize,
-                                      child: SvgPicture.asset(
-                                        'assets/images/play_circle.svg',
+                            Align(
+                              alignment: Alignment.center,
+                              child: Transform.translate(
+                                offset: Offset(0, playButtonOffset),
+                                child: AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 200),
+                                  opacity: isHovered ? 1 : 0,
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.click,
+                                    onEnter: (_) => setState(
+                                        () => _isPlayButtonHovered = true),
+                                    onExit: (_) => setState(
+                                        () => _isPlayButtonHovered = false),
+                                    child: GestureDetector(
+                                      onTap: widget.onPlayTap ??
+                                          () => _handlePlay(context),
+                                      child: AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 200),
                                         width: playButtonSize,
                                         height: playButtonSize,
-                                        colorFilter: const ColorFilter.mode(
-                                          Colors.white,
-                                          BlendMode.srcIn,
+                                        child: SvgPicture.asset(
+                                          'assets/images/play_circle.svg',
+                                          width: playButtonSize,
+                                          height: playButtonSize,
+                                          colorFilter: const ColorFilter.mode(
+                                            Colors.white,
+                                            BlendMode.srcIn,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -298,56 +310,62 @@ class _MoviePosterState extends ConsumerState<MoviePoster>
                                 ),
                               ),
                             ),
+                          // 遮罩底部居中：已观看 / 收藏 / 更多（与 Web 的
+                          // absolute bottom-2 居中图标行一致）。
                           Positioned(
-                            left: actionInset,
+                            left: 0,
+                            right: 0,
                             bottom: actionInset,
                             child: AnimatedOpacity(
                               duration: const Duration(milliseconds: 200),
                               opacity: isHovered ? 1 : 0,
-                              child: PosterIconButton(
-                                svgAssetPath: _isWatched
-                                    ? 'assets/images/watched_fill.svg'
-                                    : 'assets/images/watched.svg',
-                                isActive: _isWatched,
-                                activeColor: kAccentColorDefault,
-                                scaleFactor: scaleFactor,
-                                onPressed: _handleWatchedToggle,
-                              ),
-                            ),
-                          ),
-                          if (showFavoriteButton)
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              bottom: actionInset,
-                              child: AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
-                                opacity: isHovered ? 1 : 0,
-                                child: Center(
-                                  child: PosterIconButton(
-                                    svgAssetPath: _isFavorite
-                                        ? 'assets/images/favorite_fill.svg'
-                                        : 'assets/images/favorite.svg',
-                                    isActive: _isFavorite,
-                                    activeColor: kDangerDefaultColor,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  PosterIconButton(
+                                    svgAssetPath: _isWatched
+                                        ? 'assets/images/watched_fill.svg'
+                                        : 'assets/images/watched.svg',
+                                    isActive: _isWatched,
+                                    activeColor: kAccentColorDefault,
                                     scaleFactor: scaleFactor,
-                                    onPressed: _handleFavoriteToggle,
+                                    onPressed: _handleWatchedToggle,
                                   ),
-                                ),
-                              ),
-                            ),
-                          Positioned(
-                            right: actionInset,
-                            bottom: actionInset,
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 200),
-                              opacity: isHovered ? 1 : 0,
-                              child: PosterIconButton(
-                                icon: FluentIcons.more,
-                                isActive: false,
-                                activeColor: Colors.white,
-                                scaleFactor: scaleFactor,
-                                onPressed: widget.onMoreTap,
+                                  if (showFavoriteButton) ...[
+                                    SizedBox(width: 12 * scaleFactor),
+                                    PosterIconButton(
+                                      svgAssetPath: _isFavorite
+                                          ? 'assets/images/favorite_fill.svg'
+                                          : 'assets/images/favorite.svg',
+                                      isActive: _isFavorite,
+                                      activeColor: kDangerDefaultColor,
+                                      scaleFactor: scaleFactor,
+                                      onPressed: _handleFavoriteToggle,
+                                    ),
+                                  ],
+                                  // 更多按钮始终显示（与 Web 一致）：无
+                                  // onMoreTap 时按钮不可点但仍在位。
+                                  SizedBox(width: 12 * scaleFactor),
+                                  if (widget.moreFlyoutController != null)
+                                    FlyoutTarget(
+                                      controller: widget.moreFlyoutController!,
+                                      child: PosterIconButton(
+                                        icon: FluentIcons.more,
+                                        isActive: false,
+                                        activeColor: Colors.white,
+                                        scaleFactor: scaleFactor,
+                                        onPressed: widget.onMoreTap,
+                                      ),
+                                    )
+                                  else
+                                    PosterIconButton(
+                                      icon: FluentIcons.more,
+                                      isActive: false,
+                                      activeColor: Colors.white,
+                                      scaleFactor: scaleFactor,
+                                      onPressed: widget.onMoreTap,
+                                    ),
+                                ],
                               ),
                             ),
                           ),
@@ -593,6 +611,9 @@ class _BannerPosterState extends State<BannerPoster> {
     final showWatchedButton = widget.onWatchedToggle != null;
     final showMoreButton = widget.onMoreTap != null;
     final actionInset = 8.0 * scaleFactor;
+    // Web's banner card lifts the play button 12px above the card's vertical
+    // center (play-mask__btn--with-offset), clearing the icon row below it.
+    final playButtonOffset = -12.0 * scaleFactor;
     final playButtonSize =
         _isPlayButtonHovered ? 56.0 * scaleFactor : 48.0 * scaleFactor;
 
@@ -672,31 +693,36 @@ class _BannerPosterState extends State<BannerPoster> {
                       ),
                     ),
                   ),
-                  // 居中播放按钮（悬停时放大）。
+                  // 播放按钮：悬停时放大，垂直位置比卡片中心高 12px（与 Web
+                  // play-mask__btn--with-offset 一致），避免与底部图标行贴太近。
                   if (widget.onPlayTap != null)
-                    Center(
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 200),
-                        opacity: isHovered ? 1 : 0,
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          onEnter: (_) =>
-                              setState(() => _isPlayButtonHovered = true),
-                          onExit: (_) =>
-                              setState(() => _isPlayButtonHovered = false),
-                          child: GestureDetector(
-                            onTap: widget.onPlayTap,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: playButtonSize,
-                              height: playButtonSize,
-                              child: SvgPicture.asset(
-                                'assets/images/play_circle.svg',
+                    Align(
+                      alignment: Alignment.center,
+                      child: Transform.translate(
+                        offset: Offset(0, playButtonOffset),
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: isHovered ? 1 : 0,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            onEnter: (_) =>
+                                setState(() => _isPlayButtonHovered = true),
+                            onExit: (_) =>
+                                setState(() => _isPlayButtonHovered = false),
+                            child: GestureDetector(
+                              onTap: widget.onPlayTap,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
                                 width: playButtonSize,
                                 height: playButtonSize,
-                                colorFilter: const ColorFilter.mode(
-                                  Colors.white,
-                                  BlendMode.srcIn,
+                                child: SvgPicture.asset(
+                                  'assets/images/play_circle.svg',
+                                  width: playButtonSize,
+                                  height: playButtonSize,
+                                  colorFilter: const ColorFilter.mode(
+                                    Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
                                 ),
                               ),
                             ),
@@ -704,15 +730,17 @@ class _BannerPosterState extends State<BannerPoster> {
                         ),
                       ),
                     ),
-                  // 遮罩右下角：已观看 / 收藏 / 更多。
+                  // 遮罩底部居中：已观看 / 收藏 / 更多（与 Web 的
+                  // absolute bottom-2 居中图标行一致）。
                   Positioned(
-                    right: actionInset,
+                    left: 0,
+                    right: 0,
                     bottom: actionInset,
                     child: AnimatedOpacity(
                       duration: const Duration(milliseconds: 200),
                       opacity: isHovered ? 1 : 0,
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           if (showWatchedButton)
                             PosterIconButton(
@@ -724,7 +752,8 @@ class _BannerPosterState extends State<BannerPoster> {
                               scaleFactor: scaleFactor,
                               onPressed: _handleWatchedToggle,
                             ),
-                          if (showFavoriteButton)
+                          if (showFavoriteButton) ...[
+                            SizedBox(width: 12 * scaleFactor),
                             PosterIconButton(
                               svgAssetPath: _isFavorite
                                   ? 'assets/images/favorite_fill.svg'
@@ -734,7 +763,9 @@ class _BannerPosterState extends State<BannerPoster> {
                               scaleFactor: scaleFactor,
                               onPressed: _handleFavoriteToggle,
                             ),
-                          if (showMoreButton)
+                          ],
+                          if (showMoreButton) ...[
+                            SizedBox(width: 12 * scaleFactor),
                             PosterIconButton(
                               icon: FluentIcons.more,
                               isActive: false,
@@ -742,6 +773,7 @@ class _BannerPosterState extends State<BannerPoster> {
                               scaleFactor: scaleFactor,
                               onPressed: widget.onMoreTap,
                             ),
+                          ],
                         ],
                       ),
                     ),
@@ -786,15 +818,17 @@ class PosterIconButtonState extends State<PosterIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = 16.0 * widget.scaleFactor;
-    final buttonSize = 28.0 * widget.scaleFactor;
+    final iconSize = 20.0 * widget.scaleFactor;
+    final buttonSize = 36.0 * widget.scaleFactor;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
-        onTap: widget.onPressed,
+        // onPressed 为 null 时用空回调兜底：否则 GestureDetector 不注册点击
+        // 识别器，点击会穿透到外层卡片的 HoverButton 上、误触发「进入详情页」。
+        onTap: widget.onPressed ?? () {},
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
           width: buttonSize,

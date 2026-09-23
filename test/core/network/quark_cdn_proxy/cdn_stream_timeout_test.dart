@@ -1,25 +1,22 @@
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_http_transport.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_errors.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_errors.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_source.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/core/network/api_result.dart';
-import 'package:fly_narwhal/data/datasources/remote/cdn_range_remote_data_source.dart';
 
 void main() {
   final uri = Uri.parse('https://provider.example/video?signature=secret-sign');
   const cookie = 'sid=secret-cookie';
   late _Adapter adapter;
-  late CdnRangeRemoteDataSource source;
+  late CdnHttpRangeSource source;
 
   setUp(() {
     adapter = _Adapter();
-    source = CdnRangeRemoteDataSource(
-      transport: CdnHttpTransport(adapter: adapter),
-    );
+    source = CdnHttpRangeSource(adapter: adapter);
   });
   tearDown(() => source.close());
 

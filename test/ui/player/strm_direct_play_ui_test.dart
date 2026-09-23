@@ -106,7 +106,7 @@ void main() {
                 cache: PlayingInfoCache(
                   isUseDirectLink: true,
                   streamInfo: StreamResponse(
-                    cloudStorageInfo: CloudStorageInfo(cloudStorageType: CloudStorageInfo.quarkCloudStorageType),
+                    cloudStorageInfo: CloudStorageInfo(cloudStorageType: 4),
                     directLinkQualities: [
                       DirectLinkQuality(resolution: '原画'),
                     ],

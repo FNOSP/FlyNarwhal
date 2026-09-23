@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/core/utils/log/error_log_exporter.dart';
 import 'package:fly_narwhal/core/utils/log/talker_formatter.dart';
 import 'package:fly_narwhal/core/utils/log/talker_log_types.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_diagnostics.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_diagnostics.dart';
 import 'package:talker/talker.dart';
 
 void main() {

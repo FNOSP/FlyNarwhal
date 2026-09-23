@@ -25,7 +25,6 @@ import 'controllers/pip_window_mode_controller.dart';
 import 'controllers/player_overlay_controller.dart';
 import 'controllers/player_session_coordinator.dart';
 import 'controllers/player_window_aspect_ratio_controller.dart';
-import 'models/playback_source_spec.dart';
 import 'services/player_service.dart';
 import 'utils/player_volume_helper.dart';
 import 'widgets/channel_select_flyout.dart';
@@ -263,7 +262,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
         final prepared = await ref
             .read(playerSessionCoordinatorProvider)
             .preparePlaySourceForMediaKit(
-              source: PlaybackSourceSpec(playUri: channel.path),
+              playUri: channel.path,
               currentSubtitleStream: null,
             );
         playUri = prepared.playUri;

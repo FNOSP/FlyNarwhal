@@ -1,4 +1,4 @@
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_http_transport.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -10,7 +10,7 @@ import 'package:fly_narwhal/core/network/interceptors/ssl_trust_interceptor.dart
 
 void main() {
   test('Given an external client, then no NAS interceptors are installed', () {
-    final client = CdnHttpTransport();
+    final client = CdnHttpRangeSource();
     addTearDown(() => client.dio.close(force: true));
     expect(client.dio.options.baseUrl, isEmpty);
     expect(client.dio.options.headers, isEmpty);

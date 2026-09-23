@@ -1,22 +1,43 @@
 import '../../../../data/models/player_models.dart';
+import '../models/playback_source_spec.dart';
 
-/// Keeps failed Quark single-file attempts from silently switching to NAS.
-/// This uses the selected session intent, which survives transport cleanup;
-/// HLS and NAS original-file fallbacks retain their existing behavior.
-bool shouldBlockQuarkAutomaticNasFallback(
-  PlayingInfoCache? cache, {
-  required bool Function(DirectLinkQuality quality) isHlsQuality,
+/// Backend identifier used only by the Quark proxy integration.
+const int quarkCloudStorageType = 4;
+
+/// Snapshot only an explicitly selected direct session. NAS/HLS callers omit
+/// the context, so a later change to the page's current cache cannot reroute them.
+PlaybackSourceSpec snapshotPlaybackSource({
+  required String playUri,
+  PlayingInfoCache? directLinkContext,
 }) {
-  if (cache == null ||
-      cache.streamInfo?.cloudStorageInfo?.cloudStorageType != CloudStorageInfo.quarkCloudStorageType ||
-      !cache.isUseDirectLink ||
-      cache.directLinkQualityIndex == null) {
-    return false;
+  final context = directLinkContext;
+  final index = context?.directLinkQualityIndex;
+  if (context == null ||
+      !context.isUseDirectLink ||
+      context.streamInfo?.cloudStorageInfo?.cloudStorageType !=
+          quarkCloudStorageType ||
+      index == null ||
+      index < 0 ||
+      index >= context.directLinkQualities.length) {
+    return PlaybackSourceSpec(playUri: playUri);
   }
 
-  final index = cache.directLinkQualityIndex!;
-  if (index < 0 || index >= cache.directLinkQualities.length) {
-    return true;
+  final quality = context.directLinkQualities[index];
+  final uri = Uri.tryParse(quality.url);
+  if (quality.isM3u8 || (uri?.path.toLowerCase().contains('.m3u8') ?? false)) {
+    return PlaybackSourceSpec(playUri: playUri);
   }
-  return !isHlsQuality(cache.directLinkQualities[index]);
+  if (uri == null ||
+      !uri.hasAuthority ||
+      uri.host.isEmpty ||
+      (uri.scheme != 'http' && uri.scheme != 'https')) {
+    return PlaybackSourceSpec(
+      playUri: quality.url,
+      sourceError: '夸克直连地址不可用',
+    );
+  }
+  return PlaybackSourceSpec(
+    playUri: quality.url,
+    transport: PlaybackTransport.quarkCdnRange,
+  );
 }

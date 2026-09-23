@@ -26,6 +26,18 @@ class SemiIcons {
   static SvgPicture sslCertificate({double size = 20, Color? color}) =>
       _icon('ssl_certificate', size, color);
 
+  static SvgPicture removeFromContinue({double size = 16, Color? color}) =>
+      _icon('remove_from_continue', size, color);
+
+  static SvgPicture resumePlay({double size = 16, Color? color}) =>
+      _icon('resume_play', size, color);
+
+  static SvgPicture restartPlay({double size = 16, Color? color}) =>
+      _icon('restart_play', size, color);
+
+  static SvgPicture deleteVideo({double size = 16, Color? color}) =>
+      _icon('delete_video', size, color);
+
   static SvgPicture _icon(String name, double size, Color? color) {
     return SvgPicture.asset(
       '$_assetDir/$name.svg',

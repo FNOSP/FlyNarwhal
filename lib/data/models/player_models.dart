@@ -23,9 +23,6 @@ class SpeedItem {
 
 @JsonSerializable()
 class CloudStorageInfo {
-  /// Backend identifier for Quark cloud storage.
-  static const int quarkCloudStorageType = 4;
-
   /// `cloud_storage_type` value the backend uses for STRM files (not a real
   /// cloud drive; the NAS resolves the .strm content to a playable URL).
   static const int strmCloudStorageType = 9001;

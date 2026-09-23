@@ -1,5 +1,6 @@
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_errors.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_errors.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_source.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -7,7 +8,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/core/network/api_result.dart';
-import 'package:fly_narwhal/data/datasources/remote/cdn_range_remote_data_source.dart';
 import 'package:fly_narwhal/providers/quark_cdn_range_providers.dart';
 
 const _deadline = Duration(seconds: 4);
@@ -20,16 +20,15 @@ void main() {
         () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
-      final createSource =
-          container.read(cdnRangeRemoteDataSourceFactoryProvider);
+      final createSource = container.read(cdnRangeSourceFactoryProvider);
 
       final first = createSource();
       final second = createSource();
       addTearDown(first.close);
       addTearDown(second.close);
 
-      expect(first, isA<CdnRangeRemoteDataSource>());
-      expect(second, isA<CdnRangeRemoteDataSource>());
+      expect(first, isA<CdnHttpRangeSource>());
+      expect(second, isA<CdnHttpRangeSource>());
       expect(identical(first, second), isFalse);
     });
 
@@ -124,7 +123,7 @@ void main() {
 
 ProviderContainer _createContainer(CdnRangeSourceFactory createSource) {
   final container = ProviderContainer(overrides: [
-    cdnRangeRemoteDataSourceFactoryProvider.overrideWithValue(createSource),
+    cdnRangeSourceFactoryProvider.overrideWithValue(createSource),
   ]);
   addTearDown(container.dispose);
   return container;

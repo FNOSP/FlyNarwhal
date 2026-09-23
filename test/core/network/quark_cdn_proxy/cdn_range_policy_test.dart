@@ -1,6 +1,6 @@
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_constants.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_constants.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_policy.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_policy.dart';
 
 void main() {
   const chunk = CdnProxyDefaults.chunkSize;

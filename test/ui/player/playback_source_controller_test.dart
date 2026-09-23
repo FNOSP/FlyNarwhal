@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy.dart';
 import 'package:fly_narwhal/ui/features/player/controllers/playback_source_controller.dart';
 import 'package:fly_narwhal/ui/features/player/models/playback_source_spec.dart';
+import 'package:fly_narwhal/data/models/player_models.dart';
+import 'package:fly_narwhal/ui/features/player/services/quark_playback_policy.dart';
 
 const _cdn = PlaybackSourceSpec(
   playUri: 'https://cdn.example/video.mp4',
@@ -54,13 +56,11 @@ void main() {
       'Given a late old proxy error, when another source is active, then the new source is untouched',
       () async {
     void Function(Object)? emitError;
-    final errors = <Object>[];
     final controller = PlaybackSourceController(
       createProxy: ({onError}) {
         emitError = onError;
         return _Proxy();
       },
-      onError: errors.add,
     );
     final old = await _prepare(controller, _cdn);
     final current = await _prepare(controller, _standard);
@@ -68,35 +68,40 @@ void main() {
     expect(old.isCurrent, isFalse);
     expect(current.isCurrent, isTrue);
     expect(identical(controller.active, current), isTrue);
-    expect(errors, isEmpty);
     await controller.close();
   });
 
   test(
-      'Given an error callback that starts a replacement, when the proxy fails, then cleanup cannot cancel the replacement',
+      'Given a terminal failure after preparing playback, when another source is queued, then cleanup is isolated from the replacement',
       () async {
     void Function(Object)? emitError;
-    late PlaybackSourceController controller;
-    Future<PlaybackSourceLease>? replacement;
-    var errors = 0;
-    controller = PlaybackSourceController(
+    final closed = Completer<void>();
+    final proxy = _Proxy(firstClose: closed.future);
+    var releases = 0;
+    final controller = PlaybackSourceController(
       createProxy: ({onError}) {
         emitError = onError;
-        return _Proxy();
+        return proxy;
       },
-      onError: (_) {
-        errors++;
-        replacement = _prepare(controller, _standard);
+      releaseConsumers: () async {
+        releases++;
       },
     );
     final old = await _prepare(controller, _cdn);
-    emitError!(StateError('terminal'));
+    final terminal = StateError('terminal');
+    emitError!(terminal);
     emitError!(StateError('duplicate'));
-    final current = await replacement!;
-    expect(errors, 1);
-    expect(old.isCurrent, isFalse);
+    expect(proxy.closeCalls, 1);
+    expect(controller.active, isNull);
+    expect(() => old.ensureCurrent(), throwsA(same(terminal)));
+    final replacement = _prepare(controller, _standard);
+    closed.complete();
+    final current = await replacement;
+    expect(releases, 3);
     expect(current.isCurrent, isTrue);
     expect(identical(controller.active, current), isTrue);
+    emitError!(StateError('late'));
+    expect(current.isCurrent, isTrue);
     await controller.close();
   });
 
@@ -132,10 +137,9 @@ void main() {
   });
 
   test(
-      'Given terminal failure and failing cleanup, when notifying UI, then background cleanup errors are handled',
+      'Given terminal failure and failing cleanup, when releasing resources internally, then background cleanup errors are handled',
       () async {
     void Function(Object)? emitError;
-    var errors = 0;
     var releases = 0;
     final released = Completer<void>();
     final controller = PlaybackSourceController(
@@ -146,16 +150,12 @@ void main() {
       releaseConsumers: () async {
         if (++releases == 2) released.complete();
       },
-      onError: (_) {
-        errors++;
-      },
     );
     await _prepare(controller, _cdn);
     emitError!(StateError('terminal'));
     await released.future;
     // Join cleanup without inheriting its already-observed error.
     final current = await _prepare(controller, _standard);
-    expect(errors, 1);
     expect(current.isCurrent, isTrue);
     await controller.close();
   });
@@ -173,7 +173,8 @@ void main() {
       'Host': 'nas.example'
     };
     final opening = controller.prepare(
-      source: _cdn,
+      playUri: _cdn.playUri,
+      directLinkContext: _direct(),
       upstreamHeaders: upstream,
       playerHeaders: {'Authorization': 'nas-secret'},
     );
@@ -190,161 +191,161 @@ void main() {
   });
 
   test(
-      'Given a rejected cloud source, when prepared, then no proxy opens and manual retry remains possible',
+      'Given a route snapshot, when mutable quality metadata changes while queued, then opening and records retain the original selection',
+      () async {
+    final pending = Completer<Uri>();
+    final proxy = _Proxy(pending: pending);
+    final controller =
+        PlaybackSourceController(createProxy: ({onError}) => proxy);
+    final qualities = [
+      DirectLinkQuality(resolution: 'Original', url: _cdn.playUri)
+    ];
+    final context = _direct(qualities: qualities);
+    final opening = controller.prepare(
+      playUri: _standard.playUri,
+      directLinkContext: context,
+      playerHeaders: {'Authorization': 'nas-only'},
+      upstreamHeaders: const {},
+    );
+    qualities[0] = DirectLinkQuality(
+        resolution: 'Changed', url: 'https://changed.example/other.mp4');
+    await proxy.opened.future;
+    pending.complete(Uri.parse('http://127.0.0.1:1234/source/media'));
+    final source = await opening;
+    expect(proxy.uri.toString(), _cdn.playUri);
+    expect(source.playerHeaders, isEmpty);
+    expect(context.playLink, 'original-session');
+    expect(context.playRecordLink, 'original-record');
+    expect(context.directLinkQualities.single.url,
+        'https://changed.example/other.mp4');
+    await controller.close();
+  });
+
+  test(
+      'Given an invalid selected CDN URL, when prepared, then a real source error reaches upstream recovery without opening a proxy',
       () async {
     var creations = 0;
+    var fallbacks = 0;
     final controller = PlaybackSourceController(createProxy: ({onError}) {
       creations++;
       return _Proxy();
     });
-    await expectLater(
-        _prepare(controller,
-            const PlaybackSourceSpec(playUri: '', sourceError: '手动切换 NAS')),
-        throwsA(isA<PlaybackSourceRejected>()
-            .having((e) => e.message, 'message', contains('NAS'))));
+    try {
+      await controller.prepare(
+        playUri: _standard.playUri,
+        directLinkContext: _direct(
+            qualities: [DirectLinkQuality(resolution: 'Original', url: '')]),
+        playerHeaders: const {},
+        upstreamHeaders: const {},
+      );
+      fail('invalid selected URL succeeded');
+    } on PlaybackSourceSuperseded {
+      fail('real validation failure became cancellation');
+    } on PlaybackSourceRejected {
+      fallbacks++;
+    }
     expect(creations, 0);
+    expect(fallbacks, 1);
     expect((await _prepare(controller, _standard)).isCurrent, isTrue);
     await controller.close();
   });
 
   test(
-      'Given main playback and a probe, when opening their shared source, then both configure the same actual URI without another proxy',
+      'Given a metadata request that never resolves, when it emits a real terminal failure, then cleanup starts and the opening flow receives the original cause',
       () async {
-    var creations = 0;
+    void Function(Object)? emitError;
+    final proxy = _Proxy(pending: Completer<Uri>());
     final controller = PlaybackSourceController(createProxy: ({onError}) {
-      creations++;
-      return _Proxy();
+      emitError = onError;
+      return proxy;
     });
-    final source = await _prepare(controller, _cdn);
-    final operations = <String>[];
-    for (final consumer in ['main', 'probe']) {
-      await openPlaybackSource(
-        source: source,
-        configureSsl: (uri) async {
-          operations.add('$consumer:ssl:$uri');
-        },
-        setProperty: (name, value) async {
-          operations.add('$consumer:$name=$value');
-        },
-        open: () async {
-          operations.add('$consumer:open');
-        },
-      );
-    }
-    expect(creations, 1);
-    expect(operations, [
-      'main:ssl:http://127.0.0.1:1234/source/media',
-      'main:network-timeout=0',
-      'main:open',
-      'probe:ssl:http://127.0.0.1:1234/source/media',
-      'probe:network-timeout=0',
-      'probe:open',
-    ]);
+    final opening = _prepare(controller, _cdn);
+    final terminal = StateError('HTTP 403');
+    final result = expectLater(opening, throwsA(same(terminal)));
+    await proxy.opened.future;
+    emitError!(terminal);
+    await result;
+    expect(proxy.closeCalls, 1);
+    expect(controller.active, isNull);
+    final replacement = await _prepare(controller, _standard);
+    expect(replacement.isCurrent, isTrue);
+    // The abandoned metadata Future remains observed.
+    proxy.pending!.completeError(StateError('late transport failure'));
     await controller.close();
-    await expectLater(
-        openPlaybackSource(
-            source: source,
-            configureSsl: (_) async {},
-            open: () async {
-              fail('obsolete source opened');
-            }),
-        throwsA(isA<PlaybackSourceSuperseded>()));
   });
 
-  for (final cancelDuringSsl in [true, false]) {
+  test(
+      'Given pending startup verification, when the proxy fails, then the original failure interrupts verification and duplicate failures are ignored',
+      () async {
+    void Function(Object)? emitError;
+    final proxy = _Proxy();
+    final controller = PlaybackSourceController(createProxy: ({onError}) {
+      emitError = onError;
+      return proxy;
+    });
+    final source = await _prepare(controller, _cdn);
+    final pending = Completer<void>();
+    final terminal = StateError('body failed');
+    final waiting = source.guard(() => pending.future);
+    final result = expectLater(waiting, throwsA(same(terminal)));
+    emitError!(terminal);
+    emitError!(StateError('duplicate'));
+    await result;
+    expect(() => source.ensureCurrent(), throwsA(same(terminal)));
+    expect(proxy.closeCalls, 1);
+    final replacement = await _prepare(controller, _standard);
+    expect(
+        () => source.ensureCurrent(), throwsA(isA<PlaybackSourceSuperseded>()));
+    expect(replacement.isCurrent, isTrue);
+    pending.completeError(StateError('late decoder failure'));
+    await controller.close();
+  });
+
+  for (final stage in ['media open', 'subtitle wait', 'resume seek']) {
     test(
-        'Given ${cancelDuringSsl ? 'SSL configuration' : 'timeout configuration'} is pending, when the source closes, then neither player may open the old URI',
+        'Given pending $stage, when the user changes source, then the guarded operation cancels without awaiting or leaking its late error',
         () async {
       final controller =
           PlaybackSourceController(createProxy: ({onError}) => _Proxy());
       final source = await _prepare(controller, _standard);
       final entered = Completer<void>();
-      final resume = Completer<void>();
-      var opened = false;
-      final opening = openPlaybackSource(
-        source: source,
-        configureSsl: (_) async {
-          if (cancelDuringSsl) {
-            entered.complete();
-            await resume.future;
-          }
-        },
-        setProperty: (_, __) async {
-          if (!cancelDuringSsl) {
-            entered.complete();
-            await resume.future;
-          }
-        },
-        open: () async {
-          opened = true;
-        },
-      );
+      final pending = Completer<void>();
+      var staleUpdates = 0;
+      final waiting = () async {
+        await source.guard(() {
+          entered.complete();
+          return pending.future;
+        });
+        staleUpdates++;
+      }();
       final result =
-          expectLater(opening, throwsA(isA<PlaybackSourceSuperseded>()));
+          expectLater(waiting, throwsA(isA<PlaybackSourceSuperseded>()));
       await entered.future;
-      await controller.close();
-      resume.complete();
+      final replacement = await _prepare(controller, _standard);
       await result;
-      expect(opened, isFalse);
+      expect(staleUpdates, 0);
+      expect(replacement.isCurrent, isTrue);
+      pending.completeError(StateError('late $stage failure'));
+      await controller.close();
     });
   }
 
   test(
-      'Given a probe is superseded while TLS awaits, when the source itself is still active, then the probe cannot open',
+      'Given an obsolete consumer, when its pending action errors, then the late error is classified as cancellation',
       () async {
     final controller =
         PlaybackSourceController(createProxy: ({onError}) => _Proxy());
-    final source = await _prepare(controller, _cdn);
-    final entered = Completer<void>();
-    final resume = Completer<void>();
+    final source = await _prepare(controller, _standard);
+    final pending = Completer<void>();
     var current = true;
-    final opening = openPlaybackSource(
-      source: source,
-      configureSsl: (_) async {
-        entered.complete();
-        await resume.future;
-      },
-      isConsumerCurrent: () => current,
-      open: () async {
-        fail('obsolete probe opened');
-      },
-    );
+    final waiting =
+        source.guard(() => pending.future, isConsumerCurrent: () => current);
     final result =
-        expectLater(opening, throwsA(isA<PlaybackSourceSuperseded>()));
-    await entered.future;
+        expectLater(waiting, throwsA(isA<PlaybackSourceSuperseded>()));
     current = false;
-    resume.complete();
+    pending.completeError(StateError('old probe failure'));
     await result;
     expect(source.isCurrent, isTrue);
-    await controller.close();
-  });
-
-  test(
-      'Given standard-CDN-standard transitions, when source policies are applied, then timeouts and startup rules restore',
-      () async {
-    final controller =
-        PlaybackSourceController(createProxy: ({onError}) => _Proxy());
-    final timeouts = <String>[];
-    for (final spec in [_standard, _cdn, _standard]) {
-      final source = await _prepare(controller, spec);
-      await openPlaybackSource(
-          source: source,
-          configureSsl: (_) async {},
-          setProperty: (_, value) async {
-            timeouts.add(value);
-          },
-          open: () async {});
-      final recovering = spec.transport == PlaybackTransport.quarkCdnRange;
-      expect(source.policy.waitForRecovery, recovering);
-      expect(
-          source.policy.shouldAbortStalledStart(
-              elapsed: const Duration(seconds: 8),
-              mediaDuration: const Duration(minutes: 1),
-              hasVideo: false,
-              buffered: Duration.zero),
-          !recovering);
-    }
-    expect(timeouts, ['5', '0', '5']);
     await controller.close();
   });
 }
@@ -352,7 +353,26 @@ void main() {
 Future<PlaybackSourceLease> _prepare(
         PlaybackSourceController controller, PlaybackSourceSpec source) =>
     controller.prepare(
-        source: source, playerHeaders: const {}, upstreamHeaders: const {});
+        playUri: source.playUri,
+        directLinkContext: source.transport == PlaybackTransport.quarkCdnRange
+            ? _direct()
+            : null,
+        playerHeaders: const {},
+        upstreamHeaders: const {});
+
+PlayingInfoCache _direct({List<DirectLinkQuality>? qualities}) =>
+    PlayingInfoCache(
+      itemGuid: 'movie',
+      playLink: 'original-session',
+      playRecordLink: 'original-record',
+      isUseDirectLink: true,
+      directLinkQualityIndex: 0,
+      directLinkQualities: qualities ??
+          [DirectLinkQuality(resolution: 'Original', url: _cdn.playUri)],
+      streamInfo: StreamResponse(
+          cloudStorageInfo:
+              CloudStorageInfo(cloudStorageType: quarkCloudStorageType)),
+    );
 
 class _Proxy implements CdnProxy {
   _Proxy(
@@ -366,12 +386,14 @@ class _Proxy implements CdnProxy {
   final bool failClose;
   final opened = Completer<void>();
   Map<String, String>? headers;
+  Uri? uri;
   int closeCalls = 0;
 
   @override
   Future<Uri> open(
       {required Uri uri, required Map<String, String> headers}) async {
     this.headers = headers;
+    this.uri = uri;
     opened.complete();
     if (pending != null) return pending!.future;
     return Uri.parse('http://127.0.0.1:1234/source/media');

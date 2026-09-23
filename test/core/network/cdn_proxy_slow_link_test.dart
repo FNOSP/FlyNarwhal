@@ -6,12 +6,11 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/core/network/api_result.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_http_transport.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_service.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_diagnostics.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_session.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_source.dart';
-import 'package:fly_narwhal/data/datasources/remote/cdn_range_remote_data_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_service.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_diagnostics.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_session.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_source.dart';
 
 import '../../../tool/support/cdn_proxy_http_fixture.dart';
 
@@ -134,9 +133,7 @@ Future<_SlowLinkResult> _exercise({
   );
   final watch = Stopwatch()..start();
   final source = _RecordingSource(
-    CdnRangeRemoteDataSource(
-      transport: CdnHttpTransport(receiveTimeout: receiveTimeout),
-    ),
+    CdnHttpRangeSource(receiveTimeout: receiveTimeout),
     watch,
   );
   final budget = CdnRangeBudget();

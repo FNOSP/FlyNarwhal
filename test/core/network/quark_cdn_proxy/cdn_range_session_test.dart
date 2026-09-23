@@ -1,7 +1,7 @@
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_errors.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_session.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_source.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_constants.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_errors.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_session.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_constants.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -10,8 +10,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/core/network/api_result.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_policy.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_diagnostics.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_policy.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_diagnostics.dart';
 
 const _chunk = CdnProxyDefaults.chunkSize;
 final _uri = Uri.parse('https://cdn.example.test/movie.mp4?signature=private');

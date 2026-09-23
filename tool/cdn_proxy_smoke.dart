@@ -2,10 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_http_transport.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_proxy_service.dart';
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_range_session.dart';
-import 'package:fly_narwhal/data/datasources/remote/cdn_range_remote_data_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_service.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_session.dart';
 
 import 'support/cdn_proxy_http_fixture.dart';
 
@@ -20,7 +19,7 @@ Future<void> main() async {
   final failures = <Object>[];
   final client = HttpClient()..findProxy = (_) => 'DIRECT';
   CdnProxyService createProxy() => CdnProxyService(
-        source: CdnRangeRemoteDataSource(transport: CdnHttpTransport()),
+        source: CdnHttpRangeSource(),
         budget: budget,
         onError: failures.add,
       );

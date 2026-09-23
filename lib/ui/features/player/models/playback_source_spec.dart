@@ -1,8 +1,7 @@
 /// App-local playback routing; this is not part of a server response model.
 enum PlaybackTransport { standard, quarkCdnRange }
 
-/// Keeps routing and validation attached to the original playback address.
-/// Invalid cloud links remain part of the session so the UI can offer retry/NAS.
+/// Immutable routing input captured by the playback source controller.
 class PlaybackSourceSpec {
   final String playUri;
   final PlaybackTransport transport;

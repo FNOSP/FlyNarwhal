@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fly_narwhal/data/models/movie_detail_models.dart';
 import 'package:fly_narwhal/data/models/player_models.dart';
-import 'package:fly_narwhal/ui/features/player/models/playback_source_spec.dart';
 import 'package:fly_narwhal/data/storage/player_settings_store.dart';
 import 'package:fly_narwhal/data/storage/preferences_manager.dart';
 import 'package:fly_narwhal/ui/features/player/controllers/player_session_coordinator.dart';
@@ -97,8 +96,7 @@ video/main.m3u8
         );
 
         final result = await coordinator.preparePlaySourceForMediaKit(
-          source: const PlaybackSourceSpec(
-              playUri: 'https://example.com/preset.m3u8'),
+          playUri: 'https://example.com/preset.m3u8',
           currentSubtitleStream: null,
         );
 
@@ -136,8 +134,7 @@ video/main.m3u8
         );
 
         final result = await coordinator.preparePlaySourceForMediaKit(
-          source: const PlaybackSourceSpec(
-              playUri: 'https://example.com/preset.m3u8'),
+          playUri: 'https://example.com/preset.m3u8',
           currentSubtitleStream: _buildSubtitleStream(
             guid: 'subtitle-guid',
             title: 'Chinese',
@@ -340,115 +337,9 @@ video/main.m3u8
 
   group('PlayerSessionCoordinator.getDirectPlayLink', () {
     test(
-      'Given Quark qualities, When selecting another quality, Then it marks that exact CDN URL for bounded range transport',
-      () async {
-        final qualities = [
-          DirectLinkQuality(
-              resolution: '原画', url: 'https://cdn.example/raw.mkv'),
-          DirectLinkQuality(
-              resolution: '流畅', url: 'https://cdn.example/small.mp4'),
-        ];
-        for (var index = 0; index < qualities.length; index++) {
-          final result = await coordinator.getDirectPlayLink(
-            mediaGuid: 'media-guid',
-            startPositionMs: 12345,
-            directLinkQualityIndex: index,
-            directLinkQualities: qualities,
-            cloudStorageType: CloudStorageInfo.quarkCloudStorageType,
-          );
-          expect(result.playUri, qualities[index].url);
-          expect(result.source.transport, PlaybackTransport.quarkCdnRange);
-          expect(result.source.sourceError, isNull);
-          expect(result.effectiveStartMs, 12345);
-        }
-      },
-    );
-
-    test(
-      'Given an invalid Quark single-file URL, When resolving direct playback, Then it returns a manual recovery error without a NAS URL',
-      () async {
-        for (final quality in [
-          DirectLinkQuality(resolution: '原画', url: '', isM3u8: false),
-          DirectLinkQuality(resolution: '原画', url: 'file:///movie.mkv'),
-        ]) {
-          final result = await coordinator.getDirectPlayLink(
-            mediaGuid: 'media-guid',
-            startPositionMs: 0,
-            directLinkQualityIndex: 0,
-            directLinkQualities: [quality],
-            cloudStorageType: CloudStorageInfo.quarkCloudStorageType,
-          );
-          expect(result.source.sourceError, contains('NAS'));
-          expect(result.source.transport, PlaybackTransport.standard);
-          expect(result.playUri, isNot(contains('/media/range')));
-        }
-      },
-    );
-
-    test(
-      'Given recognized Quark HLS, When resolving a selected quality, Then it preserves the NAS route and original index even without a public URL',
-      () async {
-        for (final quality in [
-          DirectLinkQuality(
-              resolution: 'HLS',
-              url: 'https://cdn.example/opaque',
-              isM3u8: true),
-          DirectLinkQuality(resolution: 'HLS', isM3u8: true),
-          DirectLinkQuality.fromJson({
-            'resolution': 'HLS',
-            'url': null,
-            'is_m3u8': true,
-          }),
-          DirectLinkQuality(
-              resolution: 'HLS', url: 'https://cdn.example/video.m3u8'),
-          DirectLinkQuality(
-              resolution: 'HLS',
-              url: 'https://cdn.example/video.M3U8?token=test'),
-          DirectLinkQuality(
-              resolution: 'HLS',
-              url: 'https://cdn.example/video.M3u8?token=test'),
-        ]) {
-          final result = await coordinator.getDirectPlayLink(
-            mediaGuid: 'media-guid',
-            startPositionMs: 12345,
-            directLinkQualityIndex: 1,
-            directLinkQualities: [
-              DirectLinkQuality(
-                  resolution: '原画', url: 'https://cdn.example/raw.mkv'),
-              quality,
-            ],
-            cloudStorageType: CloudStorageInfo.quarkCloudStorageType,
-          );
-          expect(result.playUri,
-              'https://example.com/v/api/v1/media/range/media-guid?direct_link_quality_index=1');
-          expect(result.playLinkRaw, '/v/api/v1/media/range/media-guid');
-          expect(result.source.transport, PlaybackTransport.standard);
-          expect(result.source.sourceError, isNull);
-          expect(result.effectiveStartMs, 12345);
-        }
-      },
-    );
-
-    test(
-      'Given invalid Quark quality index, When resolving direct playback, Then it does not silently fall back to NAS',
-      () async {
-        final result = await coordinator.getDirectPlayLink(
-          mediaGuid: 'media-guid',
-          startPositionMs: 0,
-          directLinkQualityIndex: 2,
-          directLinkQualities: [DirectLinkQuality(resolution: '原画')],
-          cloudStorageType: CloudStorageInfo.quarkCloudStorageType,
-        );
-        expect(result.source.sourceError, isNotNull);
-        expect(result.playUri, isEmpty);
-      },
-    );
-
-    test(
       'Given STRM media, When resolving the direct play link, Then it plays the NAS-resolved URL directly',
       () async {
-        const strmUrl =
-            'http://192.168.31.73:8024/smartstrm_fid/movie.mkv?sign=abc';
+        const strmUrl = 'http://192.168.31.73:8024/smartstrm_fid/movie.mkv?sign=abc';
         final result = await coordinator.getDirectPlayLink(
           mediaGuid: 'media-guid',
           startPositionMs: 16000,
@@ -464,7 +355,6 @@ video/main.m3u8
         );
 
         expect(result.playUri, equals(strmUrl));
-        expect(result.source.transport, PlaybackTransport.standard);
         expect(result.playLinkRaw, equals(strmUrl));
         expect(result.effectiveStartMs, equals(16000));
       },
@@ -494,268 +384,9 @@ video/main.m3u8
             '?direct_link_quality_index=0',
           ),
         );
-        expect(result.source.transport, PlaybackTransport.standard);
       },
     );
   });
-
-  group('Quark transport session boundaries', () {
-    void stubStream(StreamResponse stream) {
-      when(() => playerService.getPlayInfo(any(),
-              mediaGuid: any(named: 'mediaGuid')))
-          .thenAnswer((_) async => _buildPlayInfoResponse());
-      when(() => playerService.getIpHash(any())).thenReturn('ip-hash');
-      when(() => playerService.getStreamInfo(any(),
-          ip: any(named: 'ip'),
-          level: any(named: 'level'))).thenAnswer((_) async => stream);
-    }
-
-    test(
-      'Given Quark direct mode, When loading or retrying a session, Then it prepares the current CDN without a NAS transcode',
-      () async {
-        stubStream(_buildQuarkStreamResponse());
-        for (var attempt = 0; attempt < 2; attempt++) {
-          final result = await coordinator.loadSession(
-            const PlayerRouteTarget(guid: 'item-guid', userGuid: 'user-1'),
-          );
-          expect(result.preparedPlaySource.source.transport,
-              PlaybackTransport.quarkCdnRange);
-          expect(result.preparedPlaySource.playUri,
-              'https://cdn.example/movie.mkv');
-          expect(result.preparedPlaySource.source.sourceError, isNull);
-          expect(result.playingInfoCache.directLinkQualityIndex, 0);
-          expect(result.playingInfoCache.streamInfo?.header?['Cookie'],
-              ['provider=one', 'ticket=two']);
-        }
-        verifyNever(() => playerService.playVideo(any()));
-      },
-    );
-
-    test(
-      'Given only HLS Quark qualities, When loading or retrying direct mode, Then it preserves visible qualities and the existing NAS route',
-      () async {
-        stubStream(_buildQuarkStreamResponse(hlsOnly: true));
-        var requests = 0;
-        dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
-          requests++;
-          handler.reject(DioException(requestOptions: options));
-        }));
-        for (var attempt = 0; attempt < 2; attempt++) {
-          final result = await coordinator.loadSession(
-            const PlayerRouteTarget(guid: 'item-guid'),
-          );
-          expect(result.preparedPlaySource.source.sourceError, isNull);
-          expect(result.preparedPlaySource.source.transport,
-              PlaybackTransport.standard);
-          expect(result.preparedPlaySource.playUri,
-              'https://example.com/v/api/v1/media/range/media-guid?direct_link_quality_index=0');
-          expect(result.preparedPlaySource.useHlsSubtitleOverlay, isFalse);
-          expect(
-              result.playingInfoCache.streamInfo?.isCloudDirectMedia, isTrue);
-          expect(result.playingInfoCache.isUseDirectLink, isTrue);
-          expect(result.playingInfoCache.directLinkQualityIndex, 0);
-          expect(result.playingInfoCache.directLinkQualities, hasLength(1));
-          expect(result.playingInfoCache.currentQualities, hasLength(1));
-          expect(result.currentQuality?.resolution, '原画');
-          expect(result.currentQuality?.isM3u8, isTrue);
-        }
-        expect(requests, 0);
-        verifyNever(() => playerService.playVideo(any()));
-      },
-    );
-
-    test(
-      'Given mixed Quark qualities, When loading the default or saved single-file quality, Then HLS remains visible and CDN indices stay original',
-      () async {
-        stubStream(_buildQuarkStreamResponse(directQualities: [
-          DirectLinkQuality(
-              resolution: 'HLS',
-              url: 'https://cdn.example/opaque',
-              isM3u8: true),
-          DirectLinkQuality(
-              resolution: '原画', url: 'https://cdn.example/raw.mkv'),
-          DirectLinkQuality(
-              resolution: '流畅', url: 'https://cdn.example/smooth.mp4'),
-        ]));
-        final initial = await coordinator.loadSession(
-          const PlayerRouteTarget(guid: 'item-guid', userGuid: 'user-1'),
-        );
-        expect(initial.playingInfoCache.directLinkQualityIndex, 2);
-        expect(initial.preparedPlaySource.playUri,
-            'https://cdn.example/smooth.mp4');
-        expect(initial.preparedPlaySource.source.transport,
-            PlaybackTransport.quarkCdnRange);
-        expect(initial.qualities.map((quality) => quality.resolution),
-            ['HLS', '原画', '流畅']);
-        expect(initial.qualities.first.isM3u8, isTrue);
-
-        await playerSettingsManager.setNetdiskQuality('原画', userGuid: 'user-1');
-        final retried = await coordinator.loadSession(
-          const PlayerRouteTarget(guid: 'item-guid', userGuid: 'user-1'),
-        );
-        expect(retried.playingInfoCache.directLinkQualityIndex, 1);
-        expect(
-            retried.preparedPlaySource.playUri, 'https://cdn.example/raw.mkv');
-        expect(retried.preparedPlaySource.source.transport,
-            PlaybackTransport.quarkCdnRange);
-        expect(retried.preparedPlaySource.source.sourceError, isNull);
-        verifyNever(() => playerService.playVideo(any()));
-      },
-    );
-
-    test(
-      'Given a saved Quark quality with an unflagged uppercase HLS URL, When loading or retrying, Then it uses the original NAS index',
-      () async {
-        stubStream(_buildQuarkStreamResponse(directQualities: [
-          DirectLinkQuality(
-              resolution: '原画', url: 'https://cdn.example/raw.mkv'),
-          DirectLinkQuality(
-              resolution: '高清',
-              url: 'https://cdn.example/video.M3U8?token=test'),
-        ]));
-        await playerSettingsManager.setNetdiskQuality('高清', userGuid: 'user-1');
-        for (var attempt = 0; attempt < 2; attempt++) {
-          final result = await coordinator.loadSession(
-            const PlayerRouteTarget(guid: 'item-guid', userGuid: 'user-1'),
-          );
-          expect(result.playingInfoCache.directLinkQualityIndex, 1);
-          expect(result.qualities.map((quality) => quality.resolution),
-              ['原画', '高清']);
-          expect(result.preparedPlaySource.playUri,
-              'https://example.com/v/api/v1/media/range/media-guid?direct_link_quality_index=1');
-          expect(result.preparedPlaySource.source.transport,
-              PlaybackTransport.standard);
-          expect(result.preparedPlaySource.source.sourceError, isNull);
-          expect(result.effectiveStartPositionMs, 12000);
-        }
-        verifyNever(() => playerService.playVideo(any()));
-      },
-    );
-
-    test(
-      'Given empty or absent Quark qualities, When loading direct mode, Then it preserves a recoverable cloud session without opening NAS',
-      () async {
-        for (final qualities in <List<DirectLinkQuality>?>[[], null]) {
-          final original = _buildStreamResponse();
-          stubStream(StreamResponse(
-            videoStream: original.videoStream,
-            fileStream: original.fileStream,
-            audioStreams: original.audioStreams,
-            subtitleStreams: original.subtitleStreams,
-            qualities: original.qualities,
-            cloudStorageInfo: CloudStorageInfo(
-                cloudStorageType: CloudStorageInfo.quarkCloudStorageType),
-            directLinkQualities: qualities,
-          ));
-          final result = await coordinator.loadSession(
-            const PlayerRouteTarget(guid: 'item-guid'),
-          );
-          expect(result.preparedPlaySource.source.sourceError, contains('NAS'));
-          expect(result.preparedPlaySource.playUri, isEmpty);
-          expect(result.preparedPlaySource.source.transport,
-              PlaybackTransport.standard);
-          expect(
-              result.playingInfoCache.streamInfo?.cloudStorageInfo
-                  ?.cloudStorageType,
-              4);
-          expect(result.playingInfoCache.isUseDirectLink, isTrue);
-          expect(result.playingInfoCache.currentQualities, isEmpty);
-          expect(result.currentQuality, isNull);
-          verifyNever(() => playerService.playVideo(any()));
-        }
-      },
-    );
-
-    test(
-      'Given Quark NAS mode with an original-file transcode result, When loading, Then it remains on the standard NAS transport',
-      () async {
-        stubStream(_buildQuarkStreamResponse());
-        await playerSettingsManager.setCloudPlayMode(4, 'proxy',
-            userGuid: 'user-1');
-        when(() => playerService.playVideo(any())).thenAnswer(
-            (_) async => PlayPlayResponse(playLink: '/nas/movie.mkv'));
-        final result = await coordinator.loadSession(
-          const PlayerRouteTarget(guid: 'item-guid', userGuid: 'user-1'),
-        );
-        expect(result.preparedPlaySource.source.transport,
-            PlaybackTransport.standard);
-        expect(result.preparedPlaySource.playUri,
-            'https://example.com/nas/movie.mkv');
-        expect(result.preparedPlaySource.source.sourceError, isNull);
-        expect(result.playingInfoCache.directLinkQualityIndex, isNull);
-        expect(playerSettingsManager.getCloudPlayMode(4, 'user-1'), 'proxy');
-        verify(() => playerService.playVideo(any())).called(1);
-      },
-    );
-
-    test(
-      'Given Quark NAS mode and server error 8192, When the existing original-file fallback runs, Then it never gains CDN range transport',
-      () async {
-        stubStream(_buildQuarkStreamResponse());
-        await playerSettingsManager.setCloudPlayMode(4, 'proxy',
-            userGuid: 'user-1');
-        when(() => playerService.playVideo(any())).thenThrow(Exception('8192'));
-        final result = await coordinator.loadSession(
-          const PlayerRouteTarget(guid: 'item-guid', userGuid: 'user-1'),
-        );
-        expect(result.playingInfoCache.isUseDirectLink, isTrue);
-        expect(result.playingInfoCache.directLinkQualityIndex, isNull);
-        expect(result.preparedPlaySource.source.transport,
-            PlaybackTransport.standard);
-        expect(result.preparedPlaySource.playUri,
-            'https://example.com/v/api/v1/media/range/media-guid');
-        expect(result.preparedPlaySource.source.sourceError, isNull);
-        expect(playerSettingsManager.getCloudPlayMode(4, 'user-1'), 'proxy');
-      },
-    );
-
-    test(
-      'Given Quark HLS and single-file qualities, When filtering, Then every quality and its original index remain available',
-      () {
-        final result = PlayerSessionCoordinator.filterDirectLinkQualities(
-          cloudStorageType: CloudStorageInfo.quarkCloudStorageType,
-          qualities: [
-            DirectLinkQuality(
-                resolution: 'HLS', url: 'https://cdn.example/video.m3u8'),
-            DirectLinkQuality(
-                resolution: '原画', url: 'https://cdn.example/video.mkv'),
-          ],
-        );
-        expect(result.originalIndices, [0, 1]);
-        expect(result.qualities.map((quality) => quality.resolution),
-            ['HLS', '原画']);
-      },
-    );
-  });
-}
-
-StreamResponse _buildQuarkStreamResponse({
-  bool hlsOnly = false,
-  List<DirectLinkQuality>? directQualities,
-}) {
-  final original = _buildStreamResponse();
-  return StreamResponse(
-    videoStream: original.videoStream,
-    audioStreams: original.audioStreams,
-    subtitleStreams: original.subtitleStreams,
-    fileStream: original.fileStream,
-    qualities: original.qualities,
-    cloudStorageInfo: CloudStorageInfo(
-        cloudStorageType: CloudStorageInfo.quarkCloudStorageType),
-    directLinkQualities: directQualities ??
-        [
-          DirectLinkQuality(
-            resolution: '原画',
-            url: hlsOnly
-                ? 'https://cdn.example/movie.m3u8'
-                : 'https://cdn.example/movie.mkv',
-            isM3u8: hlsOnly,
-          ),
-        ],
-    header: {
-      'Cookie': ['provider=one', 'ticket=two']
-    },
-  );
 }
 
 PlayInfoResponse _buildPlayInfoResponse() {

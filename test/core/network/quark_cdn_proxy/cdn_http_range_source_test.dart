@@ -1,30 +1,27 @@
-import 'package:fly_narwhal/core/network/cdn_proxy/cdn_http_transport.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fly_narwhal/data/datasources/remote/cdn_range_remote_data_source.dart';
 
 const _deadline = Duration(seconds: 3);
 
 void main() {
   final uri = Uri.parse('https://provider.example/video?signature=private');
   late _FakeAdapter adapter;
-  late CdnRangeRemoteDataSource source;
+  late CdnHttpRangeSource source;
 
   setUp(() {
     adapter = _FakeAdapter();
-    source = CdnRangeRemoteDataSource(
-      transport: CdnHttpTransport(adapter: adapter),
-    );
+    source = CdnHttpRangeSource(adapter: adapter);
   });
   tearDown(() => source.close());
 
   test('Given provider metadata, when flattened, then HTTP values are valid',
       () {
     expect(
-        CdnRangeRemoteDataSource.normalizeHeaders({
+        CdnHttpRangeSource.normalizeHeaders({
           'Cookie': ['sid=provider', 'uid=42'],
           'User-Agent': ['provider-agent'],
           'Referer': 'https://provider.example/',

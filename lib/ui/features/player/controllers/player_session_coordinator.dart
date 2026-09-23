@@ -13,22 +13,19 @@ import '../../../../data/models/player_models.dart';
 import '../../../../data/storage/player_settings_store.dart';
 import '../../../../data/storage/preferences_manager.dart';
 import '../../../../providers/providers.dart';
-import '../models/playback_source_spec.dart';
 import '../services/hls_playlist_resolver.dart';
 import '../services/player_service.dart';
 
 class PreparedPlaySource {
-  final PlaybackSourceSpec source;
+  final String playUri;
   final bool useHlsSubtitleOverlay;
   final String? subtitlePlaylistUrl;
 
   const PreparedPlaySource({
-    required this.source,
+    required this.playUri,
     required this.useHlsSubtitleOverlay,
     this.subtitlePlaylistUrl,
   });
-
-  String get playUri => source.playUri;
 }
 
 class PlayerRouteTarget {
@@ -104,17 +101,15 @@ class _ResolvedPlayLink {
 }
 
 class DirectPlayLinkResult {
-  final PlaybackSourceSpec source;
+  final String playUri;
   final String playLinkRaw;
   final int effectiveStartMs;
 
   const DirectPlayLinkResult({
-    required this.source,
+    required this.playUri,
     required this.playLinkRaw,
     required this.effectiveStartMs,
   });
-
-  String get playUri => source.playUri;
 }
 
 class HlsPlayLinkResult {
@@ -215,9 +210,7 @@ class PlayerSessionCoordinator {
     // session path mirroring the web player: the quality list is the CDN
     // direct-link list (原画/流畅 …) selected by index, and the play mode
     // (网盘直连播放 vs NAS 代理播放) is a persisted per-user choice.
-    if (streamInfo.isCloudDirectMedia ||
-        streamInfo.cloudStorageInfo?.cloudStorageType ==
-            CloudStorageInfo.quarkCloudStorageType) {
+    if (streamInfo.isCloudDirectMedia) {
       return _loadCloudSession(
         playInfo: playInfo,
         streamInfo: streamInfo,
@@ -260,7 +253,7 @@ class PlayerSessionCoordinator {
         ? (qualities.firstOrNull ?? currentQuality)
         : currentQuality;
     final preparedPlaySource = await preparePlaySourceForMediaKit(
-      source: PlaybackSourceSpec(playUri: resolved.playUri),
+      playUri: resolved.playUri,
       currentSubtitleStream: currentSubtitleStream,
     );
 
@@ -321,8 +314,7 @@ class PlayerSessionCoordinator {
     required int startPositionMs,
     required String baseUrl,
   }) async {
-    final directQualities =
-        streamInfo.directLinkQualities ?? const <DirectLinkQuality>[];
+    final directQualities = streamInfo.directLinkQualities!;
     final cloudType = streamInfo.cloudStorageInfo?.cloudStorageType;
     final savedMode =
         _playerSettingsManager.getCloudPlayMode(cloudType, target.userGuid);
@@ -422,8 +414,9 @@ class PlayerSessionCoordinator {
       qualities: directQualities,
       cloudStorageType: cloudStorageType,
     );
-    final visibleQualities =
-        filtered.qualities.isNotEmpty ? filtered.qualities : directQualities;
+    final visibleQualities = filtered.qualities.isNotEmpty
+        ? filtered.qualities
+        : directQualities;
     final visibleOriginalIndices = filtered.originalIndices.isNotEmpty
         ? filtered.originalIndices
         : List<int>.generate(directQualities.length, (i) => i);
@@ -433,14 +426,8 @@ class PlayerSessionCoordinator {
           .getNetdiskQuality(userGuid: userGuid)
           ?.resolution,
     );
-    // Empty provider metadata still needs a recoverable session without
-    // indexing an absent quality.
-    final originalIndex = visibleOriginalIndices.isEmpty
-        ? 0
-        : visibleOriginalIndices[visibleIndex];
-    final currentQuality = visibleQualities.isEmpty
-        ? null
-        : visibleQualities[visibleIndex].toQualityResponse();
+    final originalIndex = visibleOriginalIndices[visibleIndex];
+    final currentQuality = visibleQualities[visibleIndex].toQualityResponse();
     final directLink = await getDirectPlayLink(
       mediaGuid: currentVideoStream.mediaGuid,
       startPositionMs: startPositionMs,
@@ -450,7 +437,7 @@ class PlayerSessionCoordinator {
       directLinkAudioIndex: playInfo.directLinkAudioIndex,
     );
     final preparedPlaySource = await preparePlaySourceForMediaKit(
-      source: directLink.source,
+      playUri: directLink.playUri,
       currentSubtitleStream: currentSubtitleStream,
     );
     final playingInfoCache = PlayingInfoCache(
@@ -525,7 +512,7 @@ class PlayerSessionCoordinator {
       forceTranscode: true,
     );
     final preparedPlaySource = await preparePlaySourceForMediaKit(
-      source: PlaybackSourceSpec(playUri: resolved.playUri),
+      playUri: resolved.playUri,
       currentSubtitleStream: currentSubtitleStream,
     );
     final playingInfoCache = PlayingInfoCache(
@@ -627,7 +614,7 @@ class PlayerSessionCoordinator {
       audioGuid: audioGuid,
       subtitleGuid: subtitleGuid,
       preparedPlaySource: const PreparedPlaySource(
-        source: PlaybackSourceSpec(playUri: ''),
+        playUri: '',
         useHlsSubtitleOverlay: false,
       ),
       effectiveStartPositionMs: startPositionMs,
@@ -654,9 +641,7 @@ class PlayerSessionCoordinator {
       }
     }
     final defaultNonM3u8Index = nonM3u8.length > 1 ? 1 : 0;
-    return nonM3u8.isEmpty
-        ? 0
-        : qualities.indexOf(nonM3u8[defaultNonM3u8Index]);
+    return nonM3u8.isEmpty ? 0 : qualities.indexOf(nonM3u8[defaultNonM3u8Index]);
   }
 
   /// Filters the direct-link quality list by cloud provider, mirroring the web
@@ -673,7 +658,8 @@ class PlayerSessionCoordinator {
     for (var i = 0; i < qualities.length; i++) {
       final q = qualities[i];
       // OneTwoThreePan (5) and BaiduPan (1) filter out m3u8 entries.
-      if (q.isM3u8 && (cloudStorageType == 1 || cloudStorageType == 5)) {
+      if (q.isM3u8 &&
+          (cloudStorageType == 1 || cloudStorageType == 5)) {
         continue;
       }
       visible.add(q);
@@ -895,15 +881,12 @@ class PlayerSessionCoordinator {
   }
 
   Future<PreparedPlaySource> preparePlaySourceForMediaKit({
-    required PlaybackSourceSpec source,
+    required String playUri,
     required SubtitleStream? currentSubtitleStream,
   }) async {
-    final playUri = source.playUri;
-    // Keep failed cloud sources attached to their session so the existing
-    // error dialog can offer a manual switch to NAS playback.
-    if (source.sourceError != null || !looksLikeM3u8(playUri)) {
+    if (!looksLikeM3u8(playUri)) {
       return PreparedPlaySource(
-        source: source,
+        playUri: playUri,
         useHlsSubtitleOverlay: false,
       );
     }
@@ -925,7 +908,7 @@ class PlayerSessionCoordinator {
         result.subtitlePlaylistUrl!.isNotEmpty;
 
     return PreparedPlaySource(
-      source: PlaybackSourceSpec(playUri: result.playUrl),
+      playUri: result.playUrl,
       useHlsSubtitleOverlay: useSubtitleOverlay,
       subtitlePlaylistUrl:
           useSubtitleOverlay ? result.subtitlePlaylistUrl : null,
@@ -944,7 +927,6 @@ class PlayerSessionCoordinator {
     final base = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
-    var useQuarkHlsProxy = false;
 
     // When a specific direct-link quality is selected, mirror the web
     // player's provider-specific URL shape.
@@ -954,36 +936,10 @@ class PlayerSessionCoordinator {
         directLinkQualityIndex < directLinkQualities.length) {
       final quality = directLinkQualities[directLinkQualityIndex];
 
-      if (cloudStorageType == CloudStorageInfo.quarkCloudStorageType) {
-        // HLS keeps the existing NAS quality-index route. The server resolves
-        // the playlist even when provider metadata has no usable public URL.
-        useQuarkHlsProxy = isHlsDirectQuality(quality);
-        if (!useQuarkHlsProxy) {
-          final uri = Uri.tryParse(quality.url);
-          final sourceError = uri == null ||
-                  !uri.hasAuthority ||
-                  uri.host.isEmpty ||
-                  (uri.scheme != 'http' && uri.scheme != 'https')
-              ? '夸克直连地址不可用，请重试或手动切换 NAS 代理播放'
-              : null;
-          return DirectPlayLinkResult(
-            source: PlaybackSourceSpec(
-              playUri: quality.url,
-              transport: sourceError == null
-                  ? PlaybackTransport.quarkCdnRange
-                  : PlaybackTransport.standard,
-              sourceError: sourceError,
-            ),
-            playLinkRaw: quality.url,
-            effectiveStartMs: startPositionMs,
-          );
-        }
-      }
-
       // Aliyun Pan (2) and 123 Pan (5): play the raw CDN URL directly.
       if (cloudStorageType == 2 || cloudStorageType == 5) {
         return DirectPlayLinkResult(
-          source: PlaybackSourceSpec(playUri: quality.url),
+          playUri: quality.url,
           playLinkRaw: quality.url,
           effectiveStartMs: startPositionMs,
         );
@@ -994,7 +950,7 @@ class PlayerSessionCoordinator {
       // web player, which never routes STRM through the media/range proxy).
       if (cloudStorageType == CloudStorageInfo.strmCloudStorageType) {
         return DirectPlayLinkResult(
-          source: PlaybackSourceSpec(playUri: quality.url),
+          playUri: quality.url,
           playLinkRaw: quality.url,
           effectiveStartMs: startPositionMs,
         );
@@ -1010,32 +966,20 @@ class PlayerSessionCoordinator {
             base: base,
           );
           return DirectPlayLinkResult(
-            source: PlaybackSourceSpec(playUri: proxiedUrl),
+            playUri: proxiedUrl,
             playLinkRaw: proxiedUrl,
             effectiveStartMs: startPositionMs,
           );
         }
         return DirectPlayLinkResult(
-          source: PlaybackSourceSpec(playUri: quality.url),
+          playUri: quality.url,
           playLinkRaw: quality.url,
           effectiveStartMs: startPositionMs,
         );
       }
     }
 
-    if (cloudStorageType == CloudStorageInfo.quarkCloudStorageType &&
-        !useQuarkHlsProxy) {
-      return DirectPlayLinkResult(
-        source: const PlaybackSourceSpec(
-          playUri: '',
-          sourceError: '夸克直连画质不可用，请重试或手动切换 NAS 代理播放',
-        ),
-        playLinkRaw: '',
-        effectiveStartMs: startPositionMs,
-      );
-    }
-
-    // Quark HLS, Baidu Pan (1) and fallbacks use the NAS proxy with the
+    // Baidu Pan (1), Quark Pan (4) and fallbacks: use the NAS proxy with the
     // quality index so the server selects the matching CDN link.
     final controlPlayLink = '/v/api/v1/media/range/$mediaGuid';
     final qualityQuery = directLinkQualityIndex != null
@@ -1053,16 +997,11 @@ class PlayerSessionCoordinator {
     // the matching CDN link server-side and still serves standard ranges, so
     // it is safe to keep (mirrors the web player's URL shape).
     return DirectPlayLinkResult(
-      source: PlaybackSourceSpec(playUri: fullUrl),
+      playUri: fullUrl,
       playLinkRaw: controlPlayLink,
       effectiveStartMs: startPositionMs,
     );
   }
-
-  static bool isHlsDirectQuality(DirectLinkQuality quality) =>
-      quality.isM3u8 ||
-      (Uri.tryParse(quality.url)?.path.toLowerCase().contains('.m3u8') ??
-          false);
 
   /// Builds the /wp/m3u8 proxy URL for 115 Pan m3u8 qualities.
   /// Mirrors the web player's R2.getM3u8Url(): appends the selected

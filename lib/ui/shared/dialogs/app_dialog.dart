@@ -63,6 +63,23 @@ const appDialogDangerColor = Color(0xFFDB382C);
 const appDialogDangerHoverColor = Color(0xFFE56C5E);
 const appDialogDangerPressedColor = Color(0xFFBA312C);
 
+/// Semantic role of a dialog action, independent of how it is rendered.
+///
+/// The slot a button occupies decides its form (filled / outlined / text);
+/// this decides its colour. The primary slot is filled and the secondary and
+/// tertiary slots are outlined/text — each rendered in either the neutral
+/// accent or the destructive red.
+enum AppDialogButtonType {
+  /// Accent-coloured (blue) confirm action.
+  primary,
+
+  /// Default neutral action.
+  neutral,
+
+  /// Destructive action, coloured red in every slot.
+  danger,
+}
+
 enum AppDialogType { confirmation, danger }
 
 class AppDialog<T> extends StatelessWidget {
@@ -74,6 +91,9 @@ class AppDialog<T> extends StatelessWidget {
     this.primaryButtonText,
     this.secondaryButtonText,
     this.tertiaryButtonText,
+    this.primaryButtonType,
+    this.secondaryButtonType,
+    this.tertiaryButtonType,
     this.onPrimaryPressed,
     this.onSecondaryPressed,
     this.onTertiaryPressed,
@@ -96,6 +116,15 @@ class AppDialog<T> extends StatelessWidget {
   final String? primaryButtonText;
   final String? secondaryButtonText;
   final String? tertiaryButtonText;
+
+  /// Per-button appearance override. Defaults to the slot's natural colour:
+  /// [AppDialogButtonType.primary] for the primary slot and
+  /// [AppDialogButtonType.neutral] for secondary/tertiary. Pass
+  /// [AppDialogButtonType.danger] to render any slot in the destructive red,
+  /// e.g. a filled red primary or a red-outlined secondary.
+  final AppDialogButtonType? primaryButtonType;
+  final AppDialogButtonType? secondaryButtonType;
+  final AppDialogButtonType? tertiaryButtonType;
   final FutureOr<void> Function()? onPrimaryPressed;
   final FutureOr<void> Function()? onSecondaryPressed;
   final FutureOr<void> Function()? onTertiaryPressed;
@@ -124,16 +153,25 @@ class AppDialog<T> extends StatelessWidget {
         : _AppDialogPalette.light;
     // tertiary 通常为附加/破坏性操作(如「删除」),靠左;
     // secondary(取消)+ primary(确定)为常规确认操作,靠右。
+    // The dialog-level [type] keeps its historical meaning: it colours the
+    // primary button unless a per-button type is given.
+    final primaryType = primaryButtonType ??
+        (type == AppDialogType.danger
+            ? AppDialogButtonType.danger
+            : AppDialogButtonType.primary);
     final tertiary = _visible(tertiaryButtonText)
         ? _secondary(context, palette, tertiaryButtonText!, onTertiaryPressed,
-            tertiaryResult, 'tertiary')
+            tertiaryResult, 'tertiary',
+            colorType: tertiaryButtonType ?? AppDialogButtonType.neutral)
         : null;
     final secondary = _visible(secondaryButtonText)
         ? _secondary(context, palette, secondaryButtonText!, onSecondaryPressed,
-            secondaryResult, 'secondary')
+            secondaryResult, 'secondary',
+            colorType: secondaryButtonType ?? AppDialogButtonType.neutral)
         : null;
     final primary = _visible(primaryButtonText)
-        ? _primary(context, primaryButtonText!, onPrimaryPressed, primaryResult)
+        ? _primary(context, primaryButtonText!, onPrimaryPressed, primaryResult,
+            primaryType)
         : null;
 
     final hasActions = tertiary != null || secondary != null || primary != null;
@@ -216,8 +254,10 @@ class AppDialog<T> extends StatelessWidget {
     String text,
     FutureOr<void> Function()? callback,
     T? result,
+    AppDialogButtonType colorType,
   ) {
-    final isDanger = type == AppDialogType.danger;
+    // The filled slot renders the neutral/reference blue unless flagged danger.
+    final isDanger = colorType == AppDialogButtonType.danger;
     final base = isDanger ? appDialogDangerColor : appDialogPrimaryColor;
     final hover =
         isDanger ? appDialogDangerHoverColor : appDialogPrimaryHoverColor;
@@ -255,12 +295,29 @@ class AppDialog<T> extends StatelessWidget {
     String text,
     FutureOr<void> Function()? callback,
     T? result,
-    String name,
-  ) {
+    String name, {
+    required AppDialogButtonType colorType,
+  }) {
+    final isDanger = colorType == AppDialogButtonType.danger;
+    // Danger secondary keeps a transparent fill: only the text and border
+    // turn red, matching the web's "移除并删除文件".
+    final foreground =
+        isDanger ? appDialogDangerColor : palette.secondaryText;
+    final border = isDanger ? appDialogDangerColor : palette.secondaryBorder;
+
     return AppButton(
       key: ValueKey('app-dialog-$name'),
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (isDanger) {
+            if (states.contains(WidgetState.pressed)) {
+              return appDialogDangerColor.withValues(alpha: 0.17);
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return appDialogDangerColor.withValues(alpha: 0.10);
+            }
+            return Colors.transparent;
+          }
           if (states.contains(WidgetState.pressed)) {
             return palette.secondaryPressed;
           }
@@ -269,14 +326,14 @@ class AppDialog<T> extends StatelessWidget {
           }
           return Colors.transparent;
         }),
-        foregroundColor: WidgetStatePropertyAll(palette.secondaryText),
+        foregroundColor: WidgetStatePropertyAll(foreground),
         textStyle: const WidgetStatePropertyAll(
           TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: palette.secondaryBorder),
+            side: BorderSide(color: border),
           ),
         ),
         padding: const WidgetStatePropertyAll(
@@ -328,6 +385,9 @@ Future<T?> showAppDialog<T>({
   String? primaryButtonText,
   String? secondaryButtonText,
   String? tertiaryButtonText,
+  AppDialogButtonType? primaryButtonType,
+  AppDialogButtonType? secondaryButtonType,
+  AppDialogButtonType? tertiaryButtonType,
   FutureOr<void> Function()? onPrimaryPressed,
   FutureOr<void> Function()? onSecondaryPressed,
   FutureOr<void> Function()? onTertiaryPressed,
@@ -354,6 +414,9 @@ Future<T?> showAppDialog<T>({
       primaryButtonText: primaryButtonText,
       secondaryButtonText: secondaryButtonText,
       tertiaryButtonText: tertiaryButtonText,
+      primaryButtonType: primaryButtonType,
+      secondaryButtonType: secondaryButtonType,
+      tertiaryButtonType: tertiaryButtonType,
       onPrimaryPressed: onPrimaryPressed,
       onSecondaryPressed: onSecondaryPressed,
       onTertiaryPressed: onTertiaryPressed,
