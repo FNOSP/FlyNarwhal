@@ -68,6 +68,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String _capturedPassword = '';
   bool _capturedRememberPassword = false;
   InAppWebViewController? _inAppWebViewController;
+  WebViewEnvironment? _fnConnectWebViewEnvironment;
   _NetworkMessageProcessor? _networkMessageProcessor;
 
   @override
@@ -85,6 +86,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void dispose() {
     _disposeWebView();
+    final webViewEnvironment = _fnConnectWebViewEnvironment;
+    if (webViewEnvironment != null) {
+      unawaited(webViewEnvironment.dispose());
+    }
     _hostController.dispose();
     _portController.dispose();
     _usernameController.dispose();
@@ -161,7 +166,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
       final shouldAutoLogin =
           _autoLoginFromHistory && _rememberPassword && password.isNotEmpty;
-      _openFnConnectWebView(
+      await _openFnConnectWebView(
         url: url,
         isProbe: false,
         autoLoginUsername: username,
@@ -183,7 +188,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showToast('请输入正确的 IP、域名或 FN ID');
         return;
       }
-      _openFnConnectWebView(url: probeUrl, isProbe: true);
+      await _openFnConnectWebView(url: probeUrl, isProbe: true);
       return;
     }
 
@@ -224,13 +229,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  void _openFnConnectWebView({
+  Future<void> _openFnConnectWebView({
     required String url,
     required bool isProbe,
     String? autoLoginUsername,
     String? autoLoginPassword,
     bool allowAutoLogin = false,
-  }) {
+  }) async {
     final normalizedUrl = _normalizeFnConnectUrl(url, true);
     _baseUrl = _originFromUrl(normalizedUrl);
     _allowAutoLogin = allowAutoLogin;
@@ -239,16 +244,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _capturedUsername = '';
     _capturedPassword = '';
     _capturedRememberPassword = false;
-    // Clear WebView cookies before opening to prevent stale login sessions.
-    // This ensures every NAS login starts from a clean /login page so JS hooks
-    // can reliably capture subsequent status requests and trigger the signin flow.
-    CookieManager.instance().deleteAllCookies();
+
+    try {
+      // Create a shared Windows environment before accessing its cookie store.
+      if (!kIsWeb && Platform.isWindows) {
+        _fnConnectWebViewEnvironment ??= await WebViewEnvironment.create();
+      }
+
+      // Clear cookies through the same environment that will host the WebView.
+      await _fnConnectCookieManager.deleteAllCookies();
+    } catch (error) {
+      AppTalker.warning(
+        'LoginBridge',
+        'prepare WebView environment failed: $error',
+      );
+      _showToast('浏览器组件初始化失败，请稍后重试。');
+      return;
+    }
+
     setState(() {
       _fnConnectUrl = normalizedUrl;
       _showFnConnectWebView = true;
       _isProbeMode = isProbe;
     });
     _prepareNetworkProcessor();
+  }
+
+  CookieManager get _fnConnectCookieManager {
+    return CookieManager.instance(
+      webViewEnvironment: _fnConnectWebViewEnvironment,
+    );
   }
 
   void _prepareNetworkProcessor() {
@@ -477,7 +502,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final uri = Uri.tryParse(baseUrl);
     final webUri = _tryParseWebUri(baseUrl);
     if (uri == null || webUri == null) return;
-    await CookieManager.instance().setCookie(
+    await _fnConnectCookieManager.setCookie(
       url: webUri,
       name: name,
       value: value,
@@ -515,7 +540,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Clear WebView cookies after login so the next NAS login starts fresh.
     // Account credentials are managed exclusively by the app (PreferencesManager),
     // not by WebView's persistent session storage.
-    CookieManager.instance().deleteAllCookies();
+    try {
+      await _fnConnectCookieManager.deleteAllCookies();
+    } catch (error) {
+      AppTalker.warning(
+        'LoginBridge',
+        'clear WebView cookies after login failed: $error',
+      );
+    }
 
     final refreshNotifier = ref.read(authRefreshProvider.notifier);
     refreshNotifier.state = refreshNotifier.state + 1;
@@ -889,6 +921,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     Expanded(
                       child: InAppWebView(
+                        webViewEnvironment: _fnConnectWebViewEnvironment,
                         initialUrlRequest:
                             URLRequest(url: _tryParseWebUri(_fnConnectUrl)),
                         initialSettings: InAppWebViewSettings(
