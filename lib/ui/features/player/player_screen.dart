@@ -175,6 +175,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<PlayerSkipAction>? _skipActionSubscription;
   StreamSubscription<VideoParams>? _videoParamsSubscription;
+  /// Latest decoded video size reported by the videoParams stream. Cloud
+  /// direct-link streams can leave the player state's `width` null even after
+  /// frames decode, so playback verification must consult this channel too.
+  int _decodedVideoWidth = 0;
+  int _decodedVideoHeight = 0;
   void Function()? _removeIntroSkipStateListener;
   late final IntroSkipController _introSkipController;
   IntroSkipState _introSkipState = IntroSkipState.initial();
@@ -899,6 +904,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       final width = params.w ?? 0;
       final height = params.h ?? 0;
+      if (width > 0 && height > 0) {
+        _decodedVideoWidth = width;
+        _decodedVideoHeight = height;
+      }
       AppTalker.info(
         'WindowRatio',
         'videoParams: w=$width h=$height dw=${params.dw} dh=${params.dh}',
@@ -1765,6 +1774,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }) async {
     final player = _player;
     if (player == null) return;
+    // A new source starts with no decoded frame; keep the previous video's
+    // size from satisfying this stream's playback verification.
+    _decodedVideoWidth = 0;
+    _decodedVideoHeight = 0;
     _resetDirectLinkEmbeddedSubtitleState();
     await _applyDirectLinkCachePolicy(player);
 
@@ -2783,7 +2796,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // timeout only delays the fallback, and on a slow link the fallback request
     // then races the user leaving the screen. Fail fast once that stalled-open
     // shape has held long enough that it is clearly not just slow startup.
-    const stalledOpenGrace = Duration(seconds: 8);
+    //
+    // The grace period mirrors the web player's stuck check, which only counts
+    // time while playback makes no progress: 15s of a frozen position means
+    // stuck, but a stream that keeps advancing (even slowly, while it buffers)
+    // resets the timer and is allowed to keep waiting.
+    const stalledOpenGrace = Duration(seconds: 15);
+    // Position sampled at each tick, to detect forward progress the way the web
+    // player compares currentTime against its previous reading.
+    var lastPositionMs = -1;
+    var progressAnchorMs = 0;
+    const progressEpsilonMs = 100;
     try {
       final attempts = (timeout.inMilliseconds / 500).ceil();
       for (int attempt = 0; attempt < attempts; attempt++) {
@@ -2805,27 +2828,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           return false;
         }
         final state = player.state;
-        if (state.duration.inMilliseconds > 0 && state.width != null) {
+        // A stream is up when the container is open *and* a frame has been
+        // decoded. `state.width` alone is unreliable for cloud direct links:
+        // media_kit can leave it null while the videoParams stream already
+        // reports the decoded size, which made verification reject a working
+        // stream and cover it with the playback-error dialog. Accept either
+        // channel, and treat advancing playback as success on its own.
+        final decodedWidth = state.width ?? _decodedVideoWidth;
+        final decodedHeight = state.height ?? _decodedVideoHeight;
+        if (state.duration.inMilliseconds > 0 &&
+            (decodedWidth > 0 || state.playing)) {
           AppTalker.info(
             'Player',
             '[$label] playback verified in ${stopwatch.elapsedMilliseconds}ms '
                 '(duration=${state.duration.inMilliseconds}ms '
-                'size=${state.width}x${state.height})',
+                'size=${decodedWidth}x$decodedHeight '
+                'playing=${state.playing})',
           );
           return true;
         }
+        // Any forward movement restarts the stuck window, so a stream that is
+        // merely slow to buffer is never mistaken for a dead one.
+        final positionMs = state.position.inMilliseconds;
+        if (lastPositionMs < 0 ||
+            positionMs - lastPositionMs > progressEpsilonMs) {
+          progressAnchorMs = stopwatch.elapsedMilliseconds;
+        }
+        lastPositionMs = positionMs;
         final isStalledOpen = state.duration.inMilliseconds > 0 &&
-            state.width == null &&
+            decodedWidth <= 0 &&
+            !state.playing &&
             state.buffer.inMilliseconds <= 0;
+        final msSinceProgress = stopwatch.elapsedMilliseconds - progressAnchorMs;
         if (isStalledOpen &&
-            stopwatch.elapsedMilliseconds >= stalledOpenGrace.inMilliseconds) {
+            msSinceProgress >= stalledOpenGrace.inMilliseconds) {
           AppTalker.warning(
             'Player',
             '[$label] playback verification aborted early: container opened but '
                 'no frame decoded after ${stopwatch.elapsedMilliseconds}ms '
-                '(duration=${state.duration.inMilliseconds}ms '
+                '(no progress for ${msSinceProgress}ms '
+                'duration=${state.duration.inMilliseconds}ms '
                 'buffer=${state.buffer.inMilliseconds}ms '
-                'position=${state.position.inMilliseconds}ms)',
+                'position=${positionMs}ms)',
           );
           return false;
         }
@@ -2844,6 +2888,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           '${stopwatch.elapsedMilliseconds}ms (limit ${timeout.inSeconds}s): '
           'duration=${state.duration.inMilliseconds}ms '
           'size=${state.width}x${state.height} '
+          'decoded=${_decodedVideoWidth}x$_decodedVideoHeight '
           'position=${state.position.inMilliseconds}ms '
           'buffer=${state.buffer.inMilliseconds}ms '
           'buffering=${state.buffering} '
