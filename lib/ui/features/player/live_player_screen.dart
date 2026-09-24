@@ -13,6 +13,7 @@ import '../../../core/utils/log/app_talker.dart';
 import '../../../core/window/desktop_display_service.dart';
 import '../../../core/window/main_window_persistence_guard.dart';
 import '../../../core/window/window_geometry.dart';
+import '../../../core/network/ssl/player_ssl_trust.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../providers/providers.dart';
@@ -271,6 +272,7 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       if (!mounted || token != _loadToken) return;
 
       final headers = _buildPlaybackHttpHeaders(playUri);
+      await applySslTrustToPlayer(player, Uri.parse(playUri));
       await player.open(
         Media(playUri, httpHeaders: headers.isEmpty ? null : headers),
       );
@@ -1140,12 +1142,22 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       if (await windowManager.isFullScreen()) {
         return;
       }
+      // The player remembers fullscreen as its own window form, like the
+      // maximized one: leaving the player while fullscreen exits native
+      // fullscreen (the next route cannot be fullscreen), so the remembered
+      // form is what brings the next video back to fullscreen.
+      final settingsManager = ref.read(playerSettingsManagerProvider);
+      if (settingsManager.getPlayerWindowFullscreen()) {
+        if (!await windowManager.isFullScreen()) {
+          await windowManager.setFullScreen(true);
+        }
+        return;
+      }
       // The player keeps its own window form: if it was last left maximized,
       // re-enter maximize for this (possibly different) video instead of
       // restoring the floating geometry. The pre-player maximized state seeds
       // the player form too, so entering the player from a maximized app
       // window keeps the window maximized across video switches.
-      final settingsManager = ref.read(playerSettingsManagerProvider);
       final playerWindowMaximized =
           settingsManager.getPlayerWindowMaximized() || _prePlayerWasMaximized;
       if (playerWindowMaximized) {
@@ -1347,6 +1359,18 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       return;
     }
 
+    if (_persistsWindowForm) {
+      // Fullscreen owns the window shape; drop the ratio lock so the player
+      // stays fullscreen without the ratio controller fighting the frame.
+      unawaited(
+        _windowAspectRatioController.release(restoreNormalMinimumSize: false),
+      );
+      unawaited(
+        ref
+            .read(playerSettingsManagerProvider)
+            .setPlayerWindowFullscreen(true),
+      );
+    }
     setState(() => _isFullscreen = true);
     _syncWindowAspectRatioWithFullscreen(true);
   }
@@ -1357,9 +1381,24 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
       return;
     }
 
+    if (_persistsWindowForm) {
+      // The user left fullscreen by hand; the player's form is floating again
+      // (re-applied below through the ratio lock).
+      unawaited(
+        ref
+            .read(playerSettingsManagerProvider)
+            .setPlayerWindowFullscreen(false),
+      );
+    }
     setState(() => _isFullscreen = false);
     _syncWindowAspectRatioWithFullscreen(false);
   }
+
+  /// Whether window-shape events in this screen describe a user gesture that
+  /// should be remembered as the player's window form. Restore-driven events
+  /// and PiP transitions are our own, not the user's.
+  bool get _persistsWindowForm =>
+      _isDesktop && !_isPipMode && !_pipController.isPipMode && !_isRestoringWindowSession;
 
   @override
   void onWindowMoved() {
@@ -1378,12 +1417,21 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
     if (!mounted || !_isDesktop) return;
     if (_isPipMode || _pipController.isPipMode) return;
     if (_isRestoringWindowSession) return;
-    // Maximize owns the window shape (like fullscreen/PiP): drop the ratio
-    // lock so the maximized window is left intact, and persist the player's
-    // maximized form so other videos also open maximized.
-    unawaited(
-      ref.read(playerSettingsManagerProvider).setPlayerWindowMaximized(true),
-    );
+    if (_isFullscreen) return;
+    // macOS reports a window that is entering (or sitting in) native
+    // fullscreen as zoomed, so a fullscreen form must never be recorded as
+    // the maximized one — that would restore the next video maximized
+    // instead of fullscreen.
+    unawaited(() async {
+      final fullscreen =
+          ref.read(playerSettingsManagerProvider).getPlayerWindowFullscreen();
+      if (fullscreen || await windowManager.isFullScreen()) {
+        return;
+      }
+      await ref
+          .read(playerSettingsManagerProvider)
+          .setPlayerWindowMaximized(true);
+    }());
     // Keep the ratio-aware (small) window minimum while maximized: un-
     // maximizing restores the pre-maximize frame, and a raised minimum
     // would clamp that restore, shifting small windows.

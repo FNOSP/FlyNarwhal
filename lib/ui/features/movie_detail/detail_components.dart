@@ -1050,6 +1050,9 @@ class SubtitleStreamSelector extends StatefulWidget {
   final ValueChanged<SubtitleStream>? onRequestDelete;
   final ValueChanged<SubtitleStream>? onPredownloadSimilar;
 
+  /// 当前条目是否为剧集（有同系列其他集可下载字幕）。
+  final bool isEpisode;
+
   const SubtitleStreamSelector({
     super.key,
     this.selectedLabel,
@@ -1063,6 +1066,7 @@ class SubtitleStreamSelector extends StatefulWidget {
     this.onAddLocalSubtitle,
     this.onRequestDelete,
     this.onPredownloadSimilar,
+    this.isEpisode = false,
   });
 
   @override
@@ -1143,6 +1147,7 @@ class _SubtitleStreamSelectorState extends State<SubtitleStreamSelector> {
                   },
             onRequestDelete: widget.onRequestDelete,
             onPredownloadSimilar: widget.onPredownloadSimilar,
+            isEpisode: widget.isEpisode,
             useAcrylicBackground: true,
             autoHideScrollbar: true,
           ),

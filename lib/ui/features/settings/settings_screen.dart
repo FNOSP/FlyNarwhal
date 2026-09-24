@@ -18,8 +18,10 @@ import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/changelog_dialog.dart';
 import 'widgets/shortcut_settings_dialog.dart';
+import 'widgets/ssl_whitelist_dialog.dart';
 import 'widgets/support_author_item.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
+import 'package:fly_narwhal/ui/shared/semi_icons.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -118,6 +120,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref
         .read(settingsProvider.notifier)
         .setFlyNarwhalAuthCode(_flyNarwhalAuthCodeController.text);
+  }
+
+
+  void _openSslWhitelistDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => const SslWhitelistDialog(),
+    );
   }
 
   Future<void> _exportErrorLogs() async {
@@ -570,6 +580,63 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 4),
+                              const _Header(title: '隐私与安全'),
+                              CardExpanderItem(
+                                key: const ValueKey('settings-ssl-whitelist'),
+                                // `currentColor` in an SVG does not read
+                                // IconTheme, so match the neighbouring Fluent
+                                // icons explicitly or the stroke renders in a
+                                // different shade.
+                                icon: SemiIcons.sslCertificate(
+                                  size: 18,
+                                  color: IconTheme.of(context).color,
+                                ),
+                                heading: const Text('SSL 证书信任列表'),
+                                caption: Text(
+                                  settings.sslWhitelist.isEmpty
+                                      ? '服务器证书校验失败时可加入信任，在此管理'
+                                      : '已信任 ${settings.sslWhitelist.length} 张证书',
+                                ),
+                                trailing: AppButton(
+                                  key: const ValueKey(
+                                    'settings-ssl-whitelist-open',
+                                  ),
+                                  onPressed: _openSslWhitelistDialog,
+                                  child: const Text('管理'),
+                                ),
+                              ),
+                              CardExpanderItem(
+                                icon: Builder(
+                                  builder: (context) {
+                                    final iconColor =
+                                        IconTheme.of(context).color;
+                                    return SvgPicture.asset(
+                                      'assets/images/statement.svg',
+                                      width: 16,
+                                      height: 16,
+                                      colorFilter: iconColor == null
+                                          ? null
+                                          : ColorFilter.mode(
+                                              iconColor,
+                                              BlendMode.srcIn,
+                                            ),
+                                    );
+                                  },
+                                ),
+                                heading: const Text('隐私声明'),
+                                caption: const Text('隐私声明'),
+                                onPressed: () {
+                                  showAppDialog(
+                                    context: context,
+                                    title: '隐私声明',
+                                    content: const Text(
+                                      '为了改进软件性能，我们会收集部分硬件信息（如 CPU、GPU 型号等）作为参考依据。这些信息将仅用于优化软件，不会涉及个人隐私。',
+                                    ),
+                                    primaryButtonText: '我知道了',
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 4),
                               const _Header(title: '关于'),
                               CardExpanderItem(
                                 key: const ValueKey('settings-check-update'),
@@ -669,37 +736,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 },
                               ),
                               const SupportAuthorItem(),
-                              CardExpanderItem(
-                                icon: Builder(
-                                  builder: (context) {
-                                    final iconColor =
-                                        IconTheme.of(context).color;
-                                    return SvgPicture.asset(
-                                      'assets/images/statement.svg',
-                                      width: 16,
-                                      height: 16,
-                                      colorFilter: iconColor == null
-                                          ? null
-                                          : ColorFilter.mode(
-                                              iconColor,
-                                              BlendMode.srcIn,
-                                            ),
-                                    );
-                                  },
-                                ),
-                                heading: const Text('隐私声明'),
-                                caption: const Text('隐私声明'),
-                                onPressed: () {
-                                  showAppDialog(
-                                    context: context,
-                                    title: '隐私声明',
-                                    content: const Text(
-                                      '为了改进软件性能，我们会收集部分硬件信息（如 CPU、GPU 型号等）作为参考依据。这些信息将仅用于优化软件，不会涉及个人隐私。',
-                                    ),
-                                    primaryButtonText: '我知道了',
-                                  );
-                                },
-                              ),
                               CardExpanderItem(
                                 key: const ValueKey('settings-changelog'),
                                 icon: const Icon(FluentIcons.history),

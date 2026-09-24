@@ -102,6 +102,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           mediaGuid: state.uri.queryParameters['media_guid'],
           audioGuid: state.uri.queryParameters['audio_guid'],
           subtitleGuid: state.uri.queryParameters['subtitle_guid'],
+          // `from_beginning=1` skips the server-side resume point and starts at
+          // zero, mirroring the web "从头开始播放" menu action.
+          initialPositionMs:
+              state.uri.queryParameters['from_beginning'] == '1' ? 0 : null,
         ),
       ),
       // IPTV live-channel player route.

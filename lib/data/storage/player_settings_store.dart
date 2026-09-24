@@ -34,6 +34,11 @@ class PlayerSettingsStore {
   // main window's maximized flag: the player keeps its own window form, so a
   // maximized player is restored maximized when any video is opened.
   static const String _keyPlayerWindowMaximized = 'player_window_maximized';
+  // Whether the player window was last left in native fullscreen. Kept apart
+  // from the maximized flag: macOS reports a fullscreen window as maximized
+  // while it transitions, so the two forms must not alias each other when the
+  // player's form is replayed for the next video.
+  static const String _keyPlayerWindowFullscreen = 'player_window_fullscreen';
   static const String _keyDanmakuArea = 'danmaku_area';
   static const String _keyDanmakuOpacity = 'danmaku_opacity';
   static const String _keyDanmakuFontSize = 'danmaku_font_size';
@@ -363,6 +368,18 @@ class PlayerSettingsManager {
     return _prefs.setBool(
       PlayerSettingsStore._keyPlayerWindowMaximized,
       maximized,
+    );
+  }
+
+  bool getPlayerWindowFullscreen() {
+    return _prefs.getBool(PlayerSettingsStore._keyPlayerWindowFullscreen) ??
+        false;
+  }
+
+  Future<void> setPlayerWindowFullscreen(bool fullscreen) {
+    return _prefs.setBool(
+      PlayerSettingsStore._keyPlayerWindowFullscreen,
+      fullscreen,
     );
   }
 

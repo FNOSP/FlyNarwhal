@@ -644,6 +644,35 @@ class PlayerSessionCoordinator {
     return nonM3u8.isEmpty ? 0 : qualities.indexOf(nonM3u8[defaultNonM3u8Index]);
   }
 
+  /// 网盘直连播放且当前选中的是转码画质（非原画），对齐 web 端
+  /// `isDirectLinkEnabled && !isRemuxQuality`（STRM 除外）。此模式下网盘方
+  /// 不提供内置字幕轨道，字幕列表应隐藏内置字幕并提示缺失。
+  static bool isDirectLinkTranscodePlayback({
+    required List<DirectLinkQuality> directLinkQualities,
+    required int? directLinkQualityIndex,
+    required int? cloudStorageType,
+    required bool isStrm,
+  }) {
+    if (isStrm || directLinkQualities.isEmpty) return false;
+    final filtered = filterDirectLinkQualities(
+      qualities: directLinkQualities,
+      cloudStorageType: cloudStorageType,
+    );
+    final visibleQualities = filtered.qualities.isNotEmpty
+        ? filtered.qualities
+        : directLinkQualities;
+    if (visibleQualities.isEmpty) return false;
+    if (directLinkQualityIndex == null ||
+        directLinkQualityIndex < 0 ||
+        directLinkQualityIndex >= directLinkQualities.length) {
+      return false;
+    }
+    final selected = directLinkQualities[directLinkQualityIndex];
+    final original = visibleQualities.first;
+    return selected.resolution != original.resolution ||
+        selected.bitrate != original.bitrate;
+  }
+
   /// Filters the direct-link quality list by cloud provider, mirroring the web
   /// player's `Ape`: 123/Baidu hide m3u8 qualities; 115 and others keep them.
   /// Returns the visible qualities together with their original indices in the

@@ -12,6 +12,12 @@ Widget _wrap(PlaybackDetailsMorph morph) {
   );
 }
 
+Finder get _hiddenOffstageFinder {
+  return find.byWidgetPredicate(
+    (widget) => widget is Offstage && widget.offstage,
+  );
+}
+
 /// The morphing panel body — the glass container whose width tracks the
 /// destination size (the spawn blob stays 34 wide).
 Finder _panelBodyFinder(double minWidth) {
@@ -24,6 +30,34 @@ Finder _panelBodyFinder(double minWidth) {
 }
 
 void main() {
+  testWidgets('keeps the pre-measure frame offstage', (
+    WidgetTester tester,
+  ) async {
+    final controller = PlaybackDetailsMorphController();
+
+    await tester.pumpWidget(
+      _wrap(
+        PlaybackDetailsMorph(
+          controller: controller,
+          maxSize: const Size(560, 530),
+          anchor: const Offset(1260, 56),
+          spawnRect: const Rect.fromLTWH(1226, 22, 34, 34),
+          onSettled: () {},
+          child: const SizedBox(width: 100, height: 80),
+        ),
+      ),
+    );
+
+    // The first frame should only measure the content offstage, so the
+    // user never sees the parked twin-circle pre-measure state.
+    expect(find.byType(AdaptiveLiquidGlassLayer), findsNothing);
+    expect(_hiddenOffstageFinder, findsOneWidget);
+
+    // Once the post-frame measurement lands, the visible morph may render.
+    await tester.pump();
+    expect(find.byType(AdaptiveLiquidGlassLayer), findsOneWidget);
+  });
+
   testWidgets('sizes to the content and pins the top-right to the anchor', (
     WidgetTester tester,
   ) async {

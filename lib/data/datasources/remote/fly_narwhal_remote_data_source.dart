@@ -9,6 +9,8 @@ import '../../../core/network/api_result.dart';
 import '../../../core/network/fly_narwhal_auth_helper.dart';
 import '../../../core/network/fly_narwhal_response_crypto.dart';
 import '../../../core/network/interceptors/logging_interceptor.dart';
+import '../../../core/network/ssl/ssl_trust_configurator.dart';
+import '../../../core/network/ssl/ssl_trust_persistence.dart';
 import '../../../core/network/sse_event_parser.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../models/fly_narwhal/index.dart';
@@ -55,6 +57,10 @@ class FlyNarwhalRemoteDataSource {
           followRedirects: true,
           validateStatus: (status) => true,
         ));
+    // This client talks to the user's own fly-narwhal server, which may present
+    // a self-signed certificate. Persistence is wired in by the provider via
+    // [SslTrustPersistence.install].
+    configureSslTrust(client, persistEntry: SslTrustPersistence.persist);
     final hasLoggingInterceptor = client.interceptors
         .any((interceptor) => interceptor is LoggingInterceptor);
     if (!hasLoggingInterceptor) {

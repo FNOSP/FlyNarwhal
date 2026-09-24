@@ -46,6 +46,11 @@ class SubtitleSearchDialog extends StatefulWidget {
     String subtitleGuid,
   ) onDownloadSimilar;
 
+  // Whether the media being played has other episodes to fetch subtitles for.
+  // Only episodes of a series qualify, so the action stays hidden for movies,
+  // whole TV shows and other standalone videos.
+  final bool canDownloadForOtherEpisodes;
+
   const SubtitleSearchDialog({
     super.key,
     required this.mediaFileName,
@@ -53,6 +58,7 @@ class SubtitleSearchDialog extends StatefulWidget {
     required this.onSearch,
     required this.onDownload,
     required this.onDownloadSimilar,
+    this.canDownloadForOtherEpisodes = false,
   });
 
   @override
@@ -279,7 +285,8 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
         return _SubtitleSearchItem(
           item: item,
           status: status,
-          canDownloadSimilar: status == _SubtitleDownloadStatus.done &&
+          canDownloadSimilar: widget.canDownloadForOtherEpisodes &&
+              status == _SubtitleDownloadStatus.done &&
               subtitleGuid != null &&
               subtitleGuid.isNotEmpty,
           onDownload: () => _handleDownload(item),

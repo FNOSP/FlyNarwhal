@@ -38,33 +38,35 @@ String cloudStorageLabel(int? cloudStorageType) {
   return FnDataConvertor.getCloudStorageTypeLabel(cloudStorageType);
 }
 
-/// Small blue "SVIP" pill shown next to cloud VIP accounts.
-class _VipBadge extends StatelessWidget {
-  final double size;
+/// The web player's two netdisk membership pills, lifted verbatim from its
+/// bundle: [active] is the golden VIP/SVIP badge, the other the muted
+/// non-VIP one. Both are 73x36 and drawn to fit the square slot by height.
+const String _vipBadgeActiveAsset = 'assets/images/cloud_vip_active.png';
+const String _vipBadgeInactiveAsset = 'assets/images/cloud_vip_inactive.png';
 
-  const _VipBadge({required this.size});
+/// The web player only shows the muted pill inside the 播放方式 popover, so
+/// the toolbar hides it for non-VIP accounts while the popover always shows
+/// one of the two.
+class _VipBadge extends StatelessWidget {
+  final bool isVip;
+  final double size;
+  final bool showWhenInactive;
+
+  const _VipBadge({
+    required this.isVip,
+    required this.size,
+    this.showWhenInactive = true,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    if (!isVip && !showWhenInactive) return const SizedBox.shrink();
+    return SizedBox(
+      width: size,
       height: size,
-      padding: const EdgeInsets.symmetric(horizontal: 5),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF3C3C43), Color(0xFF1C1C22)],
-        ),
-        borderRadius: BorderRadius.circular(size / 2),
-        border: Border.all(color: const Color(0x66FFFFFF)),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        'SVIP',
-        style: TextStyle(
-          fontSize: size * 0.62,
-          fontWeight: FontWeight.w600,
-          color: const Color(0xFFE8E8F0),
-          height: 1.0,
-        ),
+      child: Image.asset(
+        isVip ? _vipBadgeActiveAsset : _vipBadgeInactiveAsset,
+        fit: BoxFit.contain,
       ),
     );
   }
@@ -179,7 +181,17 @@ class _CloudAccountChipState extends State<CloudAccountChip>
   void didUpdateWidget(CloudAccountChip oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isActiveControl && !widget.isActiveControl) {
-      _forceCloseFlyout();
+      // didUpdateWidget runs during the build phase, but _forceCloseFlyout
+      // mutates an AnimationController value (notifying AnimatedBuilder
+      // listeners), calls setState, removes an OverlayEntry and notifies the
+      // parent's Riverpod provider — none of which are allowed mid-build.
+      // Defer the close to right after the frame; one frame of latency is
+      // imperceptible and still prevents the stacking flyouts.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _forceCloseFlyout();
+        }
+      });
     }
   }
 
@@ -431,7 +443,11 @@ class _CloudAccountChipState extends State<CloudAccountChip>
                 ],
                 if (isVip) ...[
                   const SizedBox(width: 6),
-                  const _VipBadge(size: 18),
+                  const _VipBadge(
+                    isVip: true,
+                    size: 24,
+                    showWhenInactive: false,
+                  ),
                 ],
               ],
             ),
@@ -533,10 +549,8 @@ class _CloudPlayModeFlyoutContent extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (isVip) ...[
-                const SizedBox(width: 8),
-                const _VipBadge(size: 22),
-              ],
+              const SizedBox(width: 8),
+              _VipBadge(isVip: isVip, size: 24),
             ],
           ),
           const SizedBox(height: 12),
