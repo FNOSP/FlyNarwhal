@@ -50,7 +50,15 @@ class _HttpClientFileResponse implements FileServiceResponse {
   Stream<List<int>> get content => _response;
 
   @override
-  int? get contentLength => _response.contentLength;
+  int? get contentLength {
+    // `HttpClientResponse.contentLength` returns -1 when the response carries no
+    // Content-Length (chunked or streamed), which the image server does for
+    // posters. Forwarding that sentinel as a byte count makes Flutter's image
+    // loader assert `expectedTotalBytes >= 0` and discard the bytes, so an
+    // unknown length must be reported as null, as the interface intends.
+    final length = _response.contentLength;
+    return length < 0 ? null : length;
+  }
 
   @override
   String? get eTag => _response.headers.value(HttpHeaders.etagHeader);
