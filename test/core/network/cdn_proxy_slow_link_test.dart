@@ -1,54 +1,49 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
-import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fly_narwhal/core/network/api_result.dart';
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_service.dart';
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_diagnostics.dart';
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_session.dart';
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_source.dart';
 
+import '../../../tool/support/cdn_proxy_experiment.dart';
 import '../../../tool/support/cdn_proxy_http_fixture.dart';
 
-// These are real socket/timer regressions: fake time cannot establish whether
-// Dio interprets receiveTimeout as idle time or the whole response duration.
+// Real loopback sockets and clocks verify aggregate bandwidth, streaming order,
+// body disconnects and injected request deadlines independently of mpv.
 void main() {
   for (final rateMiB in [1, 2]) {
     test(
       'Given one shared $rateMiB MiB/s link, when three ranges download, '
-      'then complete bodies arrive in order without timeout retries',
+      'then the first prefix arrives before a chunk completes',
       () async {
-        final result = await _exercise(
+        final result = await runCdnProxyExperiment(
           totalBytes: 30 * fixtureMiB,
           sharedBytesPerSecond: rateMiB * fixtureMiB,
         );
-        final expectedSeconds = 30 ~/ rateMiB;
+        _report(result);
         expect(result.statusCode, HttpStatus.partialContent);
         expect(result.contentRange,
             'bytes 0-${30 * fixtureMiB - 1}/${30 * fixtureMiB}');
         expect(result.receivedBytes, 30 * fixtureMiB);
-        expect(result.payloadErrors, 0,
-            reason: 'Check every byte across ranges.');
+        expect(result.payloadErrors, 0);
+        expect(result.bodyErrorType, isNull);
         expect(result.bodyAttempts, hasLength(3));
         expect(result.retryReports, isEmpty);
-        expect(result.upstreamRequests, 3, reason: 'No range was retried.');
         expect(result.peakUpstreamRequests, 3);
         expect(result.peakBudget, 3);
+        expect(result.bodyAttempts.map((a) => (a.start, a.end)), [
+          (0, 10 * fixtureMiB - 1),
+          (10 * fixtureMiB, 20 * fixtureMiB - 1),
+          (20 * fixtureMiB, 30 * fixtureMiB - 1),
+        ]);
         expect(result.headersLatency, lessThan(const Duration(seconds: 3)));
-        expect(result.firstBodyLatency,
-            greaterThan(Duration(seconds: expectedSeconds - 1)));
-        expect(result.firstBodyLatency,
-            lessThan(Duration(seconds: expectedSeconds + 15)));
-        // At 1 MiB/s each of three 10 MiB responses takes more than 20 seconds,
-        // while repeated progress prevents both the 10 s and 20 s idle timers.
-        if (rateMiB == 1) {
-          expect(result.firstBodyLatency,
-              greaterThan(const Duration(seconds: 20)));
+        expect(result.firstBodyAt, isNotNull);
+        expect(result.firstBodyLatency, lessThan(const Duration(seconds: 3)));
+        for (final attempt in result.bodyAttempts) {
+          expect(attempt.completedAt, isNotNull);
+          expect(result.firstBodyAt, lessThan(attempt.completedAt!),
+              reason: 'Output must not wait for any complete 10 MiB chunk.');
         }
+        expect(result.bodyAttempts.fold<int>(0, (n, a) => n + a.sentBytes),
+            30 * fixtureMiB);
         _expectReleased(result);
       },
       timeout: const Timeout(Duration(seconds: 75)),
@@ -56,246 +51,95 @@ void main() {
   }
 
   test(
-    'Given a partial body followed by real idle, when the default HTTP timeout '
-    'fires, then the complete original range is retried after one second',
+    'Given 23 MiB and a broken first body, when downloading, '
+    'then split 5+8+10 MiB and resume only the missing suffix',
     () async {
-      final result =
-          await _exercise(totalBytes: fixtureMiB, stallFirstBody: true);
-      _expectIdleRetry(result, const Duration(seconds: 10));
-      expect(
-          result.bodyAttempts.first.errorType, DioExceptionType.receiveTimeout);
-      expect(result.retryReports.single['chunk']['error']['dioType'],
-          'receiveTimeout');
+      final result = await runCdnProxyExperiment(
+        totalBytes: 23 * fixtureMiB,
+        disconnectFirstBody: true,
+      );
+      _report(result);
+      _expectSuffixRetry(result, 23 * fixtureMiB, 5 * fixtureMiB - 1);
+      final ranges = result.bodyAttempts.map((a) => (a.start, a.end)).toList();
+      expect(ranges, contains((5 * fixtureMiB, 13 * fixtureMiB - 1)));
+      expect(ranges, contains((13 * fixtureMiB, 23 * fixtureMiB - 1)));
+      expect(result.bodyAttempts, hasLength(4));
     },
-    timeout: const Timeout(Duration(seconds: 30)),
+    timeout: const Timeout(Duration(seconds: 15)),
   );
 
   test(
-    'Given HTTP idle timeout is longer than service idle timeout, when the body '
-    'stalls for twenty seconds, then the complete original range is retried',
+    'Given a stalled valid prefix, when an injected request deadline expires, '
+    'then retain the prefix and request the remaining range',
     () async {
-      final result = await _exercise(
-        totalBytes: fixtureMiB,
+      final result = await runCdnProxyExperiment(
+        totalBytes: 11 * fixtureMiB,
         stallFirstBody: true,
-        receiveTimeout: const Duration(seconds: 60),
+        requestTimeout: const Duration(seconds: 2),
       );
-      _expectIdleRetry(result, const Duration(seconds: 20));
-      expect(result.retryReports.single['chunk']['error']['type'],
-          'TimeoutException');
-      expect(result.retryReports.single['chunk']['error']['timeoutMs'], 20000);
-      expect(result.bodyAttempts.first.errorType, isNull);
+      _report(result);
+      _expectSuffixRetry(result, 11 * fixtureMiB, 5 * fixtureMiB - 1);
+      expect(result.bodyAttempts, hasLength(3));
+      final retry =
+          result.bodyAttempts.singleWhere((a) => a.start == 64 * 1024);
+      final elapsed = retry.openedAt - result.bodyAttempts.first.openedAt;
+      expect(elapsed, greaterThanOrEqualTo(const Duration(milliseconds: 1800)));
+      expect(elapsed, lessThan(const Duration(seconds: 6)));
     },
-    timeout: const Timeout(Duration(seconds: 40)),
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  test(
+    'Given a broken single-part response, when the body ends early, '
+    'then do not retry and let a later Range reuse the service',
+    () async {
+      final result = await runCdnProxyExperiment(
+        totalBytes: fixtureMiB,
+        disconnectFirstBody: true,
+        recoverAfterBodyError: true,
+      );
+      _report(result);
+      expect(result.bodyErrorType, isNotNull);
+      expect(result.receivedBytes, 64 * 1024);
+      expect(result.payloadErrors, 0);
+      expect(result.retryReports, isEmpty);
+      expect(result.attemptsBeforeRecovery, 1);
+      expect(result.bodyAttempts, hasLength(2));
+      expect(result.recoveredBytes, fixtureMiB);
+      _expectReleased(result);
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
   );
 }
 
-void _expectIdleRetry(_SlowLinkResult result, Duration expectedIdle) {
-  expect(result.receivedBytes, fixtureMiB);
+void _expectSuffixRetry(
+    CdnProxyExperimentResult result, int total, int firstEnd) {
+  expect(result.receivedBytes, total);
   expect(result.payloadErrors, 0,
-      reason: 'The invalid first-attempt prefix must never reach the client.');
-  expect(result.upstreamRequests, 2);
+      reason: 'The retained prefix and resumed suffix must match every byte.');
+  expect(result.bodyErrorType, isNull);
   expect(result.retryReports, hasLength(1));
-  expect(result.bodyAttempts, hasLength(2));
-  for (final attempt in result.bodyAttempts) {
-    expect((attempt.start, attempt.end), (0, fixtureMiB - 1));
-  }
-  final first = result.bodyAttempts.first;
-  final retry = result.bodyAttempts.last;
-  expect(first.receivedBytes, 64 * 1024);
-  expect(first.cancelledAt, isNotNull);
-  final idle = first.cancelledAt! - first.lastDataAt!;
-  expect(
-      idle.inMilliseconds,
-      inInclusiveRange(expectedIdle.inMilliseconds - 500,
-          expectedIdle.inMilliseconds + 3000));
-  final retryDelay = retry.openedAt - first.cancelledAt!;
-  expect(retryDelay.inMilliseconds, inInclusiveRange(900, 2500));
+  expect((result.bodyAttempts.first.start, result.bodyAttempts.first.end),
+      (0, firstEnd));
+  expect(result.bodyAttempts.first.sentBytes, 64 * 1024);
+  expect(result.bodyAttempts.where((a) => a.start == 0), hasLength(1),
+      reason: 'Never redownload the prefix of the first chunk.');
+  expect(result.bodyAttempts.map((a) => (a.start, a.end)),
+      contains((64 * 1024, firstEnd)));
+  expect(result.bodyAttempts.fold<int>(0, (n, a) => n + a.sentBytes), total);
   _expectReleased(result);
 }
 
-void _expectReleased(_SlowLinkResult result) {
+void _expectReleased(CdnProxyExperimentResult result) {
   expect(result.serviceErrors, isEmpty);
   expect(result.upstreamErrors, isEmpty);
   expect(result.occupiedAfterClose, 0);
   expect(result.writersAfterClose, 0);
+  expect(result.downloadsAfterClose, 0);
+  expect(result.attemptsAfterClose, 0);
+  expect(result.allocatedAfterClose, 0);
+  expect(result.bufferedAfterClose, 0);
 }
 
-Future<_SlowLinkResult> _exercise({
-  required int totalBytes,
-  int? sharedBytesPerSecond,
-  bool stallFirstBody = false,
-  Duration receiveTimeout = const Duration(seconds: 10),
-}) async {
-  final fixture = await CdnProxyHttpFixture.start(
-    totalBytes: totalBytes,
-    sharedBytesPerSecond: sharedBytesPerSecond,
-    stallFirstBody: stallFirstBody,
-  );
-  final watch = Stopwatch()..start();
-  final source = _RecordingSource(
-    CdnHttpRangeSource(receiveTimeout: receiveTimeout),
-    watch,
-  );
-  final budget = CdnRangeBudget();
-  final serviceErrors = <Object>[];
-  final retryReports = <Map<String, dynamic>>[];
-  final service = CdnProxyService(
-    source: source,
-    budget: budget,
-    onError: serviceErrors.add,
-    diagnostics: CdnRangeDiagnostics(writeLog: (message, {required failure}) {
-      final report = jsonDecode(message) as Map<String, dynamic>;
-      if (report['event'] == 'chunk_retry') retryReports.add(report);
-    }),
-  );
-  final client = HttpClient()..findProxy = (_) => 'DIRECT';
-  try {
-    final uri = await service.open(uri: fixture.uri, headers: const {});
-    final requestStarted = watch.elapsed;
-    final request = await client.getUrl(uri);
-    request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-');
-    final response = await request.close();
-    final headersLatency = watch.elapsed - requestStarted;
-    Duration? firstBodyLatency;
-    var receivedBytes = 0;
-    var payloadErrors = 0;
-    await for (final data in response) {
-      firstBodyLatency ??= watch.elapsed - requestStarted;
-      for (var i = 0; i < data.length; i++) {
-        if (data[i] != fixtureByteAt(receivedBytes + i)) payloadErrors++;
-      }
-      receivedBytes += data.length;
-    }
-    await service.close().timeout(const Duration(seconds: 5));
-    final attempts = source.attempts
-        .where((attempt) => attempt.start != 0 || attempt.end != 0)
-        .toList();
-    final result = _SlowLinkResult(
-      statusCode: response.statusCode,
-      contentRange: response.headers.value(HttpHeaders.contentRangeHeader),
-      receivedBytes: receivedBytes,
-      payloadErrors: payloadErrors,
-      bodyAttempts: attempts,
-      retryReports: retryReports,
-      headersLatency: headersLatency,
-      firstBodyLatency: firstBodyLatency!,
-      upstreamRequests: fixture.bodyRequests.length,
-      peakUpstreamRequests: fixture.peakActiveBodyRequests,
-      peakBudget: budget.peakOccupiedSlots,
-      occupiedAfterClose: budget.occupiedSlots,
-      writersAfterClose: service.activeWriterCount,
-      serviceErrors: serviceErrors,
-      upstreamErrors: fixture.errors,
-    );
-    stdout.writeln(jsonEncode({
-      'sharedBytesPerSecond': sharedBytesPerSecond,
-      'receiveTimeoutMs': receiveTimeout.inMilliseconds,
-      'headersMs': result.headersLatency.inMilliseconds,
-      'firstBodyMs': result.firstBodyLatency.inMilliseconds,
-      'retryCount': result.retryReports.length,
-      'bodyRequests': attempts.length,
-      'verifiedBytes': receivedBytes,
-      'occupiedAfterClose': result.occupiedAfterClose,
-      'writersAfterClose': result.writersAfterClose,
-    }));
-    return result;
-  } finally {
-    await service.close();
-    client.close(force: true);
-    await fixture.close();
-    watch.stop();
-  }
-}
-
-class _Attempt {
-  _Attempt(this.start, this.end, this.openedAt);
-  final int start;
-  final int end;
-  final Duration openedAt;
-  Duration? lastDataAt;
-  Duration? cancelledAt;
-  int receivedBytes = 0;
-  DioExceptionType? errorType;
-}
-
-class _RecordingSource implements CdnRangeSource {
-  _RecordingSource(this.delegate, this.watch);
-  final CdnRangeSource delegate;
-  final Stopwatch watch;
-  final List<_Attempt> attempts = [];
-
-  @override
-  Future<ApiResult<CdnRangeResponse>> open({
-    required Uri uri,
-    required Map<String, String> headers,
-    required int start,
-    required int end,
-    required CancelToken cancelToken,
-  }) async {
-    final attempt = _Attempt(start, end, watch.elapsed);
-    attempts.add(attempt);
-    unawaited(cancelToken.whenCancel.then((_) {
-      attempt.cancelledAt = watch.elapsed;
-    }));
-    final result = await delegate.open(
-        uri: uri,
-        headers: headers,
-        start: start,
-        end: end,
-        cancelToken: cancelToken);
-    return result.map((response) => CdnRangeResponse(
-          totalLength: response.totalLength,
-          contentType: response.contentType,
-          stream: response.stream.transform(
-            StreamTransformer<Uint8List, Uint8List>.fromHandlers(
-              handleData: (data, sink) {
-                attempt.lastDataAt = watch.elapsed;
-                attempt.receivedBytes += data.length;
-                sink.add(data);
-              },
-              handleError: (error, stack, sink) {
-                if (error is DioException) attempt.errorType = error.type;
-                sink.addError(error, stack);
-              },
-            ),
-          ),
-        ));
-  }
-
-  @override
-  void close() => delegate.close();
-}
-
-class _SlowLinkResult {
-  _SlowLinkResult(
-      {required this.statusCode,
-      required this.contentRange,
-      required this.receivedBytes,
-      required this.payloadErrors,
-      required this.bodyAttempts,
-      required this.retryReports,
-      required this.headersLatency,
-      required this.firstBodyLatency,
-      required this.upstreamRequests,
-      required this.peakUpstreamRequests,
-      required this.peakBudget,
-      required this.occupiedAfterClose,
-      required this.writersAfterClose,
-      required this.serviceErrors,
-      required this.upstreamErrors});
-  final int statusCode;
-  final String? contentRange;
-  final int receivedBytes;
-  final int payloadErrors;
-  final List<_Attempt> bodyAttempts;
-  final List<Map<String, dynamic>> retryReports;
-  final Duration headersLatency;
-  final Duration firstBodyLatency;
-  final int upstreamRequests;
-  final int peakUpstreamRequests;
-  final int peakBudget;
-  final int occupiedAfterClose;
-  final int writersAfterClose;
-  final List<Object> serviceErrors;
-  final List<String> upstreamErrors;
-}
+void _report(CdnProxyExperimentResult result) =>
+    stdout.writeln(jsonEncode(result.toJson()));

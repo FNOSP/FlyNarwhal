@@ -98,13 +98,16 @@ void main() {
       1: [1],
       chunk - 1: [chunk - 1],
       chunk: [chunk],
-      chunk + 1: [chunk, 1],
-      2 * chunk - 1: [chunk, chunk - 1],
+      chunk ~/ 2: [chunk ~/ 2],
+      chunk + 1: [chunk ~/ 2, chunk ~/ 2 + 1],
+      2 * chunk - 1: [chunk - 1, chunk],
       2 * chunk: [chunk, chunk],
-      2 * chunk + 1: [chunk, chunk, 1],
-      3 * chunk - 1: [chunk, chunk, chunk - 1],
+      2 * chunk + 1: [chunk ~/ 2, chunk ~/ 2 + 1, chunk],
+      23 * 1024 * 1024: [5 * 1024 * 1024, 8 * 1024 * 1024, chunk],
+      29 * 1024 * 1024: [9 * 1024 * 1024, chunk, chunk],
+      3 * chunk - 1: [chunk - 1, chunk, chunk],
       3 * chunk: [chunk, chunk, chunk],
-      3 * chunk + 1: [chunk, chunk, chunk, 1],
+      3 * chunk + 1: [chunk ~/ 2, chunk ~/ 2 + 1, chunk, chunk],
     };
     for (final entry in lengths.entries) {
       for (final start in [0, 173, 5 * 1024 * 1024 * 1024]) {
@@ -133,15 +136,17 @@ void main() {
       expect(cdnRangeConcurrency(0), 0);
     });
 
-    test('Given 25 or 15 MiB, when split, then only the tail is smaller', () {
+    test(
+        'Given 25 or 15 MiB, when split, then the short first part precedes full parts',
+        () {
       for (final mib in [25, 15]) {
         final chunks = splitCdnRange(
           CdnByteRange(start: 0, end: mib * 1024 * 1024 - 1),
         ).toList();
         expect(chunks.map((part) => part.length), [
+          5 * 1024 * 1024,
           if (mib == 25) chunk,
           chunk,
-          5 * 1024 * 1024,
         ]);
         expect(cdnRangeConcurrency(mib * 1024 * 1024), mib == 25 ? 3 : 2);
       }
@@ -152,12 +157,12 @@ void main() {
       final first = splitCdnRange(
         const CdnByteRange(start: 0, end: maxInt - 1),
       ).take(3).toList();
-      expect(first.map((part) => part.length), [chunk, chunk, chunk]);
+      expect(first.map((part) => part.length), [maxInt % chunk, chunk, chunk]);
       final tail = splitCdnRange(
         const CdnByteRange(start: maxInt - chunk, end: maxInt),
       ).toList();
-      expect(tail.map((part) => part.length), [chunk, 1]);
-      expectRange(tail.last, maxInt, maxInt);
+      expect(tail.map((part) => part.length), [chunk ~/ 2, chunk ~/ 2 + 1]);
+      expectRange(tail.last, maxInt - chunk ~/ 2, maxInt);
       expect(cdnRangeConcurrency(maxInt), 3);
       expect(cdnRangeConcurrency(maxInt, chunkSize: 1), 3);
       expect(cdnRangeConcurrency(maxInt, chunkSize: maxInt), 1);
@@ -168,8 +173,8 @@ void main() {
         const CdnByteRange(start: 7, end: 13),
         chunkSize: 3,
       ).toList();
-      expect(chunks.map((part) => part.length), [3, 3, 1]);
-      expectRange(chunks.last, 13, 13);
+      expect(chunks.map((part) => part.length), [1, 3, 3]);
+      expectRange(chunks.last, 11, 13);
       expect(cdnRangeConcurrency(7, chunkSize: 3), 3);
     });
 

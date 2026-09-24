@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
 
 import 'cdn_proxy.dart';
-import 'cdn_proxy_constants.dart';
 import 'cdn_range_diagnostics.dart';
 import 'cdn_range_policy.dart';
 import 'cdn_range_session.dart';
@@ -18,8 +17,7 @@ class CdnProxyService implements CdnProxy {
       this.budget,
       this.onError,
       this.diagnostics,
-      this.idleTimeout = CdnProxyDefaults.idleTimeout,
-      this.retryDelay = CdnProxyDefaults.retryDelay,
+      this.retryJitter,
       this.socketFlush,
       this.socketDetach})
       : _source = source;
@@ -28,8 +26,7 @@ class CdnProxyService implements CdnProxy {
   final CdnRangeBudget? budget;
   final void Function(Object)? onError;
   final CdnRangeDiagnostics? diagnostics;
-  final Duration idleTimeout;
-  final Duration retryDelay;
+  final Duration Function()? retryJitter;
 
   /// Overrides only the downstream flush for deterministic cancellation tests.
   final Future<void> Function(Socket)? socketFlush;
@@ -39,6 +36,9 @@ class CdnProxyService implements CdnProxy {
   final Set<_ResponseWriter> _writers = {};
 
   int get activeWriterCount => _writers.length;
+  int get activeDownloadCount => _session?.activeDownloadCount ?? 0;
+  int get allocatedBufferBytes => _session?.allocatedBufferBytes ?? 0;
+  int get bufferedBytes => _session?.bufferedBytes ?? 0;
   final String _path = '/${const Uuid().v4()}/media';
   CdnRangeSession? _session;
   HttpServer? _server;
@@ -61,8 +61,7 @@ class CdnProxyService implements CdnProxy {
       headers: headers,
       budget: budget,
       diagnostics: diagnostics,
-      idleTimeout: idleTimeout,
-      retryDelay: retryDelay,
+      retryJitter: retryJitter,
       onError: (error) {
         for (final writer in _writers.toList()) {
           writer.cancel();
@@ -167,7 +166,8 @@ class CdnProxyService implements CdnProxy {
       await writer.waitFor(response.close());
     } catch (_) {
       // Abort an already-started response instead of appending error text to
-      // media bytes. Session errors reach the existing playback error UI.
+      // media bytes. A failed Range only closes its own connection; the session
+      // callback is reserved for resource-wide failure.
       if (socket == null && !detaching) {
         try {
           socket = await response.detachSocket(writeHeaders: false);

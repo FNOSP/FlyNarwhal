@@ -5,12 +5,14 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
+import 'cdn_proxy_errors.dart';
+
 /// Enable in a diagnostic build without changing transport or retry policy.
 const cdnRangeDiagnosticsEnabled =
     bool.fromEnvironment('FLYNARWHAL_CDN_DIAGNOSTICS');
 
-/// Bounded in-memory flight recorder. Successful chunks do not write to disk;
-/// a session failure persists their context in one exportable ERROR entry.
+/// Bounded in-memory recorder of request attempts. Range and session failures
+/// send recent context to the injected logger; successful attempts stay in memory.
 /// Never retain URLs, headers, exception messages or response bodies.
 class CdnRangeDiagnostics {
   CdnRangeDiagnostics({required this.writeLog});
@@ -35,20 +37,36 @@ class CdnRangeDiagnostics {
     }
   }
 
-  void initialized(int totalLength, Duration idleTimeout) => _emit({
+  void initialized(int totalLength) => _emit({
         'event': 'session_started',
         'totalBytes': totalLength,
-        'bodyIdleTimeoutMs': idleTimeout.inMilliseconds,
       });
 
   void retrying(CdnRangeTrace trace,
-          {required int attempt, required Duration delay}) =>
+          {required int attempt,
+          required Duration delay,
+          int? acceptedBytes,
+          int? deliveredBytes,
+          int? remainingBytes,
+          int? concurrency}) =>
       _emit({
         'event': 'chunk_retry',
         'attempt': attempt,
         'retryDelayMs': delay.inMilliseconds,
+        if (acceptedBytes != null) 'acceptedBytes': acceptedBytes,
+        if (deliveredBytes != null) 'deliveredBytes': deliveredBytes,
+        if (remainingBytes != null) 'remainingBytes': remainingBytes,
+        if (concurrency != null) 'concurrency': concurrency,
         'chunk': trace.snapshot('retrying'),
       });
+
+  void rangeFailed({required int occupiedSlots, required int activeReaders}) =>
+      _emit({
+        'event': 'range_failed',
+        'occupiedSlots': occupiedSlots,
+        'activeReaders': activeReaders,
+        'recentChunks': _recent.toList(),
+      }, failure: true);
 
   void failed({required int occupiedSlots, required int activeReaders}) {
     if (_reported) return;
@@ -65,7 +83,7 @@ class CdnRangeDiagnostics {
     try {
       writeLog(
           jsonEncode({
-            'schema': 1,
+            'schema': 3,
             'session': sessionId,
             'elapsedMs': _clock.elapsedMilliseconds,
             ...event,
@@ -86,18 +104,13 @@ class CdnRangeTrace {
   final bool probe;
   final int startedMs;
   final Stopwatch _clock = Stopwatch()..start();
-  String stage = 'queue';
-  int? queueMs;
+  // Traces begin after buffer admission, while awaiting response headers.
+  String stage = 'headers';
   int? headersMs;
   int? totalBytes;
   int receivedBytes = 0;
   int? _lastDataMs;
   Map<String, Object?>? _error;
-
-  void admitted() {
-    queueMs = _clock.elapsedMilliseconds;
-    stage = 'headers';
-  }
 
   void headersReceived(int length) {
     headersMs = _clock.elapsedMilliseconds;
@@ -123,7 +136,6 @@ class CdnRangeTrace {
         'probe': probe,
         'startedMs': startedMs,
         'elapsedMs': _clock.elapsedMilliseconds,
-        'queueMs': queueMs,
         'headersMs': headersMs,
         'stage': stage,
         'outcome': outcome,
@@ -143,6 +155,12 @@ Map<String, Object?> describeCdnDiagnosticError(Object error) {
   final cause = error is DioException ? error.error : error;
   return {
     'type': error.runtimeType.toString(),
+    if (error is CdnRequestFailure) ...{
+      'kind': error.kind.name,
+      'phase': error.phase.name,
+      if (error.statusCode != null) 'httpStatus': error.statusCode,
+      'isTimeout': error.isTimeout,
+    },
     if (error is DioException) ...{
       'dioType': error.type.name,
       if (error.response?.statusCode != null)

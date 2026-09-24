@@ -87,22 +87,31 @@ ResolvedCdnRange resolveCdnRange(String? rangeHeader, int totalLength) {
   );
 }
 
-/// Lazily splits an interval without rounding a short final piece up.
+/// OpenList v4.2.6's split: rebalance the first two parts, never exceed P.
 Iterable<CdnByteRange> splitCdnRange(
   CdnByteRange range, {
   int chunkSize = CdnProxyDefaults.chunkSize,
 }) sync* {
   _validateChunkSize(chunkSize);
   _validateRange(range);
+  final length = range.length;
+  final remainder = length % chunkSize;
+  final half = chunkSize ~/ 2;
   var start = range.start;
+  var index = 0;
   while (true) {
     final remaining = range.end - start + 1;
-    final length = remaining < chunkSize ? remaining : chunkSize;
-    // Adding length - 1 avoids a transient overflow at the largest valid end.
-    final end = start + (length - 1);
+    var size = chunkSize;
+    if (length > chunkSize && remainder > 0) {
+      if (index == 0) size = remainder < half ? half : remainder;
+      if (index == 1 && remainder < half) size = chunkSize - half + remainder;
+    }
+    if (size > remaining) size = remaining;
+    final end = start + (size - 1);
     yield CdnByteRange(start: start, end: end);
     if (end == range.end) return;
     start = end + 1;
+    index++;
   }
 }
 

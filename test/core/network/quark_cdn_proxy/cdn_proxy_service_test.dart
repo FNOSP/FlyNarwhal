@@ -197,32 +197,33 @@ void main() {
     });
 
     test(
-        'Given a partial CDN body times out, when the retry succeeds, then the same HTTP response contains complete ordered bytes',
+        'Given a multi-part body disconnect, then resumes the suffix in the same HTTP response',
         () async {
-      final harness = await _Harness.open(128);
+      final harness = await _Harness.open(2 * _chunk);
       addTearDown(harness.close);
       final request = await harness.client().getUrl(harness.uri);
-      request.headers.set(HttpHeaders.rangeHeader, 'bytes=10-19');
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=10-${_chunk + 19}');
       final response = await request.close().timeout(_deadline);
       final received = _collect(response);
       final first = await harness.source.requestAt(1);
-      first.body.add(Uint8List.fromList([255, 255]));
-      first.body.addError(TimeoutException('CDN body stalled'));
+      final second = await harness.source.requestAt(2);
+      second.complete();
+      first.body.add(_bytes(10, 2));
+      first.body.addError(const SocketException('CDN body interrupted'));
 
-      final retry = await harness.source.requestAt(2);
+      final retry = await harness.source.requestAt(3);
       expect(first.token.isCancelled, isTrue);
-      expect((retry.start, retry.end), (10, 19));
+      expect((retry.start, retry.end), (12, 10 + _chunk ~/ 2 - 1));
       expect(harness.errors, isEmpty);
       retry.complete();
-
-      expect(await received, _bytes(10, 10));
+      expect(await received, _bytes(10, _chunk + 10));
       expect(response.statusCode, 206);
       expect(harness.errors, isEmpty);
       await _waitForIdle(harness.budget);
     });
 
     test(
-        'Given a CDN timeout is retrying, when the HTTP client disconnects, then retries stop and the slot is freed',
+        'Given a single Range body fails, when the client disconnects, then no retry occurs and its slot is freed',
         () async {
       final harness = await _Harness.open(128);
       addTearDown(harness.close);
@@ -258,8 +259,7 @@ void main() {
       upstream.body.addError(StateError('Simulated CDN connection failure'));
 
       await body.timeout(_deadline);
-      expect(harness.errors, hasLength(1));
-      expect(harness.errors.single, isA<CdnRangeFailure>());
+      expect(harness.errors, isEmpty);
       await _waitForIdle(harness.budget);
     });
 
@@ -376,7 +376,7 @@ void main() {
         final flushStarted = Completer<void>();
         final flushing = Completer<void>();
         final harness = await _Harness.open(3 * _chunk, socketFlush: (_) {
-          flushStarted.complete();
+          if (!flushStarted.isCompleted) flushStarted.complete();
           return flushing.future;
         });
         addTearDown(harness.close);
@@ -447,7 +447,7 @@ void main() {
         final flushStarted = Completer<void>();
         final flushing = Completer<void>();
         final harness = await _Harness.open(128, socketFlush: (_) {
-          flushStarted.complete();
+          if (!flushStarted.isCompleted) flushStarted.complete();
           return flushing.future;
         });
         addTearDown(harness.close);
@@ -472,12 +472,12 @@ void main() {
     }
 
     test(
-        'Given one writer is flushing, when another reader fails terminally, then cancels every writer',
+        'Given one writer is flushing, when another reader fails, then only the failed writer is cancelled',
         () async {
       final flushStarted = Completer<void>();
       final flushing = Completer<void>();
       final harness = await _Harness.open(3 * _chunk, socketFlush: (_) {
-        flushStarted.complete();
+        if (!flushStarted.isCompleted) flushStarted.complete();
         return flushing.future;
       });
       addTearDown(harness.close);
@@ -497,13 +497,16 @@ void main() {
       expect(harness.service.activeWriterCount, 2);
 
       failing.body.addError(StateError('Terminal CDN failure'));
-      await _waitForWriters(harness.service, 0);
-      await Future.wait([firstEnded, secondEnded]).timeout(_deadline);
+      await _waitForWriters(harness.service, 1);
+      await secondEnded.timeout(_deadline);
       expect(flushing.isCompleted, isFalse);
+      expect(harness.budget.occupiedSlots, 2);
+      expect(harness.errors, isEmpty);
+      await harness.service.close().timeout(_deadline);
+      await firstEnded.timeout(_deadline);
       expect(harness.budget.occupiedSlots, 0);
       expect(failing.token.isCancelled, isTrue);
-      expect(harness.errors, hasLength(1));
-      expect(harness.errors.single, isA<CdnRangeFailure>());
+      expect(harness.errors, isEmpty);
       flushing.completeError(StateError('Late flush after terminal failure'));
       await Future<void>(() {});
     });
@@ -632,7 +635,8 @@ class _FakeCdn implements CdnRangeSource {
       required Map<String, String> headers,
       required int start,
       required int end,
-      required CancelToken cancelToken}) async {
+      required CancelToken cancelToken,
+      String? ifRangeEtag}) async {
     final probe = requests.isEmpty;
     final request = _FakeRequest(start, end, cancelToken);
     requests.add(request);

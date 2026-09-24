@@ -33,7 +33,7 @@ final quarkCdnRangeServiceFactoryProvider =
 void _writeDiagnosticLog(String message, {required bool failure}) {
   if (failure) {
     AppTalker.error('CdnDiagnostic',
-        error: const CdnRangeFailure('CDN session failed'), message: message);
+        error: const CdnRangeFailure('CDN proxy error'), message: message);
   } else {
     AppTalker.info('CdnDiagnostic', message);
   }

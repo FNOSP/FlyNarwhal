@@ -34,7 +34,11 @@ Future<void> main() async {
     final response = await pending.close().timeout(const Duration(seconds: 5));
     _require(response.statusCode == HttpStatus.partialContent,
         'The proxy did not return Range response headers.');
-    abandonedBody = response.listen((_) {}, onError: (Object _) {});
+    final firstPrefix = Completer<void>();
+    abandonedBody = response.listen((data) {
+      if (data.isNotEmpty && !firstPrefix.isCompleted) firstPrefix.complete();
+    }, onError: (Object _) {});
+    await firstPrefix.future.timeout(const Duration(seconds: 5));
     await fixture.firstBodyStarted.future.timeout(const Duration(seconds: 5));
     _require(
         budget.occupiedSlots > 0, 'The stalled request has no active lease.');
@@ -97,6 +101,7 @@ Future<void> main() async {
       'result': 'passed',
       'bytesVerified': bytesChecked,
       'rangeHeaders': true,
+      'streamedBeforeStalledBodyCompleted': true,
       'activeRequestCancelled': true,
       'sharedBudgetReused': true,
       'occupiedAfterClose': budget.occupiedSlots,

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -7,24 +8,26 @@ import 'package:dio/dio.dart';
 import '../api_result.dart';
 import 'cdn_proxy_constants.dart';
 import 'cdn_proxy_errors.dart';
-import 'cdn_range_source.dart';
 import 'cdn_range_diagnostics.dart';
 import 'cdn_range_policy.dart';
+import 'cdn_range_source.dart';
 
-/// A slot is held until its data is consumed, not merely until HTTP finishes.
-/// Consequently active downloads plus queued chunks never exceed three chunks.
+/// Buffer ownership spans download, retries, and downstream consumption.
 class CdnRangeBudget {
   int _occupied = 0;
   int _peak = 0;
-  final Queue<_SlotWaiter> _waiters = Queue<_SlotWaiter>();
+  final Queue<_SlotWaiter> _waiters = Queue();
 
   int get occupiedSlots => _occupied;
   int get peakOccupiedSlots => _peak;
 
-  Future<_RangeLease> _acquire(CancelToken token) async {
+  Future<_RangeLease> _acquire(
+    CancelToken token, {
+    required bool Function() isCurrent,
+  }) async {
     if (token.isCancelled) throw const CdnRangeCancelled();
     if (_occupied < CdnProxyDefaults.maxConcurrent) return _grant();
-    final waiter = _SlotWaiter(token);
+    final waiter = _SlotWaiter(token, isCurrent);
     _waiters.add(waiter);
     unawaited(token.whenCancel.then((_) {
       if (!waiter.result.isCompleted) {
@@ -37,11 +40,16 @@ class CdnRangeBudget {
 
   _RangeLease _grant() {
     _occupied++;
-    if (_occupied > _peak) _peak = _occupied;
+    _peak = max(_peak, _occupied);
     return _RangeLease(() {
       _occupied--;
       while (_waiters.isNotEmpty) {
-        final waiter = _waiters.removeFirst();
+        // Re-evaluate priority: a queued prefetch can become the current part.
+        final waiter = _waiters.firstWhere(
+          (waiter) => waiter.isCurrent(),
+          orElse: () => _waiters.first,
+        );
+        _waiters.remove(waiter);
         if (waiter.result.isCompleted) continue;
         if (waiter.token.isCancelled) {
           waiter.result.completeError(const CdnRangeCancelled());
@@ -55,9 +63,10 @@ class CdnRangeBudget {
 }
 
 class _SlotWaiter {
-  _SlotWaiter(this.token);
+  _SlotWaiter(this.token, this.isCurrent);
   final CancelToken token;
-  final Completer<_RangeLease> result = Completer<_RangeLease>();
+  final bool Function() isCurrent;
+  final Completer<_RangeLease> result = Completer();
 }
 
 class _RangeLease {
@@ -70,65 +79,212 @@ class _RangeLease {
   }
 }
 
-class _ReadRequest {
-  bool cancelled = false;
-  final Set<CancelToken> tokens = {};
-  final Set<_DownloadedChunk> chunks = {};
-  final Set<Completer<void>> _retryWaiters = {};
+/// A completed body still owns this storage until its last byte is consumed.
+class _StreamingChunk {
+  _StreamingChunk(this.id, this.range, this.lease, this.expansion)
+      : _bytes = Uint8List(range.length);
+  final int id;
+  final CdnByteRange range;
+  final _RangeLease lease;
+  Uint8List? _bytes;
+  Uint8List get bytes => _bytes!;
+  int get capacity => _bytes?.length ?? 0;
+  bool expansion;
+  bool running = false;
+  bool complete = false;
+  bool released = false;
+  bool empty = false;
+  int accepted = 0;
+  int delivered = 0;
 
-  Future<void> waitForRetry(Duration delay) async {
+  int get outputLength => empty ? 0 : range.length;
+  int get readable => complete ? accepted : min(accepted, outputLength - 1);
+  void release() {
+    if (released) return;
+    released = true;
+    _bytes = null;
+    lease.release();
+  }
+}
+
+class _ReadRequest {
+  _ReadRequest(this.session, this.range, {this.probe = false})
+      : ranges = (probe ? [range] : splitCdnRange(range)).iterator,
+        single = probe || range.length <= CdnProxyDefaults.chunkSize;
+  final CdnRangeSession session;
+  final CdnByteRange range;
+  final bool probe;
+  final bool single;
+  final Iterator<CdnByteRange> ranges;
+  final CancelToken cancelledToken = CancelToken();
+  final Map<int, _StreamingChunk> chunks = {};
+  final Set<CancelToken> attempts = {};
+  final Set<Future<void>> work = {};
+  Completer<void> changed = Completer();
+  Future<void> retryQueue = Future.value();
+  Object? error;
+  Future<void>? cleanup;
+  bool cancelled = false;
+  bool admitting = false;
+  bool exhausted = false;
+  bool degraded = false;
+  int nextId = 0;
+  int readingId = 0;
+  int workerLimit = 1;
+  int running = 0;
+  int expansionCredits = 0;
+
+  void signal() {
+    final previous = changed;
+    changed = Completer();
+    previous.complete();
+  }
+
+  void check() {
+    if (error != null) throw error!;
     if (cancelled) throw const CdnRangeCancelled();
-    final waiter = Completer<void>();
-    _retryWaiters.add(waiter);
-    final timer = Timer(delay, () {
-      if (!waiter.isCompleted) waiter.complete();
-    });
+    session._checkActive();
+  }
+
+  Future<T> wait<T>(Future<T> future) async {
+    check();
+    final result = await Future.any<T>([
+      future,
+      cancelledToken.whenCancel.then<T>((_) {
+        check();
+        throw const CdnRangeCancelled();
+      }),
+    ]);
+    check();
+    return result;
+  }
+
+  Future<void> delay(Duration duration) async {
+    final done = Completer<void>();
+    final timer = Timer(duration, done.complete);
     try {
-      await waiter.future;
-      if (cancelled) throw const CdnRangeCancelled();
+      await wait(done.future);
     } finally {
       timer.cancel();
-      _retryWaiters.remove(waiter);
     }
+  }
+
+  Future<void> retryLater(Duration duration) {
+    final previous = retryQueue;
+    final finished = Completer<void>();
+    retryQueue = finished.future;
+    return () async {
+      try {
+        await wait(previous);
+        await delay(duration);
+      } finally {
+        finished.complete();
+      }
+    }();
+  }
+
+  void track(Future<void> task) {
+    work.add(task);
+    session._inFlight.add(task);
+    // All tasks handle their errors before reaching this ownership boundary.
+    unawaited(task.then((_) {
+      work.remove(task);
+      session._inFlight.remove(task);
+    }));
+  }
+
+  void fail(Object cause) {
+    if (cancelled) return;
+    error = session._safeError(cause);
+    cancel();
   }
 
   void cancel() {
     if (cancelled) return;
     cancelled = true;
-    for (final token in tokens.toList()) {
-      token.cancel('CDN range cancelled');
+    cancelledToken.cancel('CDN read cancelled');
+    for (final attempt in attempts.toList()) {
+      attempt.cancel('CDN read cancelled');
     }
-    for (final waiter in _retryWaiters) {
-      if (!waiter.isCompleted) waiter.complete();
+    signal();
+    cleanup = () async {
+      await Future.wait(work.toList());
+      for (final chunk in chunks.values) {
+        chunk.release();
+      }
+      chunks.clear();
+    }();
+  }
+
+  int get maxWorkers => cdnRangeConcurrency(range.length);
+
+  void headersReady() {
+    if (!single && !degraded && workerLimit < maxWorkers) {
+      workerLimit++;
+      expansionCredits++;
     }
-    for (final chunk in chunks.toList()) {
-      chunk.release();
+    pump();
+  }
+
+  bool retire(_StreamingChunk chunk) {
+    final stopExpansion = !degraded && workerLimit < maxWorkers;
+    degraded = true;
+    final shouldRetire = chunk.expansion || stopExpansion;
+    chunk.expansion = false;
+    if (shouldRetire && workerLimit > 1) {
+      workerLimit--;
+      return true;
     }
-    chunks.clear();
+    return false;
+  }
+
+  void pump() {
+    if (cancelled) return;
+    // Existing buffers always run before requesting any further admission.
+    for (final chunk in chunks.values) {
+      if (running >= workerLimit) break;
+      if (chunk.running || chunk.complete) continue;
+      chunk.running = true;
+      running++;
+      track(session._download(this, chunk));
+    }
+    if (!admitting && !exhausted && chunks.length < workerLimit) {
+      if (!ranges.moveNext()) {
+        exhausted = true;
+        signal();
+        return;
+      }
+      final range = ranges.current;
+      final id = nextId++;
+      final expansion = expansionCredits > 0;
+      if (expansion) expansionCredits--;
+      admitting = true;
+      track(_admit(id, range, expansion));
+    }
+  }
+
+  Future<void> _admit(int id, CdnByteRange range, bool expansion) async {
+    _RangeLease? lease;
+    try {
+      lease = await session.budget._acquire(
+        cancelledToken,
+        isCurrent: () => id == readingId,
+      );
+      check();
+      chunks[id] = _StreamingChunk(id, range, lease, expansion);
+      lease = null;
+      signal();
+    } catch (cause) {
+      if (!cancelled) fail(cause);
+    } finally {
+      lease?.release();
+      admitting = false;
+      pump();
+    }
   }
 }
 
-class _DownloadedChunk {
-  _DownloadedChunk(this.bytes, this.totalLength, this.contentType, this._lease);
-  final Uint8List bytes;
-  final int totalLength;
-  final String? contentType;
-  final _RangeLease _lease;
-  void release() => _lease.release();
-}
-
-class _ChunkOutcome {
-  const _ChunkOutcome.success(this.chunk) : error = null;
-  const _ChunkOutcome.failure(this.error) : chunk = null;
-  final _DownloadedChunk? chunk;
-  final Object? error;
-  _DownloadedChunk getOrThrow() {
-    if (error != null) throw error!;
-    return chunk!;
-  }
-}
-
-/// Testable byte transport; no sockets or native player are needed to test it.
+/// Pure Dart ordered streaming downloader. One HTTP read is one failure domain.
 class CdnRangeSession {
   CdnRangeSession({
     required this.source,
@@ -136,322 +292,396 @@ class CdnRangeSession {
     required Map<String, String> headers,
     CdnRangeBudget? budget,
     this.onError,
-    this.idleTimeout = CdnProxyDefaults.idleTimeout,
-    this.retryDelay = CdnProxyDefaults.retryDelay,
+    Duration Function()? retryJitter,
     this.diagnostics,
   })  : headers = Map.unmodifiable(headers),
-        budget = budget ?? _sharedBudget;
+        budget = budget ?? _sharedBudget,
+        retryJitter = retryJitter ??
+            (() => Duration(milliseconds: 200 + _random.nextInt(300)));
 
   static final CdnRangeBudget _sharedBudget = CdnRangeBudget();
+  static final Random _random = Random();
   final CdnRangeSource source;
   final Uri uri;
   final Map<String, String> headers;
   final CdnRangeBudget budget;
   final void Function(Object)? onError;
-  final Duration idleTimeout;
-  final Duration retryDelay;
+  final Duration Function() retryJitter;
   final CdnRangeDiagnostics? diagnostics;
   final Set<_ReadRequest> _requests = {};
-  final Set<Future<_ChunkOutcome>> _inFlight = {};
+  final Set<Future<void>> _inFlight = {};
   int? _length;
   String? _contentType;
+  CdnEntityTag? _entityTag;
+  DateTime? _lastModified;
+  bool _identitySupplemented = false;
   Object? _failure;
   bool _closed = false;
+  bool _sourceClosed = false;
+  Future<void>? _initializing;
   Future<void>? _closing;
 
   int get totalLength =>
       _length ?? (throw StateError('Source not initialized'));
   String? get contentType => _contentType;
+  int get activeDownloadCount =>
+      _requests.fold(0, (count, request) => count + request.running);
+  int get allocatedBufferBytes => _requests.fold(
+      0,
+      (count, request) =>
+          count +
+          request.chunks.values
+              .fold<int>(0, (bytes, chunk) => bytes + chunk.capacity));
+  int get bufferedBytes => _requests.fold(
+      0,
+      (count, request) =>
+          count +
+          request.chunks.values.fold<int>(
+              0, (bytes, chunk) => bytes + chunk.accepted - chunk.delivered));
 
-  Future<void> initialize() async {
+  Future<void> initialize() => _initializing ??= _initialize();
+  Future<void> _initialize() async {
     _checkActive();
-    if (_length != null) return;
-    final request = _ReadRequest();
-    _requests.add(request);
+    final request =
+        _ReadRequest(this, const CdnByteRange(start: 0, end: 0), probe: true);
     try {
-      final chunk = (await _fetch(
-        const CdnByteRange(start: 0, end: 0),
-        request,
-        probe: true,
-      ))
-          .getOrThrow();
-      _length = chunk.totalLength;
-      _contentType = chunk.contentType;
-      chunk.release();
+      await _read(request).drain<void>();
       _checkActive();
-      diagnostics?.initialized(totalLength, idleTimeout);
-    } catch (error) {
-      if (!_closed && !request.cancelled) _fail(error);
+      diagnostics?.initialized(totalLength);
+    } catch (cause) {
+      if (cause is! CdnRangeCancelled && !_closed) _fail(cause);
       rethrow;
-    } finally {
-      request.cancel();
-      _requests.remove(request);
     }
   }
 
   Stream<Uint8List> read(CdnByteRange range) {
-    final request = _ReadRequest();
+    try {
+      _checkActive();
+      if (range.start < 0 ||
+          range.end < range.start ||
+          range.end >= totalLength) {
+        throw const CdnRangeNotSatisfiable();
+      }
+    } catch (cause, stack) {
+      return Stream<Uint8List>.error(cause, stack);
+    }
+    final request = _ReadRequest(this, range);
     StreamSubscription<Uint8List>? subscription;
     late final StreamController<Uint8List> controller;
-    controller = StreamController<Uint8List>(
+    controller = StreamController(
       sync: true,
       onListen: () {
-        subscription = _read(range, request).listen(
-          controller.add,
-          onError: controller.addError,
-          onDone: controller.close,
-        );
+        subscription = _read(request).listen(controller.add,
+            onError: controller.addError, onDone: controller.close);
       },
       onPause: () => subscription?.pause(),
       onResume: () => subscription?.resume(),
       onCancel: () async {
-        // Cancel HTTP before waiting for the async generator to reach finally.
         request.cancel();
         try {
           await subscription?.cancel();
-        } on CdnRangeCancelled {
-          // An interrupted await inside an async generator can complete its
-          // cancellation future with this expected control-flow exception.
+        } catch (_) {
+          // The stream owns terminal failures; cancel must still finish cleanup.
         }
       },
     );
     return controller.stream;
   }
 
-  Stream<Uint8List> _read(CdnByteRange range, _ReadRequest request) async* {
+  Stream<Uint8List> _read(_ReadRequest request) async* {
     _checkActive();
-    if (range.start < 0 ||
-        range.end < range.start ||
-        range.end >= totalLength) {
+    final range = request.range;
+    if (!request.probe &&
+        (range.start < 0 ||
+            range.end < range.start ||
+            range.end >= totalLength)) {
       throw const CdnRangeNotSatisfiable();
     }
     _requests.add(request);
-    final pending = Queue<Future<_ChunkOutcome>>();
-    final ranges = splitCdnRange(range).iterator;
-    void fillWindow() {
-      while (!request.cancelled &&
-          pending.length < CdnProxyDefaults.maxConcurrent &&
-          ranges.moveNext()) {
-        pending.add(_fetch(ranges.current, request));
-      }
-    }
-
+    request.pump();
     try {
-      fillWindow();
-      while (pending.isNotEmpty) {
-        final chunk = (await pending.removeFirst()).getOrThrow();
-        try {
-          _checkActive();
-          if (request.cancelled) throw const CdnRangeCancelled();
-          yield chunk.bytes;
-        } finally {
-          request.chunks.remove(chunk);
-          chunk.release();
+      while (true) {
+        request.check();
+        final chunk = request.chunks[request.readingId];
+        if (chunk == null) {
+          if (request.exhausted && request.readingId == request.nextId) break;
+          await request.wait(request.changed.future);
+          continue;
         }
-        fillWindow();
+        final available = chunk.readable - chunk.delivered;
+        if (available > 0) {
+          final end = chunk.delivered +
+              min<int>(available, CdnProxyDefaults.outputBlockSize);
+          final bytes = Uint8List.fromList(
+              Uint8List.sublistView(chunk.bytes, chunk.delivered, end));
+          chunk.delivered = end;
+          yield bytes;
+          continue;
+        }
+        if (chunk.complete && chunk.delivered == chunk.outputLength) {
+          // The generator resumes only after the writer has flushed this part.
+          chunk.release();
+          request.chunks.remove(chunk.id);
+          request.readingId++;
+          request.pump();
+          continue;
+        }
+        await request.wait(request.changed.future);
       }
-    } catch (error) {
-      if (!_closed && !request.cancelled) _fail(error);
-      rethrow;
     } finally {
       request.cancel();
-      for (final future in pending) {
-        (await future).chunk?.release();
-      }
+      await request.cleanup;
       _requests.remove(request);
     }
   }
 
-  Future<_ChunkOutcome> _fetch(CdnByteRange range, _ReadRequest request,
-      {bool probe = false}) {
-    final future = _download(range, request, probe: probe);
-    _inFlight.add(future);
-    unawaited(future.then((_) => _inFlight.remove(future)));
-    return future;
-  }
-
-  Future<_ChunkOutcome> _download(CdnByteRange range, _ReadRequest request,
-      {required bool probe}) async {
-    _RangeLease? lease;
+  Future<void> _download(_ReadRequest request, _StreamingChunk chunk) async {
+    var failures = 0;
+    var attemptNumber = 0;
     try {
-      for (var attempt = 1;; attempt++) {
+      while (true) {
+        request.check();
         final token = CancelToken();
-        request.tokens.add(token);
-        Stream<Uint8List>? unreadBody;
+        request.attempts.add(token);
+        final start = chunk.range.start + chunk.accepted;
         final trace = diagnostics?.begin(
-          start: range.start,
-          end: range.end,
-          probe: probe,
-        );
+            start: start, end: chunk.range.end, probe: request.probe);
         var outcome = 'cancelled';
+        Stream<Uint8List>? unreadBody;
+        var bodyPhase = false;
+        Object? failed;
+        Duration delay = Duration.zero;
+        var serializeDelay = false;
+        var retire = false;
         try {
-          _checkActive();
-          if (request.cancelled) throw const CdnRangeCancelled();
-          // Keep this range's slot across retries. Releasing it could allow
-          // later ranges to fill the budget and block this ordered reader.
-          lease ??= await budget._acquire(token);
-          _checkActive();
-          if (request.cancelled) throw const CdnRangeCancelled();
-          trace?.admitted();
-          final response = (await source.open(
+          attemptNumber++;
+          final opening = source
+              .open(
             uri: uri,
             headers: headers,
-            start: range.start,
-            end: range.end,
+            start: start,
+            end: chunk.range.end,
             cancelToken: token,
-          ))
-              .getOrThrow();
-          trace?.headersReceived(response.totalLength);
+            ifRangeEtag: _entityTag?.strongValue,
+          )
+              .then((result) {
+            if (token.isCancelled && result is Success<CdnRangeResponse>) {
+              unawaited(_discard(result.data.stream));
+            }
+            return result;
+          });
+          final response = (await request.wait(opening)).getOrThrow();
           unreadBody = response.stream;
-          // The data source has already cancelled an empty resource's probe body.
-          if (probe && response.totalLength == 0) {
-            final chunk =
-                _DownloadedChunk(Uint8List(0), 0, response.contentType, lease);
-            lease = null;
-            request.chunks.add(chunk);
-            outcome = 'success';
-            return _ChunkOutcome.success(chunk);
+          trace?.headersReceived(response.totalLength);
+          _validateIdentity(response, request.probe);
+          if (!request.probe && response.totalLength <= chunk.range.end) {
+            throw const CdnRangeFailure('CDN 返回的资源范围不一致');
           }
-          // Keep cross-request resource consistency in the playback session.
-          final total = response.totalLength;
-          if (total <= range.end || (!probe && total != _length)) {
-            throw const CdnRangeFailure('CDN 返回的资源范围或大小不一致');
+          if (request.probe && response.totalLength == 0) {
+            chunk.empty = true;
+            chunk.complete = true;
+          } else {
+            request.headersReady();
+            bodyPhase = true;
+            unreadBody = null;
+            await _consume(response.stream, request, chunk, token, trace);
+            chunk.complete = true;
           }
-          unreadBody = null;
-          final bytes =
-              await _collect(response.stream, range.length, token, trace);
-          _checkActive();
-          if (request.cancelled) throw const CdnRangeCancelled();
-          final chunk =
-              _DownloadedChunk(bytes, total, response.contentType, lease);
-          lease = null;
-          request.chunks.add(chunk);
+          request.signal();
           outcome = 'success';
-          return _ChunkOutcome.success(chunk);
-        } catch (error) {
-          trace?.failed(error);
-          token.cancel('CDN range attempt stopped');
-          if (!request.cancelled && !_closed && _isTimeout(error)) {
+          return;
+        } catch (cause) {
+          trace?.failed(cause);
+          if (request.cancelled) request.check();
+          if (cause is CdnResourceChanged) {
+            failed = cause;
+          } else if (request.single) {
+            failed = cause;
+          } else if (cause is CdnRequestFailure &&
+              cause.kind == CdnRequestFailureKind.httpStatus) {
+            final status = cause.statusCode;
+            if (status == 416) {
+              failed = cause;
+            } else if (chunk.id == 0) {
+              if ({429, 502, 503, 504}.contains(status) &&
+                  failures < CdnProxyDefaults.maxBodyRetries) {
+                failures++;
+                delay = retryJitter();
+              } else {
+                failed = cause;
+              }
+            } else {
+              retire = request.retire(chunk);
+              if (!retire && chunk.id != request.readingId) {
+                delay = retryJitter();
+                serializeDelay = true;
+              }
+            }
+          } else if (bodyPhase &&
+              cause is! CdnRangeFailure &&
+              !(cause is CdnRequestFailure &&
+                  cause.kind == CdnRequestFailureKind.protocol) &&
+              chunk.accepted < chunk.range.length &&
+              failures < CdnProxyDefaults.maxBodyRetries) {
+            failures++;
+          } else {
+            failed = cause;
+          }
+          if (failed != null) {
+            outcome = 'failed';
+          } else {
             outcome = 'retrying';
             if (trace != null) {
-              diagnostics?.retrying(trace, attempt: attempt, delay: retryDelay);
+              diagnostics?.retrying(trace,
+                  attempt: attemptNumber,
+                  delay: delay,
+                  acceptedBytes: chunk.accepted,
+                  deliveredBytes: chunk.delivered,
+                  remainingBytes: chunk.range.length - chunk.accepted,
+                  concurrency: request.workerLimit);
             }
-          } else {
-            outcome = request.cancelled || _closed ? 'cancelled' : 'failed';
-            rethrow;
           }
         } finally {
+          token.cancel('CDN attempt finished');
+          if (unreadBody != null) await _discard(unreadBody);
+          request.attempts.remove(token);
           if (trace != null) diagnostics?.finish(trace, outcome);
-          // Each attempt discards partial bytes and releases its connection
-          // before retrying the same range with a fresh cancellation token.
-          if (unreadBody != null) {
-            try {
-              await unreadBody.listen((_) {}, onError: (Object _) {}).cancel();
-            } catch (_) {
-              // Cancellation may race a remote disconnect.
-            }
-          }
-          request.tokens.remove(token);
         }
-        await request.waitForRetry(retryDelay);
+        if (failed != null) throw failed;
+        if (retire) {
+          return; // Requeue the owned buffer; next worker resets budget.
+        }
+        if (serializeDelay) {
+          await request.retryLater(delay);
+        } else {
+          // Even an immediate retry yields so cancellation cannot be starved.
+          await request.delay(delay);
+        }
       }
-    } catch (error) {
-      return _ChunkOutcome.failure(
-        request.cancelled || _closed
-            ? const CdnRangeCancelled()
-            : error is CdnRangeFailure
-                ? error
-                : error is FailureInfo
-                    ? CdnRangeFailure(error.displayMessage)
-                    : const CdnRangeFailure('CDN 分片读取失败，请重试'),
-      );
+    } catch (cause) {
+      if (!request.cancelled) {
+        if (cause is CdnResourceChanged) {
+          _fail(cause);
+        } else {
+          diagnostics?.rangeFailed(
+              occupiedSlots: budget.occupiedSlots,
+              activeReaders: _requests.length);
+          request.fail(cause);
+        }
+      }
     } finally {
-      lease?.release();
+      chunk.running = false;
+      request.running--;
+      request.signal();
+      request.pump();
     }
   }
 
-  static bool _isTimeout(Object error) {
-    if (error is TimeoutException) return true;
-    if (error is CdnRequestFailure) return error.isTimeout;
-    if (error is DioException) {
-      return switch (error.type) {
-        DioExceptionType.connectionTimeout ||
-        DioExceptionType.sendTimeout ||
-        DioExceptionType.receiveTimeout =>
-          true,
-        DioExceptionType.unknown => error.error is TimeoutException,
-        _ => false,
-      };
-    }
-    return false;
-  }
-
-  Future<Uint8List> _collect(
+  Future<void> _consume(
     Stream<Uint8List> stream,
-    int expected,
+    _ReadRequest request,
+    _StreamingChunk chunk,
     CancelToken token,
     CdnRangeTrace? trace,
   ) async {
-    final bytes = Uint8List(expected);
-    var count = 0;
-    final done = Completer<Uint8List>();
-    StreamSubscription<Uint8List>? subscription;
-    void fail(Object error) {
-      if (!done.isCompleted) done.completeError(error);
-    }
-
-    subscription = stream.timeout(idleTimeout).listen((data) {
-      if (done.isCompleted) return;
-      trace?.received(data.length);
-      if (count + data.length > expected) {
-        fail(const CdnRangeFailure('CDN 分片超过请求范围'));
+    final done = Completer<void>();
+    final subscription = stream.listen((bytes) {
+      if (done.isCompleted || request.cancelled) return;
+      trace?.received(bytes.length);
+      if (chunk.accepted + bytes.length > chunk.range.length) {
+        done.completeError(const CdnRangeFailure('CDN 分片超过请求范围'));
         return;
       }
-      bytes.setRange(count, count + data.length, data);
-      count += data.length;
-    }, onError: (Object error) {
-      if (done.isCompleted) return;
-      trace?.failed(error);
-      // Preserve the typed cause until the retry policy has inspected it.
-      // The download boundary sanitizes any terminal error before reporting it.
-      fail(error);
+      chunk.bytes
+          .setRange(chunk.accepted, chunk.accepted + bytes.length, bytes);
+      chunk.accepted += bytes.length;
+      request.signal();
+    }, onError: (Object cause, StackTrace stack) {
+      if (!done.isCompleted) {
+        done.completeError(
+            chunk.accepted == chunk.range.length
+                ? const CdnRangeFailure('CDN 分片未正常结束')
+                : cause,
+            stack);
+      }
     }, onDone: () {
       if (done.isCompleted) return;
-      if (count != expected) {
-        fail(const CdnRangeFailure('CDN 分片数据不完整'));
+      if (chunk.accepted == chunk.range.length) {
+        done.complete();
       } else {
-        done.complete(bytes);
+        done.completeError(const _IncompleteBody());
       }
     });
-    unawaited(token.whenCancel.then((_) => fail(const CdnRangeCancelled())));
-    if (token.isCancelled) fail(const CdnRangeCancelled());
     try {
-      return await done.future;
+      await request.wait(done.future);
     } finally {
+      token.cancel('CDN body finished');
+      // Retain error ownership even if cancellation wins before stream failure.
       await subscription.cancel();
     }
   }
 
-  void _checkActive() {
-    if (_closed) throw const CdnRangeCancelled();
-    if (_failure != null) throw _failure!;
+  void _validateIdentity(CdnRangeResponse response, bool probe) {
+    if (probe) {
+      _length = response.totalLength;
+      _contentType = response.contentType;
+      _entityTag = response.entityTag;
+      _lastModified = response.lastModified?.toUtc();
+      return;
+    }
+    if (response.totalLength != _length) {
+      throw const CdnResourceChanged('CDN 资源大小已变化');
+    }
+    if ((_entityTag != null &&
+            _entityTag!.headerValue != response.entityTag?.headerValue) ||
+        (_lastModified != null &&
+            _lastModified != response.lastModified?.toUtc())) {
+      throw const CdnResourceChanged('CDN 资源标识已变化或缺失');
+    }
+    if (!_identitySupplemented) {
+      _entityTag ??= response.entityTag;
+      _lastModified ??= response.lastModified?.toUtc();
+      _identitySupplemented = true;
+    }
   }
 
-  void _fail(Object error) {
-    if (_failure != null || _closed || error is CdnRangeCancelled) return;
-    // Do not propagate raw HTTP errors, which can contain signed CDN URLs.
-    final safeError = error is CdnRangeFailure
-        ? error
-        : const CdnRangeFailure('CDN 分片读取失败，请重试');
-    _failure = safeError;
-    diagnostics?.failed(
-      occupiedSlots: budget.occupiedSlots,
-      activeReaders: _requests.length,
-    );
-    for (final request in _requests.toList()) {
-      request.cancel();
+  static Future<void> _discard(Stream<Uint8List> stream) async {
+    try {
+      await stream.listen((_) {}, onError: (Object _) {}).cancel();
+    } catch (_) {
+      // A late transport error must not escape cancellation.
     }
-    onError?.call(safeError);
+  }
+
+  Object _safeError(Object cause) => cause is CdnRangeFailure
+      ? cause
+      : cause is CdnRangeCancelled
+          ? cause
+          : cause is FailureInfo
+              ? CdnRangeFailure(cause.displayMessage)
+              : const CdnRangeFailure('CDN 分片读取失败，请重试');
+
+  void _checkActive() {
+    if (_failure != null) throw _failure!;
+    if (_closed) throw const CdnRangeCancelled();
+  }
+
+  void _fail(Object cause) {
+    if (_failure != null || _closed || cause is CdnRangeCancelled) return;
+    _failure = _safeError(cause);
+    for (final request in _requests.toList()) {
+      request.fail(_failure!);
+    }
+    _closeSource();
+    diagnostics?.failed(
+        occupiedSlots: budget.occupiedSlots, activeReaders: _requests.length);
+    onError?.call(_failure!);
+  }
+
+  void _closeSource() {
+    if (_sourceClosed) return;
+    _sourceClosed = true;
+    source.close();
   }
 
   Future<void> close() => _closing ??= _close();
@@ -460,8 +690,16 @@ class CdnRangeSession {
     for (final request in _requests.toList()) {
       request.cancel();
     }
-    source.close();
-    await Future.wait(_inFlight.toList());
+    _closeSource();
+    await Future.wait<void>([
+      ..._inFlight,
+      for (final request in _requests.toList())
+        if (request.cleanup != null) request.cleanup!,
+    ]);
     _requests.clear();
   }
+}
+
+class _IncompleteBody implements Exception {
+  const _IncompleteBody();
 }

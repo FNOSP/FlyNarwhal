@@ -150,6 +150,7 @@ class _ControlledSource implements CdnRangeSource {
     required int start,
     required int end,
     required CancelToken cancelToken,
+    String? ifRangeEtag,
   }) {
     openCount++;
     if (!started.isCompleted) started.complete();

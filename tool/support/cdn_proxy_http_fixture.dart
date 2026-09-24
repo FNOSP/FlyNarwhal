@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 const fixtureMiB = 1024 * 1024;
 
-/// Deterministic public test data, independent of chunk/request boundaries.
+/// Deterministic valid payload bytes, independent of request boundaries.
 int fixtureByteAt(int offset) => (offset + offset ~/ 4096) % 251;
 
 class FixtureRangeRequest {
@@ -15,23 +16,40 @@ class FixtureRangeRequest {
   final int end;
   final Duration openedAt;
   int sentBytes = 0;
+  Duration? headersAt;
+  Duration? firstDataAt;
   Duration? lastDataAt;
   Duration? completedAt;
+  Duration? disconnectedAt;
 
   int get length => end - start + 1;
+
+  Map<String, Object?> toJson() => {
+        'start': start,
+        'end': end,
+        'openedMs': openedAt.inMilliseconds,
+        'headersMs': headersAt?.inMilliseconds,
+        'firstDataMs': firstDataAt?.inMilliseconds,
+        'lastDataMs': lastDataAt?.inMilliseconds,
+        'completedMs': completedAt?.inMilliseconds,
+        'disconnectedMs': disconnectedAt?.inMilliseconds,
+        'sentBytes': sentBytes,
+      };
 }
 
-/// Real loopback HTTP origin used by both the Dart CLI and slow-link tests.
+/// Real loopback origin shared by the Dart CLI and slow-link regressions.
 ///
-/// [sharedBytesPerSecond] limits the combined rate of all active responses.
-/// The first body can instead send a distinct prefix and remain idle, so a
-/// retry must discard that prefix before returning the replacement range.
+/// [sharedBytesPerSecond] limits the aggregate rate of active responses.
+/// Faults always send a valid prefix: streaming consumers may already have
+/// received it, so a retry must retain it and request only the missing suffix.
 class CdnProxyHttpFixture {
   CdnProxyHttpFixture._(
     this._server, {
     required this.totalBytes,
     required this.sharedBytesPerSecond,
     required this.stallFirstBody,
+    required this.disconnectFirstBody,
+    required this.faultPrefixBytes,
   }) {
     _server.listen((request) => unawaited(_serve(request)));
     if (sharedBytesPerSecond != null) {
@@ -47,11 +65,14 @@ class CdnProxyHttpFixture {
     required int totalBytes,
     int? sharedBytesPerSecond,
     bool stallFirstBody = false,
+    bool disconnectFirstBody = false,
+    int faultPrefixBytes = 64 * 1024,
   }) async {
     if (totalBytes <= 1 ||
-        (sharedBytesPerSecond != null && sharedBytesPerSecond <= 0)) {
-      throw ArgumentError(
-          'The fixture requires positive length and bandwidth.');
+        faultPrefixBytes <= 0 ||
+        (sharedBytesPerSecond != null && sharedBytesPerSecond <= 0) ||
+        (stallFirstBody && disconnectFirstBody)) {
+      throw ArgumentError('Invalid fixture length, bandwidth or fault mode.');
     }
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     return CdnProxyHttpFixture._(
@@ -59,6 +80,8 @@ class CdnProxyHttpFixture {
       totalBytes: totalBytes,
       sharedBytesPerSecond: sharedBytesPerSecond,
       stallFirstBody: stallFirstBody,
+      disconnectFirstBody: disconnectFirstBody,
+      faultPrefixBytes: faultPrefixBytes,
     );
   }
 
@@ -66,6 +89,8 @@ class CdnProxyHttpFixture {
   final int totalBytes;
   final int? sharedBytesPerSecond;
   final bool stallFirstBody;
+  final bool disconnectFirstBody;
+  final int faultPrefixBytes;
   final Stopwatch clock = Stopwatch()..start();
   final List<FixtureRangeRequest> bodyRequests = [];
   final Completer<void> firstBodyStarted = Completer<void>();
@@ -75,6 +100,7 @@ class CdnProxyHttpFixture {
   Future<void>? _pendingTick;
   bool _tickInProgress = false;
   bool _closed = false;
+  int _activeBodyRequests = 0;
   int peakActiveBodyRequests = 0;
 
   Uri get uri => Uri(
@@ -85,6 +111,7 @@ class CdnProxyHttpFixture {
       );
 
   Future<void> _serve(HttpRequest request) async {
+    FixtureRangeRequest? record;
     try {
       final match = RegExp(r'^bytes=(\d+)-(\d+)$')
           .firstMatch(request.headers.value(HttpHeaders.rangeHeader) ?? '');
@@ -106,37 +133,78 @@ class CdnProxyHttpFixture {
       response.bufferOutput = false;
       response.headers
         ..set(HttpHeaders.contentRangeHeader, 'bytes $start-$end/$totalBytes')
-        ..set(HttpHeaders.contentTypeHeader, 'application/octet-stream');
-      // Cancellation is expected for the deliberately stalled response.
+        ..set(HttpHeaders.contentTypeHeader, 'application/octet-stream')
+        ..set(HttpHeaders.etagHeader, '"fixture-v1-$totalBytes"');
+      // The proxy deliberately closes abandoned and failed requests.
       unawaited(response.done.then<void>((_) {}, onError: (Object _) {}));
       if (start == 0 && end == 0) {
         response.add([fixtureByteAt(0)]);
         await response.close();
         return;
       }
-      final record = FixtureRangeRequest(start, end, clock.elapsed);
-      bodyRequests.add(record);
-      if (stallFirstBody && bodyRequests.length == 1) {
-        final count = math.min(64 * 1024, record.length);
-        await _send(response, record, count, corrupt: true);
-        if (!firstBodyStarted.isCompleted) firstBodyStarted.complete();
-        // Intentionally leave the response open without another data event.
+      final bodyRecord = FixtureRangeRequest(start, end, clock.elapsed);
+      record = bodyRecord;
+      bodyRequests.add(bodyRecord);
+      _activeBodyRequests++;
+      peakActiveBodyRequests =
+          math.max(peakActiveBodyRequests, _activeBodyRequests);
+      unawaited(response.done.then<void>((_) {
+        _activeBodyRequests--;
+      }, onError: (Object _) {
+        _activeBodyRequests--;
+        bodyRecord.disconnectedAt ??= clock.elapsed;
+      }));
+      final isFirst = identical(bodyRequests.first, bodyRecord);
+      if (disconnectFirstBody && isFirst) {
+        // detachSocket must run before HttpResponse has sent any headers.
+        // Send a valid 206 then deliberately close below Content-Length.
+        final socket = await response.detachSocket(writeHeaders: false);
+        try {
+          socket.add(ascii.encode('HTTP/1.1 206 Partial Content\r\n'
+              'Content-Length: ${bodyRecord.length}\r\n'
+              'Content-Range: bytes $start-$end/$totalBytes\r\n'
+              'Content-Type: application/octet-stream\r\n'
+              'ETag: "fixture-v1-$totalBytes"\r\n'
+              'Connection: close\r\n\r\n'));
+          await socket.flush();
+          bodyRecord.headersAt = clock.elapsed;
+          final count = math.min(faultPrefixBytes, bodyRecord.length);
+          socket.add(Uint8List.fromList(
+              List.generate(count, (index) => fixtureByteAt(start + index))));
+          await socket.flush();
+          bodyRecord.sentBytes = count;
+          bodyRecord.firstDataAt = bodyRecord.lastDataAt = clock.elapsed;
+          if (!firstBodyStarted.isCompleted) firstBodyStarted.complete();
+          await socket.close();
+          bodyRecord.disconnectedAt = clock.elapsed;
+        } finally {
+          socket.destroy();
+        }
         return;
       }
-      if (!firstBodyStarted.isCompleted) firstBodyStarted.complete();
+      await response.flush();
+      bodyRecord.headersAt = clock.elapsed;
+      if (stallFirstBody && isFirst) {
+        await _send(response, bodyRecord,
+            math.min(faultPrefixBytes, bodyRecord.length));
+        // An injected request deadline or client cancellation ends a stall.
+        return;
+      }
       if (sharedBytesPerSecond == null) {
-        while (record.sentBytes < record.length && !_closed) {
-          await _send(response, record,
-              math.min(64 * 1024, record.length - record.sentBytes));
+        while (bodyRecord.sentBytes < bodyRecord.length && !_closed) {
+          await _send(response, bodyRecord,
+              math.min(64 * 1024, bodyRecord.length - bodyRecord.sentBytes));
         }
         await response.close();
-        record.completedAt = clock.elapsed;
+        bodyRecord.completedAt = clock.elapsed;
         return;
       }
-      _jobs.add(_SendJob(response, record));
-      peakActiveBodyRequests = math.max(peakActiveBodyRequests, _jobs.length);
+      _jobs.add(_SendJob(response, bodyRecord));
     } catch (error) {
-      if (!_closed) errors.add(error.runtimeType.toString());
+      record?.disconnectedAt ??= clock.elapsed;
+      if (!_closed && error is! SocketException && error is! HttpException) {
+        errors.add(error.runtimeType.toString());
+      }
     }
   }
 
@@ -156,23 +224,26 @@ class CdnProxyHttpFixture {
         }
       } catch (error) {
         _jobs.remove(job);
-        if (!_closed) errors.add(error.runtimeType.toString());
+        job.record.disconnectedAt ??= clock.elapsed;
+        if (!_closed && error is! SocketException && error is! HttpException) {
+          errors.add(error.runtimeType.toString());
+        }
       }
     }));
   }
 
   Future<void> _send(
-      HttpResponse response, FixtureRangeRequest record, int count,
-      {bool corrupt = false}) async {
+      HttpResponse response, FixtureRangeRequest record, int count) async {
     final bytes = Uint8List(count);
     for (var i = 0; i < count; i++) {
-      bytes[i] =
-          corrupt ? 0xFF : fixtureByteAt(record.start + record.sentBytes + i);
+      bytes[i] = fixtureByteAt(record.start + record.sentBytes + i);
     }
     response.add(bytes);
     await response.flush();
     record.sentBytes += count;
+    record.firstDataAt ??= clock.elapsed;
     record.lastDataAt = clock.elapsed;
+    if (!firstBodyStarted.isCompleted) firstBodyStarted.complete();
   }
 
   Future<void> close() async {
@@ -187,7 +258,6 @@ class CdnProxyHttpFixture {
 
 class _SendJob {
   _SendJob(this.response, this.record);
-
   final HttpResponse response;
   final FixtureRangeRequest record;
 }

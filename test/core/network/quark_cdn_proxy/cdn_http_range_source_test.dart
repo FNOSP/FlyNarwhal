@@ -1,4 +1,6 @@
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_errors.dart';
 import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_request_headers.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -21,7 +23,7 @@ void main() {
   test('Given provider metadata, when flattened, then HTTP values are valid',
       () {
     expect(
-        CdnHttpRangeSource.normalizeHeaders({
+        normalizeCdnRequestHeaders({
           'Cookie': ['sid=provider', 'uid=42'],
           'User-Agent': ['provider-agent'],
           'Referer': 'https://provider.example/',
@@ -56,6 +58,11 @@ void main() {
         'CONTENT-LENGTH': '999',
         'Connection': 'keep-alive',
         'Range': 'bytes=0-',
+        'If-Range': '"stale"',
+        'If-Match': '"stale"',
+        'If-None-Match': '*',
+        'If-Modified-Since': 'stale',
+        'If-Unmodified-Since': 'stale',
         'Accept-Encoding': 'gzip',
         'Authx': 'nas-signature',
         'X-WP-Header': 'nas-routing',
@@ -83,6 +90,11 @@ void main() {
     expect(headers['user-agent'], 'provider-agent');
     expect(headers['referer'], 'https://provider.example/');
     for (final forbidden in [
+      'if-range',
+      'if-match',
+      'if-none-match',
+      'if-modified-since',
+      'if-unmodified-since',
       'host',
       'content-length',
       'connection',
@@ -145,7 +157,9 @@ void main() {
             .timeout(_deadline))
         .getOrThrow();
     expect(response.totalLength, 0);
-    expect(token.isCancelled, isTrue);
+    expect(token.isCancelled, isFalse,
+        reason:
+            'The transport owns a linked token; it does not cancel its caller.');
     await stopped.future.timeout(_deadline);
     expect(await response.stream.toList().timeout(_deadline), isEmpty);
   });
@@ -285,7 +299,9 @@ void main() {
       expect(response.isFailure, isTrue);
       expect(response.failureOrNull?.displayMessage,
           matches(RegExp(r'[\u4e00-\u9fff]')));
-      expect(token.isCancelled, isTrue);
+      expect(token.isCancelled, isFalse,
+          reason:
+              'The transport owns a linked token; it does not cancel its caller.');
       await stopped.future.timeout(_deadline);
       expect(adapter.requests, hasLength(1));
     });
@@ -416,10 +432,10 @@ void main() {
     final expectation = expectLater(
       response.stream,
       emitsInOrder([
-        emitsError(isA<DioException>().having(
-          (error) => error.type,
-          'type',
-          DioExceptionType.cancel,
+        emitsError(isA<CdnRequestFailure>().having(
+          (error) => error.kind,
+          'kind',
+          CdnRequestFailureKind.cancelled,
         )),
         emitsDone,
       ]),

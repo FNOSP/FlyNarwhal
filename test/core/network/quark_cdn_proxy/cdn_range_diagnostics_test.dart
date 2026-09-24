@@ -34,7 +34,7 @@ void main() {
         level: failure ? LogLevel.error : LogLevel.info,
       )));
     });
-    diagnostics.initialized(1000, const Duration(seconds: 20));
+    diagnostics.initialized(1000);
     for (var i = 0; i < 32; i++) {
       diagnostics.finish(
           diagnostics.begin(start: i, end: i, probe: false), 'success');
@@ -64,7 +64,6 @@ void main() {
     });
     for (var index = 0; index < 100; index++) {
       final trace = diagnostics.begin(start: index, end: index, probe: false);
-      trace.admitted();
       trace.headersReceived(100);
       trace.received(1);
       diagnostics.finish(trace, 'success');
@@ -77,6 +76,53 @@ void main() {
     expect(chunks, hasLength(32));
     expect(chunks.first['start'], 68);
     expect(chunks.last['start'], 99);
+    expect(chunks.every((chunk) => !chunk.containsKey('queueMs')), isTrue);
+    expect(chunks.every((chunk) => chunk['stage'] == 'body'), isTrue);
+  });
+
+  test('Given diagnostic lifecycle, then reports only observed fields', () {
+    final events = <Map<String, dynamic>>[];
+    final failures = <bool>[];
+    final diagnostics =
+        CdnRangeDiagnostics(writeLog: (message, {required failure}) {
+      events.add(jsonDecode(message) as Map<String, dynamic>);
+      failures.add(failure);
+    });
+
+    diagnostics.initialized(1000);
+    final headerFailure = diagnostics.begin(start: 10, end: 19, probe: false);
+    headerFailure.failed(StateError('private request details'));
+    diagnostics.finish(headerFailure, 'failed');
+    diagnostics.rangeFailed(occupiedSlots: 1, activeReaders: 1);
+
+    final bodyFailure = diagnostics.begin(start: 20, end: 29, probe: false);
+    bodyFailure.headersReceived(1000);
+    bodyFailure.received(4);
+    diagnostics.finish(bodyFailure, 'failed');
+    diagnostics.failed(occupiedSlots: 0, activeReaders: 0);
+    diagnostics.failed(occupiedSlots: 0, activeReaders: 0);
+
+    expect(events.map((event) => event['event']),
+        ['session_started', 'range_failed', 'session_failed']);
+    expect(failures, [false, true, true]);
+    expect(events.every((event) => event['schema'] == 3), isTrue);
+    expect(events.first['totalBytes'], 1000);
+    expect(events.first, isNot(contains('requestTimeoutMs')));
+
+    final headerTrace = (events[1]['recentChunks'] as List).single as Map;
+    expect(headerTrace['stage'], 'headers');
+    expect(headerTrace['headersMs'], isNull);
+    expect(headerTrace['totalBytes'], isNull);
+    expect(headerTrace['receivedBytes'], 0);
+    expect(headerTrace, isNot(contains('queueMs')));
+
+    final bodyTrace = (events.last['recentChunks'] as List).last as Map;
+    expect(bodyTrace['stage'], 'body');
+    expect(bodyTrace['headersMs'], isNonNegative);
+    expect(bodyTrace['totalBytes'], 1000);
+    expect(bodyTrace['receivedBytes'], 4);
+    expect(bodyTrace, isNot(contains('queueMs')));
+    expect(jsonEncode(events), isNot(contains('private request details')));
   });
 
   test(
@@ -105,8 +151,7 @@ void main() {
     final diagnostics = CdnRangeDiagnostics(writeLog: (_, {required failure}) {
       throw StateError('disk unavailable');
     });
-    expect(() => diagnostics.initialized(100, const Duration(seconds: 20)),
-        returnsNormally);
+    expect(() => diagnostics.initialized(100), returnsNormally);
     expect(() => diagnostics.failed(occupiedSlots: 1, activeReaders: 1),
         returnsNormally);
   });

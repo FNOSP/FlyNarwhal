@@ -109,7 +109,7 @@ void main() {
 
   for (final status in [408, 504, 403, 429, 500, 503]) {
     test(
-        'Given HTTP $status, when a CDN range opens, then only an explicit upstream timeout is retryable',
+        'Given HTTP $status, when a CDN range opens, then preserves HTTP status without claiming a transport timeout',
         () async {
       adapter.respond = (_) async => ResponseBody.fromString(
             'Gateway timeout $uri with $cookie',
@@ -118,8 +118,12 @@ void main() {
 
       final failure = (await open()).failureOrNull!;
 
-      expect(failure is CdnRequestFailure && failure.isTimeout,
-          status == 408 || status == 504);
+      expect(failure, isA<CdnRequestFailure>());
+      final typed = failure as CdnRequestFailure;
+      expect(typed.isTimeout, isFalse);
+      expect(typed.kind, CdnRequestFailureKind.httpStatus);
+      expect(typed.phase, CdnRequestFailurePhase.headers);
+      expect(typed.statusCode, status);
       expect(failure.message, contains('HTTP $status'));
       expectPrivate(failure);
     });
