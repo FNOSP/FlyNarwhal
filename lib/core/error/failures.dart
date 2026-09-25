@@ -61,14 +61,21 @@ class ServerFailure extends Failure {
 class AuthFailure extends Failure {
   final AuthErrorType type;
 
+  /// Whether [message] came from the server rather than a local default.
+  /// When true [displayMessage] surfaces it instead of the generic
+  /// status-code text, so the server's own explanation reaches the user.
+  final bool hasServerMessage;
+
   const AuthFailure({
     required super.message,
     super.code,
     this.type = AuthErrorType.unauthorized,
+    this.hasServerMessage = false,
   });
 
   @override
   String get displayMessage {
+    if (hasServerMessage) return message;
     switch (type) {
       case AuthErrorType.unauthorized:
         return 'Authentication required, please login';

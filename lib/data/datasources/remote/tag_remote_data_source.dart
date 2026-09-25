@@ -106,7 +106,10 @@ class TagRemoteDataSource {
           .toList(),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? [];
   }
@@ -119,7 +122,10 @@ class TagRemoteDataSource {
           .toList(),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? [];
   }
@@ -130,7 +136,10 @@ class TagRemoteDataSource {
       (json) => TagListResponse.fromJson(json as Map<String, dynamic>),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? TagListResponse();
   }

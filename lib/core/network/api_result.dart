@@ -111,4 +111,21 @@ class FailureInfo {
       displayMessage: message,
     );
   }
+
+  /// Create from a server response envelope's business error.
+  ///
+  /// The server may return an empty `msg`; falling back to a readable default
+  /// keeps callers from surfacing (or logging) a blank message.
+  factory FailureInfo.fromResponse({
+    required int code,
+    required String msg,
+    String fallback = 'Server returned an error response',
+  }) {
+    final message = msg.trim().isEmpty ? fallback : msg;
+    return FailureInfo(
+      message: message,
+      code: code,
+      displayMessage: message,
+    );
+  }
 }
