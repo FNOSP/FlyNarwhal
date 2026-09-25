@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fly_narwhal/data/models/cloud_storage_type.dart';
 import 'package:fly_narwhal/data/models/player_models.dart';
 import 'package:fly_narwhal/tooling/driver_test_mode.dart';
 import 'package:fly_narwhal/ui/features/player/widgets/cloud_playback_widgets.dart';
@@ -76,7 +77,7 @@ void main() {
                   isUseDirectLink: true,
                   streamInfo: StreamResponse(
                     cloudStorageInfo: CloudStorageInfo(
-                      cloudStorageType: CloudStorageInfo.strmCloudStorageType,
+                      cloudStorageType: CloudStorageType.strm.value,
                       cloudNickName: 'strm文件',
                     ),
                     directLinkQualities: [

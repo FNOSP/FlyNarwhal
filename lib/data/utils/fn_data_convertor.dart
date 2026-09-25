@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import '../../data/models/cloud_storage_type.dart';
 import '../../data/models/file_models.dart';
 import '../../data/models/movie_detail_models.dart';
 
@@ -260,28 +261,12 @@ class FnDataConvertor {
     }
   }
 
-  /// Cloud storage labels aligned with the web player enum mapping.
-  static const Map<int, String> _cloudStorageTypeLabels = {
-    1: '百度网盘',
-    2: '阿里云盘',
-    3: '115 生活',
-    4: '夸克网盘',
-    5: '123 云盘',
-    6: 'Microsoft OneDrive',
-    7: 'Google Drive',
-    8: 'Dropbox',
-    9: 'Microsoft OneDrive for Business',
-    10: 'Microsoft OneDrive',
-  };
-
   static bool isValidCloudStorageType(int? cloudStorageType) {
-    return cloudStorageType != null &&
-        _cloudStorageTypeLabels.containsKey(cloudStorageType);
+    return CloudStorageType.fromValue(cloudStorageType).isKnown;
   }
 
   static String getCloudStorageTypeLabel(int? cloudStorageType) {
-    if (!isValidCloudStorageType(cloudStorageType)) return '';
-    return _cloudStorageTypeLabels[cloudStorageType] ?? '';
+    return CloudStorageType.fromValue(cloudStorageType).displayLabel;
   }
 
   /// Build the display name for an authorized directory root node.
