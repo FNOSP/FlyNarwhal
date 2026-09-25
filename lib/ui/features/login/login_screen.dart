@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, Platform;
 import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -12,6 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/dialogs/app_dialog.dart';
@@ -248,7 +250,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       // Create a shared Windows environment before accessing its cookie store.
       if (!kIsWeb && Platform.isWindows) {
-        _fnConnectWebViewEnvironment ??= await WebViewEnvironment.create();
+        _fnConnectWebViewEnvironment ??= await WebViewEnvironment.create(
+          settings: WebViewEnvironmentSettings(
+            userDataFolder: await _resolveWindowsWebViewUserDataFolder(),
+          ),
+        );
       }
 
       // Clear cookies through the same environment that will host the WebView.
@@ -274,6 +280,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return CookieManager.instance(
       webViewEnvironment: _fnConnectWebViewEnvironment,
     );
+  }
+
+  /// WebView2 defaults to a user data folder next to the executable, which
+  /// fails for installs under Program Files. Point it at a writable user
+  /// directory instead.
+  Future<String> _resolveWindowsWebViewUserDataFolder() async {
+    final support = await getApplicationSupportDirectory();
+    final directory = Directory(p.join(support.path, 'webview2'));
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+    return directory.path;
   }
 
   void _prepareNetworkProcessor() {
