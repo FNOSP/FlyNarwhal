@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 // Colors sampled from the reference web app (飞牛影视, Semi Design dark theme).
@@ -81,6 +82,28 @@ enum AppDialogButtonType {
 }
 
 enum AppDialogType { confirmation, danger }
+
+/// The web app's `Modal.error` icon (Semi Design `alert_circle`), rendered as
+/// the default title icon of a [AppDialogType.danger] dialog so a destructive
+/// prompt reads as one without every caller passing a [titleIcon] of its own.
+class _DangerAlertIcon extends StatelessWidget {
+  const _DangerAlertIcon({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SvgPicture.asset(
+      'assets/icons/semi/alert_circle.svg',
+      width: size,
+      height: size,
+      colorFilter: const ColorFilter.mode(
+        appDialogDangerColor,
+        BlendMode.srcIn,
+      ),
+    );
+  }
+}
 
 class AppDialog<T> extends StatelessWidget {
   const AppDialog({
@@ -176,6 +199,13 @@ class AppDialog<T> extends StatelessWidget {
 
     final hasActions = tertiary != null || secondary != null || primary != null;
 
+    // A danger dialog defaults to the alert-circle icon; an explicit
+    // [titleIcon] always wins, including when a caller needs no icon at all.
+    final effectiveTitleIcon = titleIcon ??
+        (type == AppDialogType.danger
+            ? const _DangerAlertIcon(size: 20)
+            : null);
+
     return ContentDialog(
       constraints: constraints,
       style: ContentDialogThemeData(
@@ -214,7 +244,10 @@ class AppDialog<T> extends StatelessWidget {
       title: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (titleIcon != null) ...[titleIcon!, const SizedBox(width: 12)],
+          if (effectiveTitleIcon != null) ...[
+            effectiveTitleIcon,
+            const SizedBox(width: 12),
+          ],
           Expanded(child: Text(title)),
           if (onClose != null)
             AppIconButton(

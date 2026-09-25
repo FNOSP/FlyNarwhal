@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/utils/log/app_talker.dart';
+import '../core/utils/log/error_describer.dart';
 import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
 import '../data/models/fly_narwhal/index.dart';
 import '../data/storage/player_settings_store.dart';
@@ -212,7 +213,7 @@ class DanmakuController extends StateNotifier<DanmakuState> {
       state = state.copyWith(
         danmakuList: const [],
         loadStatus: DanmakuLoadStatus.failure,
-        errorMessage: error.toString(),
+        errorMessage: ErrorDescriber.describe(error),
         isVisible: false,
       );
       return false;

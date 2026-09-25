@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/utils/log/error_describer.dart';
 import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
 import '../data/models/fly_narwhal/index.dart';
 import '../data/storage/fly_narwhal_settings.dart';
@@ -134,7 +135,7 @@ class SmartAnalysisStatusController
     } catch (error) {
       state = state.copyWith(
         isPolling: false,
-        errorMessage: error.toString(),
+        errorMessage: ErrorDescriber.describe(error),
       );
       stopPolling();
     }

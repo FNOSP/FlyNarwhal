@@ -14,6 +14,7 @@ import '../../../data/models/home_models.dart';
 import '../../../domain/entities/media_type.dart';
 import '../../shared/toast.dart';
 import '../../shared/dialogs/app_dialog.dart';
+import '../../shared/common/app_load_error_view.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -21,6 +22,28 @@ class HomeScreen extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+/// Stand-in for the library row when `mediadb/list` fails: no error text, just
+/// a clickable retry. The failure itself is reported by a toast.
+class HomeMediaLibRetryPlaceholder extends ConsumerWidget {
+  const HomeMediaLibRetryPlaceholder({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32.0),
+      child: Center(
+        child: Button(
+          onPressed: () => ref.invalidate(mediaDbListNotifierProvider),
+          child: const Align(
+            widthFactor: 1.0,
+            child: Text('加载失败，点击重试'),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
@@ -82,6 +105,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _handleWatchedResult(next);
     });
 
+    // Surface library-load failures as a toast. The page itself stays free of
+    // error text; the failed slot only offers a retry.
+    ref.listen<AsyncValue<List<MediaDbListResponse>>>(
+      mediaDbListNotifierProvider,
+      (previous, next) {
+        // The two `when` blocks below both render from this provider, so listen
+        // once here instead of toasting from each slot.
+        final error = next.asError?.error;
+        if (error == null) return;
+        ref.read(toastManagerProvider.notifier).showToast(
+              describeLoadError(error),
+              type: ToastType.failed,
+              duration: const Duration(seconds: 4),
+              category: 'home-media-db-list',
+            );
+      },
+    );
+
     return ScaffoldPage(
       header: const PageHeader(title: Text('首页')),
       content: Stack(
@@ -102,11 +143,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   loading: () => const SliverToBoxAdapter(
                       child: Center(child: AppLoadingProgressRing())),
-                  error: (err, stack) => SliverToBoxAdapter(
-                      child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Text('Error loading libraries: $err'),
-                  )),
+                  error: (err, stack) => const SliverToBoxAdapter(
+                      child: HomeMediaLibRetryPlaceholder()),
                 ),
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
                 SliverToBoxAdapter(
@@ -150,8 +188,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   },
                   loading: () =>
                       const SliverToBoxAdapter(child: SizedBox.shrink()),
-                  error: (err, stack) =>
-                      const SliverToBoxAdapter(child: SizedBox.shrink()),
+                  error: (err, stack) => const SliverToBoxAdapter(
+                      child: HomeMediaLibRetryPlaceholder()),
                 ),
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],

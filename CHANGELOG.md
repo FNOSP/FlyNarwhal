@@ -22,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.3.6] - 2026-09-25
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Added
+
+- **危险操作提示**：删除等需要谨慎确认的提示弹窗添加醒目的警示图标，与飞牛影视 Web 版保持一致。
+
+### Fixed
+
+- **自签名证书信任**：修复了信任服务器证书后仍然无法登录的问题；信任证书后，海报封面等图片也能正常加载。
+- **首页媒体库**：修复了媒体库加载失败时显示不可读错误信息、整块区域空白的问题，现在会以提示消息告知失败原因并支持重试。
+
 ## [2.3.5] - 2026-09-24
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
