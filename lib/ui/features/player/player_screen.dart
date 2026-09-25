@@ -43,6 +43,7 @@ import 'models/player_seek_origin.dart';
 import 'models/player_skip_action.dart';
 import 'models/resolved_skip_segments.dart';
 import 'services/skip_segment_resolver.dart';
+import 'services/direct_link_chunk_proxy.dart';
 import 'services/direct_link_audio_track_resolver.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
@@ -126,9 +127,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   static const String _defaultMpvCachePause = 'yes';
   static const String _directLinkMpvCachePause = 'no';
   static const String _defaultMpvReadAheadSeconds = '120';
-  static const String _directLinkMpvReadAheadSeconds = '120';
   static const String _defaultMpvDemuxerMaxBytes = '268435456';
-  static const String _directLinkMpvDemuxerMaxBytes = '268435456';
+  // Netdisk direct links read from a remote CDN through the chunk proxy, so
+  // every byte of read-ahead is a byte pulled from the cloud, and the right
+  // amount depends entirely on the bitrate: a 20 s buffer is ~4 MB for a
+  // 1.5 Mbps episode but ~137 MB for a 55 Mbps remux. The official player
+  // solves this by deriving its buffer from the stream's bitrate rather than
+  // using a fixed figure, and so does this. See [_directLinkReadAheadProfile].
+  static const Duration _directLinkReadAhead = Duration(seconds: 30);
+  /// Bounds for the derived read-ahead size, in bytes.
+  ///
+  /// The floor covers files with no reported bitrate; the ceiling keeps a very
+  /// high-bitrate remux from requesting an unreasonable slice of the file.
+  static const int _directLinkMinBufferBytes = 32 * 1024 * 1024;
+  static const int _directLinkMaxBufferBytes = 384 * 1024 * 1024;
   bool _isCachePauseActive = false;
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
@@ -228,6 +240,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   MediaTranscodeResponse? _playbackDetailsTranscodeStatus;
   Timer? _playbackDetailsRefreshTimer;
   bool _isFetchingPlaybackDetails = false;
+  /// Latest decoding frame rate and dropped-frame count read from mpv while
+  /// the details panel is open. Both are null until the first sample lands.
+  double? _liveDecodeFps;
+  int? _liveDroppedFrames;
+  /// Live netdisk throughput in bytes per second, derived from the chunk
+  /// proxy's byte counter between two samples. Null until two samples exist
+  /// (the first sample only establishes the baseline) or when the stream is
+  /// not served through the proxy.
+  double? _liveNetworkBytesPerSecond;
+  int? _lastFetchedBytes;
+  DateTime? _lastFetchedAt;
+  Timer? _liveStatsTimer;
   final PlaybackDetailsMorphController _playbackDetailsMorphController =
       PlaybackDetailsMorphController();
   final GlobalKey _playbackDetailsButtonKey = GlobalKey();
@@ -313,8 +337,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   PlayerOverlayController get _overlayController =>
       ref.read(playerOverlayControllerProvider.notifier);
 
-  PlayerSessionCoordinator get _sessionCoordinator =>
-      ref.read(playerSessionCoordinatorProvider);
+  /// Coordinator captured on first use.
+  ///
+  /// [dispose] runs after the riverpod element is torn down, so reading the
+  /// provider there throws "Cannot use ref after the widget was disposed".
+  /// Caching the instance keeps teardown paths off [ref].
+  PlayerSessionCoordinator? _cachedSessionCoordinator;
+
+  PlayerSessionCoordinator get _sessionCoordinator {
+    final cached = _cachedSessionCoordinator;
+    if (cached != null) return cached;
+    final resolved = ref.read(playerSessionCoordinatorProvider);
+    _cachedSessionCoordinator = resolved;
+    return resolved;
+  }
 
   @override
   void initState() {
@@ -667,6 +703,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     };
   }
 
+  /// Bitrate of the stream actually being played, in bits per second.
+  ///
+  /// Prefers the selected netdisk quality's own bitrate: when the user picks a
+  /// lower direct-link tier the CDN serves a smaller file, so sizing buffers
+  /// from the source file's bitrate would over-reserve by the ratio between
+  /// the tiers. Falls back to the source stream's bitrate, then to zero.
+  int _directLinkEffectiveBitrate() {
+    final cache = _playingInfoCache;
+    if (cache == null) return 0;
+    final qualities = cache.directLinkQualities;
+    final index = cache.directLinkQualityIndex;
+    if (index != null && index >= 0 && index < qualities.length) {
+      final selected = qualities[index].bitrate;
+      if (selected > 0) return selected;
+    }
+    return cache.currentVideoStream?.bps ?? 0;
+  }
+
+  /// Read-ahead size for a netdisk direct-link session, derived from the
+  /// stream's bitrate.
+  ///
+  /// A fixed buffer cannot serve both ends of the catalogue: the same 64 MB is
+  /// a generous 30 s for an episode but under 5 s for a 55 Mbps remux, which
+  /// then starves and stutters. Deriving the size from `bps` keeps the buffer
+  /// equal to [_directLinkReadAhead] of playback regardless of the source,
+  /// which is the approach the official player takes with its own
+  /// `calculateMaxBufferSizeBy(bitRate)`.
+  ///
+  /// Returns null when the stream reports no bitrate, leaving the default
+  /// policy in place, and clamps the result so an unknown or extreme value
+  /// cannot ask for an unreasonable slice of the file.
+  ({String seconds, String bytes})? _directLinkReadAheadProfile() {
+    final bps = _directLinkEffectiveBitrate();
+    if (bps <= 0) return null;
+    final seconds = _directLinkReadAhead.inSeconds;
+    // bps is bits per second; dividing by 8 gives bytes.
+    final target = bps ~/ 8 * seconds;
+    final clamped = target.clamp(
+      _directLinkMinBufferBytes,
+      _directLinkMaxBufferBytes,
+    );
+    return (seconds: '$seconds', bytes: '$clamped');
+  }
+
   Future<void> _applyDirectLinkCachePolicy(Player player) async {
     final platform = player.platform;
     if (platform is! NativePlayer) {
@@ -676,12 +756,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final isDirectLink = _playingInfoCache?.isUseDirectLink == true;
     final cachePauseWait =
         isDirectLink ? _directLinkMpvCachePauseWait : _defaultMpvCachePauseWait;
-    final readAheadSeconds = isDirectLink
-        ? _directLinkMpvReadAheadSeconds
-        : _defaultMpvReadAheadSeconds;
-    final demuxerMaxBytes = isDirectLink
-        ? _directLinkMpvDemuxerMaxBytes
-        : _defaultMpvDemuxerMaxBytes;
+    final profile = isDirectLink ? _directLinkReadAheadProfile() : null;
+    final readAheadSeconds =
+        profile?.seconds ?? _defaultMpvReadAheadSeconds;
+    final demuxerMaxBytes = profile?.bytes ?? _defaultMpvDemuxerMaxBytes;
     await platform.setProperty(
       'cache',
       'yes',
@@ -1666,6 +1744,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playbackDetailsTranscodeStatus = null;
     _playbackDetailsRefreshTimer?.cancel();
     _playbackDetailsRefreshTimer = null;
+    _stopLiveStatsPolling();
+    _liveDecodeFps = null;
+    _liveDroppedFrames = null;
+    _liveNetworkBytesPerSecond = null;
+    _lastFetchedBytes = null;
+    _lastFetchedAt = null;
     _episodeList = [];
     _currentEpisode = null;
     _nextEpisode = null;
@@ -1706,6 +1790,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (isSameTarget) return;
 
     _queueQuitPlayback();
+    // Release the outgoing stream before the session state is reset below:
+    // the media guid lives in [_playingInfoCache], which the reset clears.
+    // Without this the proxy keeps fetching the previous episode's bytes
+    // until its idle timeout, because [dispose] never runs on a target switch.
+    _releaseDirectLinkSession();
 
     setState(() {
       _currentItemGuid = guid;
@@ -1725,6 +1814,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// - Direct cloud CDN URLs use only the provider headers from streamData.header
   ///   and omit NAS auth, because the request goes to the cloud provider.
   Map<String, String> _buildPlaybackHttpHeaders(String playUri) {
+    // The loopback chunk proxy holds no NAS credentials and forwards the
+    // upstream headers itself, so the player must not attach them here.
+    if (isDirectLinkChunkProxyUrl(playUri)) {
+      return const <String, String>{};
+    }
     final isNasProxy = playUri.contains('/v/api/v1/media/range') ||
         playUri.contains('/v/api/v1/wp/m3u8') ||
         _isNasHostedUrl(playUri);
@@ -1943,6 +2037,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       directLinkQualities: directQualities,
       cloudStorageType: cloudStorageType,
       directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
+      cloudHeader: cache.streamInfo?.header,
     );
     final convertedQualities = isCloud
         ? visibleQualities.map((q) => q.toQualityResponse()).toList()
@@ -4242,6 +4337,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         mediaGuid: videoStream.mediaGuid,
         startPositionMs: currentPosition,
         directLinkQualityIndex: targetIndex,
+        directLinkQualities: cache.directLinkQualities,
+        cloudStorageType:
+            cache.streamInfo?.cloudStorageInfo?.cloudStorageType,
+        directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
+        cloudHeader: cache.streamInfo?.header,
       );
       if (!_isCurrentCloudSwitch(switchToken)) return;
 
@@ -4601,6 +4701,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       directLinkQualities: directQualities,
       cloudStorageType: cloudStorageType,
       directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
+      cloudHeader: cache.streamInfo?.header,
     );
     if (!_isCurrentCloudSwitch(switchToken)) return false;
 
@@ -5202,10 +5303,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _disposeHlsSubtitleSession();
     _playRecordTimer?.cancel();
     _playbackDetailsRefreshTimer?.cancel();
+    _liveStatsTimer?.cancel();
     _playbackIndicatorTimer?.cancel();
     _playbackIndicatorExitController.dispose();
     _playerFocusNode.dispose();
     _player?.dispose();
+    // Release only this screen's stream: the coordinator is shared, so closing
+    // the listener itself would cut off a stream owned by another screen (for
+    // example while a picture-in-picture window is still open). The cached
+    // reference is used because [ref] is already unavailable here.
+    _releaseDirectLinkSession();
     _hlsSubtitleTexts.dispose();
     _danmakuPosition.dispose();
     super.dispose();
@@ -5446,6 +5553,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       key: const ValueKey('player-playback-details-panel'),
                       cache: cache,
                       transcodeStatus: _playbackDetailsTranscodeStatus,
+                      liveFps: _liveDecodeFps,
+                      droppedFrames: _liveDroppedFrames,
+                      networkBytesPerSecond: _liveNetworkBytesPerSecond,
                       bufferedSeconds: _isInitialized
                           ? ((_bufferedPosition - _currentPosition) / 1000)
                               .clamp(0.0, double.infinity)
@@ -6257,6 +6367,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     setState(() => _isPlaybackDetailsVisible = true);
     _showUi();
     _refreshPlaybackDetailsTranscodeStatus();
+    _startLiveStatsPolling();
     // The web panel polls the transcode statistics while open, so quality
     // or audio switches and live counters update without reopening it.
     _playbackDetailsRefreshTimer ??= Timer.periodic(
@@ -6276,6 +6387,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playbackDetailsAnimClosing = true;
     _playbackDetailsMorphController.close();
     _stopPlaybackDetailsPolling();
+    _stopLiveStatsPolling();
     _showUi();
   }
 
@@ -6366,6 +6478,144 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// the next poll tick.
   void _refreshPlaybackDetailsImmediately() {
     unawaited(_refreshPlaybackDetailsTranscodeStatus());
+  }
+
+  /// Samples mpv's own decoding statistics while the details panel is open.
+  ///
+  /// `estimated-vf-fps` is mpv's smoothed estimate of the frames actually
+  /// being displayed, so it is the number that reveals dropped frames during
+  /// playback; `frame-drop-count` is the cumulative count mpv has skipped.
+  /// Both come from the native player and are only meaningful for direct
+  /// playback, where the client does the decoding.
+  void _startLiveStatsPolling() {
+    _liveStatsTimer ??= Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => unawaited(_sampleLiveStats()),
+    );
+    unawaited(_sampleLiveStats());
+  }
+
+  void _stopLiveStatsPolling() {
+    _liveStatsTimer?.cancel();
+    _liveStatsTimer = null;
+  }
+
+  /// Stops the chunk proxy serving this screen's current stream.
+  ///
+  /// Safe to call when no direct-link session exists and safe to call more
+  /// than once: the proxy drops the session by guid and cancels its in-flight
+  /// upstream reads, so the netdisk connection is dropped immediately rather
+  /// than running on until the idle timeout.
+  void _releaseDirectLinkSession() {
+    final coordinator = _cachedSessionCoordinator;
+    final mediaGuid = _playingInfoCache?.currentVideoStream?.mediaGuid;
+    if (coordinator == null || mediaGuid == null) return;
+    unawaited(coordinator.releaseDirectLinkSessions(mediaGuid));
+  }
+
+  Future<void> _sampleLiveStats() async {
+    final player = _player;
+    if (player == null) return;
+    final platform = player.platform;
+    if (platform is! NativePlayer) return;
+    try {
+      // `estimated-vf-fps` is the smoothed rate of frames the video output
+      // actually presents, so it drops below the source rate when the machine
+      // cannot keep up. It is empty while playback is paused/initializing and
+      // on some render paths, so fall back to the container's nominal rate —
+      // the pair then still shows a real number instead of a blank row.
+      final fpsSample = await _readNumericProperty(platform, const [
+        'estimated-vf-fps',
+        'container-fps',
+      ]);
+      final droppedSample = await _readNumericProperty(
+        platform,
+        const ['frame-drop-count', 'decoder-frame-drop-count'],
+      );
+      if (!mounted) return;
+      final nextFps = fpsSample.value != null && fpsSample.value! > 0
+          ? fpsSample.value
+          : null;
+      final nextDropped = droppedSample.value?.round();
+      final nextNetworkRate = _sampleNetworkRate();
+      if (nextFps == _liveDecodeFps &&
+          nextDropped == _liveDroppedFrames &&
+          nextNetworkRate == _liveNetworkBytesPerSecond) {
+        return;
+      }
+      // Keeps the sampled values traceable when a row stays empty onscreen.
+      AppTalker.info(
+        'Player',
+        'live stats: fps=$nextFps (${fpsSample.source}) '
+            'dropped=$nextDropped (${droppedSample.source}) '
+            'net=${nextNetworkRate == null ? 'n/a' : '${(nextNetworkRate / 1024).round()} KB/s'}',
+      );
+      setState(() {
+        _liveDecodeFps = nextFps;
+        _liveDroppedFrames = nextDropped;
+        _liveNetworkBytesPerSecond = nextNetworkRate;
+      });
+    } catch (_) {
+      // The property is unavailable on some builds; leave the last sample.
+    }
+  }
+
+  /// Derives the netdisk throughput from the chunk proxy's cumulative byte
+  /// counter.
+  ///
+  /// The proxy counts only bytes that actually came off the network, so this
+  /// reports the real link speed rather than how fast the player consumed the
+  /// stream. The first sample of a session only records the baseline; the rate
+  /// appears from the second sample on.
+  double? _sampleNetworkRate() {
+    final cache = _playingInfoCache;
+    final isDirectLink = cache?.isUseDirectLink ?? false;
+    final mediaGuid = cache?.currentVideoStream?.mediaGuid;
+    if (!isDirectLink || mediaGuid == null) {
+      _lastFetchedBytes = null;
+      _lastFetchedAt = null;
+      return null;
+    }
+    final fetched = _sessionCoordinator.directLinkFetchedBytes(mediaGuid);
+    if (fetched == null) {
+      _lastFetchedBytes = null;
+      _lastFetchedAt = null;
+      return null;
+    }
+    final now = DateTime.now();
+    final previousBytes = _lastFetchedBytes;
+    final previousAt = _lastFetchedAt;
+    _lastFetchedBytes = fetched;
+    _lastFetchedAt = now;
+    if (previousBytes == null || previousAt == null) return null;
+    final elapsedMs = now.difference(previousAt).inMilliseconds;
+    if (elapsedMs <= 0) return null;
+    final delta = fetched - previousBytes;
+    if (delta < 0) return null;
+    return delta * 1000 / elapsedMs;
+  }
+
+  /// Reads the first of [names] that mpv reports as a usable number, together
+  /// with the name that produced it. mpv answers unknown or not-yet-valid
+  /// properties with an empty string or "no", so a parse failure means "try the
+  /// next candidate" rather than "no value"; the source name lets the log say
+  /// which one answered.
+  Future<({double? value, String source})> _readNumericProperty(
+    NativePlayer platform,
+    List<String> names,
+  ) async {
+    for (final name in names) {
+      try {
+        final raw = await platform.getProperty(name);
+        final parsed = double.tryParse(raw.toString().trim());
+        if (parsed != null && parsed.isFinite) {
+          return (value: parsed, source: name);
+        }
+      } catch (_) {
+        // Fall through to the next candidate.
+      }
+    }
+    return (value: null, source: 'none');
   }
 
   Widget _buildTopBar() {
@@ -6642,32 +6892,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (await windowManager.isFullScreen()) {
         return;
       }
-      // The player remembers fullscreen as its own window form, like the
-      // maximized one: leaving the player while fullscreen exits native
-      // fullscreen (the next route cannot be fullscreen), so the remembered
-      // form is what brings the next video back to fullscreen.
       final settingsManager = ref.read(playerSettingsManagerProvider);
+      // Fullscreen, like maximize, is a per-session gesture here: every video
+      // opens in a window and the user re-enters fullscreen with a double
+      // click. Leaving the flags set would make every later video open
+      // full-screen, which is what a one-off double click must not do.
       if (settingsManager.getPlayerWindowFullscreen()) {
-        if (!await windowManager.isFullScreen()) {
-          await windowManager.setFullScreen(true);
-        }
-        return;
+        await settingsManager.setPlayerWindowFullscreen(false);
       }
-      // The player keeps its own window form: if it was last left maximized,
-      // re-enter maximize for this (possibly different) video instead of
-      // restoring the floating geometry. The pre-player maximized state seeds
-      // the player form too, so entering the player from a maximized app
-      // window keeps the window maximized across video switches.
-      final playerWindowMaximized =
-          settingsManager.getPlayerWindowMaximized() || _prePlayerWasMaximized;
-      if (playerWindowMaximized) {
-        if (!settingsManager.getPlayerWindowMaximized()) {
-          unawaited(settingsManager.setPlayerWindowMaximized(true));
-        }
-        if (!await windowManager.isMaximized()) {
-          await windowManager.maximize();
-        }
-        return;
+      if (await windowManager.isFullScreen()) {
+        await windowManager.setFullScreen(false);
+      }
+      // Every video opens at the player's remembered floating size. Maximizing
+      // is a per-session gesture (double-click the title bar) and is deliberately
+      // not carried over, so a window the user maximized once does not make
+      // every later video open full-screen.
+      final playerWindowWasMaximized =
+          settingsManager.getPlayerWindowMaximized();
+      if (playerWindowWasMaximized) {
+        // Drop the carried-over form so the next entry starts floating; the
+        // flag is cleared only after the geometry below is applied.
+        await settingsManager.setPlayerWindowMaximized(false);
       }
       final savedBounds = settingsManager.getPlayerWindowBounds();
       if (savedBounds == null) {

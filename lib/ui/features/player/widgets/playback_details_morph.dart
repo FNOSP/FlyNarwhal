@@ -4,24 +4,34 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-/// A top-right anchored liquid glass panel that morphs open and closed the
-/// same way `GlassMenu` morphs from its trigger button.
+/// A top-right anchored panel that morphs open and closed the same way
+/// `GlassMenu` morphs from its trigger button.
 ///
 /// The panel grows out of [anchor] (its top-right corner) toward the
 /// bottom-left, driven by the iOS 26 underdamped spring, while the spawn
 /// blob ghosts [spawnRect] (the trigger button's rect) exactly the way
 /// `GlassMenu`'s Blob A stays centered on its trigger — the open blooms from
 /// the button and the close collapses back into it. The final size is the
-/// child's natural size clamped to [maxSize], so the glass never exceeds its
-/// content. The child renders at full size inside the morphing shape and is
-/// clipped to it, fading in while the glass settles — the content itself is
-/// unchanged, matching how `GlassMenu` staggers its items in.
+/// child's natural size clamped to [maxSize], so the surface never exceeds
+/// its content. The child renders at full size inside the morphing shape and
+/// is clipped to it, fading in while the surface settles — the content itself
+/// is unchanged, matching how `GlassMenu` staggers its items in.
+///
+/// The surface is a plain translucent fill rather than a liquid glass layer.
+/// The glass backdrop costs a full-screen blur pass on every frame, and the
+/// first open additionally builds its render pipeline, which stutters
+/// noticeably over a decoding 8K video. The morph spring, the spawn blob and
+/// the content fade are all kept, so only the backdrop rendering changed.
 ///
 /// The morph only exists while the panel is open; it opens itself once the
 /// child has been measured. Call [PlaybackDetailsMorphController.close] to
 /// collapse it; [onSettled] reports when the surface has come to rest in
 /// either state (use it to dispose the subtree on close).
 class PlaybackDetailsMorph extends StatefulWidget {
+  /// Identifies the morphing panel body so tests can measure it without
+  /// depending on the surface widget's type.
+  static const Key panelBodyKey = ValueKey('playback-details-panel-body');
+
   final PlaybackDetailsMorphController controller;
 
   /// Maximum size the panel may grow to; the child's natural size below
@@ -65,23 +75,10 @@ class _PlaybackDetailsMorphState extends State<PlaybackDetailsMorph>
   bool _hasOpened = false;
   Size? _naturalSize;
 
-  // Matches the liquid glass toasts: no tint, no whitening veil and a low
-  // blur, while a higher thickness plus refraction keeps the video backdrop
-  // visibly warped through the glass.
-  static const LiquidGlassSettings _glassSettings = LiquidGlassSettings(
-    glassColor: Color.fromARGB(0, 255, 255, 255),
-    thickness: 40,
-    blur: 3,
-    whitenStrength: 0,
-    refractiveIndex: 30.0,
-    lightIntensity: 0.5,
-    ambientRim: 0.2,
-    ambientStrength: 0.5,
-    glowIntensity: 0.75,
-    fresnelStrength: 0.8,
-    edgeAbsorption: 0.41,
-    backerColor: Color.fromARGB(50, 0, 0, 0),
-  );
+  // Same dark-flyout palette as the other player controls, so the panel stays
+  // legible over bright video now that no blur separates it from the frame.
+  static const Color _surfaceColor = Color(0xCC000000);
+  static const Color _surfaceBorderColor = Color(0x80808080);
 
   static const double _panelRadius = 16;
 
@@ -206,50 +203,44 @@ class _PlaybackDetailsMorphState extends State<PlaybackDetailsMorph>
     final bodyLeft = widget.anchor.dx - currentWidth;
     final bodyTop = widget.anchor.dy;
 
-    return AdaptiveLiquidGlassLayer(
-      settings: _glassSettings,
+    return Stack(
       clipBehavior: Clip.none,
-      blendAmount: state.blend,
-      child: LiquidGlassBlendGroup(
-        blend: state.blend,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // Spawn blob ghosting the trigger button; shrinks away as the
-            // body takes over, and absorbs the closing momentum bounce.
-            Positioned(
-              left: widget.spawnRect.left + state.pushDx,
-              top: widget.spawnRect.top + state.pushDy,
-              child: Transform.scale(
-                scale: state.anchorScale,
-                child: GlassContainer(
-                  width: widget.spawnRect.width,
-                  height: widget.spawnRect.height,
-                  settings: _glassSettings,
-                  shape: LiquidRoundedRectangle(
-                    borderRadius: widget.spawnRect.shortestSide / 2.0,
-                  ),
+      children: [
+        // Spawn blob ghosting the trigger button; shrinks away as the
+        // body takes over, and absorbs the closing momentum bounce.
+        Positioned(
+          left: widget.spawnRect.left + state.pushDx,
+          top: widget.spawnRect.top + state.pushDy,
+          child: Transform.scale(
+            scale: state.anchorScale,
+            child: Container(
+              width: widget.spawnRect.width,
+              height: widget.spawnRect.height,
+              decoration: BoxDecoration(
+                color: _surfaceColor,
+                borderRadius: BorderRadius.circular(
+                  widget.spawnRect.shortestSide / 2.0,
                 ),
               ),
             ),
-
-            // The panel body growing out of the anchor.
-            Positioned(
-              left: bodyLeft,
-              top: bodyTop,
-              child: IgnorePointer(
-                ignoring: clampedValue < 0.8,
-                child: _buildPanelBody(
-                  state,
-                  currentWidth,
-                  currentHeight,
-                  currentRadius,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+
+        // The panel body growing out of the anchor.
+        Positioned(
+          left: bodyLeft,
+          top: bodyTop,
+          child: IgnorePointer(
+            ignoring: clampedValue < 0.8,
+            child: _buildPanelBody(
+              state,
+              currentWidth,
+              currentHeight,
+              currentRadius,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -296,13 +287,16 @@ class _PlaybackDetailsMorphState extends State<PlaybackDetailsMorph>
     final boxWidth = target.width > 0 ? target.width : widget.maxSize.width;
     final boxHeight = target.height > 0 ? target.height : widget.maxSize.height;
 
-    return GlassContainer(
+    return Container(
+      key: PlaybackDetailsMorph.panelBodyKey,
       width: width,
       height: height,
-      settings: _glassSettings,
-      shape: LiquidRoundedRectangle(borderRadius: radius),
+      decoration: BoxDecoration(
+        color: _surfaceColor,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: _surfaceBorderColor),
+      ),
       clipBehavior: Clip.antiAlias,
-      allowElevation: false,
       child: Transform.scale(
         scale: state.containerScale,
         alignment: Alignment.topRight,

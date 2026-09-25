@@ -336,6 +336,11 @@ video/main.m3u8
   });
 
   group('PlayerSessionCoordinator.getDirectPlayLink', () {
+    tearDownAll(() async {
+      // The chunk proxy binds a real loopback listener on first use.
+      await coordinator.disposeDirectLinkProxy();
+    });
+
     test(
       'Given STRM media, When resolving the direct play link, Then it plays the NAS-resolved URL directly',
       () async {
@@ -361,7 +366,7 @@ video/main.m3u8
     );
 
     test(
-      'Given Baidu Pan media, When resolving the direct play link, Then it still routes through the media/range proxy',
+      'Given Baidu Pan media, When resolving the direct play link, Then it serves the range proxy through the loopback chunk proxy',
       () async {
         final result = await coordinator.getDirectPlayLink(
           mediaGuid: 'media-guid',
@@ -377,12 +382,31 @@ video/main.m3u8
           cloudStorageType: 1,
         );
 
+        // The player must not talk to the range proxy directly: an open-ended
+        // range lands in the CDN's throttled window. It reads from the loopback
+        // chunk proxy instead, which is what re-shapes every upstream request.
+        expect(result.playUri, startsWith('http://127.0.0.1:'));
+        expect(result.playUri, contains('/direct-link-stream/'));
+        expect(
+          result.playLinkRaw,
+          equals('/v/api/v1/media/range/media-guid'),
+        );
+      },
+    );
+
+    test(
+      'Given local media, When resolving the direct play link, Then it keeps the plain range proxy URL',
+      () async {
+        final result = await coordinator.getDirectPlayLink(
+          mediaGuid: 'media-guid',
+          startPositionMs: 0,
+        );
+
+        // Local files are read at disk speed, so they must keep the direct URL
+        // and never pay for an extra loopback hop.
         expect(
           result.playUri,
-          equals(
-            'https://example.com/v/api/v1/media/range/media-guid'
-            '?direct_link_quality_index=0',
-          ),
+          equals('https://example.com/v/api/v1/media/range/media-guid'),
         );
       },
     );

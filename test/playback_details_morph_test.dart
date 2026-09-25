@@ -1,6 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'package:fly_narwhal/ui/features/player/widgets/playback_details_morph.dart';
 
@@ -18,15 +17,14 @@ Finder get _hiddenOffstageFinder {
   );
 }
 
-/// The morphing panel body — the glass container whose width tracks the
-/// destination size (the spawn blob stays 34 wide).
-Finder _panelBodyFinder(double minWidth) {
-  return find.byWidgetPredicate(
-    (widget) =>
-        widget is GlassContainer &&
-        widget.width != null &&
-        widget.width! > minWidth,
-  );
+/// The morphing panel body. It collapses to the spawn blob's 34px size rather
+/// than disappearing, so "the panel is showing" means a body wider than that.
+Finder get _panelBodyFinder => find.byKey(PlaybackDetailsMorph.panelBodyKey);
+
+bool _isPanelVisible(WidgetTester tester, {double minWidth = 50}) {
+  final finder = _panelBodyFinder;
+  if (finder.evaluate().isEmpty) return false;
+  return tester.getSize(finder).width > minWidth;
 }
 
 void main() {
@@ -50,12 +48,13 @@ void main() {
 
     // The first frame should only measure the content offstage, so the
     // user never sees the parked twin-circle pre-measure state.
-    expect(find.byType(AdaptiveLiquidGlassLayer), findsNothing);
+    expect(_panelBodyFinder, findsNothing);
     expect(_hiddenOffstageFinder, findsOneWidget);
 
     // Once the post-frame measurement lands, the visible morph may render.
     await tester.pump();
-    expect(find.byType(AdaptiveLiquidGlassLayer), findsOneWidget);
+    expect(_panelBodyFinder, findsOneWidget);
+    expect(_hiddenOffstageFinder, findsNothing);
   });
 
   testWidgets('sizes to the content and pins the top-right to the anchor', (
@@ -84,8 +83,8 @@ void main() {
     // The panel body must hug the content (the scroll view forces its width
     // to the available box) instead of filling the maximum size. Height
     // includes the 16px padding on all sides.
-    final body = _panelBodyFinder(50);
-    expect(body, findsOneWidget);
+    final body = _panelBodyFinder;
+    expect(_isPanelVisible(tester), isTrue);
     expect(tester.getSize(body).height, closeTo(80 + 32, 1));
     final rect = tester.getRect(body);
     expect(rect.right, closeTo(1260, 1));
@@ -109,8 +108,8 @@ void main() {
     // larger than the spawn blob, and its top-right corner must stay pinned
     // to the anchor while it shrinks toward it.
     await tester.pump(const Duration(milliseconds: 120));
-    final midBody = _panelBodyFinder(40);
-    expect(midBody, findsOneWidget);
+    final midBody = _panelBodyFinder;
+    expect(_isPanelVisible(tester, minWidth: 40), isTrue);
     final midRect = tester.getRect(midBody);
     expect(midRect.width, lessThan(100));
     expect(midRect.width, greaterThan(34));
@@ -119,7 +118,7 @@ void main() {
 
     await tester.pumpAndSettle(const Duration(milliseconds: 50));
     expect(settledCount, 2);
-    expect(_panelBodyFinder(50), findsNothing);
+    expect(_isPanelVisible(tester), isFalse);
   });
 
   testWidgets('open reports settled only once', (
