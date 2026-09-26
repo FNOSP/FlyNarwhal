@@ -142,6 +142,23 @@ class PlayerWindowAspectRatioController {
       }
 
       final bounds = await windowManager.getBounds();
+      final displays = await _tryGetDisplays();
+      final workArea =
+          WindowGeometry.selectDisplay(bounds, displays)?.workArea;
+
+      // A maximized window fills its work area, and neither the plugin probe
+      // above nor the caller's persisted flag is reliable during a fullscreen
+      // exit: the maximize event races the flag write and is dropped entirely
+      // while a window-session restore is in flight. Resizing here would drag
+      // the maximized window back to the locked ratio, and — worse — the
+      // work-area-sized bounds would be captured as the session baseline below
+      // and then anchor every later resize. Recognize the shape before the
+      // baseline is read and hand the window back untouched.
+      if (_fillsWorkArea(bounds, workArea)) {
+        await release();
+        return;
+      }
+
       // Capture the session baseline once, before any programmatic resize:
       // the window currently holds the user's chosen geometry (restored
       // player bounds or the app window size), whose area anchors every
@@ -153,9 +170,6 @@ class PlayerWindowAspectRatioController {
           bounds.height > 0 ? bounds.width / bounds.height : targetRatio;
       final alreadyMatching =
           (currentRatio - targetRatio).abs() < _ratioEpsilon;
-      final displays = await _tryGetDisplays();
-      final workArea =
-          WindowGeometry.selectDisplay(bounds, displays)?.workArea;
 
       // Keep the OS minimum size consistent with the locked ratio. A plain
       // normal-window minimum fights the ratio lock for wide videos: the
@@ -357,6 +371,20 @@ class PlayerWindowAspectRatioController {
       width.roundToDouble(),
       height.roundToDouble(),
     );
+  }
+
+  /// Whether [bounds] occupies [workArea] to within the OS rounding tolerance,
+  /// which is what a maximized (or OS-zoomed) window looks like. A null or
+  /// degenerate work area yields false so the caller keeps its normal path.
+  bool _fillsWorkArea(Rect bounds, Rect? workArea) {
+    if (workArea == null ||
+        workArea.width <= 0 ||
+        workArea.height <= 0 ||
+        !WindowGeometry.isValidBounds(bounds)) {
+      return false;
+    }
+    return (bounds.width - workArea.width).abs() <= _sizeEpsilonPx &&
+        (bounds.height - workArea.height).abs() <= _sizeEpsilonPx;
   }
 
   /// Reads back the actual window size after a programmatic setBounds so the

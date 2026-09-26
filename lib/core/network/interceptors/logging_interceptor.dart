@@ -11,6 +11,9 @@ const _hiddenHeaders = {
   'Authx',
   'Signx',
   'Keyx',
+  // Carries the cloud provider's raw Cookie envelope on netdisk direct-link
+  // playback, so it is a credential for the same reason Cookie is.
+  'X-Wp-Header',
 };
 
 /// Logging interceptor backed by TalkerDioLogger.
@@ -37,8 +40,34 @@ class LoggingInterceptor extends TalkerDioLogger {
             printErrorMessage: printError,
             hiddenHeaders: _hiddenHeaders,
             responseDataConverter: _formatResponseData,
+            requestFilter: _isLoggableRequest,
+            responseFilter: _isLoggableResponse,
+            errorFilter: _isLoggableError,
           ),
         );
+
+  /// Whether the two endpoints below are the loopback chunk proxy's upstream
+  /// media/range reads.
+  ///
+  /// A cloud direct-link session issues one such request per 8 MB window —
+  /// hundreds per minute. Each one logs a full header block, which costs real
+  /// main-thread time and buries the session's meaningful lines. The byte
+  /// flow is already summarized by the proxy's own register/release logs.
+  static bool _isDirectLinkChunkRead(Uri uri) {
+    return uri.path.contains('/v/api/v1/media/range');
+  }
+
+  static bool _isLoggableRequest(RequestOptions options) {
+    return !_isDirectLinkChunkRead(options.uri);
+  }
+
+  static bool _isLoggableResponse(Response<dynamic> response) {
+    return !_isDirectLinkChunkRead(response.requestOptions.uri);
+  }
+
+  static bool _isLoggableError(DioException error) {
+    return !_isDirectLinkChunkRead(error.requestOptions.uri);
+  }
 
   final bool printRequestBody;
   final bool printResponseBody;

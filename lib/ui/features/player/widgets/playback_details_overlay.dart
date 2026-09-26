@@ -53,22 +53,44 @@ String _trimTrailingZeros(String value) {
   return value.replaceFirst(RegExp(r'\.?0+$'), '');
 }
 
+/// Renders a byte rate the way network speeds are normally read, e.g.
+/// 25165824 -> "24 MB/s", 1258291 -> "1.2 MB/s", 512000 -> "500 KB/s".
+String _formatByteRate(double bytesPerSecond) {
+  if (bytesPerSecond <= 0) return '0 KB/s';
+  const kb = 1024.0;
+  const mb = kb * 1024;
+  if (bytesPerSecond >= mb) {
+    return '${_trimTrailingZeros((bytesPerSecond / mb).toStringAsFixed(1))} MB/s';
+  }
+  return '${(bytesPerSecond / kb).round()} KB/s';
+}
+
 /// Top-right playback details panel mirroring the web player's
 /// “播放详细信息” overlay: play type, live playback/transcode statistics and
 /// the media source information (container / file size / video / audio).
 ///
-/// Renders only the content; the surface is provided by the liquid glass
+/// Renders only the content; the surface is provided by the translucent
 /// container wrapping it (see `PlaybackDetailsMorph`).
 class PlaybackDetailsPanel extends StatelessWidget {
   final PlayingInfoCache cache;
   final MediaTranscodeResponse? transcodeStatus;
   final double? bufferedSeconds;
+  /// Live decoding frame rate reported by the player, in frames per second.
+  final double? liveFps;
+  /// Frames the player dropped since playback started.
+  final int? droppedFrames;
+  /// Live netdisk throughput in bytes per second, when the stream is served
+  /// through the chunk proxy.
+  final double? networkBytesPerSecond;
 
   const PlaybackDetailsPanel({
     super.key,
     required this.cache,
     this.transcodeStatus,
     this.bufferedSeconds,
+    this.liveFps,
+    this.droppedFrames,
+    this.networkBytesPerSecond,
   });
 
   bool get _isTranscoded => transcodeStatus?.transcoded ?? false;
@@ -199,6 +221,10 @@ class PlaybackDetailsPanel extends StatelessWidget {
         _detailLine('缓冲时长', '${bufferedSeconds!.toStringAsFixed(2)} s'),
       if (resolution.isNotEmpty) _detailLine('分辨率', resolution),
       if (bitrate > 0) _detailLine('码率', _formatBitrate(bitrate)),
+      if (liveFps != null && liveFps! > 0)
+        _detailLine('实时帧率', '${liveFps!.toStringAsFixed(2)} fps'),
+      if (networkBytesPerSecond != null)
+        _detailLine('网络带宽', _formatByteRate(networkBytesPerSecond!)),
     ];
     final right = <Widget>[];
     if (hasServerStats) {
@@ -227,6 +253,10 @@ class PlaybackDetailsPanel extends StatelessWidget {
           _detailLine('坏帧', '${video.corruptedFrames}'),
         ],
       ]);
+    } else if (droppedFrames != null) {
+      // Direct-play sessions have no server-side frame counters, so the
+      // player's own dropped-frame count fills the same slot.
+      right.add(_detailLine('丢帧', '$droppedFrames'));
     }
 
     if (right.isEmpty) {

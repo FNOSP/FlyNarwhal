@@ -136,3 +136,7 @@ export_wireshark_http_json.ps1
 
 # Local CMake test build output for the native update helpers
 windows/native/build-test/
+
+# Local reverse-engineering scratch and portable build output
+/.codex-tmp/
+/dist-portable/
