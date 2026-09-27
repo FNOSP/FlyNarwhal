@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.3.7] - 2026-09-27
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Fixed
+
+- **删除媒体项**：修复了首页媒体库删除影片或文件时始终提示删除失败、无法完成删除的问题。
+- **Windows 登录**：修复了 Windows 版登录时弹出「无法创建数据目录」提示、导致无法登录的问题。
+- **Windows 自动更新**：修复了 Windows 更新安装包下载完成后无法自动安装、需要手动退出应用的问题。
+
 ## [2.3.6] - 2026-09-25
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
