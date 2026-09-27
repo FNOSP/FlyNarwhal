@@ -33,7 +33,7 @@ class VideoPlayerProgressBar extends StatefulWidget {
     this.onInteractionStart,
     this.onInteractionEnd,
     this.onInteractionCancel,
-    this.segments = const <SkipSegmentMillis>[],
+    this.segments = const <SkipSegmentMarker>[],
     this.showHoverTimestamp = true,
   });
 
@@ -45,9 +45,9 @@ class VideoPlayerProgressBar extends StatefulWidget {
   final VoidCallback? onInteractionEnd;
   final VoidCallback? onInteractionCancel;
 
-  /// Skip segments (intro/credits/recap/preview) drawn as markers on the
-  /// track. All share the same marker style and color.
-  final List<SkipSegmentMillis> segments;
+  /// Skip segments (intro/credits/recap/preview/commercial) drawn as markers on
+  /// the track. Commercials get their own color; the rest share one style.
+  final List<SkipSegmentMarker> segments;
   final bool showHoverTimestamp;
 
   @override
@@ -69,11 +69,17 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
     return widget.currentPosition / widget.totalDuration;
   }
 
-  List<(double, double)> get _segmentRangeRatios {
-    final ranges = <(double, double)>[];
+  List<SkipSegmentMarkerRatio> get _segmentRangeRatios {
+    final ranges = <SkipSegmentMarkerRatio>[];
     for (final segment in widget.segments) {
-      final ratio = _calculateRangeRatio(segment);
-      if (ratio != null) ranges.add(ratio);
+      final ratio = _calculateRangeRatio(segment.range);
+      if (ratio != null) {
+        ranges.add(SkipSegmentMarkerRatio(
+          startRatio: ratio.$1,
+          endRatio: ratio.$2,
+          isCommercial: segment.isCommercial,
+        ));
+      }
     }
     return ranges;
   }
@@ -226,10 +232,35 @@ class _VideoPlayerProgressBarState extends State<VideoPlayerProgressBar> {
   }
 }
 
+/// One skip-segment marker, projected onto the track as 0..1 ratios, plus the
+/// flag that decides its color.
+class SkipSegmentMarkerRatio {
+  const SkipSegmentMarkerRatio({
+    required this.startRatio,
+    required this.endRatio,
+    required this.isCommercial,
+  });
+
+  final double startRatio;
+  final double endRatio;
+  final bool isCommercial;
+
+  @override
+  bool operator ==(Object other) {
+    return other is SkipSegmentMarkerRatio &&
+        other.startRatio == startRatio &&
+        other.endRatio == endRatio &&
+        other.isCommercial == isCommercial;
+  }
+
+  @override
+  int get hashCode => Object.hash(startRatio, endRatio, isCommercial);
+}
+
 class _ProgressBarPainter extends CustomPainter {
   final double progress;
   final double buffered;
-  final List<(double, double)> segmentRangeRatios;
+  final List<SkipSegmentMarkerRatio> segmentRangeRatios;
   final bool showDetails;
   final double barHeight;
   final double thumbRadius;
@@ -260,7 +291,7 @@ class _ProgressBarPainter extends CustomPainter {
       bgPaint,
     );
 
-    // 2. Skip segment markers (intro/credits/recap/preview, same style)
+    // 2. Skip segment markers (commercials colored separately)
     for (final range in segmentRangeRatios) {
       _drawSegmentMarker(
           canvas, size, range, trackYCenter, trackStrokeWidth);
@@ -315,13 +346,18 @@ class _ProgressBarPainter extends CustomPainter {
   void _drawSegmentMarker(
     Canvas canvas,
     Size size,
-    (double, double) range,
+    SkipSegmentMarkerRatio range,
     double trackYCenter,
     double trackStrokeWidth,
   ) {
-    final segmentColor = const Color(0xFF22C55E).withValues(alpha: 0.45);
-    final startX = range.$1.clamp(0.0, 1.0) * size.width;
-    final endX = range.$2.clamp(0.0, 1.0) * size.width;
+    // Commercials get an amber marker so ad breaks read differently from the
+    // green intro/outro segments at a glance.
+    final segmentColor = (range.isCommercial
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFF22C55E))
+        .withValues(alpha: 0.45);
+    final startX = range.startRatio.clamp(0.0, 1.0) * size.width;
+    final endX = range.endRatio.clamp(0.0, 1.0) * size.width;
 
     if (endX <= startX) return;
 
@@ -341,8 +377,8 @@ class _ProgressBarPainter extends CustomPainter {
     final markerXList = <double>[];
 
     for (final range in segmentRangeRatios) {
-      final startX = range.$1.clamp(0.0, 1.0) * size.width;
-      final endX = range.$2.clamp(0.0, 1.0) * size.width;
+      final startX = range.startRatio.clamp(0.0, 1.0) * size.width;
+      final endX = range.endRatio.clamp(0.0, 1.0) * size.width;
       if (endX > startX) {
         markerXList.add(startX);
         markerXList.add(endX);
@@ -386,8 +422,8 @@ class _ProgressBarPainter extends CustomPainter {
   }
 
   static bool _listsEqual(
-    List<(double, double)> current,
-    List<(double, double)> previous,
+    List<SkipSegmentMarkerRatio> current,
+    List<SkipSegmentMarkerRatio> previous,
   ) {
     if (!identical(current, previous) && current.length != previous.length) {
       return false;

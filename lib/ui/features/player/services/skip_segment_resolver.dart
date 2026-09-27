@@ -44,6 +44,13 @@ class SkipSegmentResolver {
         manualSkipOpeningSeconds: manualSkipOpeningSeconds,
         durationMilliseconds: normalizedDuration,
       ),
+      // Commercials sit between the intro side and the outro side so that, on
+      // an overlap, the intro wins over an ad but an ad wins over the credits.
+      ..._resolveCommercial(
+        smartSegments?.commercials,
+        switches: switches,
+        durationMilliseconds: normalizedDuration,
+      ),
       ..._resolveOutroSide(
         smartCredits: smartCredits,
         smartPreview: smartPreview,
@@ -65,20 +72,99 @@ class SkipSegmentResolver {
     );
   }
 
+  /// Enforces the non-overlapping invariant on the assembled list.
+  ///
+  /// Two segments on the same side — both skipped automatically, or both
+  /// skipped after a countdown — collapse into their union when they overlap or
+  /// merely touch. Leaving them separate would make the playhead skip to the
+  /// first segment's end, immediately re-trigger on the second, and visibly
+  /// skip twice; ads make this reachable, since they are the only multi-segment
+  /// kind and back-to-back ad breaks are ordinary.
+  ///
+  /// A cross-side overlap cannot collapse (the two need different prompts), so
+  /// list order decides: the earlier segment wins and the later one is dropped.
   List<ResolvedSkipSegment> _dropOverlapping(
       List<ResolvedSkipSegment> segments) {
     final result = <ResolvedSkipSegment>[];
     for (final segment in segments) {
-      final overlaps = result.any(
+      final sameSideIndex = result.indexWhere(
+        (kept) => _sameSide(kept, segment) && _touches(kept, segment),
+      );
+      if (sameSideIndex >= 0) {
+        result[sameSideIndex] = _mergeTouching(result[sameSideIndex], segment);
+        continue;
+      }
+      final overlapsCrossSide = result.any(
         (kept) =>
+            !_sameSide(kept, segment) &&
             segment.startMilliseconds < kept.endMilliseconds &&
             kept.startMilliseconds < segment.endMilliseconds,
       );
-      if (!overlaps) {
+      if (!overlapsCrossSide) {
         result.add(segment);
       }
     }
     return result;
+  }
+
+  /// Whether the two ranges overlap or touch.
+  bool _touches(ResolvedSkipSegment a, ResolvedSkipSegment b) {
+    return a.startMilliseconds <= b.endMilliseconds &&
+        b.startMilliseconds <= a.endMilliseconds;
+  }
+
+  /// Whether both segments are skipped by the same prompt (auto-skip vs.
+  /// countdown), which decides if a touch may collapse.
+  bool _sameSide(ResolvedSkipSegment a, ResolvedSkipSegment b) {
+    return a.isIntroRole == b.isIntroRole;
+  }
+
+  ResolvedSkipSegment _mergeTouching(
+    ResolvedSkipSegment a,
+    ResolvedSkipSegment b,
+  ) {
+    final startMilliseconds = a.startMilliseconds < b.startMilliseconds
+        ? a.startMilliseconds
+        : b.startMilliseconds;
+    final endMilliseconds = a.endMilliseconds > b.endMilliseconds
+        ? a.endMilliseconds
+        : b.endMilliseconds;
+    return ResolvedSkipSegment(
+      segment: SkipSegmentMillis(
+        startMilliseconds: startMilliseconds,
+        endMilliseconds: endMilliseconds,
+      ),
+      source: SkipSegmentSource.mergedSmart,
+      kinds: {...a.kinds, ...b.kinds},
+    );
+  }
+
+  /// Commercials are the only multi-segment mode: each ad break becomes its own
+  /// skip segment, and they never merge with each other or with an adjacent
+  /// intro/recap the way the single-segment kinds do.
+  List<ResolvedSkipSegment> _resolveCommercial(
+    List<EpisodeSegment>? commercials, {
+    required SkipSwitches switches,
+    required int? durationMilliseconds,
+  }) {
+    if (!switches.commercial || commercials == null || commercials.isEmpty) {
+      return const <ResolvedSkipSegment>[];
+    }
+
+    final resolved = <ResolvedSkipSegment>[];
+    for (final commercial in commercials) {
+      final segment = _resolveSmartSegment(
+        commercial,
+        durationMilliseconds: durationMilliseconds,
+      );
+      if (segment == null) continue;
+      resolved.add(ResolvedSkipSegment(
+        segment: segment,
+        source: SkipSegmentSource.smart,
+        kinds: const {SkipSegmentKind.commercial},
+      ));
+    }
+    return resolved;
   }
 
   List<ResolvedSkipSegment> _resolveIntroSide({
