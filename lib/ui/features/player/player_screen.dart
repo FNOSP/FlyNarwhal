@@ -43,6 +43,7 @@ import 'models/player_seek_origin.dart';
 import 'models/player_skip_action.dart';
 import 'models/resolved_skip_segments.dart';
 import 'services/skip_segment_resolver.dart';
+import 'services/direct_link_chunk_proxy.dart';
 import 'services/direct_link_audio_track_resolver.dart';
 import 'services/direct_link_subtitle_track_resolver.dart';
 import 'services/hls_subtitle_repository.dart';
@@ -313,8 +314,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   PlayerOverlayController get _overlayController =>
       ref.read(playerOverlayControllerProvider.notifier);
 
-  PlayerSessionCoordinator get _sessionCoordinator =>
-      ref.read(playerSessionCoordinatorProvider);
+  /// Coordinator captured on first use.
+  ///
+  /// [dispose] runs after the riverpod element is torn down, so reading the
+  /// provider there throws "Cannot use ref after the widget was disposed".
+  /// Caching the instance keeps teardown paths off [ref].
+  PlayerSessionCoordinator? _cachedSessionCoordinator;
+
+  PlayerSessionCoordinator get _sessionCoordinator {
+    final cached = _cachedSessionCoordinator;
+    if (cached != null) return cached;
+    final resolved = ref.read(playerSessionCoordinatorProvider);
+    _cachedSessionCoordinator = resolved;
+    return resolved;
+  }
 
   @override
   void initState() {
@@ -1706,6 +1719,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (isSameTarget) return;
 
     _queueQuitPlayback();
+    // Release the outgoing stream before the session state is reset below:
+    // the media guid lives in [_playingInfoCache], which the reset clears.
+    // Without this the proxy keeps fetching the previous episode's bytes
+    // until its idle timeout, because [dispose] never runs on a target switch.
+    _releaseDirectLinkSession();
 
     setState(() {
       _currentItemGuid = guid;
@@ -1725,6 +1743,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// - Direct cloud CDN URLs use only the provider headers from streamData.header
   ///   and omit NAS auth, because the request goes to the cloud provider.
   Map<String, String> _buildPlaybackHttpHeaders(String playUri) {
+    // The loopback chunk proxy holds no NAS credentials and forwards the
+    // upstream headers itself, so the player must not attach them here.
+    if (isDirectLinkChunkProxyUrl(playUri)) {
+      return const <String, String>{};
+    }
     final isNasProxy = playUri.contains('/v/api/v1/media/range') ||
         playUri.contains('/v/api/v1/wp/m3u8') ||
         _isNasHostedUrl(playUri);
@@ -1943,6 +1966,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       directLinkQualities: directQualities,
       cloudStorageType: cloudStorageType,
       directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
+      cloudHeader: cache.streamInfo?.header,
     );
     final convertedQualities = isCloud
         ? visibleQualities.map((q) => q.toQualityResponse()).toList()
@@ -4242,6 +4266,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         mediaGuid: videoStream.mediaGuid,
         startPositionMs: currentPosition,
         directLinkQualityIndex: targetIndex,
+        directLinkQualities: cache.directLinkQualities,
+        cloudStorageType:
+            cache.streamInfo?.cloudStorageInfo?.cloudStorageType,
+        directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
+        cloudHeader: cache.streamInfo?.header,
       );
       if (!_isCurrentCloudSwitch(switchToken)) return;
 
@@ -4601,6 +4630,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       directLinkQualities: directQualities,
       cloudStorageType: cloudStorageType,
       directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
+      cloudHeader: cache.streamInfo?.header,
     );
     if (!_isCurrentCloudSwitch(switchToken)) return false;
 
@@ -5171,6 +5201,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
+  /// Stops the chunk proxy serving this screen's current stream.
+  ///
+  /// Safe to call when no direct-link session exists and safe to call more
+  /// than once: the proxy drops the session by guid and cancels its in-flight
+  /// upstream reads, so the netdisk connection is dropped immediately rather
+  /// than running on until the idle timeout.
+  void _releaseDirectLinkSession() {
+    final coordinator = _cachedSessionCoordinator;
+    final mediaGuid = _playingInfoCache?.currentVideoStream?.mediaGuid;
+    if (coordinator == null || mediaGuid == null) return;
+    unawaited(coordinator.releaseDirectLinkSessions(mediaGuid));
+  }
+
   @override
   void dispose() {
     if (_isDesktopPlatform()) {
@@ -5205,6 +5248,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playbackIndicatorTimer?.cancel();
     _playbackIndicatorExitController.dispose();
     _playerFocusNode.dispose();
+    // Release only this screen's stream: the coordinator is shared, so closing
+    // the listener itself would cut off a stream owned by another screen (for
+    // example while a picture-in-picture window is still open). The cached
+    // reference is used because [ref] is already unavailable here.
+    _releaseDirectLinkSession();
     _player?.dispose();
     _hlsSubtitleTexts.dispose();
     _danmakuPosition.dispose();

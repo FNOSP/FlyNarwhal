@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/utils/log/app_talker.dart';
@@ -14,6 +17,7 @@ import '../../../../data/models/player_models.dart';
 import '../../../../data/storage/player_settings_store.dart';
 import '../../../../data/storage/preferences_manager.dart';
 import '../../../../providers/providers.dart';
+import '../services/direct_link_chunk_proxy.dart';
 import '../services/hls_playlist_resolver.dart';
 import '../services/player_service.dart';
 
@@ -146,12 +150,54 @@ class PlayerSessionCoordinator {
   })  : _playerService = playerService,
         _preferencesManager = preferencesManager,
         _playerSettingsManager = playerSettingsManager,
-        _dio = dio;
+        _dio = dio {
+    _chunkProxy = DirectLinkChunkProxy(
+      dio: dio,
+      supportDirectory: _directLinkCacheRoot,
+    );
+  }
+
+  /// Chunk-cache parent directory.
+  ///
+  /// The proxy only needs a stable, writable location; the support directory
+  /// is used because it survives between runs and is where the app already
+  /// keeps its logs. Returning null makes the proxy fall back to a temp folder.
+  static String? _directLinkCacheRoot() {
+    final support = _cachedSupportPath;
+    if (support != null) return support;
+    unawaited(
+      getApplicationSupportDirectory().then((dir) {
+        _cachedSupportPath =
+            '${dir.path}${Platform.pathSeparator}direct_link_cache';
+      }).catchError((_) {}),
+    );
+    return null;
+  }
+
+  static String? _cachedSupportPath;
 
   final PlayerService _playerService;
   final PreferencesManager _preferencesManager;
   final PlayerSettingsManager _playerSettingsManager;
   final Dio _dio;
+
+  /// Serves cloud direct-link streams to the player over loopback so every
+  /// upstream byte request stays inside the bounded window the CDN accepts at
+  /// full speed. See [DirectLinkChunkProxy] for the throttling details.
+  late final DirectLinkChunkProxy _chunkProxy;
+
+  /// Drops the chunk-proxy sessions belonging to [mediaGuid]. Called when a
+  /// session is replaced or left so a superseded stream stops fetching.
+  Future<void> releaseDirectLinkSessions(String mediaGuid) {
+    return _chunkProxy.releaseSessionsForMedia(mediaGuid);
+  }
+
+  /// Closes the loopback listener. The listener is created lazily on the first
+  /// cloud direct-link session and then serves the whole app lifetime, so this
+  /// only runs on teardown paths such as tests and app shutdown.
+  Future<void> disposeDirectLinkProxy() {
+    return _chunkProxy.dispose();
+  }
 
   // Advanced playback settings (mirror the web player's 高级设置): force H.264
   // transcoding and force HDR→SDR tone mapping on the play request.
@@ -952,6 +998,7 @@ class PlayerSessionCoordinator {
     List<DirectLinkQuality>? directLinkQualities,
     int? cloudStorageType,
     int? directLinkAudioIndex,
+    Map<String, dynamic>? cloudHeader,
   }) async {
     final baseUrl = _preferencesManager.getBaseUrl() ?? '';
     final base = baseUrl.endsWith('/')
@@ -1017,6 +1064,31 @@ class PlayerSessionCoordinator {
         ? '?direct_link_quality_index=$directLinkQualityIndex'
         : '';
     final fullUrl = '$base$controlPlayLink$qualityQuery';
+    // Quark throttles an open-ended Range request down to roughly 100 KB/s.
+    // mpv opens a remote Matroska file with exactly that request, so the
+    // container header never arrives and playback verification times out.
+    // Route Quark streams through the loopback chunk proxy, which re-issues
+    // every read as a bounded window the CDN serves at full speed. Other
+    // fallback providers keep the direct URL.
+    final cloudType = CloudStorageType.fromValue(cloudStorageType);
+    if (cloudType.isQuarkPan) {
+      final proxyUrl = await _chunkProxy.registerSession(
+        mediaGuid: mediaGuid,
+        upstreamUrl: fullUrl,
+        headers: _buildDirectLinkUpstreamHeaders(cloudHeader),
+        bitrate: directLinkQualities != null &&
+                directLinkQualityIndex != null &&
+                directLinkQualityIndex >= 0 &&
+                directLinkQualityIndex < directLinkQualities.length
+            ? directLinkQualities[directLinkQualityIndex].bitrate
+            : 0,
+      );
+      return DirectPlayLinkResult(
+        playUri: proxyUrl,
+        playLinkRaw: controlPlayLink,
+        effectiveStartMs: startPositionMs,
+      );
+    }
     // mpv (media_kit) cannot open the backend's "?range=bytes=offset-"
     // query-style direct link; it does not translate the query into a real
     // HTTP Range request, so the stream fails to open. The backend, however,
@@ -1032,6 +1104,18 @@ class PlayerSessionCoordinator {
       playLinkRaw: controlPlayLink,
       effectiveStartMs: startPositionMs,
     );
+  }
+
+  /// Headers the chunk proxy sends upstream: NAS auth plus the cloud provider
+  /// header envelope the web player passes as X-Wp-Header.
+  Map<String, String> _buildDirectLinkUpstreamHeaders(
+    Map<String, dynamic>? cloudHeader,
+  ) {
+    final headers = buildPlayerHeaders();
+    if (cloudHeader != null && cloudHeader.isNotEmpty) {
+      headers['X-Wp-Header'] = jsonEncode(cloudHeader);
+    }
+    return headers;
   }
 
   /// Builds the /wp/m3u8 proxy URL for 115 Pan m3u8 qualities.
