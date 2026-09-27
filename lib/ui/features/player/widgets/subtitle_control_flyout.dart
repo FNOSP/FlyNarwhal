@@ -7,6 +7,7 @@ import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
 import 'subtitle_selection_panel.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
+import 'package:fly_narwhal/tooling/driver_test_mode.dart';
 
 const int _subtitleHideDelayMs = 200;
 const int subtitleFlyoutAnimationDurationMs = 200;
@@ -35,6 +36,12 @@ class SubtitleControlFlyout extends StatefulWidget {
   final void Function(SubtitleStream)? onRequestDelete;
   final void Function(SubtitleStream)? onPredownloadSimilar;
 
+  /// 当前播放的是否为剧集（有同系列其他集可下载字幕）。
+  final bool isEpisode;
+
+  /// 直连转码播放网盘视频：列表隐藏内置字幕并在底部显示缺失说明。
+  final bool showDirectLinkSubtitleHint;
+
   const SubtitleControlFlyout({
     super.key,
     required this.subtitles,
@@ -54,6 +61,8 @@ class SubtitleControlFlyout extends StatefulWidget {
     this.onHoverStateChanged,
     this.onRequestDelete,
     this.onPredownloadSimilar,
+    this.isEpisode = false,
+    this.showDirectLinkSubtitleHint = false,
   });
 
   @override
@@ -122,6 +131,8 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
             oldWidget.subtitles != widget.subtitles ||
             oldWidget.selectedSubtitleGuid != widget.selectedSubtitleGuid ||
             oldWidget.canAdjustSubtitle != widget.canAdjustSubtitle ||
+            oldWidget.showDirectLinkSubtitleHint !=
+                widget.showDirectLinkSubtitleHint ||
             oldWidget.iso6391Map != widget.iso6391Map ||
             oldWidget.iso6392Map != widget.iso6392Map);
 
@@ -342,7 +353,8 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
 
   void _hideFlyoutWithDelay() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(milliseconds: _subtitleHideDelayMs), () {
+    final delay = kDriverTestMode ? 10000 : _subtitleHideDelayMs;
+    _hideTimer = Timer(Duration(milliseconds: delay), () {
       if (!_isButtonHovered && !_popupHovered && mounted) {
         unawaited(_closeFlyout());
       }
@@ -428,13 +440,19 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
         key: _buttonKey,
         // Match the icon action buttons, whose 30x30 tap area carries 4px of
         // transparent padding per side; the bare 22px icon looked cramped next to them.
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: SvgPicture.asset(
-            'assets/images/subtitle.svg',
-            width: 22,
-            height: 22,
-            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: kDriverTestMode
+              ? () => _isExpanded ? _closeFlyout() : _showFlyout()
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: SvgPicture.asset(
+              'assets/images/subtitle.svg',
+              width: 22,
+              height: 22,
+              colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+            ),
           ),
         ),
       ),
@@ -487,6 +505,8 @@ class _SubtitleControlFlyoutState extends State<SubtitleControlFlyout>
               },
               onRequestDelete: widget.onRequestDelete,
               onPredownloadSimilar: widget.onPredownloadSimilar,
+              isEpisode: widget.isEpisode,
+              showDirectLinkSubtitleHint: widget.showDirectLinkSubtitleHint,
             ),
     );
   }

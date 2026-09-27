@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, Platform;
 import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -12,6 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/dialogs/app_dialog.dart';
@@ -19,6 +21,7 @@ import '../../shared/toast.dart';
 
 import '../../../core/error/login_exception.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/network/ssl/ssl_error_detector.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/login_history.dart';
 import '../../../data/storage/preferences_manager.dart';
@@ -67,6 +70,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String _capturedPassword = '';
   bool _capturedRememberPassword = false;
   InAppWebViewController? _inAppWebViewController;
+  WebViewEnvironment? _fnConnectWebViewEnvironment;
   _NetworkMessageProcessor? _networkMessageProcessor;
 
   @override
@@ -84,6 +88,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void dispose() {
     _disposeWebView();
+    final webViewEnvironment = _fnConnectWebViewEnvironment;
+    if (webViewEnvironment != null) {
+      unawaited(webViewEnvironment.dispose());
+    }
     _hostController.dispose();
     _portController.dispose();
     _usernameController.dispose();
@@ -160,7 +168,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
       final shouldAutoLogin =
           _autoLoginFromHistory && _rememberPassword && password.isNotEmpty;
-      _openFnConnectWebView(
+      await _openFnConnectWebView(
         url: url,
         isProbe: false,
         autoLoginUsername: username,
@@ -182,7 +190,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showToast('请输入正确的 IP、域名或 FN ID');
         return;
       }
-      _openFnConnectWebView(url: probeUrl, isProbe: true);
+      await _openFnConnectWebView(url: probeUrl, isProbe: true);
       return;
     }
 
@@ -223,13 +231,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  void _openFnConnectWebView({
+  Future<void> _openFnConnectWebView({
     required String url,
     required bool isProbe,
     String? autoLoginUsername,
     String? autoLoginPassword,
     bool allowAutoLogin = false,
-  }) {
+  }) async {
     final normalizedUrl = _normalizeFnConnectUrl(url, true);
     _baseUrl = _originFromUrl(normalizedUrl);
     _allowAutoLogin = allowAutoLogin;
@@ -238,16 +246,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _capturedUsername = '';
     _capturedPassword = '';
     _capturedRememberPassword = false;
-    // Clear WebView cookies before opening to prevent stale login sessions.
-    // This ensures every NAS login starts from a clean /login page so JS hooks
-    // can reliably capture subsequent status requests and trigger the signin flow.
-    CookieManager.instance().deleteAllCookies();
+
+    try {
+      // Create a shared Windows environment before accessing its cookie store.
+      if (!kIsWeb && Platform.isWindows) {
+        _fnConnectWebViewEnvironment ??= await WebViewEnvironment.create(
+          settings: WebViewEnvironmentSettings(
+            userDataFolder: await _resolveWindowsWebViewUserDataFolder(),
+          ),
+        );
+      }
+
+      // Clear cookies through the same environment that will host the WebView.
+      await _fnConnectCookieManager.deleteAllCookies();
+    } catch (error) {
+      AppTalker.warning(
+        'LoginBridge',
+        'prepare WebView environment failed: $error',
+      );
+      _showToast('浏览器组件初始化失败，请稍后重试。');
+      return;
+    }
+
     setState(() {
       _fnConnectUrl = normalizedUrl;
       _showFnConnectWebView = true;
       _isProbeMode = isProbe;
     });
     _prepareNetworkProcessor();
+  }
+
+  CookieManager get _fnConnectCookieManager {
+    return CookieManager.instance(
+      webViewEnvironment: _fnConnectWebViewEnvironment,
+    );
+  }
+
+  /// WebView2 defaults to a user data folder next to the executable, which
+  /// fails for installs under Program Files. Point it at a writable user
+  /// directory instead.
+  Future<String> _resolveWindowsWebViewUserDataFolder() async {
+    final support = await getApplicationSupportDirectory();
+    final directory = Directory(p.join(support.path, 'webview2'));
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+    return directory.path;
   }
 
   void _prepareNetworkProcessor() {
@@ -476,7 +520,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final uri = Uri.tryParse(baseUrl);
     final webUri = _tryParseWebUri(baseUrl);
     if (uri == null || webUri == null) return;
-    await CookieManager.instance().setCookie(
+    await _fnConnectCookieManager.setCookie(
       url: webUri,
       name: name,
       value: value,
@@ -514,7 +558,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Clear WebView cookies after login so the next NAS login starts fresh.
     // Account credentials are managed exclusively by the app (PreferencesManager),
     // not by WebView's persistent session storage.
-    CookieManager.instance().deleteAllCookies();
+    try {
+      await _fnConnectCookieManager.deleteAllCookies();
+    } catch (error) {
+      AppTalker.warning(
+        'LoginBridge',
+        'clear WebView cookies after login failed: $error',
+      );
+    }
 
     final refreshNotifier = ref.read(authRefreshProvider.notifier);
     refreshNotifier.state = refreshNotifier.state + 1;
@@ -592,9 +643,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             top: showWindowCaption ? kWindowTitleBarHeight : 0,
             child: Center(
               child: AdaptiveLiquidGlassLayer(
-                settings:
-                    const LiquidGlassSettings(thickness: 28.0, blur: 8.0, refractiveIndex: 1.8),
-                quality: GlassQuality.premium,
+                settings: const LiquidGlassSettings(
+                  thickness: 28.0,
+                  blur: 8.0,
+                  refractiveIndex: 1.8,
+                ),
+                // Keep grouped login controls on the cross-platform shader path.
+                quality: GlassQuality.standard,
                 child: GlassContainer(
                   width: 420,
                   padding:
@@ -884,6 +939,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     Expanded(
                       child: InAppWebView(
+                        webViewEnvironment: _fnConnectWebViewEnvironment,
                         initialUrlRequest:
                             URLRequest(url: _tryParseWebUri(_fnConnectUrl)),
                         initialSettings: InAppWebViewSettings(
@@ -1054,6 +1110,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final statusCode = error.response?.statusCode;
       if (statusCode != null) {
         return '服务器返回错误（HTTP $statusCode），请检查服务状态。';
+      }
+      // A TLS failure normally arrives as `DioExceptionType.unknown` wrapping a
+      // HandshakeException, not as `badCertificate`, so inspect the cause chain
+      // before falling through to the generic messages.
+      if (isCertificateException(error.error ?? error)) {
+        return 'SSL 证书验证失败，请检查 HTTPS 设置或服务器证书。';
       }
       switch (error.type) {
         case DioExceptionType.connectionTimeout:

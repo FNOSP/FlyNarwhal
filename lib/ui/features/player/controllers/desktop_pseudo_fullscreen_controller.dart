@@ -149,10 +149,14 @@ class DesktopPseudoFullscreenController {
 
     if (defaultTargetPlatform == TargetPlatform.windows) {
       try {
-        await _displayFrameChannel.invokeMethod(
-          'setWindowBorderless',
-          <String, dynamic>{'borderless': borderless},
-        );
+        if (borderless) {
+          // Keep window_manager's internal frame state in sync so its native
+          // non-client-area handler does not reserve a resize border.
+          await windowManager.setAsFrameless();
+        } else {
+          // Restore the custom hidden title bar used by the normal window.
+          await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+        }
       } catch (error, stackTrace) {
         AppTalker.error(
           'Fullscreen',

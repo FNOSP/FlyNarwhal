@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/utils/log/app_talker.dart';
 import '../../../../domain/entities/media_type.dart';
 
+import '../../../../data/models/cloud_storage_type.dart';
 import '../../../../data/models/episode_list_response.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
@@ -644,6 +645,35 @@ class PlayerSessionCoordinator {
     return nonM3u8.isEmpty ? 0 : qualities.indexOf(nonM3u8[defaultNonM3u8Index]);
   }
 
+  /// 网盘直连播放且当前选中的是转码画质（非原画），对齐 web 端
+  /// `isDirectLinkEnabled && !isRemuxQuality`（STRM 除外）。此模式下网盘方
+  /// 不提供内置字幕轨道，字幕列表应隐藏内置字幕并提示缺失。
+  static bool isDirectLinkTranscodePlayback({
+    required List<DirectLinkQuality> directLinkQualities,
+    required int? directLinkQualityIndex,
+    required int? cloudStorageType,
+    required bool isStrm,
+  }) {
+    if (isStrm || directLinkQualities.isEmpty) return false;
+    final filtered = filterDirectLinkQualities(
+      qualities: directLinkQualities,
+      cloudStorageType: cloudStorageType,
+    );
+    final visibleQualities = filtered.qualities.isNotEmpty
+        ? filtered.qualities
+        : directLinkQualities;
+    if (visibleQualities.isEmpty) return false;
+    if (directLinkQualityIndex == null ||
+        directLinkQualityIndex < 0 ||
+        directLinkQualityIndex >= directLinkQualities.length) {
+      return false;
+    }
+    final selected = directLinkQualities[directLinkQualityIndex];
+    final original = visibleQualities.first;
+    return selected.resolution != original.resolution ||
+        selected.bitrate != original.bitrate;
+  }
+
   /// Filters the direct-link quality list by cloud provider, mirroring the web
   /// player's `Ape`: 123/Baidu hide m3u8 qualities; 115 and others keep them.
   /// Returns the visible qualities together with their original indices in the
@@ -655,11 +685,11 @@ class PlayerSessionCoordinator {
   }) {
     final visible = <DirectLinkQuality>[];
     final originalIndices = <int>[];
+    final cloudType = CloudStorageType.fromValue(cloudStorageType);
     for (var i = 0; i < qualities.length; i++) {
       final q = qualities[i];
-      // OneTwoThreePan (5) and BaiduPan (1) filter out m3u8 entries.
-      if (q.isM3u8 &&
-          (cloudStorageType == 1 || cloudStorageType == 5)) {
+      // 123 and Baidu hide their m3u8 entries.
+      if (q.isM3u8 && (cloudType.isBaiduPan || cloudType.isOneTwoThreePan)) {
         continue;
       }
       visible.add(q);
@@ -935,9 +965,10 @@ class PlayerSessionCoordinator {
         directLinkQualityIndex >= 0 &&
         directLinkQualityIndex < directLinkQualities.length) {
       final quality = directLinkQualities[directLinkQualityIndex];
+      final cloudType = CloudStorageType.fromValue(cloudStorageType);
 
-      // Aliyun Pan (2) and 123 Pan (5): play the raw CDN URL directly.
-      if (cloudStorageType == 2 || cloudStorageType == 5) {
+      // Aliyun and 123 Pan: play the raw CDN URL directly.
+      if (cloudType.isAliPan || cloudType.isOneTwoThreePan) {
         return DirectPlayLinkResult(
           playUri: quality.url,
           playLinkRaw: quality.url,
@@ -945,10 +976,10 @@ class PlayerSessionCoordinator {
         );
       }
 
-      // STRM (9001): the NAS already resolved the .strm content into a
-      // playable URL when serving /stream, so play it directly (mirrors the
-      // web player, which never routes STRM through the media/range proxy).
-      if (cloudStorageType == CloudStorageInfo.strmCloudStorageType) {
+      // STRM: the NAS already resolved the .strm content into a playable URL
+      // when serving /stream, so play it directly (mirrors the web player,
+      // which never routes STRM through the media/range proxy).
+      if (cloudType.isStrm) {
         return DirectPlayLinkResult(
           playUri: quality.url,
           playLinkRaw: quality.url,
@@ -956,9 +987,9 @@ class PlayerSessionCoordinator {
         );
       }
 
-      // 115 Pan (3): m3u8 qualities are proxied through /wp/m3u8 with the
+      // 115 Pan: m3u8 qualities are proxied through /wp/m3u8 with the
       // selected audio track appended; non-m3u8 uses the raw CDN URL.
-      if (cloudStorageType == 3) {
+      if (cloudType.isOneOneFivePan) {
         if (quality.isM3u8) {
           final proxiedUrl = _buildOneOneFiveM3u8Url(
             qualityUrl: quality.url,

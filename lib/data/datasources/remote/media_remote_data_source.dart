@@ -338,6 +338,16 @@ class MediaRemoteDataSource {
     return result;
   }
 
+  /// 移除续播记录（对齐 Web `DELETE /play/record`），用于「从继续观看中移除」。
+  Future<ApiResult<bool>> deletePlayRecord(String guid) async {
+    final result = await _dioClient.delete<bool>(
+      ApiEndpoints.playRecord,
+      data: ItemGuidRequest(itemGuid: guid).toJson(),
+      converter: (data) => _parseSuccessResponse(data),
+    );
+    return result;
+  }
+
   /// Persist live-channel (IPTV) playback progress.
   Future<ApiResult<bool>> updateLivePlayRecord(
       LivePlayRecordRequest request) async {
@@ -481,15 +491,18 @@ class MediaRemoteDataSource {
     return result;
   }
 
-  /// 删除条目（对齐 Web `DELETE /item/:guid?delete_file=0|1`）。
+  /// 删除条目（对齐 Web `DELETE /item/:guid`，载荷在 body 里）。
   /// [deleteFile] 为 true 时同时删除磁盘文件；默认 false 仅从媒体库移除。
+  ///
+  /// 载荷必须放 body：服务端按 body 计算 Authx 签名，用 query 参数会被判为
+  /// invalid sign；Web 端同样只在 GET 时把参数放 query。
   Future<ApiResult<bool>> deleteItem(
     String guid, {
     required bool deleteFile,
   }) async {
     final result = await _dioClient.delete<bool>(
       ApiEndpoints.itemByGuid(guid),
-      queryParameters: <String, dynamic>{'delete_file': deleteFile ? 1 : 0},
+      data: <String, dynamic>{'delete_file': deleteFile ? 1 : 0},
       converter: (data) => _parseSuccessResponse(data),
     );
     if (result.isSuccess) _cache.invalidate(guid);
@@ -505,7 +518,10 @@ class MediaRemoteDataSource {
           .toList(),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? [];
   }
@@ -517,7 +533,10 @@ class MediaRemoteDataSource {
           .map((key, value) => MapEntry(key, value as int)),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? {};
   }
@@ -530,7 +549,10 @@ class MediaRemoteDataSource {
           .toList(),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? [];
   }
@@ -541,7 +563,10 @@ class MediaRemoteDataSource {
       (json) => ItemListQueryResponse.fromJson(json as Map<String, dynamic>),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? ItemListQueryResponse();
   }
@@ -607,7 +632,10 @@ class MediaRemoteDataSource {
     );
     if (baseResponse.code != ResponseCodes.success ||
         baseResponse.data == null) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data!;
   }
@@ -622,7 +650,12 @@ class MediaRemoteDataSource {
       // Keep the business code in the message: callers (e.g. the player's
       // direct-link fallback) match on it, and the server may return an
       // empty msg which would otherwise produce an unreadable exception.
-      throw Exception('code=${baseResponse.code} msg=${baseResponse.msg}');
+      final detail = 'code=${baseResponse.code} msg=${baseResponse.msg}';
+      throw FailureInfo(
+        message: detail,
+        code: baseResponse.code,
+        displayMessage: detail,
+      );
     }
     return baseResponse.data!;
   }
@@ -635,7 +668,10 @@ class MediaRemoteDataSource {
           .toList(),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? const <MediaItem>[];
   }
@@ -648,14 +684,16 @@ class MediaRemoteDataSource {
     if (baseResponse.code != ResponseCodes.success) {
       // Keep the business code so callers can tell "person record missing"
       // (rendered as an empty state) apart from real failures.
-      throw FailureInfo(
-        message: baseResponse.msg,
+      throw FailureInfo.fromResponse(
         code: baseResponse.code,
-        displayMessage: baseResponse.msg,
+        msg: baseResponse.msg,
       );
     }
     if (baseResponse.data == null) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data!;
   }
@@ -667,7 +705,10 @@ class MediaRemoteDataSource {
           json as Map<String, dynamic>),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data?.list ?? const <PersonItemList>[];
   }
@@ -678,7 +719,10 @@ class MediaRemoteDataSource {
       (json) => PersonListResponse.fromJson(json as Map<String, dynamic>),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data?.list ?? [];
   }
@@ -691,7 +735,10 @@ class MediaRemoteDataSource {
           .toList(),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? const <SeasonListResponse>[];
   }
@@ -710,7 +757,10 @@ class MediaRemoteDataSource {
           .toList(),
     );
     if (baseResponse.code != ResponseCodes.success) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data ?? const <EpisodeListResponse>[];
   }
@@ -722,7 +772,10 @@ class MediaRemoteDataSource {
     );
     if (baseResponse.code != ResponseCodes.success ||
         baseResponse.data == null) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     return baseResponse.data!;
   }
@@ -735,7 +788,10 @@ class MediaRemoteDataSource {
     );
     if (baseResponse.code != ResponseCodes.success ||
         baseResponse.data == null) {
-      throw Exception(baseResponse.msg);
+      throw FailureInfo.fromResponse(
+        code: baseResponse.code,
+        msg: baseResponse.msg,
+      );
     }
     final response = baseResponse.data!;
     if (!response.isSuccess) {

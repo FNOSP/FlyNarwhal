@@ -16,8 +16,11 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'core/config/runtime_configuration.dart';
 import 'core/config/secret_bridge_selector.dart';
+import 'core/network/ssl/ssl_trust_manager.dart';
+import 'core/network/ssl/ssl_trust_persistence.dart';
 import 'core/security/password_cipher.dart';
 import 'core/window/desktop_display_service.dart';
+import 'core/window/app_shutdown.dart';
 import 'core/window/window_geometry.dart';
 import 'data/storage/main_window_settings_store.dart';
 import 'core/utils/index.dart';
@@ -30,7 +33,9 @@ import 'providers/reporting_providers.dart';
 import 'providers/update_providers.dart';
 import 'services/update/update_scheduler.dart';
 import 'services/window/main_window_lifecycle_controller.dart';
+import 'tooling/driver_test_mode.dart';
 import 'ui/navigation/app_router.dart';
+import 'ui/shared/ssl_trust_dialog_host.dart';
 import 'ui/shared/toast.dart';
 
 MainWindowLifecycleController? mainWindowLifecycleController;
@@ -78,6 +83,17 @@ Future<void> bootstrapApp() async {
     // geometry can be validated against the current display arrangement.
     final prefs = await SharedPreferences.getInstance();
     AppTalker.info('Prefs', 'SharedPreferences ready');
+
+    // Load the certificate trust whitelist before any request can be issued, so
+    // an already-trusted host never prompts again on this launch.
+    final accountSettingsStore = AccountSettingsStore(prefs);
+    SslTrustPersistence.install(accountSettingsStore);
+    SslTrustManager.instance.hydrate(SslTrustPersistence.read());
+    _applyDriverAutoTrust();
+    AppTalker.info(
+      'SslTrust',
+      'hydrated ${SslTrustManager.instance.persistedEntries.length} trusted certificate(s)',
+    );
 
     // Apply desktop-only window initialization and cache tuning.
     if (_isDesktopPlatform()) {
@@ -169,6 +185,7 @@ Future<void> bootstrapApp() async {
       });
       mainWindowLifecycleController = MainWindowLifecycleController(prefs)
         ..start();
+      AppShutdown.register(mainWindowLifecycleController!.requestShutdown);
       AppTalker.info('Window', 'Desktop initialization complete');
     }
 
@@ -261,6 +278,25 @@ void _syncMigratedFallbackDeviceId(
   }
   preferences.setString(targetKey, migratedId.trim());
   AppTalker.info('Migration', 'KMP fallback device id synced to PreferencesManager key');
+}
+
+/// Pre-approves hosts named by `--dart-define=SSL_AUTO_TRUST_HOSTS` (comma
+/// separated), so automated driver runs against a self-signed test server do
+/// not stall on the trust dialog.
+void _applyDriverAutoTrust() {
+  if (!kDriverTestMode) return;
+  const raw = String.fromEnvironment('SSL_AUTO_TRUST_HOSTS');
+  if (raw.trim().isEmpty) return;
+
+  for (final host in raw.split(',')) {
+    final normalized = SslTrustManager.normalizeHost(host);
+    if (normalized.isEmpty) continue;
+    // A wildcard fingerprint: any certificate presented by this host is
+    // accepted for the duration of the run. Test-only.
+    SslTrustManager.instance.addTemporary(
+      SslTrustEntry(host: normalized, fingerprintSha256: wildcardFingerprint),
+    );
+  }
 }
 
 bool _isDesktopPlatform() {
@@ -394,6 +430,7 @@ class MyApp extends ConsumerWidget {
             children: [
               if (child != null) child,
               const ToastHost(),
+              const SslTrustDialogHost(),
             ],
           ),
         );
@@ -443,3 +480,4 @@ class _MouseBackNavigationListener extends StatelessWidget {
     }
   }
 }
+

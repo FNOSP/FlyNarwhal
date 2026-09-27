@@ -2,6 +2,8 @@ import 'dart:io' show SocketException;
 
 import 'package:dio/dio.dart';
 
+import '../../network/api_result.dart';
+
 /// Formats errors and stack traces into human-readable strings that survive
 /// release obfuscation.
 ///
@@ -27,6 +29,12 @@ abstract final class ErrorDescriber {
 
     if (error is DioException) {
       return _describeDioException(error);
+    }
+
+    // FailureInfo has no toString override, so it would otherwise print as
+    // `Instance of 'FailureInfo'` (mangled in release builds).
+    if (error is FailureInfo) {
+      return _describeFailureInfo(error);
     }
 
     if (error is SocketException) {
@@ -79,6 +87,20 @@ abstract final class ErrorDescriber {
     }
     if (error.error != null) {
       buffer.write(' cause=${describe(error.error)}');
+    }
+    return _truncate(buffer.toString());
+  }
+
+  static String _describeFailureInfo(FailureInfo error) {
+    final buffer = StringBuffer('FailureInfo');
+    if (error.code != null) {
+      buffer.write(' code=${error.code}');
+    }
+    final message = error.displayMessage.isNotEmpty
+        ? error.displayMessage
+        : error.message;
+    if (message.isNotEmpty) {
+      buffer.write(' message=$message');
     }
     return _truncate(buffer.toString());
   }

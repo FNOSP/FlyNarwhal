@@ -1,4 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
+import 'cloud_storage_type.dart';
 import 'movie_detail_models.dart';
 
 part 'player_models.g.dart';
@@ -23,10 +24,6 @@ class SpeedItem {
 
 @JsonSerializable()
 class CloudStorageInfo {
-  /// `cloud_storage_type` value the backend uses for STRM files (not a real
-  /// cloud drive; the NAS resolves the .strm content to a playable URL).
-  static const int strmCloudStorageType = 9001;
-
   @JsonKey(name: 'dav_username')
   final String? davUsername;
   final bool? valid;
@@ -67,7 +64,7 @@ class CloudStorageInfo {
   Map<String, dynamic> toJson() => _$CloudStorageInfoToJson(this);
 
   /// True when this media is an STRM file rather than a cloud-drive link.
-  bool get isStrm => cloudStorageType == strmCloudStorageType;
+  bool get isStrm => CloudStorageType.fromValue(cloudStorageType).isStrm;
 }
 
 @JsonSerializable()

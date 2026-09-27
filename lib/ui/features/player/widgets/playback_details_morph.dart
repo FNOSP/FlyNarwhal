@@ -154,8 +154,8 @@ class _PlaybackDetailsMorphState extends State<PlaybackDetailsMorph>
     final settled = _morph.isClosing
         ? (_morph.value <= 0.001 && _morph.velocity.abs() < 0.5)
         : (target == Size.zero ||
-              ((target.width - current.width).abs() < 0.5 &&
-                  (target.height - current.height).abs() < 0.5));
+            ((target.width - current.width).abs() < 0.5 &&
+                (target.height - current.height).abs() < 0.5));
     if (settled && !_notifiedSettled) {
       _notifiedSettled = true;
       widget.onSettled();
@@ -175,6 +175,18 @@ class _PlaybackDetailsMorphState extends State<PlaybackDetailsMorph>
 
   @override
   Widget build(BuildContext context) {
+    // Before the first measurement lands, keep the surface off-screen so the
+    // user never sees the pre-measure twin circles parked at the spawn size.
+    if (_naturalSize == null) {
+      return Offstage(
+        offstage: true,
+        child: _buildMeasurementHost(
+          boxWidth: widget.maxSize.width,
+          boxHeight: widget.maxSize.height,
+        ),
+      );
+    }
+
     final clampedValue = _morph.value.clamp(0.0, 1.0);
     final current = _currentSize();
     final currentWidth = current.width;
@@ -183,8 +195,7 @@ class _PlaybackDetailsMorphState extends State<PlaybackDetailsMorph>
     final maxRadius =
         currentWidth < currentHeight ? currentWidth : currentHeight;
     final radiusT = Curves.easeInExpo.transform(clampedValue);
-    final currentRadius =
-        lerpDouble(maxRadius / 2.0, _panelRadius, radiusT)!;
+    final currentRadius = lerpDouble(maxRadius / 2.0, _panelRadius, radiusT)!;
 
     // The spring value (with its underdamped overshoot) drives a squeeze
     // pulse on the body and the spawn blob's closing bounce.
@@ -242,6 +253,29 @@ class _PlaybackDetailsMorphState extends State<PlaybackDetailsMorph>
     );
   }
 
+  Widget _buildMeasurementHost({
+    required double boxWidth,
+    required double boxHeight,
+  }) {
+    return Align(
+      alignment: Alignment.topRight,
+      child: SizedBox(
+        width: boxWidth,
+        height: boxHeight,
+        child: SingleChildScrollView(
+          child: _NaturalSizeProbe(
+            maxWidth: widget.maxSize.width,
+            onChange: _onContentSizeMeasured,
+            child: Padding(
+              padding: const EdgeInsets.all(_contentPadding),
+              child: widget.child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPanelBody(
     LiquidMorphState state,
     double width,
@@ -289,15 +323,9 @@ class _PlaybackDetailsMorphState extends State<PlaybackDetailsMorph>
                 child: SizedBox(
                   width: boxWidth,
                   height: boxHeight,
-                  child: SingleChildScrollView(
-                    child: _NaturalSizeProbe(
-                      maxWidth: widget.maxSize.width,
-                      onChange: _onContentSizeMeasured,
-                      child: Padding(
-                        padding: const EdgeInsets.all(_contentPadding),
-                        child: widget.child,
-                      ),
-                    ),
+                  child: _buildMeasurementHost(
+                    boxWidth: boxWidth,
+                    boxHeight: boxHeight,
                   ),
                 ),
               ),

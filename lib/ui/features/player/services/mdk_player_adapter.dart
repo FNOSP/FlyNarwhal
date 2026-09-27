@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:fvp/mdk.dart' as mdk;
 
+import '../../../../core/network/ssl/ssl_trust_manager.dart';
 import '../../../../core/utils/log/app_talker.dart';
 
 /// Decoded video size, mirroring the fields the player screens read from
@@ -586,6 +587,36 @@ class MdkPlayerAdapter {
   void setBufferRange({int min = -1, int max = -1, bool drop = false}) {
     if (_disposed) return;
     _player.setBufferRange(min: min, max: max, drop: drop);
+  }
+
+  /// Relaxes TLS verification for [mediaUri] when the host has been approved.
+  ///
+  /// The media bytes are fetched by mdk over its own native HTTP stack, so the
+  /// Dio-level trust work does not reach it. mdk verifies certificates strictly
+  /// by default, which would leave a user who whitelisted their NAS still
+  /// unable to play.
+  ///
+  /// Verification is an instance option, not a per-host one, and mdk does not
+  /// expose the peer certificate back to Dart — so unlike the Dio path this
+  /// cannot be pinned to a fingerprint. It only asserts "the user approved this
+  /// host at some point". Must be applied before open.
+  Future<void> applySslTrust(Uri mediaUri) async {
+    if (_disposed) return;
+    if (!mediaUri.isScheme('https')) return;
+
+    final host = mediaUri.host;
+    if (host.isEmpty) return;
+    if (!SslTrustManager.instance.isHostApproved(host)) return;
+
+    try {
+      _player.setProperty('tls-verify', 'no');
+      AppTalker.info('SslTrust', 'disabled mdk tls-verify for trusted host=$host');
+    } catch (error) {
+      AppTalker.warning(
+        'SslTrust',
+        'failed to disable mdk tls-verify for host=$host: $error',
+      );
+    }
   }
 
   Future<void> dispose() async {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../domain/entities/media_type.dart';
 import '../../../data/models/home_models.dart';
@@ -8,14 +10,26 @@ part 'home_view_model.g.dart';
 
 @riverpod
 class MediaDbListNotifier extends _$MediaDbListNotifier {
+  /// How many extra attempts are made after the first failure. The library row
+  /// is the first thing on the home page, and the server has been observed
+  /// rejecting it transiently (nginx 403) while sibling requests succeed, so a
+  /// short retry usually recovers without the user noticing.
+  static const int _maxRetries = 2;
+
+  static const Duration _retryDelay = Duration(milliseconds: 800);
+
   @override
   FutureOr<List<MediaDbListResponse>> build() async {
     final remote = ref.read(mediaRemoteDataSourceProvider);
-    try {
-      final result = (await remote.getMediaDbList()).getOrThrow();
-      return result;
-    } catch (error) {
-      rethrow;
+    for (var attempt = 0;; attempt++) {
+      try {
+        return (await remote.getMediaDbList()).getOrThrow();
+      } catch (error) {
+        // Only retry once the retries are exhausted does the failure surface,
+        // so the caller shows a single toast for the whole attempt sequence.
+        if (attempt >= _maxRetries) rethrow;
+        await Future<void>.delayed(_retryDelay);
+      }
     }
   }
 }

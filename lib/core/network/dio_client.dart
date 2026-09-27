@@ -5,6 +5,8 @@ import '../error/error_handler.dart';
 import '../network/api_result.dart';
 import 'response_decoder.dart' as response_decoder;
 import 'interceptors/index.dart';
+import 'ssl/ssl_trust_configurator.dart';
+import 'ssl/ssl_trust_manager.dart';
 
 /// Configuration for DioClient
 class DioClientConfig {
@@ -41,6 +43,8 @@ class DioClient {
     required String Function()? getBaseUrl,
     DioClientConfig config = const DioClientConfig(),
     Dio? dio,
+    SslTrustManager? sslTrustManager,
+    Future<void> Function(SslTrustEntry entry)? persistSslTrustEntry,
   })  : _dio = dio ??
             Dio(BaseOptions(
               connectTimeout: config.connectTimeout,
@@ -50,6 +54,13 @@ class DioClient {
               followRedirects: true,
             )),
         _config = config {
+    // Install certificate-trust handling before anything else so a TLS failure
+    // prompts immediately instead of being retried first.
+    configureSslTrust(
+      _dio,
+      trustManager: sslTrustManager,
+      persistEntry: persistSslTrustEntry,
+    );
     _setupInterceptorsWithCallbacks(
       getToken: getToken,
       getCookie: getCookie,
@@ -75,6 +86,7 @@ class DioClient {
       _dio.interceptors.add(RetryInterceptor(
         maxRetries: _config.maxRetries,
         retryDelay: _config.retryDelay,
+        client: _dio,
       ));
     }
 

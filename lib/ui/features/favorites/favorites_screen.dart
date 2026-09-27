@@ -41,8 +41,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   final Map<String, ScrollController> _scrollControllers = {};
   final Map<String, Function(bool success)> _pendingFavoriteCallbacks = {};
   final Map<String, Function(bool success)> _pendingWatchedCallbacks = {};
-  late final FlyoutController _smartAnalysisFlyoutController =
-      FlyoutController();
 
   @override
   void initState() {
@@ -53,7 +51,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   @override
   void dispose() {
     _tabAnimationTimer?.cancel();
-    _smartAnalysisFlyoutController.dispose();
     for (final controller in _scrollControllers.values) {
       controller.dispose();
     }
@@ -193,10 +190,14 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     });
   }
 
-  // Show smart analysis flyout for Season/TV items
-  void _showSmartAnalysisFlyout(MediaItem item) {
-    if (_smartAnalysisFlyoutController.isOpen) {
-      _smartAnalysisFlyoutController.close();
+  // Show smart analysis flyout for Season/TV items.
+  // controller 由每张海报卡自持（见 _FavoritePosterCard），不能共用。
+  void _showSmartAnalysisFlyout(
+    MediaItem item,
+    FlyoutController controller,
+  ) {
+    if (controller.isOpen) {
+      controller.close();
       return;
     }
     final isSeason = MediaType.tryParse(item.type) == MediaType.season;
@@ -206,7 +207,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
               : SmartAnalysisTargetType.tv,
           item.guid,
         );
-    _smartAnalysisFlyoutController.showFlyout<void>(
+    controller.showFlyout<void>(
       placementMode: FlyoutPlacementMode.bottomCenter,
       builder: (context) => MenuFlyout(
         items: [
@@ -565,7 +566,12 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                   final item = items[index];
                                   return LayoutBuilder(
                                       builder: (context, constraints) {
-                                    return MoviePoster(
+                                    return _FavoritePosterCard(
+                                      showSmartAnalysis: smartAnalysisEnabled &&
+                                          (item.type == 'Season' ||
+                                              item.type == 'TV'),
+                                      builder: (moreFlyoutController) =>
+                                          MoviePoster(
                                     title: item.title,
                                     subtitle: buildPosterSubtitle(item),
                                     posterPath: item.effectivePoster,
@@ -632,11 +638,15 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                     onFavoriteToggle: _handleFavoriteToggle,
                                     onWatchedToggle: _handleWatchedToggle,
                                     onMoreTap: smartAnalysisEnabled &&
-                                            (item.type == 'Season' ||
-                                                item.type == 'TV')
-                                        ? () => _showSmartAnalysisFlyout(item)
+                                                (item.type == 'Season' ||
+                                                    item.type == 'TV') &&
+                                                moreFlyoutController != null
+                                        ? () => _showSmartAnalysisFlyout(
+                                            item, moreFlyoutController)
                                         : null,
-                                  );
+                                    moreFlyoutController: moreFlyoutController,
+                                  ),
+                                    );
                                   });
                                 },
                               ),
@@ -648,5 +658,54 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         ],
       ),
     );
+  }
+}
+
+/// 收藏页单张海报卡。每张卡各持有一个 FlyoutController 并传给 MoviePoster 作为
+/// 「更多」按钮的 flyout 锚点，因为 fluent_ui 的 FlyoutController 一次只能
+/// attach 一个 target——共用会让菜单锚定到最后构建的那张卡上。
+class _FavoritePosterCard extends StatefulWidget {
+  final bool showSmartAnalysis;
+  final Widget Function(FlyoutController? moreFlyoutController) builder;
+
+  const _FavoritePosterCard({
+    required this.showSmartAnalysis,
+    required this.builder,
+  });
+
+  @override
+  State<_FavoritePosterCard> createState() => _FavoritePosterCardState();
+}
+
+class _FavoritePosterCardState extends State<_FavoritePosterCard> {
+  FlyoutController? _moreController;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.showSmartAnalysis) {
+      _moreController = FlyoutController();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _FavoritePosterCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.showSmartAnalysis != widget.showSmartAnalysis) {
+      _moreController?.dispose();
+      _moreController =
+          widget.showSmartAnalysis ? FlyoutController() : null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _moreController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.builder(_moreController);
   }
 }

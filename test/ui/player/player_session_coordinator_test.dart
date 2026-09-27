@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:fly_narwhal/data/models/cloud_storage_type.dart';
 import 'package:fly_narwhal/data/models/movie_detail_models.dart';
 import 'package:fly_narwhal/data/models/player_models.dart';
 import 'package:fly_narwhal/data/storage/player_settings_store.dart';
@@ -351,7 +352,7 @@ video/main.m3u8
               isM3u8: false,
             ),
           ],
-          cloudStorageType: CloudStorageInfo.strmCloudStorageType,
+          cloudStorageType: CloudStorageType.strm.value,
         );
 
         expect(result.playUri, equals(strmUrl));

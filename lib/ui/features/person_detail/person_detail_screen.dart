@@ -8,11 +8,11 @@ import '../../../core/network/api_result.dart';
 import '../../../data/models/person_models.dart';
 import '../../../providers/global_refresh.dart';
 import '../../shared/common/fn_cached_image.dart';
+import '../../shared/common/app_load_error_view.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import '../../shared/movie_poster.dart';
 import 'person_detail_view_model.dart';
-import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 /// Person detail page: avatar, name, biography and works grouped by job.
 /// Built to mirror Compose PersonDetailScreen.
@@ -60,26 +60,14 @@ class PersonDetailScreen extends ConsumerWidget {
             }
             final message = error is FailureInfo
                 ? (error.displayMessage.isEmpty
-                      ? error.message
-                      : error.displayMessage)
+                    ? error.message
+                    : error.displayMessage)
                 : '$error';
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('加载失败: $message'),
-                  const SizedBox(height: 16),
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: AppButton(
-                      child: const Text('重试'),
-                      onPressed: () => ref
-                          .read(personDetailNotifierProvider(guid).notifier)
-                          .refresh(),
-                    ),
-                  ),
-                ],
-              ),
+            return AppLoadErrorView(
+              error: FailureInfo.fromMessage(message),
+              onRetry: () => ref
+                  .read(personDetailNotifierProvider(guid).notifier)
+                  .refresh(),
             );
           },
         ),
@@ -109,9 +97,8 @@ class _PersonNoData extends StatelessWidget {
           Text(
             '无数据',
             style: FluentTheme.of(context).typography.body?.copyWith(
-                  color: FluentTheme.of(context)
-                      .resources
-                      .textFillColorSecondary,
+                  color:
+                      FluentTheme.of(context).resources.textFillColorSecondary,
                 ),
           ),
         ],
@@ -364,9 +351,11 @@ class _BiographyTextState extends State<_BiographyText> {
 
     final lines = painter.computeLineMetrics();
     final lastLine = lines.last;
-    final lastLineEnd = painter.getPositionForOffset(
-      Offset(lastLine.left + lastLine.width, lastLine.baseline),
-    ).offset;
+    final lastLineEnd = painter
+        .getPositionForOffset(
+          Offset(lastLine.left + lastLine.width, lastLine.baseline),
+        )
+        .offset;
 
     // If the last rendered line still has room for the link, keep it whole;
     // otherwise cut the last line so text + link fit.

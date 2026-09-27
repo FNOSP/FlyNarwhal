@@ -5,6 +5,9 @@ import 'dart:async';
 import '../core/config/runtime_configuration.dart';
 import '../core/config/secret_bridge_selector.dart';
 import '../core/network/dio_client.dart';
+import '../core/network/ssl/ssl_trust_manager.dart';
+import '../core/network/ssl/ssl_trust_persistence.dart';
+import '../core/network/ssl/ssl_trust_aware_file_service.dart';
 import '../core/security/password_cipher.dart';
 import '../core/utils/log/app_talker.dart';
 import '../core/utils/log/error_log_exporter.dart';
@@ -170,7 +173,15 @@ final dioClientProvider = Provider<DioClient>((ref) {
     getToken: () => prefsManager.getToken() ?? '',
     getCookie: () => prefsManager.getCookie() ?? '',
     getBaseUrl: () => prefsManager.getBaseUrl() ?? '',
+    persistSslTrustEntry: SslTrustPersistence.persist,
   );
+});
+
+/// Exposes the certificate-trust registry to the UI. The registry itself is a
+/// singleton because it is consulted from the TLS handshake, where no `Ref`
+/// exists.
+final sslTrustManagerProvider = Provider<SslTrustManager>((ref) {
+  return SslTrustManager.instance;
 });
 
 final tagRemoteDataSourceProvider = Provider<TagRemoteDataSource>((ref) {
@@ -321,6 +332,7 @@ class SettingsState {
   final bool flyNarwhalServerEnabled;
   final String flyNarwhalServerBaseUrl;
   final bool hasFlyNarwhalAuthCode;
+  final List<SslTrustEntry> sslWhitelist;
 
   const SettingsState({
     required this.followSystemTheme,
@@ -329,6 +341,7 @@ class SettingsState {
     required this.flyNarwhalServerEnabled,
     required this.flyNarwhalServerBaseUrl,
     required this.hasFlyNarwhalAuthCode,
+    this.sslWhitelist = const <SslTrustEntry>[],
   });
 
   // Whether the FlyNarwhal server is fully configured and ready to use
@@ -345,6 +358,7 @@ class SettingsState {
     bool? flyNarwhalServerEnabled,
     String? flyNarwhalServerBaseUrl,
     bool? hasFlyNarwhalAuthCode,
+    List<SslTrustEntry>? sslWhitelist,
   }) {
     return SettingsState(
       followSystemTheme: followSystemTheme ?? this.followSystemTheme,
@@ -357,6 +371,7 @@ class SettingsState {
           flyNarwhalServerBaseUrl ?? this.flyNarwhalServerBaseUrl,
       hasFlyNarwhalAuthCode:
           hasFlyNarwhalAuthCode ?? this.hasFlyNarwhalAuthCode,
+      sslWhitelist: sslWhitelist ?? this.sslWhitelist,
     );
   }
 }
@@ -373,6 +388,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           flyNarwhalServerBaseUrl: _flyNarwhalSettings.baseUrl?.trim() ?? '',
           hasFlyNarwhalAuthCode:
               _flyNarwhalSettings.authCode?.trim().isNotEmpty ?? false,
+          sslWhitelist: SslTrustManager.instance.persistedEntries.toList(),
         ));
 
   final PreferencesManager _prefs;
@@ -415,6 +431,24 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   String getFlyNarwhalAuthCode() {
     return _flyNarwhalSettings.authCode ?? '';
+  }
+
+  /// Forgets a trusted certificate so the next request to that host is verified
+  /// again. Updates the live manager too, otherwise the change would not take
+  /// effect until restart.
+  Future<void> removeSslWhitelistEntry(SslTrustEntry entry) async {
+    SslTrustManager.instance.remove(entry);
+    await SslTrustPersistence.remove(entry);
+    state = state.copyWith(
+      sslWhitelist: SslTrustManager.instance.persistedEntries.toList(),
+    );
+  }
+
+  /// Forgets every trusted certificate.
+  Future<void> clearSslWhitelist() async {
+    SslTrustManager.instance.clear();
+    await SslTrustPersistence.clear();
+    state = state.copyWith(sslWhitelist: const <SslTrustEntry>[]);
   }
 
   bool get isFlyNarwhalServerAvailable {
@@ -503,6 +537,9 @@ final imageCacheManagerProvider = Provider<CacheManager>((ref) {
         maxBytes: maxCacheBytes,
       ),
       fileSystem: IOFileSystem('fly_narwhal_memory_cache'),
+      // Posters load over their own HttpClient, so they need the certificate
+      // trust list applied here too.
+      fileService: SslTrustAwareFileService(),
     ),
   );
 });

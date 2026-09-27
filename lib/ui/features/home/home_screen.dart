@@ -9,7 +9,12 @@ import '../../../providers/providers.dart';
 import 'widgets/media_lib_card_row.dart';
 import 'widgets/media_lib_gallery.dart';
 import 'widgets/recently_watched.dart';
+import 'widgets/continue_watching_more_menu.dart';
+import '../../../data/models/home_models.dart';
+import '../../../domain/entities/media_type.dart';
 import '../../shared/toast.dart';
+import '../../shared/dialogs/app_dialog.dart';
+import '../../shared/common/app_load_error_view.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -17,6 +22,28 @@ class HomeScreen extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+/// Stand-in for the library row when `mediadb/list` fails: no error text, just
+/// a clickable retry. The failure itself is reported by a toast.
+class HomeMediaLibRetryPlaceholder extends ConsumerWidget {
+  const HomeMediaLibRetryPlaceholder({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32.0),
+      child: Center(
+        child: Button(
+          onPressed: () => ref.invalidate(mediaDbListNotifierProvider),
+          child: const Align(
+            widthFactor: 1.0,
+            child: Text('加载失败，点击重试'),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
@@ -78,6 +105,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _handleWatchedResult(next);
     });
 
+    // Surface library-load failures as a toast. The page itself stays free of
+    // error text; the failed slot only offers a retry.
+    ref.listen<AsyncValue<List<MediaDbListResponse>>>(
+      mediaDbListNotifierProvider,
+      (previous, next) {
+        // The two `when` blocks below both render from this provider, so listen
+        // once here instead of toasting from each slot.
+        final error = next.asError?.error;
+        if (error == null) return;
+        ref.read(toastManagerProvider.notifier).showToast(
+              describeLoadError(error),
+              type: ToastType.failed,
+              duration: const Duration(seconds: 4),
+              category: 'home-media-db-list',
+            );
+      },
+    );
+
     return ScaffoldPage(
       header: const PageHeader(title: Text('首页')),
       content: Stack(
@@ -98,11 +143,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   loading: () => const SliverToBoxAdapter(
                       child: Center(child: AppLoadingProgressRing())),
-                  error: (err, stack) => SliverToBoxAdapter(
-                      child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Text('Error loading libraries: $err'),
-                  )),
+                  error: (err, stack) => const SliverToBoxAdapter(
+                      child: HomeMediaLibRetryPlaceholder()),
                 ),
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
                 SliverToBoxAdapter(
@@ -118,6 +160,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         onFavoriteToggle: _handleFavoriteToggle,
                         onWatchedToggle: _handleWatchedToggle,
                         onItemRemoved: _onItemRemoved,
+                        onMoreAction: _handleContinueWatchAction,
                       );
                     },
                     loading: () => const SizedBox.shrink(),
@@ -145,8 +188,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   },
                   loading: () =>
                       const SliverToBoxAdapter(child: SizedBox.shrink()),
-                  error: (err, stack) =>
-                      const SliverToBoxAdapter(child: SizedBox.shrink()),
+                  error: (err, stack) => const SliverToBoxAdapter(
+                      child: HomeMediaLibRetryPlaceholder()),
                 ),
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
@@ -268,5 +311,104 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     setState(() {
       _itemsToBeRemoved.add(guid);
     });
+  }
+
+  // Handle a "更多" menu action on a recently-watched card.
+  void _handleContinueWatchAction(
+    ContinueWatchAction action,
+    PlayDetailResponse item,
+  ) {
+    switch (action) {
+      case ContinueWatchAction.removeFromContinue:
+        unawaited(_removeFromContinueWatching(item));
+      case ContinueWatchAction.resume:
+        _openPlayer(item, fromBeginning: false);
+      case ContinueWatchAction.restart:
+        _openPlayer(item, fromBeginning: true);
+      case ContinueWatchAction.deleteVideo:
+        unawaited(_confirmDeleteVideo(item));
+    }
+  }
+
+  void _openPlayer(PlayDetailResponse item, {required bool fromBeginning}) {
+    final guid = item.guid.trim();
+    if (guid.isEmpty) return;
+    ref.read(navigationStackProvider.notifier).playerSourcePath = '/home';
+    if (item.type == MediaType.liveChannel.value) {
+      context.push('/live/$guid');
+      return;
+    }
+    context.push(
+      '/player/$guid${fromBeginning ? '?from_beginning=1' : ''}',
+    );
+  }
+
+  Future<void> _removeFromContinueWatching(PlayDetailResponse item) async {
+    final guid = item.guid.trim();
+    if (guid.isEmpty) return;
+    final dataSource = ref.read(mediaRemoteDataSourceProvider);
+    try {
+      final result = await dataSource.deletePlayRecord(guid);
+      final ok = result.isSuccess && result.dataOrNull == true;
+      ref.read(toastManagerProvider.notifier).showToast(
+            ok ? '已从“继续观看”中移除' : '移除失败',
+            type: ok ? ToastType.success : ToastType.failed,
+            category: 'continue-remove:$guid',
+          );
+      if (ok && mounted) {
+        _onItemRemoved(guid);
+        unawaited(ref.read(playListNotifierProvider.notifier).refresh());
+      }
+    } catch (e) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            '移除失败：$e',
+            type: ToastType.failed,
+            category: 'continue-remove:$guid',
+          );
+    }
+  }
+
+  Future<void> _confirmDeleteVideo(PlayDetailResponse item) async {
+    final guid = item.guid.trim();
+    if (guid.isEmpty) return;
+    final title = buildPlayDetailTitle(item);
+    // Web offers both paths side by side: remove the library entry only, or
+    // also delete the underlying file from disk.
+    final deleteFile = await showAppDialog<bool>(
+      context: context,
+      title: '删除 《$title》',
+      content: const Text(
+        '从媒体库移除后，所选视频文件将不再被扫描添加到当前媒体库中。请确认是否同时删除关联的视频文件。',
+      ),
+      tertiaryButtonText: '取消',
+      tertiaryResult: null,
+      secondaryButtonText: '移除并删除文件',
+      secondaryButtonType: AppDialogButtonType.danger,
+      secondaryResult: true,
+      primaryButtonText: '仅移除',
+      primaryResult: false,
+    );
+    if (deleteFile == null || !mounted) return;
+
+    final dataSource = ref.read(mediaRemoteDataSourceProvider);
+    try {
+      final result = await dataSource.deleteItem(guid, deleteFile: deleteFile);
+      final ok = result.isSuccess && result.dataOrNull == true;
+      ref.read(toastManagerProvider.notifier).showToast(
+            ok ? '已删除' : '删除失败',
+            type: ok ? ToastType.success : ToastType.failed,
+            category: 'continue-delete:$guid',
+          );
+      if (ok && mounted) {
+        _onItemRemoved(guid);
+        unawaited(ref.read(playListNotifierProvider.notifier).refresh());
+      }
+    } catch (e) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            '删除失败：$e',
+            type: ToastType.failed,
+            category: 'continue-delete:$guid',
+          );
+    }
   }
 }
