@@ -23,6 +23,10 @@ class PlayerSettingsStore {
   static const String _keyVideoFillModeCache = 'player_video_fill_mode_cache';
   static const String _keyForceH264 = 'player_force_h264';
   static const String _keyForceSdrColor = 'player_force_sdr_color';
+  // Tone map HDR to SDR on this machine, without asking the server to
+  // transcode. Kept apart from _keyForceSdrColor, which does the mapping
+  // server-side through a reversed transcode session.
+  static const String _keyForceSdrLocal = 'player_force_sdr_local_color';
   // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | 'auto-unsafe'.
   static const String _keyDecodeMode = 'player_decode_mode';
   // Window geometry is persisted as geometric center + size (see
@@ -341,6 +345,11 @@ class PlayerSettingsManager {
       _readBoolScoped(PlayerSettingsStore._keyForceSdrColor, false);
   Future<void> setForceSdrColor(bool enabled) =>
       _writeBoolScoped(PlayerSettingsStore._keyForceSdrColor, enabled);
+
+  bool getForceSdrLocal() =>
+      _readBoolScoped(PlayerSettingsStore._keyForceSdrLocal, false);
+  Future<void> setForceSdrLocal(bool enabled) =>
+      _writeBoolScoped(PlayerSettingsStore._keyForceSdrLocal, enabled);
 
   // Window geometry: center + size persistence, keep in sync with the static
   // [PlayerSettingsStore] counterparts above.

@@ -193,6 +193,9 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool forceSdrColor;
   final void Function(bool enabled)? onForceSdrColorChanged;
   final String? forceSdrDisabledReason;
+  final bool forceSdrLocal;
+  final void Function(bool enabled)? onForceSdrLocalChanged;
+  final String? forceSdrLocalDisabledReason;
   // Current decode mode: 'auto' | 'no' | 'auto-copy' | '<api>'.
   final String decodeMode;
   final void Function(String) onDecodeModeChanged;
@@ -234,6 +237,9 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.forceSdrColor = false,
     this.onForceSdrColorChanged,
     this.forceSdrDisabledReason,
+    this.forceSdrLocal = false,
+    this.onForceSdrLocalChanged,
+    this.forceSdrLocalDisabledReason,
     this.decodeMode = 'auto',
     required this.onDecodeModeChanged,
     this.availableHwdec = const [],
@@ -322,9 +328,12 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         oldWidget.videoFillMode != widget.videoFillMode ||
         oldWidget.forceH264 != widget.forceH264 ||
         oldWidget.forceSdrColor != widget.forceSdrColor ||
+        oldWidget.forceSdrLocal != widget.forceSdrLocal ||
         oldWidget.decodeMode != widget.decodeMode ||
         oldWidget.forceH264DisabledReason != widget.forceH264DisabledReason ||
         oldWidget.forceSdrDisabledReason != widget.forceSdrDisabledReason ||
+        oldWidget.forceSdrLocalDisabledReason !=
+            widget.forceSdrLocalDisabledReason ||
         autoPlayChanged) {
       _requestOverlayRebuild();
     }
@@ -607,6 +616,9 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         forceSdrColor: widget.forceSdrColor,
         onForceSdrColorChanged: widget.onForceSdrColorChanged,
         forceSdrDisabledReason: widget.forceSdrDisabledReason,
+        forceSdrLocal: widget.forceSdrLocal,
+        onForceSdrLocalChanged: widget.onForceSdrLocalChanged,
+        forceSdrLocalDisabledReason: widget.forceSdrLocalDisabledReason,
         decodeMode: widget.decodeMode,
         onDecodeModeChanged: (mode) {
           _setPopupHovered(false);
@@ -693,6 +705,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool forceSdrColor;
   final void Function(bool)? onForceSdrColorChanged;
   final String? forceSdrDisabledReason;
+  final bool forceSdrLocal;
+  final void Function(bool)? onForceSdrLocalChanged;
+  final String? forceSdrLocalDisabledReason;
   final String decodeMode;
   final void Function(String) onDecodeModeChanged;
   final List<HwdecOption> availableHwdec;
@@ -730,6 +745,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.forceSdrColor,
     required this.onForceSdrColorChanged,
     required this.forceSdrDisabledReason,
+    required this.forceSdrLocal,
+    required this.onForceSdrLocalChanged,
+    required this.forceSdrLocalDisabledReason,
     required this.decodeMode,
     required this.onDecodeModeChanged,
     required this.availableHwdec,
@@ -768,6 +786,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
           forceSdrColor: forceSdrColor,
           forceSdrDisabledReason: forceSdrDisabledReason,
           onForceSdrColorChanged: onForceSdrColorChanged,
+          forceSdrLocal: forceSdrLocal,
+          forceSdrLocalDisabledReason: forceSdrLocalDisabledReason,
+          onForceSdrLocalChanged: onForceSdrLocalChanged,
           onBack: () => onNavigate('Main'),
         );
       case 'Audio':
@@ -972,6 +993,9 @@ class _AdvancedSettingsScreen extends StatelessWidget {
   final bool forceSdrColor;
   final String? forceSdrDisabledReason;
   final void Function(bool)? onForceSdrColorChanged;
+  final bool forceSdrLocal;
+  final String? forceSdrLocalDisabledReason;
+  final void Function(bool)? onForceSdrLocalChanged;
   final VoidCallback onBack;
 
   const _AdvancedSettingsScreen({
@@ -981,6 +1005,9 @@ class _AdvancedSettingsScreen extends StatelessWidget {
     required this.forceSdrColor,
     required this.forceSdrDisabledReason,
     required this.onForceSdrColorChanged,
+    required this.forceSdrLocal,
+    required this.forceSdrLocalDisabledReason,
+    required this.onForceSdrLocalChanged,
     required this.onBack,
   });
 
@@ -1006,6 +1033,14 @@ class _AdvancedSettingsScreen extends StatelessWidget {
           checked: forceSdrColor,
           onChanged: onForceSdrColorChanged,
           disabledReason: forceSdrDisabledReason,
+        ),
+        PlayerSettingsToggleRow(
+          key: const ValueKey('player-advanced-force-sdr-local'),
+          title: '色调强制映射为 SDR（本机）',
+          description: '在本机把 HDR 画面映射为 SDR，不走服务端转码；仅对 HDR 片源生效',
+          checked: forceSdrLocal,
+          onChanged: onForceSdrLocalChanged,
+          disabledReason: forceSdrLocalDisabledReason,
         ),
       ],
     );

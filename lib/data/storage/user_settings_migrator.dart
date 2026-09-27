@@ -190,6 +190,7 @@ class UserSettingsMigrator {
       'player_video_fill_mode_cache';
   static const String _kPlayerForceH264 = 'player_force_h264';
   static const String _kPlayerForceSdrColor = 'player_force_sdr_color';
+  static const String _kPlayerForceSdrLocal = 'player_force_sdr_local_color';
   static const String _kPlayerDecodeMode = 'player_decode_mode';
   static const String _kDanmakuArea = 'danmaku_area';
   static const String _kDanmakuOpacity = 'danmaku_opacity';
@@ -229,6 +230,13 @@ class UserSettingsMigrator {
     await _migrateBool(
       guid,
       _kPlayerForceSdrColor,
+      migrated,
+      skipped,
+      failed,
+    );
+    await _migrateBool(
+      guid,
+      _kPlayerForceSdrLocal,
       migrated,
       skipped,
       failed,
