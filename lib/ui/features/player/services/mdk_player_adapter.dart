@@ -277,13 +277,37 @@ class MdkPlayerAdapter {
       }
     }
     if (!_usingHdrRenderPath) {
+      // The Flutter texture path is 8-bit and can only present SDR, so an HDR
+      // source handed to it must be told to convert. Without a target colour
+      // space mdk writes the source's own transfer function (PQ/HLG) straight
+      // into the 8-bit texture, and the display reads those code values as
+      // gamma-encoded sRGB: the picture collapses into neon magenta with
+      // blown-out highlights instead of a tone-mapped SDR image. Asking for
+      // BT.709 makes mdk tone-map to SDR itself.
+      //
+      // Only set for HDR streams: for an SDR source BT.709 is already the
+      // source's own space, and forcing it would override a correctly tagged
+      // BT.601 SD source with the wrong matrix.
+      if (_sourceIsHdr()) {
+        _player.setColorSpace(mdk.ColorSpace.bt709);
+      }
       await _player.updateTexture();
+      // Leaving the platform-view path has to clear the flag, not just skip
+      // setting it: the native layer composites above Flutter's, so a stale
+      // `true` would keep the previous media's platform view mounted over the
+      // texture this reopen just installed. Closing the switch back from the
+      // local SDR mapping is exactly that transition.
+      if (hdrRenderPathActive.value) {
+        hdrRenderPathActive.value = false;
+        _hdrRenderPathController.add(false);
+      }
     }
     if (_disposed) return false;
 
     _hasLoadedMedia = true;
     // prepare() leaves the player paused on the first frame.
     _player.state = mdk.PlaybackState.playing;
+    _emitPlaying();
     _emitPosition(startPositionMs);
     _emitDuration();
     _emitVideoSize();
@@ -334,21 +358,33 @@ class MdkPlayerAdapter {
   /// the first frame.
   bool _isHdrStream() {
     if (!_hdrRenderPathEnabled) return false;
+    return _sourceIsHdr();
+  }
+
+  /// Whether the source being decoded carries an HDR transfer function,
+  /// independent of how it is being rendered.
+  ///
+  /// Kept apart from [_isHdrStream] on purpose: that one answers "should this
+  /// go through the HDR renderer", which is also gated on the user's render
+  /// preference. Whether the decoder has to be asked to tone-map is a property
+  /// of the media, so it must stay answerable while the texture path is forced
+  /// — the exact case where [_isHdrStream] reports false.
+  bool _sourceIsHdr() {
     final videos = _player.mediaInfo.video;
     if (videos == null || videos.isEmpty) {
       return false;
     }
     final codec = videos.first.codec;
     final colorSpace = codec.colorSpace;
-    final isHdr = colorSpace == mdk.ColorSpace.bt2100PQ ||
+    return colorSpace == mdk.ColorSpace.bt2100PQ ||
         colorSpace == mdk.ColorSpace.bt2100hlg ||
         colorSpace == mdk.ColorSpace.scrgb;
-    return isHdr;
   }
 
   void play() {
     if (_disposed) return;
     _player.state = mdk.PlaybackState.playing;
+    _emitPlaying();
     _stopBufferTicker();
     _startTicker();
   }
@@ -356,6 +392,7 @@ class MdkPlayerAdapter {
   void pause() {
     if (_disposed) return;
     _player.state = mdk.PlaybackState.paused;
+    _emitPlaying();
     _stopTicker();
     // The demuxer keeps filling its cache while playback is held, so the
     // buffered range has to keep reaching the UI even though the position no
@@ -370,8 +407,30 @@ class MdkPlayerAdapter {
     _stopTicker();
     _stopBufferTicker();
     _player.state = mdk.PlaybackState.stopped;
+    _emitPlaying();
     _emitPosition(0);
   }
+
+  /// Publishes the current playback state to [playing].
+  ///
+  /// Called after every state change this class initiates rather than waiting
+  /// for mdk's `onStateChanged` to report it. After a reopen that notification
+  /// stops arriving for later transitions, which strands the app's own
+  /// play/pause flag on a stale value; and because mdk's state setter is a
+  /// no-op when the backend is already in the requested state, the next command
+  /// emits no transition either — the desync becomes permanent, so the
+  /// play/pause control flips the wrong way and then stops responding.
+  /// Reporting the state here keeps the two ends independent of the backend's
+  /// event timing, and emits nothing when the value has not changed.
+  void _emitPlaying() {
+    if (_disposed) return;
+    final playing = _player.state == mdk.PlaybackState.playing;
+    if (_playingController.isClosed || playing == _lastPlayingEmitted) return;
+    _lastPlayingEmitted = playing;
+    _playingController.add(playing);
+  }
+
+  bool? _lastPlayingEmitted;
 
   Future<void> seek(Duration target) async {
     if (_disposed) return;
@@ -644,7 +703,7 @@ class MdkPlayerAdapter {
 
   void _handleStateChanged(mdk.PlaybackState oldState, mdk.PlaybackState newState) {
     if (_disposed) return;
-    _playingController.add(newState == mdk.PlaybackState.playing);
+    _emitPlaying();
     if (newState == mdk.PlaybackState.stopped) {
       _stopTicker();
       _stopBufferTicker();

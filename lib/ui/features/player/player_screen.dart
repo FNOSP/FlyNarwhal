@@ -278,6 +278,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String _videoFillMode = 'default';
   bool _isForceH264 = false;
   bool _isForceSdrColor = false;
+  bool _isForceSdrLocal = false;
   // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | <concrete hwdec api>.
   String _decodeMode = 'auto';
   // Hardware decoders shown in the 指定硬件解码器 menu. Initialized with the
@@ -397,6 +398,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final settingsManager = ref.read(playerSettingsManagerProvider);
     _isForceH264 = settingsManager.getForceH264();
     _isForceSdrColor = settingsManager.getForceSdrColor();
+    _isForceSdrLocal = settingsManager.getForceSdrLocal();
     _decodeMode = settingsManager.getDecodeMode();
     _sessionCoordinator.forceH264 = _isForceH264;
     _sessionCoordinator.forceSdrColor = _isForceSdrColor;
@@ -1672,6 +1674,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool get _hdrRenderAvailable {
     if (!_isDesktopPlatform()) return false;
     if (_isPipMode) return false;
+    // 色调强制映射为 SDR（本机）: keeping the source off the platform view
+    // leaves it on the 8-bit Flutter texture path, which caps output at SDR.
+    // Both renderers are gated off by this getter, so the danmaku and subtitle
+    // overlays fall back to their Flutter implementations too.
+    if (_isForceSdrLocal) return false;
     return ref.read(hdrDisplayCapabilityProvider).isAvailable;
   }
 
@@ -1891,6 +1898,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         .updatePlayingInfo(_playingInfoCache);
     await _reopenPlaybackFromPlayLink(
       playLink: response.playLink,
+      startPositionMs: startPositionMs,
+    );
+  }
+
+  /// Reopens the stream that is already playing so that a render-path change
+  /// takes effect. The render path is fixed when media is opened, so a
+  /// display-side setting cannot be applied in place.
+  ///
+  /// This deliberately reuses the session's existing play link instead of
+  /// re-negotiating it: the setting only picks which renderer draws the
+  /// decoded frames, so a direct-link session must stay direct-link and an
+  /// HLS session must stay HLS. Replaying the cached link also keeps the
+  /// current quality, audio and subtitle selections untouched.
+  Future<void> _reopenPlaybackForRenderPathChange() async {
+    final cache = _playingInfoCache;
+    if (cache == null || _player == null) return;
+
+    final startPositionMs = _player?.positionMs ?? 0;
+    if (cache.isUseDirectLink) {
+      await _reopenPlaybackWithDirectLink(startPositionMs: startPositionMs);
+      return;
+    }
+
+    final playLink = cache.playLink;
+    if (playLink == null || playLink.isEmpty) return;
+    await _reopenPlaybackFromPlayLink(
+      playLink: playLink,
       startPositionMs: startPositionMs,
     );
   }
@@ -3985,6 +4019,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return colorRangeType.toLowerCase() == 'sdr' ? '当前视频为 SDR' : null;
   }
 
+  /// Local tone mapping only changes HDR output, so the toggle is inert — and
+  /// greyed out — for an SDR source or on a display/平台 that has no HDR render
+  /// path to opt out of.
+  String? get _forceSdrLocalDisabledReason {
+    if (_isForceSdrLocal) return null;
+    if (!_isDesktopPlatform() || _isPipMode) {
+      return '当前平台不支持 HDR 渲染';
+    }
+    if (!ref.read(hdrDisplayCapabilityProvider).isAvailable) {
+      return '当前显示器不支持 HDR';
+    }
+    final colorRangeType =
+        _playingInfoCache?.currentVideoStream?.colorRangeType ?? '';
+    return colorRangeType.toLowerCase() == 'sdr' ? '当前视频为 SDR' : null;
+  }
+
   void _onForceH264Changed(bool enabled) {
     if (enabled == _isForceH264) return;
     setState(() => _isForceH264 = enabled);
@@ -4001,6 +4051,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref.read(playerSettingsManagerProvider).setForceSdrColor(enabled),
     );
     unawaited(_restartPlaybackForTranscodeSettings());
+  }
+
+  void _onForceSdrLocalChanged(bool enabled) {
+    if (enabled == _isForceSdrLocal) return;
+    setState(() => _isForceSdrLocal = enabled);
+    unawaited(ref.read(playerSettingsManagerProvider).setForceSdrLocal(enabled));
+    // This toggle only decides which renderer draws the frames, so reopen the
+    // current stream as-is; re-negotiating the session would downgrade a
+    // direct-link session to HLS for no reason.
+    unawaited(_reopenPlaybackForRenderPathChange());
   }
 
   void _onDecodeModeChanged(String mode) {
@@ -6327,6 +6387,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onForceSdrColorChanged:
               _forceSdrDisabledReason == null ? _onForceSdrColorChanged : null,
           forceSdrDisabledReason: _forceSdrDisabledReason,
+          forceSdrLocal: _isForceSdrLocal,
+          onForceSdrLocalChanged: _forceSdrLocalDisabledReason == null
+              ? _onForceSdrLocalChanged
+              : null,
+          forceSdrLocalDisabledReason: _forceSdrLocalDisabledReason,
           decodeMode: _decodeMode,
           onDecodeModeChanged: _onDecodeModeChanged,
           availableHwdec: _availableHwdec,
