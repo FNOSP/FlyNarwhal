@@ -2451,6 +2451,11 @@ class _SmartSkipConfigSettingsScreenState
           checked: state.skipPreview,
           onChanged: (value) => _setSwitch(SkipSegmentKind.preview, value),
         ),
+        _switchRow(
+          title: '跳过广告',
+          checked: state.skipCommercial,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.commercial, value),
+        ),
         const SizedBox(height: 8),
       ],
     );

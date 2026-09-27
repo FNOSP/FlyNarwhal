@@ -586,7 +586,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       ),
                                       heading: const Text('智能跳过配置'),
                                       caption: const Text(
-                                        '智能分析片头片尾时使用的服务端参数，按当前账号保存',
+                                        '服务端智能分析片头片尾的参数',
                                       ),
                                       trailing: AppButton(
                                         key: const ValueKey(

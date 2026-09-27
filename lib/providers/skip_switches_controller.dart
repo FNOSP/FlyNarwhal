@@ -11,6 +11,7 @@ class SkipSwitchesState {
   final bool skipCredits;
   final bool skipRecap;
   final bool skipPreview;
+  final bool skipCommercial;
 
   const SkipSwitchesState({
     this.userGuid,
@@ -19,6 +20,7 @@ class SkipSwitchesState {
     this.skipCredits = true,
     this.skipRecap = true,
     this.skipPreview = true,
+    this.skipCommercial = false,
   });
 
   bool valueFor(SkipSegmentKind kind) {
@@ -31,6 +33,8 @@ class SkipSwitchesState {
         return skipRecap;
       case SkipSegmentKind.preview:
         return skipPreview;
+      case SkipSegmentKind.commercial:
+        return skipCommercial;
     }
   }
 
@@ -42,6 +46,7 @@ class SkipSwitchesState {
     bool? skipCredits,
     bool? skipRecap,
     bool? skipPreview,
+    bool? skipCommercial,
   }) {
     return SkipSwitchesState(
       userGuid: clearUserGuid ? null : userGuid ?? this.userGuid,
@@ -50,6 +55,7 @@ class SkipSwitchesState {
       skipCredits: skipCredits ?? this.skipCredits,
       skipRecap: skipRecap ?? this.skipRecap,
       skipPreview: skipPreview ?? this.skipPreview,
+      skipCommercial: skipCommercial ?? this.skipCommercial,
     );
   }
 }
@@ -87,6 +93,8 @@ class SkipSwitchesController extends StateNotifier<SkipSwitchesState> {
           _preferencesManager.getSkipRecap(userGuid: effectiveUserGuid);
       final skipPreview =
           _preferencesManager.getSkipPreview(userGuid: effectiveUserGuid);
+      final skipCommercial =
+          _preferencesManager.getSkipCommercial(userGuid: effectiveUserGuid);
       if (loadGeneration != _loadGeneration) return;
       state = state.copyWith(
         isLoading: false,
@@ -94,6 +102,7 @@ class SkipSwitchesController extends StateNotifier<SkipSwitchesState> {
         skipCredits: skipCredits,
         skipRecap: skipRecap,
         skipPreview: skipPreview,
+        skipCommercial: skipCommercial,
       );
     } catch (_) {
       if (loadGeneration != _loadGeneration) return;
@@ -118,6 +127,9 @@ class SkipSwitchesController extends StateNotifier<SkipSwitchesState> {
         case SkipSegmentKind.preview:
           await _preferencesManager.saveSkipPreview(value,
               userGuid: userGuid);
+        case SkipSegmentKind.commercial:
+          await _preferencesManager.saveSkipCommercial(value,
+              userGuid: userGuid);
       }
     } catch (_) {
       state = _withSwitch(kind, previousValue);
@@ -135,6 +147,8 @@ class SkipSwitchesController extends StateNotifier<SkipSwitchesState> {
         return state.copyWith(skipRecap: value);
       case SkipSegmentKind.preview:
         return state.copyWith(skipPreview: value);
+      case SkipSegmentKind.commercial:
+        return state.copyWith(skipCommercial: value);
     }
   }
 }

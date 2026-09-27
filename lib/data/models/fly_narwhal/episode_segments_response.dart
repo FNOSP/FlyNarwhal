@@ -3,14 +3,16 @@ class EpisodeSegmentsResponse {
   final EpisodeSegment? credits;
   final EpisodeSegment? recap;
   final EpisodeSegment? preview;
-  final EpisodeSegment? commercial;
+
+  /// An episode can hold several ad breaks, so commercials are a list.
+  final List<EpisodeSegment> commercials;
 
   const EpisodeSegmentsResponse({
     this.intro,
     this.credits,
     this.recap,
     this.preview,
-    this.commercial,
+    this.commercials = const <EpisodeSegment>[],
   });
 
   factory EpisodeSegmentsResponse.fromJson(Map<String, dynamic> json) {
@@ -19,7 +21,7 @@ class EpisodeSegmentsResponse {
       credits: _readSegment(json['credits']),
       recap: _readSegment(json['recap']),
       preview: _readSegment(json['preview']),
-      commercial: _readSegment(json['commercial']),
+      commercials: _readSegmentList(json['commercials'] ?? json['commercial']),
     );
   }
 
@@ -29,13 +31,29 @@ class EpisodeSegmentsResponse {
       'credits': credits?.toJson(),
       'recap': recap?.toJson(),
       'preview': preview?.toJson(),
-      'commercial': commercial?.toJson(),
+      'commercials':
+          commercials.map((segment) => segment.toJson()).toList(),
     };
   }
 
   static EpisodeSegment? _readSegment(Object? value) {
-    if (value == null) return null;
-    return EpisodeSegment.fromJson(Map<String, dynamic>.from(value as Map));
+    if (value is! Map) return null;
+    return EpisodeSegment.fromJson(Map<String, dynamic>.from(value));
+  }
+
+  /// Accepts the list form, plus a bare single segment left over from the
+  /// singular `commercial` key the response used to carry.
+  static List<EpisodeSegment> _readSegmentList(Object? value) {
+    if (value is List) {
+      final segments = <EpisodeSegment>[];
+      for (final entry in value) {
+        final segment = _readSegment(entry);
+        if (segment != null) segments.add(segment);
+      }
+      return segments;
+    }
+    final single = _readSegment(value);
+    return single == null ? const <EpisodeSegment>[] : <EpisodeSegment>[single];
   }
 }
 

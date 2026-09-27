@@ -24,6 +24,28 @@ class SkipSegmentMillis {
   int get hashCode => Object.hash(startMilliseconds, endMilliseconds);
 }
 
+/// A progress-bar marker range plus the styling flag the bar needs. Carries
+/// only what the painter uses, so the bar never has to know SkipSegmentKind.
+class SkipSegmentMarker {
+  const SkipSegmentMarker({
+    required this.range,
+    required this.isCommercial,
+  });
+
+  final SkipSegmentMillis range;
+  final bool isCommercial;
+
+  @override
+  bool operator ==(Object other) {
+    return other is SkipSegmentMarker &&
+        other.range == range &&
+        other.isCommercial == isCommercial;
+  }
+
+  @override
+  int get hashCode => Object.hash(range, isCommercial);
+}
+
 enum SkipSegmentSource {
   none,
   smart,
@@ -39,6 +61,7 @@ enum SkipSegmentKind {
   recap,
   credits,
   preview,
+  commercial,
 }
 
 /// Human-readable label for a segment kind set, used in skip prompts
@@ -49,24 +72,31 @@ String skipSegmentLabel(Set<SkipSegmentKind> kinds) {
   if (kinds.contains(SkipSegmentKind.recap)) parts.add('前情提要');
   if (kinds.contains(SkipSegmentKind.credits)) parts.add('片尾');
   if (kinds.contains(SkipSegmentKind.preview)) parts.add('下集预告');
+  if (kinds.contains(SkipSegmentKind.commercial)) parts.add('广告');
   return parts.isEmpty ? '片段' : parts.join('与');
 }
 
 /// Per-kind playback skip switches, decided before segment resolution.
+///
+/// Commercials are the one exception among the defaults: ad skipping is opt-in,
+/// so [commercial] starts off while the other kinds start on.
 class SkipSwitches {
   const SkipSwitches({
     this.intro = true,
     this.recap = true,
     this.credits = true,
     this.preview = true,
+    this.commercial = false,
   });
 
+  /// Every kind enabled except [commercial], which is opt-in.
   static const SkipSwitches allEnabled = SkipSwitches();
 
   final bool intro;
   final bool recap;
   final bool credits;
   final bool preview;
+  final bool commercial;
 
   bool forKind(SkipSegmentKind kind) {
     switch (kind) {
@@ -78,6 +108,8 @@ class SkipSwitches {
         return credits;
       case SkipSegmentKind.preview:
         return preview;
+      case SkipSegmentKind.commercial:
+        return commercial;
     }
   }
 }
@@ -93,17 +125,21 @@ class ResolvedSkipSegment {
   final SkipSegmentSource source;
   final Set<SkipSegmentKind> kinds;
 
-  /// Segments containing intro or recap skip automatically with an undo
-  /// prompt, mirroring the historical intro behavior.
+  /// Segments containing intro, recap or commercial skip automatically with an
+  /// undo prompt, mirroring the historical intro behavior.
   bool get isIntroRole =>
       kinds.contains(SkipSegmentKind.intro) ||
-      kinds.contains(SkipSegmentKind.recap);
+      kinds.contains(SkipSegmentKind.recap) ||
+      kinds.contains(SkipSegmentKind.commercial);
 
   /// Segments containing credits or preview show a countdown prompt before
   /// skipping, mirroring the historical credits behavior.
   bool get isOutroRole =>
       kinds.contains(SkipSegmentKind.credits) ||
       kinds.contains(SkipSegmentKind.preview);
+
+  /// Commercial segments get their own progress-bar marker color.
+  bool get isCommercial => kinds.contains(SkipSegmentKind.commercial);
 
   int get startMilliseconds => segment.startMilliseconds;
   int get endMilliseconds => segment.endMilliseconds;
@@ -150,6 +186,15 @@ class ResolvedSkipSegments {
   /// All segment ranges for progress-bar markers.
   List<SkipSegmentMillis> get allSegmentRanges =>
       segments.map((segment) => segment.segment).toList();
+
+  /// Progress-bar markers with the commercial flag preserved, so the bar can
+  /// color ad breaks differently from intro/outro segments.
+  List<SkipSegmentMarker> get allSegmentMarkers => segments
+      .map((segment) => SkipSegmentMarker(
+            range: segment.segment,
+            isCommercial: segment.isCommercial,
+          ))
+      .toList();
 
   // Compatibility accessors for callers that only care about the first
   // intro/credits-role segment (e.g. the manual intro-end check on replay).

@@ -1212,7 +1212,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (previous?.skipIntro == next.skipIntro &&
             previous?.skipCredits == next.skipCredits &&
             previous?.skipRecap == next.skipRecap &&
-            previous?.skipPreview == next.skipPreview) {
+            previous?.skipPreview == next.skipPreview &&
+            previous?.skipCommercial == next.skipCommercial) {
           return;
         }
         _resolveAndDispatchSkipSegments();
@@ -1274,6 +1275,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         recap: switches.skipRecap,
         credits: switches.skipCredits,
         preview: switches.skipPreview,
+        commercial: switches.skipCommercial,
       ),
     );
     _introSkipController.dispatch(SegmentsChanged(_resolvedSkipSegments));
@@ -6187,7 +6189,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       currentPosition: _currentPosition,
       totalDuration: _duration,
       buffered: bufferedProgressRatio,
-      segments: _resolvedSkipSegments.allSegmentRanges,
+      segments: _resolvedSkipSegments.allSegmentMarkers,
       showHoverTimestamp: false,
       onSeek: _seekTo,
     );
@@ -6205,7 +6207,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         currentPosition: _currentPosition,
         totalDuration: _duration,
         buffered: bufferedProgressRatio,
-        segments: _resolvedSkipSegments.allSegmentRanges,
+        segments: _resolvedSkipSegments.allSegmentMarkers,
         onSeek: _seekTo,
       ),
     );

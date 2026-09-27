@@ -63,7 +63,6 @@ class _SmartSkipConfigDialogState extends ConsumerState<SmartSkipConfigDialog> {
     final config = state.config.valueOrNull ?? const SmartSkipConfig();
     final loggedIn = userGuid != null && userGuid.isNotEmpty;
     final editable = loggedIn && state.loadError == null;
-    final theme = FluentTheme.of(context);
 
     return AppDialog(
       title: '智能跳过配置',
@@ -80,10 +79,6 @@ class _SmartSkipConfigDialogState extends ConsumerState<SmartSkipConfigDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            '智能分析片头片尾时使用的服务端参数，按当前账号保存',
-            style: theme.typography.caption,
-          ),
           const SizedBox(height: 4),
           if (!loggedIn)
             const Padding(
@@ -128,6 +123,13 @@ class _SmartSkipConfigDialogState extends ConsumerState<SmartSkipConfigDialog> {
                   editable: editable,
                   onChanged: (value) =>
                       _update(config.copyWith(scanPreview: value)),
+                ),
+                _toggleRow(
+                  '检测广告',
+                  checked: config.scanCommercial,
+                  editable: editable,
+                  onChanged: (value) =>
+                      _update(config.copyWith(scanCommercial: value)),
                 ),
                 const SizedBox(height: 4),
                 const Divider(),
