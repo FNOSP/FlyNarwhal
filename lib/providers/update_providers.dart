@@ -5,10 +5,10 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/utils/log/app_talker.dart';
+import '../core/window/app_shutdown.dart';
 import '../data/datasources/remote/fly_narwhal_server_release_data_source.dart';
 import '../data/datasources/remote/github_release_data_source.dart';
 import '../data/repositories/update_repository_impl.dart';
@@ -288,13 +288,20 @@ final updateExitRequesterProvider = Provider<UpdateExitRequester>((ref) {
     return () async {};
   }
   if (Platform.isWindows) {
+    // Every platform's installer helper blocks until this process exits, so
+    // the Windows path must end the process too. Closing only the window
+    // leaves the process alive and the install never starts.
     return () async {
       AppTalker.info(
         'UpdateInstall',
-        'Exit requester closing the window so the install worker can proceed.',
+        'Exit requester shutting the app down so the install worker can proceed.',
       );
-      await windowManager.setPreventClose(false);
-      await windowManager.close();
+      final shutdown = AppShutdown.handler;
+      if (shutdown != null) {
+        await shutdown();
+        return;
+      }
+      exit(0);
     };
   }
   if (Platform.isMacOS || Platform.isLinux) {

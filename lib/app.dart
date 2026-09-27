@@ -19,6 +19,7 @@ import 'core/network/ssl/ssl_trust_manager.dart';
 import 'core/network/ssl/ssl_trust_persistence.dart';
 import 'core/security/password_cipher.dart';
 import 'core/window/desktop_display_service.dart';
+import 'core/window/app_shutdown.dart';
 import 'core/window/window_geometry.dart';
 import 'data/storage/main_window_settings_store.dart';
 import 'core/utils/index.dart';
@@ -162,6 +163,7 @@ Future<void> bootstrapApp() async {
       });
       mainWindowLifecycleController = MainWindowLifecycleController(prefs)
         ..start();
+      AppShutdown.register(mainWindowLifecycleController!.requestShutdown);
       AppTalker.info('Window', 'Desktop initialization complete');
     }
 

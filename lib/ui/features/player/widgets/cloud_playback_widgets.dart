@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../../../data/models/cloud_storage_type.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../tooling/driver_test_mode.dart';
@@ -80,16 +81,16 @@ class _CloudTypeAvatar extends StatelessWidget {
   const _CloudTypeAvatar({required this.cloudStorageType, required this.size});
 
   String? get _assetPath {
-    switch (cloudStorageType) {
-      case 1: // 百度网盘
+    switch (CloudStorageType.fromValue(cloudStorageType)) {
+      case CloudStorageType.baiduPan:
         return 'assets/images/baidu_pan.png';
-      case 2: // 阿里云盘
+      case CloudStorageType.aliPan:
         return 'assets/images/aliyun_pan.png';
-      case 3: // 115 生活
+      case CloudStorageType.oneOneFivePan:
         return 'assets/images/oneonefive_pan.png';
-      case 4: // 夸克网盘
+      case CloudStorageType.quarkPan:
         return 'assets/images/quark_pan.png';
-      case 5: // 123 云盘
+      case CloudStorageType.oneTwoThreePan:
         return 'assets/images/onetwothree_pan.png';
       default:
         return null;

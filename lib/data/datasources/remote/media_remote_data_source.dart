@@ -491,15 +491,18 @@ class MediaRemoteDataSource {
     return result;
   }
 
-  /// 删除条目（对齐 Web `DELETE /item/:guid?delete_file=0|1`）。
+  /// 删除条目（对齐 Web `DELETE /item/:guid`，载荷在 body 里）。
   /// [deleteFile] 为 true 时同时删除磁盘文件；默认 false 仅从媒体库移除。
+  ///
+  /// 载荷必须放 body：服务端按 body 计算 Authx 签名，用 query 参数会被判为
+  /// invalid sign；Web 端同样只在 GET 时把参数放 query。
   Future<ApiResult<bool>> deleteItem(
     String guid, {
     required bool deleteFile,
   }) async {
     final result = await _dioClient.delete<bool>(
       ApiEndpoints.itemByGuid(guid),
-      queryParameters: <String, dynamic>{'delete_file': deleteFile ? 1 : 0},
+      data: <String, dynamic>{'delete_file': deleteFile ? 1 : 0},
       converter: (data) => _parseSuccessResponse(data),
     );
     if (result.isSuccess) _cache.invalidate(guid);
