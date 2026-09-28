@@ -157,6 +157,10 @@ class _TvSeasonDetailContentState
       widget.guid,
       notifyListeners: false,
     );
+    // Drop this season's cached detail responses so re-entering the page always
+    // refetches instead of replaying the data source's 5-minute cache while the
+    // provider is still alive across route changes.
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(widget.guid);
     _moreController.dispose();
     _castScrollController.dispose();
     super.dispose();
