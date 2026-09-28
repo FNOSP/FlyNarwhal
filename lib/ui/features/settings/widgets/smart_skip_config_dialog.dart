@@ -56,6 +56,10 @@ class _SmartSkipConfigDialogState extends ConsumerState<SmartSkipConfigDialog> {
     _update(const SmartSkipConfig());
   }
 
+  void _cancel() {
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final userGuid = ref.watch(currentUserGuidProvider);
@@ -73,8 +77,10 @@ class _SmartSkipConfigDialogState extends ConsumerState<SmartSkipConfigDialog> {
       ),
       primaryButtonText: loggedIn ? '保存' : null,
       onPrimaryPressed: loggedIn ? _saveAndClose : null,
-      secondaryButtonText: loggedIn ? '恢复默认' : null,
-      onSecondaryPressed: loggedIn ? _resetToDefaults : null,
+      secondaryButtonText: '取消',
+      onSecondaryPressed: _cancel,
+      tertiaryButtonText: loggedIn ? '恢复默认' : null,
+      onTertiaryPressed: loggedIn ? _resetToDefaults : null,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
