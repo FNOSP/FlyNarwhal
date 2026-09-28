@@ -18,15 +18,14 @@ final _uri = Uri.parse('https://cdn.example.test/media');
 
 void main() {
   test(
-      'Given producer cancellation is unfinished, then old buffers keep their leases until cleanup and a replacement waits',
+      'Given producer cancellation is unfinished, then old buffers remain owned while a replacement starts independently',
       () async {
-    final budget = CdnRangeBudget();
     final releaseCancellation = Completer<void>();
     final oldSource =
         _Source(3 * _chunk, cancellationGate: releaseCancellation.future);
     final nextSource = _Source(100);
-    final oldSession = _session(oldSource, budget);
-    final nextSession = _session(nextSource, budget);
+    final oldSession = _session(oldSource);
+    final nextSession = _session(nextSource);
     addTearDown(() async {
       if (!releaseCancellation.isCompleted) releaseCancellation.complete();
       await oldSession.close();
@@ -37,47 +36,49 @@ void main() {
         oldSession.read(const CdnByteRange(start: 0, end: 3 * _chunk - 1)));
     final oldBodies = [for (var i = 0; i < 3; i++) await oldSource.bodyAt(i)];
     expect(oldSession.allocatedBufferBytes, 3 * _chunk);
-    expect(budget.occupiedSlots, 3);
+    expect(oldSession.allocatedChunkCount, 3);
 
     var closed = false;
     final oldClose = oldSession.close().then((_) => closed = true);
     await Future.wait(oldBodies.map((body) => body.cancellationStarted.future))
         .timeout(_deadline);
-    final nextInitialized = nextSession.initialize();
-    await _eventTurn();
+    await nextSession.initialize().timeout(_deadline);
     expect(closed, isFalse);
-    expect(nextSource.probeCalls, 0,
-        reason:
-            'The replacement must not reuse storage still owned by old producer cleanup.');
+    expect(nextSource.probeCalls, 1,
+        reason: 'A replacement does not wait for another reader storage');
     expect(oldSession.allocatedBufferBytes, 3 * _chunk);
-    expect(budget.occupiedSlots, 3);
-
-    releaseCancellation.complete();
-    await oldClose.timeout(_deadline);
-    await oldRead.done.timeout(_deadline);
-    await nextInitialized.timeout(_deadline);
-    expect(oldSession.allocatedBufferBytes, 0);
-    expect(oldSession.activeDownloadCount, 0);
-    expect(nextSource.probeCalls, 1);
-    expect(budget.occupiedSlots, 0);
+    expect(oldSession.allocatedChunkCount, 3);
 
     final newRead =
         _Read(nextSession.read(const CdnByteRange(start: 10, end: 29)));
-    (await nextSource.bodyAt(0)).complete();
+    final nextBody = await nextSource.bodyAt(0);
+    expect(nextSession.allocatedChunkCount, 1);
+    expect(oldSession.allocatedChunkCount, 3);
+    nextBody.complete();
     await newRead.done.timeout(_deadline);
     expect(newRead.errors, isEmpty);
     expect(newRead.bytes, 20);
     expect(nextSession.allocatedBufferBytes, 0);
-    expect(budget.occupiedSlots, 0);
-    expect(budget.peakOccupiedSlots, 3);
+    expect(nextSession.allocatedChunkCount, 0);
+    expect(closed, isFalse,
+        reason:
+            'The new read finishes before old producer cleanup is released');
+    expect(oldSession.allocatedBufferBytes, 3 * _chunk);
+
+    releaseCancellation.complete();
+    await oldClose.timeout(_deadline);
+    await oldRead.done.timeout(_deadline);
+    expect(oldSession.allocatedBufferBytes, 0);
+    expect(oldSession.allocatedChunkCount, 0);
+    expect(oldSession.activeDownloadCount, 0);
+    expect(oldSession.peakAllocatedChunkCount, 3);
   });
 
   test(
       'Given a paused consumer, when the session closes, then buffers and producers are released without resuming it',
       () async {
-    final budget = CdnRangeBudget();
     final source = _Source(3 * _chunk);
-    final session = _session(source, budget);
+    final session = _session(source);
     addTearDown(session.close);
     await session.initialize();
     final paused = Completer<void>();
@@ -96,7 +97,7 @@ void main() {
     expect(subscription.isPaused, isTrue);
     expect(session.allocatedBufferBytes, 0);
     expect(session.activeDownloadCount, 0);
-    expect(budget.occupiedSlots, 0);
+    expect(session.allocatedChunkCount, 0);
     expect(
         bodies.every((body) => body.cancellationStarted.isCompleted), isTrue);
     await subscription.cancel().timeout(_deadline);
@@ -104,11 +105,10 @@ void main() {
   });
 
   test(
-      'Given completed buffers and a paused reader, then storage stays charged until cancellation cleanup',
+      'Given completed buffers and a paused reader, then storage stays owned until cancellation cleanup',
       () async {
-    final budget = CdnRangeBudget();
     final source = _Source(2 * _chunk);
-    final session = _session(source, budget);
+    final session = _session(source);
     addTearDown(session.close);
     await session.initialize();
     final paused = Completer<void>();
@@ -131,74 +131,55 @@ void main() {
     await _eventTurn();
     expect(session.activeDownloadCount, 0);
     expect(session.allocatedBufferBytes, 2 * _chunk);
-    expect(budget.occupiedSlots, 2);
+    expect(session.allocatedChunkCount, 2);
     await subscription.cancel().timeout(_deadline);
     expect(session.allocatedBufferBytes, 0);
-    expect(budget.occupiedSlots, 0);
+    expect(session.allocatedChunkCount, 0);
   });
 
   test(
-      'Given prefetch waits before another reader head, then a released slot admits the head and all owned chunks still finish',
+      'Given one reader holds its three buffers, then another reader starts and finishes without borrowing them',
       () async {
-    final budget = CdnRangeBudget();
-    final blockers = _Source(1000);
-    final prefetch = _Source(3 * _chunk);
-    final urgent = _Source(1000);
-    final blockerSession = _session(blockers, budget);
-    final prefetchSession = _session(prefetch, budget);
-    final urgentSession = _session(urgent, budget);
-    addTearDown(() async {
-      await blockerSession.close();
-      await prefetchSession.close();
-      await urgentSession.close();
-    });
-    await blockerSession.initialize();
-    await prefetchSession.initialize();
-    await urgentSession.initialize();
-    final blockingReads = [
-      _Read(blockerSession.read(const CdnByteRange(start: 10, end: 109))),
-      _Read(blockerSession.read(const CdnByteRange(start: 200, end: 299))),
-    ];
-    await blockers.bodyAt(1);
-    final main = _Read(prefetchSession
-        .read(const CdnByteRange(start: 0, end: 3 * _chunk - 1)));
-    final mainHead = await prefetch.bodyAt(0);
-    await _eventTurn();
-    expect(budget.occupiedSlots, 3);
-    expect(prefetch.bodies, hasLength(1));
-    final headRead =
-        _Read(urgentSession.read(const CdnByteRange(start: 500, end: 519)));
-    await _eventTurn();
-    blockers.bodies.first.complete();
-    final urgentHead = await urgent.bodyAt(0);
-    expect(prefetch.bodies, hasLength(1),
-        reason:
-            'A ready reader head takes priority over the older queued prefetch.');
-    urgentHead.complete();
-    await headRead.done.timeout(_deadline);
-    final secondPart = await prefetch.bodyAt(1);
-    mainHead.complete();
-    final thirdPart = await prefetch.bodyAt(2);
-    thirdPart.complete();
-    secondPart.complete();
-    blockers.bodies.last.complete();
-    await Future.wait([main.done, for (final read in blockingReads) read.done])
-        .timeout(_deadline);
-    expect(main.errors, isEmpty);
-    expect(main.bytes, 3 * _chunk);
-    expect(headRead.errors, isEmpty);
-    expect(budget.occupiedSlots, 0);
-    expect(budget.peakOccupiedSlots, 3);
+    final source = _Source(6 * _chunk);
+    final session = _session(source);
+    addTearDown(session.close);
+    await session.initialize();
+    final first =
+        _Read(session.read(const CdnByteRange(start: 0, end: 3 * _chunk - 1)));
+    final firstBodies = [for (var i = 0; i < 3; i++) await source.bodyAt(i)];
+    expect(session.allocatedChunkCount, 3);
+    final second = _Read(session
+        .read(const CdnByteRange(start: 3 * _chunk, end: 6 * _chunk - 1)));
+    final secondBodies = [for (var i = 3; i < 6; i++) await source.bodyAt(i)];
+    expect(session.allocatedChunkCount, 6);
+    expect(session.allocatedBufferBytes, 6 * _chunk);
+    expect(session.peakAllocatedChunkCount, 6);
+    for (final body in secondBodies) {
+      body.complete();
+    }
+    await second.done.timeout(_deadline);
+    expect(second.errors, isEmpty);
+    expect(second.bytes, 3 * _chunk);
+    expect(first.bytes, 0);
+    expect(session.allocatedChunkCount, 3);
+    expect(firstBodies.every((body) => !body.cancellationStarted.isCompleted),
+        isTrue);
+    for (final body in firstBodies) {
+      body.complete();
+    }
+    await first.done.timeout(_deadline);
+    expect(first.errors, isEmpty);
+    expect(first.bytes, 3 * _chunk);
+    expect(session.allocatedChunkCount, 0);
+    expect(session.allocatedBufferBytes, 0);
   });
 
   test(
       'Given global identity failure followed by repeated service close, then the owned source closes once',
       () async {
-    final budget = CdnRangeBudget();
     final source = _Source(100);
     final errors = <Object>[];
-    final service =
-        CdnProxyService(source: source, budget: budget, onError: errors.add);
+    final service = CdnProxyService(source: source, onError: errors.add);
     final client = HttpClient();
     addTearDown(() async {
       client.close(force: true);
@@ -221,18 +202,14 @@ void main() {
     expect(service.activeWriterCount, 0);
     expect(service.allocatedBufferBytes, 0);
     expect(service.activeDownloadCount, 0);
-    expect(budget.occupiedSlots, 0);
   });
 }
 
-CdnRangeSession _session(_Source source, CdnRangeBudget budget) =>
-    CdnRangeSession(
-        source: source,
-        uri: _uri,
-        headers: const {},
-        budget: budget,
-        retryJitter: () => Duration.zero);
-
+CdnRangeSession _session(_Source source) => CdnRangeSession(
+    source: source,
+    uri: _uri,
+    headers: const {},
+    retryJitter: () => Duration.zero);
 Future<void> _eventTurn() async {
   await Future<void>.delayed(Duration.zero);
   await Future<void>.delayed(Duration.zero);

@@ -42,6 +42,7 @@ void main() {
       addTearDown(session.close);
       await _initialize(session, source);
       expect(session.totalLength, 0);
+      expect(source.requests, hasLength(1));
       _expectReleased(session, source);
     });
 
@@ -84,6 +85,39 @@ void main() {
   });
 
   group('CdnRangeSession ordered streaming', () {
+    for (final (length, count) in [
+      (_chunk, 1),
+      (_chunk + 1, 2),
+      (3 * _chunk + 1, 3),
+    ]) {
+      test(
+          'Given $length bytes, when first headers are valid, then owns $count buffers without waiting for body data',
+          () async {
+        final source = _ControlledSource(length);
+        final session = _session(source);
+        addTearDown(session.close);
+        await _initialize(session, source);
+        final capture =
+            _Capture(session.read(CdnByteRange(start: 0, end: length - 1)));
+        final first = await source.requestAt(1);
+        await _barrier();
+        expect(source.requests, hasLength(2));
+        expect(session.allocatedChunkCount, 1);
+        first.respondMetadata();
+        for (var index = 2; index <= count; index++) {
+          await source.requestAt(index);
+        }
+        await _barrier();
+        expect(source.requests, hasLength(count + 1));
+        expect(session.allocatedChunkCount, count);
+        expect(session.activeDownloadCount, count);
+        expect(capture.bytes, isEmpty);
+        expect(first.ended, isFalse);
+        await capture.cancel();
+        _expectReleased(session, source);
+      });
+    }
+
     for (final length in [100, 3 * _chunk]) {
       test(
           'Given $length bytes, when a prefix arrives, then streams before the chunk is complete',
@@ -145,15 +179,18 @@ void main() {
       final first = await source.requestAt(1);
       first.respondMetadata();
       final second = await source.requestAt(2);
-      second.respondMetadata();
       final third = await source.requestAt(3);
+      expect(second.response.isCompleted, isFalse,
+          reason:
+              'The third chunk must not wait for the second response headers');
+      expect(session.allocatedChunkCount, 3);
       third.respond();
-      second.finishBody();
+      second.respond();
       await third.bodyEnded.future;
       await second.bodyEnded.future;
       await _barrier();
       expect(capture.bytes, isEmpty);
-      expect(session.budget.occupiedSlots, 3);
+      expect(session.allocatedChunkCount, 3);
       first.body.add(_bytes(0, 1024));
       await capture.waitForBytes(1024);
       _expectBytes(capture.bytes, 0, 1024);
@@ -162,7 +199,7 @@ void main() {
       expect(capture.errors, isEmpty);
       _expectBytes(capture.bytes, 0, 3 * _chunk);
       expect(capture.bytes.every((bytes) => bytes.length <= 64 * 1024), isTrue);
-      expect(session.budget.peakOccupiedSlots, 3);
+      expect(session.peakAllocatedChunkCount, 3);
       _expectReleased(session, source);
     });
 
@@ -207,12 +244,12 @@ void main() {
       expect(bytes.every((bytes) => bytes.length <= 64 * 1024), isTrue);
       expect(source.requests, hasLength(7));
       expect(source.peakActive, lessThanOrEqualTo(3));
-      expect(session.budget.peakOccupiedSlots, lessThanOrEqualTo(3));
+      expect(session.peakAllocatedChunkCount, lessThanOrEqualTo(3));
       _expectReleased(session, source);
     });
 
     test(
-        'Given a paused consumer, when prefetch completes, then memory stays at three slots and cancellation releases them',
+        'Given a paused consumer, when prefetch completes, then memory stays at three buffers and cancellation releases them',
         () async {
       final source = _ControlledSource(8 * _chunk);
       final session = _session(source);
@@ -239,7 +276,7 @@ void main() {
       await third.bodyEnded.future;
       await _barrier();
       expect(source.requests, hasLength(4));
-      expect(session.budget.occupiedSlots, 3);
+      expect(session.allocatedChunkCount, 3);
       expect(session.allocatedBufferBytes, lessThanOrEqualTo(3 * _chunk));
       expect(session.bufferedBytes, lessThanOrEqualTo(3 * _chunk));
       await subscription.cancel().timeout(const Duration(seconds: 5));
@@ -316,7 +353,7 @@ void main() {
               .map((request) => request.start),
           [0, 7, 18]);
       expect(errors, isEmpty);
-      expect(session.budget.peakOccupiedSlots, lessThanOrEqualTo(3));
+      expect(session.peakAllocatedChunkCount, lessThanOrEqualTo(3));
       _expectReleased(session, source);
     });
 
@@ -455,7 +492,7 @@ void main() {
 
     for (final status in [401, 403, 404, 408, 429, 500, 502, 503, 504]) {
       test(
-          'Given later-chunk HTTP $status, when repeated beyond four failures, then retains an executor and recovers',
+          'Given later-chunk HTTP $status, when repeated beyond four failures, then keeps its chunk task and recovers',
           () async {
         final source = _ControlledSource(2 * _chunk);
         final errors = <Object>[];
@@ -477,7 +514,7 @@ void main() {
         retry.respond();
         _expectBytes(await result, 0, 2 * _chunk);
         expect(errors, isEmpty);
-        expect(session.budget.peakOccupiedSlots, lessThanOrEqualTo(3));
+        expect(session.peakAllocatedChunkCount, lessThanOrEqualTo(3));
         _expectReleased(session, source);
       });
     }
@@ -547,7 +584,7 @@ void main() {
           await source.requestWhere((request) => request.start == _chunk + 17);
       expect(suffix.end, 2 * _chunk - 1);
       expect(capture.bytes, isEmpty);
-      expect(session.budget.occupiedSlots, 2);
+      expect(session.allocatedChunkCount, 2);
       suffix.respond();
       first.finishBody();
       await capture.done;
@@ -629,7 +666,7 @@ void main() {
     });
 
     test(
-        'Given a later task with spent body retries, when HTTP retirement requeues it, then its new worker gets a fresh finite budget',
+        'Given a later chunk with spent body retries, when HTTP failures intervene, then its finite body budget never resets',
         () async {
       final source = _ControlledSource(2 * _chunk);
       final session = _session(source);
@@ -649,29 +686,35 @@ void main() {
       first.finishBody();
       await capture.waitForBytes(_chunk);
       await _barrier();
-      (await source.requestWhere((request) => request.start == _chunk + 2))
-          .reject(_http(403));
-      var resumed = await source.requestWhere(
-          (request) => request.start == _chunk + 2,
-          occurrence: 2);
-      for (var accepted = 2; accepted < 5; accepted++) {
-        resumed.respondMetadata();
-        resumed.body.add(_bytes(_chunk + accepted, 1));
-        resumed.body.addError(const SocketException('reset'));
-        resumed = await source
-            .requestWhere((request) => request.start == _chunk + accepted + 1);
+      for (var occurrence = 1; occurrence <= 7; occurrence++) {
+        (await source.requestWhere((request) => request.start == _chunk + 2,
+                occurrence: occurrence))
+            .reject(_http(403));
       }
-      resumed.respond();
+      final thirdBody = await source.requestWhere(
+          (request) => request.start == _chunk + 2,
+          occurrence: 8);
+      thirdBody.respondMetadata();
+      thirdBody.body.add(_bytes(_chunk + 2, 1));
+      thirdBody.body.addError(const SocketException('third body failure'));
+      final fourthBody =
+          await source.requestWhere((request) => request.start == _chunk + 3);
+      fourthBody.respondMetadata();
+      fourthBody.body.add(_bytes(_chunk + 3, 1));
+      fourthBody.body.addError(const SocketException('fourth body failure'));
       await capture.done;
-      expect(capture.errors, isEmpty);
-      _expectBytes(capture.bytes, 0, 2 * _chunk);
+      expect(capture.errors, [isA<CdnRangeFailure>()]);
       expect(source.requests.where((request) => request.start >= _chunk),
-          hasLength(7));
+          hasLength(11));
+      expect(source.requests.any((request) => request.start == _chunk + 4),
+          isFalse,
+          reason:
+              'HTTP retries must neither spend nor reset body retry credit');
       _expectReleased(session, source);
     });
 
     test(
-        'Given two chunks and a held first body, when the resumed second gets HTTP 403, then retires to one worker before retrying',
+        'Given two chunks and a held first body, when the resumed second gets HTTP 403, then retries without reducing concurrency',
         () async {
       const total = 11 * 1024 * 1024;
       const firstSize = 5 * 1024 * 1024;
@@ -690,37 +733,36 @@ void main() {
       second.respondMetadata();
       second.body.add(_bytes(firstSize, prefix));
       second.body.addError(const SocketException('reset after a valid prefix'));
-      final suffix = await source.requestAt(3);
-      expect((suffix.start, suffix.end), (firstSize + prefix, total - 1));
-      suffix.reject(_http(403));
-      await suffix.token.whenCancel;
-      await _barrier();
-      expect(source.requests, hasLength(4),
-          reason:
-              'After 2-to-1 retirement, the held first body owns the only executor');
-      expect(session.activeDownloadCount, 1);
-      expect(session.budget.occupiedSlots, 2);
-      expect(capture.bytes, isEmpty);
-      expect(first.ended, isFalse);
-
-      first.finishBody();
-      for (var occurrence = 2; occurrence <= 7; occurrence++) {
-        final retry = await source.requestWhere(
+      for (var occurrence = 1; occurrence <= 7; occurrence++) {
+        final suffix = await source.requestWhere(
             (request) => request.start == firstSize + prefix,
             occurrence: occurrence);
-        retry.reject(_http(403));
+        expect(suffix.end, total - 1);
+        expect(session.activeDownloadCount, 2);
+        expect(session.allocatedChunkCount, 2);
+        expect(first.ended, isFalse);
+        expect(capture.bytes, isEmpty);
+        suffix.reject(_http(403));
       }
       final recovered = await source.requestWhere(
           (request) => request.start == firstSize + prefix,
           occurrence: 8);
       recovered.respond();
+      await recovered.bodyEnded.future;
+      await _barrier();
+      expect(first.ended, isFalse,
+          reason:
+              'The second task must recover before the first body completes');
+      expect(session.allocatedChunkCount, 2);
+      expect(capture.bytes, isEmpty);
+      first.finishBody();
       await capture.done;
       expect(capture.errors, isEmpty);
       _expectBytes(capture.bytes, 0, total);
       expect(source.requests.where((request) => request.start == firstSize),
           hasLength(1),
           reason: 'The accepted prefix must not be downloaded again');
-      expect(session.budget.peakOccupiedSlots, 2);
+      expect(session.peakAllocatedChunkCount, 2);
       _expectReleased(session, source);
     });
     test(
@@ -862,8 +904,8 @@ void main() {
         entry.value(requests[0]);
         await first.done;
         await other.done;
-        expect(first.errors, hasLength(1));
-        expect(other.errors, hasLength(1));
+        expect(first.errors, [isA<CdnResourceChanged>()]);
+        expect(other.errors, [isA<CdnResourceChanged>()]);
         expect(errors, [isA<CdnResourceChanged>()]);
         expect(requests.every((request) => request.token.isCancelled), isTrue);
         await expectLater(
@@ -930,35 +972,113 @@ void main() {
       });
     }
   });
-  group('CdnRangeSession shared budget and cancellation', () {
-    test('Given two sessions, when both read, then share the three-slot window',
-        () async {
-      final budget = CdnRangeBudget();
-      final firstSource = _ControlledSource(3 * _chunk + 7);
-      final secondSource = _ControlledSource(3 * _chunk + 9);
-      final first = _session(firstSource, budget: budget);
-      final second = _session(secondSource, budget: budget);
-      addTearDown(first.close);
-      addTearDown(second.close);
-      await _initialize(first, firstSource);
-      await _initialize(second, secondSource);
-      firstSource.onOpen = (request) => request.respond();
-      secondSource.onOpen = (request) => request.respond();
-      final results = await Future.wait([
-        first
-            .read(CdnByteRange(start: 0, end: firstSource.totalLength - 1))
-            .toList(),
-        second
-            .read(CdnByteRange(start: 0, end: secondSource.totalLength - 1))
-            .toList(),
-      ]);
-      _expectBytes(results[0], 0, firstSource.totalLength);
-      _expectBytes(results[1], 0, secondSource.totalLength);
-      expect(budget.peakOccupiedSlots, lessThanOrEqualTo(3));
-      _expectReleased(first, firstSource);
-      _expectReleased(second, secondSource);
-    });
+  group('CdnRangeSession independent readers and cancellation', () {
+    for (final closeSession in [false, true]) {
+      test(
+          'Given two independent readers, when one is ${closeSession ? 'closed' : 'unsubscribed'}, then the other retains its three buffers and completes',
+          () async {
+        final holderSource = _ControlledSource(3 * _chunk);
+        final cancelledSource = _ControlledSource(3 * _chunk);
+        final errors = <Object>[];
+        final holderSession = _session(holderSource, errors: errors);
+        final cancelledSession = _session(cancelledSource, errors: errors);
+        addTearDown(holderSession.close);
+        addTearDown(cancelledSession.close);
+        await _initialize(holderSession, holderSource);
+        await _initialize(cancelledSession, cancelledSource);
+        final holder = _Capture(holderSession
+            .read(const CdnByteRange(start: 0, end: 3 * _chunk - 1)));
+        final heldHead = await holderSource.requestAt(1);
+        heldHead.respondMetadata();
+        final heldRequests = [
+          heldHead,
+          await holderSource.requestAt(2),
+          await holderSource.requestAt(3),
+        ];
+        final cancelled = _Capture(cancelledSession
+            .read(const CdnByteRange(start: 0, end: 3 * _chunk - 1)));
+        (await cancelledSource.requestAt(1)).respondMetadata();
+        await cancelledSource.requestAt(3);
+        expect(holderSession.allocatedChunkCount, 3);
+        expect(cancelledSession.allocatedChunkCount, 3);
+        expect(holderSource.active + cancelledSource.active, 6);
 
+        if (closeSession) {
+          await cancelledSession.close().timeout(const Duration(seconds: 5));
+          await cancelled.done;
+          expect(cancelled.errors, [isA<CdnRangeCancelled>()]);
+        } else {
+          await cancelled.cancel().timeout(const Duration(seconds: 5));
+          expect(cancelled.errors, isEmpty);
+        }
+        _expectReleased(cancelledSession, cancelledSource);
+        expect(holderSession.allocatedChunkCount, 3);
+        expect(heldRequests.every((request) => !request.token.isCancelled),
+            isTrue);
+        heldHead.finishBody();
+        for (final request in heldRequests.skip(1)) {
+          request.respond();
+        }
+        await holder.done;
+        expect(holder.errors, isEmpty);
+        _expectBytes(holder.bytes, 0, 3 * _chunk);
+        _expectReleased(holderSession, holderSource);
+        expect(errors, isEmpty);
+
+        final replacementSource = _ControlledSource(32);
+        final replacement = _session(replacementSource);
+        addTearDown(replacement.close);
+        await _initialize(replacement, replacementSource);
+        final result =
+            replacement.read(const CdnByteRange(start: 2, end: 5)).toList();
+        (await replacementSource.requestAt(1)).respond();
+        _expectBytes(await result, 2, 4);
+        _expectReleased(replacement, replacementSource);
+      });
+    }
+
+    test(
+        'Given two readers in one session, when both first headers arrive, then each owns three buffers and cancellation is independent',
+        () async {
+      final source = _ControlledSource(6 * _chunk);
+      final session = _session(source);
+      addTearDown(session.close);
+      await _initialize(session, source);
+      final first = _Capture(
+          session.read(const CdnByteRange(start: 0, end: 3 * _chunk - 1)));
+      final second = _Capture(session
+          .read(const CdnByteRange(start: 3 * _chunk, end: 6 * _chunk - 1)));
+      final firstHead = await source
+          .requestWhere((request) => request.start == 0 && request.end > 0);
+      final secondHead =
+          await source.requestWhere((request) => request.start == 3 * _chunk);
+      firstHead.respondMetadata();
+      secondHead.respondMetadata();
+      final firstBodies = [
+        firstHead,
+        await source.requestWhere((request) => request.start == _chunk),
+        await source.requestWhere((request) => request.start == 2 * _chunk),
+      ];
+      await source.requestWhere((request) => request.start == 4 * _chunk);
+      await source.requestWhere((request) => request.start == 5 * _chunk);
+      expect(session.allocatedChunkCount, 6);
+      expect(session.peakAllocatedChunkCount, 6);
+      expect(source.active, 6);
+      await second.cancel();
+      expect(second.errors, isEmpty);
+      expect(session.allocatedChunkCount, 3);
+      expect(source.active, 3);
+      expect(
+          firstBodies.every((request) => !request.token.isCancelled), isTrue);
+      firstHead.finishBody();
+      for (final request in firstBodies.skip(1)) {
+        request.respond();
+      }
+      await first.done;
+      expect(first.errors, isEmpty);
+      _expectBytes(first.bytes, 0, 3 * _chunk);
+      _expectReleased(session, source);
+    });
     for (final closeSession in [false, true]) {
       test(
           'Given a day-long retry delay, when ${closeSession ? 'closed' : 'unsubscribed'}, then cancels immediately',
@@ -976,7 +1096,7 @@ void main() {
             session.read(const CdnByteRange(start: 0, end: 2 * _chunk - 1)));
         (await source.requestAt(1)).reject(_http(503));
         await retrying.future;
-        expect(session.budget.occupiedSlots, 1);
+        expect(session.allocatedChunkCount, 1);
         if (closeSession) {
           await session.close().timeout(const Duration(seconds: 5));
           await capture.done;
@@ -992,41 +1112,37 @@ void main() {
     }
 
     test(
-        'Given active bodies and a waiting new-source probe, when old source closes, then the new source reuses every slot',
+        'Given active old bodies, when a new source probes and reads, then old source close cannot cancel the new source',
         () async {
-      final budget = CdnRangeBudget();
       final oldSource = _ControlledSource(3 * _chunk);
       final newSource = _ControlledSource(20);
-      final oldSession = _session(oldSource, budget: budget);
-      final newSession = _session(newSource, budget: budget);
+      final oldSession = _session(oldSource);
+      final newSession = _session(newSource);
       addTearDown(oldSession.close);
       addTearDown(newSession.close);
       await _initialize(oldSession, oldSource);
       final old = _Capture(
           oldSession.read(const CdnByteRange(start: 0, end: 3 * _chunk - 1)));
       (await oldSource.requestAt(1)).respondMetadata();
-      (await oldSource.requestAt(2)).respondMetadata();
       await oldSource.requestAt(3);
-      final initialized = newSession.initialize();
-      await _barrier();
-      expect(newSource.requests, isEmpty);
-      expect(budget.occupiedSlots, 3);
+      await _initialize(newSession, newSource);
+      expect(oldSession.allocatedChunkCount, 3);
+      final result =
+          newSession.read(const CdnByteRange(start: 2, end: 5)).toList();
+      final newBody = await newSource.requestAt(1);
+      expect(newSession.allocatedChunkCount, 1);
       final closing = oldSession.close();
       expect(identical(closing, oldSession.close()), isTrue);
       await closing.timeout(const Duration(seconds: 5));
       await old.done;
       expect(old.errors, everyElement(isA<CdnRangeCancelled>()));
-      (await newSource.requestAt(0)).respond();
-      await initialized;
-      final result =
-          newSession.read(const CdnByteRange(start: 2, end: 5)).toList();
-      (await newSource.requestAt(1)).respond();
+      expect(newBody.token.isCancelled, isFalse);
+      newBody.respond();
       _expectBytes(await result, 2, 4);
       expect(oldSource.closeCount, 1);
       _expectReleased(oldSession, oldSource);
       _expectReleased(newSession, newSource);
     });
-
     test(
         'Given invalid intervals, when listened, then rejects without allocating or requesting',
         () async {
@@ -1071,7 +1187,6 @@ CdnRequestFailure _http(int status) => CdnRequestFailure(
 
 CdnRangeSession _session(
   _ControlledSource source, {
-  CdnRangeBudget? budget,
   List<Object>? errors,
   Duration Function()? retryJitter,
 }) =>
@@ -1079,7 +1194,6 @@ CdnRangeSession _session(
       source: source,
       uri: _uri,
       headers: const {'cookie': 'provider=value'},
-      budget: budget ?? CdnRangeBudget(),
       onError: errors?.add,
       retryJitter: retryJitter ?? () => Duration.zero,
     );
@@ -1101,7 +1215,7 @@ Future<void> _initialize(
 }
 
 void _expectReleased(CdnRangeSession session, _ControlledSource source) {
-  expect(session.budget.occupiedSlots, 0);
+  expect(session.allocatedChunkCount, 0);
   expect(session.activeDownloadCount, 0);
   expect(session.allocatedBufferBytes, 0);
   expect(session.bufferedBytes, 0);

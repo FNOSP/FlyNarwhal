@@ -21,7 +21,8 @@ Future<void> main(List<String> arguments) async {
       _requireComplete(result);
       _require(result.bodyAttempts.length == 3 && result.retryReports.isEmpty,
           'A healthy slow link unexpectedly retried.');
-      _require(result.peakBudget == 3 && result.peakUpstreamRequests == 3,
+      _require(
+          result.peakAllocatedChunks == 3 && result.peakUpstreamRequests == 3,
           'The slow-link run did not exercise three concurrent ranges.');
       _require(
           result.firstBodyAt != null &&
@@ -94,7 +95,7 @@ void _requireReleased(CdnProxyExperimentResult result) {
       result.payloadErrors == 0 &&
           result.serviceErrors.isEmpty &&
           result.upstreamErrors.isEmpty &&
-          result.occupiedAfterClose == 0 &&
+          result.allocatedChunksAfterClose == 0 &&
           result.writersAfterClose == 0 &&
           result.downloadsAfterClose == 0 &&
           result.attemptsAfterClose == 0 &&

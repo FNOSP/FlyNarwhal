@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
 import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_service.dart';
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_session.dart';
 
 import 'support/cdn_proxy_http_fixture.dart';
 
@@ -15,12 +14,10 @@ Future<void> main() async {
     totalBytes: 21 * fixtureMiB + 37,
     stallFirstBody: true,
   );
-  final budget = CdnRangeBudget();
   final failures = <Object>[];
   final client = HttpClient()..findProxy = (_) => 'DIRECT';
   CdnProxyService createProxy() => CdnProxyService(
         source: CdnHttpRangeSource(),
-        budget: budget,
         onError: failures.add,
       );
   final first = createProxy();
@@ -40,11 +37,11 @@ Future<void> main() async {
     }, onError: (Object _) {});
     await firstPrefix.future.timeout(const Duration(seconds: 5));
     await fixture.firstBodyStarted.future.timeout(const Duration(seconds: 5));
-    _require(
-        budget.occupiedSlots > 0, 'The stalled request has no active lease.');
+    _require(first.allocatedChunkCount > 0,
+        'The stalled request has no retained buffer.');
     await first.close().timeout(const Duration(seconds: 5));
-    _require(first.activeWriterCount == 0 && budget.occupiedSlots == 0,
-        'Closing an active request did not release writers and leases.');
+    _require(first.activeWriterCount == 0 && first.allocatedChunkCount == 0,
+        'Closing an active request did not release writers and buffers.');
     await first.close();
 
     final uri = await replacement.open(uri: fixture.uri, headers: const {});
@@ -92,7 +89,9 @@ Future<void> main() async {
         'HTTP 416 did not advertise the resource length.');
     await invalidResponse.drain<void>();
     await replacement.close().timeout(const Duration(seconds: 5));
-    _require(replacement.activeWriterCount == 0 && budget.occupiedSlots == 0,
+    _require(
+        replacement.activeWriterCount == 0 &&
+            replacement.allocatedChunkCount == 0,
         'The replacement proxy did not release resources.');
     _require(failures.isEmpty, 'The proxy reported a playback failure.');
     _require(
@@ -103,8 +102,8 @@ Future<void> main() async {
       'rangeHeaders': true,
       'streamedBeforeStalledBodyCompleted': true,
       'activeRequestCancelled': true,
-      'sharedBudgetReused': true,
-      'occupiedAfterClose': budget.occupiedSlots,
+      'replacementSourceVerified': true,
+      'allocatedChunksAfterClose': replacement.allocatedChunkCount,
       'writersAfterClose': replacement.activeWriterCount,
     }));
   } finally {

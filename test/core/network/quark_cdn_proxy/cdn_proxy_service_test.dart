@@ -1,5 +1,4 @@
 import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_errors.dart';
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_session.dart';
 import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_source.dart';
 import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_constants.dart';
 import 'dart:async';
@@ -64,7 +63,7 @@ void main() {
                   ? 'bytes $start-${start + length - 1}/128'
                   : isNull);
         }
-        await _waitForIdle(harness.budget);
+        await _waitForIdle(harness.service);
       });
     }
 
@@ -127,15 +126,15 @@ void main() {
       expect(response.persistentConnection, isFalse);
       final upstream = await harness.source.requestAt(1);
       expect(upstream.completed, isFalse);
-      expect(harness.budget.occupiedSlots, 1);
+      expect(harness.service.allocatedChunkCount, 1);
 
       upstream.complete();
       expect(await _collect(response), _bytes(7, 12));
-      await _waitForIdle(harness.budget);
+      await _waitForIdle(harness.service);
     });
 
     test(
-        'Given an old connection holds all slots, when seek opens a new Range, then headers unblock switching',
+        'Given an old reader holds three buffers, when seek opens a new Range, then the new reader completes independently',
         () async {
       final harness = await _Harness.open(6 * _chunk);
       addTearDown(harness.close);
@@ -146,7 +145,7 @@ void main() {
       final oldResponse = await oldRequest.close().timeout(_deadline);
       final oldBody = oldResponse.drain<void>().catchError((Object _) {});
       await harness.source.requestAt(3);
-      expect(harness.budget.occupiedSlots, 3);
+      expect(harness.service.allocatedChunkCount, 3);
       final oldUpstream = harness.source.requests.skip(1).toList();
 
       final newRequest = await harness.client().getUrl(harness.uri);
@@ -156,26 +155,33 @@ void main() {
       expect(newResponse.statusCode, 206);
       expect(newResponse.headers.value(HttpHeaders.contentRangeHeader),
           'bytes ${3 * _chunk}-${3 * _chunk + 15}/${6 * _chunk}');
-      expect(harness.source.requests, hasLength(4));
-      expect(harness.budget.occupiedSlots, 3);
+      final newUpstream = await harness.source.requestAt(4);
+      expect(harness.source.requests, hasLength(5));
+      expect(harness.service.allocatedChunkCount, 4);
+      expect(newUpstream.start, 3 * _chunk);
+      expect(newUpstream.end, 3 * _chunk + 15);
 
-      // FFmpeg can now close its previous request after accepting new headers.
+      // A seek must receive its body while the previous reader stays connected.
+      newUpstream.complete();
+      expect(await _collect(newResponse), _bytes(3 * _chunk, 16));
+      await _waitForWriters(harness.service, 1);
+      expect(harness.service.allocatedChunkCount, 3);
+      expect(harness.service.peakAllocatedChunkCount, 4);
+      expect(
+          oldUpstream.every(
+              (request) => !request.completed && !request.token.isCancelled),
+          isTrue);
+
       oldClient.close(force: true);
       await Future.wait(oldUpstream.map((request) => request.cancelled.future))
           .timeout(_deadline);
       await oldBody.timeout(_deadline);
-      final newUpstream = await harness.source.requestAt(4);
-      expect(newUpstream.start, 3 * _chunk);
-      expect(newUpstream.end, 3 * _chunk + 15);
-      newUpstream.complete();
-      expect(await _collect(newResponse), _bytes(3 * _chunk, 16));
-      expect(harness.budget.peakOccupiedSlots, 3);
-      await _waitForIdle(harness.budget);
+      await _waitForIdle(harness.service);
       expect(harness.errors, isEmpty);
     });
 
     test(
-        'Given a client disconnects before body data, when socket closes, then cancels CDN and releases all slots',
+        'Given a client disconnects before body data, when socket closes, then cancels CDN and releases its buffers',
         () async {
       final harness = await _Harness.open(3 * _chunk);
       addTearDown(harness.close);
@@ -192,7 +198,7 @@ void main() {
       await body.timeout(_deadline);
       await Future<void>(() {});
       expect(upstream.every((request) => request.token.isCancelled), isTrue);
-      await _waitForIdle(harness.budget);
+      await _waitForIdle(harness.service);
       expect(harness.errors, isEmpty);
     });
 
@@ -219,11 +225,11 @@ void main() {
       expect(await received, _bytes(10, _chunk + 10));
       expect(response.statusCode, 206);
       expect(harness.errors, isEmpty);
-      await _waitForIdle(harness.budget);
+      await _waitForIdle(harness.service);
     });
 
     test(
-        'Given a single Range body fails, when the client disconnects, then no retry occurs and its slot is freed',
+        'Given a single Range body fails, when the client disconnects, then no retry occurs and its buffer is freed',
         () async {
       final harness = await _Harness.open(128);
       addTearDown(harness.close);
@@ -238,7 +244,7 @@ void main() {
 
       client.close(force: true);
       await bodyEnded.timeout(_deadline);
-      await _waitForIdle(harness.budget);
+      await _waitForIdle(harness.service);
       expect(harness.source.requests, hasLength(2));
       expect(harness.errors, isEmpty);
     });
@@ -260,11 +266,11 @@ void main() {
 
       await body.timeout(_deadline);
       expect(harness.errors, isEmpty);
-      await _waitForIdle(harness.budget);
+      await _waitForIdle(harness.service);
     });
 
     test(
-        'Given detached media sockets remain active, when service closes, then aborts connections and frees slots',
+        'Given detached media sockets remain active, when service closes, then aborts connections and frees buffers',
         () async {
       final harness = await _Harness.open(3 * _chunk);
       addTearDown(harness.close);
@@ -274,7 +280,7 @@ void main() {
       final bodyEnded =
           expectLater(_collect(response), throwsA(isA<HttpException>()));
       await harness.source.requestAt(3);
-      expect(harness.budget.occupiedSlots, 3);
+      expect(harness.service.allocatedChunkCount, 3);
 
       await harness.service.close().timeout(_deadline);
       await bodyEnded.timeout(_deadline);
@@ -283,12 +289,12 @@ void main() {
               .skip(1)
               .every((request) => request.token.isCancelled),
           isTrue);
-      await _waitForIdle(harness.budget);
+      await _waitForIdle(harness.service);
       expect(harness.errors, isEmpty);
     });
 
     test(
-        'Given a real stopped reader, when service closes, then releases its occupied budget',
+        'Given a real stopped reader, when service closes, then releases its reader buffers',
         () async {
       final harness = await _Harness.open(6 * _chunk);
       addTearDown(harness.close);
@@ -321,11 +327,11 @@ void main() {
       }
       await Future.wait(upstream.map((request) => request.body.done))
           .timeout(_deadline);
-      expect(harness.budget.occupiedSlots, 3);
+      expect(harness.service.allocatedChunkCount, 3);
       expect(harness.service.activeWriterCount, 1);
       await harness.service.close().timeout(_deadline);
       expect(harness.service.activeWriterCount, 0);
-      expect(harness.budget.occupiedSlots, 0);
+      expect(harness.service.allocatedChunkCount, 0);
       expect(harness.errors, isEmpty);
     });
     for (final lateDetachError in [false, true]) {
@@ -358,7 +364,7 @@ void main() {
 
         await harness.service.close().timeout(_deadline);
         expect(harness.service.activeWriterCount, 0);
-        expect(harness.budget.occupiedSlots, 0);
+        expect(harness.service.allocatedChunkCount, 0);
         expect(harness.source.closeCount, 1);
         expect(harness.source.requests, hasLength(1));
         releaseSocket.complete();
@@ -371,7 +377,7 @@ void main() {
     }
     for (final lateError in [false, true]) {
       test(
-          'Given an unfinished flush, when close repeats, then joins writers and reuses all slots (lateError=$lateError)',
+          'Given an unfinished flush, when close repeats, then joins writers and leaves replacement readers independent (lateError=$lateError)',
           () async {
         final flushStarted = Completer<void>();
         final flushing = Completer<void>();
@@ -388,7 +394,7 @@ void main() {
         harness.source.requests[1].complete();
         await flushStarted.future.timeout(_deadline);
         expect(harness.service.activeWriterCount, 1);
-        expect(harness.budget.occupiedSlots, 3);
+        expect(harness.service.allocatedChunkCount, 3);
 
         final firstClose = harness.service.close();
         expect(identical(firstClose, harness.service.close()), isTrue);
@@ -396,7 +402,7 @@ void main() {
         await bodyEnded.timeout(_deadline);
         expect(flushing.isCompleted, isFalse);
         expect(harness.service.activeWriterCount, 0);
-        expect(harness.budget.occupiedSlots, 0);
+        expect(harness.service.allocatedChunkCount, 0);
         expect(harness.source.closeCount, 1);
         expect(harness.source.requests, hasLength(4));
         expect(
@@ -406,9 +412,9 @@ void main() {
             isTrue);
         expect(harness.errors, isEmpty);
 
-        // All three slots must be useful to a subsequent source, not merely
-        // counted as free while an old response continues to write.
-        final replacement = await _Harness.open(128, budget: harness.budget);
+        // The closed service remains empty while a replacement independently
+        // owns the buffers for its three simultaneous readers.
+        final replacement = await _Harness.open(128);
         addTearDown(replacement.close);
         final responses = <HttpClientResponse>[];
         for (var index = 0; index < 3; index++) {
@@ -417,15 +423,18 @@ void main() {
           responses.add(await request.close().timeout(_deadline));
         }
         await replacement.source.requestAt(3);
-        expect(harness.budget.occupiedSlots, 3);
+        expect(harness.service.allocatedChunkCount, 0);
+        expect(replacement.service.allocatedChunkCount, 3);
+        expect(replacement.service.peakAllocatedChunkCount, 3);
         for (final request in replacement.source.requests.skip(1)) {
           request.complete();
         }
         for (var index = 0; index < responses.length; index++) {
           expect(await _collect(responses[index]), [index]);
         }
-        await _waitForIdle(harness.budget);
+        await _waitForIdle(replacement.service);
         await _waitForWriters(replacement.service, 0);
+        expect(harness.service.allocatedChunkCount, 0);
 
         // A losing flush future can fail after its writer has been collected.
         // flutter_test fails this test if that late error escapes the zone.
@@ -465,7 +474,7 @@ void main() {
         await closing.timeout(_deadline);
         await bodyEnded.timeout(_deadline);
         expect(harness.service.activeWriterCount, 0);
-        expect(harness.budget.occupiedSlots, 0);
+        expect(harness.service.allocatedChunkCount, 0);
         expect(harness.source.closeCount, 1);
         expect(harness.errors, isEmpty);
       });
@@ -500,11 +509,11 @@ void main() {
       await _waitForWriters(harness.service, 1);
       await secondEnded.timeout(_deadline);
       expect(flushing.isCompleted, isFalse);
-      expect(harness.budget.occupiedSlots, 2);
+      expect(harness.service.allocatedChunkCount, 2);
       expect(harness.errors, isEmpty);
       await harness.service.close().timeout(_deadline);
       await firstEnded.timeout(_deadline);
-      expect(harness.budget.occupiedSlots, 0);
+      expect(harness.service.allocatedChunkCount, 0);
       expect(failing.token.isCancelled, isTrue);
       expect(harness.errors, isEmpty);
       flushing.completeError(StateError('Late flush after terminal failure'));
@@ -532,7 +541,7 @@ void main() {
         await upstream.cancelled.future.timeout(_deadline);
         await bodyEnded.timeout(_deadline);
         await harness.service.close().timeout(_deadline);
-        await _waitForIdle(harness.budget);
+        await _waitForIdle(harness.service);
         expect(harness.errors.length, lessThanOrEqualTo(1));
         expect(
             harness.errors.every((error) => error is CdnRangeFailure), isTrue);
@@ -544,11 +553,12 @@ void main() {
 // A client can finish reading Content-Length before the server's final socket
 // flush callback runs. Wait for that observable state, with a strict deadline,
 // instead of assuming which socket callback the OS schedules first.
-Future<void> _waitForIdle(CdnRangeBudget budget) async {
+Future<void> _waitForIdle(CdnProxyService service) async {
   final deadline = DateTime.now().add(_deadline);
-  while (budget.occupiedSlots != 0) {
+  while (service.allocatedChunkCount != 0) {
     if (DateTime.now().isAfter(deadline)) {
-      throw TimeoutException('CDN budget did not return to zero', _deadline);
+      throw TimeoutException(
+          'CDN allocated chunks did not return to zero', _deadline);
     }
     await Future<void>(() {});
   }
@@ -572,9 +582,8 @@ Uint8List _bytes(int start, int length) =>
     Uint8List.fromList(List.generate(length, (index) => (start + index) % 251));
 
 class _Harness {
-  _Harness(this.source, this.budget, this.errors, this.service, this.uri);
+  _Harness(this.source, this.errors, this.service, this.uri);
   final _FakeCdn source;
-  final CdnRangeBudget budget;
   final List<Object> errors;
   final CdnProxyService service;
   final Uri uri;
@@ -582,22 +591,19 @@ class _Harness {
 
   static Future<_Harness> open(int total,
       {bool autoRespond = false,
-      CdnRangeBudget? budget,
       Future<void> Function(Socket)? socketFlush,
       Future<Socket> Function(HttpResponse, bool)? socketDetach}) async {
     final source = _FakeCdn(total, autoRespond: autoRespond);
-    budget ??= CdnRangeBudget();
     final errors = <Object>[];
     final service = CdnProxyService(
         source: source,
-        budget: budget,
         onError: errors.add,
         socketFlush: socketFlush,
         socketDetach: socketDetach);
     final uri = await service.open(
         uri: Uri.parse('https://cdn.invalid/media.mp4'),
         headers: const {'cookie': 'fake=value'}).timeout(_deadline);
-    return _Harness(source, budget, errors, service, uri);
+    return _Harness(source, errors, service, uri);
   }
 
   HttpClient client() {

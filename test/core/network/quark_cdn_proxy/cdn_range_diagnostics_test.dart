@@ -39,7 +39,7 @@ void main() {
       diagnostics.finish(
           diagnostics.begin(start: i, end: i, probe: false), 'success');
     }
-    diagnostics.failed(occupiedSlots: 2, activeReaders: 1);
+    diagnostics.failed(allocatedChunkCount: 2, activeReaders: 1);
     expect(report!.length, greaterThan(1000));
     const date = '2026-09-20';
     await File('${directory.path}/FlyNarwhal-$date.log')
@@ -69,8 +69,8 @@ void main() {
       diagnostics.finish(trace, 'success');
     }
     expect(logs, isEmpty);
-    diagnostics.failed(occupiedSlots: 2, activeReaders: 1);
-    diagnostics.failed(occupiedSlots: 0, activeReaders: 0);
+    diagnostics.failed(allocatedChunkCount: 2, activeReaders: 1);
+    diagnostics.failed(allocatedChunkCount: 0, activeReaders: 0);
     final report = jsonDecode(logs.single) as Map<String, dynamic>;
     final chunks = report['recentChunks'] as List;
     expect(chunks, hasLength(32));
@@ -93,20 +93,24 @@ void main() {
     final headerFailure = diagnostics.begin(start: 10, end: 19, probe: false);
     headerFailure.failed(StateError('private request details'));
     diagnostics.finish(headerFailure, 'failed');
-    diagnostics.rangeFailed(occupiedSlots: 1, activeReaders: 1);
+    diagnostics.rangeFailed(allocatedChunkCount: 1, activeReaders: 1);
 
     final bodyFailure = diagnostics.begin(start: 20, end: 29, probe: false);
     bodyFailure.headersReceived(1000);
     bodyFailure.received(4);
     diagnostics.finish(bodyFailure, 'failed');
-    diagnostics.failed(occupiedSlots: 0, activeReaders: 0);
-    diagnostics.failed(occupiedSlots: 0, activeReaders: 0);
+    diagnostics.failed(allocatedChunkCount: 0, activeReaders: 0);
+    diagnostics.failed(allocatedChunkCount: 0, activeReaders: 0);
 
     expect(events.map((event) => event['event']),
         ['session_started', 'range_failed', 'session_failed']);
     expect(failures, [false, true, true]);
-    expect(events.every((event) => event['schema'] == 3), isTrue);
+    expect(events.every((event) => event['schema'] == 4), isTrue);
     expect(events.first['totalBytes'], 1000);
+    expect(events[1]['allocatedChunkCount'], 1);
+    expect(events.last['allocatedChunkCount'], 0);
+    expect(
+        events.every((event) => !event.containsKey('occupiedSlots')), isTrue);
     expect(events.first, isNot(contains('requestTimeoutMs')));
 
     final headerTrace = (events[1]['recentChunks'] as List).single as Map;
@@ -125,6 +129,27 @@ void main() {
     expect(jsonEncode(events), isNot(contains('private request details')));
   });
 
+  test(
+      'Given a retry, diagnostics report the reader window without worker state',
+      () {
+    final events = <Map<String, dynamic>>[];
+    final diagnostics =
+        CdnRangeDiagnostics(writeLog: (message, {required failure}) {
+      events.add(jsonDecode(message) as Map<String, dynamic>);
+    });
+    final trace = diagnostics.begin(start: 0, end: 99, probe: false);
+    diagnostics.retrying(trace,
+        attempt: 2,
+        delay: Duration.zero,
+        acceptedBytes: 40,
+        deliveredBytes: 20,
+        remainingBytes: 60,
+        windowLimit: 3);
+    expect(events.single['schema'], 4);
+    expect(events.single['windowLimit'], 3);
+    expect(events.single['acceptedBytes'], 40);
+    expect(events.single, isNot(contains('concurrency')));
+  });
   test(
       'Given nested Dio socket error, when recorded, then retains codes without credentials',
       () {
@@ -152,7 +177,7 @@ void main() {
       throw StateError('disk unavailable');
     });
     expect(() => diagnostics.initialized(100), returnsNormally);
-    expect(() => diagnostics.failed(occupiedSlots: 1, activeReaders: 1),
+    expect(() => diagnostics.failed(allocatedChunkCount: 1, activeReaders: 1),
         returnsNormally);
   });
 }

@@ -365,7 +365,7 @@ video/main.m3u8
             PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
               directLinkQualities: qualities,
               directLinkQualityIndex: index,
-              cloudStorageType: 4,
+              cloudStorageType: CloudStorageType.quarkPan.value,
               isStrm: false,
             ),
             isFalse,
@@ -388,7 +388,7 @@ video/main.m3u8
             PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
               directLinkQualities: [original, selected],
               directLinkQualityIndex: 1,
-              cloudStorageType: 4,
+              cloudStorageType: CloudStorageType.quarkPan.value,
               isStrm: false,
             ),
             isTrue,
@@ -404,7 +404,7 @@ video/main.m3u8
           PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
             directLinkQualities: [original, transcode],
             directLinkQualityIndex: 1,
-            cloudStorageType: CloudStorageInfo.strmCloudStorageType,
+            cloudStorageType: CloudStorageType.strm.value,
             isStrm: true,
           ),
           isFalse,
@@ -435,7 +435,7 @@ video/main.m3u8
             PlayerSessionCoordinator.isDirectLinkTranscodePlayback(
               directLinkQualities: [original, transcode],
               directLinkQualityIndex: index,
-              cloudStorageType: 4,
+              cloudStorageType: CloudStorageType.quarkPan.value,
               isStrm: false,
             ),
             isFalse,

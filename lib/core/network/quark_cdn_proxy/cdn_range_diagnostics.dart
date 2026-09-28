@@ -48,7 +48,7 @@ class CdnRangeDiagnostics {
           int? acceptedBytes,
           int? deliveredBytes,
           int? remainingBytes,
-          int? concurrency}) =>
+          int? windowLimit}) =>
       _emit({
         'event': 'chunk_retry',
         'attempt': attempt,
@@ -56,24 +56,25 @@ class CdnRangeDiagnostics {
         if (acceptedBytes != null) 'acceptedBytes': acceptedBytes,
         if (deliveredBytes != null) 'deliveredBytes': deliveredBytes,
         if (remainingBytes != null) 'remainingBytes': remainingBytes,
-        if (concurrency != null) 'concurrency': concurrency,
+        if (windowLimit != null) 'windowLimit': windowLimit,
         'chunk': trace.snapshot('retrying'),
       });
 
-  void rangeFailed({required int occupiedSlots, required int activeReaders}) =>
+  void rangeFailed(
+          {required int allocatedChunkCount, required int activeReaders}) =>
       _emit({
         'event': 'range_failed',
-        'occupiedSlots': occupiedSlots,
+        'allocatedChunkCount': allocatedChunkCount,
         'activeReaders': activeReaders,
         'recentChunks': _recent.toList(),
       }, failure: true);
 
-  void failed({required int occupiedSlots, required int activeReaders}) {
+  void failed({required int allocatedChunkCount, required int activeReaders}) {
     if (_reported) return;
     _reported = true;
     _emit({
       'event': 'session_failed',
-      'occupiedSlots': occupiedSlots,
+      'allocatedChunkCount': allocatedChunkCount,
       'activeReaders': activeReaders,
       'recentChunks': _recent.toList(),
     }, failure: true);
@@ -83,7 +84,7 @@ class CdnRangeDiagnostics {
     try {
       writeLog(
           jsonEncode({
-            'schema': 3,
+            'schema': 4,
             'session': sessionId,
             'elapsedMs': _clock.elapsedMilliseconds,
             ...event,

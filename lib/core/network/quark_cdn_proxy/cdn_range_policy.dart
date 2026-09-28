@@ -115,25 +115,6 @@ Iterable<CdnByteRange> splitCdnRange(
   }
 }
 
-int cdnRangeConcurrency(
-  int remainingBytes, {
-  int chunkSize = CdnProxyDefaults.chunkSize,
-}) {
-  _validateChunkSize(chunkSize);
-  if (remainingBytes < 0) {
-    throw ArgumentError.value(
-      remainingBytes,
-      'remainingBytes',
-      'Must not be negative',
-    );
-  }
-  if (remainingBytes == 0) return 0;
-  final pieces = (remainingBytes - 1) ~/ chunkSize + 1;
-  return pieces < CdnProxyDefaults.maxConcurrent
-      ? pieces
-      : CdnProxyDefaults.maxConcurrent;
-}
-
 void _validateChunkSize(int chunkSize) {
   if (chunkSize <= 0) {
     throw ArgumentError.value(chunkSize, 'chunkSize', 'Must be positive');

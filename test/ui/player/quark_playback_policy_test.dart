@@ -1,3 +1,4 @@
+import 'package:fly_narwhal/data/models/cloud_storage_type.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/data/models/player_models.dart';
 import 'package:fly_narwhal/ui/features/player/models/playback_source_spec.dart';
@@ -6,7 +7,7 @@ import 'package:fly_narwhal/ui/features/player/services/quark_playback_policy.da
 const _nas = 'https://nas.example/v/api/v1/media/range/movie';
 
 PlayingInfoCache _session({
-  int cloudType = quarkCloudStorageType,
+  int? cloudType,
   bool direct = true,
   int? index = 0,
   List<DirectLinkQuality>? qualities,
@@ -20,7 +21,8 @@ PlayingInfoCache _session({
                 resolution: 'Original', url: 'https://cdn.example/movie.mkv')
           ],
       streamInfo: StreamResponse(
-          cloudStorageInfo: CloudStorageInfo(cloudStorageType: cloudType)),
+          cloudStorageInfo: CloudStorageInfo(
+              cloudStorageType: cloudType ?? CloudStorageType.quarkPan.value)),
     );
 
 void main() {
@@ -59,8 +61,8 @@ void main() {
     for (final context in [
       null,
       _session(direct: false),
-      _session(cloudType: 1),
-      _session(cloudType: CloudStorageInfo.strmCloudStorageType),
+      _session(cloudType: CloudStorageType.baiduPan.value),
+      _session(cloudType: CloudStorageType.strm.value),
       _session(index: null),
       _session(index: -1),
       _session(index: 2),

@@ -93,7 +93,7 @@ void main() {
     });
   });
 
-  group('splitCdnRange and cdnRangeConcurrency', () {
+  group('splitCdnRange', () {
     final lengths = <int, List<int>>{
       1: [1],
       chunk - 1: [chunk - 1],
@@ -123,18 +123,10 @@ void main() {
             for (var index = 1; index < chunks.length; index++) {
               expect(chunks[index].start, chunks[index - 1].end + 1);
             }
-            expect(
-              cdnRangeConcurrency(entry.key),
-              entry.value.length < 3 ? entry.value.length : 3,
-            );
           },
         );
       }
     }
-
-    test('Given zero bytes, when scheduling, then starts no requests', () {
-      expect(cdnRangeConcurrency(0), 0);
-    });
 
     test(
         'Given 25 or 15 MiB, when split, then the short first part precedes full parts',
@@ -148,7 +140,6 @@ void main() {
           if (mib == 25) chunk,
           chunk,
         ]);
-        expect(cdnRangeConcurrency(mib * 1024 * 1024), mib == 25 ? 3 : 2);
       }
     });
 
@@ -163,9 +154,6 @@ void main() {
       ).toList();
       expect(tail.map((part) => part.length), [chunk ~/ 2, chunk ~/ 2 + 1]);
       expectRange(tail.last, maxInt - chunk ~/ 2, maxInt);
-      expect(cdnRangeConcurrency(maxInt), 3);
-      expect(cdnRangeConcurrency(maxInt, chunkSize: 1), 3);
-      expect(cdnRangeConcurrency(maxInt, chunkSize: maxInt), 1);
     });
 
     test('Given a custom size, when split, then honors its bound and tail', () {
@@ -175,16 +163,10 @@ void main() {
       ).toList();
       expect(chunks.map((part) => part.length), [1, 3, 3]);
       expectRange(chunks.last, 11, 13);
-      expect(cdnRangeConcurrency(7, chunkSize: 3), 3);
     });
 
-    test('Given invalid limits, when scheduling, then rejects the inputs', () {
-      expect(() => cdnRangeConcurrency(-1), throwsArgumentError);
+    test('Given invalid limits, when splitting, then rejects the inputs', () {
       for (final size in [0, -1]) {
-        expect(
-          () => cdnRangeConcurrency(0, chunkSize: size),
-          throwsArgumentError,
-        );
         expect(
           () => splitCdnRange(
             const CdnByteRange(start: 0, end: 0),

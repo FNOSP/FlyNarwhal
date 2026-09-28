@@ -1,3 +1,4 @@
+import 'package:fly_narwhal/data/models/cloud_storage_type.dart';
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -5,7 +6,6 @@ import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy.dart';
 import 'package:fly_narwhal/ui/features/player/controllers/playback_source_controller.dart';
 import 'package:fly_narwhal/ui/features/player/models/playback_source_spec.dart';
 import 'package:fly_narwhal/data/models/player_models.dart';
-import 'package:fly_narwhal/ui/features/player/services/quark_playback_policy.dart';
 
 const _cdn = PlaybackSourceSpec(
   playUri: 'https://cdn.example/video.mp4',
@@ -370,8 +370,8 @@ PlayingInfoCache _direct({List<DirectLinkQuality>? qualities}) =>
       directLinkQualities: qualities ??
           [DirectLinkQuality(resolution: 'Original', url: _cdn.playUri)],
       streamInfo: StreamResponse(
-          cloudStorageInfo:
-              CloudStorageInfo(cloudStorageType: quarkCloudStorageType)),
+          cloudStorageInfo: CloudStorageInfo(
+              cloudStorageType: CloudStorageType.quarkPan.value)),
     );
 
 class _Proxy implements CdnProxy {

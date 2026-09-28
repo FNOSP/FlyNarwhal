@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
 import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_service.dart';
 import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_diagnostics.dart';
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_session.dart';
 
 import 'cdn_proxy_http_fixture.dart';
 
@@ -23,13 +22,11 @@ Future<CdnProxyExperimentResult> runCdnProxyExperiment({
     disconnectFirstBody: disconnectFirstBody,
     stallFirstBody: stallFirstBody,
   );
-  final budget = CdnRangeBudget();
   final serviceErrors = <Object>[];
   final retryReports = <Map<String, dynamic>>[];
   final source = CdnHttpRangeSource(requestTimeout: requestTimeout);
   final service = CdnProxyService(
     source: source,
-    budget: budget,
     onError: serviceErrors.add,
     diagnostics: CdnRangeDiagnostics(writeLog: (message, {required failure}) {
       final report = jsonDecode(message) as Map<String, dynamic>;
@@ -94,8 +91,8 @@ Future<CdnProxyExperimentResult> runCdnProxyExperiment({
       firstBodyLatency:
           firstBodyAt == null ? null : firstBodyAt - requestStarted,
       peakUpstreamRequests: fixture.peakActiveBodyRequests,
-      peakBudget: budget.peakOccupiedSlots,
-      occupiedAfterClose: budget.occupiedSlots,
+      peakAllocatedChunks: service.peakAllocatedChunkCount,
+      allocatedChunksAfterClose: service.allocatedChunkCount,
       writersAfterClose: service.activeWriterCount,
       downloadsAfterClose: service.activeDownloadCount,
       attemptsAfterClose: source.activeAttemptCount,
@@ -130,8 +127,8 @@ class CdnProxyExperimentResult {
     required this.firstBodyAt,
     required this.firstBodyLatency,
     required this.peakUpstreamRequests,
-    required this.peakBudget,
-    required this.occupiedAfterClose,
+    required this.peakAllocatedChunks,
+    required this.allocatedChunksAfterClose,
     required this.writersAfterClose,
     required this.downloadsAfterClose,
     required this.attemptsAfterClose,
@@ -157,8 +154,8 @@ class CdnProxyExperimentResult {
   final Duration? firstBodyAt;
   final Duration? firstBodyLatency;
   final int peakUpstreamRequests;
-  final int peakBudget;
-  final int occupiedAfterClose;
+  final int peakAllocatedChunks;
+  final int allocatedChunksAfterClose;
   final int writersAfterClose;
   final int downloadsAfterClose;
   final int attemptsAfterClose;
@@ -187,8 +184,8 @@ class CdnProxyExperimentResult {
         'bodyErrorType': bodyErrorType,
         'recoveredBytes': recoveredBytes,
         'peakUpstreamRequests': peakUpstreamRequests,
-        'peakBudget': peakBudget,
-        'occupiedAfterClose': occupiedAfterClose,
+        'peakAllocatedChunks': peakAllocatedChunks,
+        'allocatedChunksAfterClose': allocatedChunksAfterClose,
         'writersAfterClose': writersAfterClose,
         'downloadsAfterClose': downloadsAfterClose,
         'attemptsAfterClose': attemptsAfterClose,

@@ -1,8 +1,6 @@
+import '../../../../data/models/cloud_storage_type.dart';
 import '../../../../data/models/player_models.dart';
 import '../models/playback_source_spec.dart';
-
-/// Backend identifier used only by the Quark proxy integration.
-const int quarkCloudStorageType = 4;
 
 /// Snapshot only an explicitly selected direct session. NAS/HLS callers omit
 /// the context, so a later change to the page's current cache cannot reroute them.
@@ -14,8 +12,9 @@ PlaybackSourceSpec snapshotPlaybackSource({
   final index = context?.directLinkQualityIndex;
   if (context == null ||
       !context.isUseDirectLink ||
-      context.streamInfo?.cloudStorageInfo?.cloudStorageType !=
-          quarkCloudStorageType ||
+      !CloudStorageType.fromValue(
+              context.streamInfo?.cloudStorageInfo?.cloudStorageType)
+          .isQuarkPan ||
       index == null ||
       index < 0 ||
       index >= context.directLinkQualities.length) {

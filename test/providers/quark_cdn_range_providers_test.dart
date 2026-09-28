@@ -85,7 +85,7 @@ void main() {
     });
 
     test(
-        'Given four services, when probing concurrently, then shares the default three-request quota',
+        'Given four services, when probing concurrently, then each starts independently',
         () async {
       final sources = <_ControlledSource>[];
       final container = _createContainer(() {
@@ -102,14 +102,12 @@ void main() {
       final openings = services
           .map((service) => service.open(uri: _cdnUri, headers: const {}))
           .toList();
-      await Future.wait(sources.take(3).map((source) => source.started.future))
+      await Future.wait(sources.map((source) => source.started.future))
           .timeout(_deadline);
-      expect(sources.last.started.isCompleted, isFalse);
+      expect(sources.every((source) => !source.response.isCompleted), isTrue);
 
-      // Finishing one probe must release its global slot to the fourth source.
-      sources.first.succeed();
-      await sources.last.started.future.timeout(_deadline);
-      for (final source in sources.skip(1)) {
+      // All probes have started before any reader releases its own buffer.
+      for (final source in sources) {
         source.succeed();
       }
       final uris = await Future.wait(openings).timeout(_deadline);

@@ -1,110 +1,33 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
 import '../api_result.dart';
+import 'cdn_cancellation.dart';
 import 'cdn_proxy_constants.dart';
 import 'cdn_proxy_errors.dart';
 import 'cdn_range_diagnostics.dart';
 import 'cdn_range_policy.dart';
 import 'cdn_range_source.dart';
 
-/// Buffer ownership spans download, retries, and downstream consumption.
-class CdnRangeBudget {
-  int _occupied = 0;
-  int _peak = 0;
-  final Queue<_SlotWaiter> _waiters = Queue();
-
-  int get occupiedSlots => _occupied;
-  int get peakOccupiedSlots => _peak;
-
-  Future<_RangeLease> _acquire(
-    CancelToken token, {
-    required bool Function() isCurrent,
-  }) async {
-    if (token.isCancelled) throw const CdnRangeCancelled();
-    if (_occupied < CdnProxyDefaults.maxConcurrent) return _grant();
-    final waiter = _SlotWaiter(token, isCurrent);
-    _waiters.add(waiter);
-    unawaited(token.whenCancel.then((_) {
-      if (!waiter.result.isCompleted) {
-        _waiters.remove(waiter);
-        waiter.result.completeError(const CdnRangeCancelled());
-      }
-    }));
-    return waiter.result.future;
-  }
-
-  _RangeLease _grant() {
-    _occupied++;
-    _peak = max(_peak, _occupied);
-    return _RangeLease(() {
-      _occupied--;
-      while (_waiters.isNotEmpty) {
-        // Re-evaluate priority: a queued prefetch can become the current part.
-        final waiter = _waiters.firstWhere(
-          (waiter) => waiter.isCurrent(),
-          orElse: () => _waiters.first,
-        );
-        _waiters.remove(waiter);
-        if (waiter.result.isCompleted) continue;
-        if (waiter.token.isCancelled) {
-          waiter.result.completeError(const CdnRangeCancelled());
-          continue;
-        }
-        waiter.result.complete(_grant());
-        break;
-      }
-    });
-  }
-}
-
-class _SlotWaiter {
-  _SlotWaiter(this.token, this.isCurrent);
-  final CancelToken token;
-  final bool Function() isCurrent;
-  final Completer<_RangeLease> result = Completer();
-}
-
-class _RangeLease {
-  _RangeLease(this._release);
-  void Function()? _release;
-  void release() {
-    final action = _release;
-    _release = null;
-    action?.call();
-  }
-}
-
 /// A completed body still owns this storage until its last byte is consumed.
 class _StreamingChunk {
-  _StreamingChunk(this.id, this.range, this.lease, this.expansion)
-      : _bytes = Uint8List(range.length);
+  _StreamingChunk(this.id, this.range) : _bytes = Uint8List(range.length);
   final int id;
   final CdnByteRange range;
-  final _RangeLease lease;
   Uint8List? _bytes;
   Uint8List get bytes => _bytes!;
   int get capacity => _bytes?.length ?? 0;
-  bool expansion;
-  bool running = false;
   bool complete = false;
-  bool released = false;
   bool empty = false;
   int accepted = 0;
   int delivered = 0;
 
   int get outputLength => empty ? 0 : range.length;
   int get readable => complete ? accepted : min(accepted, outputLength - 1);
-  void release() {
-    if (released) return;
-    released = true;
-    _bytes = null;
-    lease.release();
-  }
+  void release() => _bytes = null;
 }
 
 class _ReadRequest {
@@ -116,7 +39,7 @@ class _ReadRequest {
   final bool probe;
   final bool single;
   final Iterator<CdnByteRange> ranges;
-  final CancelToken cancelledToken = CancelToken();
+  final CdnCancellation cancellation = CdnCancellation();
   final Map<int, _StreamingChunk> chunks = {};
   final Set<CancelToken> attempts = {};
   final Set<Future<void>> work = {};
@@ -124,15 +47,12 @@ class _ReadRequest {
   Future<void> retryQueue = Future.value();
   Object? error;
   Future<void>? cleanup;
-  bool cancelled = false;
-  bool admitting = false;
+  bool get cancelled => cancellation.isCancelled;
   bool exhausted = false;
-  bool degraded = false;
+  bool prefetchAllowed = false;
   int nextId = 0;
   int readingId = 0;
-  int workerLimit = 1;
   int running = 0;
-  int expansionCredits = 0;
 
   void signal() {
     final previous = changed;
@@ -147,16 +67,15 @@ class _ReadRequest {
   }
 
   Future<T> wait<T>(Future<T> future) async {
-    check();
-    final result = await Future.any<T>([
-      future,
-      cancelledToken.whenCancel.then<T>((_) {
-        check();
-        throw const CdnRangeCancelled();
-      }),
-    ]);
-    check();
-    return result;
+    try {
+      final result = await cancellation.wait(future);
+      check();
+      return result;
+    } catch (_) {
+      // A failed read keeps its original reason even when cancellation wins.
+      check();
+      rethrow;
+    }
   }
 
   Future<void> delay(Duration duration) async {
@@ -201,8 +120,7 @@ class _ReadRequest {
 
   void cancel() {
     if (cancelled) return;
-    cancelled = true;
-    cancelledToken.cancel('CDN read cancelled');
+    cancellation.cancel();
     for (final attempt in attempts.toList()) {
       attempt.cancel('CDN read cancelled');
     }
@@ -216,70 +134,33 @@ class _ReadRequest {
     }();
   }
 
-  int get maxWorkers => cdnRangeConcurrency(range.length);
+  int get windowLimit => prefetchAllowed
+      ? min(CdnProxyDefaults.maxChunksPerReader,
+          (range.length - 1) ~/ CdnProxyDefaults.chunkSize + 1)
+      : 1;
 
-  void headersReady() {
-    if (!single && !degraded && workerLimit < maxWorkers) {
-      workerLimit++;
-      expansionCredits++;
-    }
+  void headersReady(int chunkId) {
+    if (single || chunkId != 0 || prefetchAllowed) return;
+    prefetchAllowed = true;
     pump();
   }
 
-  bool retire(_StreamingChunk chunk) {
-    final stopExpansion = !degraded && workerLimit < maxWorkers;
-    degraded = true;
-    final shouldRetire = chunk.expansion || stopExpansion;
-    chunk.expansion = false;
-    if (shouldRetire && workerLimit > 1) {
-      workerLimit--;
-      return true;
-    }
-    return false;
-  }
-
   void pump() {
-    if (cancelled) return;
-    // Existing buffers always run before requesting any further admission.
-    for (final chunk in chunks.values) {
-      if (running >= workerLimit) break;
-      if (chunk.running || chunk.complete) continue;
-      chunk.running = true;
-      running++;
-      track(session._download(this, chunk));
-    }
-    if (!admitting && !exhausted && chunks.length < workerLimit) {
+    while (!cancelled && !exhausted && chunks.length < windowLimit) {
       if (!ranges.moveNext()) {
         exhausted = true;
         signal();
-        return;
+        break;
       }
-      final range = ranges.current;
-      final id = nextId++;
-      final expansion = expansionCredits > 0;
-      if (expansion) expansionCredits--;
-      admitting = true;
-      track(_admit(id, range, expansion));
-    }
-  }
-
-  Future<void> _admit(int id, CdnByteRange range, bool expansion) async {
-    _RangeLease? lease;
-    try {
-      lease = await session.budget._acquire(
-        cancelledToken,
-        isCurrent: () => id == readingId,
-      );
-      check();
-      chunks[id] = _StreamingChunk(id, range, lease, expansion);
-      lease = null;
+      final chunk = _StreamingChunk(nextId++, ranges.current);
+      chunks[chunk.id] = chunk;
+      session._peakAllocatedChunkCount =
+          max(session._peakAllocatedChunkCount, session.allocatedChunkCount);
+      running++;
+      // Register ownership before invoking a source that may throw or cancel
+      // synchronously. A cancelled queued task still runs its cleanup.
+      track(Future<void>.microtask(() => session._download(this, chunk)));
       signal();
-    } catch (cause) {
-      if (!cancelled) fail(cause);
-    } finally {
-      lease?.release();
-      admitting = false;
-      pump();
     }
   }
 }
@@ -290,26 +171,23 @@ class CdnRangeSession {
     required this.source,
     required this.uri,
     required Map<String, String> headers,
-    CdnRangeBudget? budget,
     this.onError,
     Duration Function()? retryJitter,
     this.diagnostics,
   })  : headers = Map.unmodifiable(headers),
-        budget = budget ?? _sharedBudget,
         retryJitter = retryJitter ??
             (() => Duration(milliseconds: 200 + _random.nextInt(300)));
 
-  static final CdnRangeBudget _sharedBudget = CdnRangeBudget();
   static final Random _random = Random();
   final CdnRangeSource source;
   final Uri uri;
   final Map<String, String> headers;
-  final CdnRangeBudget budget;
   final void Function(Object)? onError;
   final Duration Function() retryJitter;
   final CdnRangeDiagnostics? diagnostics;
   final Set<_ReadRequest> _requests = {};
   final Set<Future<void>> _inFlight = {};
+  int _peakAllocatedChunkCount = 0;
   int? _length;
   String? _contentType;
   CdnEntityTag? _entityTag;
@@ -324,6 +202,9 @@ class CdnRangeSession {
   int get totalLength =>
       _length ?? (throw StateError('Source not initialized'));
   String? get contentType => _contentType;
+  int get allocatedChunkCount =>
+      _requests.fold(0, (count, request) => count + request.chunks.length);
+  int get peakAllocatedChunkCount => _peakAllocatedChunkCount;
   int get activeDownloadCount =>
       _requests.fold(0, (count, request) => count + request.running);
   int get allocatedBufferBytes => _requests.fold(
@@ -398,8 +279,8 @@ class CdnRangeSession {
       throw const CdnRangeNotSatisfiable();
     }
     _requests.add(request);
-    request.pump();
     try {
+      request.pump();
       while (true) {
         request.check();
         final chunk = request.chunks[request.readingId];
@@ -452,7 +333,6 @@ class CdnRangeSession {
         Object? failed;
         Duration delay = Duration.zero;
         var serializeDelay = false;
-        var retire = false;
         try {
           attemptNumber++;
           final opening = source
@@ -481,7 +361,7 @@ class CdnRangeSession {
             chunk.empty = true;
             chunk.complete = true;
           } else {
-            request.headersReady();
+            request.headersReady(chunk.id);
             bodyPhase = true;
             unreadBody = null;
             await _consume(response.stream, request, chunk, token, trace);
@@ -510,12 +390,9 @@ class CdnRangeSession {
               } else {
                 failed = cause;
               }
-            } else {
-              retire = request.retire(chunk);
-              if (!retire && chunk.id != request.readingId) {
-                delay = retryJitter();
-                serializeDelay = true;
-              }
+            } else if (chunk.id != request.readingId) {
+              delay = retryJitter();
+              serializeDelay = true;
             }
           } else if (bodyPhase &&
               cause is! CdnRangeFailure &&
@@ -538,7 +415,7 @@ class CdnRangeSession {
                   acceptedBytes: chunk.accepted,
                   deliveredBytes: chunk.delivered,
                   remainingBytes: chunk.range.length - chunk.accepted,
-                  concurrency: request.workerLimit);
+                  windowLimit: request.windowLimit);
             }
           }
         } finally {
@@ -548,9 +425,6 @@ class CdnRangeSession {
           if (trace != null) diagnostics?.finish(trace, outcome);
         }
         if (failed != null) throw failed;
-        if (retire) {
-          return; // Requeue the owned buffer; next worker resets budget.
-        }
         if (serializeDelay) {
           await request.retryLater(delay);
         } else {
@@ -564,16 +438,14 @@ class CdnRangeSession {
           _fail(cause);
         } else {
           diagnostics?.rangeFailed(
-              occupiedSlots: budget.occupiedSlots,
+              allocatedChunkCount: allocatedChunkCount,
               activeReaders: _requests.length);
           request.fail(cause);
         }
       }
     } finally {
-      chunk.running = false;
       request.running--;
       request.signal();
-      request.pump();
     }
   }
 
@@ -674,7 +546,8 @@ class CdnRangeSession {
     }
     _closeSource();
     diagnostics?.failed(
-        occupiedSlots: budget.occupiedSlots, activeReaders: _requests.length);
+        allocatedChunkCount: allocatedChunkCount,
+        activeReaders: _requests.length);
     onError?.call(_failure!);
   }
 

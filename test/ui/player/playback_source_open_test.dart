@@ -1,10 +1,10 @@
+import 'package:fly_narwhal/data/models/cloud_storage_type.dart';
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy.dart';
 import 'package:fly_narwhal/data/models/player_models.dart';
 import 'package:fly_narwhal/ui/features/player/controllers/playback_source_controller.dart';
-import 'package:fly_narwhal/ui/features/player/services/quark_playback_policy.dart';
 
 const _cloudUri = 'https://cdn.example/video.mp4';
 const _ordinaryUri = 'https://nas.example/video.mp4';
@@ -261,8 +261,8 @@ Future<PlaybackSourceLease> _prepare(PlaybackSourceController controller,
                 DirectLinkQuality(resolution: 'Original', url: _cloudUri),
               ],
               streamInfo: StreamResponse(
-                cloudStorageInfo:
-                    CloudStorageInfo(cloudStorageType: quarkCloudStorageType),
+                cloudStorageInfo: CloudStorageInfo(
+                    cloudStorageType: CloudStorageType.quarkPan.value),
               ),
             )
           : null,

@@ -28,7 +28,7 @@ void main() {
         expect(result.bodyAttempts, hasLength(3));
         expect(result.retryReports, isEmpty);
         expect(result.peakUpstreamRequests, 3);
-        expect(result.peakBudget, 3);
+        expect(result.peakAllocatedChunks, 3);
         expect(result.bodyAttempts.map((a) => (a.start, a.end)), [
           (0, 10 * fixtureMiB - 1),
           (10 * fixtureMiB, 20 * fixtureMiB - 1),
@@ -133,7 +133,7 @@ void _expectSuffixRetry(
 void _expectReleased(CdnProxyExperimentResult result) {
   expect(result.serviceErrors, isEmpty);
   expect(result.upstreamErrors, isEmpty);
-  expect(result.occupiedAfterClose, 0);
+  expect(result.allocatedChunksAfterClose, 0);
   expect(result.writersAfterClose, 0);
   expect(result.downloadsAfterClose, 0);
   expect(result.attemptsAfterClose, 0);

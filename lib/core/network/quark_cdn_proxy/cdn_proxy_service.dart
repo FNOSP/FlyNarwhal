@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:uuid/uuid.dart';
 
+import 'cdn_cancellation.dart';
 import 'cdn_proxy.dart';
 import 'cdn_range_diagnostics.dart';
 import 'cdn_range_policy.dart';
@@ -14,7 +15,6 @@ import 'cdn_range_session.dart';
 class CdnProxyService implements CdnProxy {
   CdnProxyService(
       {required CdnRangeSource source,
-      this.budget,
       this.onError,
       this.diagnostics,
       this.retryJitter,
@@ -23,7 +23,6 @@ class CdnProxyService implements CdnProxy {
       : _source = source;
 
   final CdnRangeSource _source;
-  final CdnRangeBudget? budget;
   final void Function(Object)? onError;
   final CdnRangeDiagnostics? diagnostics;
   final Duration Function()? retryJitter;
@@ -36,6 +35,8 @@ class CdnProxyService implements CdnProxy {
   final Set<_ResponseWriter> _writers = {};
 
   int get activeWriterCount => _writers.length;
+  int get allocatedChunkCount => _session?.allocatedChunkCount ?? 0;
+  int get peakAllocatedChunkCount => _session?.peakAllocatedChunkCount ?? 0;
   int get activeDownloadCount => _session?.activeDownloadCount ?? 0;
   int get allocatedBufferBytes => _session?.allocatedBufferBytes ?? 0;
   int get bufferedBytes => _session?.bufferedBytes ?? 0;
@@ -59,7 +60,6 @@ class CdnProxyService implements CdnProxy {
       source: _source,
       uri: uri,
       headers: headers,
-      budget: budget,
       diagnostics: diagnostics,
       retryJitter: retryJitter,
       onError: (error) {
@@ -134,8 +134,8 @@ class CdnProxyService implements CdnProxy {
       }
       if (request.method != 'HEAD' && range != null) {
         // FFmpeg keeps its old connection until the new Range response headers
-        // arrive. That old reader may hold all three slots, so headers must not
-        // wait for the first chunk (or even a free slot). HttpResponse.flush()
+        // arrive. Send them before waiting for upstream data, so opening a new
+        // reader does not depend on media arrival. HttpResponse.flush()
         // without body bytes does not write headers in dart:io. Detaching sends
         // and flushes the headers before returning the socket.
         response.persistentConnection = false;
@@ -156,7 +156,7 @@ class CdnProxyService implements CdnProxy {
         while (await writer.waitFor(body.moveNext())) {
           writer.checkActive();
           socket.add(body.current);
-          // Keep the lease until bytes are flushed, but let cancellation
+          // Keep the buffer until bytes are flushed, but let cancellation
           // release the reader without depending on a socket flush callback.
           await writer.waitFor(socketFlush?.call(socket) ?? socket.flush());
         }
@@ -213,40 +213,31 @@ class CdnProxyService implements CdnProxy {
 /// Owns one response's downstream work independently of upstream downloads.
 class _ResponseWriter {
   final done = Completer<void>();
-  final _cancelled = Completer<void>();
+  final _cancelled = CdnCancellation();
   Socket? _socket;
   StreamIterator<Uint8List>? _body;
   StreamSubscription<Uint8List>? incoming;
   Future<void>? _cancellingBody;
 
   void checkActive() {
-    if (_cancelled.isCompleted) throw const CdnRangeCancelled();
+    if (_cancelled.isCancelled) throw const CdnRangeCancelled();
   }
 
   void attachSocket(Socket socket) {
     _socket = socket;
-    if (_cancelled.isCompleted) socket.destroy();
+    if (_cancelled.isCancelled) socket.destroy();
   }
 
   void attachBody(StreamIterator<Uint8List> body) {
     _body = body;
-    if (_cancelled.isCompleted) unawaited(_cancelBody());
+    if (_cancelled.isCancelled) unawaited(_cancelBody());
   }
 
-  Future<T> waitFor<T>(Future<T> operation) async {
-    // Future.any keeps an error handler on operation after cancellation wins,
-    // so a late flush error cannot escape into the application's zone.
-    final result = await Future.any<T>([
-      operation,
-      _cancelled.future.then<T>((_) => throw const CdnRangeCancelled()),
-    ]);
-    checkActive();
-    return result;
-  }
+  Future<T> waitFor<T>(Future<T> operation) => _cancelled.wait(operation);
 
   void cancel() {
-    if (_cancelled.isCompleted) return;
-    _cancelled.complete();
+    if (_cancelled.isCancelled) return;
+    _cancelled.cancel();
     unawaited(_cancelBody());
     _socket?.destroy();
   }

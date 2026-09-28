@@ -20,7 +20,7 @@ final cdnRangeSourceFactoryProvider = Provider<CdnRangeSourceFactory>(
 final quarkCdnRangeServiceFactoryProvider =
     Provider<QuarkCdnRangeServiceFactory>((ref) {
   final createSource = ref.watch(cdnRangeSourceFactoryProvider);
-  // Omit a local budget so all playback sources retain the shared quota.
+  // Each reader owns a bounded prefetch window within its playback source.
   return ({onError}) => CdnProxyService(
         source: createSource(),
         onError: onError,
