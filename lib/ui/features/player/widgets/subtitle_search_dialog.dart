@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../data/models/subtitle_models.dart';
+import '../../../shared/common/app_load_error_view.dart';
 import '../../../shared/common/app_loading_progress_ring.dart';
 
 // Translucent card surface; the playing video stays faintly visible behind it.
@@ -116,7 +117,7 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = describeLoadError(error);
         _isLoading = false;
       });
     }

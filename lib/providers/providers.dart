@@ -7,6 +7,7 @@ import '../core/config/secret_bridge_selector.dart';
 import '../core/network/dio_client.dart';
 import '../core/network/ssl/ssl_trust_manager.dart';
 import '../core/network/ssl/ssl_trust_persistence.dart';
+import '../core/network/ssl/ssl_trust_aware_file_service.dart';
 import '../core/security/password_cipher.dart';
 import '../core/utils/log/app_talker.dart';
 import '../core/utils/log/error_log_exporter.dart';
@@ -536,6 +537,9 @@ final imageCacheManagerProvider = Provider<CacheManager>((ref) {
         maxBytes: maxCacheBytes,
       ),
       fileSystem: IOFileSystem('fly_narwhal_memory_cache'),
+      // Posters load over their own HttpClient, so they need the certificate
+      // trust list applied here too.
+      fileService: SslTrustAwareFileService(),
     ),
   );
 });

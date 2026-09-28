@@ -47,10 +47,13 @@ class SslTrustInterceptor extends Interceptor {
     }
 
     // The handshake callback rejected this certificate, so the exact
-    // (host, fingerprint) pair is not approved. Probe to learn the fingerprint
-    // so the user can be shown — and the decision pinned to — the real
-    // certificate.
-    final fingerprint = await _probeFingerprint(uri);
+    // (host, fingerprint) pair is not approved. Prefer the certificate the
+    // handshake itself reported: that is the one enforcement will be asked
+    // about again, whereas the probe reads the leaf and the verifier may have
+    // objected to a different certificate in the chain.
+    final handshakeFingerprint = trustManager.rejectedFingerprintFor(host);
+    final fingerprint =
+        handshakeFingerprint ?? await _probeFingerprint(uri);
     if (fingerprint == null) {
       AppTalker.warning(
         'SslTrust',

@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../core/utils/file_utils.dart';
+import '../../../../data/models/cloud_storage_type.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
 
@@ -78,7 +79,7 @@ class PlaybackDetailsPanel extends StatelessWidget {
   // 直接播放 / 转码播放 based on the transcode statistics.
   bool get _isCloudMedia {
     final cloudType = cache.streamInfo?.cloudStorageInfo?.cloudStorageType;
-    return cloudType != null && cloudType > 0;
+    return CloudStorageType.fromValue(cloudType).isKnown;
   }
 
   String get _playTypeLabel {

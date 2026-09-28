@@ -1,4 +1,5 @@
-import 'package:dio/dio.dart';
+import 'package:dio/dio.dart' hide ResponseDecoder;
+import '../network/response_decoder.dart';
 import 'failures.dart';
 import 'exceptions.dart';
 
@@ -58,14 +59,25 @@ class ErrorHandler {
 
   static Failure _handleBadResponse(DioException error) {
     final statusCode = error.response?.statusCode;
-    final data = error.response?.data;
+
+    // Requests use `ResponseType.bytes`, and only the success path normalizes
+    // the body, so an error body arrives here as raw bytes. Normalizing first is
+    // what makes a JSON error envelope's `msg` readable; a non-JSON body (e.g.
+    // an nginx HTML error page) stays a String and falls back to the defaults.
+    final data = ResponseDecoder.normalizeResponseData(error.response?.data);
 
     // Extract error message from response
     String message = 'Server error';
     int? code;
+    var hasServerMessage = false;
 
     if (data is Map) {
-      message = data['msg']?.toString() ?? data['message']?.toString() ?? message;
+      final serverMessage =
+          data['msg']?.toString() ?? data['message']?.toString();
+      if (serverMessage != null && serverMessage.trim().isNotEmpty) {
+        message = serverMessage;
+        hasServerMessage = true;
+      }
       code = data['code'] as int?;
     }
 
@@ -76,6 +88,7 @@ class ErrorHandler {
           message: message,
           code: code ?? statusCode,
           type: AuthErrorType.unauthorized,
+          hasServerMessage: hasServerMessage,
         );
       }
 
@@ -84,6 +97,7 @@ class ErrorHandler {
           message: message,
           code: code ?? statusCode,
           type: AuthErrorType.forbidden,
+          hasServerMessage: hasServerMessage,
         );
       }
 

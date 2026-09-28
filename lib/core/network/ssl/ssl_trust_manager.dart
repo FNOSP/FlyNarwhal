@@ -122,6 +122,21 @@ class SslTrustManager {
   /// Host -> when it was last rejected, for [_rejectSuppressionWindow].
   final Map<String, DateTime> _recentRejects = <String, DateTime>{};
 
+  /// Host -> fingerprint of the certificate the handshake actually presented
+  /// and that failed verification.
+  ///
+  /// This is the identity a trust decision must be pinned to. It cannot come
+  /// from [probePeerCertificate]: Dart's [HttpClientResponse.certificate] is the
+  /// *leaf*, whereas [HttpClient.badCertificateCallback] is handed whichever
+  /// certificate the verifier could not chain — for a server whose chain does
+  /// not reach a trusted root that is an intermediate, not the leaf. The two
+  /// differ, so a trust entry recorded from the probe could never match the
+  /// handshake and trust would silently never take effect.
+  ///
+  /// Written by [rememberRejectedCertificate] from inside the handshake
+  /// callback, read by [SslTrustInterceptor] to build the prompt.
+  final Map<String, String> _rejectedFingerprints = <String, String>{};
+
   /// Called once at startup, before the first request, so a previously trusted
   /// host does not prompt again on this launch.
   void hydrate(Set<SslTrustEntry> persisted) {
@@ -129,6 +144,23 @@ class SslTrustManager {
       ..clear()
       ..addAll(persisted);
   }
+
+  /// Records the certificate a failed handshake presented for [host].
+  ///
+  /// The handshake callback is synchronous and cannot prompt, but it is the
+  /// only place the authoritative certificate is visible, so it stashes the
+  /// fingerprint here for [SslTrustInterceptor] to pick up moments later.
+  void rememberRejectedCertificate(String host, String fingerprintSha256) {
+    final key = normalizeHost(host);
+    if (key.isEmpty) return;
+    _rejectedFingerprints[key] = fingerprintSha256
+        .replaceAll(':', '')
+        .toLowerCase();
+  }
+
+  /// The fingerprint recorded by [rememberRejectedCertificate] for [host].
+  String? rejectedFingerprintFor(String host) =>
+      _rejectedFingerprints[normalizeHost(host)];
 
   /// Extracts the SHA-256 fingerprint of a peer certificate.
   static String fingerprintOf(X509Certificate certificate) {
@@ -264,6 +296,7 @@ class SslTrustManager {
     _persisted.clear();
     _inFlight.clear();
     _recentRejects.clear();
+    _rejectedFingerprints.clear();
     _activePrompt = null;
     pendingPrompt.value = null;
   }

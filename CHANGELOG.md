@@ -22,6 +22,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.3.7] - 2026-09-27
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Fixed
+
+- **删除媒体项**：修复了首页媒体库删除影片或文件时始终提示删除失败、无法完成删除的问题。
+- **Windows 登录**：修复了 Windows 版登录时弹出「无法创建数据目录」提示、导致无法登录的问题。
+- **Windows 自动更新**：修复了 Windows 更新安装包下载完成后无法自动安装、需要手动退出应用的问题。
+
+## [2.3.6] - 2026-09-25
+
+> 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**
+
+### Added
+
+- **危险操作提示**：删除等需要谨慎确认的提示弹窗添加醒目的警示图标，与飞牛影视 Web 版保持一致。
+
+### Fixed
+
+- **自签名证书信任**：修复了信任服务器证书后仍然无法登录的问题；信任证书后，海报封面等图片也能正常加载。
+- **首页媒体库**：修复了媒体库加载失败时显示不可读错误信息、整块区域空白的问题，现在会以提示消息告知失败原因并支持重试。
+
 ## [2.3.5] - 2026-09-24
 
 > 💡 **如遇自动更新失败，请访问 [https://github.com/FNOSP/FlyNarwhal/releases](https://github.com/FNOSP/FlyNarwhal/releases) 下载最新安装包后手动更新。**

@@ -15,10 +15,13 @@ import 'ssl_trust_manager.dart';
 HttpClient createTrustAwareHttpClient() {
   final client = HttpClient();
   client.badCertificateCallback = (certificate, host, port) {
-    return SslTrustManager.instance.isApproved(
-      host,
-      SslTrustManager.fingerprintOf(certificate),
-    );
+    final fingerprint = SslTrustManager.fingerprintOf(certificate);
+    if (SslTrustManager.instance.isApproved(host, fingerprint)) return true;
+    // Rejected: stash the certificate the verifier actually objected to so the
+    // prompt pins trust to a fingerprint this callback will see again. The
+    // probe cannot supply it — it reads the leaf, which may not be this one.
+    SslTrustManager.instance.rememberRejectedCertificate(host, fingerprint);
+    return false;
   };
   return client;
 }

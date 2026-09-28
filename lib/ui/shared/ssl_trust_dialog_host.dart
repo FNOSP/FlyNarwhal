@@ -76,7 +76,6 @@ class _SslTrustDialogHostState extends ConsumerState<SslTrustDialogHost> {
         FluentDialogRoute<SslTrustDecision>(
           builder: (dialogContext) => AppDialog<SslTrustDecision>(
             title: '证书校验失败',
-            titleIcon: const Icon(FluentIcons.shield_alert, size: 20),
             type: AppDialogType.danger,
             // Three actions, one of them a long label, need more room than the
             // default 460px before the action row overflows.
