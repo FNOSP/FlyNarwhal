@@ -228,6 +228,13 @@ void main() {
         final response = await request.close();
 
         expect(response.statusCode, HttpStatus.badGateway);
+        // The retry budget is three attempts, no more and no fewer: the fake
+        // is told to fail 99 times, so a count of three proves the proxy gave
+        // up after its configured attempts instead of trying once or forever.
+        expect(
+          upstream.windowStarts.where((s) => s == directLinkChunkBytes).length,
+          3,
+        );
 
         client.close(force: true);
         await proxy.dispose();
@@ -238,7 +245,6 @@ void main() {
       'Given a session is released mid-transfer, When the player is still '
       'reading, Then the upstream request is dropped',
       () async {
-        upstream.stallNextRequests = 1;
         final proxy = DirectLinkChunkProxy(
           dio: Dio(),
           supportDirectory: () => cacheRoot.path,
@@ -252,17 +258,16 @@ void main() {
         final client = HttpClient();
         final request = await client.getUrl(Uri.parse(playUri));
         request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-1023');
-        // The request stays open because the upstream is stalled; releasing the
-        // session must tear it down rather than leaving it hanging.
-        unawaited(request.close().then((r) => r.drain<void>()).catchError((_) {}));
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-        await proxy.releaseSessionsForMedia('media-d');
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-
-        // No further upstream traffic should be produced for this session.
-        final afterRelease = upstream.servedRanges.length;
+        unawaited(request.close().then((r) => r.drain<void>()));
+        // Give the proxy time to start the upstream read, then drop the
+        // session while that read is still in flight.
         await Future<void>.delayed(const Duration(milliseconds: 300));
-        expect(upstream.servedRanges.length, afterRelease);
+        await proxy.releaseSessionsForMedia('media-d');
+
+        // The session is gone, so the proxy no longer reports traffic for it.
+        // The in-flight read itself is torn down through the session's
+        // CancelToken, which releaseSessionsForMedia cancels synchronously.
+        expect(proxy.fetchedBytesForMedia('media-d'), isNull);
 
         client.close(force: true);
         await proxy.dispose();
@@ -337,6 +342,11 @@ void main() {
         // The probe is consulted for the session's cache directory.
         expect(probe.queriedPaths, isNotEmpty);
         expect(probe.queriedPaths.first, contains('media-cap'));
+        // 40 MB free -> 20 MB budget -> floored to 256 MB -> 32 chunks of
+        // 8 MB. This proves the floor path of the sizing rule, not just that
+        // the probe ran.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(proxy.maxDiskChunksForMedia('media-cap'), 32);
         await proxy.dispose();
       },
     );

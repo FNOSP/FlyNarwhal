@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/utils/log/app_talker.dart';
 import '../../../../services/update/update_disk_space_probe.dart';
@@ -12,20 +13,18 @@ import '../../../../services/update/update_disk_space_probe.dart';
 /// proxy, in bytes.
 ///
 /// The cloud CDN behind the original-quality tier of some netdisks throttles
-/// any single range whose window exceeds roughly 393 MB down to about
-/// 100 KB/s. Media players open a remote Matroska file with an open-ended
-/// `bytes=0-` request that lands squarely in that throttled window, so every
-/// upstream request issued here is clamped regardless of what the player
-/// asked for.
+/// an open-ended Range request down to about 100 KB/s. Media players open a
+/// remote Matroska file with exactly that `bytes=0-` request, so the
+/// container header never arrives and playback verification times out.
 ///
 /// The official Android player fetches 50 MB at a time, but it can afford to:
 /// its fetches land in a disk cache that the demuxer reads from as they fill,
 /// so playback starts after the first few kilobytes. This proxy has to hand a
 /// complete chunk to the player before it can respond at all, which makes the
-/// chunk size a direct startup latency: a 50 MB chunk measured ~7.5 s before
-/// the response headers went out, and the player timed out waiting. 8 MB keeps
-/// that latency near a second while staying well clear of the ~393 MB
-/// throttle cliff.
+/// chunk size a direct startup latency. A 50 MB window measured ~7.5 s before
+/// the response headers went out, which timed the player out. 8 MB keeps that
+/// latency near a second while staying well clear of the measured throttle
+/// cliff.
 const int directLinkChunkBytes = 8 * 1024 * 1024;
 
 /// Starting number of simultaneous chunk downloads.
@@ -144,6 +143,12 @@ const Duration _windowFetchRetryDelay = Duration(milliseconds: 300);
 ///
 /// Sized to cover several chunks so a normal sequential read is served without
 /// the player having to re-request after every single one.
+///
+/// Note: the rewritten request still carries a bounded *declared* span, but
+/// the request itself remains a Range fetch. The throttle was observed to
+/// clamp on the declared span on the test account; a CDN that instead keys
+/// off the request shape would need a different upstream form. Verified
+/// against one Quark account only.
 const int _maxOpenEndedSpanBytes = 4 * directLinkChunkBytes;
 
 /// Path prefix that identifies a loopback chunk-proxy playback URL.
@@ -242,18 +247,6 @@ class _ChunkSession {
   /// the cache has been filling for a while.
   int maxDiskChunks = _fallbackMaxDiskChunks;
   DateTime? _diskSpaceResolvedAt;
-
-  // ── TEMPORARY fetch probe ────────────────────────────────────────────────
-  // Measures why a 261 MB episode pulled ~2 GB off the network. Counts how
-  // often each 8 MB window is fetched, so the log shows whether the over-read
-  // is sequential (a normal full pass) or repeated (the same windows again).
-  // Remove once the cause is known.
-  int fetchCount = 0;
-  int activeRequests = 0;
-  /// TEMPORARY: how many upstream fetches were avoided by the cache.
-  int cacheHits = 0;
-  final Map<int, int> windowFetchCounts = {};
-  final List<int> recentWindows = [];
 
   /// Aborts the upstream reads that are already in flight.
   ///
@@ -355,6 +348,11 @@ class _ChunkSession {
   }
 
   /// Moves the concurrency in response to [measured] aggregate throughput.
+  ///
+  /// A step only ratchets on a completed measurement window, and
+  /// [_maxUnproductiveProbes] bounds how far a spurious up-step can climb
+  /// before it is reversed, so there is no separate "stability lease" timer
+  /// after a change.
   void _adjustConcurrency(double measured) {
     if (_probePending) {
       // Settle the pending step: keep it if it bought throughput, give up on
@@ -408,7 +406,6 @@ class _ChunkSession {
         return null;
       }
       _touch(index);
-      cacheHits++;
       return data;
     } catch (_) {
       _cachedIndices.remove(index);
@@ -496,7 +493,12 @@ class _ChunkSession {
   ///
   /// Registration happens before the caller's first await, so a connection
   /// arriving later in the same event-loop turn finds the entry and joins
-  /// instead of starting a duplicate fetch.
+  /// instead of starting a duplicate fetch. Cleanup is deferred to a
+  /// microtask: [store] runs synchronously before the operation completes, so
+  /// by the time the microtask fires the cache index is already authoritative
+  /// and a request arriving in the gap joins the completed fetch rather than
+  /// the cache entry. That gap can cost one duplicate fetch, never a stuck
+  /// session.
   void registerInFlight(int index, Future<Uint8List?> operation) {
     _inFlight[index] = operation;
     unawaited(
@@ -548,19 +550,8 @@ class DirectLinkChunkProxy {
   HttpServer? _server;
   Future<void>? _pendingStart;
   int _port = 0;
-  /// Throttle state for the temporary request probe.
-  DateTime? _lastRequestLogAt;
-  /// Counter behind the temporary per-connection probe ids.
-  int _connectionCounter = 0;
   /// Root of the on-disk chunk cache, resolved on first use.
   Directory? _cacheRootDirectory;
-  /// TEMPORARY: when the previous player request arrived, plus a count of how
-  /// often each requested start offset has been asked for. Together these show
-  /// whether the player is advancing through the file or re-requesting the
-  /// same spans, and how long it waits between attempts.
-  DateTime? _previousRequestAt;
-  final Map<int, int> _requestCountsByStart = {};
-  int _requestCount = 0;
 
   /// Registers [upstreamUrl] and returns the loopback URL to hand the player.
   Future<String> registerSession({
@@ -602,7 +593,7 @@ class DirectLinkChunkProxy {
     session.seedConcurrency();
     _sessions[session.id] = session;
     unawaited(_refreshDiskCap(session));
-    _evictExcessSessions();
+    _evictExcessSessions(excluding: session);
     AppTalker.info(
       'Player',
       'direct-link chunk proxy registered: guid=$mediaGuid items='
@@ -619,6 +610,16 @@ class DirectLinkChunkProxy {
   int? fetchedBytesForMedia(String mediaGuid) {
     for (final session in _sessions.values) {
       if (session.mediaGuid == mediaGuid) return session.fetchedBytes;
+    }
+    return null;
+  }
+
+  /// Chunk cap currently in force for [mediaGuid], or null when no session is
+  /// serving that media. Exposed for the disk-sizing tests.
+  @visibleForTesting
+  int? maxDiskChunksForMedia(String mediaGuid) {
+    for (final session in _sessions.values) {
+      if (session.mediaGuid == mediaGuid) return session.maxDiskChunks;
     }
     return null;
   }
@@ -646,11 +647,10 @@ class DirectLinkChunkProxy {
   /// arrive while a probe is already running.
   ///
   /// Without this, two connections opening the same fresh session both see
-  /// `totalBytes == null`, both probe, and then both race into the first
-  /// window fetch before either has published its in-flight marker. Sharing
-  /// the probe makes their downstream progress deterministic: the second
-  /// connection cannot leave the shared await before the first has the length
-  /// cached and its first window fetch underway.
+  /// `totalBytes == null` and both probe. Sharing collapses that duplicate
+  /// upstream length request. The concurrent window fetches themselves are
+  /// deduplicated separately by `_fetchWindow`'s `_inFlight` map, which is the
+  /// mechanism that prevents two connections from downloading the same chunk.
   Future<int> _probeTotalShared(_ChunkSession session) {
     final running = session._totalProbe;
     if (running != null) return running;
@@ -675,23 +675,16 @@ class DirectLinkChunkProxy {
       _sessions.remove(session.id);
     }
     // Logged so a switch/exit can be confirmed to drop the upstream transfer
-    // immediately instead of leaving it to the idle timeout. The totals are
-    // included because the periodic summary only fires every 64 fetches, so a
-    // short session otherwise ends without any record of what it downloaded.
+    // immediately instead of leaving it to the idle timeout.
     final totalFetched = stale.fold<int>(
       0,
       (sum, session) => sum + session.fetchedBytes,
-    );
-    final totalFetches = stale.fold<int>(
-      0,
-      (sum, session) => sum + session.fetchCount,
     );
     AppTalker.info(
       'Player',
       'direct-link chunk proxy released ${stale.length} session(s): '
           'guid=$mediaGuid '
-          'fetchedMB=${(totalFetched / 1048576).round()} '
-          'fetches=$totalFetches',
+          'fetchedMB=${(totalFetched / 1048576).round()}',
     );
   }
 
@@ -726,9 +719,16 @@ class DirectLinkChunkProxy {
   ///
   /// Used to clear the per-media directory once its last session's chunk
   /// directory is gone; a directory still holding a sibling session's files
-  /// fails the emptiness check and is left alone.
+  /// fails the emptiness check and is left alone. Only descends into the cache
+  /// root, never the volume or system temp directory above it, so a temp
+  /// fallback cache cannot prune an OS-owned directory.
   void _pruneEmptyDirectory(Directory directory) {
     try {
+      final root = _cacheRootDirectory;
+      if (root == null ||
+          !directory.absolute.path.startsWith(root.absolute.path)) {
+        return;
+      }
       if (directory.existsSync() && directory.listSync().isEmpty) {
         directory.deleteSync();
       }
@@ -786,12 +786,6 @@ class DirectLinkChunkProxy {
 
   Future<void> _handleRequest(HttpRequest request) async {
     final response = request.response;
-    // TEMPORARY: identify each player connection so the probe can tell eight
-    // concurrent reads apart from one read that stalls.
-    final connectionId = ++_connectionCounter;
-    final openedAt = DateTime.now();
-    var sentBytes = 0;
-    final sentWindows = <int>[];
     // Whether the status line has been committed. HttpResponse gives no way to
     // ask, and setting statusCode after the headers are on the wire throws, so
     // the fact has to be tracked here.
@@ -904,16 +898,7 @@ class DirectLinkChunkProxy {
       response.headers.contentLength = length;
 
       statusCommitted = true;
-      _logIncomingRequest(
-        connectionId,
-        session,
-        start,
-        length,
-        rangeHeader,
-      );
-      _traceRequest(connectionId, start, length);
       await _streamRange(
-        connectionId,
         session,
         response,
         start,
@@ -921,26 +906,8 @@ class DirectLinkChunkProxy {
         total,
         firstIndex,
         firstData,
-        onWindowSent: (index, bytes) {
-          sentBytes += bytes;
-          sentWindows.add(index);
-        },
-      );
-      _logConnectionClosed(
-        connectionId,
-        'completed',
-        openedAt,
-        sentBytes,
-        sentWindows,
       );
     } catch (error, stackTrace) {
-      _logConnectionClosed(
-        connectionId,
-        'failed: ${error.runtimeType}',
-        openedAt,
-        sentBytes,
-        sentWindows,
-      );
       if (!_isClientDisconnect(error)) {
         AppTalker.error(
           'Player',
@@ -973,7 +940,6 @@ class DirectLinkChunkProxy {
   /// window at a time so a large player request never turns into a large
   /// upstream request.
   Future<void> _streamRange(
-    int connectionId,
     _ChunkSession session,
     HttpResponse response,
     int start,
@@ -981,14 +947,9 @@ class DirectLinkChunkProxy {
     int total,
     int firstIndex,
     Uint8List firstData,
-    {
-    required void Function(int index, int bytes) onWindowSent,
-  }
   ) async {
     var position = start;
     var remaining = length;
-    final startedAt = DateTime.now();
-    var sentWindows = 0;
     // Chunks are fetched ahead of the send loop so several upstream reads are
     // in flight at once: one netdisk connection cannot outrun a high-bitrate
     // remux, and the send loop must still emit bytes strictly in order.
@@ -1005,12 +966,6 @@ class DirectLinkChunkProxy {
     try {
       while (remaining > 0) {
         if (session.closed) {
-          AppTalker.info(
-            'Player',
-            'chunk probe conn=$connectionId stopped: session closed '
-                'after ${DateTime.now().difference(startedAt).inMilliseconds}ms '
-                'sent=$sentWindows window(s)',
-          );
           break;
         }
         final index = position ~/ directLinkChunkBytes;
@@ -1026,7 +981,7 @@ class DirectLinkChunkProxy {
         // the playhead cost nothing.
         gateFirstWindow = !(index == firstIndex ||
             pipeline.containsKey(index) ||
-            session.take(index) != null);
+            session.isCachedOrInFlight(index));
         _scheduleAhead(
           session: session,
           pipeline: pipeline,
@@ -1034,7 +989,6 @@ class DirectLinkChunkProxy {
           total: total,
         );
         final Uint8List? data;
-        final fetchStartedAt = DateTime.now();
         if (index == firstIndex) {
           pipeline.remove(index);
           data = firstData;
@@ -1044,28 +998,8 @@ class DirectLinkChunkProxy {
               ? await scheduled
               : await _fetchWindow(session, index, windowStart, windowEnd);
         }
-        final fetchMs =
-            DateTime.now().difference(fetchStartedAt).inMilliseconds;
         if (data == null) {
-          AppTalker.info(
-            'Player',
-            'chunk probe conn=$connectionId no data for window $index '
-                'after ${fetchMs}ms (sent=$sentWindows)',
-          );
           break;
-        }
-        // TEMPORARY: log every window fetch's cost and position. The earlier
-        // run showed the same 32 MB span taking 3s near the file start and 48s
-        // near the end, so the position of each slow fetch matters as much as
-        // its duration.
-        if (fetchMs > 1500) {
-          AppTalker.info(
-            'Player',
-            'chunk slow conn=$connectionId window=$index '
-                'atMB=${(windowStart / 1048576).round()} '
-                'ofMB=${(total / 1048576).round()} '
-                'took=${fetchMs}ms',
-          );
         }
         final offset = position - windowStart;
         if (offset >= data.length) break;
@@ -1075,18 +1009,10 @@ class DirectLinkChunkProxy {
         // Flush per window so a slow player throttles the upstream fetches
         // instead of letting unanswered bytes pile up in memory.
         await response.flush();
-        onWindowSent(index, take);
-        sentWindows++;
         position += take;
         remaining -= take;
       }
       pipeline.clear();
-      AppTalker.info(
-        'Player',
-        'chunk probe conn=$connectionId stream loop ended: '
-            'sent=$sentWindows window(s) remaining=${(remaining / 1048576).toStringAsFixed(1)}MB '
-            'elapsed=${DateTime.now().difference(startedAt).inMilliseconds}ms',
-      );
     } finally {
       // A truncated body must still close cleanly; the player sees a short
       // read and re-issues a fresh range for the region it still needs.
@@ -1118,7 +1044,7 @@ class DirectLinkChunkProxy {
         ahead++) {
       final index = fromIndex + ahead;
       if (index > lastIndex || pipeline.containsKey(index)) continue;
-      if (session.take(index) != null) continue;
+      if (session.isCachedOrInFlight(index)) continue;
       final windowStart = index * directLinkChunkBytes;
       final windowEnd =
           math.min(windowStart + directLinkChunkBytes, total) - 1;
@@ -1201,7 +1127,6 @@ class DirectLinkChunkProxy {
     int end,
   ) async {
     final expected = end - start + 1;
-    session.activeRequests++;
     final startedAt = DateTime.now();
     try {
       final response = await _dio.get<ResponseBody>(
@@ -1213,7 +1138,10 @@ class DirectLinkChunkProxy {
             ...session.headers,
             HttpHeaders.rangeHeader: 'bytes=$start-$end',
           },
-          receiveTimeout: const Duration(seconds: 60),
+          // Bounded so a stalled window cannot head-of-line block the whole
+          // response: three attempts at 15 s each still leaves the player
+          // waiting at most ~45 s before it can re-issue a fresh range.
+          receiveTimeout: const Duration(seconds: 15),
           validateStatus: (status) =>
               status != null && status >= 200 && status < 300,
         ),
@@ -1233,7 +1161,6 @@ class DirectLinkChunkProxy {
         DateTime.now().difference(startedAt).inMilliseconds,
       );
       session.fetchedBytes += bytes.length;
-      _recordFetch(session, index, bytes.length);
       // A short window must not enter the cache: later reads compute offsets
       // against a full window.
       if (bytes.length >= expected) {
@@ -1258,8 +1185,6 @@ class DirectLinkChunkProxy {
         message: 'direct-link chunk proxy upstream fetch failed',
       );
       return null;
-    } finally {
-      session.activeRequests--;
     }
   }
 
@@ -1319,104 +1244,6 @@ class DirectLinkChunkProxy {
     throw const HttpException('upstream stream length is unknown');
   }
 
-  // ── TEMPORARY fetch probe ────────────────────────────────────────────────
-  /// Records one player request at full fidelity: its range, the gap since the
-  /// previous request, and how many times this exact start offset has been
-  /// asked for before. Logged for every request (no throttling) because the
-  /// gaps and the repeats are the measurement.
-  void _traceRequest(int connectionId, int start, int length) {
-    final now = DateTime.now();
-    final gapMs = _previousRequestAt == null
-        ? -1
-        : now.difference(_previousRequestAt!).inMilliseconds;
-    _previousRequestAt = now;
-    _requestCount++;
-    final repeats = (_requestCountsByStart[start] ?? 0) + 1;
-    _requestCountsByStart[start] = repeats;
-
-    AppTalker.info(
-      'Player',
-      'chunk trace #$_requestCount conn=$connectionId '
-          'startMB=${(start / 1048576).round()} lenMB=${(length / 1048576).toStringAsFixed(1)} '
-          'gapMs=$gapMs sameStartSeen=$repeats',
-    );
-  }
-
-  /// Logs every range the player asks the proxy for, throttled to 8 log lines
-  /// per second so the trace stays readable at full throughput.
-  void _logIncomingRequest(
-    int connectionId,
-    _ChunkSession session,
-    int start,
-    int length,
-    String? rangeHeader,
-  ) {
-    final now = DateTime.now();
-    final last = _lastRequestLogAt;
-    if (last != null && now.difference(last).inMilliseconds < 125) return;
-    _lastRequestLogAt = now;
-    AppTalker.info(
-      'Player',
-      'chunk probe conn=$connectionId open: raw=${rangeHeader ?? 'none'} '
-          'start=$start len=$length '
-          'startMB=${(start / 1048576).round()} '
-          'lenMB=${(length / 1048576).toStringAsFixed(1)}',
-    );
-  }
-
-  /// Logs how a player connection finished, with the windows it actually
-  /// received, so a client that walked away early is visible in the trace.
-  void _logConnectionClosed(
-    int connectionId,
-    String outcome,
-    DateTime openedAt,
-    int sentBytes,
-    List<int> sentWindows,
-  ) {
-    final elapsed = DateTime.now().difference(openedAt).inMilliseconds;
-    final first = sentWindows.isEmpty ? '-' : sentWindows.first.toString();
-    final last = sentWindows.isEmpty ? '-' : sentWindows.last.toString();
-    AppTalker.info(
-      'Player',
-      'chunk probe conn=$connectionId closed ($outcome): '
-          'windows=${sentWindows.length} first=$first last=$last '
-          'sentMB=${(sentBytes / 1048576).toStringAsFixed(1)} elapsedMs=$elapsed',
-    );
-  }
-
-  /// Records one completed window fetch and periodically logs the pattern.
-  ///
-  /// Logs a summary every 64 fetches (about 512 MB) plus the most recent
-  /// window indices, so the trace shows both the volume and whether the reads
-  /// walk forward through the file or keep revisiting the same offsets.
-  void _recordFetch(_ChunkSession session, int index, int byteCount) {
-    session.fetchCount++;
-    session.windowFetchCounts[index] =
-        (session.windowFetchCounts[index] ?? 0) + 1;
-    session.recentWindows.add(index);
-    if (session.recentWindows.length > 40) session.recentWindows.removeAt(0);
-
-    if (session.fetchCount % 64 != 0) return;
-    final counts = session.windowFetchCounts.values;
-    final distinct = session.windowFetchCounts.length;
-    final maxRepeat = counts.isEmpty
-        ? 0
-        : counts.reduce((a, b) => a > b ? a : b);
-    final total = session.totalBytes;
-    AppTalker.info(
-      'Player',
-      'chunk probe: fetches=${session.fetchCount} '
-          'distinct=$distinct '
-          'maxRepeat=$maxRepeat '
-          'cacheHits=${session.cacheHits} '
-          'fetchedMB=${(session.fetchedBytes / 1048576).round()} '
-          'fileMB=${total == null ? '?' : (total / 1048576).round()} '
-          'active=${session.activeRequests} '
-          'recent=${session.recentWindows.take(24).join(',')} '
-          '(last=${byteCount}B)',
-    );
-  }
-
   /// Parses a single-range `bytes=` request against [total]. Multi-range
   /// requests are collapsed to their first range, which is what media players
   /// actually issue. Returns null when the range is malformed or falls outside
@@ -1458,9 +1285,17 @@ class DirectLinkChunkProxy {
     return ContentType(parts[0].trim(), parts[1].trim());
   }
 
-  void _evictExcessSessions() {
+  /// Drops the least recently used sessions until [_maxSessions] remains,
+  /// never dropping [excluding]. A freshly registered session is exempt while
+  /// its loopback URL is being handed back, otherwise evicting it would make
+  /// every request against that URL 404.
+  void _evictExcessSessions({_ChunkSession? excluding}) {
     while (_sessions.length > _maxSessions) {
-      final oldest = _sessions.values.reduce(
+      final candidates = _sessions.values
+          .where((session) => !identical(session, excluding))
+          .toList(growable: false);
+      if (candidates.isEmpty) return;
+      final oldest = candidates.reduce(
         (left, right) =>
             left.lastAccess.isBefore(right.lastAccess) ? left : right,
       );
