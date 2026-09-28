@@ -123,6 +123,7 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
   }
 
   Future<void> refresh() async {
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(guid);
     ref.invalidateSelf();
     await future;
   }

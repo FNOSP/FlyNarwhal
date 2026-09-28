@@ -288,6 +288,9 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   Future<void> _handleGlobalRefresh(GlobalRefreshRequest request) async {
     await request.runBaseMediaLibraryRefresh();
     if (!mounted) return;
+    // _loadFolderInfo reads through the data source's detail cache, which
+    // outlives this page; drop it so a refresh shows fresh folder state.
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(widget.guid);
     setState(() {
       _isFilterOpen = false;
       _selectedFilters = {};

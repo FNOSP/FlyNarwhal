@@ -142,6 +142,7 @@ class TvDetailNotifier extends _$TvDetailNotifier {
   }
 
   Future<void> refresh() async {
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(guid);
     ref.invalidateSelf();
     await future;
   }
