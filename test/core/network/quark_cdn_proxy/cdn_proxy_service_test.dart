@@ -14,6 +14,137 @@ const _deadline = Duration(seconds: 4);
 const _chunk = CdnProxyDefaults.chunkSize;
 
 void main() {
+  test(
+      'Given an unopened service whose source close throws, then repeated close shares one safe failure',
+      () async {
+    final source = _FakeCdn(100,
+        autoRespond: false,
+        closeFailure: StateError('Private source close Cookie=secret'));
+    final service = CdnProxyService(source: source);
+    addTearDown(() async => _closeError(service.close()));
+    final closing = service.close();
+    expect(identical(closing, service.close()), isTrue);
+    final failure = await _closeError(closing).timeout(_deadline);
+    expect(
+        failure,
+        isA<CdnRangeFailure>()
+            .having((error) => error.message, 'message', 'CDN 代理资源清理失败'));
+    expect(identical(closing, service.close()), isTrue);
+    expect(await _closeError(service.close()), same(failure));
+    expect(source.closeCount, 1);
+    expect(source.requests, isEmpty);
+    expect(service.activeWriterCount, 0);
+    expect(service.activeDownloadCount, 0);
+    expect(service.allocatedChunkCount, 0);
+    expect(service.allocatedBufferBytes, 0);
+    expect(service.bufferedBytes, 0);
+  });
+
+  test(
+      'Given initialization fails while callback and source close throw, then open preserves its original failure',
+      () async {
+    const original = CdnRangeFailure('Safe metadata failure');
+    final source = _FakeCdn(100,
+        autoRespond: false,
+        openingFailure: original,
+        closeFailure: StateError('Private close signature=secret'));
+    final notifications = <Object>[];
+    final service = CdnProxyService(
+        source: source,
+        onError: (error) {
+          notifications.add(error);
+          throw StateError('Private callback Cookie=secret');
+        });
+    addTearDown(() async => _closeError(service.close()));
+    await expectLater(
+        service.open(
+            uri: Uri.parse('https://cdn.invalid/media.mp4'), headers: const {}),
+        throwsA(same(original)));
+    expect(notifications, [same(original)]);
+    final closing = service.close();
+    expect(identical(closing, service.close()), isTrue);
+    final failure = await _closeError(closing).timeout(_deadline);
+    expect(
+        failure,
+        isA<CdnRangeFailure>()
+            .having((error) => error.message, 'message', 'CDN 代理资源清理失败'));
+    expect(source.closeCount, 1);
+    expect(service.activeWriterCount, 0);
+    expect(service.activeDownloadCount, 0);
+    expect(service.allocatedChunkCount, 0);
+    expect(service.allocatedBufferBytes, 0);
+    expect(service.bufferedBytes, 0);
+  });
+
+  test(
+      'Given an active writer and throwing source close, then close waits for delayed body cancellation before reporting safely',
+      () async {
+    final releaseCancellation = Completer<void>();
+    final source = _FakeCdn(100,
+        autoRespond: false,
+        bodyCancellationGate: releaseCancellation.future,
+        closeFailure: StateError('Private source close signature=secret'));
+    final service = CdnProxyService(source: source);
+    final client = HttpClient();
+    addTearDown(() async {
+      if (!releaseCancellation.isCompleted) releaseCancellation.complete();
+      client.close(force: true);
+      await _closeError(service.close());
+    });
+    final uri = await service.open(
+        uri: Uri.parse('https://cdn.invalid/media.mp4'), headers: const {});
+    final response =
+        await (await client.getUrl(uri)).close().timeout(_deadline);
+    final prefixReceived = Completer<void>();
+    final received = <int>[];
+    final bodyEnded = response
+        .map((bytes) {
+          received.addAll(bytes);
+          if (received.length >= 16 && !prefixReceived.isCompleted) {
+            prefixReceived.complete();
+          }
+          return bytes;
+        })
+        .drain<void>()
+        .then<void>((_) {}, onError: (Object _) {});
+    final upstream = await source.requestAt(1);
+    // Headers and request registration alone do not prove that _consume owns
+    // this body. Observe a real prefix before testing delayed cancellation.
+    upstream.body.add(_bytes(upstream.start, 16));
+    await prefixReceived.future.timeout(_deadline);
+    expect(received, _bytes(upstream.start, 16));
+    expect(upstream.bodyCancellationStarted.isCompleted, isFalse);
+    expect(service.activeWriterCount, 1);
+    final closing = service.close();
+    expect(identical(closing, service.close()), isTrue);
+    var completed = false;
+    final outcome = _closeError(closing).then((error) {
+      completed = true;
+      return error;
+    });
+    await upstream.bodyCancellationStarted.future.timeout(_deadline);
+    await Future<void>(() {});
+    expect(completed, isFalse);
+    expect(service.allocatedChunkCount, 1);
+    expect(source.closeCount, 1);
+
+    releaseCancellation.complete();
+    final failure = await outcome.timeout(_deadline);
+    expect(
+        failure,
+        isA<CdnRangeFailure>()
+            .having((error) => error.message, 'message', 'CDN 代理资源清理失败'));
+    await bodyEnded.timeout(_deadline);
+    expect(identical(closing, service.close()), isTrue);
+    expect(await _closeError(service.close()), same(failure));
+    expect(source.closeCount, 1);
+    expect(service.activeWriterCount, 0);
+    expect(service.activeDownloadCount, 0);
+    expect(service.allocatedChunkCount, 0);
+    expect(service.allocatedBufferBytes, 0);
+    expect(service.bufferedBytes, 0);
+  });
+
   group('CdnProxyService actual loopback HTTP', () {
     for (final testCase in <(String, String?, int, int, int?)>[
       ('GET', null, 200, 0, 128),
@@ -621,9 +752,16 @@ class _Harness {
 }
 
 class _FakeCdn implements CdnRangeSource {
-  _FakeCdn(this.total, {required this.autoRespond});
+  _FakeCdn(this.total,
+      {required this.autoRespond,
+      this.closeFailure,
+      this.openingFailure,
+      this.bodyCancellationGate});
   final int total;
   final bool autoRespond;
+  final Object? closeFailure;
+  final Object? openingFailure;
+  final Future<void>? bodyCancellationGate;
   int closeCount = 0;
   final requests = <_FakeRequest>[];
   final _waiters = <(int, Completer<_FakeRequest>)>[];
@@ -643,8 +781,10 @@ class _FakeCdn implements CdnRangeSource {
       required int end,
       required CancelToken cancelToken,
       String? ifRangeEtag}) async {
+    if (openingFailure != null) throw openingFailure!;
     final probe = requests.isEmpty;
-    final request = _FakeRequest(start, end, cancelToken);
+    final request = _FakeRequest(
+        start, end, cancelToken, probe ? null : bodyCancellationGate);
     requests.add(request);
     for (final waiter in _waiters.toList()) {
       if (requests.length > waiter.$1) {
@@ -663,6 +803,7 @@ class _FakeCdn implements CdnRangeSource {
   @override
   void close() {
     closeCount++;
+    if (closeFailure != null) throw closeFailure!;
     for (final request in requests) {
       request.token.cancel('Fake source closed');
     }
@@ -670,7 +811,17 @@ class _FakeCdn implements CdnRangeSource {
 }
 
 class _FakeRequest {
-  _FakeRequest(this.start, this.end, this.token) {
+  _FakeRequest(
+      this.start, this.end, this.token, Future<void>? cancellationGate) {
+    body = StreamController<Uint8List>(
+        onCancel: cancellationGate == null
+            ? null
+            : () async {
+                if (!bodyCancellationStarted.isCompleted) {
+                  bodyCancellationStarted.complete();
+                }
+                await cancellationGate;
+              });
     unawaited(token.whenCancel.then((_) {
       if (!cancelled.isCompleted) cancelled.complete();
       if (!body.isClosed) unawaited(body.close());
@@ -680,7 +831,8 @@ class _FakeRequest {
   final int end;
   final CancelToken token;
   final cancelled = Completer<void>();
-  final body = StreamController<Uint8List>();
+  late final StreamController<Uint8List> body;
+  final bodyCancellationStarted = Completer<void>();
   bool completed = false;
 
   void complete({bool empty = false}) {
@@ -689,3 +841,6 @@ class _FakeRequest {
     unawaited(body.close());
   }
 }
+
+Future<Object?> _closeError(Future<void> future) =>
+    future.then<Object?>((_) => null, onError: (Object error) => error);

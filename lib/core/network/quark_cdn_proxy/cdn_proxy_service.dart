@@ -200,10 +200,15 @@ class CdnProxyService implements CdnProxy {
     }
     final closingSession = _session?.close();
     final closingServer = _server?.close(force: true);
-    if (_session == null) _source.close();
+    final closingSource = _session == null
+        ? Future<void>.sync(_source.close).onError((_, __) {
+            throw const CdnRangeFailure('CDN 代理资源清理失败');
+          })
+        : null;
     await Future.wait<void>([
       if (stopRequests != null) stopRequests,
       if (closingSession != null) closingSession,
+      if (closingSource != null) closingSource,
       if (closingServer != null) closingServer.then((_) {}),
       for (final writer in writers) writer.done.future,
     ]);

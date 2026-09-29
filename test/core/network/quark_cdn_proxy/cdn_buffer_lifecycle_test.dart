@@ -18,6 +18,105 @@ final _uri = Uri.parse('https://cdn.example.test/media');
 
 void main() {
   test(
+      'Given resource identity changes and onError throws, then readers retain the original failure and all buffers are cleaned',
+      () async {
+    final source = _Source(100);
+    final notifications = <Object>[];
+    final session = CdnRangeSession(
+      source: source,
+      uri: _uri,
+      headers: const {},
+      onError: (error) {
+        notifications.add(error);
+        throw StateError('Private callback failure Cookie=secret');
+      },
+    );
+    addTearDown(session.close);
+    await session.initialize();
+    final first = _Read(session.read(const CdnByteRange(start: 10, end: 29)));
+    await source.bodyAt(0);
+    await _eventTurn();
+    source.mediaTag = const CdnEntityTag(opaqueValue: 'replacement');
+    final changed = _Read(session.read(const CdnByteRange(start: 40, end: 59)));
+    await Future.wait([first.done, changed.done]).timeout(_deadline);
+    expect(notifications, [isA<CdnResourceChanged>()]);
+    expect(first.errors, [same(notifications.single)]);
+    expect(changed.errors, [same(notifications.single)]);
+    await session.close().timeout(_deadline);
+    expect(source.closeCalls, 1);
+    expect(session.allocatedChunkCount, 0);
+    expect(session.allocatedBufferBytes, 0);
+    expect(session.bufferedBytes, 0);
+    expect(session.activeDownloadCount, 0);
+  });
+
+  test(
+      'Given identity failure and source close throws, then close waits for delayed body cleanup without replacing reader errors',
+      () async {
+    final releaseCancellation = Completer<void>();
+    final source = _Source(
+      100,
+      cancellationGate: releaseCancellation.future,
+      delayedCancellationStart: 10,
+      closeFailure: StateError('Private close failure signature=secret'),
+    );
+    final notifications = <Object>[];
+    final notified = Completer<void>();
+    final session = CdnRangeSession(
+      source: source,
+      uri: _uri,
+      headers: const {},
+      onError: (error) {
+        notifications.add(error);
+        if (!notified.isCompleted) notified.complete();
+      },
+    );
+    addTearDown(() async {
+      if (!releaseCancellation.isCompleted) releaseCancellation.complete();
+      await _closeError(session.close());
+    });
+    await session.initialize();
+    final first = _Read(session.read(const CdnByteRange(start: 10, end: 29)));
+    final heldBody = await source.bodyAt(0);
+    await _eventTurn();
+    source.mediaTag = const CdnEntityTag(opaqueValue: 'replacement');
+    final changed = _Read(session.read(const CdnByteRange(start: 40, end: 59)));
+    await notified.future.timeout(_deadline);
+    await heldBody.cancellationStarted.future.timeout(_deadline);
+    expect(notifications, [isA<CdnResourceChanged>()]);
+    expect(source.closeCalls, 1);
+
+    final closing = session.close();
+    expect(identical(closing, session.close()), isTrue);
+    var completed = false;
+    final outcome = _closeError(closing).then((error) {
+      completed = true;
+      return error;
+    });
+    await _eventTurn();
+    expect(completed, isFalse,
+        reason: 'A source close exception must not bypass body cancellation');
+    expect(session.allocatedBufferBytes, greaterThanOrEqualTo(20));
+
+    releaseCancellation.complete();
+    final failure = await outcome.timeout(_deadline);
+    expect(
+        failure,
+        isA<CdnRangeFailure>()
+            .having((error) => error.message, 'message', 'CDN 代理资源清理失败'));
+    await Future.wait([first.done, changed.done]).timeout(_deadline);
+    expect(first.errors, [same(notifications.single)]);
+    expect(changed.errors, [same(notifications.single)]);
+    expect(identical(closing, session.close()), isTrue);
+    expect(await _closeError(session.close()), same(failure));
+    expect(source.closeCalls, 1);
+    expect(session.allocatedChunkCount, 0);
+    expect(session.allocatedBufferBytes, 0);
+    expect(session.bufferedBytes, 0);
+    expect(session.activeDownloadCount, 0);
+  });
+
+  test(
       'Given producer cancellation is unfinished, then old buffers remain owned while a replacement starts independently',
       () async {
     final releaseCancellation = Completer<void>();
@@ -227,9 +326,14 @@ class _Read {
 }
 
 class _Source implements CdnRangeSource {
-  _Source(this.total, {this.cancellationGate});
+  _Source(this.total,
+      {this.cancellationGate,
+      this.delayedCancellationStart,
+      this.closeFailure});
   final int total;
   final Future<void>? cancellationGate;
+  final int? delayedCancellationStart;
+  final Object? closeFailure;
   final bodies = <_Body>[];
   final _waiters = <({int index, Completer<_Body> result})>[];
   int probeCalls = 0;
@@ -258,7 +362,12 @@ class _Source implements CdnRangeSource {
           entityTag: _tag,
           stream: Stream.value(Uint8List(1))));
     }
-    final body = _Body(start, end, cancellationGate);
+    final body = _Body(
+        start,
+        end,
+        delayedCancellationStart == null || start == delayedCancellationStart
+            ? cancellationGate
+            : null);
     bodies.add(body);
     for (final waiter in _waiters.toList()) {
       if (bodies.length > waiter.index) {
@@ -271,7 +380,10 @@ class _Source implements CdnRangeSource {
   }
 
   @override
-  void close() => closeCalls++;
+  void close() {
+    closeCalls++;
+    if (closeFailure != null) throw closeFailure!;
+  }
 }
 
 class _Body {
@@ -290,3 +402,6 @@ class _Body {
     unawaited(body.close());
   }
 }
+
+Future<Object?> _closeError(Future<void> future) =>
+    future.then<Object?>((_) => null, onError: (Object error) => error);

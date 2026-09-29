@@ -973,6 +973,100 @@ void main() {
     }
   });
   group('CdnRangeSession independent readers and cancellation', () {
+    for (final probe in [true, false]) {
+      final phase = probe ? 'metadata' : 'media';
+      test(
+          'Given $phase open throws synchronously, then its task was registered and the original failure survives cleanup',
+          () async {
+        final source = _ControlledSource(10);
+        final errors = <Object>[];
+        final session = _session(source, errors: errors);
+        addTearDown(session.close);
+        if (!probe) await _initialize(session, source);
+        const failure = CdnRangeFailure('Synchronous source failure');
+        int? ownedTasksAtOpen;
+        int? ownedBuffersAtOpen;
+        source.onOpen = (_) {
+          ownedTasksAtOpen = session.activeDownloadCount;
+          ownedBuffersAtOpen = session.allocatedChunkCount;
+          throw failure;
+        };
+
+        final result = probe
+            ? session.initialize()
+            : session.read(const CdnByteRange(start: 2, end: 5)).drain<void>();
+        await expectLater(result, throwsA(same(failure)))
+            .timeout(const Duration(seconds: 5));
+
+        expect(ownedTasksAtOpen, 1,
+            reason: 'Source code must not run before the task is owned');
+        expect(ownedBuffersAtOpen, 1);
+        expect(source.requests, hasLength(probe ? 1 : 2));
+        expect(source.requests.last.token.isCancelled, isTrue);
+        expect(errors, probe ? [same(failure)] : isEmpty);
+        expect(source.closeCount, probe ? 1 : 0);
+        _expectReleased(session, source);
+      });
+
+      test(
+          'Given $phase open synchronously closes the session, then close joins its already registered task',
+          () async {
+        final source = _ControlledSource(10);
+        final errors = <Object>[];
+        final session = _session(source, errors: errors);
+        addTearDown(session.close);
+        if (!probe) await _initialize(session, source);
+        Future<void>? closing;
+        int? ownedTasksAtOpen;
+        int? ownedBuffersAtOpen;
+        source.onOpen = (_) {
+          ownedTasksAtOpen = session.activeDownloadCount;
+          ownedBuffersAtOpen = session.allocatedChunkCount;
+          closing = session.close();
+        };
+
+        final result = probe
+            ? session.initialize()
+            : session.read(const CdnByteRange(start: 2, end: 5)).drain<void>();
+        await expectLater(result, throwsA(isA<CdnRangeCancelled>()))
+            .timeout(const Duration(seconds: 5));
+        expect(closing, isNotNull);
+        expect(identical(closing, session.close()), isTrue);
+        await closing!.timeout(const Duration(seconds: 5));
+
+        expect(ownedTasksAtOpen, 1,
+            reason: 'Close must see the task that invoked the source');
+        expect(ownedBuffersAtOpen, 1);
+        expect(source.requests, hasLength(probe ? 1 : 2));
+        expect(source.requests.last.token.isCancelled, isTrue);
+        expect(source.closeCount, 1);
+        expect(errors, isEmpty);
+        _expectReleased(session, source);
+      });
+    }
+
+    test(
+        'Given an unlistened read, when the session closes before listening, then no source request or buffer is created',
+        () async {
+      final source = _ControlledSource(10);
+      final errors = <Object>[];
+      final session = _session(source, errors: errors);
+      addTearDown(session.close);
+      await _initialize(session, source);
+      final stream = session.read(const CdnByteRange(start: 2, end: 5));
+      expect(source.requests, hasLength(1));
+      _expectReleased(session, source);
+
+      await session.close().timeout(const Duration(seconds: 5));
+      await expectLater(stream.toList(), throwsA(isA<CdnRangeCancelled>()))
+          .timeout(const Duration(seconds: 5));
+
+      expect(source.requests, hasLength(1));
+      expect(source.closeCount, 1);
+      expect(errors, isEmpty);
+      _expectReleased(session, source);
+    });
+
     for (final closeSession in [false, true]) {
       test(
           'Given two independent readers, when one is ${closeSession ? 'closed' : 'unsubscribed'}, then the other retains its three buffers and completes',
