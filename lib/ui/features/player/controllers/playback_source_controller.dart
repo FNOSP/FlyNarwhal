@@ -19,12 +19,10 @@ class PlaybackSourceLease {
 
   PlaybackSourceLease._({
     required this.playUri,
-    required Map<String, String> playerHeaders,
+    required this.playerHeaders,
     required _SourceLifetime lifetime,
-  })  : playerHeaders = Map.unmodifiable(playerHeaders),
-        _lifetime = lifetime;
+  }) : _lifetime = lifetime;
 
-  int get generation => _lifetime.generation;
   bool get isCurrent => _lifetime.isCurrent;
 
   /// Failed sources preserve their original error. Only replacement, exit or an
@@ -39,9 +37,8 @@ class PlaybackSourceLease {
 }
 
 class _SourceLifetime {
-  _SourceLifetime(this.generation, this._ownsGeneration);
+  _SourceLifetime(this._ownsGeneration);
 
-  final int generation;
   final bool Function() _ownsGeneration;
   final _waiters = <Completer<void>>{};
   CdnProxy? proxy;
@@ -123,7 +120,6 @@ class PlaybackSourceController {
   _SourceLifetime? _current;
   int _generation = 0;
 
-  int get generation => _generation;
   PlaybackSourceLease? get active =>
       _current?.isCurrent == true ? _current?.lease : null;
 
@@ -159,8 +155,7 @@ class PlaybackSourceController {
     final previous = _current;
     final generation = ++_generation;
     previous?.cancel();
-    final lifetime =
-        _SourceLifetime(generation, () => generation == _generation);
+    final lifetime = _SourceLifetime(() => generation == _generation);
     _current = lifetime;
     _onInvalidate?.call();
     final closing = previous?.closeProxy();

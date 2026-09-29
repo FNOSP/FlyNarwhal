@@ -364,9 +364,7 @@ class CdnRangeSession {
         } catch (cause) {
           trace?.failed(cause);
           if (request.cancelled) request.check();
-          if (cause is CdnResourceChanged) {
-            failed = cause;
-          } else if (request.single) {
+          if (request.single || cause is CdnRangeFailure) {
             failed = cause;
           } else if (cause is CdnRequestFailure &&
               cause.kind == CdnRequestFailureKind.httpStatus) {
@@ -386,7 +384,6 @@ class CdnRangeSession {
               serializeDelay = true;
             }
           } else if (bodyPhase &&
-              cause is! CdnRangeFailure &&
               !(cause is CdnRequestFailure &&
                   cause.kind == CdnRequestFailureKind.protocol) &&
               chunk.accepted < chunk.range.length &&
@@ -492,8 +489,7 @@ class CdnRangeSession {
     if (response.totalLength != _length) {
       throw const CdnResourceChanged('CDN 资源大小已变化');
     }
-    if ((_entityTag != null &&
-            _entityTag!.headerValue != response.entityTag?.headerValue) ||
+    if ((_entityTag != null && _entityTag != response.entityTag) ||
         (_lastModified != null &&
             _lastModified != response.lastModified?.toUtc())) {
       throw const CdnResourceChanged('CDN 资源标识已变化或缺失');
