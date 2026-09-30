@@ -115,6 +115,10 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
 
   @override
   void dispose() {
+    // Drop this item's cached detail responses so re-entering the page always
+    // refetches instead of replaying the data source's 5-minute cache while the
+    // provider is still alive across route changes.
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(widget.guid);
     _moreController.dispose();
     super.dispose();
   }

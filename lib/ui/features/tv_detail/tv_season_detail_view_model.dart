@@ -173,6 +173,7 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
   }
 
   Future<void> refresh() async {
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(guid);
     ref.invalidateSelf();
     await future;
   }

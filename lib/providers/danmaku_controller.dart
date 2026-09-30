@@ -284,11 +284,9 @@ class DanmakuController extends StateNotifier<DanmakuState> {
     Map<String, List<Danmaku>> danmakuByEpisode,
     int episodeNumber,
   ) {
-    return danmakuByEpisode[episodeNumber.toString()] ??
-        danmakuByEpisode['default'] ??
-        (danmakuByEpisode.values.isNotEmpty
-            ? danmakuByEpisode.values.first
-            : const <Danmaku>[]);
+    // Only the current episode's key is accepted. Falling back to an arbitrary
+    // entry would silently show one episode's danmaku for all of them.
+    return danmakuByEpisode[episodeNumber.toString()] ?? const <Danmaku>[];
   }
 
   List<Danmaku> _normalizeAndSort(List<Danmaku> danmakuList) {
