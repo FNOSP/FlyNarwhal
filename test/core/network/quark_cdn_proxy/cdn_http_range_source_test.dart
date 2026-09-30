@@ -1,533 +1,406 @@
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_errors.dart';
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
-import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_request_headers.dart';
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fly_narwhal/core/network/api_result.dart';
+import 'package:fly_narwhal/core/network/interceptors/index.dart';
+import 'package:fly_narwhal/core/network/interceptors/ssl_trust_interceptor.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_http_range_source.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_proxy_errors.dart';
+import 'package:fly_narwhal/core/network/quark_cdn_proxy/cdn_range_source.dart';
 
-const _deadline = Duration(seconds: 3);
+import '../../../../tool/support/cdn_proxy_http_fixture.dart';
 
 void main() {
-  final uri = Uri.parse('https://provider.example/video?signature=private');
-  late _FakeAdapter adapter;
+  late CdnHttpFixture origin;
   late CdnHttpRangeSource source;
+  Future<bool> Function(HttpRequest, CdnFixtureRequest)? handle;
+  final gates = <Completer<void>>[];
 
-  setUp(() {
-    adapter = _FakeAdapter();
-    source = CdnHttpRangeSource(adapter: adapter);
-  });
-  tearDown(() => source.close());
+  Completer<void> gate() {
+    final value = Completer<void>();
+    gates.add(value);
+    return value;
+  }
 
-  test('Given provider metadata, when flattened, then HTTP values are valid',
-      () {
-    expect(
-        normalizeCdnRequestHeaders({
-          'Cookie': ['sid=provider', 'uid=42'],
-          'User-Agent': ['provider-agent'],
-          'Referer': 'https://provider.example/',
-          'Accept': ['video/mp4', 'application/octet-stream'],
-          'X-Provider': ['one', 'two'],
-          'x-provider': 'three',
-          'Empty': <String>[],
-          'Missing': null,
-          'Authorization': 'nas-token',
-          'AUTHX': 'nas-signature',
-          'Signx': 'nas-signature',
-          'X-WP-Header': 'nas-routing',
-          'X-Trim-Client': 'web',
-          'X-Nas-Token': 'nas-token',
-          'X-Fn-Token': 'nas-token',
-        }),
-        {
-          'cookie': 'sid=provider; uid=42',
-          'user-agent': 'provider-agent',
-          'referer': 'https://provider.example/',
-          'accept': 'video/mp4, application/octet-stream',
-          'x-provider': 'one, two, three',
-        });
-  });
-
-  test('Given mixed headers, when opened, then only bounded CDN headers leave',
-      () async {
-    final response = (await source.open(
-      uri: uri,
-      headers: {
-        'Host': 'nas.example',
-        'CONTENT-LENGTH': '999',
-        'Connection': 'keep-alive',
-        'Range': 'bytes=0-',
-        'If-Range': '"stale"',
-        'If-Match': '"stale"',
-        'If-None-Match': '*',
-        'If-Modified-Since': 'stale',
-        'If-Unmodified-Since': 'stale',
-        'Accept-Encoding': 'gzip',
-        'Authx': 'nas-signature',
-        'X-WP-Header': 'nas-routing',
-        'X-Trim-Client-Version': '616',
-        'Cookie': 'sid=provider',
-        'User-Agent': 'provider-agent',
-        'Referer': 'https://provider.example/',
-      },
-      start: 17,
-      end: 29,
-      cancelToken: CancelToken(),
-    ))
-        .getOrThrow();
-    await response.stream.drain<void>();
-
-    final request = adapter.requests.single;
-    final headers = request.headers.map(
-      (key, value) => MapEntry(key.toLowerCase(), value),
+  setUp(() async {
+    handle = null;
+    origin = await CdnHttpFixture.start(
+      length: 256,
+      handle: (request, entry) async =>
+          await handle?.call(request, entry) ?? false,
     );
-    expect(request.uri, uri);
-    expect(request.responseType, ResponseType.stream);
-    expect(headers['range'], 'bytes=17-29');
-    expect(headers['accept-encoding'], 'identity');
-    expect(headers['cookie'], 'sid=provider');
-    expect(headers['user-agent'], 'provider-agent');
-    expect(headers['referer'], 'https://provider.example/');
-    for (final forbidden in [
-      'if-range',
-      'if-match',
-      'if-none-match',
-      'if-modified-since',
-      'if-unmodified-since',
-      'host',
-      'content-length',
-      'connection',
-      'authorization',
-      'authx',
-      'x-wp-header',
-      'x-trim-client',
-      'x-trim-client-version',
-    ]) {
-      expect(headers, isNot(contains(forbidden)), reason: forbidden);
+    source = CdnHttpRangeSource();
+  });
+
+  tearDown(() async {
+    for (final value in gates) {
+      if (!value.isCompleted) value.complete();
     }
+    gates.clear();
+    source.close();
+    source.close();
+    await origin.close();
+  });
+
+  Future<ApiResult<CdnRangeResponse>> open({CancelToken? token}) => source.open(
+        uri: origin.uri,
+        headers: const {},
+        start: 2,
+        end: 65,
+        cancelToken: token ?? CancelToken(),
+      );
+
+  test(
+      'Given CDN credentials, then real HTTP isolates headers and preserves bytes',
+      () async {
+    handle = (request, _) async {
+      request.response.headers
+          .set(HttpHeaders.lastModifiedHeader, 'Wed, 01 Jan 2025 00:00:00 GMT');
+      return false;
+    };
+    final result = await source.open(
+      uri: origin.uri,
+      headers: const {
+        'Cookie': 'sid=cdn-cookie',
+        'Referer': 'https://provider.example/',
+        'User-Agent': 'CDN test',
+        'Authorization': 'Bearer nas-secret',
+        'authx': 'nas-secret',
+        'signx': 'nas-secret',
+        'X-Nas-Token': 'nas-secret',
+        'Range': 'bytes=99-100',
+        'If-Range': '"stale"',
+        'Accept-Encoding': 'gzip',
+        'Host': 'wrong.example',
+      },
+      start: 2,
+      end: 65,
+      ifRangeEtag: '"fixture-256"',
+      cancelToken: CancelToken(),
+    );
+    final response = result.getOrThrow();
+    expect(await response.stream.expand((bytes) => bytes).toList(),
+        List.generate(64, (i) => fixtureByteAt(2 + i)));
+    expect(response.totalLength, 256);
+    expect(response.contentType, 'application/octet-stream');
+    expect(response.entityTag?.strongValue, '"fixture-256"');
+    expect(response.lastModified, DateTime.utc(2025));
+    final headers = origin.requests.single.requestHeaders;
+    expect(headers['cookie'], 'sid=cdn-cookie');
+    expect(headers['referer'], 'https://provider.example/');
+    expect(headers['user-agent'], 'CDN test');
+    expect(headers['range'], 'bytes=2-65');
+    expect(headers['if-range'], '"fixture-256"');
+    expect(headers['accept-encoding'], 'identity');
+    expect(headers.toString(), isNot(contains('nas-secret')));
+    expect(headers['host'], isNot('wrong.example'));
+    expect(
+        source.dio.interceptors,
+        isNot(contains(anyOf(
+          isA<AuthInterceptor>(),
+          isA<RetryInterceptor>(),
+          isA<LoggingInterceptor>(),
+          isA<ErrorInterceptor>(),
+          isA<SslTrustInterceptor>(),
+        ))));
+    expect(source.requestTimeout, const Duration(hours: 48));
+    expect(source.dio.options.connectTimeout, isNull);
+    expect(source.dio.options.sendTimeout, isNull);
+    expect(source.dio.options.receiveTimeout, isNull);
+    expect(source.activeAttemptCount, 0);
   });
 
   test(
-      'Given an unfinished binary body, when opened, then bytes remain a stream',
+      'Given an unfinished body, then its prefix reaches the caller before EOF',
       () async {
-    final body = StreamController<Uint8List>();
-    adapter.respond = (_, __) async => ResponseBody(body.stream, 206, headers: {
-          'content-range': ['bytes 2-5/9'],
-          'content-type': ['application/json'],
-          'x-provider': ['one', 'two'],
-        });
+    final finish = gate();
+    handle = (request, entry) async {
+      await entry.write(request.response, 4);
+      await finish.future;
+      return false;
+    };
+    final response = (await open()).getOrThrow();
+    final first = Completer<void>();
+    final bytes = <int>[];
+    final reading = response.stream.listen((data) {
+      bytes.addAll(data);
+      if (!first.isCompleted) first.complete();
+    }).asFuture<void>();
+    await first.future.timeout(const Duration(seconds: 3));
+    expect(bytes, List.generate(4, (i) => fixtureByteAt(2 + i)));
+    expect(origin.requests.single.completedAt, isNull);
+    finish.complete();
+    await reading.timeout(const Duration(seconds: 3));
+    expect(bytes, List.generate(64, (i) => fixtureByteAt(2 + i)));
+    expect(source.activeAttemptCount, 0);
+  });
 
+  for (final invalid in [
+    'ignored range',
+    'missing range',
+    'wrong range',
+    'wrong length',
+    'compressed',
+    'invalid etag',
+    'invalid modification date',
+  ]) {
+    test('Given $invalid from HTTP, then rejects the response before media use',
+        () async {
+      handle = (request, _) async {
+        final response = request.response;
+        switch (invalid) {
+          case 'ignored range':
+            response.statusCode = HttpStatus.ok;
+          case 'missing range':
+            response.headers.removeAll(HttpHeaders.contentRangeHeader);
+          case 'wrong range':
+            response.headers
+                .set(HttpHeaders.contentRangeHeader, 'bytes 3-66/256');
+          case 'wrong length':
+            response.contentLength = 65;
+          case 'compressed':
+            response.headers.set(HttpHeaders.contentEncodingHeader, 'gzip');
+          case 'invalid etag':
+            response.headers.set(HttpHeaders.etagHeader, 'unquoted');
+          case 'invalid modification date':
+            response.headers.set(HttpHeaders.lastModifiedHeader, 'invalid');
+        }
+        return false;
+      };
+      final failure = (await open()).failureOrNull as CdnRequestFailure;
+      expect(failure.kind, CdnRequestFailureKind.protocol);
+      expect(failure.phase, CdnRequestFailurePhase.headers);
+      expect(failure.isTimeout, isFalse);
+      expect(source.activeAttemptCount, 0);
+    });
+  }
+
+  for (final tag in <String?>['W/"version"', null]) {
+    test('Given identity $tag, then preserves weak or absent identity honestly',
+        () async {
+      handle = (request, _) async {
+        if (tag == null) {
+          request.response.headers.removeAll(HttpHeaders.etagHeader);
+        } else {
+          request.response.headers.set(HttpHeaders.etagHeader, tag);
+        }
+        return false;
+      };
+      final response = (await open()).getOrThrow();
+      await response.stream.drain<void>();
+      expect(response.entityTag?.headerValue, tag);
+      expect(response.entityTag?.strongValue, isNull);
+    });
+  }
+
+  test('Given an empty origin, then its 416 probe becomes an empty resource',
+      () async {
+    await origin.close();
+    origin = await CdnHttpFixture.start(length: 0);
     final response = (await source.open(
-      uri: uri,
-      headers: {},
-      start: 2,
-      end: 5,
+      uri: origin.uri,
+      headers: const {},
+      start: 0,
+      end: 0,
       cancelToken: CancelToken(),
     ))
-        .getOrThrow();
-    expect(response.totalLength, 9);
-    expect(response.contentType, 'application/json');
-    final chunks = response.stream.toList();
-    body.add(Uint8List.fromList([0xff, 0, 0x7b, 0xfe]));
-    await body.close();
-    expect(await chunks, [
-      Uint8List.fromList([0xff, 0, 0x7b, 0xfe])
-    ]);
-  });
-
-  test(
-      'Given an empty resource probe, when HTTP 416 confirms zero bytes, then the body is cancelled before returning an empty stream',
-      () async {
-    final stopped = Completer<void>();
-    final body = StreamController<Uint8List>(onCancel: stopped.complete);
-    addTearDown(() => body.close());
-    adapter.respond = (_, __) async => ResponseBody(body.stream, 416, headers: {
-          'content-range': ['bytes */0'],
-        });
-    final token = CancelToken();
-    final response = (await source
-            .open(
-              uri: uri,
-              headers: {},
-              start: 0,
-              end: 0,
-              cancelToken: token,
-            )
-            .timeout(_deadline))
         .getOrThrow();
     expect(response.totalLength, 0);
-    expect(token.isCancelled, isFalse,
-        reason:
-            'The transport owns a linked token; it does not cancel its caller.');
-    await stopped.future.timeout(_deadline);
-    expect(await response.stream.toList().timeout(_deadline), isEmpty);
+    expect(await response.stream.toList(), isEmpty);
+    expect(source.activeAttemptCount, 0);
   });
 
-  final invalidResponses = <({
-    String reason,
-    int status,
-    Map<String, List<String>> headers,
-  })>[
-    (reason: 'ignored Range', status: 200, headers: _rangeHeaders()),
-    (reason: 'forbidden status', status: 403, headers: _rangeHeaders()),
-    (
-      reason: 'nonempty unsatisfied range',
-      status: 416,
-      headers: {
-        'content-range': ['bytes */100']
-      },
-    ),
-    (
-      reason: 'empty response outside the initial probe',
-      status: 416,
-      headers: {
-        'content-range': ['bytes */0']
-      },
-    ),
-    (reason: 'missing Content-Range', status: 206, headers: {}),
-    (
-      reason: 'malformed Content-Range',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'not a range'),
-    ),
-    (
-      reason: 'wrong starting byte',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'bytes 1-5/9'),
-    ),
-    (
-      reason: 'wrong ending byte',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'bytes 2-6/9'),
-    ),
-    (
-      reason: 'reversed range',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'bytes 5-2/9'),
-    ),
-    (
-      reason: 'negative range',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'bytes -2-5/9'),
-    ),
-    (
-      reason: 'unknown total size',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'bytes 2-5/*'),
-    ),
-    (
-      reason: 'non-byte range unit',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'items 2-5/9'),
-    ),
-    (
-      reason: 'total size excluding the last byte',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'bytes 2-5/5'),
-    ),
-    (
-      reason: 'overflowing range start',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'bytes 9223372036854775808-5/9'),
-    ),
-    (
-      reason: 'overflowing range end',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'bytes 2-9223372036854775808/9'),
-    ),
-    (
-      reason: 'overflowing total size',
-      status: 206,
-      headers: _rangeHeaders(contentRange: 'bytes 2-5/9223372036854775808'),
-    ),
-    (
-      reason: 'mismatched Content-Length',
-      status: 206,
-      headers: _rangeHeaders(contentLength: '5'),
-    ),
-    (
-      reason: 'malformed Content-Length',
-      status: 206,
-      headers: _rangeHeaders(contentLength: 'unknown'),
-    ),
-    (
-      reason: 'negative Content-Length',
-      status: 206,
-      headers: _rangeHeaders(contentLength: '-4'),
-    ),
-    (
-      reason: 'overflowing Content-Length',
-      status: 206,
-      headers: _rangeHeaders(contentLength: '9223372036854775808'),
-    ),
-    (
-      reason: 'compressed body',
-      status: 206,
-      headers: {
-        ..._rangeHeaders(),
-        'content-encoding': ['gzip'],
-      },
-    ),
-  ];
-
-  for (final scenario in invalidResponses) {
+  for (final status in [403, 416, 503]) {
     test(
-        'Given ${scenario.reason}, when validating headers, then failure cancels the unfinished body without reading it',
+        'Given HTTP $status, then preserves the status without transport retry',
         () async {
-      final stopped = Completer<void>();
-      final body = StreamController<Uint8List>(onCancel: stopped.complete);
-      addTearDown(() => body.close());
-      adapter.respond = (_, __) async => ResponseBody(
-            body.stream,
-            scenario.status,
-            headers: scenario.headers,
-          );
-      final token = CancelToken();
-
-      // A stalled body must not keep invalid headers or a slot alive.
-      final response = await source
-          .open(
-            uri: uri,
-            headers: {},
-            start: 2,
-            end: 5,
-            cancelToken: token,
-          )
-          .timeout(_deadline);
-
-      expect(response.isFailure, isTrue);
-      expect(response.failureOrNull?.displayMessage,
-          matches(RegExp(r'[\u4e00-\u9fff]')));
-      expect(token.isCancelled, isFalse,
-          reason:
-              'The transport owns a linked token; it does not cancel its caller.');
-      await stopped.future.timeout(_deadline);
-      expect(adapter.requests, hasLength(1));
+      handle = (request, _) async {
+        request.response
+          ..statusCode = status
+          ..contentLength = -1
+          ..write('error with secret-sign and secret-cookie');
+        await request.response.close();
+        return true;
+      };
+      final failure = (await open()).failureOrNull as CdnRequestFailure;
+      expect(failure.kind, CdnRequestFailureKind.httpStatus);
+      expect(failure.phase, CdnRequestFailurePhase.headers);
+      expect(failure.statusCode, status);
+      expect(failure.isTimeout, isFalse);
+      expect(failure.message, contains('HTTP $status'));
+      expect('${failure.message} ${failure.displayMessage}',
+          isNot(contains('secret-')));
+      expect(origin.requests, hasLength(1));
+      expect(source.activeAttemptCount, 0);
     });
   }
 
   test(
-      'Given mixed-case response headers, when validating an identity range, then typed metadata and bytes are preserved',
+      'Given no response headers, then the total request deadline cancels HTTP',
       () async {
-    adapter.respond = (_, __) async => ResponseBody.fromBytes([2, 3, 4, 5], 206,
-        headers: {
-          'CoNtEnT-RaNgE': ['bytes 2-5/9'],
-          'Content-Length': ['4'],
-          'Content-Type': ['video/mp4'],
-          'CONTENT-ENCODING': ['identity'],
-        });
-    final token = CancelToken();
-    final response = (await source.open(
-      uri: uri,
-      headers: {},
-      start: 2,
-      end: 5,
-      cancelToken: token,
-    ))
-        .getOrThrow();
-
-    expect(response.totalLength, 9);
-    expect(response.contentType, 'video/mp4');
-    expect(
-        await response.stream.expand((chunk) => chunk).toList(), [2, 3, 4, 5]);
-    expect(token.isCancelled, isFalse);
+    handle = (_, __) async => true;
+    source.close();
+    source =
+        CdnHttpRangeSource(requestTimeout: const Duration(milliseconds: 200));
+    final failure = (await open().timeout(const Duration(seconds: 3)))
+        .failureOrNull as CdnRequestFailure;
+    expect(failure.isTimeout, isTrue);
+    expect(failure.phase, CdnRequestFailurePhase.request);
+    expect(source.activeAttemptCount, 0);
   });
 
-  for (final contentType in [null, 'application/vnd.apple.mpegurl']) {
-    test(
-        'Given a valid range without Content-Length and MIME $contentType, when opened, then no media-type restriction is added',
-        () async {
-      adapter.respond =
-          (_, __) async => ResponseBody.fromBytes([2, 3, 4, 5], 206,
-              headers: {
-                'content-range': ['bytes 2-5/9'],
-                if (contentType != null) 'content-type': [contentType],
-              });
-      final response = (await source.open(
-        uri: uri,
-        headers: {},
-        start: 2,
-        end: 5,
-        cancelToken: CancelToken(),
-      ))
-          .getOrThrow();
-
-      expect(response.totalLength, 9);
-      expect(response.contentType, contentType);
-      expect(await response.stream.expand((chunk) => chunk).toList(),
-          [2, 3, 4, 5]);
-    });
-  }
-
-  test('Given an invalid range or URL, when opened, then no request is sent',
+  test('Given a progressing body, then data does not reset the total deadline',
       () async {
-    for (final (start, end) in [
-      (-1, 3),
-      (3, 2),
-      (0, 10 * 1024 * 1024),
-      (0, 0x7fffffffffffffff),
-    ]) {
-      final response = await source.open(
-        uri: uri,
-        headers: {},
-        start: start,
-        end: end,
-        cancelToken: CancelToken(),
-      );
-      expect(response.isFailure, isTrue);
+    handle = (request, entry) async {
+      for (var i = 0; i < entry.length; i++) {
+        await entry.write(request.response, 1);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      await request.response.close();
+      return true;
+    };
+    source.close();
+    source =
+        CdnHttpRangeSource(requestTimeout: const Duration(milliseconds: 200));
+    final response = (await open()).getOrThrow();
+    var received = 0;
+    CdnRequestFailure? failure;
+    try {
+      await for (final bytes in response.stream) {
+        received += bytes.length;
+      }
+    } on CdnRequestFailure catch (error) {
+      failure = error;
     }
-    final response = await source.open(
-      uri: Uri.parse('file:///video.mp4'),
-      headers: {},
-      start: 0,
-      end: 0,
-      cancelToken: CancelToken(),
-    );
-    expect(response.isFailure, isTrue);
-    expect(adapter.requests, isEmpty);
+    expect(received, inExclusiveRange(0, 64));
+    expect(failure?.isTimeout, isTrue);
+    expect(failure?.phase, CdnRequestFailurePhase.body);
+    expect(source.activeAttemptCount, 0);
   });
 
-  test('Given cancellation before headers, when cancelled, then fetching stops',
+  test('Given pending headers, then cancellation is reported as cancellation',
       () async {
-    final entered = Completer<void>();
-    final cancelled = Completer<void>();
-    adapter.respond = (_, cancelFuture) {
+    final entered = gate();
+    handle = (_, __) async {
       entered.complete();
-      cancelFuture!.then((_) => cancelled.complete());
-      return Completer<ResponseBody>().future;
+      return true;
     };
     final token = CancelToken();
-    final response = source.open(
-      uri: uri,
-      headers: {},
-      start: 0,
-      end: 0,
-      cancelToken: token,
-    );
-    await entered.future;
-    token.cancel('seek');
-    expect((await response).failureOrNull?.message, 'Request was cancelled');
-    await cancelled.future;
-    expect(adapter.requests, hasLength(1));
+    final pending = open(token: token);
+    await entered.future.timeout(const Duration(seconds: 3));
+    token.cancel();
+    final failure = (await pending.timeout(const Duration(seconds: 3)))
+        .failureOrNull as CdnRequestFailure;
+    expect(failure.kind, CdnRequestFailureKind.cancelled);
+    expect(failure.isTimeout, isFalse);
+    expect(source.activeAttemptCount, 0);
   });
 
-  test(
-      'Given cancellation during a body, when cancelled, then the stream stops',
+  test('Given simultaneous bodies, then cancelling one leaves the other usable',
       () async {
-    final stopped = Completer<void>();
-    final body = StreamController<Uint8List>(onCancel: stopped.complete);
-    adapter.respond = (_, __) async => ResponseBody(body.stream, 206, headers: {
-          'content-range': ['bytes 0-9/10'],
-        });
+    final finish = gate();
+    final secondFinish = gate();
+    handle = (request, entry) async {
+      await entry.write(request.response, 4);
+      await (entry.start == 2 ? finish : secondFinish).future;
+      return false;
+    };
     final token = CancelToken();
-    final response = (await source.open(
-      uri: uri,
-      headers: {},
-      start: 0,
-      end: 9,
-      cancelToken: token,
+    final response = (await open(token: token)).getOrThrow();
+    final first = Completer<void>();
+    final failure = Completer<CdnRequestFailure>();
+    final done = Completer<void>();
+    response.stream.listen((_) {
+      if (!first.isCompleted) first.complete();
+    }, onError: (Object error) {
+      failure.complete(error as CdnRequestFailure);
+    }, onDone: done.complete);
+    await first.future.timeout(const Duration(seconds: 3));
+    final second = (await source.open(
+      uri: origin.uri,
+      headers: const {},
+      start: 128,
+      end: 191,
+      cancelToken: CancelToken(),
     ))
         .getOrThrow();
-    final expectation = expectLater(
-      response.stream,
-      emitsInOrder([
-        emitsError(isA<CdnRequestFailure>().having(
-          (error) => error.kind,
-          'kind',
-          CdnRequestFailureKind.cancelled,
-        )),
-        emitsDone,
-      ]),
-    );
-    token.cancel('seek');
-    await expectation;
-    await stopped.future;
-    await body.close();
+    final secondStarted = Completer<void>();
+    final secondBytes = <int>[];
+    final secondDone = second.stream.listen((bytes) {
+      secondBytes.addAll(bytes);
+      if (!secondStarted.isCompleted) secondStarted.complete();
+    }).asFuture<void>();
+    await secondStarted.future.timeout(const Duration(seconds: 3));
+    expect(source.activeAttemptCount, 2);
+    token.cancel();
+    expect((await failure.future).kind, CdnRequestFailureKind.cancelled);
+    await done.future.timeout(const Duration(seconds: 3));
+    expect(source.activeAttemptCount, 1);
+    expect(secondBytes, List.generate(4, (i) => fixtureByteAt(128 + i)));
+    secondFinish.complete();
+    await secondDone.timeout(const Duration(seconds: 3));
+    expect(secondBytes, List.generate(64, (i) => fixtureByteAt(128 + i)));
+    expect(source.activeAttemptCount, 0);
   });
-
-  test(
-      'Given an unconsumed response, when cancelled, then its source is released',
-      () async {
-    final stopped = Completer<void>();
-    final body = StreamController<Uint8List>(onCancel: stopped.complete);
-    adapter.respond = (_, __) async => ResponseBody(body.stream, 206, headers: {
-          'content-range': ['bytes 0-9/10'],
-        });
-    final token = CancelToken();
-    final response = await source.open(
-      uri: uri,
-      headers: {},
-      start: 0,
-      end: 9,
-      cancelToken: token,
-    );
-    expect(response.isSuccess, isTrue);
-
-    // Seeking can abandon a valid response before the scheduler listens to it.
-    token.cancel('Seek abandoned this response');
-    await stopped.future;
-    await body.close();
-    expect(adapter.requests, hasLength(1));
-  });
-
-  test('Given a transport error, when opened, then signed details stay private',
-      () async {
-    adapter.respond = (options, _) async => throw DioException(
+  for (final scenario in [
+    (
+      name: 'connection timeout',
+      timeout: true,
+      error: (RequestOptions options) => DioException.connectionTimeout(
           requestOptions: options,
-          type: DioExceptionType.connectionError,
-          message: 'Failed to open $uri with private provider cookie',
-        );
-    final response = await source.open(
-      uri: uri,
-      headers: {},
-      start: 0,
-      end: 0,
-      cancelToken: CancelToken(),
-    );
-    expect(response.failureOrNull?.message, 'CDN network request failed');
-    expect(adapter.requests, hasLength(1));
-  });
-
-  test('Given an owned client, when closed, then adapter closes active sockets',
-      () {
-    source.close();
-    expect(adapter.closedForcefully, isTrue);
-  });
+          timeout: Duration.zero,
+          error: const SocketException('Connection timed out secret-sign')),
+    ),
+    (
+      name: 'connection error',
+      timeout: false,
+      error: (RequestOptions options) => DioException.connectionError(
+          requestOptions: options,
+          reason: 'Connection refused secret-cookie',
+          error: const SocketException('Connection refused secret-cookie')),
+    ),
+    (
+      name: 'TLS handshake',
+      timeout: false,
+      error: (RequestOptions _) =>
+          const HandshakeException('TLS failed secret-sign secret-cookie'),
+    ),
+  ]) {
+    test(
+        'Given ${scenario.name}, then preserves classification without secrets',
+        () async {
+      final adapter = _ErrorAdapter(scenario.error);
+      source.close();
+      source = CdnHttpRangeSource(adapter: adapter);
+      final failure = (await open()).failureOrNull as CdnRequestFailure;
+      expect(failure.kind, CdnRequestFailureKind.transport);
+      expect(failure.phase, CdnRequestFailurePhase.request);
+      expect(failure.isTimeout, scenario.timeout);
+      expect(failure.message, 'CDN network request failed');
+      expect('${failure.message} ${failure.displayMessage}',
+          isNot(contains('secret-')));
+      expect(adapter.requests, 1);
+      expect(source.activeAttemptCount, 0);
+    });
+  }
 }
 
-class _FakeAdapter implements HttpClientAdapter {
-  final requests = <RequestOptions>[];
-  bool closedForcefully = false;
-  Future<ResponseBody> Function(RequestOptions, Future<void>?) respond =
-      (options, _) async {
-    final range = RegExp(r'^bytes=(\d+)-(\d+)$')
-        .firstMatch(options.headers['range'] as String)!;
-    final start = int.parse(range[1]!);
-    final end = int.parse(range[2]!);
-    return ResponseBody.fromBytes(List.filled(end - start + 1, 0), 206,
-        headers: {
-          'content-range': ['bytes $start-$end/${end + 1}'],
-          'content-length': ['${end - start + 1}'],
-        });
-  };
+/// Native IO errors are injected at the adapter boundary; no response scripting.
+class _ErrorAdapter implements HttpClientAdapter {
+  _ErrorAdapter(this.error);
+  final Object Function(RequestOptions) error;
+  int requests = 0;
 
   @override
   Future<ResponseBody> fetch(RequestOptions options,
-      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) {
-    requests.add(options);
-    return respond(options, cancelFuture);
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    requests++;
+    throw error(options);
   }
 
   @override
-  void close({bool force = false}) => closedForcefully = force;
+  void close({bool force = false}) {}
 }
-
-Map<String, List<String>> _rangeHeaders({
-  String contentRange = 'bytes 2-5/9',
-  String contentLength = '4',
-}) =>
-    {
-      'content-range': [contentRange],
-      'content-length': [contentLength],
-    };

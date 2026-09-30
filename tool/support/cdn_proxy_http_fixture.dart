@@ -1,117 +1,136 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 const fixtureMiB = 1024 * 1024;
-
-/// Deterministic valid payload bytes, independent of request boundaries.
 int fixtureByteAt(int offset) => (offset + offset ~/ 4096) % 251;
 
-class FixtureRangeRequest {
-  FixtureRangeRequest(this.start, this.end, this.openedAt);
+/// One origin request, including the metadata probe. No URLs or secrets are logged.
+class CdnFixtureRequest {
+  CdnFixtureRequest._(
+      this.start, this.end, this.requestHeaders, this._clock, this._sockets)
+      : openedAt = _clock.elapsed;
 
   final int start;
   final int end;
+  final Map<String, String> requestHeaders;
+  final Stopwatch _clock;
+  final Set<Socket> _sockets;
   final Duration openedAt;
-  int sentBytes = 0;
-  Duration? headersAt;
-  Duration? firstDataAt;
-  Duration? lastDataAt;
-  Duration? completedAt;
-  Duration? disconnectedAt;
-
   int get length => end - start + 1;
+  int sentBytes = 0;
+  int statusCode = HttpStatus.partialContent;
+  String? errorType;
+  Duration? firstBodyAt;
+  Duration? completedAt;
+
+  Uint8List _bytes(int count) => Uint8List.fromList(
+      List.generate(count, (i) => fixtureByteAt(start + sentBytes + i)));
+
+  /// A handler may write a prefix, await its own gate, then resume default output.
+  Future<void> write(HttpResponse response, int count) async {
+    if (count == 0) return;
+    response.add(_bytes(count));
+    sentBytes += count;
+    firstBodyAt ??= _clock.elapsed;
+    await response.flush();
+  }
+
+  /// Send an incomplete but correct body. Call before writing this response.
+  Future<void> disconnect(HttpResponse response, int prefixBytes) async {
+    final socket = await response.detachSocket(writeHeaders: true);
+    _sockets.add(socket);
+    try {
+      final count = math.min(prefixBytes, length);
+      socket.add(_bytes(count));
+      sentBytes += count;
+      firstBodyAt ??= _clock.elapsed;
+      await socket.flush();
+      await socket.close();
+    } finally {
+      _sockets.remove(socket);
+      socket.destroy();
+    }
+  }
 
   Map<String, Object?> toJson() => {
         'start': start,
         'end': end,
-        'openedMs': openedAt.inMilliseconds,
-        'headersMs': headersAt?.inMilliseconds,
-        'firstDataMs': firstDataAt?.inMilliseconds,
-        'lastDataMs': lastDataAt?.inMilliseconds,
-        'completedMs': completedAt?.inMilliseconds,
-        'disconnectedMs': disconnectedAt?.inMilliseconds,
+        'status': statusCode,
         'sentBytes': sentBytes,
+        'openedMs': openedAt.inMilliseconds,
+        'firstBodyMs': firstBodyAt?.inMilliseconds,
+        'completedMs': completedAt?.inMilliseconds,
+        if (errorType != null) 'errorType': errorType,
       };
 }
 
-/// Real loopback origin shared by the Dart CLI and slow-link regressions.
+/// Real HTTP origin shared by transport tests, proxy tests, and the Dart CLI.
 ///
-/// [sharedBytesPerSecond] limits the aggregate rate of active responses.
-/// Faults always send a valid prefix: streaming consumers may already have
-/// received it, so a retry must retain it and request only the missing suffix.
-class CdnProxyHttpFixture {
-  CdnProxyHttpFixture._(
-    this._server, {
-    required this.totalBytes,
-    required this.sharedBytesPerSecond,
-    required this.stallFirstBody,
-    required this.disconnectFirstBody,
-    required this.faultPrefixBytes,
-  }) {
+/// [handle] runs after default range headers are prepared. Return true after
+/// handling the response, or false to continue normal output. Tests own any
+/// gates they introduce. Bandwidth is shared by all active body responses.
+class CdnHttpFixture {
+  CdnHttpFixture._(this._server, this.length, this.bytesPerSecond,
+      this.disconnectAfter, this.stallAfter, this.handle) {
     _server.listen((request) => unawaited(_serve(request)));
-    if (sharedBytesPerSecond != null) {
+    if (bytesPerSecond != null) {
       _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) {
-        if (_closed || _tickInProgress) return;
-        _tickInProgress = true;
-        _pendingTick = _sendTick().whenComplete(() => _tickInProgress = false);
+        final jobs = _jobs.toList();
+        final allowance =
+            math.max(1, bytesPerSecond! ~/ 10 ~/ math.max(1, jobs.length));
+        for (final job in jobs) {
+          if (job.writing) continue;
+          job.writing = true;
+          unawaited(
+              _advance(job, allowance).whenComplete(() => job.writing = false));
+        }
       });
     }
   }
 
-  static Future<CdnProxyHttpFixture> start({
-    required int totalBytes,
-    int? sharedBytesPerSecond,
-    bool stallFirstBody = false,
-    bool disconnectFirstBody = false,
-    int faultPrefixBytes = 64 * 1024,
+  static Future<CdnHttpFixture> start({
+    required int length,
+    int? bytesPerSecond,
+    int? disconnectAfter,
+    int? stallAfter,
+    Future<bool> Function(HttpRequest, CdnFixtureRequest)? handle,
   }) async {
-    if (totalBytes <= 1 ||
-        faultPrefixBytes <= 0 ||
-        (sharedBytesPerSecond != null && sharedBytesPerSecond <= 0) ||
-        (stallFirstBody && disconnectFirstBody)) {
-      throw ArgumentError('Invalid fixture length, bandwidth or fault mode.');
+    if (length < 0 ||
+        (bytesPerSecond != null && bytesPerSecond <= 0) ||
+        (disconnectAfter != null && stallAfter != null)) {
+      throw ArgumentError('Invalid HTTP fixture configuration');
     }
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    return CdnProxyHttpFixture._(
-      server,
-      totalBytes: totalBytes,
-      sharedBytesPerSecond: sharedBytesPerSecond,
-      stallFirstBody: stallFirstBody,
-      disconnectFirstBody: disconnectFirstBody,
-      faultPrefixBytes: faultPrefixBytes,
-    );
+    return CdnHttpFixture._(
+        server, length, bytesPerSecond, disconnectAfter, stallAfter, handle);
   }
 
   final HttpServer _server;
-  final int totalBytes;
-  final int? sharedBytesPerSecond;
-  final bool stallFirstBody;
-  final bool disconnectFirstBody;
-  final int faultPrefixBytes;
+  final int length;
+  final int? bytesPerSecond;
+  final int? disconnectAfter;
+  final int? stallAfter;
+  final Future<bool> Function(HttpRequest, CdnFixtureRequest)? handle;
   final Stopwatch clock = Stopwatch()..start();
-  final List<FixtureRangeRequest> bodyRequests = [];
-  final Completer<void> firstBodyStarted = Completer<void>();
-  final List<String> errors = [];
-  final List<_SendJob> _jobs = [];
+  final List<CdnFixtureRequest> requests = [];
+  final List<_ResponseJob> _jobs = [];
+  final Set<Socket> _sockets = {};
   Timer? _ticker;
-  Future<void>? _pendingTick;
-  bool _tickInProgress = false;
   bool _closed = false;
-  int _activeBodyRequests = 0;
-  int peakActiveBodyRequests = 0;
+  bool _faultUsed = false;
+  int activeRequests = 0;
+  int peakActiveRequests = 0;
 
   Uri get uri => Uri(
-        scheme: 'http',
-        host: InternetAddress.loopbackIPv4.address,
-        port: _server.port,
-        path: '/fixture.bin',
-      );
+      scheme: 'http',
+      host: InternetAddress.loopbackIPv4.address,
+      port: _server.port,
+      path: '/fixture.bin');
 
   Future<void> _serve(HttpRequest request) async {
-    FixtureRangeRequest? record;
+    CdnFixtureRequest? entry;
     try {
       final match = RegExp(r'^bytes=(\d+)-(\d+)$')
           .firstMatch(request.headers.value(HttpHeaders.rangeHeader) ?? '');
@@ -122,142 +141,101 @@ class CdnProxyHttpFixture {
       }
       final start = int.parse(match[1]!);
       final end = int.parse(match[2]!);
-      final response = request.response;
-      if (start < 0 || end < start || end >= totalBytes) {
+      final headers = <String, String>{};
+      request.headers
+          .forEach((name, values) => headers[name] = values.join(', '));
+      final record = CdnFixtureRequest._(start, end, headers, clock, _sockets);
+      entry = record;
+      requests.add(record);
+      activeRequests++;
+      peakActiveRequests = math.max(peakActiveRequests, activeRequests);
+      unawaited(request.response.done.then<void>((_) {
+        activeRequests--;
+      }, onError: (Object error) {
+        activeRequests--;
+        record.errorType = error.runtimeType.toString();
+      }));
+      final response = request.response..bufferOutput = false;
+      if (end < start || end >= length) {
         response.statusCode = HttpStatus.requestedRangeNotSatisfiable;
+        response.headers.set(HttpHeaders.contentRangeHeader, 'bytes */$length');
+        record.statusCode = response.statusCode;
         await response.close();
+        record.completedAt = clock.elapsed;
         return;
       }
       response.statusCode = HttpStatus.partialContent;
-      response.contentLength = end - start + 1;
-      response.bufferOutput = false;
+      response.contentLength = record.length;
       response.headers
-        ..set(HttpHeaders.contentRangeHeader, 'bytes $start-$end/$totalBytes')
+        ..set(HttpHeaders.contentRangeHeader, 'bytes $start-$end/$length')
         ..set(HttpHeaders.contentTypeHeader, 'application/octet-stream')
-        ..set(HttpHeaders.etagHeader, '"fixture-v1-$totalBytes"');
-      // The proxy deliberately closes abandoned and failed requests.
-      unawaited(response.done.then<void>((_) {}, onError: (Object _) {}));
-      if (start == 0 && end == 0) {
-        response.add([fixtureByteAt(0)]);
-        await response.close();
+        ..set(HttpHeaders.etagHeader, '"fixture-$length"');
+      if (await handle?.call(request, record) == true) {
+        record.statusCode = response.statusCode;
         return;
       }
-      final bodyRecord = FixtureRangeRequest(start, end, clock.elapsed);
-      record = bodyRecord;
-      bodyRequests.add(bodyRecord);
-      _activeBodyRequests++;
-      peakActiveBodyRequests =
-          math.max(peakActiveBodyRequests, _activeBodyRequests);
-      unawaited(response.done.then<void>((_) {
-        _activeBodyRequests--;
-      }, onError: (Object _) {
-        _activeBodyRequests--;
-        bodyRecord.disconnectedAt ??= clock.elapsed;
-      }));
-      final isFirst = identical(bodyRequests.first, bodyRecord);
-      if (disconnectFirstBody && isFirst) {
-        // detachSocket must run before HttpResponse has sent any headers.
-        // Send a valid 206 then deliberately close below Content-Length.
-        final socket = await response.detachSocket(writeHeaders: false);
-        try {
-          socket.add(ascii.encode('HTTP/1.1 206 Partial Content\r\n'
-              'Content-Length: ${bodyRecord.length}\r\n'
-              'Content-Range: bytes $start-$end/$totalBytes\r\n'
-              'Content-Type: application/octet-stream\r\n'
-              'ETag: "fixture-v1-$totalBytes"\r\n'
-              'Connection: close\r\n\r\n'));
-          await socket.flush();
-          bodyRecord.headersAt = clock.elapsed;
-          final count = math.min(faultPrefixBytes, bodyRecord.length);
-          socket.add(Uint8List.fromList(
-              List.generate(count, (index) => fixtureByteAt(start + index))));
-          await socket.flush();
-          bodyRecord.sentBytes = count;
-          bodyRecord.firstDataAt = bodyRecord.lastDataAt = clock.elapsed;
-          if (!firstBodyStarted.isCompleted) firstBodyStarted.complete();
-          await socket.close();
-          bodyRecord.disconnectedAt = clock.elapsed;
-        } finally {
-          socket.destroy();
+      record.statusCode = response.statusCode;
+      if (_closed) return;
+      if (!_faultUsed &&
+          record.length > 1 &&
+          (disconnectAfter != null || stallAfter != null)) {
+        _faultUsed = true;
+        if (disconnectAfter != null) {
+          await record.disconnect(response, disconnectAfter!);
+        } else {
+          await record.write(response, math.min(stallAfter!, record.length));
         }
         return;
       }
       await response.flush();
-      bodyRecord.headersAt = clock.elapsed;
-      if (stallFirstBody && isFirst) {
-        await _send(response, bodyRecord,
-            math.min(faultPrefixBytes, bodyRecord.length));
-        // An injected request deadline or client cancellation ends a stall.
-        return;
-      }
-      if (sharedBytesPerSecond == null) {
-        while (bodyRecord.sentBytes < bodyRecord.length && !_closed) {
-          await _send(response, bodyRecord,
-              math.min(64 * 1024, bodyRecord.length - bodyRecord.sentBytes));
+      if (bytesPerSecond != null && record.length > 1) {
+        _jobs.add(_ResponseJob(response, record));
+      } else {
+        while (!_closed && record.sentBytes < record.length) {
+          await record.write(
+              response, math.min(64 * 1024, record.length - record.sentBytes));
         }
         await response.close();
-        bodyRecord.completedAt = clock.elapsed;
-        return;
+        record.completedAt = clock.elapsed;
       }
-      _jobs.add(_SendJob(response, bodyRecord));
     } catch (error) {
-      record?.disconnectedAt ??= clock.elapsed;
-      if (!_closed && error is! SocketException && error is! HttpException) {
-        errors.add(error.runtimeType.toString());
-      }
+      entry?.errorType = error.runtimeType.toString();
     }
   }
 
-  Future<void> _sendTick() async {
-    final jobs = _jobs.toList();
-    if (jobs.isEmpty) return;
-    final perRequest = math.max(1, sharedBytesPerSecond! ~/ 10 ~/ jobs.length);
-    await Future.wait(jobs.map((job) async {
-      try {
-        final record = job.record;
-        await _send(job.response, record,
-            math.min(perRequest, record.length - record.sentBytes));
-        if (record.sentBytes == record.length) {
-          await job.response.close();
-          record.completedAt = clock.elapsed;
-          _jobs.remove(job);
-        }
-      } catch (error) {
+  Future<void> _advance(_ResponseJob job, int allowance) async {
+    try {
+      if (_closed) return;
+      await job.entry.write(job.response,
+          math.min(allowance, job.entry.length - job.entry.sentBytes));
+      if (job.entry.sentBytes == job.entry.length) {
+        await job.response.close();
+        job.entry.completedAt = clock.elapsed;
         _jobs.remove(job);
-        job.record.disconnectedAt ??= clock.elapsed;
-        if (!_closed && error is! SocketException && error is! HttpException) {
-          errors.add(error.runtimeType.toString());
-        }
       }
-    }));
-  }
-
-  Future<void> _send(
-      HttpResponse response, FixtureRangeRequest record, int count) async {
-    final bytes = Uint8List(count);
-    for (var i = 0; i < count; i++) {
-      bytes[i] = fixtureByteAt(record.start + record.sentBytes + i);
+    } catch (error) {
+      job.entry.errorType = error.runtimeType.toString();
+      _jobs.remove(job);
     }
-    response.add(bytes);
-    await response.flush();
-    record.sentBytes += count;
-    record.firstDataAt ??= clock.elapsed;
-    record.lastDataAt = clock.elapsed;
-    if (!firstBodyStarted.isCompleted) firstBodyStarted.complete();
   }
 
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
     _ticker?.cancel();
+    _jobs.clear();
+    for (final socket in _sockets.toList()) {
+      socket.destroy();
+    }
+    _sockets.clear();
     await _server.close(force: true);
-    await _pendingTick;
     clock.stop();
   }
 }
 
-class _SendJob {
-  _SendJob(this.response, this.record);
+class _ResponseJob {
+  _ResponseJob(this.response, this.entry);
   final HttpResponse response;
-  final FixtureRangeRequest record;
+  final CdnFixtureRequest entry;
+  bool writing = false;
 }
