@@ -193,6 +193,11 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool forceSdrColor;
   final void Function(bool enabled)? onForceSdrColorChanged;
   final String? forceSdrDisabledReason;
+  /// Quark netdisk direct-play transport: on routes the raw CDN link through the
+  /// local range proxy (分片直连), off lets mpv open the NAS /media/range link.
+  final bool directLinkCdnRange;
+  final void Function(bool enabled)? onDirectLinkCdnRangeChanged;
+  final String? directLinkCdnRangeDisabledReason;
   // Current decode mode: 'auto' | 'no' | 'auto-copy' | '<api>'.
   final String decodeMode;
   final void Function(String) onDecodeModeChanged;
@@ -234,6 +239,9 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.forceSdrColor = false,
     this.onForceSdrColorChanged,
     this.forceSdrDisabledReason,
+    this.directLinkCdnRange = true,
+    this.onDirectLinkCdnRangeChanged,
+    this.directLinkCdnRangeDisabledReason,
     this.decodeMode = 'auto',
     required this.onDecodeModeChanged,
     this.availableHwdec = const [],
@@ -607,6 +615,14 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         forceSdrColor: widget.forceSdrColor,
         onForceSdrColorChanged: widget.onForceSdrColorChanged,
         forceSdrDisabledReason: widget.forceSdrDisabledReason,
+        directLinkCdnRange: widget.directLinkCdnRange,
+        onDirectLinkCdnRangeChanged: (value) {
+          _setPopupHovered(false);
+          widget.onDirectLinkCdnRangeChanged?.call(value);
+          _closeMenu();
+        },
+        directLinkCdnRangeDisabledReason:
+            widget.directLinkCdnRangeDisabledReason,
         decodeMode: widget.decodeMode,
         onDecodeModeChanged: (mode) {
           _setPopupHovered(false);
@@ -693,6 +709,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool forceSdrColor;
   final void Function(bool)? onForceSdrColorChanged;
   final String? forceSdrDisabledReason;
+  final bool directLinkCdnRange;
+  final void Function(bool)? onDirectLinkCdnRangeChanged;
+  final String? directLinkCdnRangeDisabledReason;
   final String decodeMode;
   final void Function(String) onDecodeModeChanged;
   final List<HwdecOption> availableHwdec;
@@ -730,6 +749,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.forceSdrColor,
     required this.onForceSdrColorChanged,
     required this.forceSdrDisabledReason,
+    required this.directLinkCdnRange,
+    required this.onDirectLinkCdnRangeChanged,
+    required this.directLinkCdnRangeDisabledReason,
     required this.decodeMode,
     required this.onDecodeModeChanged,
     required this.availableHwdec,
@@ -768,6 +790,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
           forceSdrColor: forceSdrColor,
           forceSdrDisabledReason: forceSdrDisabledReason,
           onForceSdrColorChanged: onForceSdrColorChanged,
+          directLinkCdnRange: directLinkCdnRange,
+          directLinkCdnRangeDisabledReason: directLinkCdnRangeDisabledReason,
+          onDirectLinkCdnRangeChanged: onDirectLinkCdnRangeChanged,
           onBack: () => onNavigate('Main'),
         );
       case 'Audio':
@@ -972,6 +997,9 @@ class _AdvancedSettingsScreen extends StatelessWidget {
   final bool forceSdrColor;
   final String? forceSdrDisabledReason;
   final void Function(bool)? onForceSdrColorChanged;
+  final bool directLinkCdnRange;
+  final String? directLinkCdnRangeDisabledReason;
+  final void Function(bool)? onDirectLinkCdnRangeChanged;
   final VoidCallback onBack;
 
   const _AdvancedSettingsScreen({
@@ -981,6 +1009,9 @@ class _AdvancedSettingsScreen extends StatelessWidget {
     required this.forceSdrColor,
     required this.forceSdrDisabledReason,
     required this.onForceSdrColorChanged,
+    required this.directLinkCdnRange,
+    required this.directLinkCdnRangeDisabledReason,
+    required this.onDirectLinkCdnRangeChanged,
     required this.onBack,
   });
 
@@ -1006,6 +1037,14 @@ class _AdvancedSettingsScreen extends StatelessWidget {
           checked: forceSdrColor,
           onChanged: onForceSdrColorChanged,
           disabledReason: forceSdrDisabledReason,
+        ),
+        PlayerSettingsToggleRow(
+          key: const ValueKey('player-advanced-direct-link-cdn-range'),
+          title: '夸克 CDN 分片直连',
+          description: '开启后按分片预取夸克网盘直连流；关闭则使用原有直连方式',
+          checked: directLinkCdnRange,
+          onChanged: onDirectLinkCdnRangeChanged,
+          disabledReason: directLinkCdnRangeDisabledReason,
         ),
       ],
     );

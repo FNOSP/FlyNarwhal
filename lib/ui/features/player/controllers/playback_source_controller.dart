@@ -143,10 +143,13 @@ class PlaybackSourceController {
     PlayingInfoCache? directLinkContext,
     required Map<String, String> playerHeaders,
     required Map<String, dynamic> upstreamHeaders,
+    bool preferCdnRange = true,
   }) {
     // Freeze provider values before joining any asynchronous transition.
     final source = snapshotPlaybackSource(
-        playUri: playUri, directLinkContext: directLinkContext);
+        playUri: playUri,
+        directLinkContext: directLinkContext,
+        preferCdnRange: preferCdnRange);
     final capturedPlayerHeaders =
         Map<String, String>.unmodifiable(playerHeaders);
     final capturedUpstreamHeaders = Map<String, String>.unmodifiable(

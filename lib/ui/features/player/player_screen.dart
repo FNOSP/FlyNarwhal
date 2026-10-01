@@ -22,6 +22,7 @@ import '../../../core/window/desktop_display_service.dart';
 import '../../../core/window/main_window_persistence_guard.dart';
 import '../../../core/window/window_geometry.dart';
 import '../../../data/models/episode_list_response.dart';
+import '../../../data/models/cloud_storage_type.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/player_models.dart';
 import '../../../data/models/movie_detail_models.dart';
@@ -265,6 +266,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String _videoFillMode = 'default';
   bool _isForceH264 = false;
   bool _isForceSdrColor = false;
+  // Quark direct-link transport: fetch the raw CDN link through the local range
+  // proxy (分片直连) instead of letting mpv open the NAS /media/range link.
+  bool _isDirectLinkCdnRange = true;
   // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | <concrete hwdec api>.
   String _decodeMode = 'auto';
   // Hardware decoders shown in the 指定硬件解码器 menu. Initialized with the
@@ -367,6 +371,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final settingsManager = ref.read(playerSettingsManagerProvider);
     _isForceH264 = settingsManager.getForceH264();
     _isForceSdrColor = settingsManager.getForceSdrColor();
+    _isDirectLinkCdnRange = settingsManager.getDirectLinkCdnRange();
     _decodeMode = settingsManager.getDecodeMode();
     _sessionCoordinator.forceH264 = _isForceH264;
     _sessionCoordinator.forceSdrColor = _isForceSdrColor;
@@ -1893,6 +1898,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       directLinkContext: directLinkContext,
       playerHeaders: _buildPlaybackHttpHeaders(playUri),
       upstreamHeaders: directLinkContext?.streamInfo?.header ?? const {},
+      preferCdnRange: _isDirectLinkCdnRange,
     );
     try {
       source.ensureCurrent(isConsumerCurrent: isCurrent);
@@ -4156,6 +4162,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ref.read(playerSettingsManagerProvider).setForceSdrColor(enabled),
     );
     unawaited(_restartPlaybackForTranscodeSettings());
+  }
+
+  /// Only a Quark netdisk direct session routes through the CDN range proxy, so
+  /// the switch is a no-op everywhere else and must not restart those streams.
+  String? get _directLinkCdnRangeDisabledReason {
+    final cache = _playingInfoCache;
+    if (cache == null || !cache.isUseDirectLink) return '当前不是网盘直连播放';
+    final cloudType = cache.streamInfo?.cloudStorageInfo?.cloudStorageType;
+    if (!CloudStorageType.fromValue(cloudType).isQuarkPan) return '仅支持夸克网盘';
+    return null;
+  }
+
+  void _onDirectLinkCdnRangeChanged(bool enabled) {
+    if (enabled == _isDirectLinkCdnRange) return;
+    setState(() => _isDirectLinkCdnRange = enabled);
+    unawaited(
+        ref.read(playerSettingsManagerProvider).setDirectLinkCdnRange(enabled));
+    if (_directLinkCdnRangeDisabledReason != null) return;
+    final player = _player;
+    if (player == null) return;
+    unawaited(_reopenPlaybackWithDirectLink(
+      startPositionMs: player.state.position.inMilliseconds,
+    ));
   }
 
   void _onDecodeModeChanged(String mode) {
@@ -6533,6 +6562,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onForceSdrColorChanged:
               _forceSdrDisabledReason == null ? _onForceSdrColorChanged : null,
           forceSdrDisabledReason: _forceSdrDisabledReason,
+          directLinkCdnRange: _isDirectLinkCdnRange,
+          onDirectLinkCdnRangeChanged: _directLinkCdnRangeDisabledReason == null
+              ? _onDirectLinkCdnRangeChanged
+              : null,
+          directLinkCdnRangeDisabledReason: _directLinkCdnRangeDisabledReason,
           decodeMode: _decodeMode,
           onDecodeModeChanged: _onDecodeModeChanged,
           availableHwdec: _availableHwdec,

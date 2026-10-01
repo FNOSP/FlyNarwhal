@@ -90,6 +90,18 @@ void main() {
     expect((await _prepare(controller)).isCurrent, isTrue);
   });
 
+  test('Disabling the CDN range switch keeps the NAS link and skips the proxy',
+      () async {
+    final controller = PlaybackSourceController(
+        createProxy: ({onError}) => throw StateError('Unexpected proxy'));
+    addTearDown(controller.close);
+    final source = await _prepare(controller,
+        context: _context(url: 'https://cloud.example/movie.mp4'),
+        preferCdnRange: false);
+    expect(source.playUri, _nas);
+    expect(source.playerHeaders, {'Authorization': 'nas-only'});
+  });
+
   test(
       'A quality switch cancels pending metadata and keeps its captured selection',
       () async {
@@ -240,12 +252,14 @@ void main() {
 
 Future<PlaybackSourceLease> _prepare(PlaybackSourceController controller,
         {PlayingInfoCache? context,
-        Map<String, dynamic> headers = const {'Cookie': 'cloud-only'}}) =>
+        Map<String, dynamic> headers = const {'Cookie': 'cloud-only'},
+        bool preferCdnRange = true}) =>
     controller.prepare(
       playUri: _nas,
       directLinkContext: context,
       playerHeaders: const {'Authorization': 'nas-only'},
       upstreamHeaders: headers,
+      preferCdnRange: preferCdnRange,
     );
 
 PlayingInfoCache _context(

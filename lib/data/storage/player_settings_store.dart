@@ -23,6 +23,10 @@ class PlayerSettingsStore {
   static const String _keyVideoFillModeCache = 'player_video_fill_mode_cache';
   static const String _keyForceH264 = 'player_force_h264';
   static const String _keyForceSdrColor = 'player_force_sdr_color';
+  // Quark netdisk direct-link transport: whether the raw CDN link is fetched
+  // through the bounded local range proxy (CDN 分片直连) instead of letting mpv
+  // open the NAS /media/range link directly.
+  static const String _keyDirectLinkCdnRange = 'player_direct_link_cdn_range';
   // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | 'auto-unsafe'.
   static const String _keyDecodeMode = 'player_decode_mode';
   // Window geometry is persisted as geometric center + size (see
@@ -341,6 +345,12 @@ class PlayerSettingsManager {
       _readBoolScoped(PlayerSettingsStore._keyForceSdrColor, false);
   Future<void> setForceSdrColor(bool enabled) =>
       _writeBoolScoped(PlayerSettingsStore._keyForceSdrColor, enabled);
+
+  /// Defaults to on: the CDN range proxy is the current Quark direct-play path.
+  bool getDirectLinkCdnRange() =>
+      _readBoolScoped(PlayerSettingsStore._keyDirectLinkCdnRange, true);
+  Future<void> setDirectLinkCdnRange(bool enabled) =>
+      _writeBoolScoped(PlayerSettingsStore._keyDirectLinkCdnRange, enabled);
 
   // Window geometry: center + size persistence, keep in sync with the static
   // [PlayerSettingsStore] counterparts above.

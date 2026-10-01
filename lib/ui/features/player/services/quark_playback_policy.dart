@@ -4,13 +4,19 @@ import '../models/playback_source_spec.dart';
 
 /// Snapshot only an explicitly selected direct session. NAS/HLS callers omit
 /// the context, so a later change to the page's current cache cannot reroute them.
+///
+/// [preferCdnRange] is the player's 夸克 CDN 分片直连 switch. When off, every
+/// caller keeps [playUri] as-is, which for a Quark direct session is the NAS
+/// `/media/range` link mpv opens itself (the pre-CDN-range behavior).
 PlaybackSourceSpec snapshotPlaybackSource({
   required String playUri,
   PlayingInfoCache? directLinkContext,
+  bool preferCdnRange = true,
 }) {
   final context = directLinkContext;
   final index = context?.directLinkQualityIndex;
-  if (context == null ||
+  if (!preferCdnRange ||
+      context == null ||
       !context.isUseDirectLink ||
       !CloudStorageType.fromValue(
               context.streamInfo?.cloudStorageInfo?.cloudStorageType)
