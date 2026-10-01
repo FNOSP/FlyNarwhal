@@ -187,6 +187,11 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool smartSkipEnabled;
   final Future<bool> Function(bool enabled)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+
+  /// Whether the server exposes the smart-skip config endpoint. Servers below
+  /// 0.7.0 analyze segments but have no config API, so the entry stays hidden
+  /// there while smart skip itself remains usable.
+  final bool isSmartSkipConfigAvailable;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool enabled)? onAutoPlayChanged;
@@ -196,6 +201,7 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool forceSdrColor;
   final void Function(bool enabled)? onForceSdrColorChanged;
   final String? forceSdrDisabledReason;
+
   /// Quark netdisk direct-play transport: on routes the raw CDN link through the
   /// local range proxy (分片直连), off lets mpv open the NAS /media/range link.
   final bool directLinkCdnRange;
@@ -233,6 +239,7 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.smartSkipEnabled = true,
     this.onSmartSkipEnabledChanged,
     this.isSmartAnalysisGloballyEnabled = false,
+    this.isSmartSkipConfigAvailable = false,
     this.isSavingSkipConfig = false,
     this.isAutoPlay = true,
     this.onAutoPlayChanged,
@@ -605,6 +612,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         smartSkipEnabled: widget.smartSkipEnabled,
         onSmartSkipEnabledChanged: widget.onSmartSkipEnabledChanged,
         isSmartAnalysisGloballyEnabled: widget.isSmartAnalysisGloballyEnabled,
+        isSmartSkipConfigAvailable: widget.isSmartSkipConfigAvailable,
         isSavingSkipConfig: widget.isSavingSkipConfig,
         isAutoPlay: _isAutoPlay,
         onAutoPlayChanged: (value) {
@@ -703,6 +711,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool smartSkipEnabled;
   final Future<bool> Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+
+  /// Whether the server exposes the smart-skip config endpoint (>= 0.7.0).
+  final bool isSmartSkipConfigAvailable;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool)? onAutoPlayChanged;
@@ -760,6 +771,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.availableHwdec,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
+    required this.isSmartSkipConfigAvailable,
   });
 
   @override
@@ -843,6 +855,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
           smartSkipEnabled: smartSkipEnabled,
           onSmartSkipEnabledChanged: onSmartSkipEnabledChanged,
           isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
+          isSmartSkipConfigAvailable: isSmartSkipConfigAvailable,
           isSavingSkipConfig: isSavingSkipConfig,
           isFlyNarwhalServerAvailable: isFlyNarwhalServerAvailable,
           onFlyNarwhalConfigMissing: onFlyNarwhalConfigMissing,
@@ -1770,6 +1783,8 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
   final bool isFlyNarwhalServerAvailable;
   // Called when user tries to enable smart skip without full config
   final VoidCallback? onFlyNarwhalConfigMissing;
+  // Whether the server exposes the smart-skip config endpoint (>= 0.7.0).
+  final bool isSmartSkipConfigAvailable;
   // Opens the server-side smart skip analysis configuration screen.
   final VoidCallback? onNavigateToSmartSkipConfig;
 
@@ -1782,6 +1797,7 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
     required this.smartSkipEnabled,
     required this.onSmartSkipEnabledChanged,
     required this.isSmartAnalysisGloballyEnabled,
+    required this.isSmartSkipConfigAvailable,
     required this.isSavingSkipConfig,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
@@ -1823,8 +1839,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
   int get _currentSecondsCeil => (widget.currentPositionMillis + 999) ~/ 1000;
 
   int get _remainingSeconds {
-    final remaining =
-        widget.totalDurationMillis - widget.currentPositionMillis;
+    final remaining = widget.totalDurationMillis - widget.currentPositionMillis;
     final seconds = (remaining < 0 ? 0 : remaining) ~/ 1000;
     return seconds;
   }
@@ -1836,8 +1851,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
 
   int get _openingShortcutSeconds => _currentSecondsCeil;
 
-  bool get _endingShortcutVisible =>
-      _isValidShortcutSeconds(_remainingSeconds);
+  bool get _endingShortcutVisible => _isValidShortcutSeconds(_remainingSeconds);
 
   int get _endingShortcutSeconds => _remainingSeconds;
 
@@ -1961,7 +1975,9 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                     );
                   },
           ),
-        if (widget.isSmartAnalysisGloballyEnabled && _smartSkipEnabled) ...[
+        if (widget.isSmartAnalysisGloballyEnabled &&
+            widget.isSmartSkipConfigAvailable &&
+            _smartSkipEnabled) ...[
           const SizedBox(height: 4),
           _SettingsMenuItem(
             key: const ValueKey('player-settings-smart-skip-config-entry'),
@@ -2229,8 +2245,7 @@ class _SkipSliderBar extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             onTapUp: enabled
                 ? (details) {
-                    final v =
-                        _valueFromX(details.localPosition.dx, trackWidth);
+                    final v = _valueFromX(details.localPosition.dx, trackWidth);
                     onChanged(v);
                     onChangeEnd(v);
                   }
@@ -2243,8 +2258,7 @@ class _SkipSliderBar extends StatelessWidget {
                 ? (details) =>
                     onChanged(_valueFromX(details.localPosition.dx, trackWidth))
                 : null,
-            onHorizontalDragEnd:
-                enabled ? (_) => onChangeEnd(value) : null,
+            onHorizontalDragEnd: enabled ? (_) => onChangeEnd(value) : null,
             child: CustomPaint(
               size: Size(trackWidth, _skipSliderHeight),
               painter: _SkipSliderPainter(
@@ -2300,8 +2314,7 @@ class _SkipSliderPainter extends CustomPainter {
 
     // Thumb: 14px white circle with a 1px primary-blue border and a subtle
     // drop shadow, matching the web player.
-    final thumbCenter =
-        Offset(thumbLeft + _skipThumbSize / 2, size.height / 2);
+    final thumbCenter = Offset(thumbLeft + _skipThumbSize / 2, size.height / 2);
     canvas.drawCircle(
       thumbCenter + const Offset(0, 1),
       _skipThumbSize / 2,

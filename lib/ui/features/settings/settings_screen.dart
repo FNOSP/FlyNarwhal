@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../data/storage/update_settings_store.dart';
+import '../../../providers/fly_narwhal_server_capabilities.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/update_providers.dart';
 import '../../../providers/update_settings_provider.dart';
@@ -122,7 +123,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         .read(settingsProvider.notifier)
         .setFlyNarwhalAuthCode(_flyNarwhalAuthCodeController.text);
   }
-
 
   void _openSslWhitelistDialog() {
     showDialog<void>(
@@ -577,31 +577,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         child: const Text('填写授权码'),
                                       ),
                                     ),
-                                    CardExpanderItem(
-                                      key: const ValueKey(
-                                        'settings-fly-narwhal-smart-skip-config',
-                                      ),
-                                      icon: const Icon(
-                                        FluentIcons.auto_enhance_on,
-                                      ),
-                                      heading: const Text('智能跳过配置'),
-                                      caption: const Text(
-                                        '服务端智能分析片头片尾的参数',
-                                      ),
-                                      trailing: AppButton(
+                                    // Servers below 0.7.0 analyze segments but
+                                    // expose no config API, so this card would
+                                    // open onto a failing request.
+                                    if (ref
+                                            .watch(
+                                              flyNarwhalServerCapabilitiesProvider,
+                                            )
+                                            .valueOrNull
+                                            ?.supportsSmartSkipConfig ??
+                                        false)
+                                      CardExpanderItem(
                                         key: const ValueKey(
-                                          'settings-smart-skip-config-open',
+                                          'settings-fly-narwhal-smart-skip-config',
                                         ),
-                                        onPressed: () {
-                                          showDialog(
-                                            context: context,
-                                            builder: (context) =>
-                                                const SmartSkipConfigDialog(),
-                                          );
-                                        },
-                                        child: const Text('配置'),
+                                        icon: const Icon(
+                                          FluentIcons.auto_enhance_on,
+                                        ),
+                                        heading: const Text('智能跳过配置'),
+                                        caption: const Text(
+                                          '服务端智能分析片头片尾的参数',
+                                        ),
+                                        trailing: AppButton(
+                                          key: const ValueKey(
+                                            'settings-smart-skip-config-open',
+                                          ),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  const SmartSkipConfigDialog(),
+                                            );
+                                          },
+                                          child: const Text('配置'),
+                                        ),
                                       ),
-                                    ),
                                   ],
                                 ),
                               ),

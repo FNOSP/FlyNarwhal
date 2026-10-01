@@ -171,7 +171,10 @@ class DanmakuController extends StateNotifier<DanmakuState> {
           ),
         );
 
-  Future<bool> loadDanmaku(DanmakuRequest request) async {
+  Future<bool> loadDanmaku(
+    DanmakuRequest request, {
+    bool allowLegacyKeyFallback = false,
+  }) async {
     if (!_canLoadDanmaku()) {
       clear();
       return false;
@@ -195,6 +198,7 @@ class DanmakuController extends StateNotifier<DanmakuState> {
       final selectedDanmaku = _selectDanmaku(
         response,
         request.episodeNumber,
+        allowLegacyKeyFallback: allowLegacyKeyFallback,
       );
       final normalizedDanmaku = _normalizeAndSort(selectedDanmaku);
       final loadStatus = normalizedDanmaku.isEmpty
@@ -287,20 +291,38 @@ class DanmakuController extends StateNotifier<DanmakuState> {
 
   List<Danmaku> _selectDanmaku(
     Map<String, List<Danmaku>> danmakuByEpisode,
-    int episodeNumber,
-  ) {
+    int episodeNumber, {
+    required bool allowLegacyKeyFallback,
+  }) {
     // Only the current episode's key is accepted. Falling back to an arbitrary
     // entry would silently show one episode's danmaku for all of them.
     // A work requested as a whole (a movie has no episode ordinal) comes back
     // under a named key, never under an episode number.
-    final List<Danmaku> selected;
-    if (episodeNumber == 0) {
-      selected =
-          danmakuByEpisode[danmakuWholeWorkKey] ?? const <Danmaku>[];
-    } else {
-      selected = danmakuByEpisode[episodeNumber.toString()] ?? const <Danmaku>[];
+    if (episodeNumber != 0) {
+      return danmakuByEpisode[episodeNumber.toString()] ?? const <Danmaku>[];
     }
-    return selected;
+
+    final byWholeWorkKey = danmakuByEpisode[danmakuWholeWorkKey];
+    if (byWholeWorkKey != null) {
+      return byWholeWorkKey;
+    }
+    if (!allowLegacyKeyFallback) {
+      return const <Danmaku>[];
+    }
+    // Pre-0.7.0 servers echo back the ordinal the request was made with, so a
+    // movie asked for as episode 0 comes back under "0". They only fall back to
+    // "1" when no episode number was sent at all.
+    for (final legacyKey in const <String>['0', '1']) {
+      final byEpisode = danmakuByEpisode[legacyKey];
+      if (byEpisode != null && byEpisode.isNotEmpty) {
+        return byEpisode;
+      }
+    }
+    // Servers that key a movie by its title answer with a single entry.
+    if (danmakuByEpisode.length == 1) {
+      return danmakuByEpisode.values.first;
+    }
+    return const <Danmaku>[];
   }
 
   List<Danmaku> _normalizeAndSort(List<Danmaku> danmakuList) {
