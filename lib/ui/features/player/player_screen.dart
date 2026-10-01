@@ -35,6 +35,7 @@ import '../../../providers/file_providers.dart';
 import '../../../providers/danmaku_controller.dart';
 import '../../../providers/episode_analysis_controller.dart';
 import '../../../providers/providers.dart';
+import '../../../providers/quark_cdn_range_providers.dart';
 import '../../../providers/smart_skip_settings_controller.dart';
 import 'controllers/intro_skip_controller.dart';
 import 'controllers/intro_skip_state.dart';
@@ -55,6 +56,7 @@ import 'controllers/player_manager.dart';
 import 'viewmodels/media_playback_view_model.dart';
 import 'controllers/player_overlay_controller.dart';
 import 'controllers/player_session_coordinator.dart';
+import 'controllers/playback_source_controller.dart';
 import 'services/player_service.dart';
 import 'utils/player_volume_helper.dart';
 import 'viewmodels/player_view_model.dart';
@@ -133,6 +135,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'player-shortcuts');
   Player? _player;
+  Player? _hwdecProbePlayer;
+  Future<void>? _hwdecProbeTask;
+  int _hwdecProbeGeneration = 0;
+  late final PlaybackSourceController _playbackSources =
+      PlaybackSourceController(
+    createProxy: ({onError}) =>
+        ref.read(quarkCdnRangeServiceFactoryProvider)(onError: onError),
+    onInvalidate: () => ++_hwdecProbeGeneration,
+    releaseConsumers: _releaseHwdecProbe,
+  );
   VideoController? _videoController;
   bool _isInitialized = false;
   bool _isLoading = true;
@@ -330,25 +342,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _skipActionSubscription =
         _introSkipController.actions.listen(_handleSkipAction);
-    _seekExecutor = PlayerSeekExecutor(
-      playerAdapter: CallbackPlayerSeekAdapter((targetMilliseconds) async {
-        await _player?.seek(Duration(milliseconds: targetMilliseconds));
-      }),
-      authoritativeDurationMilliseconds: () => _duration,
-      resetDanmaku: () => _danmakuResetGeneration++,
-      updateDanmakuPosition: (targetMilliseconds) {
-        _danmakuPosition.value = Duration(milliseconds: targetMilliseconds);
-      },
-      updatePlayRecord: (targetMilliseconds) {
-        _queuePlayRecordUpdate(positionMs: targetMilliseconds);
-      },
-      notifyUserSeekStarted: () {
-        _introSkipController.dispatch(const UserSeekStarted());
-      },
-      notifyUserSeekCompleted: () {
-        _introSkipController.dispatch(const UserSeekCompleted());
-      },
-    );
+    _seekExecutor = _createSeekExecutor();
     if (_isDesktopPlatform()) {
       windowManager.addListener(this);
       unawaited(_syncFullscreenState());
@@ -416,12 +410,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _initializePlayer() async {
-    _player = Player(
+    if (!mounted) return;
+    final player = Player(
       configuration: const PlayerConfiguration(libass: true),
     );
-    await _applyDefaultMpvSubtitleSettings(_player!);
-    await _applyDecodeMode(_player!);
-    _videoController = VideoController(_player!);
+    _player = player;
+    try {
+      await _applyDefaultMpvSubtitleSettings(player);
+    } catch (_) {
+      // Disposal can finish while mpv is still initializing its properties.
+      if (!mounted || !identical(_player, player)) return;
+      rethrow;
+    }
+    if (!mounted || !identical(_player, player)) return;
+    await _applyDecodeMode(player);
+    if (!mounted || !identical(_player, player)) return;
+    _videoController = VideoController(player);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
     _setupPlayerBufferListener();
@@ -431,7 +435,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _setupProviderListeners();
 
     await _loadAndPlayMedia();
-    if (mounted) {
+    if (mounted && identical(_player, player)) {
       _playerFocusNode.requestFocus();
     }
   }
@@ -440,6 +444,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // concrete decoder never gets applied on unsupported hardware.
   Future<void> _initializePlayerSession() async {
     await _restoreSupportedHwdecState();
+    if (!mounted) return;
     await _initializePlayer();
   }
 
@@ -453,6 +458,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final supportedApis = await ref
           .read(playerDeviceContextServiceProvider)
           .loadSupportedHwdecApis();
+      if (!mounted) return;
       final supportedOptions = List<HwdecOption>.unmodifiable(
         supportedApis
             .map((api) => HwdecOption(api: api, label: _hwdecApiLabel(api)))
@@ -475,6 +481,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         await settingsManager.setDecodeMode(sanitizedDecodeMode);
       }
     } catch (error, stackTrace) {
+      if (!mounted) return;
       AppTalker.warning('Player', 'Failed to resolve hwdec support: $error');
       AppTalker.instance.handle(error, stackTrace);
       _availableHwdec = const [];
@@ -495,6 +502,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       'sub-font-size',
       _defaultMpvSubtitleFontSize,
     );
+    if (!mounted || !identical(_player, player)) return;
     await platform.setProperty(
       'sub-pos',
       _defaultMpvSubtitlePosition,
@@ -516,12 +524,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// file on this machine, without disturbing the active player. Because mpv's
   /// `hwdec-current` does not reliably update when `hwdec` is changed live on
   /// a playing instance (mpv issue #4289), each candidate is tried by opening
-  /// the same [playUri] on a short-lived, picture-less dedicated [Player] and
+  /// the same playback source on a short-lived, picture-less dedicated [Player] and
   /// reading back `hwdec-current`. Runs once, in the background, with a
   /// timeout. The candidate list is already filtered by device/runtime support;
   /// this probe only narrows it down further for the current stream when mpv
   /// can confirm a concrete API.
-  Future<void> _probeAvailableHwdec({required String playUri}) async {
+  Future<void> _probeAvailableHwdec({required PlaybackSourceLease source}) {
+    final task = _runHwdecProbe(
+      source: source,
+      generation: _hwdecProbeGeneration,
+    );
+    _hwdecProbeTask = task;
+    return task;
+  }
+
+  Future<void> _runHwdecProbe({
+    required PlaybackSourceLease source,
+    required int generation,
+  }) async {
+    if (!mounted || !source.isCurrent || generation != _hwdecProbeGeneration) {
+      return;
+    }
+    final playUri = source.playUri;
     if (_hwdecProbeDone || playUri.isEmpty) {
       return;
     }
@@ -537,7 +561,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // Share the same referrer/origin headers as the real playback so the
     // source is reachable during the probe.
-    final headers = _buildPlaybackHttpHeaders(playUri);
+    final headers = source.playerHeaders;
     Player? probePlayer;
     try {
       // The probe only inspects `hwdec-current`; it must never produce sound.
@@ -547,9 +571,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       probePlayer = Player(
         configuration: const PlayerConfiguration(libass: false, muted: true),
       );
+      _hwdecProbePlayer = probePlayer;
       final platform = probePlayer.platform;
       for (final api in candidates) {
-        if (platform is! NativePlayer) {
+        if (platform is! NativePlayer ||
+            !mounted ||
+            !source.isCurrent ||
+            generation != _hwdecProbeGeneration) {
           break;
         }
         try {
@@ -561,10 +589,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // doesn't reliably update `hwdec-current` (mpv issue #4289), which
           // is exactly the path the old open-then-set ordering exercised.
           await platform.setProperty('hwdec', api);
-          await applySslTrustToPlayer(probePlayer, Uri.parse(playUri));
-          await probePlayer.open(Media(playUri, httpHeaders: headers));
+          if (!mounted || generation != _hwdecProbeGeneration) break;
+          await openPlaybackSource(
+            source: source,
+            configureSsl: (uri) => applySslTrustToPlayer(probePlayer!, uri),
+            isConsumerCurrent: () =>
+                mounted && generation == _hwdecProbeGeneration,
+            open: () => probePlayer!.open(Media(playUri, httpHeaders: headers)),
+          );
           // A non-empty result means the api engaged for this stream.
-          final current = await _waitForHwdecCurrent(platform, api);
+          final current = await _waitForHwdecCurrent(platform, api, generation);
           if (current.isNotEmpty && !found.any((option) => option.api == api)) {
             found.add(HwdecOption(api: api, label: _hwdecApiLabel(api)));
           }
@@ -606,10 +640,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
       }
 
-      if (mounted && found.isNotEmpty) {
+      if (mounted && source.isCurrent &&
+          generation == _hwdecProbeGeneration && found.isNotEmpty) {
         setState(() => _availableHwdec = List.unmodifiable(found));
       }
     } catch (e, st) {
+      if (e is PlaybackSourceSuperseded || !source.isCurrent) return;
       AppTalker.error(
         'Player',
         error: e,
@@ -617,6 +653,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'hwdec probe failed',
       );
     } finally {
+      if (identical(_hwdecProbePlayer, probePlayer)) {
+        _hwdecProbePlayer = null;
+      }
       try {
         await probePlayer?.dispose();
       } catch (_) {}
@@ -638,11 +677,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<String> _waitForHwdecCurrent(
     NativePlayer platform,
     String api,
+    int generation,
   ) async {
     const attempts = 40;
     const step = Duration(milliseconds: 100);
     for (var i = 0; i < attempts; i++) {
-      if (!mounted) {
+      if (!mounted || generation != _hwdecProbeGeneration) {
         return '';
       }
       final current = await platform.getProperty('hwdec-current');
@@ -667,7 +707,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     };
   }
 
-  Future<void> _applyDirectLinkCachePolicy(Player player) async {
+  Future<void> _applyDirectLinkCachePolicy(
+      Player player, PlaybackSourceLease source) async {
     final platform = player.platform;
     if (platform is! NativePlayer) {
       return;
@@ -682,21 +723,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final demuxerMaxBytes = isDirectLink
         ? _directLinkMpvDemuxerMaxBytes
         : _defaultMpvDemuxerMaxBytes;
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     await platform.setProperty(
       'cache',
       'yes',
       waitForInitialization: false,
     );
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     await platform.setProperty(
       'demuxer-readahead-secs',
       readAheadSeconds,
       waitForInitialization: false,
     );
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     await platform.setProperty(
       'demuxer-max-bytes',
       demuxerMaxBytes,
       waitForInitialization: false,
     );
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     await platform.setProperty(
       'cache-pause-wait',
       cachePauseWait,
@@ -710,6 +755,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // link keeps up; once a direct-link source starts starving, allow mpv to
     // pause and rebuild the cache so it can resume promptly instead of
     // freezing. Non-direct (HLS/transcode) sessions always pause as before.
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     await platform.setProperty(
       'cache-pause',
       isDirectLink ? _directLinkMpvCachePause : _defaultMpvCachePause,
@@ -946,7 +992,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _directLinkSubtitleTrackResolver.embeddedTracksOf(tracks.subtitle);
   }
 
-  void _setupDirectLinkEmbeddedSubtitleTracking() {
+  void _setupDirectLinkEmbeddedSubtitleTracking(PlaybackSourceLease source) {
     _tracksSubscription?.cancel();
     _tracksSubscription = null;
 
@@ -962,6 +1008,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     _syncEmbeddedSubtitleTracks(player.state.tracks);
     _tracksSubscription = player.stream.tracks.listen((tracks) {
+      if (!mounted || !source.isCurrent || !identical(player, _player)) return;
       _syncEmbeddedSubtitleTracks(tracks);
       final pendingGuid = _pendingEmbeddedSubtitleGuid;
       final currentSubtitleGuid =
@@ -981,6 +1028,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<bool> _waitForDirectLinkEmbeddedSubtitleTracks({
     required SubtitleStream? subtitleStream,
     required int loadToken,
+    required PlaybackSourceLease source,
   }) async {
     if (subtitleStream == null) return false;
     if (!_isDirectLinkEmbeddedSubtitle(subtitleStream)) return false;
@@ -1006,6 +1054,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
 
     subscription = player.stream.tracks.listen((tracks) {
+      if (!source.isCurrent ||
+          !mounted ||
+          loadToken != _loadRequestToken ||
+          !identical(player, _player)) {
+        cleanup();
+        if (!completer.isCompleted) completer.complete(false);
+        return;
+      }
       final embeddedTracks =
           _directLinkSubtitleTrackResolver.embeddedTracksOf(tracks.subtitle);
       if (embeddedTracks.isNotEmpty) {
@@ -1022,7 +1078,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     });
 
-    final result = await completer.future;
+    final bool result;
+    try {
+      result = await source.guard(() => completer.future,
+          isConsumerCurrent: () => mounted && loadToken == _loadRequestToken);
+    } finally {
+      cleanup();
+    }
 
     // Verify the request hasn't been superseded during the wait.
     if (loadToken != _loadRequestToken || !mounted || player != _player) {
@@ -1052,7 +1114,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _setupProviderListeners() {
-    if (_hasSetupProviderListeners) return;
+    if (!mounted || _hasSetupProviderListeners) return;
     _hasSetupProviderListeners = true;
 
     ref.listenManual<MediaPState>(
@@ -1767,68 +1829,138 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return targetUri.host == baseHost && targetUri.port == baseUri.port;
   }
 
-  Future<void> _openMediaWithResume({
+  Future<void> _releaseHwdecProbe() async {
+    final probe = _hwdecProbePlayer;
+    final probeTask = _hwdecProbeTask;
+    if (probe != null) {
+      try {
+        await probe.stop();
+      } catch (_) {
+        // The probe's finally block may already have disposed it.
+      }
+    }
+    if (probeTask != null) {
+      try {
+        await probeTask;
+      } catch (_) {}
+    }
+    _hwdecProbeTask = null;
+    _hwdecProbeDone = false;
+  }
+
+  Future<void> _closePlaybackSource() => _playbackSources.close();
+
+  Future<void> _closeFailedPlaybackSource(PlaybackSourceLease source) async {
+    // Checking ownership and invalidating must happen without an intervening
+    // await: a late failure must never close a newer playback source.
+    if (!source.isCurrent) return;
+    try {
+      await _closePlaybackSource();
+    } catch (error, stackTrace) {
+      AppTalker.error('Player', error: error, stackTrace: stackTrace,
+          message: 'failed playback source cleanup failed');
+    }
+  }
+
+  bool Function() _capturePlaybackOperation() {
+    final loadToken = _loadRequestToken;
+    final switchToken = _cloudSwitchToken;
+    return () =>
+        mounted &&
+        loadToken == _loadRequestToken &&
+        switchToken == _cloudSwitchToken;
+  }
+
+  void _ensurePlaybackOperation(bool Function() isCurrent) {
+    if (!isCurrent()) throw const PlaybackSourceSuperseded();
+  }
+
+  Future<PlaybackSourceLease> _openMediaWithResume({
     required String playUri,
     required int startPositionMs,
     required SubtitleStream? currentSubtitleStream,
+    PlayingInfoCache? directLinkContext,
+    bool Function()? isOperationCurrent,
   }) async {
+    final operationIsCurrent =
+        isOperationCurrent ?? _capturePlaybackOperation();
+    _ensurePlaybackOperation(operationIsCurrent);
     final player = _player;
-    if (player == null) return;
-    // A new source starts with no decoded frame; keep the previous video's
-    // size from satisfying this stream's playback verification.
-    _decodedVideoWidth = 0;
-    _decodedVideoHeight = 0;
-    _resetDirectLinkEmbeddedSubtitleState();
-    await _applyDirectLinkCachePolicy(player);
-
-    // Set mpv native start property so decoding positions from the desired
-    // point. This is the most reliable way for history-progress resume.
-    final platform = player.platform;
-    if (platform is NativePlayer) {
-      if (startPositionMs > 0) {
-        final seconds = (startPositionMs / 1000).toStringAsFixed(3);
-        await platform.setProperty('start', seconds);
-      } else {
-        // Clear any residual start property from a previous open.
-        await platform.setProperty('start', 'none');
-      }
-    }
-
-    final headers = _buildPlaybackHttpHeaders(playUri);
-    // mpv fetches the media bytes over its own native HTTP stack, so the Dio
-    // trust work does not reach it. Trusted hosts need tls-verify relaxed here
-    // too, and it must happen before open.
-    await applySslTrustToPlayer(player, Uri.parse(playUri));
-    await player.open(
-      Media(
-        playUri,
-        httpHeaders: headers.isEmpty ? null : headers,
-      ),
+    if (player == null) throw const PlaybackSourceSuperseded();
+    bool isCurrent() => operationIsCurrent() && identical(_player, player);
+    final source = await _playbackSources.prepare(
+      playUri: playUri,
+      directLinkContext: directLinkContext,
+      playerHeaders: _buildPlaybackHttpHeaders(playUri),
+      upstreamHeaders: directLinkContext?.streamInfo?.header ?? const {},
     );
-    _setupDirectLinkEmbeddedSubtitleTracking();
-    if (_playingInfoCache?.isUseDirectLink == true) {
-      await _applyInitialDirectLinkAudioTrack();
-    }
+    try {
+      source.ensureCurrent(isConsumerCurrent: isCurrent);
+      // A new source starts with no decoded frame; keep the previous video's
+      // size from satisfying this stream's playback verification.
+      _decodedVideoWidth = 0;
+      _decodedVideoHeight = 0;
+      _resetDirectLinkEmbeddedSubtitleState();
+      await source.guard(() => _applyDirectLinkCachePolicy(player, source),
+          isConsumerCurrent: isCurrent);
 
-    if (_isSupportedExternalSubtitle(currentSubtitleStream)) {
-      _applyExternalSubtitleAsync(currentSubtitleStream!, _loadRequestToken);
-    } else if (_isDirectLinkEmbeddedSubtitle(currentSubtitleStream)) {
-      final tracksReady = await _waitForDirectLinkEmbeddedSubtitleTracks(
-        subtitleStream: currentSubtitleStream,
-        loadToken: _loadRequestToken,
-      );
-      if (tracksReady) {
-        await _applyCurrentSubtitleTrack(currentSubtitleStream);
-      } else {
-        _pendingEmbeddedSubtitleGuid = currentSubtitleStream!.guid;
+      // Preserve the upstream resume behavior, scoped to this source.
+      final platform = player.platform;
+      if (platform is NativePlayer) {
+        await source.guard(
+            () => platform.setProperty(
+                'start',
+                startPositionMs > 0
+                    ? (startPositionMs / 1000).toStringAsFixed(3)
+                    : 'none'),
+            isConsumerCurrent: isCurrent);
       }
-    } else {
-      await _applyCurrentSubtitleTrack(currentSubtitleStream);
-    }
+      await openPlaybackSource(
+        source: source,
+        configureSsl: (uri) => applySslTrustToPlayer(player, uri),
+        isConsumerCurrent: isCurrent,
+        open: () => player.open(Media(source.playUri,
+            httpHeaders:
+                source.playerHeaders.isEmpty ? null : source.playerHeaders)),
+      );
+      _setupDirectLinkEmbeddedSubtitleTracking(source);
+      if (_playingInfoCache?.isUseDirectLink == true) {
+        await source.guard(
+            () => _applyInitialDirectLinkAudioTrack(source: source),
+            isConsumerCurrent: isCurrent);
+      }
 
-    // For non-native platforms or when mpv start didn't fully apply, verify
-    // the position and issue a single correction seek as fallback.
-    await _verifyAndCorrectResume(startPositionMs);
+      if (_isSupportedExternalSubtitle(currentSubtitleStream)) {
+        _applyExternalSubtitleAsync(currentSubtitleStream!, _loadRequestToken,
+            source: source);
+      } else if (_isDirectLinkEmbeddedSubtitle(currentSubtitleStream)) {
+        final tracksReady = await source.guard(
+            () => _waitForDirectLinkEmbeddedSubtitleTracks(
+                subtitleStream: currentSubtitleStream,
+                loadToken: _loadRequestToken,
+                source: source),
+            isConsumerCurrent: isCurrent);
+        if (tracksReady) {
+          await source.guard(
+              () => _applyCurrentSubtitleTrack(currentSubtitleStream,
+                  source: source),
+              isConsumerCurrent: isCurrent);
+        } else {
+          _pendingEmbeddedSubtitleGuid = currentSubtitleStream!.guid;
+        }
+      } else {
+        await source.guard(
+            () =>
+                _applyCurrentSubtitleTrack(currentSubtitleStream, source: source),
+            isConsumerCurrent: isCurrent);
+      }
+      await source.guard(() => _verifyAndCorrectResume(startPositionMs, source),
+          isConsumerCurrent: isCurrent);
+      return source;
+    } catch (_) {
+      await _closeFailedPlaybackSource(source);
+      rethrow;
+    }
   }
 
   PlayRecordRequest? _buildPlayRecordRequest({
@@ -1878,14 +2010,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }());
   }
 
-  Future<void> _reopenPlaybackFromPlayLink({
+  Future<PlaybackSourceLease?> _reopenPlaybackFromPlayLink({
     required String playLink,
     required int startPositionMs,
   }) async {
+    final isCurrent = _capturePlaybackOperation();
+    await _closePlaybackSource();
+    _ensurePlaybackOperation(isCurrent);
     final prefs = ref.read(preferencesManagerProvider);
     final baseUrl = prefs.getBaseUrl() ?? '';
     final cache = _playingInfoCache;
-    if (baseUrl.isEmpty || cache == null) return;
+    if (baseUrl.isEmpty || cache == null) return null;
 
     final playUri = _sessionCoordinator.absolutePlayUrl(baseUrl, playLink);
     final dio = ref.read(dioClientProvider).dio;
@@ -1893,15 +2028,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       playUri: playUri,
       currentSubtitleStream: cache.currentSubtitleStream,
     );
+    _ensurePlaybackOperation(isCurrent);
     _prepareHlsSubtitleOverlayMode(
       subtitleStream: cache.currentSubtitleStream,
       subtitlePlaylistUrl: prepared.subtitlePlaylistUrl,
     );
-    await _openMediaWithResume(
+    final source = await _openMediaWithResume(
       playUri: prepared.playUri,
+      isOperationCurrent: isCurrent,
       startPositionMs: startPositionMs,
       currentSubtitleStream: cache.currentSubtitleStream,
     );
+    source.ensureCurrent(isConsumerCurrent: isCurrent);
     _startHlsSubtitleSessionAsync(
       dio: dio,
       subtitleStream: cache.currentSubtitleStream,
@@ -1909,14 +2047,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       startPositionMs: startPositionMs,
       loadToken: _loadRequestToken,
     );
+    return source;
   }
 
-  Future<void> _reopenPlaybackWithDirectLink({
+  Future<PlaybackSourceLease?> _reopenPlaybackWithDirectLink({
     required int startPositionMs,
   }) async {
+    final isCurrent = _capturePlaybackOperation();
+    await _closePlaybackSource();
+    _ensurePlaybackOperation(isCurrent);
     final cache = _playingInfoCache;
     final videoStream = cache?.currentVideoStream;
-    if (cache == null || videoStream == null) return;
+    if (cache == null || videoStream == null) return null;
 
     // Cloud media reopens with the 原画 direct-link quality (index 0) and
     // restores the netdisk quality list in the UI; local files keep the
@@ -1944,6 +2086,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       cloudStorageType: cloudStorageType,
       directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
     );
+    _ensurePlaybackOperation(isCurrent);
     final convertedQualities = isCloud
         ? visibleQualities.map((q) => q.toQualityResponse()).toList()
         : null;
@@ -1960,19 +2103,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         .read(playerViewModelProvider.notifier)
         .updatePlayingInfo(_playingInfoCache);
     _disposeHlsSubtitleSession();
-    await _openMediaWithResume(
+    return _openMediaWithResume(
       playUri: directLink.playUri,
+      directLinkContext: _playingInfoCache,
+      isOperationCurrent: isCurrent,
       startPositionMs: directLink.effectiveStartMs,
       currentSubtitleStream: _playingInfoCache?.currentSubtitleStream,
     );
   }
 
-  Future<void> _handlePlayPlaySuccess(
+  Future<PlaybackSourceLease?> _handlePlayPlaySuccess(
     PlayPlayResponse response, {
     required int startPositionMs,
   }) async {
     final cache = _playingInfoCache;
-    if (cache == null) return;
+    if (cache == null) return null;
 
     _playingInfoCache = cache.copyWith(
       playLink: response.playLink,
@@ -1982,7 +2127,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     ref
         .read(playerViewModelProvider.notifier)
         .updatePlayingInfo(_playingInfoCache);
-    await _reopenPlaybackFromPlayLink(
+    return _reopenPlaybackFromPlayLink(
       playLink: response.playLink,
       startPositionMs: startPositionMs,
     );
@@ -1998,9 +2143,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     try {
       final startPositionMs = _player!.state.position.inMilliseconds;
-      await _reopenPlaybackWithDirectLink(startPositionMs: startPositionMs);
+      final source =
+          await _reopenPlaybackWithDirectLink(startPositionMs: startPositionMs);
 
+      if (source == null) return;
       final verified = await _verifyPlaybackStarted(
+        source: source,
         label: 'quit-reopen-direct',
       );
       if (!verified && mounted) {
@@ -2021,6 +2169,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         });
       }
     } catch (e) {
+      if (e is PlaybackSourceSuperseded) return;
       AppTalker.warning('Player', 'handle quit success failed: $e');
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
@@ -2158,9 +2307,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _verifyAndCorrectResume(int startPositionMs) async {
+  PlayerSeekExecutor _createSeekExecutor({PlaybackSourceLease? source}) {
+    final sourceCache = source == null ? null : _playingInfoCache;
+    return PlayerSeekExecutor(
+      playerAdapter: CallbackPlayerSeekAdapter((targetMilliseconds) async {
+        final player = _player;
+        if (player == null) return;
+        if (source == null) {
+          await player.seek(Duration(milliseconds: targetMilliseconds));
+        } else {
+          await source.guard(
+            () => player.seek(Duration(milliseconds: targetMilliseconds)),
+            isConsumerCurrent: () => mounted && identical(_player, player),
+          );
+        }
+      }),
+      authoritativeDurationMilliseconds: () => _duration,
+      resetDanmaku: () => _danmakuResetGeneration++,
+      updateDanmakuPosition: (targetMilliseconds) {
+        _danmakuPosition.value = Duration(milliseconds: targetMilliseconds);
+      },
+      updatePlayRecord: (targetMilliseconds) {
+        _queuePlayRecordUpdate(
+          positionMs: targetMilliseconds,
+          cacheOverride: sourceCache,
+        );
+      },
+      notifyUserSeekStarted: () {
+        _introSkipController.dispatch(const UserSeekStarted());
+      },
+      notifyUserSeekCompleted: () {
+        _introSkipController.dispatch(const UserSeekCompleted());
+      },
+    );
+  }
+
+  Future<void> _verifyAndCorrectResume(
+      int startPositionMs, PlaybackSourceLease source) async {
     final player = _player;
     if (player == null || startPositionMs <= 0) return;
+
+    final resumeExecutor = _createSeekExecutor(source: source);
 
     // Wait until the media is actually ready before deciding whether to seek.
     // - Direct links: the mpv `start` property already applied the resume, so
@@ -2170,6 +2357,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     //   So wait for duration > 0 (stream loaded) before the correction seek.
     for (int attempt = 0; attempt < 30; attempt++) {
       await Future<void>.delayed(const Duration(milliseconds: 300));
+      source.ensureCurrent(isConsumerCurrent: () => mounted);
       final state = player.state;
       final positionMs = state.position.inMilliseconds;
       final durationMs = state.duration.inMilliseconds;
@@ -2190,22 +2378,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // mpv start property didn't fully apply. Correct through the runtime seek
     // executor without classifying the correction as a user interaction.
-    await _seekExecutor.performSeek(
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
+    await resumeExecutor.performSeek(
       targetMilliseconds: startPositionMs,
       origin: PlayerSeekOrigin.resumeCorrection,
     );
     await Future<void>.delayed(const Duration(milliseconds: 400));
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
 
     // If the seek was still dropped (stream not fully ready), retry once now
     // that duration is known so the correction is not silently lost.
     final afterSeekPosition = player.state.position.inMilliseconds;
     final afterSeekDeviation = (afterSeekPosition - startPositionMs).abs();
     if (afterSeekDeviation > 3000 && player.state.duration.inMilliseconds > 0) {
-      await _seekExecutor.performSeek(
+      source.ensureCurrent(isConsumerCurrent: () => mounted);
+      await resumeExecutor.performSeek(
         targetMilliseconds: startPositionMs,
         origin: PlayerSeekOrigin.resumeCorrection,
       );
       await Future<void>.delayed(const Duration(milliseconds: 200));
+      source.ensureCurrent(isConsumerCurrent: () => mounted);
     }
   }
 
@@ -2315,7 +2507,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isDirectLinkEmbeddedSubtitle(subtitleStream);
   }
 
-  Future<void> _applySubtitleSettingsToMpv(SubtitleSettings settings) async {
+  Future<void> _applySubtitleSettingsToMpv(SubtitleSettings settings,
+      {PlaybackSourceLease? source}) async {
     final player = _player;
     if (player == null || !_isCurrentSubtitleMpvAdjustable) {
       return;
@@ -2330,32 +2523,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         .round()
         .clamp(0, 100);
     try {
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty(
         'sub-delay',
         (-settings.offsetSeconds).toStringAsFixed(3),
       );
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty(
           'sub-scale', settings.fontScale.toStringAsFixed(3));
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty('sub-font', AppFonts.primary);
       // Let sub-pos move ASS subtitles that rely on style margins. Has no
       // effect on absolutely-positioned (\pos/\move) danmaku tracks.
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty('sub-ass-force-margins', 'yes');
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty('sub-pos', subPos.toString());
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       await platform.setProperty('sub-visibility', 'yes');
     } catch (e) {
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       AppTalker.warning('Player', 'apply subtitle settings to mpv failed: $e');
     }
   }
 
   void _applyExternalSubtitleAsync(
     SubtitleStream subtitleStream,
-    int loadToken,
-  ) {
+    int loadToken, {
+    PlaybackSourceLease? source,
+  }) {
     unawaited(() async {
       try {
         final content = await ref
             .read(playerServiceProvider)
             .downloadExternalSubtitle(subtitleStream.guid);
+        source?.ensureCurrent(isConsumerCurrent: () => mounted);
         final player = _player;
         if (!mounted || player == null || loadToken != _loadRequestToken) {
           return;
@@ -2370,6 +2572,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
         _clearPositionLockedSubtitle();
         await player.setSubtitleTrack(SubtitleTrack.no());
+        source?.ensureCurrent(isConsumerCurrent: () => mounted);
         await player.setSubtitleTrack(
           SubtitleTrack.data(
             content,
@@ -2380,9 +2583,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 : null,
           ),
         );
+        source?.ensureCurrent(isConsumerCurrent: () => mounted);
         _updatePositionLockedSubtitle(content, subtitleStream.format);
-        await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+        await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider),
+            source: source);
       } catch (e) {
+        if (e is PlaybackSourceSuperseded || source?.isCurrent == false) return;
         AppTalker.warning('Player', 'apply external subtitle async failed: $e');
       }
     }());
@@ -2402,8 +2608,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<bool> _applyDirectLinkEmbeddedSubtitleTrack(
-    SubtitleStream subtitleStream,
-  ) async {
+    SubtitleStream subtitleStream, {
+    PlaybackSourceLease? source,
+  }) async {
+    source?.ensureCurrent(isConsumerCurrent: () => mounted);
     final player = _player;
     if (player == null) {
       return false;
@@ -2430,6 +2638,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         await player.setSubtitleTrack(targetTrack);
       }
     } catch (error) {
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       AppTalker.warning(
         'Player',
         'lightweight sid switch failed, fallback to setSubtitleTrack: $error',
@@ -2437,8 +2646,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await player.setSubtitleTrack(targetTrack);
     }
 
+    source?.ensureCurrent(isConsumerCurrent: () => mounted);
     _pendingEmbeddedSubtitleGuid = null;
-    await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+    await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider),
+        source: source);
     return true;
   }
 
@@ -2536,7 +2747,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _applyCurrentSubtitleTrack(
     SubtitleStream? subtitleStream, {
     bool strict = false,
+    PlaybackSourceLease? source,
   }) async {
+    source?.ensureCurrent(isConsumerCurrent: () => mounted);
     final player = _player;
     if (player == null) return;
 
@@ -2561,8 +2774,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return;
       }
 
-      final applied =
-          await _applyDirectLinkEmbeddedSubtitleTrack(subtitleStream);
+      final applied = await _applyDirectLinkEmbeddedSubtitleTrack(
+          subtitleStream,
+          source: source);
       if (!applied) {
         final error = StateError(
           'Unable to resolve embedded subtitle track for ${subtitleStream.guid}',
@@ -2584,6 +2798,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final content = await ref
           .read(playerServiceProvider)
           .downloadExternalSubtitle(subtitleStream.guid);
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       if (!mounted || player != _player) {
         return;
       }
@@ -2604,9 +2819,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               : null,
         ),
       );
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       _updatePositionLockedSubtitle(content, subtitleStream.format);
-      await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider));
+      await _applySubtitleSettingsToMpv(ref.read(subtitleSettingsProvider),
+          source: source);
     } catch (e) {
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       AppTalker.warning('Player', 'apply external subtitle failed: $e');
       if (player == _player) {
         await player.setSubtitleTrack(SubtitleTrack.no());
@@ -2745,37 +2963,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// Attempts direct-link playback; if player.open fails, automatically
   /// falls back to HLS transcode playback.
-  Future<void> _openDirectLinkWithHlsFallback({
+  Future<PlaybackSourceLease?> _openDirectLinkWithHlsFallback({
     required PlayerSessionLoadResult result,
     required Dio dio,
     required int startPositionMs,
     required int requestToken,
   }) async {
+    final isCurrent = _capturePlaybackOperation();
     try {
-      await _openMediaWithResume(
+      _ensurePlaybackOperation(isCurrent);
+      final source = await _openMediaWithResume(
         playUri: result.preparedPlaySource.playUri,
+        directLinkContext: result.playingInfoCache,
+        isOperationCurrent: isCurrent,
         startPositionMs: startPositionMs,
         currentSubtitleStream: result.playingInfoCache.currentSubtitleStream,
       );
-      if (!mounted || requestToken != _loadRequestToken) return;
+      _ensurePlaybackOperation(isCurrent);
+      if (!mounted || requestToken != _loadRequestToken) return null;
 
       final isCloudDirect =
           _playingInfoCache?.directLinkQualities.isNotEmpty ?? false;
       final verified = await _verifyPlaybackStarted(
+        source: source,
         timeout: isCloudDirect
             ? _cloudDirectVerifyTimeout
             : _localDirectVerifyTimeout,
         label: isCloudDirect ? 'open-cloud-direct' : 'open-local-direct',
       );
-      if (verified) return;
+      if (verified) return source;
     } catch (e) {
+      if (e is PlaybackSourceSuperseded) rethrow;
+      _ensurePlaybackOperation(isCurrent);
       AppTalker.warning(
         'Player',
         'direct link playback failed, falling back to HLS: $e',
       );
     }
 
-    if (!mounted || requestToken != _loadRequestToken) return;
+    _ensurePlaybackOperation(isCurrent);
+    if (!mounted || requestToken != _loadRequestToken) return null;
     // Cloud direct-link failure: instead of silently falling back to a NAS
     // transcode of the same huge file, mirror the web player's error guard —
     // show the reason and let the user switch quality or play mode.
@@ -2785,9 +3012,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _cloudPlaybackErrorVisible = true;
         _cloudPlaybackErrorIsProxy = false;
       });
-      return;
+      return null;
     }
-    await _fallbackToHlsFromDirectLink(startPositionMs: startPositionMs);
+    return _fallbackToHlsFromDirectLink(startPositionMs: startPositionMs);
   }
 
   /// Returns true when the player has started producing frames.
@@ -2798,9 +3025,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// pass a longer timeout for netdisk sessions. [label] identifies the call
   /// path in the logs so a timeout/failure can be traced back to its trigger.
   Future<bool> _verifyPlaybackStarted({
+    required PlaybackSourceLease source,
     Duration timeout = _localDirectVerifyTimeout,
     String label = 'playback',
   }) async {
+    try {
+      final verified = await _verifyPlaybackStartedForSource(
+        source: source,
+        timeout: timeout,
+        label: label,
+      );
+      source.ensureCurrent(isConsumerCurrent: () => mounted);
+      if (!verified) await _closeFailedPlaybackSource(source);
+      return verified;
+    } catch (_) {
+      await _closeFailedPlaybackSource(source);
+      rethrow;
+    }
+  }
+
+  Future<bool> _verifyPlaybackStartedForSource({
+    required PlaybackSourceLease source,
+    Duration timeout = _localDirectVerifyTimeout,
+    String label = 'playback',
+  }) async {
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     final player = _player;
     if (player == null) {
       AppTalker.warning(
@@ -2838,6 +3087,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final attempts = (timeout.inMilliseconds / 500).ceil();
       for (int attempt = 0; attempt < attempts; attempt++) {
         await Future<void>.delayed(const Duration(milliseconds: 500));
+        source.ensureCurrent(isConsumerCurrent: () => mounted);
         if (!mounted) {
           AppTalker.warning(
             'Player',
@@ -2908,6 +3158,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // mpv never opened the container (duration=0, width=null), opened it but
     // has not decoded a frame yet (duration>0, width=null), or stalled mid
     // network (buffer/buffering/position values).
+    source.ensureCurrent(isConsumerCurrent: () => mounted);
     final state = player.state;
     AppTalker.warning(
       'Player',
@@ -2927,13 +3178,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Switches from a failed direct-link session to HLS transcode playback.
-  Future<void> _fallbackToHlsFromDirectLink({
+  Future<PlaybackSourceLease?> _fallbackToHlsFromDirectLink({
     required int startPositionMs,
   }) async {
+    final isCurrent = _capturePlaybackOperation();
+    await _closePlaybackSource();
+    _ensurePlaybackOperation(isCurrent);
     final cache = _playingInfoCache;
     final videoStream = cache?.currentVideoStream;
     final fileStream = cache?.currentFileStream;
-    if (cache == null || videoStream == null || fileStream == null) return;
+    if (cache == null || videoStream == null || fileStream == null) return null;
 
     final audioGuid = cache.currentAudioStream?.guid ??
         _selectedAudioGuid ??
@@ -2951,8 +3205,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       startPositionMs: startPositionMs,
       quality: cache.currentQuality,
     );
-    if (!mounted) return;
+    if (!mounted) return null;
 
+    _ensurePlaybackOperation(isCurrent);
     _playingInfoCache = cache.copyWith(
       playLink: hlsResult.playLinkRaw,
       playRecordLink: null,
@@ -2962,7 +3217,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         .read(playerViewModelProvider.notifier)
         .updatePlayingInfo(_playingInfoCache);
 
-    await _reopenPlaybackFromPlayLink(
+    return _reopenPlaybackFromPlayLink(
       playLink: hlsResult.playLinkRaw,
       startPositionMs: startPositionMs,
     );
@@ -2987,7 +3242,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _loadAndPlayMedia() async {
     final requestToken = ++_loadRequestToken;
+    final isCurrent = _capturePlaybackOperation();
+    PlaybackSourceLease? source;
     try {
+      await _closePlaybackSource();
+      _ensurePlaybackOperation(isCurrent);
       _suspendPlaybackTransitionFeedback = true;
       _hidePlaybackIndicator();
       setState(() => _isLoading = true);
@@ -3002,7 +3261,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           userGuid: ref.read(userInfoProvider).valueOrNull?.guid,
         ),
       );
-      if (!mounted || requestToken != _loadRequestToken) {
+      if (!isCurrent()) {
         return;
       }
 
@@ -3045,7 +3304,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           widget.initialPositionMs ?? result.effectiveStartPositionMs;
 
       if (result.playingInfoCache.isUseDirectLink) {
-        await _openDirectLinkWithHlsFallback(
+        source = await _openDirectLinkWithHlsFallback(
           result: result,
           dio: dio,
           startPositionMs: startMs,
@@ -3053,13 +3312,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         );
       } else {
         try {
-          await _openMediaWithResume(
+          source = await _openMediaWithResume(
             playUri: result.preparedPlaySource.playUri,
+            isOperationCurrent: isCurrent,
             startPositionMs: startMs,
             currentSubtitleStream:
                 result.playingInfoCache.currentSubtitleStream,
           );
-          if (!mounted || requestToken != _loadRequestToken) {
+          if (!isCurrent()) {
             return;
           }
           // For cloud NAS proxy sessions, verify the stream actually started.
@@ -3073,6 +3333,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       false);
           if (isCloudProxy) {
             final verified = await _verifyPlaybackStarted(
+              source: source,
               timeout: const Duration(seconds: 20),
               label: 'open-cloud-proxy',
             );
@@ -3087,6 +3348,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             }
           }
         } catch (e) {
+          if (e is PlaybackSourceSuperseded) rethrow;
           AppTalker.warning(
             'Player',
             'initial cloud proxy playback failed: $e',
@@ -3102,7 +3364,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           return;
         }
       }
-      if (!mounted || requestToken != _loadRequestToken) {
+      if (!isCurrent()) {
         return;
       }
       _startHlsSubtitleSessionAsync(
@@ -3114,11 +3376,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         loadToken: requestToken,
       );
 
+      source?.ensureCurrent(isConsumerCurrent: isCurrent);
       _volume = ref.read(playerSettingsManagerProvider).getVolume();
       await _player!.setVolume(uiVolumeToMpvVolume(_volume));
 
+      source?.ensureCurrent(isConsumerCurrent: isCurrent);
+      _ensurePlaybackOperation(isCurrent);
       _speed = ref.read(playerSettingsManagerProvider).getSpeed();
       await _player!.setRate(_speed);
+      source?.ensureCurrent(isConsumerCurrent: isCurrent);
+      _ensurePlaybackOperation(isCurrent);
 
       setState(() {
         _isLoading = false;
@@ -3170,9 +3437,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Probe which hardware decoders actually work for this file (in the
       // background, without touching the active player) so the
       // 指定硬件解码器 menu can list them.
-      unawaited(
-        _probeAvailableHwdec(playUri: result.preparedPlaySource.playUri),
-      );
+      if (source != null && !_cloudPlaybackErrorVisible) {
+        unawaited(_probeAvailableHwdec(source: source));
+      }
 
       _fetchEpisodeContextAsync(requestToken);
 
@@ -3180,6 +3447,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // the new video stream is known (KMP does this on every media load).
       unawaited(_applyWindowAspectRatio());
     } catch (e, st) {
+      if (e is PlaybackSourceSuperseded || !isCurrent()) return;
+      if (source != null) await _closeFailedPlaybackSource(source);
+      if (!isCurrent()) return;
       AppTalker.error(
         'Player',
         error: e,
@@ -3197,7 +3467,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Always clear the loading flag for the active request, covering the
       // early-return paths above where the request stays current but never
       // reached the success branch (e.g. a superseded or aborted load).
-      if (mounted && requestToken == _loadRequestToken && _isLoading) {
+      if (isCurrent() && _isLoading) {
         setState(() => _isLoading = false);
       }
     }
@@ -3912,7 +4182,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final fileStream = cache.currentFileStream;
     if (videoStream == null || fileStream == null) return;
 
+    ++_cloudSwitchToken;
+    final isCurrent = _capturePlaybackOperation();
     try {
+      await _closePlaybackSource();
+      _ensurePlaybackOperation(isCurrent);
       setState(() => _isLoading = true);
       final currentPosition = player.state.position.inMilliseconds;
       final currentPlayLink = cache.playLink;
@@ -3937,8 +4211,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               MediaPRequest(playLink: currentPlayLink),
               updateState: false,
             );
-        await _reopenPlaybackWithDirectLink(startPositionMs: currentPosition);
+        _ensurePlaybackOperation(isCurrent);
+        final source = await _reopenPlaybackWithDirectLink(
+            startPositionMs: currentPosition);
+        if (source == null) return;
         final verified = await _verifyPlaybackStarted(
+          source: source,
           timeout: (_playingInfoCache?.directLinkQualities.isNotEmpty ?? false)
               ? _cloudDirectVerifyTimeout
               : _localDirectVerifyTimeout,
@@ -3967,6 +4245,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 updateState: false,
               );
         }
+        _ensurePlaybackOperation(isCurrent);
         final audioGuid = cache.currentAudioStream?.guid ??
             _selectedAudioGuid ??
             _requestedAudioGuid ??
@@ -3995,15 +4274,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 forcedSdr: playRequest.forcedSdr,
               ),
             );
+        _ensurePlaybackOperation(isCurrent);
         await _handlePlayPlaySuccess(response,
             startPositionMs: currentPosition);
       }
+      _ensurePlaybackOperation(isCurrent);
       if (mounted) setState(() => _isLoading = false);
       // The server-side playback session was recreated (or restored to
       // direct link), so any transcode statistics held by the details panel
       // are stale; re-query the media/p endpoint immediately.
       _refreshPlaybackDetailsImmediately();
     } catch (e) {
+      if (e is PlaybackSourceSuperseded || !isCurrent()) return;
       AppTalker.warning('Player', 'restart for transcode settings failed: $e');
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
@@ -4235,14 +4517,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
 
     final switchToken = ++_cloudSwitchToken;
+    final isCurrent = _capturePlaybackOperation();
     setState(() => _isLoading = true);
     try {
+      await _closePlaybackSource();
+      _ensurePlaybackOperation(isCurrent);
       final currentPosition = player.state.position.inMilliseconds;
       final directLink = await _sessionCoordinator.getDirectPlayLink(
         mediaGuid: videoStream.mediaGuid,
         startPositionMs: currentPosition,
         directLinkQualityIndex: targetIndex,
       );
+      _ensurePlaybackOperation(isCurrent);
       if (!_isCurrentCloudSwitch(switchToken)) return;
 
       _playingInfoCache = cache.copyWith(
@@ -4256,14 +4542,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .updatePlayingInfo(_playingInfoCache);
       _queuePlayRecordUpdate(positionMs: currentPosition);
 
-      await _openMediaWithResume(
+      final source = await _openMediaWithResume(
         playUri: directLink.playUri,
+        directLinkContext: _playingInfoCache,
+        isOperationCurrent: isCurrent,
         startPositionMs: currentPosition,
         currentSubtitleStream: _playingInfoCache?.currentSubtitleStream,
       );
       if (!_isCurrentCloudSwitch(switchToken)) return;
 
       final verified = await _verifyPlaybackStarted(
+        source: source,
         timeout: _cloudDirectVerifyTimeout,
         label: 'switch-cloud-direct-quality',
       );
@@ -4291,6 +4580,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       });
       _refreshPlaybackDetailsImmediately();
     } catch (e) {
+      if (e is PlaybackSourceSuperseded || !isCurrent()) return;
       AppTalker.warning('Player', 'cloud direct quality switch failed: $e');
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
         ref
@@ -4420,11 +4710,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         .showToast('播放方式切换至 $label', style: ToastStyle.liquidGlass, type: ToastType.success);
 
     final switchToken = ++_cloudSwitchToken;
+    final isCurrent = _capturePlaybackOperation();
     setState(() {
       _isLoading = true;
       _cloudPlaybackErrorVisible = false;
     });
     try {
+      await _closePlaybackSource();
+      _ensurePlaybackOperation(isCurrent);
       final currentPosition = player.state.position.inMilliseconds;
       if (mode == CloudPlayMode.direct) {
         final entered = await _enterCloudDirectMode(
@@ -4473,6 +4766,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           } finally {
             dio.options.receiveTimeout = previousReceiveTimeout;
           }
+          _ensurePlaybackOperation(isCurrent);
           if (!_isCurrentCloudSwitch(switchToken)) return;
 
           _playingInfoCache = cache.copyWith(
@@ -4492,11 +4786,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             _currentResolution = quality?.resolution ?? '';
             _currentBitrate = quality?.bitrate;
           });
-          await _handlePlayPlaySuccess(response,
+          final source = await _handlePlayPlaySuccess(response,
               startPositionMs: currentPosition);
           if (!_isCurrentCloudSwitch(switchToken)) return;
 
+          if (source == null) return;
           final proxyVerified = await _verifyPlaybackStarted(
+            source: source,
             timeout: const Duration(seconds: 20),
             label: 'switch-cloud-play-mode-proxy',
           );
@@ -4504,6 +4800,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             throw Exception('NAS proxy playback verification failed');
           }
         } catch (e) {
+          if (e is PlaybackSourceSuperseded) rethrow;
+          _ensurePlaybackOperation(isCurrent);
           // Mid-playback switch from 网盘直连播放 to NAS proxy: when the proxy
           // negotiation fails, revert to the direct session the user came
           // from (the web player keeps the previous mode on switch failure).
@@ -4542,6 +4840,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _refreshPlaybackDetailsImmediately();
       }
     } catch (e, st) {
+      if (e is PlaybackSourceSuperseded || !isCurrent()) return;
       AppTalker.error(
         'Player',
         error: e,
@@ -4565,6 +4864,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     required int switchToken,
     required int startPositionMs,
   }) async {
+    final isCurrent = _capturePlaybackOperation();
     final cache = _playingInfoCache;
     final player = _player;
     if (cache == null || player == null) return false;
@@ -4602,6 +4902,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       cloudStorageType: cloudStorageType,
       directLinkAudioIndex: _playInfo?.directLinkAudioIndex,
     );
+    _ensurePlaybackOperation(isCurrent);
     if (!_isCurrentCloudSwitch(switchToken)) return false;
 
     final convertedQualities =
@@ -4633,13 +4934,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     _queuePlayRecordUpdate(positionMs: startPositionMs);
 
-    await _openMediaWithResume(
+    final source = await _openMediaWithResume(
       playUri: directLink.playUri,
+      directLinkContext: _playingInfoCache,
+      isOperationCurrent: isCurrent,
       startPositionMs: startPositionMs,
       currentSubtitleStream: _playingInfoCache?.currentSubtitleStream,
     );
     if (!_isCurrentCloudSwitch(switchToken)) return false;
     final verified = await _verifyPlaybackStarted(
+      source: source,
       timeout: _cloudDirectVerifyTimeout,
       label: 'enter-cloud-direct-mode',
     );
@@ -4680,6 +4984,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
     );
 
+    ++_cloudSwitchToken;
+    final isCurrent = _capturePlaybackOperation();
     try {
       setState(() => _isLoading = true);
       final currentPosition = player.state.position.inMilliseconds;
@@ -4706,6 +5012,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _refreshPlaybackDetailsImmediately();
         return;
       }
+      // resetQuality updates the current NAS session without opening media;
+      // keep its lease until an operation actually replaces the playback source.
+      final resetsCurrentSession = !isTargetDirectLink &&
+          !cache.isUseDirectLink && currentPlayLink != null;
+      if (!resetsCurrentSession) {
+        await _closePlaybackSource();
+      }
+      _ensurePlaybackOperation(isCurrent);
       _playingInfoCache = cache.copyWith(
         currentQuality: quality,
         isUseDirectLink: isTargetDirectLink,
@@ -4767,10 +5081,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             forcedSdr: playRequest.forcedSdr,
           ),
         );
+        _ensurePlaybackOperation(isCurrent);
         await _handlePlayPlaySuccess(response,
             startPositionMs: currentPosition);
       }
 
+      _ensurePlaybackOperation(isCurrent);
       setState(() {
         _isLoading = false;
         _currentQuality = quality;
@@ -4779,6 +5095,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       });
       _refreshPlaybackDetailsImmediately();
     } catch (e) {
+      if (e is PlaybackSourceSuperseded || !isCurrent()) return;
       // Restore the pre-switch session state: the optimistic cache update
       // above already ran, and leaving it in place would make later switches
       // believe the session is in a mode it is not actually in.
@@ -4878,8 +5195,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<AudioTrack> _resolveDirectLinkAudioTrack(
     AudioStream audio,
-    int switchToken,
-  ) async {
+    int switchToken, {
+    PlaybackSourceLease? source,
+  }) async {
     AudioTrack? resolveCurrentTracks() {
       return _directLinkAudioTrackResolver.resolve(
         audioStreams:
@@ -4909,6 +5227,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     });
     subscription = player.stream.tracks.listen((tracks) {
+      if (source != null && !source.isCurrent) return;
       _embeddedAudioTracks =
           _directLinkAudioTrackResolver.embeddedTracksOf(tracks.audio);
       final resolvedTrack = resolveCurrentTracks();
@@ -4922,7 +5241,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
 
     try {
-      final resolvedTrack = await completer.future;
+      final resolvedTrack = source == null
+          ? await completer.future
+          : await source.guard(() => completer.future,
+              isConsumerCurrent: () => _isCurrentAudioSwitch(switchToken));
       if (!_isCurrentAudioSwitch(switchToken)) {
         throw StateError('音频切换请求已过期');
       }
@@ -4933,7 +5255,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _applyInitialDirectLinkAudioTrack() async {
+  Future<void> _applyInitialDirectLinkAudioTrack(
+      {PlaybackSourceLease? source}) async {
     final targetAudio = _playingInfoCache?.currentAudioStream;
     if (targetAudio == null) {
       return;
@@ -4944,12 +5267,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final targetTrack = await _resolveDirectLinkAudioTrack(
         targetAudio,
         switchToken,
+        source: source,
       );
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       if (!_isCurrentAudioSwitch(switchToken)) {
         return;
       }
-      await _applyDirectLinkAudioTrack(targetTrack);
+      await _applyDirectLinkAudioTrack(targetTrack, source: source);
     } catch (error, stackTrace) {
+      source?.ensureCurrent(isConsumerCurrent: () => mounted);
       AppTalker.error(
         'Player',
         error: error,
@@ -4959,7 +5285,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _applyDirectLinkAudioTrack(AudioTrack audioTrack) async {
+  Future<void> _applyDirectLinkAudioTrack(AudioTrack audioTrack,
+      {PlaybackSourceLease? source}) async {
+    source?.ensureCurrent(isConsumerCurrent: () => mounted);
     final player = _player;
     if (player == null) {
       throw StateError('播放器尚未初始化');
@@ -4974,6 +5302,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         );
         return;
       } catch (error) {
+        source?.ensureCurrent(isConsumerCurrent: () => mounted);
         AppTalker.warning(
           'Player',
           'mpv aid switch failed, fallback to setAudioTrack: $error',
@@ -5173,6 +5502,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void dispose() {
+    unawaited(_closePlaybackSource());
     if (_isDesktopPlatform()) {
       windowManager.removeListener(this);
       unawaited(_windowAspectRatioController.release());

@@ -119,7 +119,7 @@ release-work/
 # Prevent accidental commit of large binary dependencies downloaded at build time
 /windows/libs/
 /docs/
-/test/
+.tools/
 
 # debug-mode skill runtime output
 /.claude/debug/
