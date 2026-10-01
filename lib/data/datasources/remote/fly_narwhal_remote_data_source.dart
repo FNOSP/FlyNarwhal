@@ -14,6 +14,7 @@ import '../../../core/network/ssl/ssl_trust_persistence.dart';
 import '../../../core/network/sse_event_parser.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../models/fly_narwhal/index.dart';
+import '../../../providers/danmaku_controller.dart' show danmakuWholeWorkKey;
 
 class FlyNarwhalRemoteDataSource {
   static const String _kServerUnreachable = '飞鲸服务端无法访问';
@@ -503,7 +504,7 @@ class FlyNarwhalRemoteDataSource {
   Map<String, List<Danmaku>> _parseDanmakuPayload(String data) {
     final decoded = jsonDecode(data);
     if (decoded is List) {
-      return <String, List<Danmaku>>{'default': _parseDanmakuList(decoded)};
+      return <String, List<Danmaku>>{danmakuWholeWorkKey: _parseDanmakuList(decoded)};
     }
     if (decoded is Map) {
       return decoded.map((key, value) {

@@ -16,6 +16,11 @@ enum DanmakuLoadStatus {
   failure,
 }
 
+/// Key the server uses for the danmaku of a work requested as a whole (a movie
+/// has no episode ordinal). It is a name rather than an episode number so that
+/// "the whole work" can never be confused with episode 1.
+const String danmakuWholeWorkKey = 'default';
+
 class DanmakuSettings {
   static const double minimumArea = 0.1;
   static const double maximumArea = 1.0;
@@ -286,7 +291,16 @@ class DanmakuController extends StateNotifier<DanmakuState> {
   ) {
     // Only the current episode's key is accepted. Falling back to an arbitrary
     // entry would silently show one episode's danmaku for all of them.
-    return danmakuByEpisode[episodeNumber.toString()] ?? const <Danmaku>[];
+    // A work requested as a whole (a movie has no episode ordinal) comes back
+    // under a named key, never under an episode number.
+    final List<Danmaku> selected;
+    if (episodeNumber == 0) {
+      selected =
+          danmakuByEpisode[danmakuWholeWorkKey] ?? const <Danmaku>[];
+    } else {
+      selected = danmakuByEpisode[episodeNumber.toString()] ?? const <Danmaku>[];
+    }
+    return selected;
   }
 
   List<Danmaku> _normalizeAndSort(List<Danmaku> danmakuList) {
