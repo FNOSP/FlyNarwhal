@@ -1930,6 +1930,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 source.playerHeaders.isEmpty ? null : source.playerHeaders)),
       );
       _setupDirectLinkEmbeddedSubtitleTracking(source);
+      // mpv consumes `start` when the media loads, so the write above is lost
+      // whenever the previous source left a position behind - playback then
+      // starts at 0 and only the correction seek catches up, which shows a
+      // flash of the opening. Re-applying it after open guarantees the target.
+      if (platform is NativePlayer && startPositionMs > 0) {
+        await source.guard(
+            () => platform.setProperty(
+                'start', (startPositionMs / 1000).toStringAsFixed(3)),
+            isConsumerCurrent: isCurrent);
+      }
       if (_playingInfoCache?.isUseDirectLink == true) {
         await source.guard(
             () => _applyInitialDirectLinkAudioTrack(source: source),

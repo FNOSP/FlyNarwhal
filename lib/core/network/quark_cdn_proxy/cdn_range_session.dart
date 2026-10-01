@@ -46,11 +46,23 @@ class _ReadRequest {
   Future<void> retryQueue = Future.value();
   Object? error;
   Future<void>? cleanup;
+  final Set<Future<void>> ownings = {};
   bool get cancelled => cancellation.isCancelled;
   bool exhausted = false;
   bool prefetchAllowed = false;
   int nextId = 0;
   int readingId = 0;
+
+  /// Reserves the right to end an attempt's body connection. A later body
+  /// teardown only cancels the token when it won this race, so the token never
+  /// sees a second cancel with a different reason.
+  Future<void> claim() {
+    final owning = Future<void>.value();
+    ownings.add(owning);
+    return owning;
+  }
+
+  bool owns(Future<void> owning) => ownings.contains(owning);
 
   void signal() {
     final previous = changed;
@@ -108,6 +120,10 @@ class _ReadRequest {
   void cancel() {
     if (cancelled) return;
     cancellation.cancel();
+    // Take every outstanding body connection with the token. A body that was
+    // still mid-read then finds it no longer owns the teardown and stays
+    // silent instead of cancelling the token a second time.
+    ownings.clear();
     for (final attempt in attempts.toList()) {
       attempt.cancel('CDN read cancelled');
     }
@@ -320,6 +336,11 @@ class CdnRangeSession {
         var outcome = 'cancelled';
         Stream<Uint8List>? unreadBody;
         var bodyPhase = false;
+        // The body connection has one owner. Whichever side reaches the
+        // teardown first takes it and ends the token with its own reason; the
+        // other must stay silent, because a second cancel with a different
+        // reason makes the token warn.
+        final owning = request.claim();
         Object? failed;
         Duration delay = Duration.zero;
         var serializeDelay = false;
@@ -355,7 +376,8 @@ class CdnRangeSession {
             }
             bodyPhase = true;
             unreadBody = null;
-            await _consume(response.stream, request, chunk, token, trace);
+            await _consume(
+                response.stream, request, chunk, token, trace, owning);
             chunk.complete = true;
           }
           request.signal();
@@ -407,7 +429,10 @@ class CdnRangeSession {
             }
           }
         } finally {
-          token.cancel('CDN attempt finished');
+          // The body connection is handed over only once its read completed, so
+          // a failed or cancelled attempt still ends its own token here.
+          if (request.owns(owning)) token.cancel('CDN attempt finished');
+          request.ownings.remove(owning);
           if (unreadBody != null) await _discard(unreadBody);
           request.attempts.remove(token);
           if (trace != null) diagnostics?.finish(trace, outcome);
@@ -440,6 +465,7 @@ class CdnRangeSession {
     _StreamingChunk chunk,
     CancelToken token,
     CdnRangeTrace? trace,
+    Future<void> owning,
   ) async {
     final done = Completer<void>();
     final subscription = stream.listen((bytes) {
@@ -472,7 +498,12 @@ class CdnRangeSession {
     try {
       await request.wait(done.future);
     } finally {
-      token.cancel('CDN body finished');
+      // Only the owner names the token's cancellation. When the read already
+      // claimed it, cancelling again with a different reason would warn.
+      if (request.owns(owning)) {
+        request.ownings.remove(owning);
+        token.cancel('CDN body finished');
+      }
       // Retain error ownership even if cancellation wins before stream failure.
       await subscription.cancel();
     }
