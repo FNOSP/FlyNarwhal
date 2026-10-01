@@ -1886,6 +1886,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     required SubtitleStream? currentSubtitleStream,
     PlayingInfoCache? directLinkContext,
     bool Function()? isOperationCurrent,
+    // When false the media is opened paused and left paused; the caller is
+    // responsible for resuming once the video surface can show a frame. Used
+    // by the initial load, where the surface is not mounted yet.
+    bool resumeWhenReady = true,
   }) async {
     final operationIsCurrent =
         isOperationCurrent ?? _capturePlaybackOperation();
@@ -1925,9 +1929,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         source: source,
         configureSsl: (uri) => applySslTrustToPlayer(player, uri),
         isConsumerCurrent: isCurrent,
-        open: () => player.open(Media(source.playUri,
-            httpHeaders:
-                source.playerHeaders.isEmpty ? null : source.playerHeaders)),
+        open: () => player.open(
+          Media(source.playUri,
+              httpHeaders:
+                  source.playerHeaders.isEmpty ? null : source.playerHeaders),
+          // Opening with `play: true` lets mpv emit audio the instant it
+          // decodes, which happens before the Flutter video surface is in the
+          // tree - the source of the "sound first, picture later" start. The
+          // initial load opens paused and resumes after the surface mounts;
+          // later opens (quality switches, reopens) have a surface already and
+          // may start immediately.
+          play: resumeWhenReady,
+        ),
       );
       _setupDirectLinkEmbeddedSubtitleTracking(source);
       // mpv consumes `start` when the media loads, so the write above is lost
@@ -1972,6 +1985,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       await source.guard(() => _verifyAndCorrectResume(startPositionMs, source),
           isConsumerCurrent: isCurrent);
+      // The initial load opens paused (see [resumeWhenReady]); its caller
+      // resumes once the video surface is mounted and painted. Every other
+      // caller has a surface already, so resume here to preserve the old
+      // unpause-at-open behavior.
+      if (resumeWhenReady) {
+        await source.guard(() => player.play(), isConsumerCurrent: isCurrent);
+      }
       return source;
     } catch (_) {
       await _closeFailedPlaybackSource(source);
@@ -2029,6 +2049,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<PlaybackSourceLease?> _reopenPlaybackFromPlayLink({
     required String playLink,
     required int startPositionMs,
+    bool resumeWhenReady = true,
   }) async {
     final isCurrent = _capturePlaybackOperation();
     await _closePlaybackSource();
@@ -2054,6 +2075,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       isOperationCurrent: isCurrent,
       startPositionMs: startPositionMs,
       currentSubtitleStream: cache.currentSubtitleStream,
+      resumeWhenReady: resumeWhenReady,
     );
     source.ensureCurrent(isConsumerCurrent: isCurrent);
     _startHlsSubtitleSessionAsync(
@@ -2994,6 +3016,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         isOperationCurrent: isCurrent,
         startPositionMs: startPositionMs,
         currentSubtitleStream: result.playingInfoCache.currentSubtitleStream,
+        // Initial load: leave paused until the surface is mounted (see the
+        // non-direct branch in [_loadAndPlayMedia]).
+        resumeWhenReady: false,
       );
       _ensurePlaybackOperation(isCurrent);
       if (!mounted || requestToken != _loadRequestToken) return null;
@@ -3030,7 +3055,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       });
       return null;
     }
-    return _fallbackToHlsFromDirectLink(startPositionMs: startPositionMs);
+    return _fallbackToHlsFromDirectLink(
+      startPositionMs: startPositionMs,
+      // Part of the initial load (see [_loadAndPlayMedia]); stay paused until
+      // the surface is mounted.
+      resumeWhenReady: false,
+    );
   }
 
   /// Returns true when the player has started producing frames.
@@ -3196,6 +3226,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// Switches from a failed direct-link session to HLS transcode playback.
   Future<PlaybackSourceLease?> _fallbackToHlsFromDirectLink({
     required int startPositionMs,
+    // See [_openMediaWithResume]. The initial-load caller passes false so the
+    // fallback also stays paused until the surface is mounted.
+    bool resumeWhenReady = true,
   }) async {
     final isCurrent = _capturePlaybackOperation();
     await _closePlaybackSource();
@@ -3236,6 +3269,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return _reopenPlaybackFromPlayLink(
       playLink: hlsResult.playLinkRaw,
       startPositionMs: startPositionMs,
+      resumeWhenReady: resumeWhenReady,
     );
   }
 
@@ -3334,6 +3368,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             startPositionMs: startMs,
             currentSubtitleStream:
                 result.playingInfoCache.currentSubtitleStream,
+            // Initial load: the video surface is not mounted yet, so leave the
+            // media paused and resume after [_isInitialized] puts it on screen.
+            resumeWhenReady: false,
           );
           if (!isCurrent()) {
             return;
@@ -3426,6 +3463,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ? NextEpisodeLoadPhase.loading
                 : NextEpisodeLoadPhase.unavailable;
       });
+      // The media was opened paused so mpv could not emit audio while the
+      // opening awaits ran. Now that the surface is mounted, wait for one
+      // frame to be painted and then resume, so picture and sound land
+      // together instead of audio starting a beat early.
+      await _resumeAfterInitialSurfaceMount(isCurrent);
       _resolveAndDispatchSkipSegments();
       _introSkipController.dispatch(
         EpisodeSessionStarted(
@@ -3486,6 +3528,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (isCurrent() && _isLoading) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  /// Resumes the initial-load media once its video surface can show a frame.
+  ///
+  /// The media is opened paused (see [_openMediaWithResume]'s `resumeWhenReady`)
+  /// so mpv cannot emit audio during the opening awaits, which is what made
+  /// sound start ahead of the picture. This is called right after
+  /// `_isInitialized` is set, so the Video widget is in the tree; one painted
+  /// frame is then enough for the platform texture to attach, after which
+  /// audio starts alongside the visible picture.
+  Future<void> _resumeAfterInitialSurfaceMount(
+    bool Function() isCurrent,
+  ) async {
+    final player = _player;
+    if (player == null) return;
+    await WidgetsBinding.instance.endOfFrame;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !isCurrent() || !identical(player, _player)) return;
+    try {
+      await player.play();
+    } catch (e) {
+      AppTalker.warning('Player', 'resume after surface mount failed: $e');
     }
   }
 
