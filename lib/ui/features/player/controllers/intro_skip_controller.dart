@@ -132,6 +132,14 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
     // Intro role: jump to the end of the segment when the playhead sits in it.
     final introRole = _introRoleSegmentContaining(position);
     if (introRole != null &&
+        // Never auto-skip a segment this session already started at or past —
+        // it was already watched. Mirrors the guard in [_crossedIntroRoleSegment].
+        // Without it, a resume from past the intro (or an HLS/cloud reload that
+        // transiently reports a position back inside the already-watched intro)
+        // re-fires the skip: the undo prompt appears for a split second and is
+        // then wiped by the reload's session dispose, so the user sees the intro
+        // jump with no undo prompt.
+        state.effectiveStartPositionMilliseconds < introRole.endMilliseconds &&
         state.pendingIntroSegment == null &&
         state.lastSkippedIntroSegment == null &&
         !state.isIntroUndoVisible &&
