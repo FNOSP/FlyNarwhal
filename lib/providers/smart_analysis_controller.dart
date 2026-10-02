@@ -1,10 +1,16 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 
+import '../core/constants/app_constants.dart';
 import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
 import '../data/datasources/remote/media_remote_data_source.dart';
 import '../core/network/api_result.dart';
+import '../data/models/cloud_storage_type.dart';
 import '../data/models/fly_narwhal/index.dart';
+import '../data/models/player_models.dart';
 
 typedef AnalysisDelay = Future<void> Function(Duration duration);
 typedef StartSeasonPolling = void Function(String seasonGuid);
@@ -96,6 +102,8 @@ class SmartAnalysisController
   static const String queuedSuccessMessage = '已加入分析队列';
   static const String queuedLoadingMessage = '已加入到分析队列';
   static const String fallbackSuccessMessage = '分析请求已提交';
+  static const String cloudOrStrmRejectionMessage =
+      '网盘或 STRM 视频无法使用“智能分析片头/片尾”功能';
 
   final FlyNarwhalRemoteDataSource _flyNarwhalRemoteDataSource;
   final MediaRemoteDataSource _mediaRemoteDataSource;
@@ -103,6 +111,7 @@ class SmartAnalysisController
   final StartSeasonPolling _startSeasonPolling;
   final StartSeasonPolling _startSeasonPreparedPolling;
   final String? Function() _resolveUserGuid;
+  final String? Function() _resolveToken;
   final Set<String> _submittingSeasonGuids = <String>{};
 
   SmartAnalysisController(
@@ -112,11 +121,13 @@ class SmartAnalysisController
     StartSeasonPolling? startSeasonPolling,
     StartSeasonPolling? startSeasonPreparedPolling,
     String? Function()? resolveUserGuid,
+    String? Function()? resolveToken,
   })  : _delay = delay ?? Future<void>.delayed,
         _startSeasonPolling = startSeasonPolling ?? _ignorePollingRequest,
         _startSeasonPreparedPolling =
             startSeasonPreparedPolling ?? _ignorePollingRequest,
         _resolveUserGuid = resolveUserGuid ?? (() => null),
+        _resolveToken = resolveToken ?? (() => null),
         super(const SmartAnalysisSubmissionState());
 
   static void _ignorePollingRequest(String seasonGuid) {}
@@ -143,6 +154,72 @@ class SmartAnalysisController
     return null;
   }
 
+  /// Whether the season's first episode sits on a netdisk or is an STRM file —
+  /// sources the analysis server cannot parse for intro/outro segments.
+  /// Mirrors the player's detection: the media/stream response carries
+  /// `cloud_storage_info` (providers 1..10, STRM 9001) for such media.
+  /// Probe failures must not block the submission, so they read as "local".
+  Future<bool> _isCloudOrStrmSeason(String seasonGuid) async {
+    try {
+      final episodes =
+          (await _mediaRemoteDataSource.getEpisodeList(seasonGuid))
+              .getOrThrow();
+      if (episodes.isEmpty) return false;
+      return _isCloudOrStrmEpisode(episodes.first.guid);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Same probe for a whole TV: a show's seasons share one storage backend in
+  /// practice, so the first season is representative.
+  Future<bool> _isCloudOrStrmTv(String tvGuid) async {
+    try {
+      final seasons =
+          (await _mediaRemoteDataSource.getSeasonList(tvGuid)).getOrThrow();
+      if (seasons.isEmpty) return false;
+      return _isCloudOrStrmSeason(seasons.first.guid);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _isCloudOrStrmEpisode(String episodeGuid) async {
+    try {
+      final streamList =
+          (await _mediaRemoteDataSource.getStreamList(episodeGuid))
+              .getOrThrow();
+      final files = streamList?.files;
+      // File-level guid matches videoStream.mediaGuid, same as _submitSeason.
+      final mediaGuid = (files != null && files.isNotEmpty)
+          ? files.first.guid
+          : episodeGuid;
+      final streamInfo = (await _mediaRemoteDataSource.getStreamInfo(
+        StreamRequest(
+          mediaGuid: mediaGuid,
+          ip: _ipHash(),
+          header: Header(userAgent: [AppConstants.userAgent]),
+        ),
+      ))
+          .getOrThrow();
+      return CloudStorageType.fromValue(
+        streamInfo.cloudStorageInfo?.cloudStorageType,
+      ).isKnown;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Same client identifier the player sends to media/stream (md5 of token).
+  String? _ipHash() {
+    final token = _resolveToken();
+    if (token == null || token.isEmpty) return null;
+    return md5.convert(utf8.encode(token)).toString();
+  }
+
+  SmartAnalysisUserMessageException _cloudOrStrmRejection() =>
+      const SmartAnalysisUserMessageException(cloudOrStrmRejectionMessage);
+
   Future<void> analyzeSeason(
     String seasonGuid,
     String tvTitle,
@@ -160,6 +237,17 @@ class SmartAnalysisController
       _setSubmission(
         targetKey,
         AsyncError<String>(versionError, StackTrace.current),
+      );
+      _submittingSeasonGuids.remove(seasonGuid);
+      return;
+    }
+
+    // Netdisk/STRM media cannot be analyzed server-side; reject it the same
+    // way, before the optimistic "queued" toast fires.
+    if (await _isCloudOrStrmSeason(seasonGuid)) {
+      _setSubmission(
+        targetKey,
+        AsyncError<String>(_cloudOrStrmRejection(), StackTrace.current),
       );
       _submittingSeasonGuids.remove(seasonGuid);
       return;
@@ -200,6 +288,16 @@ class SmartAnalysisController
       _setSubmission(
         targetKey,
         AsyncError<String>(versionError, StackTrace.current),
+      );
+      return;
+    }
+
+    // Netdisk/STRM media cannot be analyzed server-side; reject before the
+    // optimistic "queued" toast fires.
+    if (await _isCloudOrStrmTv(tvGuid)) {
+      _setSubmission(
+        targetKey,
+        AsyncError<String>(_cloudOrStrmRejection(), StackTrace.current),
       );
       return;
     }

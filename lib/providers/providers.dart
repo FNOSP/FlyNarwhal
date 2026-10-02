@@ -309,6 +309,9 @@ final smartAnalysisControllerProvider = StateNotifierProvider<
           .startPolling(seasonGuid);
     },
     resolveUserGuid: () => ref.read(currentUserGuidProvider),
+    // media/stream probe identifies the client like the player does (md5 of
+    // the login token) when detecting netdisk/STRM media.
+    resolveToken: () => ref.read(preferencesManagerProvider).getToken(),
   );
 });
 

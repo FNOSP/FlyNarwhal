@@ -1249,15 +1249,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  /// Whether the active session plays netdisk (网盘) or STRM media. The server
+  /// cannot analyze intro/outro segments for these sources, so the smart-skip
+  /// toggle and its config entry must stay hidden and smart skip must not run.
+  bool get _isCloudOrStrmPlayback {
+    final cloudType =
+        _playingInfoCache?.streamInfo?.cloudStorageInfo?.cloudStorageType;
+    return CloudStorageType.fromValue(cloudType).isKnown;
+  }
+
   /// Whether the smart skip feature should be treated as enabled for the
   /// current session. Requires the FlyNarwhal server to be fully configured,
-  /// the user's persisted smart-skip preference to be on, and no session-scoped
-  /// temporary disable.
+  /// the user's persisted smart-skip preference to be on, no session-scoped
+  /// temporary disable, and a source the server can actually analyze (netdisk
+  /// and STRM media are excluded).
   bool _effectiveSmartSkipEnabled() {
     final settings = ref.read(settingsProvider);
     final smartSkipSettings = ref.read(smartSkipSettingsControllerProvider);
     return settings.isFlyNarwhalServerAvailable &&
         smartSkipSettings.enabled &&
+        !_isCloudOrStrmPlayback &&
         !_sessionSmartSkipDisabled;
   }
 
@@ -1306,7 +1317,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             isEpisode: cache?.isEpisode == true ||
                 MediaType.tryParse(cache?.item?.type) == MediaType.episode,
             serviceEnabled: settings.flyNarwhalServerEnabled,
-            smartSkipEnabled: smartSkipSettings.enabled,
+            // Netdisk/STRM sources cannot be analyzed server-side; skip the
+            // analysis polling entirely for them.
+            smartSkipEnabled:
+                smartSkipSettings.enabled && !_isCloudOrStrmPlayback,
             episodeGuid: cache?.itemGuid,
             mediaGuid: cache?.currentVideoStream?.mediaGuid,
           ),
@@ -6640,7 +6654,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           totalDurationMillis: _duration,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
           smartSkipEnabled: _effectiveSmartSkipEnabled(),
-          isSmartAnalysisGloballyEnabled: settings.flyNarwhalServerEnabled,
+          // Netdisk/STRM sources cannot be analyzed server-side, so present
+          // smart skip as unavailable there: the toggle, the config entry and
+          // the "智能跳过" value text all follow this flag.
+          isSmartAnalysisGloballyEnabled:
+              settings.flyNarwhalServerEnabled && !_isCloudOrStrmPlayback,
           // Smart skip itself works on every server that serves
           // /api/analysis/segments; only the config endpoint is newer. The flag
           // below drives the config entry alone, so an old server keeps the
