@@ -47,13 +47,15 @@ class _UpdateBadgeState extends State<UpdateBadge> {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = FluentTheme.of(context).accentColor;
     final semanticLabel = '发现新版本 ${widget.version}，打开更新详情';
 
     // Match the 20px compact caption buttons (back / pin / refresh) in the
     // macOS title bar: same size, same circular hover background, same
-    // vertical axis, so the badge reads as one of the row.
+    // vertical axis, so the badge reads as one of the row. The icon itself is
+    // kept a touch larger than its siblings so the detail in the cloud-down
+    // glyph stays legible at this scale.
     const double buttonSize = 20.0;
+    const double iconSize = 18.0;
     final isDark = FluentTheme.of(context).brightness == Brightness.dark;
     final hoverBackground = isDark
         ? Colors.white.withValues(alpha: 0.12)
@@ -84,9 +86,12 @@ class _UpdateBadgeState extends State<UpdateBadge> {
               child: SvgPicture.asset(
                 'assets/images/version_update.svg',
                 key: const ValueKey('update-badge-icon'),
-                width: 14,
-                height: 14,
-                colorFilter: ColorFilter.mode(accentColor, BlendMode.srcIn),
+                width: iconSize,
+                height: iconSize,
+                colorFilter: const ColorFilter.mode(
+                  Color(0xFF49DE80),
+                  BlendMode.srcIn,
+                ),
               ),
             ),
           ),
