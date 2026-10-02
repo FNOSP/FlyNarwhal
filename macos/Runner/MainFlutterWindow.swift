@@ -3,6 +3,20 @@ import FlutterMacOS
 import UniformTypeIdentifiers
 
 class MainFlutterWindow: NSWindow {
+  // AppKit consults the window's contentView (not the deepest hit-tested
+  // view) when deciding whether a mouse-down in the native title bar strip
+  // may drag the window. Plugins (acrylic / window utils / window_manager)
+  // can replace the contentView with their own wrapper at any time, so
+  // re-install the opt-out override on every contentView change after the
+  // window is awake. See disableNativeTitleBarDrag.
+  private var isAwakeForDragOptOut = false
+  override var contentView: NSView? {
+    didSet {
+      guard isAwakeForDragOptOut, let contentView else { return }
+      Self.disableNativeTitleBarDrag(for: contentView)
+    }
+  }
+
   // Presented as a standalone floating panel instead of a window sheet: the
   // sheet slide-in/out animation runs as a blocking animation loop on the main
   // thread, and media_kit waits on the main thread for every video frame
@@ -28,6 +42,14 @@ class MainFlutterWindow: NSWindow {
     registerLocalSubtitlePickerChannel(messenger: flutterViewController.engine.binaryMessenger)
     registerTopEdgeDimmerChannel(messenger: flutterViewController.engine.binaryMessenger)
     preWarmSubtitlePicker()
+
+    Self.disableNativeTitleBarDrag(for: flutterViewController.view)
+    if let contentView = self.contentView {
+      Self.disableNativeTitleBarDrag(for: contentView)
+    }
+    // From now on, patch any contentView installed later (e.g. by
+    // flutter_acrylic / macos_window_utils wrappers) via the didSet hook.
+    isAwakeForDragOptOut = true
 
     self.titlebarAppearsTransparent = true
     self.styleMask.insert(.fullSizeContentView)
@@ -55,6 +77,14 @@ class MainFlutterWindow: NSWindow {
         forName: name, object: self, queue: .main) { [weak self] _ in
         self?.installTopEdgeDimmer()
       }
+    }
+
+    // Failsafe for the hover-driven isMovable toggle (caption search box):
+    // if the window loses key state while the pointer is over the capsule
+    // and the exit event is swallowed, never leave the window immovable.
+    NotificationCenter.default.addObserver(
+      forName: NSWindow.didResignKeyNotification, object: self, queue: .main) { [weak self] _ in
+      self?.isMovable = true
     }
 
     // Fix: retarget Edit ▸ Paste once the menu bar is loaded. Deferred so the
@@ -257,6 +287,45 @@ class MainFlutterWindow: NSWindow {
     ])
   }
 
+  // MARK: - Native title bar drag opt-out
+  //
+  // The engine's FlutterView does not implement mouseDown: itself (the
+  // FlutterViewController handles mouse events), so it inherits NSView's
+  // default mouseDownCanMoveWindow == true. With TitleBarStyle.hidden
+  // (titlebarAppearsTransparent + .fullSizeContentView) AppKit keeps the
+  // native ~28px title bar drag strip active: any mouse-down + move there
+  // starts a native window drag — even though the events are also
+  // forwarded to Flutter. Widgets that overlap the strip (e.g. the caption
+  // search box) then see a pointer that never moves relative to the
+  // window, so drag-to-select text silently turns into moving the window.
+  // Window dragging is already handled on the Flutter side by
+  // DragToMoveArea (windowManager.startDragging) across the whole 48px
+  // caption, so teach FlutterView to opt out of the native behavior.
+  // Applied at class level, so it also covers views created later (e.g.
+  // the PiP window).
+  private static func disableNativeTitleBarDrag(for view: NSView) {
+    let flutterViewClass: AnyClass = type(of: view)
+    // Never patch NSView itself (the nib installs a plain NSView placeholder
+    // as contentView during -[NSWindow _initContent:...], before the window
+    // is fully initialized); that would change behavior app-wide and touch
+    // views during window construction.
+    guard flutterViewClass != NSView.self else { return }
+    let selector = NSSelectorFromString("mouseDownCanMoveWindow")
+    // Only install the override when the class does not implement the
+    // method itself (a future engine may handle this natively).
+    guard
+      let inherited = class_getInstanceMethod(NSView.self, selector),
+      let current = class_getInstanceMethod(flutterViewClass, selector),
+      inherited == current
+    else { return }
+    // The block MUST be @convention(block): passing a plain Swift closure to
+    // imp_implementationWithBlock hands a thick function pointer to
+    // Block_copy and segfaults.
+    let block: @convention(block) (NSView) -> Bool = { _ in false }
+    class_addMethod(flutterViewClass, selector, imp_implementationWithBlock(block),
+                    method_getTypeEncoding(inherited))
+  }
+
   // MARK: - Top edge dimmer
   //
   // macOS paints a ~1px highlight along the very top edge of a titled window
@@ -308,24 +377,43 @@ class MainFlutterWindow: NSWindow {
       name: "fly_narwhal/window",
       binaryMessenger: messenger)
     channel.setMethodCallHandler { [weak self] call, result in
-      guard call.method == "setTopEdgeDimColor",
-            let args = call.arguments as? [String: Any],
-            let r = args["r"] as? Int,
-            let g = args["g"] as? Int,
-            let b = args["b"] as? Int else {
+      switch call.method {
+      case "setWindowMovable":
+        // Toggled from Dart while the pointer hovers/leaves the caption
+        // search box: macOS keeps the native title bar drag strip active
+        // over the capsule (and on macOS 26 drags the window even when the
+        // hit view reports mouseDownCanMoveWindow == false), which turns
+        // drag-to-select text into moving the window. Marking the window
+        // immovable while the capsule is hovered suppresses the native
+        // drag; DragToMoveArea (windowManager.startDragging) still moves
+        // the window from the rest of the caption because
+        // performDrag(with:) is programmatic and ignores isMovable.
+        let movable = (call.arguments as? [String: Any])?["movable"] as? Bool ?? true
+        DispatchQueue.main.async {
+          self?.isMovable = movable
+        }
+        result(nil)
+      case "setTopEdgeDimColor":
+        guard let args = call.arguments as? [String: Any],
+              let r = args["r"] as? Int,
+              let g = args["g"] as? Int,
+              let b = args["b"] as? Int else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        let a = (args["a"] as? Int) ?? 128
+        let color = NSColor(srgbRed: CGFloat(r) / 255,
+                            green: CGFloat(g) / 255,
+                            blue: CGFloat(b) / 255,
+                            alpha: CGFloat(a) / 255)
+        DispatchQueue.main.async {
+          self?.topEdgeDimColor = color
+          self?.topEdgeDimmer?.fillColor = color
+        }
+        result(nil)
+      default:
         result(FlutterMethodNotImplemented)
-        return
       }
-      let a = (args["a"] as? Int) ?? 128
-      let color = NSColor(srgbRed: CGFloat(r) / 255,
-                          green: CGFloat(g) / 255,
-                          blue: CGFloat(b) / 255,
-                          alpha: CGFloat(a) / 255)
-      DispatchQueue.main.async {
-        self?.topEdgeDimColor = color
-        self?.topEdgeDimmer?.fillColor = color
-      }
-      result(nil)
     }
   }
 }

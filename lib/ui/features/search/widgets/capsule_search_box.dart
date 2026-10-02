@@ -1,4 +1,6 @@
+import 'dart:io' show Platform;
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -37,16 +39,36 @@ class CapsuleSearchBox extends ConsumerStatefulWidget {
   ConsumerState<CapsuleSearchBox> createState() => _CapsuleSearchBoxState();
 }
 
-class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
+class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
+    implements TextSelectionGestureDetectorBuilderDelegate {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _internalFocusNode = FocusNode();
   FocusNode get _focusNode => widget.focusNode ?? _internalFocusNode;
   final OverlayPortalController _overlayController = OverlayPortalController();
   final LayerLink _layerLink = LayerLink();
 
+  // A bare EditableText only wires caret-placement taps (and an internal
+  // long-press); drag-to-select, double-tap word selection and shift-click
+  // range extension live in the TextSelectionGestureDetector that TextField
+  // builds around its inner EditableText. Replicate that wiring here so the
+  // capsule supports mouse text selection like a normal desktop text field.
+  @override
+  final GlobalKey<EditableTextState> editableTextKey =
+      GlobalKey<EditableTextState>();
+  late final TextSelectionGestureDetectorBuilder
+      _selectionGestureDetectorBuilder =
+      TextSelectionGestureDetectorBuilder(delegate: this);
+
+  @override
+  bool get forcePressEnabled => false;
+
+  @override
+  bool get selectionEnabled => true;
+
   bool _isFocused = false;
   bool _isHovered = false;
   bool _isInteractingWithDropdown = false;
+
   // Category tabs mirroring Compose tabs
   static const List<String> _tabs = ['全部', '电影', '电视剧', '电视直播', '人物', '其他'];
   String _selectedTab = '全部';
@@ -68,6 +90,9 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
 
   @override
   void dispose() {
+    // Never leave the window stuck non-movable if the capsule unmounts while
+    // hovered (e.g. navigating into the player right after hovering).
+    _setNativeWindowMovable(true);
     _focusNode.removeListener(_onFocusChange);
     _internalFocusNode.dispose();
     _controller.dispose();
@@ -99,6 +124,22 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
     _selectedIndex = value.trim().isEmpty ? -1 : 0;
     _showDropdownIfNeeded();
     setState(() {});
+  }
+
+  // macOS keeps the native title bar drag strip (top ~28px) active even with
+  // a hidden title bar, and on macOS 26 it drags the window even when the
+  // hit view reports mouseDownCanMoveWindow == false. The capsule overlaps
+  // that strip, so drag-to-select text turned into moving the window. While
+  // the pointer hovers the capsule, mark the window non-movable to suppress
+  // the native drag; window dragging from the caption is unaffected because
+  // DragToMoveArea is never hit while the capsule is hovered.
+  static const MethodChannel _windowChannel =
+      MethodChannel('fly_narwhal/window');
+
+  void _setNativeWindowMovable(bool movable) {
+    if (kIsWeb || !Platform.isMacOS) return;
+    _windowChannel.invokeMethod<void>(
+        'setWindowMovable', {'movable': movable}).catchError((Object _) {});
   }
 
   void _showDropdownIfNeeded() {
@@ -298,8 +339,14 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
           onKeyEvent: _onKeyEvent,
           child: MouseRegion(
             cursor: SystemMouseCursors.text,
-            onEnter: (_) => setState(() => _isHovered = true),
-            onExit: (_) => setState(() => _isHovered = false),
+            onEnter: (_) {
+              setState(() => _isHovered = true);
+              _setNativeWindowMovable(false);
+            },
+            onExit: (_) {
+              setState(() => _isHovered = false);
+              _setNativeWindowMovable(true);
+            },
             child: GestureDetector(
               onTap: () => _focusNode.requestFocus(),
               child: AnimatedContainer(
@@ -336,24 +383,28 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox> {
                                 ),
                               ),
                             ),
-                          EditableText(
+                          _selectionGestureDetectorBuilder.buildGestureDetector(
                             key: const ValueKey('search-capsule-input'),
-                            controller: _controller,
-                            focusNode: _focusNode,
-                            onChanged: _onTextChanged,
-                            maxLines: 1,
-                            style: theme.typography.caption?.copyWith(
-                                  color: theme.resources.textFillColorPrimary,
-                                ) ??
-                                TextStyle(
-                                  color: theme.resources.textFillColorPrimary,
-                                  fontSize: 12,
-                                ),
-                            cursorColor: theme.resources.textFillColorPrimary,
-                            backgroundCursorColor:
-                                theme.resources.textFillColorTertiary,
-                            selectionColor:
-                                const Color(0xFF2173DF).withValues(alpha: 0.25),
+                            behavior: HitTestBehavior.translucent,
+                            child: EditableText(
+                              key: editableTextKey,
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              onChanged: _onTextChanged,
+                              maxLines: 1,
+                              style: theme.typography.caption?.copyWith(
+                                    color: theme.resources.textFillColorPrimary,
+                                  ) ??
+                                  TextStyle(
+                                    color: theme.resources.textFillColorPrimary,
+                                    fontSize: 12,
+                                  ),
+                              cursorColor: theme.resources.textFillColorPrimary,
+                              backgroundCursorColor:
+                                  theme.resources.textFillColorTertiary,
+                              selectionColor: const Color(0xFF2173DF)
+                                  .withValues(alpha: 0.25),
+                            ),
                           ),
                         ],
                       ),
