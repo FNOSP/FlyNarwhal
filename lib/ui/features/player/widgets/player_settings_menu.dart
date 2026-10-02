@@ -2438,12 +2438,7 @@ class _SmartSkipConfigSettingsScreenState
             ),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          '播放到对应分段时自动跳过，按当前账号保存',
-          style: TextStyle(color: Color(0xCCFFFFFF), fontSize: 12),
-        ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         _switchRow(
           title: '跳过片头',
           checked: state.skipIntro,
