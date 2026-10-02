@@ -50,7 +50,9 @@ class CdnProxyService implements CdnProxy {
 
   @override
   Future<Uri> open(
-      {required Uri uri, required Map<String, String> headers}) async {
+      {required Uri uri,
+      required Map<String, String> headers,
+      int bitrate = 0}) async {
     if (_opened || _closed) throw StateError('CDN service cannot be reopened');
     _opened = true;
     if (!uri.hasAuthority || (uri.scheme != 'https' && uri.scheme != 'http')) {
@@ -60,6 +62,7 @@ class CdnProxyService implements CdnProxy {
       source: _source,
       uri: uri,
       headers: headers,
+      bitrate: bitrate,
       diagnostics: diagnostics,
       retryJitter: retryJitter,
       onError: (error) {

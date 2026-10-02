@@ -28,15 +28,21 @@ class _StreamingChunk {
   int get outputLength => empty ? 0 : range.length;
   int get readable => complete ? accepted : min(accepted, outputLength - 1);
   void release() => _bytes = null;
+  final Stopwatch transfer = Stopwatch()..start();
 }
 
 class _ReadRequest {
-  _ReadRequest(this.range, {this.probe = false})
+  _ReadRequest(this.range,
+      {this.probe = false,
+      this.bitrate = 0,
+      })
       : ranges = (probe ? [range] : splitCdnRange(range)).iterator,
-        single = probe || range.length <= CdnProxyDefaults.chunkSize;
+        single = probe || range.length <= CdnProxyDefaults.chunkSize,
+        _concurrency = _initialConcurrency(bitrate);
   final CdnByteRange range;
   final bool probe;
   final bool single;
+  final int bitrate;
   final Iterator<CdnByteRange> ranges;
   final CdnCancellation cancellation = CdnCancellation();
   final Map<int, _StreamingChunk> chunks = {};
@@ -52,6 +58,77 @@ class _ReadRequest {
   bool prefetchAllowed = false;
   int nextId = 0;
   int readingId = 0;
+
+  /// Current number of simultaneous downloads allowed for this reader.
+  int _concurrency;
+
+  /// Cumulative bytes pulled since the current measurement window opened.
+  int _windowBytes = 0;
+  int _windowStartedAtMs = 0;
+  int _unproductiveProbes = 0;
+  bool _probePending = false;
+  double _preProbeThroughput = 0;
+
+  static int _initialConcurrency(int bitrate) {
+    if (bitrate <= 0) return CdnProxyDefaults.initialChunksPerReader;
+    final required = bitrate ~/ 8 * CdnProxyDefaults.throughputHeadroomFactor;
+    return required <= CdnProxyDefaults.assumedBytesPerConnectionPerSecond
+        ? CdnProxyDefaults.minChunksPerReader
+        : CdnProxyDefaults.initialChunksPerReader;
+  }
+
+  /// Records one completed chunk download and, once a measurement window has
+  /// elapsed, moves the concurrency in response.
+  void recordNetworkWindow(int bytes, int millis) {
+    if (probe || bytes <= 0 || bitrate <= 0) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_windowStartedAtMs == 0) {
+      _windowStartedAtMs = now - millis;
+    }
+    _windowBytes += bytes;
+    final span = now - _windowStartedAtMs;
+    if (span < CdnProxyDefaults.throughputMeasurementWindowMs) return;
+    final measured = _windowBytes * 1000 / span;
+    _windowBytes = 0;
+    _windowStartedAtMs = now;
+    _adjustConcurrency(measured);
+  }
+
+  /// Moves the concurrency in response to [measured] aggregate throughput.
+  void _adjustConcurrency(double measured) {
+    if (_probePending) {
+      // Settle the pending step: keep it if it bought throughput, give up on
+      // climbing once enough steps have been tried without a gain.
+      _probePending = false;
+      if (measured > _preProbeThroughput * 1.15) {
+        _unproductiveProbes = 0;
+      } else {
+        _unproductiveProbes++;
+      }
+      return;
+    }
+
+    // bits/s to bytes/s, with headroom so playback is not riding the edge.
+    final required = bitrate ~/ 8 * CdnProxyDefaults.throughputHeadroomFactor;
+    final atFloor = _concurrency <= CdnProxyDefaults.minChunksPerReader;
+    final atCeiling = _concurrency >= CdnProxyDefaults.maxChunksPerReader;
+
+    if (measured < required && !atCeiling) {
+      if (_unproductiveProbes >= CdnProxyDefaults.maxUnproductiveProbes) {
+        return;
+      }
+      _preProbeThroughput = measured;
+      _probePending = true;
+      _concurrency++;
+      return;
+    }
+    // Drop only on a clear surplus, so a link sitting near the required rate
+    // does not oscillate between two counts.
+    if (measured > required * 2 && !atFloor) {
+      _concurrency--;
+      _unproductiveProbes = 0;
+    }
+  }
 
   /// Reserves the right to end an attempt's body connection. A later body
   /// teardown only cancels the token when it won this race, so the token never
@@ -141,7 +218,7 @@ class _ReadRequest {
   }
 
   int get windowLimit => prefetchAllowed
-      ? min(CdnProxyDefaults.maxChunksPerReader,
+      ? min(_concurrency,
           (range.length - 1) ~/ CdnProxyDefaults.chunkSize + 1)
       : 1;
 }
@@ -152,6 +229,7 @@ class CdnRangeSession {
     required this.source,
     required this.uri,
     required Map<String, String> headers,
+    this.bitrate = 0,
     this.onError,
     Duration Function()? retryJitter,
     this.diagnostics,
@@ -163,6 +241,7 @@ class CdnRangeSession {
   final CdnRangeSource source;
   final Uri uri;
   final Map<String, String> headers;
+  final int bitrate;
   final void Function(Object)? onError;
   final Duration Function() retryJitter;
   final CdnRangeDiagnostics? diagnostics;
@@ -204,8 +283,9 @@ class CdnRangeSession {
   Future<void> initialize() => _initializing ??= _initialize();
   Future<void> _initialize() async {
     _checkActive();
-    final request =
-        _ReadRequest(const CdnByteRange(start: 0, end: 0), probe: true);
+    final request = _ReadRequest(const CdnByteRange(start: 0, end: 0),
+        probe: true,
+        bitrate: bitrate);
     try {
       await _read(request).drain<void>();
       _checkActive();
@@ -227,7 +307,7 @@ class CdnRangeSession {
     } catch (cause, stack) {
       return Stream<Uint8List>.error(cause, stack);
     }
-    final request = _ReadRequest(range);
+    final request = _ReadRequest(range, bitrate: bitrate);
     StreamSubscription<Uint8List>? subscription;
     late final StreamController<Uint8List> controller;
     controller = StreamController(
@@ -379,6 +459,8 @@ class CdnRangeSession {
             await _consume(
                 response.stream, request, chunk, token, trace, owning);
             chunk.complete = true;
+            request.recordNetworkWindow(
+                chunk.accepted, chunk.transfer.elapsedMilliseconds);
           }
           request.signal();
           outcome = 'success';
