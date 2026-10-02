@@ -420,6 +420,7 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
       state = state.copyWith(
         isIntroUndoVisible: false,
         introUndoRemainingSeconds: 0,
+        lastSkippedIntroSegment: null,
       );
       return;
     }
