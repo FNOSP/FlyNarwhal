@@ -44,5 +44,23 @@ PlaybackSourceSpec snapshotPlaybackSource({
   return PlaybackSourceSpec(
     playUri: quality.url,
     transport: PlaybackTransport.quarkCdnRange,
+    bitrate: _effectiveBitrate(context, quality),
   );
+}
+
+/// Picks the bitrate used to size download concurrency.
+///
+/// The NAS omits `bitrate` on direct-link qualities (it reports 0), so when
+/// that happens the source file size is divided by the media duration. This
+/// estimate is available before playback starts, unlike an mpv probe, and is
+/// only used to choose how many connections to open; a wrong estimate is
+/// corrected by the throughput measurement once the first chunks arrive.
+int _effectiveBitrate(PlayingInfoCache context, DirectLinkQuality quality) {
+  if (quality.bitrate > 0) return quality.bitrate;
+  final size = context.currentFileStream?.size;
+  if (size == null || size <= 0) return 0;
+  final durationSeconds =
+      context.item?.duration ?? context.currentVideoStream?.duration ?? 0;
+  if (durationSeconds <= 0) return 0;
+  return (size * 8 ~/ durationSeconds);
 }

@@ -4,6 +4,10 @@ export 'cdn_request_headers.dart' show normalizeCdnRequestHeaders;
 
 /// The playback layer only owns a local proxy URL and its lifetime.
 abstract interface class CdnProxy {
-  Future<Uri> open({required Uri uri, required Map<String, String> headers});
+  Future<Uri> open({
+    required Uri uri,
+    required Map<String, String> headers,
+    int bitrate = 0,
+  });
   Future<void> close();
 }
