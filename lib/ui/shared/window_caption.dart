@@ -327,10 +327,11 @@ class _WindowCaptionNavToggleButtonState
     final baseColor = isDark ? Colors.white : Colors.black;
     // Dim the icon when the button is disabled.
     final iconColor = _isEnabled ? baseColor : baseColor.withValues(alpha: 0.3);
-    final buttonSize = widget.compact ? 28.0 : 46.0;
-    // menu.svg's glyph only fills ~78% of its viewBox, so the nominal size
-    // runs larger than a font icon for the same visual weight.
-    final iconSize = widget.compact ? 16.0 : 18.0;
+    final buttonSize = widget.compact ? 20.0 : 46.0;
+    // menu.svg's glyph only fills ~78% of its viewBox, so it needs a nominal
+    // size a touch above the back button's 16px font icon to read as the same
+    // visual weight.
+    final iconSize = widget.compact ? 18.0 : 18.0;
     final hoverBackground = widget.compact
         ? (isDark
             ? Colors.white.withValues(alpha: 0.12)
@@ -585,7 +586,7 @@ class _WindowCaptionPinButtonState extends State<WindowCaptionPinButton>
     final isDark = widget.brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white : Colors.black;
     final buttonSize = widget.buttonSize ?? (widget.compact ? 20.0 : 46.0);
-    final iconSize = widget.iconSize ?? (widget.compact ? 14.0 : 16.0);
+    final iconSize = widget.iconSize ?? (widget.compact ? 16.0 : 18.0);
     final hoverBackground = widget.compact
         ? (isDark
             ? Colors.white.withValues(alpha: 0.12)
