@@ -350,4 +350,356 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fontScaleLarge => 'Large';
+
+  @override
+  String get filterTitle => 'Filter';
+
+  @override
+  String get filterReset => 'Reset';
+
+  @override
+  String get filterCollapse => 'Collapse';
+
+  @override
+  String get filterOptionAll => 'All';
+
+  @override
+  String get filterOptionMovie => 'Movie';
+
+  @override
+  String get filterOptionTv => 'TV series';
+
+  @override
+  String get filterOptionWatched => 'Watched';
+
+  @override
+  String get filterOptionUnwatched => 'Unwatched';
+
+  @override
+  String get filterOptionMatched => 'Matched';
+
+  @override
+  String get filterOptionUnmatched => 'Unmatched';
+
+  @override
+  String get filterOptionNfoMatched => 'NFO matched';
+
+  @override
+  String get filterOptionOthers => 'Others';
+
+  @override
+  String get filterOptionThisYear => 'This year';
+
+  @override
+  String filterOptionDecade(String decade) {
+    return '${decade}s';
+  }
+
+  @override
+  String get filterOptionDolbyVision => 'Dolby Vision';
+
+  @override
+  String get filterOptionDolbySurround => 'Dolby Surround';
+
+  @override
+  String get filterOptionDolbyAtmos => 'Dolby Atmos';
+
+  @override
+  String get filterOptionStereo => 'Stereo';
+
+  @override
+  String get filterRowMediaType => 'Media type';
+
+  @override
+  String get filterRowGenre => 'Genre';
+
+  @override
+  String get filterRowResolution => 'Resolution';
+
+  @override
+  String get filterRowColorRange => 'Dynamic range';
+
+  @override
+  String get filterRowAudioType => 'Audio';
+
+  @override
+  String get filterRowLocation => 'Country/Region';
+
+  @override
+  String get filterRowDecade => 'Release year';
+
+  @override
+  String get filterRowRecognitionStatus => 'Match status';
+
+  @override
+  String get filterRowWatched => 'Watched';
+
+  @override
+  String get mediaInfoTitle => 'File media info';
+
+  @override
+  String get mediaInfoEmpty => 'No data';
+
+  @override
+  String get mediaInfoSectionVideo => 'Video';
+
+  @override
+  String get mediaInfoSectionAudio => 'Audio';
+
+  @override
+  String get mediaInfoSectionSubtitle => 'Subtitles';
+
+  @override
+  String get mediaInfoFieldResolution => 'Resolution';
+
+  @override
+  String get mediaInfoFieldDynamicRange => 'Dynamic range';
+
+  @override
+  String get mediaInfoFieldCodec => 'Codec';
+
+  @override
+  String get mediaInfoFieldProfile => 'Profile';
+
+  @override
+  String get mediaInfoFieldLevel => 'Level';
+
+  @override
+  String get mediaInfoFieldFrameRate => 'Frame rate';
+
+  @override
+  String get mediaInfoFieldBitRate => 'Bit rate';
+
+  @override
+  String get mediaInfoFieldAspectRatio => 'Aspect ratio';
+
+  @override
+  String get mediaInfoFieldPixelFormat => 'Pixel format';
+
+  @override
+  String get mediaInfoFieldBitDepth => 'Bit depth';
+
+  @override
+  String get mediaInfoFieldColorSpace => 'Color space';
+
+  @override
+  String get mediaInfoFieldColorPrimaries => 'Color primaries';
+
+  @override
+  String get mediaInfoFieldColorTransfer => 'Color transfer';
+
+  @override
+  String get mediaInfoFieldReferenceFrames => 'Reference frames';
+
+  @override
+  String get mediaInfoFieldInterlaced => 'Interlaced';
+
+  @override
+  String get mediaInfoFieldLayout => 'Layout';
+
+  @override
+  String get mediaInfoFieldChannels => 'Channels';
+
+  @override
+  String get mediaInfoFieldSampleRate => 'Sample rate';
+
+  @override
+  String get mediaInfoFieldLanguage => 'Language';
+
+  @override
+  String get mediaInfoFieldDefault => 'Default';
+
+  @override
+  String get mediaInfoFieldForced => 'Forced';
+
+  @override
+  String get mediaInfoFieldExternal => 'External';
+
+  @override
+  String get mediaInfoYes => 'Yes';
+
+  @override
+  String get mediaInfoNo => 'No';
+
+  @override
+  String get subtitleUploadFileTypeName => 'Subtitle file';
+
+  @override
+  String get subtitleUploadSelect => 'Select';
+
+  @override
+  String get subtitleUploadAdded => 'Subtitles added';
+
+  @override
+  String get subtitleUploadFailed => 'Could not add the subtitles. Try again.';
+
+  @override
+  String subtitleUploadPartial(String count) {
+    return 'Some subtitles were added; $count failed';
+  }
+
+  @override
+  String subtitleUploadTooMany(String count) {
+    return 'Select at most $count files';
+  }
+
+  @override
+  String get subtitleUploadMissingUser =>
+      'User info is missing; cannot restore the file picker state';
+
+  @override
+  String subtitleUploadPickerFailed(String error) {
+    return 'Could not pick subtitle files: $error';
+  }
+
+  @override
+  String subtitleUploadFormatSuffix(String formats) {
+    return '$formats files';
+  }
+
+  @override
+  String get captionBack => 'Back';
+
+  @override
+  String get captionRefresh => 'Refresh';
+
+  @override
+  String get captionToggleNav => 'Toggle navigation pane';
+
+  @override
+  String get captionAlwaysOnTop => 'Keep window on top';
+
+  @override
+  String get captionUnpin => 'Stop keeping on top';
+
+  @override
+  String get toastInfo => 'Info';
+
+  @override
+  String get toastSuccess => 'Success';
+
+  @override
+  String get toastWarning => 'Warning';
+
+  @override
+  String get toastError => 'Error';
+
+  @override
+  String get toastServerUrlRequired => 'Enter the FlyNarwhal server URL';
+
+  @override
+  String get toastServerAuthCodeRequired =>
+      'Enter the FlyNarwhal server auth code';
+
+  @override
+  String get toastServerCredentialsRequired =>
+      'Enter the FlyNarwhal server URL and auth code';
+
+  @override
+  String get sslPromptTitle => 'Certificate validation failed';
+
+  @override
+  String sslPromptBody(String host) {
+    return 'Certificate validation failed for \"$host\". It may be expired, have a mismatched domain, or be self-signed.';
+  }
+
+  @override
+  String sslPromptFingerprint(String fingerprint) {
+    return 'Certificate fingerprint SHA-256: $fingerprint';
+  }
+
+  @override
+  String get sslPromptQuestion =>
+      'Continuing bypasses the security check. Continue anyway?';
+
+  @override
+  String get sslPromptTrustPersistent => 'Trust this certificate';
+
+  @override
+  String get sslPromptTrustOnce => 'Trust once';
+
+  @override
+  String get sslPromptCancel => 'Cancel';
+
+  @override
+  String get layoutTitle => 'Layout';
+
+  @override
+  String get layoutPosterWall => 'Poster wall';
+
+  @override
+  String get layoutVerticalPoster => 'Vertical posters';
+
+  @override
+  String get layoutBannerPoster => 'Banner posters';
+
+  @override
+  String get layoutList => 'List';
+
+  @override
+  String get castTitle => 'Cast & crew';
+
+  @override
+  String get castRoleDirector => 'Director';
+
+  @override
+  String get castRoleActor => 'Actor';
+
+  @override
+  String get castRoleWriter => 'Writer';
+
+  @override
+  String get castRoleProducer => 'Producer';
+
+  @override
+  String castCharacter(String role) {
+    return 'as $role';
+  }
+
+  @override
+  String get sortTitle => 'Title';
+
+  @override
+  String get sortAddedDate => 'Date added';
+
+  @override
+  String get sortReleaseYear => 'Release year';
+
+  @override
+  String get sortScore => 'Rating';
+
+  @override
+  String get sortAscending => 'Ascending';
+
+  @override
+  String get sortDescending => 'Descending';
+
+  @override
+  String get nasSubtitleStorageLocation => 'Video location';
+
+  @override
+  String get nasSubtitleSelectStorage => 'Choose a storage volume';
+
+  @override
+  String nasSubtitleTooMany(String count) {
+    return 'Select at most $count files';
+  }
+
+  @override
+  String get loadFailedTitle => 'Loading failed';
+
+  @override
+  String get loadFailedUnknown => 'Unknown error';
+
+  @override
+  String get loadFailedRetry => 'Retry';
+
+  @override
+  String get episodeViewCard => 'Switch to card view';
+
+  @override
+  String get episodeViewButton => 'Switch to numbered view';
+
+  @override
+  String get nasBrowserEmpty => 'Nothing here';
 }

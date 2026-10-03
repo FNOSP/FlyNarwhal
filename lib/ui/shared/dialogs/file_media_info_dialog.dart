@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
@@ -79,13 +80,14 @@ class FileMediaInfoDialog extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 22, 16, 12),
       child: Row(
         children: [
           Expanded(
             child: Text(
-              '文件媒体信息',
+              l10n.mediaInfoTitle,
               style: FluentTheme.of(context).typography.subtitle?.copyWith(
                     color: _textColor0,
                     fontWeight: FontWeight.w600,
@@ -103,6 +105,7 @@ class FileMediaInfoDialog extends StatelessWidget {
   }
 
   Widget _buildBody(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return SizedBox(
       width: double.infinity,
       child: SingleChildScrollView(
@@ -112,7 +115,7 @@ class FileMediaInfoDialog extends StatelessWidget {
           children: [
             _buildSection(
               context,
-              title: '视频',
+              title: l10n.mediaInfoSectionVideo,
               children: [
                 if (videoStream != null)
                   _VideoTrackCard(
@@ -126,7 +129,7 @@ class FileMediaInfoDialog extends StatelessWidget {
             const SizedBox(height: 28),
             _buildSection(
               context,
-              title: '音频',
+              title: l10n.mediaInfoSectionAudio,
               children: [
                 if (audioStreams.isEmpty)
                   const _EmptyCard(useIllustration: true)
@@ -140,7 +143,7 @@ class FileMediaInfoDialog extends StatelessWidget {
             const SizedBox(height: 28),
             _buildSection(
               context,
-              title: '字幕',
+              title: l10n.mediaInfoSectionSubtitle,
               children: [
                 if (subtitleStreams.isEmpty)
                   const _EmptyCard(useIllustration: true)
@@ -193,6 +196,7 @@ class _EmptyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: double.infinity,
       height: 200,
@@ -207,9 +211,9 @@ class _EmptyCard extends StatelessWidget {
               width: _emptyStateImageSize,
               height: _emptyStateImageSize,
             )
-          : const Text(
-              '暂无数据',
-              style: TextStyle(color: FileMediaInfoDialog._textColor1),
+          : Text(
+              l10n.mediaInfoEmpty,
+              style: const TextStyle(color: FileMediaInfoDialog._textColor1),
             ),
     );
   }
@@ -340,6 +344,7 @@ class _VideoTrackCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final heading = [
       stream.resolutionType,
       stream.codecName.toUpperCase(),
@@ -352,25 +357,26 @@ class _VideoTrackCard extends StatelessWidget {
       heading: heading,
       columns: [
         [
-          _Field('编码器', _dash(stream.codecName.toUpperCase())),
-          _Field('配置', _dash(stream.profile)),
-          _Field('等级', _dash(stream.level)),
-          _Field('分辨率', _dash(resolution)),
-          _Field('宽高比', _dash(stream.displayAspectRatio)),
+          _Field(l10n.mediaInfoFieldCodec, _dash(stream.codecName.toUpperCase())),
+          _Field(l10n.mediaInfoFieldProfile, _dash(stream.profile)),
+          _Field(l10n.mediaInfoFieldLevel, _dash(stream.level)),
+          _Field(l10n.mediaInfoFieldResolution, _dash(resolution)),
+          _Field(l10n.mediaInfoFieldAspectRatio, _dash(stream.displayAspectRatio)),
         ],
         [
-          _Field('隔行扫描', stream.progressive == 1 ? '否' : '是'),
-          _Field('帧率', _dash(stream.rFrameRate)),
-          _Field('码率', FnDataConvertor.formatBitrate(stream.bps)),
-          _Field('视频动态范围', _dash(stream.colorRangeType)),
-          _Field('色彩原色', _dash(stream.colorPrimaries)),
+          _Field(l10n.mediaInfoFieldInterlaced,
+              stream.progressive == 1 ? l10n.mediaInfoNo : l10n.mediaInfoYes),
+          _Field(l10n.mediaInfoFieldFrameRate, _dash(stream.rFrameRate)),
+          _Field(l10n.mediaInfoFieldBitRate, FnDataConvertor.formatBitrate(stream.bps)),
+          _Field(l10n.mediaInfoFieldDynamicRange, _dash(stream.colorRangeType)),
+          _Field(l10n.mediaInfoFieldColorPrimaries, _dash(stream.colorPrimaries)),
         ],
         [
-          _Field('色彩空间', _dash(stream.colorSpace)),
-          _Field('色彩转换', _dash(stream.colorTransfer)),
-          _Field('位深度', stream.bitDepth > 0 ? '${stream.bitDepth} bit' : '--'),
-          _Field('像素格式', _dash(stream.pixFmt)),
-          _Field('参考帧', stream.refs.toString()),
+          _Field(l10n.mediaInfoFieldColorSpace, _dash(stream.colorSpace)),
+          _Field(l10n.mediaInfoFieldColorTransfer, _dash(stream.colorTransfer)),
+          _Field(l10n.mediaInfoFieldBitDepth, stream.bitDepth > 0 ? '${stream.bitDepth} bit' : '--'),
+          _Field(l10n.mediaInfoFieldPixelFormat, _dash(stream.pixFmt)),
+          _Field(l10n.mediaInfoFieldReferenceFrames, stream.refs.toString()),
         ],
       ],
     );
@@ -396,6 +402,7 @@ class _AudioTrackCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final heading = [
       _language(),
       _codec(),
@@ -405,19 +412,20 @@ class _AudioTrackCard extends StatelessWidget {
       heading: heading,
       columns: [
         [
-          _Field('语言', _dash(_language())),
-          _Field('编码器', _dash(_codec())),
-          _Field('配置', _dash(stream.profile)),
+          _Field(l10n.mediaInfoFieldLanguage, _dash(_language())),
+          _Field(l10n.mediaInfoFieldCodec, _dash(_codec())),
+          _Field(l10n.mediaInfoFieldProfile, _dash(stream.profile)),
         ],
         [
-          _Field('布局', _dash(stream.channelLayout)),
-          _Field('声道', stream.channels > 0 ? '${stream.channels} ch' : '--'),
-          _Field('采样率',
+          _Field(l10n.mediaInfoFieldLayout, _dash(stream.channelLayout)),
+          _Field(l10n.mediaInfoFieldChannels, stream.channels > 0 ? '${stream.channels} ch' : '--'),
+          _Field(l10n.mediaInfoFieldSampleRate,
               stream.sampleRate.isNotEmpty ? '${stream.sampleRate} Hz' : '--'),
         ],
         [
-          _Field('码率', FnDataConvertor.formatBitrate(stream.bps)),
-          _Field('默认', stream.isDefault == 1 ? '是' : '否'),
+          _Field(l10n.mediaInfoFieldBitRate, FnDataConvertor.formatBitrate(stream.bps)),
+          _Field(l10n.mediaInfoFieldDefault,
+              stream.isDefault == 1 ? l10n.mediaInfoYes : l10n.mediaInfoNo),
         ],
       ],
     );
@@ -442,6 +450,7 @@ class _SubtitleTrackCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final heading = [
       _language(),
       _codec(),
@@ -450,15 +459,18 @@ class _SubtitleTrackCard extends StatelessWidget {
       heading: heading,
       columns: [
         [
-          _Field('语言', _dash(_language())),
-          _Field('编码器', _dash(_codec())),
+          _Field(l10n.mediaInfoFieldLanguage, _dash(_language())),
+          _Field(l10n.mediaInfoFieldCodec, _dash(_codec())),
         ],
         [
-          _Field('默认', stream.isDefault == 1 ? '是' : '否'),
-          _Field('强制', stream.forced == 1 ? '是' : '否'),
+          _Field(l10n.mediaInfoFieldDefault,
+              stream.isDefault == 1 ? l10n.mediaInfoYes : l10n.mediaInfoNo),
+          _Field(l10n.mediaInfoFieldForced,
+              stream.forced == 1 ? l10n.mediaInfoYes : l10n.mediaInfoNo),
         ],
         [
-          _Field('外部', stream.isExternal == 1 ? '是' : '否'),
+          _Field(l10n.mediaInfoFieldExternal,
+              stream.isExternal == 1 ? l10n.mediaInfoYes : l10n.mediaInfoNo),
         ],
       ],
     );

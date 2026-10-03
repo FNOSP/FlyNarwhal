@@ -11,6 +11,7 @@ import '../../shared/common/app_load_error_view.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 
 import '../../../data/models/movie_detail_models.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../data/models/season_list_response.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
@@ -188,6 +189,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
+              AppLocalizations.of(context),
               missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !settings.hasFlyNarwhalAuthCode,
             ),
@@ -207,6 +209,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
+              AppLocalizations.of(context),
               missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !settings.hasFlyNarwhalAuthCode,
             ),

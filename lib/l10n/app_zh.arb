@@ -436,5 +436,490 @@
   "fontScaleLarge": "大",
   "@fontScaleLarge": {
     "description": "Font size option: large."
+  },
+  "filterTitle": "筛选",
+  "@filterTitle": {
+    "description": "Label of the filter toggle button."
+  },
+  "filterReset": "重置",
+  "@filterReset": {
+    "description": "Chip that clears every selected filter."
+  },
+  "filterCollapse": "收起",
+  "@filterCollapse": {
+    "description": "Link that collapses the filter panel."
+  },
+  "filterOptionAll": "全部",
+  "@filterOptionAll": {
+    "description": "Generic 'all' option in a filter row."
+  },
+  "filterOptionMovie": "电影",
+  "@filterOptionMovie": {
+    "description": "Media type option: movie."
+  },
+  "filterOptionTv": "电视剧",
+  "@filterOptionTv": {
+    "description": "Media type option: TV series."
+  },
+  "filterOptionWatched": "已观看",
+  "@filterOptionWatched": {
+    "description": "Watched-state option."
+  },
+  "filterOptionUnwatched": "未观看",
+  "@filterOptionUnwatched": {
+    "description": "Watched-state option."
+  },
+  "filterOptionMatched": "已匹配",
+  "@filterOptionMatched": {
+    "description": "Recognition-status option."
+  },
+  "filterOptionUnmatched": "未匹配",
+  "@filterOptionUnmatched": {
+    "description": "Recognition-status option."
+  },
+  "filterOptionNfoMatched": "NFO匹配",
+  "@filterOptionNfoMatched": {
+    "description": "Recognition-status option."
+  },
+  "filterOptionOthers": "其他",
+  "@filterOptionOthers": {
+    "description": "Catch-all option."
+  },
+  "filterOptionThisYear": "今年",
+  "@filterOptionThisYear": {
+    "description": "Decade option for recent releases."
+  },
+  "filterOptionDecade": "{decade}年代",
+  "@filterOptionDecade": {
+    "description": "Decade option, e.g. 1990s.",
+    "placeholders": {
+      "decade": {
+        "type": "String"
+      }
+    }
+  },
+  "filterOptionDolbyVision": "杜比视界",
+  "@filterOptionDolbyVision": {
+    "description": "Dynamic-range option."
+  },
+  "filterOptionDolbySurround": "杜比环绕",
+  "@filterOptionDolbySurround": {
+    "description": "Audio option."
+  },
+  "filterOptionDolbyAtmos": "杜比全景声",
+  "@filterOptionDolbyAtmos": {
+    "description": "Audio option."
+  },
+  "filterOptionStereo": "立体声",
+  "@filterOptionStereo": {
+    "description": "Audio option."
+  },
+  "filterRowMediaType": "影视类型",
+  "@filterRowMediaType": {
+    "description": "Filter row label."
+  },
+  "filterRowGenre": "类型",
+  "@filterRowGenre": {
+    "description": "Filter row label."
+  },
+  "filterRowResolution": "分辨率",
+  "@filterRowResolution": {
+    "description": "Filter row label."
+  },
+  "filterRowColorRange": "视频动态范围",
+  "@filterRowColorRange": {
+    "description": "Filter row label."
+  },
+  "filterRowAudioType": "音频规格",
+  "@filterRowAudioType": {
+    "description": "Filter row label."
+  },
+  "filterRowLocation": "国家和地区",
+  "@filterRowLocation": {
+    "description": "Filter row label."
+  },
+  "filterRowDecade": "发行年份",
+  "@filterRowDecade": {
+    "description": "Filter row label."
+  },
+  "filterRowRecognitionStatus": "匹配状态",
+  "@filterRowRecognitionStatus": {
+    "description": "Filter row label."
+  },
+  "filterRowWatched": "是否已观看",
+  "@filterRowWatched": {
+    "description": "Filter row label."
+  },
+  "mediaInfoTitle": "文件媒体信息",
+  "@mediaInfoTitle": {
+    "description": "Title of the file media info dialog."
+  },
+  "mediaInfoEmpty": "暂无数据",
+  "@mediaInfoEmpty": {
+    "description": "Shown when there is no media information."
+  },
+  "mediaInfoSectionVideo": "视频",
+  "@mediaInfoSectionVideo": {
+    "description": "Section heading for video streams."
+  },
+  "mediaInfoSectionAudio": "音频",
+  "@mediaInfoSectionAudio": {
+    "description": "Section heading for audio streams."
+  },
+  "mediaInfoSectionSubtitle": "字幕",
+  "@mediaInfoSectionSubtitle": {
+    "description": "Section heading for subtitle streams."
+  },
+  "mediaInfoFieldResolution": "分辨率",
+  "@mediaInfoFieldResolution": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldDynamicRange": "视频动态范围",
+  "@mediaInfoFieldDynamicRange": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldCodec": "编码器",
+  "@mediaInfoFieldCodec": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldProfile": "配置",
+  "@mediaInfoFieldProfile": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldLevel": "等级",
+  "@mediaInfoFieldLevel": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldFrameRate": "帧率",
+  "@mediaInfoFieldFrameRate": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldBitRate": "码率",
+  "@mediaInfoFieldBitRate": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldAspectRatio": "宽高比",
+  "@mediaInfoFieldAspectRatio": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldPixelFormat": "像素格式",
+  "@mediaInfoFieldPixelFormat": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldBitDepth": "位深度",
+  "@mediaInfoFieldBitDepth": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldColorSpace": "色彩空间",
+  "@mediaInfoFieldColorSpace": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldColorPrimaries": "色彩原色",
+  "@mediaInfoFieldColorPrimaries": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldColorTransfer": "色彩转换",
+  "@mediaInfoFieldColorTransfer": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldReferenceFrames": "参考帧",
+  "@mediaInfoFieldReferenceFrames": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldInterlaced": "隔行扫描",
+  "@mediaInfoFieldInterlaced": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldLayout": "布局",
+  "@mediaInfoFieldLayout": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldChannels": "声道",
+  "@mediaInfoFieldChannels": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldSampleRate": "采样率",
+  "@mediaInfoFieldSampleRate": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldLanguage": "语言",
+  "@mediaInfoFieldLanguage": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldDefault": "默认",
+  "@mediaInfoFieldDefault": {
+    "description": "Media info field flag."
+  },
+  "mediaInfoFieldForced": "强制",
+  "@mediaInfoFieldForced": {
+    "description": "Media info field flag."
+  },
+  "mediaInfoFieldExternal": "外部",
+  "@mediaInfoFieldExternal": {
+    "description": "Media info field flag."
+  },
+  "mediaInfoYes": "是",
+  "@mediaInfoYes": {
+    "description": "Boolean media info value."
+  },
+  "mediaInfoNo": "否",
+  "@mediaInfoNo": {
+    "description": "Boolean media info value."
+  },
+  "subtitleUploadFileTypeName": "字幕文件",
+  "@subtitleUploadFileTypeName": {
+    "description": "File-picker dialog title for choosing subtitle files."
+  },
+  "subtitleUploadSelect": "选择",
+  "@subtitleUploadSelect": {
+    "description": "Button that opens the file picker."
+  },
+  "subtitleUploadAdded": "添加字幕成功",
+  "@subtitleUploadAdded": {
+    "description": "Toast after subtitles were added."
+  },
+  "subtitleUploadFailed": "添加字幕失败，请重试",
+  "@subtitleUploadFailed": {
+    "description": "Toast when adding subtitles fails."
+  },
+  "subtitleUploadPartial": "部分字幕添加成功，其中 {count} 个失败",
+  "@subtitleUploadPartial": {
+    "description": "Toast when only some subtitles were added.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "subtitleUploadTooMany": "最多选择 {count} 个文件",
+  "@subtitleUploadTooMany": {
+    "description": "Toast when too many files are chosen.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "subtitleUploadMissingUser": "当前用户信息缺失，无法恢复文件选择器状态",
+  "@subtitleUploadMissingUser": {
+    "description": "Error when the file picker state cannot be restored."
+  },
+  "subtitleUploadPickerFailed": "选择字幕文件失败: {error}",
+  "@subtitleUploadPickerFailed": {
+    "description": "Error when the file picker fails.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subtitleUploadFormatSuffix": "{formats} 格式的文件",
+  "@subtitleUploadFormatSuffix": {
+    "description": "Description of the accepted subtitle formats.",
+    "placeholders": {
+      "formats": {
+        "type": "String"
+      }
+    }
+  },
+  "captionBack": "返回",
+  "@captionBack": {
+    "description": "Window caption back button tooltip."
+  },
+  "captionRefresh": "刷新",
+  "@captionRefresh": {
+    "description": "Window caption refresh button tooltip."
+  },
+  "captionToggleNav": "切换导航栏",
+  "@captionToggleNav": {
+    "description": "Window caption button tooltip."
+  },
+  "captionAlwaysOnTop": "窗口置顶",
+  "@captionAlwaysOnTop": {
+    "description": "Window caption pin button tooltip."
+  },
+  "captionUnpin": "取消置顶",
+  "@captionUnpin": {
+    "description": "Window caption unpin button tooltip."
+  },
+  "toastInfo": "信息",
+  "@toastInfo": {
+    "description": "Toast title for informational messages."
+  },
+  "toastSuccess": "成功",
+  "@toastSuccess": {
+    "description": "Toast title for successes."
+  },
+  "toastWarning": "警告",
+  "@toastWarning": {
+    "description": "Toast title for warnings."
+  },
+  "toastError": "错误",
+  "@toastError": {
+    "description": "Toast title for errors."
+  },
+  "toastServerUrlRequired": "请填写飞鲸服务端 URL",
+  "@toastServerUrlRequired": {
+    "description": "Validation toast."
+  },
+  "toastServerAuthCodeRequired": "请填写飞鲸服务端授权码",
+  "@toastServerAuthCodeRequired": {
+    "description": "Validation toast."
+  },
+  "toastServerCredentialsRequired": "请填写飞鲸服务端 URL 和授权码",
+  "@toastServerCredentialsRequired": {
+    "description": "Validation toast."
+  },
+  "sslPromptTitle": "证书校验失败",
+  "@sslPromptTitle": {
+    "description": "Title of the certificate trust prompt."
+  },
+  "sslPromptBody": "「{host}」的证书校验不通过，可能是证书过期、域名不匹配或自签名证书。",
+  "@sslPromptBody": {
+    "description": "Body of the certificate trust prompt.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "sslPromptFingerprint": "证书指纹 SHA-256：{fingerprint}",
+  "@sslPromptFingerprint": {
+    "description": "Fingerprint line in the certificate prompt.",
+    "placeholders": {
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
+  "sslPromptQuestion": "继续访问将绕过安全保护，是否继续访问？",
+  "@sslPromptQuestion": {
+    "description": "Question shown in the certificate prompt."
+  },
+  "sslPromptTrustPersistent": "信任此证书",
+  "@sslPromptTrustPersistent": {
+    "description": "Button that trusts the certificate permanently."
+  },
+  "sslPromptTrustOnce": "仅本次信任",
+  "@sslPromptTrustOnce": {
+    "description": "Button that trusts the certificate for this session only."
+  },
+  "sslPromptCancel": "取消访问",
+  "@sslPromptCancel": {
+    "description": "Button that cancels the connection."
+  },
+  "layoutTitle": "布局",
+  "@layoutTitle": {
+    "description": "Heading of the layout chooser."
+  },
+  "layoutPosterWall": "海报墙",
+  "@layoutPosterWall": {
+    "description": "Layout option."
+  },
+  "layoutVerticalPoster": "竖幅海报",
+  "@layoutVerticalPoster": {
+    "description": "Layout option."
+  },
+  "layoutBannerPoster": "横幅海报",
+  "@layoutBannerPoster": {
+    "description": "Layout option."
+  },
+  "layoutList": "列表",
+  "@layoutList": {
+    "description": "Layout option."
+  },
+  "castTitle": "演职人员",
+  "@castTitle": {
+    "description": "Heading of the cast row."
+  },
+  "castRoleDirector": "导演",
+  "@castRoleDirector": {
+    "description": "Cast role label."
+  },
+  "castRoleActor": "演员",
+  "@castRoleActor": {
+    "description": "Cast role label."
+  },
+  "castRoleWriter": "编剧",
+  "@castRoleWriter": {
+    "description": "Cast role label."
+  },
+  "castRoleProducer": "制片人",
+  "@castRoleProducer": {
+    "description": "Cast role label."
+  },
+  "castCharacter": "饰 {role}",
+  "@castCharacter": {
+    "description": "Shows the character an actor plays.",
+    "placeholders": {
+      "role": {
+        "type": "String"
+      }
+    }
+  },
+  "sortTitle": "标题",
+  "@sortTitle": {
+    "description": "Sort option."
+  },
+  "sortAddedDate": "添加日期",
+  "@sortAddedDate": {
+    "description": "Sort option."
+  },
+  "sortReleaseYear": "发行年份",
+  "@sortReleaseYear": {
+    "description": "Sort option."
+  },
+  "sortScore": "评分",
+  "@sortScore": {
+    "description": "Sort option."
+  },
+  "sortAscending": "升序",
+  "@sortAscending": {
+    "description": "Sort direction."
+  },
+  "sortDescending": "降序",
+  "@sortDescending": {
+    "description": "Sort direction."
+  },
+  "nasSubtitleStorageLocation": "视频所在位置",
+  "@nasSubtitleStorageLocation": {
+    "description": "Label for the storage location picker."
+  },
+  "nasSubtitleSelectStorage": "请选择存储空间",
+  "@nasSubtitleSelectStorage": {
+    "description": "Placeholder of the storage picker."
+  },
+  "nasSubtitleTooMany": "最多选择 {count} 个文件",
+  "@nasSubtitleTooMany": {
+    "description": "Toast when too many files are chosen.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "loadFailedTitle": "加载失败",
+  "@loadFailedTitle": {
+    "description": "Error view title."
+  },
+  "loadFailedUnknown": "未知错误",
+  "@loadFailedUnknown": {
+    "description": "Fallback error message."
+  },
+  "loadFailedRetry": "重试",
+  "@loadFailedRetry": {
+    "description": "Button that retries loading."
+  },
+  "episodeViewCard": "切换为卡片视图",
+  "@episodeViewCard": {
+    "description": "Tooltip of the episode view toggle."
+  },
+  "episodeViewButton": "切换为序号视图",
+  "@episodeViewButton": {
+    "description": "Tooltip of the episode view toggle."
+  },
+  "nasBrowserEmpty": "空空如也",
+  "@nasBrowserEmpty": {
+    "description": "Empty state of the NAS file browser."
   }
 }

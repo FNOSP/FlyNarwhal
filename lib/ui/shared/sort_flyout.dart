@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../l10n/generated/app_localizations.dart';
 import 'semi_icons.dart';
 
 class SortItem {
@@ -11,7 +12,7 @@ class SortItem {
 class SortFlyout extends StatefulWidget {
   final ValueChanged<String> onSortTypeSelected;
   final ValueChanged<String> onSortOrderSelected;
-  final List<SortItem> sortOptions;
+  final List<SortItem>? sortOptions;
   final String initialSortColumn;
   final String initialSortOrder;
 
@@ -22,12 +23,7 @@ class SortFlyout extends StatefulWidget {
     super.key,
     required this.onSortTypeSelected,
     required this.onSortOrderSelected,
-    this.sortOptions = const [
-      SortItem('添加日期', 'create_time'),
-      SortItem('发行年份', 'release_date'),
-      SortItem('标题', 'sort_title'),
-      SortItem('评分', 'vote_average'),
-    ],
+    this.sortOptions,
     this.initialSortColumn = 'create_time',
     this.initialSortOrder = 'DESC',
     this.hideSortMenu = false,
@@ -38,27 +34,35 @@ class SortFlyout extends StatefulWidget {
 }
 
 class _SortFlyoutState extends State<SortFlyout> {
-  static const List<SortItem> _orderOptions = [
-    SortItem('升序', 'ASC'),
-    SortItem('降序', 'DESC'),
-  ];
-
-  late SortItem selectedSortType;
-  late SortItem selectedSortOrder;
+  String selectedSortTypeValue = 'create_time';
+  String selectedSortOrderValue = 'DESC';
   final FlyoutController _controller = FlyoutController();
   bool _hovered = false;
   bool _isFlyoutOpen = false;
 
+  // Localized sort-field menu options, mirroring the Web sort menu.
+  List<SortItem> _buildSortOptions(AppLocalizations l10n) {
+    return widget.sortOptions ??
+        [
+          SortItem(l10n.sortAddedDate, 'create_time'),
+          SortItem(l10n.sortReleaseYear, 'release_date'),
+          SortItem(l10n.sortTitle, 'sort_title'),
+          SortItem(l10n.sortScore, 'vote_average'),
+        ];
+  }
+
+  List<SortItem> _buildOrderOptions(AppLocalizations l10n) {
+    return [
+      SortItem(l10n.sortAscending, 'ASC'),
+      SortItem(l10n.sortDescending, 'DESC'),
+    ];
+  }
+
   @override
   void initState() {
     super.initState();
-    selectedSortType = widget.sortOptions.firstWhere(
-      (opt) => opt.value == widget.initialSortColumn,
-      orElse: () => widget.sortOptions.first,
-    );
-    selectedSortOrder = widget.initialSortOrder == 'ASC'
-        ? _orderOptions.first
-        : _orderOptions.last;
+    selectedSortTypeValue = widget.initialSortColumn;
+    selectedSortOrderValue = widget.initialSortOrder;
   }
 
   @override
@@ -67,13 +71,13 @@ class _SortFlyoutState extends State<SortFlyout> {
     super.dispose();
   }
 
-  bool get _isDesc => selectedSortOrder.value == 'DESC';
+  bool get _isDesc => selectedSortOrderValue == 'DESC';
 
   // Clicking the label/arrow zone flips the sort direction, like the web client.
   void _toggleSortOrder() {
-    final next = _isDesc ? _orderOptions.first : _orderOptions.last;
-    setState(() => selectedSortOrder = next);
-    widget.onSortOrderSelected(next.value);
+    final next = _isDesc ? 'ASC' : 'DESC';
+    setState(() => selectedSortOrderValue = next);
+    widget.onSortOrderSelected(next);
   }
 
   Future<void> _showSortMenu() async {
@@ -85,27 +89,28 @@ class _SortFlyoutState extends State<SortFlyout> {
       await _controller.showFlyout<void>(
         placementMode: FlyoutPlacementMode.bottomLeft,
         builder: (context) {
+          final l10n = AppLocalizations.of(context);
           return MenuFlyout(
             items: [
-              ...widget.sortOptions.map(
+              ..._buildSortOptions(l10n).map(
                 (opt) => _menuItem(
                   context,
                   opt,
-                  opt.value == selectedSortType.value,
+                  opt.value == selectedSortTypeValue,
                   (picked) {
-                    setState(() => selectedSortType = picked);
+                    setState(() => selectedSortTypeValue = picked.value);
                     widget.onSortTypeSelected(picked.value);
                   },
                 ),
               ),
               const MenuFlyoutSeparator(),
-              ..._orderOptions.map(
+              ..._buildOrderOptions(l10n).map(
                 (opt) => _menuItem(
                   context,
                   opt,
-                  opt.value == selectedSortOrder.value,
+                  opt.value == selectedSortOrderValue,
                   (picked) {
-                    setState(() => selectedSortOrder = picked);
+                    setState(() => selectedSortOrderValue = picked.value);
                     widget.onSortOrderSelected(picked.value);
                   },
                 ),
@@ -146,8 +151,13 @@ class _SortFlyoutState extends State<SortFlyout> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = AppLocalizations.of(context);
     final textColor = theme.typography.body?.color ?? Colors.white;
     final active = _hovered || _isFlyoutOpen;
+    final selectedLabel = _buildSortOptions(l10n).firstWhere(
+      (opt) => opt.value == selectedSortTypeValue,
+      orElse: () => _buildSortOptions(l10n).first,
+    ).label;
 
     return FlyoutTarget(
       controller: _controller,
@@ -178,7 +188,7 @@ class _SortFlyoutState extends State<SortFlyout> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      selectedSortType.label,
+                      selectedLabel,
                       style: theme.typography.body?.copyWith(
                         fontSize: 16,
                         color: textColor,

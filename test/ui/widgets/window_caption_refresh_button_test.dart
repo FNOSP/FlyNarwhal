@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:fly_narwhal/ui/features/player/widgets/player_action_button.dart';
+import 'package:fly_narwhal/l10n/generated/app_localizations.dart';
 import 'package:fly_narwhal/ui/shared/window_caption.dart';
 
 void main() {
@@ -19,6 +20,12 @@ void main() {
 
     await tester.pumpWidget(
       FluentApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          ...FluentLocalizations.localizationsDelegates,
+        ],
+        supportedLocales: const [Locale('zh'), Locale('en')],
+        locale: const Locale('zh'),
         home: Center(
           child: WindowCaptionRefreshButton(
             key: const ValueKey('refresh-button'),
@@ -63,6 +70,12 @@ void main() {
       (WidgetTester tester) async {
     await tester.pumpWidget(
       FluentApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          ...FluentLocalizations.localizationsDelegates,
+        ],
+        supportedLocales: const [Locale('zh'), Locale('en')],
+        locale: const Locale('zh'),
         home: WindowCaption(
           brightness: Brightness.dark,
           showRefreshAction: true,
@@ -90,8 +103,14 @@ void main() {
 
     try {
       await tester.pumpWidget(
-        const FluentApp(
-          home: Center(
+        FluentApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            ...FluentLocalizations.localizationsDelegates,
+          ],
+          supportedLocales: const [Locale('zh'), Locale('en')],
+          locale: const Locale('zh'),
+          home: const Center(
             child: PlayerWindowCaptionControls(
               keyPrefix: 'player-window',
             ),
@@ -129,6 +148,12 @@ void main() {
     try {
       await tester.pumpWidget(
         FluentApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          ...FluentLocalizations.localizationsDelegates,
+        ],
+        supportedLocales: const [Locale('zh'), Locale('en')],
+        locale: const Locale('zh'),
           home: Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,

@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../l10n/generated/app_localizations.dart';
 import 'window_caption.dart';
 
 const Duration _defaultToastDuration = Duration(seconds: 2);
@@ -52,13 +53,14 @@ const LiquidGlassSettings _liquidGlassToastSettings = LiquidGlassSettings(
 );
 
 // Build warning message based on missing FlyNarwhal config fields
-String buildFlyNarwhalConfigWarning({
+String buildFlyNarwhalConfigWarning(
+  AppLocalizations l10n, {
   required bool missingUrl,
   required bool missingAuthCode,
 }) {
-  if (missingUrl && missingAuthCode) return '请填写飞鲸服务端 URL 和授权码';
-  if (missingUrl) return '请填写飞鲸服务端 URL';
-  return '请填写飞鲸服务端授权码';
+  if (missingUrl && missingAuthCode) return l10n.toastServerCredentialsRequired;
+  if (missingUrl) return l10n.toastServerUrlRequired;
+  return l10n.toastServerAuthCodeRequired;
 }
 
 @immutable
@@ -105,12 +107,10 @@ class ToastPresentation {
   const ToastPresentation({
     required this.assetPath,
     required this.iconColor,
-    required this.semanticLabel,
   });
 
   final String assetPath;
   final Color iconColor;
-  final String semanticLabel;
 }
 
 extension ToastTypePresentation on ToastType {
@@ -119,25 +119,32 @@ extension ToastTypePresentation on ToastType {
       ToastType.success => const ToastPresentation(
           assetPath: 'assets/images/toast_success.svg',
           iconColor: Color(0xFF5DC264),
-          semanticLabel: '成功',
         ),
       ToastType.failed => const ToastPresentation(
           assetPath: 'assets/images/toast_error.svg',
           iconColor: Color(0xFFFF7864),
-          semanticLabel: '错误',
         ),
       ToastType.info => const ToastPresentation(
           assetPath: 'assets/images/toast_info.svg',
           iconColor: Color(0xFF409EFF),
-          semanticLabel: '信息',
         ),
       ToastType.warning => const ToastPresentation(
           assetPath: 'assets/images/toast_warning.svg',
           iconColor: Color(0xFFFFAA43),
-          semanticLabel: '警告',
         ),
     };
   }
+}
+
+// Localized semantics label for the toast type, used as the accessibility
+// prefix for the toast message.
+String _toastTypeLabel(AppLocalizations l10n, ToastType type) {
+  return switch (type) {
+    ToastType.success => l10n.toastSuccess,
+    ToastType.failed => l10n.toastError,
+    ToastType.info => l10n.toastInfo,
+    ToastType.warning => l10n.toastWarning,
+  };
 }
 
 class ToastManager extends StateNotifier<List<ToastMessage>> {
@@ -376,6 +383,7 @@ class _ToastItemState extends State<_ToastItem>
   @override
   Widget build(BuildContext context) {
     final presentation = widget.toast.type.presentation;
+    final l10n = AppLocalizations.of(context);
 
     final Widget body = widget.toast.style == ToastStyle.liquidGlass
         ? _buildLiquidGlassBody(presentation)
@@ -383,7 +391,8 @@ class _ToastItemState extends State<_ToastItem>
 
     return Semantics(
       liveRegion: true,
-      label: '${presentation.semanticLabel}：${widget.toast.message}',
+      label:
+          '${_toastTypeLabel(l10n, widget.toast.type)}：${widget.toast.message}',
       child: SlideTransition(
         position: _offsetAnimation,
         child: FadeTransition(

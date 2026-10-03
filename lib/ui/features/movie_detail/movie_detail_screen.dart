@@ -481,6 +481,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     try {
       final uploaded = await pickAndUploadLocalSubtitles(
         ref: ref,
+        context: context,
         mediaGuid: _currentMediaGuid,
       );
       if (!mounted || uploaded == null) return;

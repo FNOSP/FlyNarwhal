@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../l10n/generated/app_localizations.dart';
 import 'package:window_manager/window_manager.dart'
     hide WindowCaption, DragToMoveArea;
 
@@ -232,21 +233,21 @@ class WindowCaptionBackButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final Brightness? brightness;
   final bool compact;
-  final String semanticLabel;
+  final String? semanticLabel;
 
   const WindowCaptionBackButton({
     super.key,
     this.onPressed,
     this.brightness,
     this.compact = false,
-    this.semanticLabel = '返回',
+    this.semanticLabel,
   });
 
   const WindowCaptionBackButton.compact({
     super.key,
     this.onPressed,
     this.brightness,
-    this.semanticLabel = '返回',
+    this.semanticLabel,
   }) : compact = true;
 
   @override
@@ -278,13 +279,14 @@ class _WindowCaptionBackButtonState extends State<WindowCaptionBackButton> {
     final backgroundColor =
         (_isHovered && _isEnabled) ? hoverBackground : Colors.transparent;
     final borderRadius = BorderRadius.circular(widget.compact ? 14 : 0);
+    final label = widget.semanticLabel ?? AppLocalizations.of(context).captionBack;
 
     return Semantics(
       button: true,
       enabled: _isEnabled,
-      label: widget.semanticLabel,
+      label: label,
       child: Tooltip(
-        message: widget.semanticLabel,
+        message: label,
         child: MouseRegion(
           cursor:
               _isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -323,21 +325,21 @@ class WindowCaptionNavToggleButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final Brightness? brightness;
   final bool compact;
-  final String semanticLabel;
+  final String? semanticLabel;
 
   const WindowCaptionNavToggleButton({
     super.key,
     this.onPressed,
     this.brightness,
     this.compact = false,
-    this.semanticLabel = '切换导航栏',
+    this.semanticLabel,
   });
 
   const WindowCaptionNavToggleButton.compact({
     super.key,
     this.onPressed,
     this.brightness,
-    this.semanticLabel = '切换导航栏',
+    this.semanticLabel,
   }) : compact = true;
 
   @override
@@ -372,13 +374,15 @@ class _WindowCaptionNavToggleButtonState
     final backgroundColor =
         (_isHovered && _isEnabled) ? hoverBackground : Colors.transparent;
     final borderRadius = BorderRadius.circular(widget.compact ? 14 : 0);
+    final label =
+        widget.semanticLabel ?? AppLocalizations.of(context).captionToggleNav;
 
     return Semantics(
       button: true,
       enabled: _isEnabled,
-      label: widget.semanticLabel,
+      label: label,
       child: Tooltip(
-        message: widget.semanticLabel,
+        message: label,
         child: MouseRegion(
           cursor:
               _isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -413,21 +417,21 @@ class WindowCaptionRefreshButton extends StatefulWidget {
   final Future<void> Function()? onPressed;
   final Brightness? brightness;
   final bool compact;
-  final String semanticLabel;
+  final String? semanticLabel;
 
   const WindowCaptionRefreshButton({
     super.key,
     required this.onPressed,
     this.brightness,
     this.compact = false,
-    this.semanticLabel = '刷新',
+    this.semanticLabel,
   });
 
   const WindowCaptionRefreshButton.compact({
     super.key,
     required this.onPressed,
     this.brightness,
-    this.semanticLabel = '刷新',
+    this.semanticLabel,
   }) : compact = true;
 
   @override
@@ -498,13 +502,15 @@ class _WindowCaptionRefreshButtonState extends State<WindowCaptionRefreshButton>
     final backgroundColor =
         _isHovered || _isRefreshing ? hoverBackground : Colors.transparent;
     final borderRadius = BorderRadius.circular(widget.compact ? 14 : 0);
+    final label =
+        widget.semanticLabel ?? AppLocalizations.of(context).captionRefresh;
 
     return Semantics(
       button: true,
       enabled: _canPress,
-      label: widget.semanticLabel,
+      label: label,
       child: Tooltip(
-        message: widget.semanticLabel,
+        message: label,
         child: MouseRegion(
           cursor:
               _canPress ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -626,7 +632,9 @@ class _WindowCaptionPinButtonState extends State<WindowCaptionPinButton>
     final backgroundColor = _isHovered ? hoverBackground : Colors.transparent;
     final borderRadius =
         widget.borderRadius ?? BorderRadius.circular(widget.compact ? 14 : 0);
-    final label = _isAlwaysOnTop ? '取消置顶' : '窗口置顶';
+    final l10n = AppLocalizations.of(context);
+    final label =
+        _isAlwaysOnTop ? l10n.captionUnpin : l10n.captionAlwaysOnTop;
 
     return Semantics(
       button: true,

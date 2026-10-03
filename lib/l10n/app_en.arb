@@ -415,5 +415,490 @@
   "fontScaleLarge": "Large",
   "@fontScaleLarge": {
     "description": "Font size option: large."
+  },
+  "filterTitle": "Filter",
+  "@filterTitle": {
+    "description": "Label of the filter toggle button."
+  },
+  "filterReset": "Reset",
+  "@filterReset": {
+    "description": "Chip that clears every selected filter."
+  },
+  "filterCollapse": "Collapse",
+  "@filterCollapse": {
+    "description": "Link that collapses the filter panel."
+  },
+  "filterOptionAll": "All",
+  "@filterOptionAll": {
+    "description": "Generic 'all' option in a filter row."
+  },
+  "filterOptionMovie": "Movie",
+  "@filterOptionMovie": {
+    "description": "Media type option: movie."
+  },
+  "filterOptionTv": "TV series",
+  "@filterOptionTv": {
+    "description": "Media type option: TV series."
+  },
+  "filterOptionWatched": "Watched",
+  "@filterOptionWatched": {
+    "description": "Watched-state option."
+  },
+  "filterOptionUnwatched": "Unwatched",
+  "@filterOptionUnwatched": {
+    "description": "Watched-state option."
+  },
+  "filterOptionMatched": "Matched",
+  "@filterOptionMatched": {
+    "description": "Recognition-status option."
+  },
+  "filterOptionUnmatched": "Unmatched",
+  "@filterOptionUnmatched": {
+    "description": "Recognition-status option."
+  },
+  "filterOptionNfoMatched": "NFO matched",
+  "@filterOptionNfoMatched": {
+    "description": "Recognition-status option."
+  },
+  "filterOptionOthers": "Others",
+  "@filterOptionOthers": {
+    "description": "Catch-all option."
+  },
+  "filterOptionThisYear": "This year",
+  "@filterOptionThisYear": {
+    "description": "Decade option for recent releases."
+  },
+  "filterOptionDecade": "{decade}s",
+  "@filterOptionDecade": {
+    "description": "Decade option, e.g. 1990s.",
+    "placeholders": {
+      "decade": {
+        "type": "String"
+      }
+    }
+  },
+  "filterOptionDolbyVision": "Dolby Vision",
+  "@filterOptionDolbyVision": {
+    "description": "Dynamic-range option."
+  },
+  "filterOptionDolbySurround": "Dolby Surround",
+  "@filterOptionDolbySurround": {
+    "description": "Audio option."
+  },
+  "filterOptionDolbyAtmos": "Dolby Atmos",
+  "@filterOptionDolbyAtmos": {
+    "description": "Audio option."
+  },
+  "filterOptionStereo": "Stereo",
+  "@filterOptionStereo": {
+    "description": "Audio option."
+  },
+  "filterRowMediaType": "Media type",
+  "@filterRowMediaType": {
+    "description": "Filter row label."
+  },
+  "filterRowGenre": "Genre",
+  "@filterRowGenre": {
+    "description": "Filter row label."
+  },
+  "filterRowResolution": "Resolution",
+  "@filterRowResolution": {
+    "description": "Filter row label."
+  },
+  "filterRowColorRange": "Dynamic range",
+  "@filterRowColorRange": {
+    "description": "Filter row label."
+  },
+  "filterRowAudioType": "Audio",
+  "@filterRowAudioType": {
+    "description": "Filter row label."
+  },
+  "filterRowLocation": "Country/Region",
+  "@filterRowLocation": {
+    "description": "Filter row label."
+  },
+  "filterRowDecade": "Release year",
+  "@filterRowDecade": {
+    "description": "Filter row label."
+  },
+  "filterRowRecognitionStatus": "Match status",
+  "@filterRowRecognitionStatus": {
+    "description": "Filter row label."
+  },
+  "filterRowWatched": "Watched",
+  "@filterRowWatched": {
+    "description": "Filter row label."
+  },
+  "mediaInfoTitle": "File media info",
+  "@mediaInfoTitle": {
+    "description": "Title of the file media info dialog."
+  },
+  "mediaInfoEmpty": "No data",
+  "@mediaInfoEmpty": {
+    "description": "Shown when there is no media information."
+  },
+  "mediaInfoSectionVideo": "Video",
+  "@mediaInfoSectionVideo": {
+    "description": "Section heading for video streams."
+  },
+  "mediaInfoSectionAudio": "Audio",
+  "@mediaInfoSectionAudio": {
+    "description": "Section heading for audio streams."
+  },
+  "mediaInfoSectionSubtitle": "Subtitles",
+  "@mediaInfoSectionSubtitle": {
+    "description": "Section heading for subtitle streams."
+  },
+  "mediaInfoFieldResolution": "Resolution",
+  "@mediaInfoFieldResolution": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldDynamicRange": "Dynamic range",
+  "@mediaInfoFieldDynamicRange": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldCodec": "Codec",
+  "@mediaInfoFieldCodec": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldProfile": "Profile",
+  "@mediaInfoFieldProfile": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldLevel": "Level",
+  "@mediaInfoFieldLevel": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldFrameRate": "Frame rate",
+  "@mediaInfoFieldFrameRate": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldBitRate": "Bit rate",
+  "@mediaInfoFieldBitRate": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldAspectRatio": "Aspect ratio",
+  "@mediaInfoFieldAspectRatio": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldPixelFormat": "Pixel format",
+  "@mediaInfoFieldPixelFormat": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldBitDepth": "Bit depth",
+  "@mediaInfoFieldBitDepth": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldColorSpace": "Color space",
+  "@mediaInfoFieldColorSpace": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldColorPrimaries": "Color primaries",
+  "@mediaInfoFieldColorPrimaries": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldColorTransfer": "Color transfer",
+  "@mediaInfoFieldColorTransfer": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldReferenceFrames": "Reference frames",
+  "@mediaInfoFieldReferenceFrames": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldInterlaced": "Interlaced",
+  "@mediaInfoFieldInterlaced": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldLayout": "Layout",
+  "@mediaInfoFieldLayout": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldChannels": "Channels",
+  "@mediaInfoFieldChannels": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldSampleRate": "Sample rate",
+  "@mediaInfoFieldSampleRate": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldLanguage": "Language",
+  "@mediaInfoFieldLanguage": {
+    "description": "Media info field."
+  },
+  "mediaInfoFieldDefault": "Default",
+  "@mediaInfoFieldDefault": {
+    "description": "Media info field flag."
+  },
+  "mediaInfoFieldForced": "Forced",
+  "@mediaInfoFieldForced": {
+    "description": "Media info field flag."
+  },
+  "mediaInfoFieldExternal": "External",
+  "@mediaInfoFieldExternal": {
+    "description": "Media info field flag."
+  },
+  "mediaInfoYes": "Yes",
+  "@mediaInfoYes": {
+    "description": "Boolean media info value."
+  },
+  "mediaInfoNo": "No",
+  "@mediaInfoNo": {
+    "description": "Boolean media info value."
+  },
+  "subtitleUploadFileTypeName": "Subtitle file",
+  "@subtitleUploadFileTypeName": {
+    "description": "File-picker dialog title for choosing subtitle files."
+  },
+  "subtitleUploadSelect": "Select",
+  "@subtitleUploadSelect": {
+    "description": "Button that opens the file picker."
+  },
+  "subtitleUploadAdded": "Subtitles added",
+  "@subtitleUploadAdded": {
+    "description": "Toast after subtitles were added."
+  },
+  "subtitleUploadFailed": "Could not add the subtitles. Try again.",
+  "@subtitleUploadFailed": {
+    "description": "Toast when adding subtitles fails."
+  },
+  "subtitleUploadPartial": "Some subtitles were added; {count} failed",
+  "@subtitleUploadPartial": {
+    "description": "Toast when only some subtitles were added.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "subtitleUploadTooMany": "Select at most {count} files",
+  "@subtitleUploadTooMany": {
+    "description": "Toast when too many files are chosen.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "subtitleUploadMissingUser": "User info is missing; cannot restore the file picker state",
+  "@subtitleUploadMissingUser": {
+    "description": "Error when the file picker state cannot be restored."
+  },
+  "subtitleUploadPickerFailed": "Could not pick subtitle files: {error}",
+  "@subtitleUploadPickerFailed": {
+    "description": "Error when the file picker fails.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subtitleUploadFormatSuffix": "{formats} files",
+  "@subtitleUploadFormatSuffix": {
+    "description": "Description of the accepted subtitle formats.",
+    "placeholders": {
+      "formats": {
+        "type": "String"
+      }
+    }
+  },
+  "captionBack": "Back",
+  "@captionBack": {
+    "description": "Window caption back button tooltip."
+  },
+  "captionRefresh": "Refresh",
+  "@captionRefresh": {
+    "description": "Window caption refresh button tooltip."
+  },
+  "captionToggleNav": "Toggle navigation pane",
+  "@captionToggleNav": {
+    "description": "Window caption button tooltip."
+  },
+  "captionAlwaysOnTop": "Keep window on top",
+  "@captionAlwaysOnTop": {
+    "description": "Window caption pin button tooltip."
+  },
+  "captionUnpin": "Stop keeping on top",
+  "@captionUnpin": {
+    "description": "Window caption unpin button tooltip."
+  },
+  "toastInfo": "Info",
+  "@toastInfo": {
+    "description": "Toast title for informational messages."
+  },
+  "toastSuccess": "Success",
+  "@toastSuccess": {
+    "description": "Toast title for successes."
+  },
+  "toastWarning": "Warning",
+  "@toastWarning": {
+    "description": "Toast title for warnings."
+  },
+  "toastError": "Error",
+  "@toastError": {
+    "description": "Toast title for errors."
+  },
+  "toastServerUrlRequired": "Enter the FlyNarwhal server URL",
+  "@toastServerUrlRequired": {
+    "description": "Validation toast."
+  },
+  "toastServerAuthCodeRequired": "Enter the FlyNarwhal server auth code",
+  "@toastServerAuthCodeRequired": {
+    "description": "Validation toast."
+  },
+  "toastServerCredentialsRequired": "Enter the FlyNarwhal server URL and auth code",
+  "@toastServerCredentialsRequired": {
+    "description": "Validation toast."
+  },
+  "sslPromptTitle": "Certificate validation failed",
+  "@sslPromptTitle": {
+    "description": "Title of the certificate trust prompt."
+  },
+  "sslPromptBody": "Certificate validation failed for \"{host}\". It may be expired, have a mismatched domain, or be self-signed.",
+  "@sslPromptBody": {
+    "description": "Body of the certificate trust prompt.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "sslPromptFingerprint": "Certificate fingerprint SHA-256: {fingerprint}",
+  "@sslPromptFingerprint": {
+    "description": "Fingerprint line in the certificate prompt.",
+    "placeholders": {
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
+  "sslPromptQuestion": "Continuing bypasses the security check. Continue anyway?",
+  "@sslPromptQuestion": {
+    "description": "Question shown in the certificate prompt."
+  },
+  "sslPromptTrustPersistent": "Trust this certificate",
+  "@sslPromptTrustPersistent": {
+    "description": "Button that trusts the certificate permanently."
+  },
+  "sslPromptTrustOnce": "Trust once",
+  "@sslPromptTrustOnce": {
+    "description": "Button that trusts the certificate for this session only."
+  },
+  "sslPromptCancel": "Cancel",
+  "@sslPromptCancel": {
+    "description": "Button that cancels the connection."
+  },
+  "layoutTitle": "Layout",
+  "@layoutTitle": {
+    "description": "Heading of the layout chooser."
+  },
+  "layoutPosterWall": "Poster wall",
+  "@layoutPosterWall": {
+    "description": "Layout option."
+  },
+  "layoutVerticalPoster": "Vertical posters",
+  "@layoutVerticalPoster": {
+    "description": "Layout option."
+  },
+  "layoutBannerPoster": "Banner posters",
+  "@layoutBannerPoster": {
+    "description": "Layout option."
+  },
+  "layoutList": "List",
+  "@layoutList": {
+    "description": "Layout option."
+  },
+  "castTitle": "Cast & crew",
+  "@castTitle": {
+    "description": "Heading of the cast row."
+  },
+  "castRoleDirector": "Director",
+  "@castRoleDirector": {
+    "description": "Cast role label."
+  },
+  "castRoleActor": "Actor",
+  "@castRoleActor": {
+    "description": "Cast role label."
+  },
+  "castRoleWriter": "Writer",
+  "@castRoleWriter": {
+    "description": "Cast role label."
+  },
+  "castRoleProducer": "Producer",
+  "@castRoleProducer": {
+    "description": "Cast role label."
+  },
+  "castCharacter": "as {role}",
+  "@castCharacter": {
+    "description": "Shows the character an actor plays.",
+    "placeholders": {
+      "role": {
+        "type": "String"
+      }
+    }
+  },
+  "sortTitle": "Title",
+  "@sortTitle": {
+    "description": "Sort option."
+  },
+  "sortAddedDate": "Date added",
+  "@sortAddedDate": {
+    "description": "Sort option."
+  },
+  "sortReleaseYear": "Release year",
+  "@sortReleaseYear": {
+    "description": "Sort option."
+  },
+  "sortScore": "Rating",
+  "@sortScore": {
+    "description": "Sort option."
+  },
+  "sortAscending": "Ascending",
+  "@sortAscending": {
+    "description": "Sort direction."
+  },
+  "sortDescending": "Descending",
+  "@sortDescending": {
+    "description": "Sort direction."
+  },
+  "nasSubtitleStorageLocation": "Video location",
+  "@nasSubtitleStorageLocation": {
+    "description": "Label for the storage location picker."
+  },
+  "nasSubtitleSelectStorage": "Choose a storage volume",
+  "@nasSubtitleSelectStorage": {
+    "description": "Placeholder of the storage picker."
+  },
+  "nasSubtitleTooMany": "Select at most {count} files",
+  "@nasSubtitleTooMany": {
+    "description": "Toast when too many files are chosen.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "loadFailedTitle": "Loading failed",
+  "@loadFailedTitle": {
+    "description": "Error view title."
+  },
+  "loadFailedUnknown": "Unknown error",
+  "@loadFailedUnknown": {
+    "description": "Fallback error message."
+  },
+  "loadFailedRetry": "Retry",
+  "@loadFailedRetry": {
+    "description": "Button that retries loading."
+  },
+  "episodeViewCard": "Switch to card view",
+  "@episodeViewCard": {
+    "description": "Tooltip of the episode view toggle."
+  },
+  "episodeViewButton": "Switch to numbered view",
+  "@episodeViewButton": {
+    "description": "Tooltip of the episode view toggle."
+  },
+  "nasBrowserEmpty": "Nothing here",
+  "@nasBrowserEmpty": {
+    "description": "Empty state of the NAS file browser."
   }
 }

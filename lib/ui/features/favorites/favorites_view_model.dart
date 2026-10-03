@@ -21,7 +21,9 @@ const List<String> favoritesTabs = <String>[
 const String _personTab = '人物';
 const String _defaultSortColumn = 'create_time';
 const String _defaultSortOrder = 'DESC';
-const FilterItem _defaultFilterItem = FilterItem('全部', null);
+// Placeholder whose label is replaced by FilterBox on rebuild; only the
+// null value matters here, so the label stays language-independent.
+const FilterItem _defaultFilterItem = FilterItem('', null);
 
 class FavoritesBrowseQuery {
   final String selectedTab;
@@ -599,36 +601,36 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
 
     filters.forEach((title, item) {
       switch (title) {
-        case '影视类型':
+        case FilterRowKey.mediaType:
           if (item.value != null) {
             types
               ..clear()
               ..add(item.value.toString());
           }
           break;
-        case '类型':
+        case FilterRowKey.genre:
           genres = item.value as int?;
           break;
-        case '分辨率':
+        case FilterRowKey.resolution:
           resolution = item.value as String?;
           break;
-        case '视频动态范围':
+        case FilterRowKey.colorRange:
           colorRange = item.value as String?;
           break;
-        case '音频规格':
+        case FilterRowKey.audioType:
           audioType = item.value as String?;
           break;
-        case '国家和地区':
+        case FilterRowKey.location:
           locate = item.value as String?;
           break;
-        case '发行年份':
+        case FilterRowKey.decade:
           decade = item.value as String?;
           break;
-        case '匹配状态':
+        case FilterRowKey.recognitionStatus:
           final value = item.value as int?;
           recognitionStatus = value?.toString();
           break;
-        case '是否已观看':
+        case FilterRowKey.watched:
           watched = item.value as String?;
           break;
       }

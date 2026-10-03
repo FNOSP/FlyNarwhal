@@ -603,6 +603,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                                     .notifier)
                                                                 .showToast(
                                                                   buildFlyNarwhalConfigWarning(
+                                                                    AppLocalizations.of(
+                                                                        context),
                                                                     missingUrl:
                                                                         missingUrl,
                                                                     missingAuthCode:

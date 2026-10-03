@@ -330,6 +330,354 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get fontScaleLarge => '大';
+
+  @override
+  String get filterTitle => '筛选';
+
+  @override
+  String get filterReset => '重置';
+
+  @override
+  String get filterCollapse => '收起';
+
+  @override
+  String get filterOptionAll => '全部';
+
+  @override
+  String get filterOptionMovie => '电影';
+
+  @override
+  String get filterOptionTv => '电视剧';
+
+  @override
+  String get filterOptionWatched => '已观看';
+
+  @override
+  String get filterOptionUnwatched => '未观看';
+
+  @override
+  String get filterOptionMatched => '已匹配';
+
+  @override
+  String get filterOptionUnmatched => '未匹配';
+
+  @override
+  String get filterOptionNfoMatched => 'NFO匹配';
+
+  @override
+  String get filterOptionOthers => '其他';
+
+  @override
+  String get filterOptionThisYear => '今年';
+
+  @override
+  String filterOptionDecade(String decade) {
+    return '$decade年代';
+  }
+
+  @override
+  String get filterOptionDolbyVision => '杜比视界';
+
+  @override
+  String get filterOptionDolbySurround => '杜比环绕';
+
+  @override
+  String get filterOptionDolbyAtmos => '杜比全景声';
+
+  @override
+  String get filterOptionStereo => '立体声';
+
+  @override
+  String get filterRowMediaType => '影视类型';
+
+  @override
+  String get filterRowGenre => '类型';
+
+  @override
+  String get filterRowResolution => '分辨率';
+
+  @override
+  String get filterRowColorRange => '视频动态范围';
+
+  @override
+  String get filterRowAudioType => '音频规格';
+
+  @override
+  String get filterRowLocation => '国家和地区';
+
+  @override
+  String get filterRowDecade => '发行年份';
+
+  @override
+  String get filterRowRecognitionStatus => '匹配状态';
+
+  @override
+  String get filterRowWatched => '是否已观看';
+
+  @override
+  String get mediaInfoTitle => '文件媒体信息';
+
+  @override
+  String get mediaInfoEmpty => '暂无数据';
+
+  @override
+  String get mediaInfoSectionVideo => '视频';
+
+  @override
+  String get mediaInfoSectionAudio => '音频';
+
+  @override
+  String get mediaInfoSectionSubtitle => '字幕';
+
+  @override
+  String get mediaInfoFieldResolution => '分辨率';
+
+  @override
+  String get mediaInfoFieldDynamicRange => '视频动态范围';
+
+  @override
+  String get mediaInfoFieldCodec => '编码器';
+
+  @override
+  String get mediaInfoFieldProfile => '配置';
+
+  @override
+  String get mediaInfoFieldLevel => '等级';
+
+  @override
+  String get mediaInfoFieldFrameRate => '帧率';
+
+  @override
+  String get mediaInfoFieldBitRate => '码率';
+
+  @override
+  String get mediaInfoFieldAspectRatio => '宽高比';
+
+  @override
+  String get mediaInfoFieldPixelFormat => '像素格式';
+
+  @override
+  String get mediaInfoFieldBitDepth => '位深度';
+
+  @override
+  String get mediaInfoFieldColorSpace => '色彩空间';
+
+  @override
+  String get mediaInfoFieldColorPrimaries => '色彩原色';
+
+  @override
+  String get mediaInfoFieldColorTransfer => '色彩转换';
+
+  @override
+  String get mediaInfoFieldReferenceFrames => '参考帧';
+
+  @override
+  String get mediaInfoFieldInterlaced => '隔行扫描';
+
+  @override
+  String get mediaInfoFieldLayout => '布局';
+
+  @override
+  String get mediaInfoFieldChannels => '声道';
+
+  @override
+  String get mediaInfoFieldSampleRate => '采样率';
+
+  @override
+  String get mediaInfoFieldLanguage => '语言';
+
+  @override
+  String get mediaInfoFieldDefault => '默认';
+
+  @override
+  String get mediaInfoFieldForced => '强制';
+
+  @override
+  String get mediaInfoFieldExternal => '外部';
+
+  @override
+  String get mediaInfoYes => '是';
+
+  @override
+  String get mediaInfoNo => '否';
+
+  @override
+  String get subtitleUploadFileTypeName => '字幕文件';
+
+  @override
+  String get subtitleUploadSelect => '选择';
+
+  @override
+  String get subtitleUploadAdded => '添加字幕成功';
+
+  @override
+  String get subtitleUploadFailed => '添加字幕失败，请重试';
+
+  @override
+  String subtitleUploadPartial(String count) {
+    return '部分字幕添加成功，其中 $count 个失败';
+  }
+
+  @override
+  String subtitleUploadTooMany(String count) {
+    return '最多选择 $count 个文件';
+  }
+
+  @override
+  String get subtitleUploadMissingUser => '当前用户信息缺失，无法恢复文件选择器状态';
+
+  @override
+  String subtitleUploadPickerFailed(String error) {
+    return '选择字幕文件失败: $error';
+  }
+
+  @override
+  String subtitleUploadFormatSuffix(String formats) {
+    return '$formats 格式的文件';
+  }
+
+  @override
+  String get captionBack => '返回';
+
+  @override
+  String get captionRefresh => '刷新';
+
+  @override
+  String get captionToggleNav => '切换导航栏';
+
+  @override
+  String get captionAlwaysOnTop => '窗口置顶';
+
+  @override
+  String get captionUnpin => '取消置顶';
+
+  @override
+  String get toastInfo => '信息';
+
+  @override
+  String get toastSuccess => '成功';
+
+  @override
+  String get toastWarning => '警告';
+
+  @override
+  String get toastError => '错误';
+
+  @override
+  String get toastServerUrlRequired => '请填写飞鲸服务端 URL';
+
+  @override
+  String get toastServerAuthCodeRequired => '请填写飞鲸服务端授权码';
+
+  @override
+  String get toastServerCredentialsRequired => '请填写飞鲸服务端 URL 和授权码';
+
+  @override
+  String get sslPromptTitle => '证书校验失败';
+
+  @override
+  String sslPromptBody(String host) {
+    return '「$host」的证书校验不通过，可能是证书过期、域名不匹配或自签名证书。';
+  }
+
+  @override
+  String sslPromptFingerprint(String fingerprint) {
+    return '证书指纹 SHA-256：$fingerprint';
+  }
+
+  @override
+  String get sslPromptQuestion => '继续访问将绕过安全保护，是否继续访问？';
+
+  @override
+  String get sslPromptTrustPersistent => '信任此证书';
+
+  @override
+  String get sslPromptTrustOnce => '仅本次信任';
+
+  @override
+  String get sslPromptCancel => '取消访问';
+
+  @override
+  String get layoutTitle => '布局';
+
+  @override
+  String get layoutPosterWall => '海报墙';
+
+  @override
+  String get layoutVerticalPoster => '竖幅海报';
+
+  @override
+  String get layoutBannerPoster => '横幅海报';
+
+  @override
+  String get layoutList => '列表';
+
+  @override
+  String get castTitle => '演职人员';
+
+  @override
+  String get castRoleDirector => '导演';
+
+  @override
+  String get castRoleActor => '演员';
+
+  @override
+  String get castRoleWriter => '编剧';
+
+  @override
+  String get castRoleProducer => '制片人';
+
+  @override
+  String castCharacter(String role) {
+    return '饰 $role';
+  }
+
+  @override
+  String get sortTitle => '标题';
+
+  @override
+  String get sortAddedDate => '添加日期';
+
+  @override
+  String get sortReleaseYear => '发行年份';
+
+  @override
+  String get sortScore => '评分';
+
+  @override
+  String get sortAscending => '升序';
+
+  @override
+  String get sortDescending => '降序';
+
+  @override
+  String get nasSubtitleStorageLocation => '视频所在位置';
+
+  @override
+  String get nasSubtitleSelectStorage => '请选择存储空间';
+
+  @override
+  String nasSubtitleTooMany(String count) {
+    return '最多选择 $count 个文件';
+  }
+
+  @override
+  String get loadFailedTitle => '加载失败';
+
+  @override
+  String get loadFailedUnknown => '未知错误';
+
+  @override
+  String get loadFailedRetry => '重试';
+
+  @override
+  String get episodeViewCard => '切换为卡片视图';
+
+  @override
+  String get episodeViewButton => '切换为序号视图';
+
+  @override
+  String get nasBrowserEmpty => '空空如也';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -658,4 +1006,352 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get fontScaleLarge => '大';
+
+  @override
+  String get filterTitle => '篩選';
+
+  @override
+  String get filterReset => '重設';
+
+  @override
+  String get filterCollapse => '收合';
+
+  @override
+  String get filterOptionAll => '全部';
+
+  @override
+  String get filterOptionMovie => '電影';
+
+  @override
+  String get filterOptionTv => '電視劇';
+
+  @override
+  String get filterOptionWatched => '已觀看';
+
+  @override
+  String get filterOptionUnwatched => '未觀看';
+
+  @override
+  String get filterOptionMatched => '已匹配';
+
+  @override
+  String get filterOptionUnmatched => '未匹配';
+
+  @override
+  String get filterOptionNfoMatched => 'NFO 匹配';
+
+  @override
+  String get filterOptionOthers => '其他';
+
+  @override
+  String get filterOptionThisYear => '今年';
+
+  @override
+  String filterOptionDecade(String decade) {
+    return '$decade 年代';
+  }
+
+  @override
+  String get filterOptionDolbyVision => '杜比視界';
+
+  @override
+  String get filterOptionDolbySurround => '杜比環繞';
+
+  @override
+  String get filterOptionDolbyAtmos => '杜比全景聲';
+
+  @override
+  String get filterOptionStereo => '立體聲';
+
+  @override
+  String get filterRowMediaType => '影視類型';
+
+  @override
+  String get filterRowGenre => '類型';
+
+  @override
+  String get filterRowResolution => '解析度';
+
+  @override
+  String get filterRowColorRange => '視訊動態範圍';
+
+  @override
+  String get filterRowAudioType => '音訊規格';
+
+  @override
+  String get filterRowLocation => '國家和地區';
+
+  @override
+  String get filterRowDecade => '發行年份';
+
+  @override
+  String get filterRowRecognitionStatus => '匹配狀態';
+
+  @override
+  String get filterRowWatched => '是否已觀看';
+
+  @override
+  String get mediaInfoTitle => '檔案媒體資訊';
+
+  @override
+  String get mediaInfoEmpty => '暫無資料';
+
+  @override
+  String get mediaInfoSectionVideo => '視訊';
+
+  @override
+  String get mediaInfoSectionAudio => '音訊';
+
+  @override
+  String get mediaInfoSectionSubtitle => '字幕';
+
+  @override
+  String get mediaInfoFieldResolution => '解析度';
+
+  @override
+  String get mediaInfoFieldDynamicRange => '視訊動態範圍';
+
+  @override
+  String get mediaInfoFieldCodec => '編碼器';
+
+  @override
+  String get mediaInfoFieldProfile => '設定檔';
+
+  @override
+  String get mediaInfoFieldLevel => '等級';
+
+  @override
+  String get mediaInfoFieldFrameRate => '影格率';
+
+  @override
+  String get mediaInfoFieldBitRate => '位元率';
+
+  @override
+  String get mediaInfoFieldAspectRatio => '長寬比';
+
+  @override
+  String get mediaInfoFieldPixelFormat => '像素格式';
+
+  @override
+  String get mediaInfoFieldBitDepth => '位元深度';
+
+  @override
+  String get mediaInfoFieldColorSpace => '色彩空間';
+
+  @override
+  String get mediaInfoFieldColorPrimaries => '色彩原色';
+
+  @override
+  String get mediaInfoFieldColorTransfer => '色彩轉換';
+
+  @override
+  String get mediaInfoFieldReferenceFrames => '參考影格';
+
+  @override
+  String get mediaInfoFieldInterlaced => '交錯掃描';
+
+  @override
+  String get mediaInfoFieldLayout => '聲道配置';
+
+  @override
+  String get mediaInfoFieldChannels => '聲道';
+
+  @override
+  String get mediaInfoFieldSampleRate => '取樣率';
+
+  @override
+  String get mediaInfoFieldLanguage => '語言';
+
+  @override
+  String get mediaInfoFieldDefault => '預設';
+
+  @override
+  String get mediaInfoFieldForced => '強制';
+
+  @override
+  String get mediaInfoFieldExternal => '外部';
+
+  @override
+  String get mediaInfoYes => '是';
+
+  @override
+  String get mediaInfoNo => '否';
+
+  @override
+  String get subtitleUploadFileTypeName => '字幕檔案';
+
+  @override
+  String get subtitleUploadSelect => '選擇';
+
+  @override
+  String get subtitleUploadAdded => '新增字幕成功';
+
+  @override
+  String get subtitleUploadFailed => '新增字幕失敗，請重試';
+
+  @override
+  String subtitleUploadPartial(String count) {
+    return '部分字幕新增成功，其中 $count 個失敗';
+  }
+
+  @override
+  String subtitleUploadTooMany(String count) {
+    return '最多選擇 $count 個檔案';
+  }
+
+  @override
+  String get subtitleUploadMissingUser => '目前使用者資訊缺失，無法還原檔案選擇器狀態';
+
+  @override
+  String subtitleUploadPickerFailed(String error) {
+    return '選擇字幕檔案失敗：$error';
+  }
+
+  @override
+  String subtitleUploadFormatSuffix(String formats) {
+    return '$formats 格式的檔案';
+  }
+
+  @override
+  String get captionBack => '返回';
+
+  @override
+  String get captionRefresh => '重新整理';
+
+  @override
+  String get captionToggleNav => '切換導覽列';
+
+  @override
+  String get captionAlwaysOnTop => '視窗置頂';
+
+  @override
+  String get captionUnpin => '取消置頂';
+
+  @override
+  String get toastInfo => '資訊';
+
+  @override
+  String get toastSuccess => '成功';
+
+  @override
+  String get toastWarning => '警告';
+
+  @override
+  String get toastError => '錯誤';
+
+  @override
+  String get toastServerUrlRequired => '請填寫飛鯨伺服器 URL';
+
+  @override
+  String get toastServerAuthCodeRequired => '請填寫飛鯨伺服器授權碼';
+
+  @override
+  String get toastServerCredentialsRequired => '請填寫飛鯨伺服器 URL 和授權碼';
+
+  @override
+  String get sslPromptTitle => '憑證驗證失敗';
+
+  @override
+  String sslPromptBody(String host) {
+    return '「$host」的憑證驗證未通過，可能是憑證過期、網域不符或自簽憑證。';
+  }
+
+  @override
+  String sslPromptFingerprint(String fingerprint) {
+    return '憑證指紋 SHA-256：$fingerprint';
+  }
+
+  @override
+  String get sslPromptQuestion => '繼續存取將略過安全保護，是否繼續存取？';
+
+  @override
+  String get sslPromptTrustPersistent => '信任此憑證';
+
+  @override
+  String get sslPromptTrustOnce => '僅本次信任';
+
+  @override
+  String get sslPromptCancel => '取消存取';
+
+  @override
+  String get layoutTitle => '版面';
+
+  @override
+  String get layoutPosterWall => '海報牆';
+
+  @override
+  String get layoutVerticalPoster => '直幅海報';
+
+  @override
+  String get layoutBannerPoster => '橫幅海報';
+
+  @override
+  String get layoutList => '清單';
+
+  @override
+  String get castTitle => '演職人員';
+
+  @override
+  String get castRoleDirector => '導演';
+
+  @override
+  String get castRoleActor => '演員';
+
+  @override
+  String get castRoleWriter => '編劇';
+
+  @override
+  String get castRoleProducer => '製片人';
+
+  @override
+  String castCharacter(String role) {
+    return '飾 $role';
+  }
+
+  @override
+  String get sortTitle => '標題';
+
+  @override
+  String get sortAddedDate => '新增日期';
+
+  @override
+  String get sortReleaseYear => '發行年份';
+
+  @override
+  String get sortScore => '評分';
+
+  @override
+  String get sortAscending => '升冪';
+
+  @override
+  String get sortDescending => '降冪';
+
+  @override
+  String get nasSubtitleStorageLocation => '視訊所在位置';
+
+  @override
+  String get nasSubtitleSelectStorage => '請選擇儲存空間';
+
+  @override
+  String nasSubtitleTooMany(String count) {
+    return '最多選擇 $count 個檔案';
+  }
+
+  @override
+  String get loadFailedTitle => '載入失敗';
+
+  @override
+  String get loadFailedUnknown => '未知錯誤';
+
+  @override
+  String get loadFailedRetry => '重試';
+
+  @override
+  String get episodeViewCard => '切換為卡片檢視';
+
+  @override
+  String get episodeViewButton => '切換為序號檢視';
+
+  @override
+  String get nasBrowserEmpty => '空空如也';
 }

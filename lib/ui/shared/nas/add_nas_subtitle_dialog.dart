@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/models/file_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/file_providers.dart';
 import '../common/app_loading_progress_ring.dart';
 import '../toast.dart';
@@ -42,7 +43,12 @@ class SidebarItem {
   final List<NasBrowserRoot> roots;
   final String title;
 
-  SidebarItem(this.roots, this.title);
+  /// Whether this item is the implicit "current video location" volume, which
+  /// is rendered with its root hidden (children shown directly). Kept as an
+  /// explicit flag so the logic does not depend on the localized [title].
+  final bool isCurrentVideoLocation;
+
+  SidebarItem(this.roots, this.title, {this.isCurrentVideoLocation = false});
 
   @override
   bool operator ==(Object other) =>
@@ -173,6 +179,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
   }
 
   Widget _buildFooterActions() {
+    final l10n = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
@@ -181,7 +188,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
           child: AppButton(
             key: const ValueKey('nas-subtitle-cancel'),
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(l10n.commonCancel),
           ),
         ),
         const SizedBox(width: 8),
@@ -193,7 +200,9 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
                 ? () {
                     if (_selectedFilePaths.length > _maxMarkableSubtitles) {
                       ref.read(toastManagerProvider.notifier).showToast(
-                            '最多选择 $_maxMarkableSubtitles 个文件',
+                            l10n.nasSubtitleTooMany(
+                              '$_maxMarkableSubtitles',
+                            ),
                             style: widget.toastStyle,
                             type: ToastType.warning,
                             category: 'nas-subtitle-limit',
@@ -204,7 +213,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
                     Navigator.of(context).pop();
                   }
                 : null,
-            child: const Text('选择'),
+            child: Text(l10n.subtitleUploadSelect),
           ),
         ),
       ],
@@ -288,13 +297,15 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
   Widget _buildMainContent() {
     final sidebarItem = _selectedSidebarItem;
     if (sidebarItem == null) {
-      return const Center(child: Text('请选择存储空间'));
+      return Center(
+        child: Text(AppLocalizations.of(context).nasSubtitleSelectStorage),
+      );
     }
     return NasFileBrowser(
       key: ValueKey(sidebarItem.title),
       roots: sidebarItem.roots,
       sidebarTitle: sidebarItem.title,
-      hideRoot: sidebarItem.title == '视频所在位置',
+      hideRoot: sidebarItem.isCurrentVideoLocation,
       allowedExtensions: const ['ass', 'srt', 'vtt', 'sub', 'ssa', 'sup'],
       onSelectionChanged: (paths) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -316,6 +327,7 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
 
   List<SidebarItem> _buildSidebarItems(List<AuthDir> authDirs) {
     final items = <SidebarItem>[];
+    final l10n = AppLocalizations.of(context);
 
     String dir = widget.currentPath;
     if (dir.contains('/')) {
@@ -324,7 +336,8 @@ class _AddNasSubtitleDialogState extends ConsumerState<AddNasSubtitleDialog> {
     items.add(
       SidebarItem(
         [NasBrowserRoot(path: dir)],
-        '视频所在位置',
+        l10n.nasSubtitleStorageLocation,
+        isCurrentVideoLocation: true,
       ),
     );
 

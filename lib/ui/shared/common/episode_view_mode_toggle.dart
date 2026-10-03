@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../semi_icons.dart';
 
 /// 分集列表视图切换开关（胶囊分段控件）。
@@ -31,6 +32,7 @@ class _EpisodeViewModeToggleState extends State<EpisodeViewModeToggle> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = FluentTheme.of(context);
     final iconColor =
         theme.typography.body?.color?.withValues(alpha: 0.85) ?? Colors.white;
@@ -45,7 +47,7 @@ class _EpisodeViewModeToggleState extends State<EpisodeViewModeToggle> {
         onTap: () => widget.onChanged(!widget.isButtonView),
         child: Tooltip(
           message:
-              widget.isButtonView ? '切换为卡片视图' : '切换为序号视图',
+              widget.isButtonView ? l10n.episodeViewCard : l10n.episodeViewButton,
           // Anchor to the widget instead of the cursor: the default
           // mouse-position anchoring draws the tip right on top of the
           // button under the pointer.

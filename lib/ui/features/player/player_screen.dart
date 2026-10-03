@@ -17,6 +17,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart' hide DragToMoveArea;
 import '../../../core/network/api_result.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/window/desktop_display_service.dart';
 import '../../../core/window/main_window_persistence_guard.dart';
@@ -1646,6 +1647,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       final uploaded = await pickAndUploadLocalSubtitles(
         ref: ref,
+        context: context,
         mediaGuid: mediaGuid,
         toastStyle: ToastStyle.liquidGlass,
       );
@@ -6290,6 +6292,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!fnSettings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
+              AppLocalizations.of(context),
               missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
             ),
@@ -6338,6 +6341,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (!mounted) return false;
         ref.read(toastManagerProvider.notifier).showToast(
               buildFlyNarwhalConfigWarning(
+                AppLocalizations.of(context),
                 missingUrl: fnSettings.flyNarwhalServerBaseUrl.isEmpty,
                 missingAuthCode: !fnSettings.hasFlyNarwhalAuthCode,
               ),
@@ -6631,6 +6635,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onFlyNarwhalConfigMissing: () {
             ref.read(toastManagerProvider.notifier).showToast(
                   buildFlyNarwhalConfigWarning(
+                    AppLocalizations.of(context),
                     missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
                     missingAuthCode: !settings.hasFlyNarwhalAuthCode,
                   ),

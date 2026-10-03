@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/models/home_models.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../domain/entities/media_type.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
@@ -232,6 +233,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
+              AppLocalizations.of(context),
               missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !settings.hasFlyNarwhalAuthCode,
             ),

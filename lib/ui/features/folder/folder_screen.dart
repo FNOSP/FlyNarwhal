@@ -176,36 +176,36 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
     String? watched;
     filters.forEach((title, item) {
       switch (title) {
-        case '影视类型':
+        case FilterRowKey.mediaType:
           if (item.value != null) {
             types
               ..clear()
               ..add(item.value.toString());
           }
           break;
-        case '类型':
+        case FilterRowKey.genre:
           genres = item.value as int?;
           break;
-        case '分辨率':
+        case FilterRowKey.resolution:
           resolution = item.value as String?;
           break;
-        case '视频动态范围':
+        case FilterRowKey.colorRange:
           colorRange = item.value as String?;
           break;
-        case '音频规格':
+        case FilterRowKey.audioType:
           audioType = item.value as String?;
           break;
-        case '国家和地区':
+        case FilterRowKey.location:
           locate = item.value as String?;
           break;
-        case '发行年份':
+        case FilterRowKey.decade:
           decade = item.value as String?;
           break;
-        case '匹配状态':
+        case FilterRowKey.recognitionStatus:
           final v = item.value as int?;
           recognitionStatus = v?.toString();
           break;
-        case '是否已观看':
+        case FilterRowKey.watched:
           watched = item.value as String?;
           break;
       }
@@ -321,13 +321,15 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   void _onClearFilter(String title) {
     if (_selectedFilters.containsKey(title)) {
       setState(() {
-        _selectedFilters[title] = const FilterItem('全部', null);
+        // Placeholder whose label is replaced by FilterBox on rebuild;
+        // only the null value matters here.
+        _selectedFilters[title] = const FilterItem('', null);
       });
     } else {
       setState(() {
         _selectedFilters = {
           for (final e in _selectedFilters.entries)
-            e.key: const FilterItem('全部', null),
+            e.key: const FilterItem('', null),
         };
       });
     }

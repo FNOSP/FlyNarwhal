@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../domain/entities/tag_entity.dart';
+import '../../l10n/generated/app_localizations.dart';
 import 'semi_icons.dart';
 
 class FilterItem {
@@ -18,9 +19,15 @@ class FilterItem {
 }
 
 class FilterGroup {
+  /// Stable identifier for the row. Callers match on this — never on [title],
+  /// which is user-visible text that changes with the active language.
+  final String key;
+
+  /// Localized label shown as the row's leading text.
   final String title;
   final List<FilterItem> options;
-  const FilterGroup(this.title, this.options);
+
+  const FilterGroup(this.key, this.title, this.options);
 }
 
 class FilterButton extends StatefulWidget {
@@ -45,13 +52,15 @@ class _FilterButtonState extends State<FilterButton> {
   bool _hovered = false;
 
   bool get _hasNonDefaultFilters {
+    // "All" rows carry a null value, so the value alone identifies them.
     return widget.selectedFilters.entries.any(
-      (entry) => entry.value.label != '全部' && entry.value.value != null,
+      (entry) => entry.value.value != null,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = FluentTheme.of(context);
     final backgroundColor = (_hovered || widget.isSelected)
         ? theme.resources.controlStrokeColorDefault
@@ -63,9 +72,7 @@ class _FilterButtonState extends State<FilterButton> {
       runSpacing: 4,
       children: [
         ...widget.selectedFilters.entries
-            .where(
-              (entry) => entry.value.label != '全部' && entry.value.value != null,
-            )
+            .where((entry) => entry.value.value != null)
             .map(
               (entry) => FilterChip(
                 label: entry.value.label,
@@ -73,7 +80,7 @@ class _FilterButtonState extends State<FilterButton> {
               ),
             ),
         FilterChip(
-          label: '重置',
+          label: l10n.filterReset,
           icon: FluentIcons.refresh,
           onClear: () => widget.onFilterClear('all'),
         ),
@@ -104,7 +111,7 @@ class _FilterButtonState extends State<FilterButton> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '筛选',
+                    l10n.filterTitle,
                     style: theme.typography.body?.copyWith(
                       fontSize: 16,
                       color: textColor,
@@ -269,8 +276,10 @@ class _FilterBoxState extends State<FilterBox> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = FluentTheme.of(context);
     final groups = _buildFilterGroups(
+      l10n: l10n,
       tagList: widget.tagList,
       genres: widget.genres,
       iso3166: widget.iso3166,
@@ -278,7 +287,7 @@ class _FilterBoxState extends State<FilterBox> {
       folderOnly: widget.folderOnly,
     );
     for (final group in groups) {
-      _selectedOptions.putIfAbsent(group.title, () => group.options.first);
+      _selectedOptions.putIfAbsent(group.key, () => group.options.first);
     }
 
     final content = Column(
@@ -286,7 +295,7 @@ class _FilterBoxState extends State<FilterBox> {
       children: [
         ...groups.expand((group) {
           final selected =
-              _selectedOptions[group.title] ?? group.options.first;
+              _selectedOptions[group.key] ?? group.options.first;
           return [
             FilterRow(
               title: group.title,
@@ -294,7 +303,7 @@ class _FilterBoxState extends State<FilterBox> {
               selected: selected,
               onSelected: (item) {
                 setState(() {
-                  _selectedOptions[group.title] = item;
+                  _selectedOptions[group.key] = item;
                 });
                 widget.onFilterChanged(_selectedOptions);
               },
@@ -314,7 +323,10 @@ class _FilterBoxState extends State<FilterBox> {
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('收起', style: TextStyle(color: color, fontSize: 14)),
+                    Text(
+                      l10n.filterCollapse,
+                      style: TextStyle(color: color, fontSize: 14),
+                    ),
                     const SizedBox(width: 4),
                     Icon(
                       FluentIcons.chevron_up,
@@ -415,7 +427,22 @@ class FilterRow extends StatelessWidget {
   }
 }
 
+class FilterRowKey {
+  const FilterRowKey._();
+
+  static const String mediaType = 'media_type';
+  static const String genre = 'genre';
+  static const String resolution = 'resolution';
+  static const String colorRange = 'color_range';
+  static const String audioType = 'audio_type';
+  static const String location = 'location';
+  static const String decade = 'decade';
+  static const String recognitionStatus = 'recognition_status';
+  static const String watched = 'watched';
+}
+
 List<FilterGroup> _buildFilterGroups({
+  required AppLocalizations l10n,
   TagListEntity? tagList,
   List<GenreEntity>? genres,
   Map<String, String>? iso3166,
@@ -425,12 +452,13 @@ List<FilterGroup> _buildFilterGroups({
   final groups = <FilterGroup>[];
   if (!liveOnly && !folderOnly) {
     groups.add(
-      const FilterGroup(
-        '影视类型',
+      FilterGroup(
+        FilterRowKey.mediaType,
+        l10n.filterRowMediaType,
         [
-          FilterItem('全部', null),
-          FilterItem('电影', 'Movie'),
-          FilterItem('电视剧', 'TV'),
+          FilterItem(l10n.filterOptionAll, null),
+          FilterItem(l10n.filterOptionMovie, 'Movie'),
+          FilterItem(l10n.filterOptionTv, 'TV'),
         ],
       ),
     );
@@ -441,20 +469,22 @@ List<FilterGroup> _buildFilterGroups({
     if (tagList != null) {
       groups.add(
         FilterGroup(
-          '分辨率',
+          FilterRowKey.resolution,
+          l10n.filterRowResolution,
           [
-            const FilterItem('全部', null),
+            FilterItem(l10n.filterOptionAll, null),
             ...tagList.resolutions.map((r) => FilterItem(r, r)),
           ],
         ),
       );
       groups.add(
         FilterGroup(
-          '视频动态范围',
+          FilterRowKey.colorRange,
+          l10n.filterRowColorRange,
           [
-            const FilterItem('全部', null),
+            FilterItem(l10n.filterOptionAll, null),
             ...tagList.colorRanges.map((r) {
-              final label = r == 'DolbyVision' ? '杜比视界' : r;
+              final label = r == 'DolbyVision' ? l10n.filterOptionDolbyVision : r;
               return FilterItem(label, r);
             }),
           ],
@@ -462,15 +492,16 @@ List<FilterGroup> _buildFilterGroups({
       );
       groups.add(
         FilterGroup(
-          '音频规格',
+          FilterRowKey.audioType,
+          l10n.filterRowAudioType,
           [
-            const FilterItem('全部', null),
+            FilterItem(l10n.filterOptionAll, null),
             ...tagList.audioTypes.map((r) {
               final label = switch (r) {
-                'DolbySurround' => '杜比环绕',
-                'DolbyAtmos' => '杜比全景声',
-                'Stereo' => '立体声',
-                'Others' => '其他',
+                'DolbySurround' => l10n.filterOptionDolbySurround,
+                'DolbyAtmos' => l10n.filterOptionDolbyAtmos,
+                'Stereo' => l10n.filterOptionStereo,
+                'Others' => l10n.filterOptionOthers,
                 _ => r,
               };
               return FilterItem(label, r);
@@ -479,17 +510,36 @@ List<FilterGroup> _buildFilterGroups({
         ),
       );
     } else {
-      groups.add(const FilterGroup('分辨率', [FilterItem('全部', null)]));
-      groups.add(const FilterGroup('视频动态范围', [FilterItem('全部', null)]));
-      groups.add(const FilterGroup('音频规格', [FilterItem('全部', null)]));
+      groups.add(
+        FilterGroup(
+          FilterRowKey.resolution,
+          l10n.filterRowResolution,
+          [FilterItem(l10n.filterOptionAll, null)],
+        ),
+      );
+      groups.add(
+        FilterGroup(
+          FilterRowKey.colorRange,
+          l10n.filterRowColorRange,
+          [FilterItem(l10n.filterOptionAll, null)],
+        ),
+      );
+      groups.add(
+        FilterGroup(
+          FilterRowKey.audioType,
+          l10n.filterRowAudioType,
+          [FilterItem(l10n.filterOptionAll, null)],
+        ),
+      );
     }
     groups.add(
-      const FilterGroup(
-        '是否已观看',
+      FilterGroup(
+        FilterRowKey.watched,
+        l10n.filterRowWatched,
         [
-          FilterItem('全部', null),
-          FilterItem('已观看', '1'),
-          FilterItem('未观看', '0'),
+          FilterItem(l10n.filterOptionAll, null),
+          FilterItem(l10n.filterOptionWatched, '1'),
+          FilterItem(l10n.filterOptionUnwatched, '0'),
         ],
       ),
     );
@@ -498,16 +548,22 @@ List<FilterGroup> _buildFilterGroups({
 
   if (tagList != null && genres != null) {
     final genreMap = {for (final g in genres) g.id: g};
-    final options = <FilterItem>[const FilterItem('全部', null)];
+    final options = <FilterItem>[FilterItem(l10n.filterOptionAll, null)];
     for (final id in tagList.genres) {
       final genre = genreMap[id];
       if (genre != null) {
         options.add(FilterItem(genre.name, id));
       }
     }
-    groups.add(FilterGroup('类型', options));
+    groups.add(FilterGroup(FilterRowKey.genre, l10n.filterRowGenre, options));
   } else {
-    groups.add(const FilterGroup('类型', [FilterItem('全部', null)]));
+    groups.add(
+      FilterGroup(
+        FilterRowKey.genre,
+        l10n.filterRowGenre,
+        [FilterItem(l10n.filterOptionAll, null)],
+      ),
+    );
   }
 
   if (liveOnly) {
@@ -517,20 +573,22 @@ List<FilterGroup> _buildFilterGroups({
   if (tagList != null) {
     groups.add(
       FilterGroup(
-        '分辨率',
+        FilterRowKey.resolution,
+        l10n.filterRowResolution,
         [
-          const FilterItem('全部', null),
+          FilterItem(l10n.filterOptionAll, null),
           ...tagList.resolutions.map((r) => FilterItem(r, r)),
         ],
       ),
     );
     groups.add(
       FilterGroup(
-        '视频动态范围',
+        FilterRowKey.colorRange,
+        l10n.filterRowColorRange,
         [
-          const FilterItem('全部', null),
+          FilterItem(l10n.filterOptionAll, null),
           ...tagList.colorRanges.map((r) {
-            final label = r == 'DolbyVision' ? '杜比视界' : r;
+            final label = r == 'DolbyVision' ? l10n.filterOptionDolbyVision : r;
             return FilterItem(label, r);
           }),
         ],
@@ -538,15 +596,16 @@ List<FilterGroup> _buildFilterGroups({
     );
     groups.add(
       FilterGroup(
-        '音频规格',
+        FilterRowKey.audioType,
+        l10n.filterRowAudioType,
         [
-          const FilterItem('全部', null),
+          FilterItem(l10n.filterOptionAll, null),
           ...tagList.audioTypes.map((r) {
             final label = switch (r) {
-              'DolbySurround' => '杜比环绕',
-              'DolbyAtmos' => '杜比全景声',
-              'Stereo' => '立体声',
-              'Others' => '其他',
+              'DolbySurround' => l10n.filterOptionDolbySurround,
+              'DolbyAtmos' => l10n.filterOptionDolbyAtmos,
+              'Stereo' => l10n.filterOptionStereo,
+              'Others' => l10n.filterOptionOthers,
               _ => r,
             };
             return FilterItem(label, r);
@@ -555,62 +614,105 @@ List<FilterGroup> _buildFilterGroups({
       ),
     );
   } else {
-    groups.add(const FilterGroup('分辨率', [FilterItem('全部', null)]));
-    groups.add(const FilterGroup('视频动态范围', [FilterItem('全部', null)]));
-    groups.add(const FilterGroup('音频规格', [FilterItem('全部', null)]));
+    groups.add(
+      FilterGroup(
+        FilterRowKey.resolution,
+        l10n.filterRowResolution,
+        [FilterItem(l10n.filterOptionAll, null)],
+      ),
+    );
+    groups.add(
+      FilterGroup(
+        FilterRowKey.colorRange,
+        l10n.filterRowColorRange,
+        [FilterItem(l10n.filterOptionAll, null)],
+      ),
+    );
+    groups.add(
+      FilterGroup(
+        FilterRowKey.audioType,
+        l10n.filterRowAudioType,
+        [FilterItem(l10n.filterOptionAll, null)],
+      ),
+    );
   }
 
   if (tagList != null && iso3166 != null) {
     final isoMap = iso3166;
-    final options = <FilterItem>[const FilterItem('全部', null)];
+    final options = <FilterItem>[FilterItem(l10n.filterOptionAll, null)];
     for (final code in tagList.locations) {
       options.add(FilterItem(isoMap[code] ?? code, code));
     }
-    groups.add(FilterGroup('国家和地区', options));
+    groups.add(FilterGroup(FilterRowKey.location, l10n.filterRowLocation, options));
   } else {
-    groups.add(const FilterGroup('国家和地区', [FilterItem('全部', null)]));
+    groups.add(
+      FilterGroup(
+        FilterRowKey.location,
+        l10n.filterRowLocation,
+        [FilterItem(l10n.filterOptionAll, null)],
+      ),
+    );
   }
 
   if (tagList != null) {
-    final options = <FilterItem>[const FilterItem('全部', null)];
+    final options = <FilterItem>[FilterItem(l10n.filterOptionAll, null)];
     for (final decade in tagList.decades) {
       final label = switch (decade) {
-        'Recent' => '今年',
-        'Others' => '其他',
+        'Recent' => l10n.filterOptionThisYear,
+        'Others' => l10n.filterOptionOthers,
         _ when decade.endsWith('s') =>
-          '${decade.substring(0, decade.length - 1)}年代',
+          l10n.filterOptionDecade(decade.substring(0, decade.length - 1)),
         _ => decade,
       };
       options.add(FilterItem(label, decade));
     }
-    groups.add(FilterGroup('发行年份', options));
+    groups.add(FilterGroup(FilterRowKey.decade, l10n.filterRowDecade, options));
   } else {
-    groups.add(const FilterGroup('发行年份', [FilterItem('全部', null)]));
+    groups.add(
+      FilterGroup(
+        FilterRowKey.decade,
+        l10n.filterRowDecade,
+        [FilterItem(l10n.filterOptionAll, null)],
+      ),
+    );
   }
 
   if (tagList != null) {
-    final options = <FilterItem>[const FilterItem('全部', null)];
+    final options = <FilterItem>[FilterItem(l10n.filterOptionAll, null)];
     for (final status in tagList.recognitionStatuses) {
       final label = switch (status) {
-        1 => '未匹配',
-        2 => '已匹配',
-        3 => 'NFO匹配',
+        1 => l10n.filterOptionUnmatched,
+        2 => l10n.filterOptionMatched,
+        3 => l10n.filterOptionNfoMatched,
         _ => status.toString(),
       };
       options.add(FilterItem(label, status));
     }
-    groups.add(FilterGroup('匹配状态', options));
+    groups.add(
+      FilterGroup(
+        FilterRowKey.recognitionStatus,
+        l10n.filterRowRecognitionStatus,
+        options,
+      ),
+    );
   } else {
-    groups.add(const FilterGroup('匹配状态', [FilterItem('全部', null)]));
+    groups.add(
+      FilterGroup(
+        FilterRowKey.recognitionStatus,
+        l10n.filterRowRecognitionStatus,
+        [FilterItem(l10n.filterOptionAll, null)],
+      ),
+    );
   }
 
   groups.add(
-    const FilterGroup(
-      '是否已观看',
+    FilterGroup(
+      FilterRowKey.watched,
+      l10n.filterRowWatched,
       [
-        FilterItem('全部', null),
-        FilterItem('已观看', '1'),
-        FilterItem('未观看', '0'),
+        FilterItem(l10n.filterOptionAll, null),
+        FilterItem(l10n.filterOptionWatched, '1'),
+        FilterItem(l10n.filterOptionUnwatched, '0'),
       ],
     ),
   );

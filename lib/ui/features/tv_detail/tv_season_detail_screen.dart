@@ -13,6 +13,7 @@ import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/common/episode_view_mode_toggle.dart';
 
 import '../../../data/models/movie_detail_models.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/season_list_response.dart';
 import '../../../data/models/fly_narwhal/index.dart';
@@ -194,6 +195,7 @@ class _TvSeasonDetailContentState
     if (!settings.isFlyNarwhalServerAvailable) {
       ref.read(toastManagerProvider.notifier).showToast(
             buildFlyNarwhalConfigWarning(
+              AppLocalizations.of(context),
               missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
               missingAuthCode: !settings.hasFlyNarwhalAuthCode,
             ),
