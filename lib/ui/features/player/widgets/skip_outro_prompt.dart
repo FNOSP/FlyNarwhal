@@ -15,10 +15,14 @@ String resolveOutroPromptMessage({
   required bool autoPlayEnabled,
   required bool hasContentAfterCredits,
   required NextEpisodeLoadPhase nextEpisodePhase,
+  String? subject,
 }) {
   final safeCountdown = countdown < 0 ? 0 : countdown;
   if (!autoPlayEnabled || hasContentAfterCredits) {
-    return l10n.playerSkipOutroInSeconds(safeCountdown);
+    return l10n.playerSkipSegmentInSeconds(
+      '$safeCountdown',
+      subject ?? l10n.playerSkipSegmentOutro,
+    );
   }
   if (nextEpisodePhase == NextEpisodeLoadPhase.available) {
     return l10n.playerSkipOutroNextEpisodeInSeconds(safeCountdown);
@@ -36,6 +40,7 @@ class SkipOutroPrompt extends StatelessWidget {
     required this.onCancel,
     this.isPip = false,
     this.onHoverChanged,
+    this.subject,
   });
 
   final int countdown;
@@ -45,6 +50,7 @@ class SkipOutroPrompt extends StatelessWidget {
   final VoidCallback onCancel;
   final bool isPip;
   final ValueChanged<bool>? onHoverChanged;
+  final String? subject;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +64,7 @@ class SkipOutroPrompt extends StatelessWidget {
         autoPlayEnabled: autoPlayEnabled,
         hasContentAfterCredits: hasContentAfterCredits,
         nextEpisodePhase: nextEpisodePhase,
+        subject: subject ?? l10n.playerSkipSegmentOutro,
       ),
       undoLabel: l10n.commonCancel,
       countdown: 0,

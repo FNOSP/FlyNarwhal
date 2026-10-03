@@ -114,12 +114,21 @@ class _TvDetailContent extends ConsumerStatefulWidget {
 class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   late final FlyoutController _moreController = FlyoutController();
 
+  /// Evicts this item's cached detail responses so re-entering the page always
+  /// refetches instead of replaying the data source's 5-minute cache.
+  ///
+  /// Runs in [deactivate] rather than [dispose]: Riverpod has already torn this
+  /// element's `ref` down by the time `dispose` runs, so reading a provider
+  /// there throws `StateError: Cannot use "ref" after the widget was disposed`
+  /// and aborts the unmount, leaving the tree half-finalized.
+  @override
+  void deactivate() {
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(widget.guid);
+    super.deactivate();
+  }
+
   @override
   void dispose() {
-    // Drop this item's cached detail responses so re-entering the page always
-    // refetches instead of replaying the data source's 5-minute cache while the
-    // provider is still alive across route changes.
-    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(widget.guid);
     _moreController.dispose();
     super.dispose();
   }
@@ -235,26 +244,44 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 
   void _showAnalysisToast(
+    AppLocalizations l10n,
     SmartAnalysisTargetType targetType,
     String targetGuid,
     AsyncValue<String>? previous,
     AsyncValue<String>? next,
   ) {
-    if (next == null || next.isLoading || identical(previous, next)) return;
+    if (next == null || identical(previous, next)) return;
+    final baseCategory = 'smart-analysis:${targetType.name}:$targetGuid';
+    if (next.isLoading) {
+      // Immediate feedback while the slow collection/submit runs (KMP parity).
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.smartAnalysisQueuedLoading,
+            type: ToastType.success,
+            category: baseCategory,
+          );
+      return;
+    }
     next.when(
       data: (message) {
         ref.read(toastManagerProvider.notifier).showToast(
               message,
               type: ToastType.success,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
       loading: () {},
       error: (error, stackTrace) {
+        final isSubmissionFailure =
+            error is SmartAnalysisSubmissionException &&
+                error.preparingStarted;
         ref.read(toastManagerProvider.notifier).showToast(
-              error.toString(),
+              isSubmissionFailure
+                  ? l10n.smartSkipAnalysisFailedRetry
+                  : error is SmartAnalysisUserMessageException
+                      ? error.message
+                      : error.toString(),
               type: ToastType.failed,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
     );
@@ -318,6 +345,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         ),
       ),
       (previous, next) => _showAnalysisToast(
+        AppLocalizations.of(context),
         SmartAnalysisTargetType.tv,
         widget.guid,
         previous,
@@ -333,6 +361,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
           ),
         ),
         (previous, next) => _showAnalysisToast(
+          AppLocalizations.of(context),
           SmartAnalysisTargetType.season,
           season.guid,
           previous,
@@ -479,6 +508,12 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                         showSmartAnalysis:
                             ref.watch(settingsProvider).flyNarwhalServerEnabled,
                         onAnalyze: _handleAnalyzeSeason,
+                        isSeasonSubmitting: (seasonGuid) => ref
+                            .read(smartAnalysisControllerProvider)
+                            .isSubmitting(
+                              SmartAnalysisTargetType.season,
+                              seasonGuid,
+                            ),
                         onWatchedToggle: (guid, isWatched) async {
                           return _handleToggleSeasonWatched(guid, isWatched);
                         },
@@ -597,6 +632,7 @@ class _SeasonListGrid extends StatefulWidget {
   final bool showSmartAnalysis;
   final ValueChanged<SeasonListResponse> onAnalyze;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
+  final bool Function(String seasonGuid) isSeasonSubmitting;
 
   const _SeasonListGrid({
     required this.seasons,
@@ -605,6 +641,7 @@ class _SeasonListGrid extends StatefulWidget {
     required this.showSmartAnalysis,
     required this.onAnalyze,
     required this.onWatchedToggle,
+    required this.isSeasonSubmitting,
   });
 
   @override
@@ -669,6 +706,7 @@ class _SeasonListGridState extends State<_SeasonListGrid> {
               showSmartAnalysis: widget.showSmartAnalysis,
               onAnalyze: widget.onAnalyze,
               onWatchedToggle: widget.onWatchedToggle,
+              isSeasonSubmitting: widget.isSeasonSubmitting,
             ),
           );
         }).toList(),
@@ -690,6 +728,7 @@ class _SeasonPosterCard extends StatefulWidget {
   final bool showSmartAnalysis;
   final ValueChanged<SeasonListResponse> onAnalyze;
   final Future<bool> Function(String guid, bool isWatched) onWatchedToggle;
+  final bool Function(String seasonGuid) isSeasonSubmitting;
 
   const _SeasonPosterCard({
     required this.season,
@@ -701,6 +740,7 @@ class _SeasonPosterCard extends StatefulWidget {
     required this.showSmartAnalysis,
     required this.onAnalyze,
     required this.onWatchedToggle,
+    required this.isSeasonSubmitting,
   });
 
   @override
@@ -729,10 +769,12 @@ class _SeasonPosterCardState extends State<_SeasonPosterCard> {
           MenuFlyoutItem(
             key: ValueKey('season-smart-analysis-${season.guid}'),
             text: Text(AppLocalizations.of(context).tvDetailSmartAnalysis),
-            onPressed: () {
-              Flyout.of(context).close();
-              widget.onAnalyze(season);
-            },
+            onPressed: widget.isSeasonSubmitting(season.guid)
+                ? null
+                : () {
+                    Flyout.of(context).close();
+                    widget.onAnalyze(season);
+                  },
           ),
         ],
       ),

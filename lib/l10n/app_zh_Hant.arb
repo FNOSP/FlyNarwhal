@@ -3350,5 +3350,227 @@
   "playerEncodeMethodRkmpp": "RKMPP 編碼",
   "@playerEncodeMethodRkmpp": {
     "description": "RKMPP encoding"
+  },
+  "smartAnalysisQueuedLoading": "片頭／片尾分析任務已提交",
+  "@smartAnalysisQueuedLoading": {
+    "description": "Toast shown immediately after queueing a season analysis."
+  },
+  "smartAnalysisCloudOrStrmRejected": "網盤或 STRM 影片無法使用「智慧分析片頭／片尾」功能",
+  "@smartAnalysisCloudOrStrmRejected": {
+    "description": "Rejection message when the media backend cannot be analyzed."
+  },
+  "playerSkipSegmentIntro": "片頭",
+  "@playerSkipSegmentIntro": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentRecap": "前情提要",
+  "@playerSkipSegmentRecap": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentOutro": "片尾",
+  "@playerSkipSegmentOutro": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentPreview": "下集預告",
+  "@playerSkipSegmentPreview": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentCommercial": "廣告",
+  "@playerSkipSegmentCommercial": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentGeneric": "片段",
+  "@playerSkipSegmentGeneric": {
+    "description": "Fallback skip-segment kind name."
+  },
+  "playerSkipSegmentJoined": "{parts}",
+  "@playerSkipSegmentJoined": {
+    "description": "Joins several skip-segment names; keep the connector language-specific.",
+    "placeholders": {
+      "parts": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSkipSegmentInSeconds": "{seconds} 秒後跳過{subject}",
+  "@playerSkipSegmentInSeconds": {
+    "description": "Countdown before auto-skipping a segment.",
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      },
+      "subject": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSkipAutoSkipped": "已自動跳過{subject}",
+  "@playerSkipAutoSkipped": {
+    "description": "Toast after automatically skipping a segment.",
+    "placeholders": {
+      "subject": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsSkipRecap": "跳過前情提要",
+  "@playerSettingsSkipRecap": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSkipPreview": "跳過下集預告",
+  "@playerSettingsSkipPreview": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSkipCommercial": "跳過廣告",
+  "@playerSettingsSkipCommercial": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSmartSkipConfig": "智慧跳過設定",
+  "@playerSettingsSmartSkipConfig": {
+    "description": "Menu entry that opens the smart-skip config dialog."
+  },
+  "playerSettingsSkipIntroOnly": "跳過片頭",
+  "@playerSettingsSkipIntroOnly": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSkipOutroOnly": "跳過片尾",
+  "@playerSettingsSkipOutroOnly": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSkipSegmentConnector": "與",
+  "@playerSkipSegmentConnector": {
+    "description": "Separator joining several skip-segment names."
+  },
+  "smartSkipConfigTitle": "智慧跳過設定",
+  "@smartSkipConfigTitle": {
+    "description": "Title of the smart-skip configuration dialog."
+  },
+  "smartSkipSave": "儲存",
+  "@smartSkipSave": {
+    "description": "Dialog primary action."
+  },
+  "smartSkipSaved": "智慧跳過設定已儲存",
+  "@smartSkipSaved": {
+    "description": "Toast after saving the configuration."
+  },
+  "smartSkipSaveFailed": "儲存失敗",
+  "@smartSkipSaveFailed": {
+    "description": "Title shown when saving fails."
+  },
+  "smartSkipLoginRequired": "請先登入後再設定",
+  "@smartSkipLoginRequired": {
+    "description": "Shown when the user is not signed in."
+  },
+  "smartSkipLoadFailed": "伺服器設定載入失敗，目前顯示預設設定",
+  "@smartSkipLoadFailed": {
+    "description": "Banner when server config cannot be loaded."
+  },
+  "smartSkipDetectMode": "偵測模式",
+  "@smartSkipDetectMode": {
+    "description": "Section heading."
+  },
+  "smartSkipAnimeMode": "動漫模式",
+  "@smartSkipAnimeMode": {
+    "description": "Detection-mode option."
+  },
+  "smartSkipPreferChromaprint": "優先指紋比對",
+  "@smartSkipPreferChromaprint": {
+    "description": "Detection-mode option."
+  },
+  "smartSkipAlternativeBlackFrame": "備用黑畫面分析器",
+  "@smartSkipAlternativeBlackFrame": {
+    "description": "Detection-mode option."
+  },
+  "smartSkipDetectIntro": "偵測片頭",
+  "@smartSkipDetectIntro": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectOutro": "偵測片尾",
+  "@smartSkipDetectOutro": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectRecap": "偵測前情提要",
+  "@smartSkipDetectRecap": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectPreview": "偵測下集預告",
+  "@smartSkipDetectPreview": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectCommercial": "偵測廣告",
+  "@smartSkipDetectCommercial": {
+    "description": "Detection toggle."
+  },
+  "smartSkipAdvanced": "進階",
+  "@smartSkipAdvanced": {
+    "description": "Heading of the advanced settings section."
+  },
+  "smartSkipDurationLimit": "時長限制（秒）",
+  "@smartSkipDurationLimit": {
+    "description": "Field label."
+  },
+  "smartSkipBoundaryOffset": "邊界偏移（秒）",
+  "@smartSkipBoundaryOffset": {
+    "description": "Field label."
+  },
+  "smartSkipIntroStartOffset": "片頭開始偏移",
+  "@smartSkipIntroStartOffset": {
+    "description": "Field label."
+  },
+  "smartSkipIntroEndOffset": "片頭結束偏移",
+  "@smartSkipIntroEndOffset": {
+    "description": "Field label."
+  },
+  "smartSkipIntroMinDuration": "片頭最短時長",
+  "@smartSkipIntroMinDuration": {
+    "description": "Field label."
+  },
+  "smartSkipIntroMaxDuration": "片頭最長時長",
+  "@smartSkipIntroMaxDuration": {
+    "description": "Field label."
+  },
+  "smartSkipOutroMinDuration": "片尾最短時長",
+  "@smartSkipOutroMinDuration": {
+    "description": "Field label."
+  },
+  "smartSkipOutroMaxDuration": "片尾最長時長",
+  "@smartSkipOutroMaxDuration": {
+    "description": "Field label."
+  },
+  "smartSkipOutroEndOffset": "片尾結束偏移",
+  "@smartSkipOutroEndOffset": {
+    "description": "Field label."
+  },
+  "smartSkipRestoreDefaults": "還原預設",
+  "@smartSkipRestoreDefaults": {
+    "description": "Dialog action."
+  },
+  "playerSettingsSmartSkipIntro": "跳過片頭",
+  "@playerSettingsSmartSkipIntro": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSmartSkipOutro": "跳過片尾",
+  "@playerSettingsSmartSkipOutro": {
+    "description": "Smart-skip switch label."
+  },
+  "smartSkipAnalysisFailedRetry": "分析請求提交失敗，請稍後重試",
+  "@smartSkipAnalysisFailedRetry": {
+    "description": "Toast when submitting season analysis fails."
+  },
+  "smartSkipLoadConfigFailed": "載入智慧跳過設定失敗",
+  "@smartSkipLoadConfigFailed": {
+    "description": "Error shown when loading the config fails."
+  },
+  "smartSkipSaveConfigFailed": "儲存智慧跳過設定失敗",
+  "@smartSkipSaveConfigFailed": {
+    "description": "Error shown when saving the config fails."
+  },
+  "smartSkipConfigConfigure": "設定",
+  "@smartSkipConfigConfigure": {
+    "description": "Button that opens the smart skip config dialog."
+  },
+  "settingsSmartSkipConfigCaption": "伺服器智慧分析片頭片尾的參數",
+  "@settingsSmartSkipConfigCaption": {
+    "description": "Caption under the smart skip config row."
   }
 }

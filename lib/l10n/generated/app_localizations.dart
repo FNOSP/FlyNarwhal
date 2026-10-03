@@ -4514,6 +4514,312 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'RKMPP 编码'**
   String get playerEncodeMethodRkmpp;
+
+  /// Toast shown immediately after queueing a season analysis.
+  ///
+  /// In zh, this message translates to:
+  /// **'片头/片尾分析任务已提交'**
+  String get smartAnalysisQueuedLoading;
+
+  /// Rejection message when the media backend cannot be analyzed.
+  ///
+  /// In zh, this message translates to:
+  /// **'网盘或 STRM 视频无法使用“智能分析片头/片尾”功能'**
+  String get smartAnalysisCloudOrStrmRejected;
+
+  /// Skip-segment kind name.
+  ///
+  /// In zh, this message translates to:
+  /// **'片头'**
+  String get playerSkipSegmentIntro;
+
+  /// Skip-segment kind name.
+  ///
+  /// In zh, this message translates to:
+  /// **'前情提要'**
+  String get playerSkipSegmentRecap;
+
+  /// Skip-segment kind name.
+  ///
+  /// In zh, this message translates to:
+  /// **'片尾'**
+  String get playerSkipSegmentOutro;
+
+  /// Skip-segment kind name.
+  ///
+  /// In zh, this message translates to:
+  /// **'下集预告'**
+  String get playerSkipSegmentPreview;
+
+  /// Skip-segment kind name.
+  ///
+  /// In zh, this message translates to:
+  /// **'广告'**
+  String get playerSkipSegmentCommercial;
+
+  /// Fallback skip-segment kind name.
+  ///
+  /// In zh, this message translates to:
+  /// **'片段'**
+  String get playerSkipSegmentGeneric;
+
+  /// Joins several skip-segment names; keep the connector language-specific.
+  ///
+  /// In zh, this message translates to:
+  /// **'{parts}'**
+  String playerSkipSegmentJoined(String parts);
+
+  /// Countdown before auto-skipping a segment.
+  ///
+  /// In zh, this message translates to:
+  /// **'{seconds} 秒后跳过{subject}'**
+  String playerSkipSegmentInSeconds(String seconds, String subject);
+
+  /// Toast after automatically skipping a segment.
+  ///
+  /// In zh, this message translates to:
+  /// **'已自动跳过{subject}'**
+  String playerSkipAutoSkipped(String subject);
+
+  /// Smart-skip switch label.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过前情提要'**
+  String get playerSettingsSkipRecap;
+
+  /// Smart-skip switch label.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过下集预告'**
+  String get playerSettingsSkipPreview;
+
+  /// Smart-skip switch label.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过广告'**
+  String get playerSettingsSkipCommercial;
+
+  /// Menu entry that opens the smart-skip config dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'智能跳过配置'**
+  String get playerSettingsSmartSkipConfig;
+
+  /// Smart-skip switch label.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过片头'**
+  String get playerSettingsSkipIntroOnly;
+
+  /// Smart-skip switch label.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过片尾'**
+  String get playerSettingsSkipOutroOnly;
+
+  /// Separator joining several skip-segment names.
+  ///
+  /// In zh, this message translates to:
+  /// **'与'**
+  String get playerSkipSegmentConnector;
+
+  /// Title of the smart-skip configuration dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'智能跳过配置'**
+  String get smartSkipConfigTitle;
+
+  /// Dialog primary action.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存'**
+  String get smartSkipSave;
+
+  /// Toast after saving the configuration.
+  ///
+  /// In zh, this message translates to:
+  /// **'智能跳过配置已保存'**
+  String get smartSkipSaved;
+
+  /// Title shown when saving fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存失败'**
+  String get smartSkipSaveFailed;
+
+  /// Shown when the user is not signed in.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先登录后配置'**
+  String get smartSkipLoginRequired;
+
+  /// Banner when server config cannot be loaded.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务端配置加载失败，当前展示默认配置'**
+  String get smartSkipLoadFailed;
+
+  /// Section heading.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测模式'**
+  String get smartSkipDetectMode;
+
+  /// Detection-mode option.
+  ///
+  /// In zh, this message translates to:
+  /// **'动漫模式'**
+  String get smartSkipAnimeMode;
+
+  /// Detection-mode option.
+  ///
+  /// In zh, this message translates to:
+  /// **'优先指纹匹配'**
+  String get smartSkipPreferChromaprint;
+
+  /// Detection-mode option.
+  ///
+  /// In zh, this message translates to:
+  /// **'备用黑帧分析器'**
+  String get smartSkipAlternativeBlackFrame;
+
+  /// Detection toggle.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测片头'**
+  String get smartSkipDetectIntro;
+
+  /// Detection toggle.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测片尾'**
+  String get smartSkipDetectOutro;
+
+  /// Detection toggle.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测前情提要'**
+  String get smartSkipDetectRecap;
+
+  /// Detection toggle.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测下集预告'**
+  String get smartSkipDetectPreview;
+
+  /// Detection toggle.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测广告'**
+  String get smartSkipDetectCommercial;
+
+  /// Heading of the advanced settings section.
+  ///
+  /// In zh, this message translates to:
+  /// **'高级'**
+  String get smartSkipAdvanced;
+
+  /// Field label.
+  ///
+  /// In zh, this message translates to:
+  /// **'时长限制（秒）'**
+  String get smartSkipDurationLimit;
+
+  /// Field label.
+  ///
+  /// In zh, this message translates to:
+  /// **'边界偏移（秒）'**
+  String get smartSkipBoundaryOffset;
+
+  /// Field label.
+  ///
+  /// In zh, this message translates to:
+  /// **'片头开始偏移'**
+  String get smartSkipIntroStartOffset;
+
+  /// Field label.
+  ///
+  /// In zh, this message translates to:
+  /// **'片头结束偏移'**
+  String get smartSkipIntroEndOffset;
+
+  /// Field label.
+  ///
+  /// In zh, this message translates to:
+  /// **'片头最短时长'**
+  String get smartSkipIntroMinDuration;
+
+  /// Field label.
+  ///
+  /// In zh, this message translates to:
+  /// **'片头最长时长'**
+  String get smartSkipIntroMaxDuration;
+
+  /// Field label.
+  ///
+  /// In zh, this message translates to:
+  /// **'片尾最短时长'**
+  String get smartSkipOutroMinDuration;
+
+  /// Field label.
+  ///
+  /// In zh, this message translates to:
+  /// **'片尾最长时长'**
+  String get smartSkipOutroMaxDuration;
+
+  /// Field label.
+  ///
+  /// In zh, this message translates to:
+  /// **'片尾结束偏移'**
+  String get smartSkipOutroEndOffset;
+
+  /// Dialog action.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复默认'**
+  String get smartSkipRestoreDefaults;
+
+  /// Smart-skip switch label.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过片头'**
+  String get playerSettingsSmartSkipIntro;
+
+  /// Smart-skip switch label.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过片尾'**
+  String get playerSettingsSmartSkipOutro;
+
+  /// Toast when submitting season analysis fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'分析请求提交失败，请稍后重试'**
+  String get smartSkipAnalysisFailedRetry;
+
+  /// Error shown when loading the config fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载智能跳过配置失败'**
+  String get smartSkipLoadConfigFailed;
+
+  /// Error shown when saving the config fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存智能跳过配置失败'**
+  String get smartSkipSaveConfigFailed;
+
+  /// Button that opens the smart skip config dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置'**
+  String get smartSkipConfigConfigure;
+
+  /// Caption under the smart skip config row.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务端智能分析片头片尾的参数'**
+  String get settingsSmartSkipConfigCaption;
 }
 
 class _AppLocalizationsDelegate

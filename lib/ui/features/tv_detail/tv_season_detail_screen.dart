@@ -152,16 +152,25 @@ class _TvSeasonDetailContentState
     });
   }
 
+  /// Evicts this season's cached detail responses so re-entering the page
+  /// always refetches instead of replaying the data source's 5-minute cache.
+  ///
+  /// Runs in [deactivate] rather than [dispose]: Riverpod has already torn this
+  /// element's `ref` down by the time `dispose` runs, so reading a provider
+  /// there throws `StateError: Cannot use "ref" after the widget was disposed`
+  /// and aborts the unmount, leaving the tree half-finalized.
+  @override
+  void deactivate() {
+    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(widget.guid);
+    super.deactivate();
+  }
+
   @override
   void dispose() {
     _seasonAnalysisStatusController.stopPolling(
       widget.guid,
       notifyListeners: false,
     );
-    // Drop this season's cached detail responses so re-entering the page always
-    // refetches instead of replaying the data source's 5-minute cache while the
-    // provider is still alive across route changes.
-    ref.read(mediaRemoteDataSourceProvider).invalidateDetailCache(widget.guid);
     _moreController.dispose();
     _castScrollController.dispose();
     super.dispose();
@@ -242,8 +251,12 @@ class _TvSeasonDetailContentState
 
   String _buildSeasonStatusText() {
     final l10n = AppLocalizations.of(context);
-    final entry =
-        ref.watch(seasonAnalysisStatusControllerProvider)[widget.guid];
+    // Subscribe to this season's entry only: other seasons poll through the
+    // same controller, and their updates must not rebuild this page.
+    final entry = ref.watch(
+      seasonAnalysisStatusControllerProvider
+          .select((entries) => entries[widget.guid]),
+    );
     if (entry == null ||
         entry.phase == SeasonAnalysisViewPhase.initial ||
         entry.phase == SeasonAnalysisViewPhase.loading) {
@@ -301,6 +314,7 @@ class _TvSeasonDetailContentState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final item = widget.state.item;
     if (item == null) {
       return Center(
@@ -332,21 +346,37 @@ class _TvSeasonDetailContentState
         ),
       ),
       (previous, next) {
-        if (next == null || next.isLoading || identical(previous, next)) return;
+        if (next == null || identical(previous, next)) return;
+        if (next.isLoading) {
+          // Immediate feedback while the slow collection/submit runs (KMP parity).
+          ref.read(toastManagerProvider.notifier).showToast(
+                AppLocalizations.of(context).smartAnalysisQueuedLoading,
+                type: ToastType.success,
+                category: 'smart-analysis:season:${widget.guid}',
+              );
+          return;
+        }
         next.when(
           data: (message) {
             ref.read(toastManagerProvider.notifier).showToast(
                   message,
                   type: ToastType.success,
-                  category: 'smart-analysis:season:${widget.guid}',
+                  category: 'smart-analysis:season:${widget.guid}:result',
                 );
           },
           loading: () {},
           error: (error, stackTrace) {
+            final isSubmissionFailure =
+                error is SmartAnalysisSubmissionException &&
+                    error.preparingStarted;
             ref.read(toastManagerProvider.notifier).showToast(
-                  error.toString(),
+                  isSubmissionFailure
+                      ? l10n.smartSkipAnalysisFailedRetry
+                      : error is SmartAnalysisUserMessageException
+                          ? error.message
+                          : error.toString(),
                   type: ToastType.failed,
-                  category: 'smart-analysis:season:${widget.guid}',
+                  category: 'smart-analysis:season:${widget.guid}:result',
                 );
           },
         );

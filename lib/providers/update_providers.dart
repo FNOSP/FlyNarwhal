@@ -348,6 +348,14 @@ final flyNarwhalServerReleaseDataSourceProvider =
   );
 });
 
+/// Snapshot of the settings the server-update flow reads. Keeping this in its
+/// own provider means the notifier depends on a *different* provider element
+/// than the `settingsProvider` it listens to, so a settings change re-runs the
+/// listener instead of invalidating (and disposing) the notifier mid-flight.
+final flyNarwhalServerUpdateSettingsProvider = Provider<SettingsState>((ref) {
+  return ref.watch(settingsProvider);
+});
+
 /// Coordinates the FlyNarwhal server self-update check and install flow.
 final flyNarwhalServerUpdateProvider = StateNotifierProvider<
     FlyNarwhalServerUpdateNotifier, FlyNarwhalServerUpdateState>((ref) {
@@ -358,7 +366,9 @@ final flyNarwhalServerUpdateProvider = StateNotifierProvider<
     dataSource: ref.watch(flyNarwhalRemoteDataSourceProvider),
     fetchServerRelease: releaseDataSource.fetchByTag,
     targetVersion: AppConstants.flyNarwhalServerVersion,
-    isEnabled: () => ref.read(settingsProvider).isFlyNarwhalServerAvailable,
+    isEnabled: () =>
+        ref.read(flyNarwhalServerUpdateSettingsProvider)
+            .isFlyNarwhalServerAvailable,
     getProxyUrl: () => updateSettingsStore.proxyUrl,
     getL10n: () => lookupAppLocalizations(
       AppLanguage.localeFromValue(ref.read(settingsProvider).language),
@@ -366,7 +376,8 @@ final flyNarwhalServerUpdateProvider = StateNotifierProvider<
   );
 
   // Re-check when the server is enabled.
-  ref.listen<SettingsState>(settingsProvider, (previous, next) {
+  ref.listen<SettingsState>(flyNarwhalServerUpdateSettingsProvider,
+      (previous, next) {
     final wasEnabled = previous?.flyNarwhalServerEnabled ?? false;
     if (!wasEnabled && next.flyNarwhalServerEnabled) {
       notifier.checkServerUpdate();

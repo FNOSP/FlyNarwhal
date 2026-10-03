@@ -562,12 +562,10 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                       ),
                       if (isMinimalDisplayMode)
                         Padding(
-                          // Center the 28px compact button on the same
-                          // vertical axis as the 20px caption buttons
-                          // (back/pin/refresh): their top padding plus half
-                          // the height difference, 16 + (20 - 28) / 2 = 12.
+                          // The nav toggle is a 20px compact button like its
+                          // siblings, so it shares their vertical axis directly.
                           padding: const EdgeInsets.only(
-                            top: kRefreshButtonTopPadding + (20 - 28) / 2,
+                            top: kRefreshButtonTopPadding,
                             left: kCaptionButtonSpacing,
                             right: kCaptionButtonSpacing,
                           ),

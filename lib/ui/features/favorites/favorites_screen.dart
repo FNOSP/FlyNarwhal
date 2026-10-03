@@ -259,26 +259,44 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   // Show toast for smart analysis submission result
   void _showAnalysisToast(
+    AppLocalizations l10n,
     SmartAnalysisTargetType targetType,
     String targetGuid,
     AsyncValue<String>? previous,
     AsyncValue<String>? next,
   ) {
-    if (next == null || next.isLoading || identical(previous, next)) return;
+    if (next == null || identical(previous, next)) return;
+    final baseCategory = 'smart-analysis:${targetType.name}:$targetGuid';
+    if (next.isLoading) {
+      // Immediate feedback while the slow collection/submit runs (KMP parity).
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.smartAnalysisQueuedLoading,
+            type: ToastType.success,
+            category: baseCategory,
+          );
+      return;
+    }
     next.when(
       data: (message) {
         ref.read(toastManagerProvider.notifier).showToast(
               message,
               type: ToastType.success,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
       loading: () {},
       error: (error, stackTrace) {
+        final isSubmissionFailure =
+            error is SmartAnalysisSubmissionException &&
+                error.preparingStarted;
         ref.read(toastManagerProvider.notifier).showToast(
-              error.toString(),
+              isSubmissionFailure
+                  ? l10n.smartSkipAnalysisFailedRetry
+                  : error is SmartAnalysisUserMessageException
+                      ? error.message
+                      : error.toString(),
               type: ToastType.failed,
-              category: 'smart-analysis:${targetType.name}:$targetGuid',
+              category: '$baseCategory:result',
             );
       },
     );
@@ -334,7 +352,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
           (state) => state.submissionFor(targetType, item.guid),
         ),
         (previous, next) =>
-            _showAnalysisToast(targetType, item.guid, previous, next),
+            _showAnalysisToast(l10n, targetType, item.guid, previous, next),
       );
     }
 

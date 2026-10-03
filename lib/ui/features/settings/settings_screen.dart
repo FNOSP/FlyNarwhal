@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../data/storage/update_settings_store.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../providers/fly_narwhal_server_capabilities.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/update_providers.dart';
 import '../../../providers/update_settings_provider.dart';
@@ -21,6 +22,7 @@ import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/changelog_dialog.dart';
 import 'widgets/shortcut_settings_dialog.dart';
+import 'widgets/smart_skip_config_dialog.dart';
 import 'widgets/ssl_whitelist_dialog.dart';
 import 'widgets/support_author_item.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
@@ -125,7 +127,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         .read(settingsProvider.notifier)
         .setFlyNarwhalAuthCode(_flyNarwhalAuthCodeController.text);
   }
-
 
   void _openSslWhitelistDialog() {
     showDialog<void>(
@@ -666,6 +667,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         child: Text(l10n.settingsServerAuthCodePlaceholder),
                                       ),
                                     ),
+                                    // Servers below 0.7.0 analyze segments but
+                                    // expose no config API, so this card would
+                                    // open onto a failing request.
+                                    if (ref
+                                            .watch(
+                                              flyNarwhalServerCapabilitiesProvider,
+                                            )
+                                            .valueOrNull
+                                            ?.supportsSmartSkipConfig ??
+                                        false)
+                                      CardExpanderItem(
+                                        key: const ValueKey(
+                                          'settings-fly-narwhal-smart-skip-config',
+                                        ),
+                                        icon: const Icon(
+                                          FluentIcons.auto_enhance_on,
+                                        ),
+                                        heading: Text(
+                                          l10n.playerSettingsSmartSkipConfig,
+                                        ),
+                                        caption: Text(
+                                          l10n.settingsSmartSkipConfigCaption,
+                                        ),
+                                        trailing: AppButton(
+                                          key: const ValueKey(
+                                            'settings-smart-skip-config-open',
+                                          ),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  const SmartSkipConfigDialog(),
+                                            );
+                                          },
+                                          child: Text(
+                                            l10n.smartSkipConfigConfigure,
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),

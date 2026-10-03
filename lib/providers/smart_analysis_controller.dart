@@ -1,13 +1,49 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 
+import '../core/constants/app_constants.dart';
 import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
 import '../data/datasources/remote/media_remote_data_source.dart';
+import '../core/network/api_result.dart';
+import '../data/models/cloud_storage_type.dart';
 import '../data/models/fly_narwhal/index.dart';
+import '../data/models/player_models.dart';
 import '../l10n/generated/app_localizations.dart';
 
 typedef AnalysisDelay = Future<void> Function(Duration duration);
 typedef StartSeasonPolling = void Function(String seasonGuid);
+
+class SmartAnalysisSubmissionException implements Exception {
+  final String message;
+
+  /// Whether the PREPARING status had already been accepted by the server when
+  /// this failure happened; the UI uses this to pick its fallback toast text.
+  final bool preparingStarted;
+
+  const SmartAnalysisSubmissionException(
+    this.message, {
+    this.preparingStarted = false,
+  });
+
+  @override
+  String toString() => message;
+}
+
+/// A server rejection that must reach the user verbatim instead of being
+/// replaced by the generic submission-failure toast (e.g. the client version
+/// is below the server's minimum). Carrying it as a distinct type also lets
+/// the flow abort before optimistic "queued" feedback is shown.
+class SmartAnalysisUserMessageException implements Exception {
+  final String message;
+
+  const SmartAnalysisUserMessageException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 enum SmartAnalysisTargetType { tv, season }
 
@@ -44,6 +80,10 @@ class SmartAnalysisSubmissionState {
     return submissionFor(type, guid)?.isLoading == true;
   }
 
+  bool hasAnySubmitting() {
+    return submissions.values.any((submission) => submission.isLoading);
+  }
+
   SmartAnalysisSubmissionState withSubmission(
     SmartAnalysisTargetKey key,
     AsyncValue<String> submission,
@@ -65,6 +105,9 @@ class SmartAnalysisController
   final MediaRemoteDataSource _mediaRemoteDataSource;
   final AnalysisDelay _delay;
   final StartSeasonPolling _startSeasonPolling;
+  final StartSeasonPolling _startSeasonPreparedPolling;
+  final String? Function() _resolveUserGuid;
+  final String? Function() _resolveToken;
   final Set<String> _submittingSeasonGuids = <String>{};
 
   SmartAnalysisController(
@@ -73,14 +116,111 @@ class SmartAnalysisController
     required AppLocalizations Function() getL10n,
     AnalysisDelay? delay,
     StartSeasonPolling? startSeasonPolling,
+    StartSeasonPolling? startSeasonPreparedPolling,
+    String? Function()? resolveUserGuid,
+    String? Function()? resolveToken,
   })  : _getL10n = getL10n,
         _delay = delay ?? Future<void>.delayed,
         _startSeasonPolling = startSeasonPolling ?? _ignorePollingRequest,
+        _startSeasonPreparedPolling =
+            startSeasonPreparedPolling ?? _ignorePollingRequest,
+        _resolveUserGuid = resolveUserGuid ?? (() => null),
+        _resolveToken = resolveToken ?? (() => null),
         super(const SmartAnalysisSubmissionState());
 
   final AppLocalizations Function() _getL10n;
 
   static void _ignorePollingRequest(String seasonGuid) {}
+
+  /// Cheap probe of the server's minimum-client-version gate: a status query
+  /// carries no side effects, and the server rejects outdated clients on every
+  /// non-config endpoint with [FlyNarwhalRemoteDataSource.clientVersionTooLowCode].
+  Future<SmartAnalysisUserMessageException?> _clientVersionError() async {
+    try {
+      final result = await _flyNarwhalRemoteDataSource.getStatus(
+        type: 'season',
+        guid: '',
+      );
+      final failure = result.failureOrNull;
+      if (failure?.code == FlyNarwhalRemoteDataSource.clientVersionTooLowCode) {
+        final message = failure!.displayMessage.trim();
+        return SmartAnalysisUserMessageException(
+          message.isEmpty ? '客户端版本过低，请升级后重试' : message,
+        );
+      }
+    } catch (_) {
+      // Probe failures other than a version rejection must not block the flow.
+    }
+    return null;
+  }
+
+  /// Whether the season's first episode sits on a netdisk or is an STRM file —
+  /// sources the analysis server cannot parse for intro/outro segments.
+  /// Mirrors the player's detection: the media/stream response carries
+  /// `cloud_storage_info` (providers 1..10, STRM 9001) for such media.
+  /// Probe failures must not block the submission, so they read as "local".
+  Future<bool> _isCloudOrStrmSeason(String seasonGuid) async {
+    try {
+      final episodes =
+          (await _mediaRemoteDataSource.getEpisodeList(seasonGuid))
+              .getOrThrow();
+      if (episodes.isEmpty) return false;
+      return _isCloudOrStrmEpisode(episodes.first.guid);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Same probe for a whole TV: a show's seasons share one storage backend in
+  /// practice, so the first season is representative.
+  Future<bool> _isCloudOrStrmTv(String tvGuid) async {
+    try {
+      final seasons =
+          (await _mediaRemoteDataSource.getSeasonList(tvGuid)).getOrThrow();
+      if (seasons.isEmpty) return false;
+      return _isCloudOrStrmSeason(seasons.first.guid);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _isCloudOrStrmEpisode(String episodeGuid) async {
+    try {
+      final streamList =
+          (await _mediaRemoteDataSource.getStreamList(episodeGuid))
+              .getOrThrow();
+      final files = streamList?.files;
+      // File-level guid matches videoStream.mediaGuid, same as _submitSeason.
+      final mediaGuid = (files != null && files.isNotEmpty)
+          ? files.first.guid
+          : episodeGuid;
+      final streamInfo = (await _mediaRemoteDataSource.getStreamInfo(
+        StreamRequest(
+          mediaGuid: mediaGuid,
+          ip: _ipHash(),
+          header: Header(userAgent: [AppConstants.userAgent]),
+        ),
+      ))
+          .getOrThrow();
+      return CloudStorageType.fromValue(
+        streamInfo.cloudStorageInfo?.cloudStorageType,
+      ).isKnown;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Same client identifier the player sends to media/stream (md5 of token).
+  String? _ipHash() {
+    final token = _resolveToken();
+    if (token == null || token.isEmpty) return null;
+    return md5.convert(utf8.encode(token)).toString();
+  }
+
+  SmartAnalysisUserMessageException _cloudOrStrmRejection() =>
+      SmartAnalysisUserMessageException(
+        _getL10n().smartAnalysisCloudOrStrmRejected,
+      );
 
   Future<void> analyzeSeason(
     String seasonGuid,
@@ -93,6 +233,28 @@ class SmartAnalysisController
     );
     if (!_submittingSeasonGuids.add(seasonGuid)) return;
 
+    // Reject an outdated client before any optimistic "queued" feedback shows.
+    final versionError = await _clientVersionError();
+    if (versionError != null) {
+      _setSubmission(
+        targetKey,
+        AsyncError<String>(versionError, StackTrace.current),
+      );
+      _submittingSeasonGuids.remove(seasonGuid);
+      return;
+    }
+
+    // Netdisk/STRM media cannot be analyzed server-side; reject it the same
+    // way, before the optimistic "queued" toast fires.
+    if (await _isCloudOrStrmSeason(seasonGuid)) {
+      _setSubmission(
+        targetKey,
+        AsyncError<String>(_cloudOrStrmRejection(), StackTrace.current),
+      );
+      _submittingSeasonGuids.remove(seasonGuid);
+      return;
+    }
+
     _setSubmission(targetKey, const AsyncLoading<String>());
     try {
       final message = await _submitSeason(
@@ -102,6 +264,13 @@ class SmartAnalysisController
         shouldUpdatePreparingStatus: true,
       );
       _setSubmission(targetKey, AsyncData<String>(message));
+    } on SmartAnalysisSubmissionException catch (error, stackTrace) {
+      // The server may already hold this season in PREPARING; write the status
+      // back to FAILED so cards do not show "准备中" forever.
+      if (error.preparingStarted) {
+        await _markSeasonsFailed([seasonGuid]);
+      }
+      _setSubmission(targetKey, AsyncError<String>(error, stackTrace));
     } catch (error, stackTrace) {
       _setSubmission(targetKey, AsyncError<String>(error, stackTrace));
     } finally {
@@ -116,28 +285,54 @@ class SmartAnalysisController
     );
     if (state.isSubmitting(SmartAnalysisTargetType.tv, tvGuid)) return;
 
+    final versionError = await _clientVersionError();
+    if (versionError != null) {
+      _setSubmission(
+        targetKey,
+        AsyncError<String>(versionError, StackTrace.current),
+      );
+      return;
+    }
+
+    // Netdisk/STRM media cannot be analyzed server-side; reject before the
+    // optimistic "queued" toast fires.
+    if (await _isCloudOrStrmTv(tvGuid)) {
+      _setSubmission(
+        targetKey,
+        AsyncError<String>(_cloudOrStrmRejection(), StackTrace.current),
+      );
+      return;
+    }
+
     _setSubmission(targetKey, const AsyncLoading<String>());
+    final failedSeasonGuids = <String>[];
+    final failedSeasonTitlesByGuid = <String, String>{};
+    var preparingStarted = false;
+    var preparedSeasonGuids = const <String>[];
     try {
       final seasons =
           (await _mediaRemoteDataSource.getSeasonList(tvGuid)).getOrThrow();
-      final preparingResult =
-          (await _flyNarwhalRemoteDataSource.updateSeasonStatus(
-        UpdateSeasonStatusRequest(
-          seasonGuids: seasons.map((season) => season.guid).toList(),
-          status: AnalysisStatus.preparing.toJsonValue(),
-        ),
-      ))
-              .getOrThrow();
-      if (!preparingResult.isSuccess()) {
-        throw Exception(_failureMessage(preparingResult.msg));
+      final preparingSeasonGuids =
+          seasons.map((season) => season.guid).toList();
+      await _updateSeasonStatuses(
+        preparingSeasonGuids,
+        AnalysisStatus.preparing,
+        '设置准备中状态失败',
+      );
+      preparingStarted = true;
+      preparedSeasonGuids = preparingSeasonGuids;
+      // Refresh status displays as soon as the server holds PREPARING, before
+      // the slow per-season episode collection below.
+      for (final seasonGuid in preparingSeasonGuids) {
+        _startSeasonPreparedPolling(seasonGuid);
       }
 
-      final failedSeasonTitles = <String>[];
       final successMessages = <String>[];
       for (final season in seasons) {
         // Share the Season GUID lock with direct Season submissions.
         if (!_submittingSeasonGuids.add(season.guid)) {
-          failedSeasonTitles.add(season.title);
+          failedSeasonGuids.add(season.guid);
+          failedSeasonTitlesByGuid[season.guid] = season.title;
           continue;
         }
         try {
@@ -148,15 +343,21 @@ class SmartAnalysisController
             shouldUpdatePreparingStatus: false,
           ));
         } catch (_) {
-          failedSeasonTitles.add(season.title);
+          failedSeasonGuids.add(season.guid);
+          failedSeasonTitlesByGuid[season.guid] = season.title;
         } finally {
           _submittingSeasonGuids.remove(season.guid);
         }
       }
 
-      if (failedSeasonTitles.isNotEmpty) {
-        throw Exception(
-          _getL10n().smartAnalysisFailedSeasons(failedSeasonTitles.join('、')),
+      if (failedSeasonGuids.isNotEmpty) {
+        throw SmartAnalysisSubmissionException(
+          _getL10n().smartAnalysisFailedSeasons(
+            failedSeasonGuids
+                .map((guid) => failedSeasonTitlesByGuid[guid])
+                .join('、'),
+          ),
+          preparingStarted: true,
         );
       }
       final serviceMessage = successMessages.firstWhere(
@@ -164,7 +365,17 @@ class SmartAnalysisController
         orElse: () => _getL10n().smartAnalysisSubmitted,
       );
       _setSubmission(targetKey, AsyncData<String>(serviceMessage));
+    } on SmartAnalysisSubmissionException catch (error, stackTrace) {
+      if (error.preparingStarted) {
+        await _markSeasonsFailed(failedSeasonGuids);
+      }
+      _setSubmission(targetKey, AsyncError<String>(error, stackTrace));
     } catch (error, stackTrace) {
+      // A mid-flight network failure may leave every season in PREPARING on
+      // the server; best-effort write them back to FAILED.
+      if (preparingStarted) {
+        await _markSeasonsFailed(preparedSeasonGuids);
+      }
       _setSubmission(targetKey, AsyncError<String>(error, stackTrace));
     }
   }
@@ -175,88 +386,138 @@ class SmartAnalysisController
     int seasonNumber, {
     required bool shouldUpdatePreparingStatus,
   }) async {
-    if (shouldUpdatePreparingStatus) {
-      final preparingResult =
-          (await _flyNarwhalRemoteDataSource.updateSeasonStatus(
-        UpdateSeasonStatusRequest(
-          seasonGuids: <String>[seasonGuid],
-          status: AnalysisStatus.preparing.toJsonValue(),
+    var preparingStarted = false;
+    try {
+      if (shouldUpdatePreparingStatus) {
+        await _updateSeasonStatuses(
+          <String>[seasonGuid],
+          AnalysisStatus.preparing,
+          '设置准备中状态失败',
+        );
+        preparingStarted = true;
+        _startSeasonPreparedPolling(seasonGuid);
+      }
+
+      final episodes = (await _mediaRemoteDataSource.getEpisodeList(seasonGuid))
+          .getOrThrow();
+      final queuedEpisodes = <QueuedEpisode>[];
+      String seasonPath = '';
+
+      for (var episodeIndex = 0;
+          episodeIndex < episodes.length;
+          episodeIndex++) {
+        final episode = episodes[episodeIndex];
+        final streamList =
+            (await _mediaRemoteDataSource.getStreamList(episode.guid))
+                .getOrThrow();
+        // Use file-level guid (matching videoStream.mediaGuid) for segment queries
+        final files = streamList?.files;
+        final firstFile = (files != null && files.isNotEmpty)
+            ? files.firstWhere(
+                (f) => f.path.trim().isNotEmpty,
+                orElse: () => files.first,
+              )
+            : null;
+        final filePath = firstFile?.path.trim().isNotEmpty == true
+            ? firstFile!.path.trim()
+            : episode.fileName.trim();
+        final fileGuid = firstFile?.guid ?? episode.guid;
+        if (seasonPath.isEmpty && filePath.isNotEmpty) {
+          seasonPath = path.dirname(filePath);
+        }
+        queuedEpisodes.add(QueuedEpisode(
+          guid: fileGuid,
+          filePath: filePath,
+          episodeNumber: episode.episodeNumber,
+          seasonNumber: episode.seasonNumber,
+        ));
+        if (episodeIndex < episodes.length - 1) {
+          await _delay(episodeThrottleDelay);
+        }
+      }
+
+      final analyzeResponse = (await _flyNarwhalRemoteDataSource.analyze(
+        AnalyzeRequest(
+          seasonGuid: seasonGuid,
+          seasonPath: seasonPath,
+          episodes: queuedEpisodes,
+          tvTitle: tvTitle,
+          seasonNumber: seasonNumber,
+          // The server loads this user's SmartSkipConfig when running analysis.
+          userGuid: _resolveUserGuid(),
         ),
       ))
-              .getOrThrow();
-      if (!preparingResult.isSuccess()) {
-        throw Exception(_failureMessage(preparingResult.msg));
+          .getOrThrow();
+      if (!analyzeResponse.isSuccess()) {
+        throw Exception(_failureMessage(analyzeResponse.msg));
       }
+
+      // Force polling only after the analysis request is accepted.
+      _startSeasonPolling(seasonGuid);
+      if (analyzeResponse.success == true) {
+        return _getL10n().smartAnalysisQueued;
+      }
+
+      final serviceMessage = analyzeResponse.msg.trim().isNotEmpty
+          ? analyzeResponse.msg.trim()
+          : analyzeResponse.data?.trim() ?? '';
+      return serviceMessage.isEmpty
+          ? _getL10n().smartAnalysisSubmitted
+          : serviceMessage;
+    } catch (error) {
+      // FailureInfo does not extend Exception and its toString() is useless;
+      // surface its server-provided message instead.
+      final failure = error is FailureInfo ? error : null;
+      throw SmartAnalysisSubmissionException(
+        failure != null
+            ? _failureMessage(failure.displayMessage)
+            : error.toString(),
+        preparingStarted: preparingStarted,
+      );
     }
+  }
 
-    final episodes =
-        (await _mediaRemoteDataSource.getEpisodeList(seasonGuid)).getOrThrow();
-    final queuedEpisodes = <QueuedEpisode>[];
-    String seasonPath = '';
-
-    for (var episodeIndex = 0; episodeIndex < episodes.length; episodeIndex++) {
-      final episode = episodes[episodeIndex];
-      final streamList =
-          (await _mediaRemoteDataSource.getStreamList(episode.guid))
-              .getOrThrow();
-      // Use file-level guid (matching videoStream.mediaGuid) for segment queries
-      final files = streamList?.files;
-      final firstFile = (files != null && files.isNotEmpty)
-          ? files.firstWhere(
-              (f) => f.path.trim().isNotEmpty,
-              orElse: () => files.first,
-            )
-          : null;
-      final filePath = firstFile?.path.trim().isNotEmpty == true
-          ? firstFile!.path.trim()
-          : episode.fileName.trim();
-      final fileGuid = firstFile?.guid ?? episode.guid;
-      if (seasonPath.isEmpty && filePath.isNotEmpty) {
-        seasonPath = path.dirname(filePath);
-      }
-      queuedEpisodes.add(QueuedEpisode(
-        guid: fileGuid,
-        filePath: filePath,
-        episodeNumber: episode.episodeNumber,
-        seasonNumber: episode.seasonNumber,
-      ));
-      if (episodeIndex < episodes.length - 1) {
-        await _delay(episodeThrottleDelay);
-      }
-    }
-
-    final response = (await _flyNarwhalRemoteDataSource.analyze(
-      AnalyzeRequest(
-        seasonGuid: seasonGuid,
-        seasonPath: seasonPath,
-        episodes: queuedEpisodes,
-        tvTitle: tvTitle,
-        seasonNumber: seasonNumber,
+  Future<void> _updateSeasonStatuses(
+    List<String> seasonGuids,
+    AnalysisStatus status,
+    String fallbackMessage,
+  ) async {
+    if (seasonGuids.isEmpty) return;
+    final result = (await _flyNarwhalRemoteDataSource.updateSeasonStatus(
+      UpdateSeasonStatusRequest(
+        seasonGuids: seasonGuids,
+        status: status.toJsonValue(),
       ),
     ))
         .getOrThrow();
-    if (!response.isSuccess()) {
-      throw Exception(_failureMessage(response.msg));
+    if (!result.isSuccess()) {
+      throw Exception(_failureMessage(result.msg, fallbackMessage));
     }
-
-    // Force polling only after the analysis request is accepted.
-    _startSeasonPolling(seasonGuid);
-    if (response.success == true) {
-      return _getL10n().smartAnalysisQueued;
-    }
-
-    final serviceMessage = response.msg.trim().isNotEmpty
-        ? response.msg.trim()
-        : response.data?.trim() ?? '';
-    return serviceMessage.isEmpty
-        ? _getL10n().smartAnalysisSubmitted
-        : serviceMessage;
   }
 
-  String _failureMessage(String message) {
+  /// Best-effort write-back so seasons stuck in PREPARING surface as FAILED.
+  Future<void> _markSeasonsFailed(List<String> seasonGuids) async {
+    if (seasonGuids.isEmpty) return;
+    try {
+      await _updateSeasonStatuses(
+        seasonGuids,
+        AnalysisStatus.failed,
+        _getL10n().smartAnalysisSubmitFailed,
+      );
+      // Re-poll with the same force semantics as a successful submission so
+      // cards leave "准备中" immediately.
+      for (final seasonGuid in seasonGuids) {
+        _startSeasonPolling(seasonGuid);
+      }
+    } catch (_) {
+      // Never mask the original submission failure with a status write-back error.
+    }
+  }
+
+  String _failureMessage(String message, [String? fallback]) {
     final normalizedMessage = message.trim();
     return normalizedMessage.isEmpty
-        ? _getL10n().smartAnalysisSubmitFailed
+        ? (fallback ?? _getL10n().smartAnalysisSubmitFailed)
         : normalizedMessage;
   }
 

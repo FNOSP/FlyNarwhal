@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../domain/entities/media_type.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../providers/providers.dart';
 import '../../../../tooling/driver_test_mode.dart';
 import '../../../shared/tip_box.dart';
+import '../models/resolved_skip_segments.dart';
 import 'player_action_button.dart';
 import 'player_settings_components.dart';
 
@@ -193,6 +196,11 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool smartSkipEnabled;
   final Future<bool> Function(bool enabled)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+
+  /// Whether the server exposes the smart-skip config endpoint. Servers below
+  /// 0.7.0 analyze segments but have no config API, so the entry stays hidden
+  /// there while smart skip itself remains usable.
+  final bool isSmartSkipConfigAvailable;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool enabled)? onAutoPlayChanged;
@@ -240,6 +248,7 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.smartSkipEnabled = true,
     this.onSmartSkipEnabledChanged,
     this.isSmartAnalysisGloballyEnabled = false,
+    this.isSmartSkipConfigAvailable = false,
     this.isSavingSkipConfig = false,
     this.isAutoPlay = true,
     this.onAutoPlayChanged,
@@ -612,6 +621,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         smartSkipEnabled: widget.smartSkipEnabled,
         onSmartSkipEnabledChanged: widget.onSmartSkipEnabledChanged,
         isSmartAnalysisGloballyEnabled: widget.isSmartAnalysisGloballyEnabled,
+        isSmartSkipConfigAvailable: widget.isSmartSkipConfigAvailable,
         isSavingSkipConfig: widget.isSavingSkipConfig,
         isAutoPlay: _isAutoPlay,
         onAutoPlayChanged: (value) {
@@ -710,6 +720,9 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final bool smartSkipEnabled;
   final Future<bool> Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
+
+  /// Whether the server exposes the smart-skip config endpoint (>= 0.7.0).
+  final bool isSmartSkipConfigAvailable;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
   final void Function(bool)? onAutoPlayChanged;
@@ -767,6 +780,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.availableHwdec,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
+    required this.isSmartSkipConfigAvailable,
   });
 
   @override
@@ -850,9 +864,15 @@ class _SettingsFlyoutContent extends StatelessWidget {
           smartSkipEnabled: smartSkipEnabled,
           onSmartSkipEnabledChanged: onSmartSkipEnabledChanged,
           isSmartAnalysisGloballyEnabled: isSmartAnalysisGloballyEnabled,
+          isSmartSkipConfigAvailable: isSmartSkipConfigAvailable,
           isSavingSkipConfig: isSavingSkipConfig,
           isFlyNarwhalServerAvailable: isFlyNarwhalServerAvailable,
           onFlyNarwhalConfigMissing: onFlyNarwhalConfigMissing,
+          onNavigateToSmartSkipConfig: () => onNavigate('SmartSkipConfig'),
+        );
+      case 'SmartSkipConfig':
+        return _SmartSkipConfigSettingsScreen(
+          onBack: () => onNavigate('SkipConfig'),
         );
       default:
         return MeasureSize(
@@ -1794,6 +1814,10 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
   final bool isFlyNarwhalServerAvailable;
   // Called when user tries to enable smart skip without full config
   final VoidCallback? onFlyNarwhalConfigMissing;
+  // Whether the server exposes the smart-skip config endpoint (>= 0.7.0).
+  final bool isSmartSkipConfigAvailable;
+  // Opens the server-side smart skip analysis configuration screen.
+  final VoidCallback? onNavigateToSmartSkipConfig;
 
   const _SkipConfigSettingsScreen({
     required this.playingInfoCache,
@@ -1804,9 +1828,11 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
     required this.smartSkipEnabled,
     required this.onSmartSkipEnabledChanged,
     required this.isSmartAnalysisGloballyEnabled,
+    required this.isSmartSkipConfigAvailable,
     required this.isSavingSkipConfig,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
+    this.onNavigateToSmartSkipConfig,
   });
 
   @override
@@ -1985,6 +2011,16 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                     );
                   },
           ),
+        if (widget.isSmartAnalysisGloballyEnabled &&
+            widget.isSmartSkipConfigAvailable &&
+            _smartSkipEnabled) ...[
+          const SizedBox(height: 4),
+          _SettingsMenuItem(
+            key: const ValueKey('player-settings-smart-skip-config-entry'),
+            title: l10n.playerSettingsSmartSkipConfig,
+            onClick: widget.onNavigateToSmartSkipConfig,
+          ),
+        ],
         const SizedBox(height: 8),
         const Divider(),
         const SizedBox(height: 8),
@@ -2399,5 +2435,99 @@ class _MeasureSizeState extends State<MeasureSize> {
   @override
   Widget build(BuildContext context) {
     return widget.child;
+  }
+}
+
+/// Per-user playback skip switches (intro/credits/recap/preview), persisted
+/// locally per user. The server-side analysis configuration lives in the
+/// settings page dialog; this screen only controls skip behavior.
+class _SmartSkipConfigSettingsScreen extends ConsumerStatefulWidget {
+  final VoidCallback onBack;
+
+  const _SmartSkipConfigSettingsScreen({required this.onBack});
+
+  @override
+  ConsumerState<_SmartSkipConfigSettingsScreen> createState() =>
+      _SmartSkipConfigSettingsScreenState();
+}
+
+class _SmartSkipConfigSettingsScreenState
+    extends ConsumerState<_SmartSkipConfigSettingsScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final state = ref.watch(skipSwitchesControllerProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: widget.onBack,
+            child: Row(
+              children: [
+                Icon(FluentIcons.chevron_left, size: 12, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  l10n.playerSettingsSmartSkipConfig,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _switchRow(
+          title: l10n.playerSettingsSkipIntroOnly,
+          checked: state.skipIntro,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.intro, value),
+        ),
+        _switchRow(
+          title: l10n.playerSettingsSkipOutroOnly,
+          checked: state.skipCredits,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.credits, value),
+        ),
+        _switchRow(
+          title: l10n.playerSettingsSkipRecap,
+          checked: state.skipRecap,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.recap, value),
+        ),
+        _switchRow(
+          title: l10n.playerSettingsSkipPreview,
+          checked: state.skipPreview,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.preview, value),
+        ),
+        _switchRow(
+          title: l10n.playerSettingsSkipCommercial,
+          checked: state.skipCommercial,
+          onChanged: (value) => _setSwitch(SkipSegmentKind.commercial, value),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  void _setSwitch(SkipSegmentKind kind, bool value) {
+    unawaited(
+      ref.read(skipSwitchesControllerProvider.notifier).setSwitch(kind, value),
+    );
+  }
+
+  Widget _switchRow({
+    required String title,
+    required bool checked,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return PlayerSettingsToggleRow(
+      title: title,
+      checked: checked,
+      onChanged: onChanged,
+    );
   }
 }

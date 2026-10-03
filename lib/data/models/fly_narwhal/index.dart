@@ -4,4 +4,5 @@ export 'danmaku.dart';
 export 'episode_segments_response.dart';
 export 'set_fn_base_url_request.dart';
 export 'smart_analysis_result.dart';
+export 'smart_skip_config.dart';
 export 'update_season_status_request.dart';

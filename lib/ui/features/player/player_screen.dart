@@ -36,9 +36,11 @@ import '../../../core/network/ssl/player_ssl_trust.dart';
 import '../../../providers/file_providers.dart';
 import '../../../providers/danmaku_controller.dart';
 import '../../../providers/episode_analysis_controller.dart';
+import '../../../providers/fly_narwhal_server_capabilities.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/quark_cdn_range_providers.dart';
 import '../../../providers/smart_skip_settings_controller.dart';
+import '../../../providers/skip_switches_controller.dart';
 import 'controllers/intro_skip_controller.dart';
 import 'controllers/intro_skip_state.dart';
 import 'controllers/player_seek_executor.dart';
@@ -169,7 +171,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   DateTime? _keySeekBurstStartedAt;
   static const Duration _keySeekQuietWindow = Duration(milliseconds: 220);
   static const Duration _keySeekReleaseDelay = Duration(milliseconds: 600);
-  static const Duration _seekConvergenceCheckDelay = Duration(milliseconds: 700);
+  static const Duration _seekConvergenceCheckDelay =
+      Duration(milliseconds: 700);
   int _seekConvergenceToken = 0;
   int _bufferedPosition = 0;
   int _duration = 0;
@@ -191,6 +194,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<PlayerSkipAction>? _skipActionSubscription;
   StreamSubscription<VideoParams>? _videoParamsSubscription;
+
   /// Latest decoded video size reported by the videoParams stream. Cloud
   /// direct-link streams can leave the player state's `width` null even after
   /// frames decode, so playback verification must consult this channel too.
@@ -662,8 +666,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
       }
 
-      if (mounted && source.isCurrent &&
-          generation == _hwdecProbeGeneration && found.isNotEmpty) {
+      if (mounted &&
+          source.isCurrent &&
+          generation == _hwdecProbeGeneration &&
+          found.isNotEmpty) {
         setState(() => _availableHwdec = List.unmodifiable(found));
       }
     } catch (e, st) {
@@ -874,12 +880,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     final now = DateTime.now();
     final previousTickAt = _lastPositionTickAt;
-    final elapsedMs =
-        previousTickAt == null ? 0 : now.difference(previousTickAt).inMilliseconds;
+    final elapsedMs = previousTickAt == null
+        ? 0
+        : now.difference(previousTickAt).inMilliseconds;
     _lastPositionTickAt = now;
-    if (elapsedMs <= 0 ||
-        !player.state.playing ||
-        player.state.buffering) {
+    if (elapsedMs <= 0 || !player.state.playing || player.state.buffering) {
       return;
     }
     // Natural playback advances the playhead by roughly the elapsed wall-clock
@@ -888,7 +893,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final expected = elapsedMs * _speed;
     final tolerance = expected.abs() * 0.5 + 1500;
     final delta = positionMilliseconds - _lastCommandedSeekTarget;
-    final isNaturalAdvance = delta >= 0 && (delta - expected).abs() <= tolerance;
+    final isNaturalAdvance =
+        delta >= 0 && (delta - expected).abs() <= tolerance;
     if (isNaturalAdvance) {
       _lastCommandedSeekTarget = positionMilliseconds;
     }
@@ -1221,14 +1227,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       },
     );
 
+    ref.listenManual<SkipSwitchesState>(
+      skipSwitchesControllerProvider,
+      (previous, next) {
+        if (!mounted) return;
+        if (previous?.skipIntro == next.skipIntro &&
+            previous?.skipCredits == next.skipCredits &&
+            previous?.skipRecap == next.skipRecap &&
+            previous?.skipPreview == next.skipPreview &&
+            previous?.skipCommercial == next.skipCommercial) {
+          return;
+        }
+        _resolveAndDispatchSkipSegments();
+        setState(() {});
+      },
+    );
+
     ref.listenManual<EpisodeAnalysisState>(
       episodeAnalysisControllerProvider,
       (previous, next) {
         if (!mounted) return;
         // When the intro/outro analysis request fails, temporarily disable the
         // smart skip switch for this session.
-        final analysisFailed =
-            next.errorMessage != null &&
+        final analysisFailed = next.errorMessage != null &&
             !next.isPolling &&
             next.smartSegments == null;
         if (analysisFailed && !_sessionSmartSkipDisabled) {
@@ -1245,16 +1266,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  /// Whether the active session plays netdisk (网盘) or STRM media. The server
+  /// cannot analyze intro/outro segments for these sources, so the smart-skip
+  /// toggle and its config entry must stay hidden and smart skip must not run.
+  bool get _isCloudOrStrmPlayback {
+    final cloudType =
+        _playingInfoCache?.streamInfo?.cloudStorageInfo?.cloudStorageType;
+    return CloudStorageType.fromValue(cloudType).isKnown;
+  }
+
   /// Whether the smart skip feature should be treated as enabled for the
   /// current session. Requires the FlyNarwhal server to be fully configured,
-  /// the user's persisted smart-skip preference to be on, and no session-scoped
-  /// temporary disable.
+  /// the user's persisted smart-skip preference to be on, no session-scoped
+  /// temporary disable, and a source the server can actually analyze (netdisk
+  /// and STRM media are excluded).
   bool _effectiveSmartSkipEnabled() {
     final settings = ref.read(settingsProvider);
     final smartSkipSettings = ref.read(smartSkipSettingsControllerProvider);
     return settings.isFlyNarwhalServerAvailable &&
         smartSkipSettings.enabled &&
+        !_isCloudOrStrmPlayback &&
         !_sessionSmartSkipDisabled;
+  }
+
+  /// Whether the server's smart-skip *config* endpoint can be used. Servers
+  /// below 0.7.0 analyze segments but expose no config API, so the config entry
+  /// must stay hidden there even though smart skip itself works.
+  bool _smartSkipConfigAvailable(SettingsState settings) {
+    if (!settings.flyNarwhalServerEnabled) return false;
+    return ref
+            .watch(flyNarwhalServerCapabilitiesProvider)
+            .valueOrNull
+            ?.supportsSmartSkipConfig ??
+        false;
   }
 
   void _resolveAndDispatchSkipSegments() {
@@ -1263,12 +1307,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final smartSegments = _effectiveSmartSkipEnabled()
         ? ref.read(episodeAnalysisControllerProvider).smartSegments
         : null;
+    final switches = ref.read(skipSwitchesControllerProvider);
     _resolvedSkipSegments = _skipSegmentResolver.resolve(
       episodeGuid: cache?.itemGuid ?? _currentItemGuid,
       smartSegments: smartSegments,
       manualSkipOpeningSeconds: playConfig?.skipOpening ?? 0,
       manualSkipEndingSeconds: playConfig?.skipEnding ?? 0,
       durationMilliseconds: _duration > 0 ? _duration : null,
+      switches: SkipSwitches(
+        intro: switches.skipIntro,
+        recap: switches.skipRecap,
+        credits: switches.skipCredits,
+        preview: switches.skipPreview,
+        commercial: switches.skipCommercial,
+      ),
     );
     _introSkipController.dispatch(SegmentsChanged(_resolvedSkipSegments));
   }
@@ -1282,7 +1334,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             isEpisode: cache?.isEpisode == true ||
                 MediaType.tryParse(cache?.item?.type) == MediaType.episode,
             serviceEnabled: settings.flyNarwhalServerEnabled,
-            smartSkipEnabled: smartSkipSettings.enabled,
+            // Netdisk/STRM sources cannot be analyzed server-side; skip the
+            // analysis polling entirely for them.
+            smartSkipEnabled:
+                smartSkipSettings.enabled && !_isCloudOrStrmPlayback,
             episodeGuid: cache?.itemGuid,
             mediaGuid: cache?.currentVideoStream?.mediaGuid,
           ),
@@ -1880,7 +1935,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       await _closePlaybackSource();
     } catch (error, stackTrace) {
-      AppTalker.error('Player', error: error, stackTrace: stackTrace,
+      AppTalker.error('Player',
+          error: error,
+          stackTrace: stackTrace,
           message: 'failed playback source cleanup failed');
     }
   }
@@ -1997,8 +2054,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
       } else {
         await source.guard(
-            () =>
-                _applyCurrentSubtitleTrack(currentSubtitleStream, source: source),
+            () => _applyCurrentSubtitleTrack(currentSubtitleStream,
+                source: source),
             isConsumerCurrent: isCurrent);
       }
       await source.guard(() => _verifyAndCorrectResume(startPositionMs, source),
@@ -2127,9 +2184,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       qualities: directQualities,
       cloudStorageType: cloudStorageType,
     );
-    final visibleQualities = filtered.qualities.isNotEmpty
-        ? filtered.qualities
-        : directQualities;
+    final visibleQualities =
+        filtered.qualities.isNotEmpty ? filtered.qualities : directQualities;
     final visibleOriginalIndices = filtered.originalIndices.isNotEmpty
         ? filtered.originalIndices
         : List<int>.generate(directQualities.length, (i) => i);
@@ -2153,7 +2209,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       isUseDirectLink: true,
       directLinkQualityIndex: originalIndex,
       currentQualities: convertedQualities ?? cache.currentQualities,
-      currentQuality: isCloud ? convertedQualities!.first : cache.currentQuality,
+      currentQuality:
+          isCloud ? convertedQualities!.first : cache.currentQuality,
     );
     ref
         .read(playerViewModelProvider.notifier)
@@ -2496,7 +2553,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final all = cache?.currentSubtitleStreamList ?? const <SubtitleStream>[];
     if (!_isDirectLinkTranscodePlayback) return all;
     return all
-        .where((subtitle) => subtitle.isExternal == 1 || subtitle.extraFile == 1)
+        .where(
+            (subtitle) => subtitle.isExternal == 1 || subtitle.extraFile == 1)
         .toList();
   }
 
@@ -3203,7 +3261,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             decodedWidth <= 0 &&
             !state.playing &&
             state.buffer.inMilliseconds <= 0;
-        final msSinceProgress = stopwatch.elapsedMilliseconds - progressAnchorMs;
+        final msSinceProgress =
+            stopwatch.elapsedMilliseconds - progressAnchorMs;
         if (isStalledOpen &&
             msSinceProgress >= stalledOpenGrace.inMilliseconds) {
           AppTalker.warning(
@@ -3340,21 +3399,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _streamInfo = result.streamInfo;
       _playingInfoCache = result.playingInfoCache;
       final flyNarwhalSettings = ref.read(settingsProvider);
-      final serverFullyConfigured = flyNarwhalSettings.isFlyNarwhalServerAvailable;
+      final serverFullyConfigured =
+          flyNarwhalSettings.isFlyNarwhalServerAvailable;
       if (serverFullyConfigured) {
+        // Probe before every playback: the server may have been updated or
+        // rolled back since the last one, and the danmaku contract differs.
+        final capabilities = await probeFlyNarwhalServerCapabilities(ref);
+        if (!isCurrent()) {
+          return;
+        }
         unawaited(
-          ref
-              .read(danmakuControllerProvider.notifier)
-              .loadDanmaku(_buildDanmakuRequest(result.playInfo)),
+          ref.read(danmakuControllerProvider.notifier).loadDanmaku(
+                _buildDanmakuRequest(result.playInfo),
+                allowLegacyKeyFallback:
+                    !capabilities.supportsWholeWorkDanmakuKey,
+              ),
         );
       } else {
-        ref
-            .read(danmakuControllerProvider.notifier)
-            .clear();
+        ref.read(danmakuControllerProvider.notifier).clear();
         // When the server isn't fully configured, turn the danmaku switch off.
-        ref
-            .read(danmakuControllerProvider.notifier)
-            .setVisibility(false);
+        ref.read(danmakuControllerProvider.notifier).setVisibility(false);
       }
       // Mirror for the smart skip feature: when the server isn't fully
       // configured, treat smart skip as temporarily disabled for this session.
@@ -3401,10 +3465,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // transcode never produced frames (common when the NAS cannot proxy
           // a huge cloud file), show the same error guard the web player does
           // so the user can retry or switch to 网盘直连播放.
-          final isCloudProxy =
-              !result.playingInfoCache.isUseDirectLink &&
-                  (result.playingInfoCache.streamInfo?.isCloudDirectMedia ??
-                      false);
+          final isCloudProxy = !result.playingInfoCache.isUseDirectLink &&
+              (result.playingInfoCache.streamInfo?.isCloudDirectMedia ?? false);
           if (isCloudProxy) {
             final verified = await _verifyPlaybackStarted(
               source: source,
@@ -3812,9 +3874,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _seekRelative(int milliseconds) {
     if (_player == null) return;
-    final target = (_resolveRelativeSeekBase() + milliseconds)
-        .clamp(0, _duration)
-        .toInt();
+    final target =
+        (_resolveRelativeSeekBase() + milliseconds).clamp(0, _duration).toInt();
     final origin =
         _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
     _scheduleCoalescedSeek(target, origin);
@@ -3972,7 +4033,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     final remaining = _keySeekReleaseDelay - heldFor;
-    final delay = remaining < _keySeekQuietWindow ? remaining : _keySeekQuietWindow;
+    final delay =
+        remaining < _keySeekQuietWindow ? remaining : _keySeekQuietWindow;
     _keySeekDebounceTimer = Timer(delay, _flushCoalescedSeek);
   }
 
@@ -4018,9 +4080,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Converge only on mpv's completed-seek reading. The reported position is
       // the optimistic echo and always equals the target right after a seek, so
       // treating it as confirmation makes this check a no-op.
-      final converged =
-          completedSeekMs != null &&
-              (completedSeekMs - target).abs() <= toleranceMs;
+      final converged = completedSeekMs != null &&
+          (completedSeekMs - target).abs() <= toleranceMs;
       if (converged) {
         return;
       }
@@ -4055,7 +4116,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       final start = index + marker.length;
       final end = text.indexOf(',', start);
-      final slice = end < 0 ? text.substring(start) : text.substring(start, end);
+      final slice =
+          end < 0 ? text.substring(start) : text.substring(start, end);
       final seconds = double.tryParse(slice);
       if (seconds == null) {
         return null;
@@ -4122,7 +4184,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast(_l10n.playerToggleFullscreenFailed('$error'), style: ToastStyle.liquidGlass, type: ToastType.failed);
+            .showToast(_l10n.playerToggleFullscreenFailed('$error'),
+                style: ToastStyle.liquidGlass, type: ToastType.failed);
       }
     }
   }
@@ -4492,7 +4555,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null || !_isInitialized) {
       ref
           .read(toastManagerProvider.notifier)
-          .showToast(_l10n.playerNotReady, style: ToastStyle.liquidGlass, type: ToastType.info);
+          .showToast(_l10n.playerNotReady,
+              style: ToastStyle.liquidGlass, type: ToastType.info);
       return;
     }
 
@@ -4538,7 +4602,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         unawaited(_applyWindowAspectRatio());
         ref
             .read(toastManagerProvider.notifier)
-            .showToast(_l10n.playerEnterPipFailed('$error'), style: ToastStyle.liquidGlass, type: ToastType.failed);
+            .showToast(_l10n.playerEnterPipFailed('$error'),
+                style: ToastStyle.liquidGlass, type: ToastType.failed);
       }
     } finally {
       _isPipTransitioning = false;
@@ -4580,7 +4645,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast(_l10n.playerExitPipFailed('$error'), style: ToastStyle.liquidGlass, type: ToastType.failed);
+            .showToast(_l10n.playerExitPipFailed('$error'),
+                style: ToastStyle.liquidGlass, type: ToastType.failed);
       }
     } finally {
       _isPipTransitioning = false;
@@ -4712,7 +4778,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast(_l10n.playerSwitchQualityFailed('$e'), style: ToastStyle.liquidGlass, type: ToastType.failed);
+            .showToast(_l10n.playerSwitchQualityFailed('$e'),
+                style: ToastStyle.liquidGlass, type: ToastType.failed);
         setState(() => _isLoading = false);
       }
     }
@@ -4830,11 +4897,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .read(playerSettingsManagerProvider)
           .setCloudPlayMode(cloudType, mode, userGuid: userGuid),
     );
-    final label =
-        mode == CloudPlayMode.direct ? _l10n.playerCloudModeDirect : _l10n.playerCloudModeNasProxy;
+    final label = mode == CloudPlayMode.direct
+        ? _l10n.playerCloudModeDirect
+        : _l10n.playerCloudModeNasProxy;
     ref
         .read(toastManagerProvider.notifier)
-        .showToast(_l10n.playerCloudModeSwitchedToast(label), style: ToastStyle.liquidGlass, type: ToastType.success);
+        .showToast(_l10n.playerCloudModeSwitchedToast(label),
+            style: ToastStyle.liquidGlass, type: ToastType.success);
 
     final switchToken = ++_cloudSwitchToken;
     final isCurrent = _capturePlaybackOperation();
@@ -4945,9 +5014,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             switchToken: switchToken,
             startPositionMs: currentPosition,
           );
-          if (directEntered &&
-              mounted &&
-              _isCurrentCloudSwitch(switchToken)) {
+          if (directEntered && mounted && _isCurrentCloudSwitch(switchToken)) {
             // Fallback succeeded; let the common success block below reset
             // the loading state and refresh playback details.
           } else if (!directEntered &&
@@ -4977,7 +5044,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast(_l10n.playerSwitchPlayModeFailed('$e'), style: ToastStyle.liquidGlass, type: ToastType.failed);
+            .showToast(_l10n.playerSwitchPlayModeFailed('$e'),
+                style: ToastStyle.liquidGlass, type: ToastType.failed);
         setState(() => _isLoading = false);
       }
     }
@@ -5010,9 +5078,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       qualities: directQualities,
       cloudStorageType: cloudStorageType,
     );
-    final visibleQualities = filtered.qualities.isNotEmpty
-        ? filtered.qualities
-        : directQualities;
+    final visibleQualities =
+        filtered.qualities.isNotEmpty ? filtered.qualities : directQualities;
     final visibleOriginalIndices = filtered.originalIndices.isNotEmpty
         ? filtered.originalIndices
         : List<int>.generate(directQualities.length, (i) => i);
@@ -5037,8 +5104,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _playingInfoCache = cache.copyWith(
       isUseDirectLink: true,
       playLink: null,
-      playRecordLink: _sessionCoordinator
-          .ensureDirectPlayRecordLink(cache.playRecordLink),
+      playRecordLink:
+          _sessionCoordinator.ensureDirectPlayRecordLink(cache.playRecordLink),
       directLinkQualityIndex: originalIndex,
       currentQualities: convertedQualities,
       currentQuality: convertedQualities[visibleIndex],
@@ -5142,7 +5209,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // resetQuality updates the current NAS session without opening media;
       // keep its lease until an operation actually replaces the playback source.
       final resetsCurrentSession = !isTargetDirectLink &&
-          !cache.isUseDirectLink && currentPlayLink != null;
+          !cache.isUseDirectLink &&
+          currentPlayLink != null;
       if (!resetsCurrentSession) {
         await _closePlaybackSource();
       }
@@ -5231,7 +5299,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       AppTalker.warning('Player', 'switch quality failed: $e');
       ref
           .read(toastManagerProvider.notifier)
-          .showToast(_l10n.playerSwitchQualityFailed('$e'), style: ToastStyle.liquidGlass, type: ToastType.failed);
+          .showToast(_l10n.playerSwitchQualityFailed('$e'),
+              style: ToastStyle.liquidGlass, type: ToastType.failed);
       setState(() => _isLoading = false);
     }
   }
@@ -5552,7 +5621,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       AppTalker.warning('Player', 'switch subtitle failed: $e');
       ref
           .read(toastManagerProvider.notifier)
-          .showToast(_l10n.playerSubtitleSwitchFailed('$e'), style: ToastStyle.liquidGlass, type: ToastType.failed);
+          .showToast(_l10n.playerSubtitleSwitchFailed('$e'),
+              style: ToastStyle.liquidGlass, type: ToastType.failed);
       if (mounted) {
         setState(() {
           _isSubtitleSwitching = false;
@@ -5680,11 +5750,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _scheduleMacOSWindowButtonsSync(
       visible: overlayState.isUiVisible,
     );
-    final playerCursor = _isInitialized &&
-            !_isPipMode &&
-            !overlayState.isUiVisible
-        ? SystemMouseCursors.none
-        : SystemMouseCursors.click;
+    final playerCursor =
+        _isInitialized && !_isPipMode && !overlayState.isUiVisible
+            ? SystemMouseCursors.none
+            : SystemMouseCursors.click;
 
     final playerStack = MouseRegion(
       cursor: playerCursor,
@@ -5770,91 +5839,91 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             // inside the top bar.
             Positioned.fill(
               child: AnimatedOpacity(
-                  opacity: overlayState.isUiVisible ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Stack(
-                children: [
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      height: 112,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.7),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: _buildTopBar(),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      height: 168,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.7),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: MouseRegion(
-                      onEnter: (_) {
-                        _overlayController.setHovered(
-                          PlayerHoverZone.bottomControls,
-                          true,
-                        );
-                        _showUi();
-                      },
-                      onExit: (_) => _overlayController.setHovered(
-                        PlayerHoverZone.bottomControls,
-                        false,
-                      ),
-                      child: SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildProgressBar(),
-                              const SizedBox(height: 12),
-                              _buildControlButtons(
-                                overlayState: overlayState,
-                                subtitleSettings: subtitleSettings,
-                                danmakuState: danmakuState,
-                              ),
+                opacity: overlayState.isUiVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: 112,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.7),
+                              Colors.transparent,
                             ],
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: _buildTopBar(),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: 168,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.7),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: MouseRegion(
+                        onEnter: (_) {
+                          _overlayController.setHovered(
+                            PlayerHoverZone.bottomControls,
+                            true,
+                          );
+                          _showUi();
+                        },
+                        onExit: (_) => _overlayController.setHovered(
+                          PlayerHoverZone.bottomControls,
+                          false,
+                        ),
+                        child: SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildProgressBar(),
+                                const SizedBox(height: 12),
+                                _buildControlButtons(
+                                  overlayState: overlayState,
+                                  subtitleSettings: subtitleSettings,
+                                  danmakuState: danmakuState,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
           // The “播放详细信息” panel is deliberately rendered OUTSIDE the
           // AnimatedOpacity that fades the transport controls, so it stays on
           // screen when the controls auto-hide. Its open state is independent
@@ -5924,9 +5993,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             CloudPlaybackErrorDialog(
               key: const ValueKey('player-cloud-playback-error'),
               isProxyMode: _cloudPlaybackErrorIsProxy,
-              isStrm:
-                  _playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
-                      false,
+              isStrm: _playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
+                  false,
               onRetry: _retryCloudPlaybackWithReload,
               onSwitchQuality: _switchCloudAlternativeQualityWithReload,
               onSwitchProxy: _switchCloudPlayModeWithReloadToProxy,
@@ -5952,10 +6020,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   List<Widget> _buildSkipAndEndOverlays() {
     final state = _introSkipState;
-    final credits = state.segments.creditsSegment;
-    final hasContentAfterCredits = credits != null &&
+    final activeOutro = state.activeOutroSegment;
+    final hasContentAfterCredits = activeOutro != null &&
         state.durationMilliseconds != null &&
-        credits.endMilliseconds < state.durationMilliseconds! - 1000;
+        activeOutro.endMilliseconds < state.durationMilliseconds! - 1000;
     final item = _playInfo?.item ?? _playingInfoCache?.item;
 
     return [
@@ -5964,6 +6032,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           countdown: state.introUndoRemainingSeconds,
           isPip: _isPipMode,
           onHoverChanged: _handleSkipPromptHover,
+          message: _l10n.playerSkipAutoSkipped(
+            state.lastSkippedIntroSegment == null
+                ? _l10n.playerSkipSegmentIntro
+                : skipSegmentLabel(
+                    _l10n,
+                    state.lastSkippedIntroSegment!.kinds,
+                  ),
+          ),
           onUndo: () {
             _introSkipController.dispatch(const IntroUndoRequested());
           },
@@ -5976,6 +6052,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           nextEpisodePhase: state.nextEpisodeLoadPhase,
           isPip: _isPipMode,
           onHoverChanged: _handleSkipPromptHover,
+          subject: activeOutro == null
+              ? _l10n.playerSkipSegmentOutro
+              : skipSegmentLabel(_l10n, activeOutro.kinds),
           onCancel: () {
             _introSkipController.dispatch(const OutroCancelRequested());
           },
@@ -6187,8 +6266,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       currentPosition: _currentPosition,
       totalDuration: _duration,
       buffered: bufferedProgressRatio,
-      introSegment: _resolvedSkipSegments.introSegment,
-      creditsSegment: _resolvedSkipSegments.creditsSegment,
+      segments: _resolvedSkipSegments.allSegmentMarkers,
       showHoverTimestamp: false,
       onSeek: _seekTo,
     );
@@ -6206,8 +6284,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         currentPosition: _currentPosition,
         totalDuration: _duration,
         buffered: bufferedProgressRatio,
-        introSegment: _resolvedSkipSegments.introSegment,
-        creditsSegment: _resolvedSkipSegments.creditsSegment,
+        segments: _resolvedSkipSegments.allSegmentMarkers,
         onSeek: _seekTo,
       ),
     );
@@ -6316,8 +6393,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         controller.setVisibility(true);
         return;
       }
+      final capabilities = await probeFlyNarwhalServerCapabilities(ref);
+      if (!mounted) return;
       final loaded = await controller.loadDanmaku(
         _buildDanmakuRequest(playInfo),
+        allowLegacyKeyFallback: !capabilities.supportsWholeWorkDanmakuKey,
       );
       if (!mounted) return;
       if (loaded) {
@@ -6398,7 +6478,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final analysis = ref.read(episodeAnalysisControllerProvider);
     final controller = ref.read(episodeAnalysisControllerProvider.notifier);
     final cache = _playingInfoCache;
-    final mediaGuid = analysis.mediaGuid ?? cache?.currentVideoStream?.mediaGuid;
+    final mediaGuid =
+        analysis.mediaGuid ?? cache?.currentVideoStream?.mediaGuid;
     if (mediaGuid == null) return false;
 
     await controller.updateContext(
@@ -6494,8 +6575,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             false) ...[
           CloudAccountChip(
             key: const ValueKey('player-cloud-account-chip'),
-            cloudStorageInfo:
-                _playingInfoCache!.streamInfo!.cloudStorageInfo!,
+            cloudStorageInfo: _playingInfoCache!.streamInfo!.cloudStorageInfo!,
             isDirectLink: _playingInfoCache!.isUseDirectLink,
             yOffset: _controlFlyoutOffset,
             isActiveControl:
@@ -6540,9 +6620,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             currentResolution: _currentResolution,
             currentBitrate: _currentBitrate,
             cloudMode: _isCloudDirectSession,
-            isStrm:
-                _playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
-                    false,
+            isStrm: _playingInfoCache?.streamInfo?.cloudStorageInfo?.isStrm ??
+                false,
             yOffset: _controlFlyoutOffset,
             isActiveControl:
                 overlayState.activeFlyout == PlayerFlyoutType.quality,
@@ -6632,7 +6711,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           totalDurationMillis: _duration,
           popupBottomOffset: _controlFlyoutOffset.toDouble(),
           smartSkipEnabled: _effectiveSmartSkipEnabled(),
-          isSmartAnalysisGloballyEnabled: settings.flyNarwhalServerEnabled,
+          // Netdisk/STRM sources cannot be analyzed server-side, so present
+          // smart skip as unavailable there: the toggle, the config entry and
+          // the "智能跳过" value text all follow this flag.
+          isSmartAnalysisGloballyEnabled:
+              settings.flyNarwhalServerEnabled && !_isCloudOrStrmPlayback,
+          // Smart skip itself works on every server that serves
+          // /api/analysis/segments; only the config endpoint is newer. The flag
+          // below drives the config entry alone, so an old server keeps the
+          // toggle but loses the config page.
+          isSmartSkipConfigAvailable: _smartSkipConfigAvailable(settings),
           isSavingSkipConfig: _isSavingSkipConfig,
           onSmartSkipEnabledChanged: _setSmartSkipEnabled,
           isFlyNarwhalServerAvailable: settings.isFlyNarwhalServerAvailable,
@@ -7336,9 +7424,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _windowAspectRatioController.release(restoreNormalMinimumSize: false),
       );
       unawaited(
-        ref
-            .read(playerSettingsManagerProvider)
-            .setPlayerWindowFullscreen(true),
+        ref.read(playerSettingsManagerProvider).setPlayerWindowFullscreen(true),
       );
     }
     setState(() => _isFullscreen = true);
@@ -7506,6 +7592,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _showFeatureComingSoon(String feature) {
     ref
         .read(toastManagerProvider.notifier)
-        .showToast(_l10n.playerFeatureComingSoon(feature), style: ToastStyle.liquidGlass, type: ToastType.info);
+        .showToast(_l10n.playerFeatureComingSoon(feature),
+            style: ToastStyle.liquidGlass, type: ToastType.info);
   }
 }

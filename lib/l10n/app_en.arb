@@ -3350,5 +3350,227 @@
   "playerEncodeMethodRkmpp": "RKMPP encoding",
   "@playerEncodeMethodRkmpp": {
     "description": "RKMPP encoding"
+  },
+  "smartAnalysisQueuedLoading": "Intro/outro analysis submitted",
+  "@smartAnalysisQueuedLoading": {
+    "description": "Toast shown immediately after queueing a season analysis."
+  },
+  "smartAnalysisCloudOrStrmRejected": "Smart intro/outro analysis is unavailable for netdisk or STRM videos",
+  "@smartAnalysisCloudOrStrmRejected": {
+    "description": "Rejection message when the media backend cannot be analyzed."
+  },
+  "playerSkipSegmentIntro": "intro",
+  "@playerSkipSegmentIntro": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentRecap": "recap",
+  "@playerSkipSegmentRecap": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentOutro": "outro",
+  "@playerSkipSegmentOutro": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentPreview": "next-episode preview",
+  "@playerSkipSegmentPreview": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentCommercial": "advertisement",
+  "@playerSkipSegmentCommercial": {
+    "description": "Skip-segment kind name."
+  },
+  "playerSkipSegmentGeneric": "segment",
+  "@playerSkipSegmentGeneric": {
+    "description": "Fallback skip-segment kind name."
+  },
+  "playerSkipSegmentJoined": "{parts}",
+  "@playerSkipSegmentJoined": {
+    "description": "Joins several skip-segment names; keep the connector language-specific.",
+    "placeholders": {
+      "parts": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSkipSegmentInSeconds": "Skipping {subject} in {seconds}s",
+  "@playerSkipSegmentInSeconds": {
+    "description": "Countdown before auto-skipping a segment.",
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      },
+      "subject": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSkipAutoSkipped": "Automatically skipped {subject}",
+  "@playerSkipAutoSkipped": {
+    "description": "Toast after automatically skipping a segment.",
+    "placeholders": {
+      "subject": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsSkipRecap": "Skip recaps",
+  "@playerSettingsSkipRecap": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSkipPreview": "Skip next-episode previews",
+  "@playerSettingsSkipPreview": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSkipCommercial": "Skip advertisements",
+  "@playerSettingsSkipCommercial": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSmartSkipConfig": "Smart skip settings",
+  "@playerSettingsSmartSkipConfig": {
+    "description": "Menu entry that opens the smart-skip config dialog."
+  },
+  "playerSettingsSkipIntroOnly": "Skip intros",
+  "@playerSettingsSkipIntroOnly": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSkipOutroOnly": "Skip outros",
+  "@playerSettingsSkipOutroOnly": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSkipSegmentConnector": " and ",
+  "@playerSkipSegmentConnector": {
+    "description": "Separator joining several skip-segment names."
+  },
+  "smartSkipConfigTitle": "Smart skip settings",
+  "@smartSkipConfigTitle": {
+    "description": "Title of the smart-skip configuration dialog."
+  },
+  "smartSkipSave": "Save",
+  "@smartSkipSave": {
+    "description": "Dialog primary action."
+  },
+  "smartSkipSaved": "Smart skip settings saved",
+  "@smartSkipSaved": {
+    "description": "Toast after saving the configuration."
+  },
+  "smartSkipSaveFailed": "Could not save",
+  "@smartSkipSaveFailed": {
+    "description": "Title shown when saving fails."
+  },
+  "smartSkipLoginRequired": "Sign in to configure",
+  "@smartSkipLoginRequired": {
+    "description": "Shown when the user is not signed in."
+  },
+  "smartSkipLoadFailed": "Could not load the server settings; showing defaults",
+  "@smartSkipLoadFailed": {
+    "description": "Banner when server config cannot be loaded."
+  },
+  "smartSkipDetectMode": "Detection mode",
+  "@smartSkipDetectMode": {
+    "description": "Section heading."
+  },
+  "smartSkipAnimeMode": "Anime mode",
+  "@smartSkipAnimeMode": {
+    "description": "Detection-mode option."
+  },
+  "smartSkipPreferChromaprint": "Prefer fingerprint matching",
+  "@smartSkipPreferChromaprint": {
+    "description": "Detection-mode option."
+  },
+  "smartSkipAlternativeBlackFrame": "Alternative black-frame analyzer",
+  "@smartSkipAlternativeBlackFrame": {
+    "description": "Detection-mode option."
+  },
+  "smartSkipDetectIntro": "Detect intros",
+  "@smartSkipDetectIntro": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectOutro": "Detect outros",
+  "@smartSkipDetectOutro": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectRecap": "Detect recaps",
+  "@smartSkipDetectRecap": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectPreview": "Detect next-episode previews",
+  "@smartSkipDetectPreview": {
+    "description": "Detection toggle."
+  },
+  "smartSkipDetectCommercial": "Detect advertisements",
+  "@smartSkipDetectCommercial": {
+    "description": "Detection toggle."
+  },
+  "smartSkipAdvanced": "Advanced",
+  "@smartSkipAdvanced": {
+    "description": "Heading of the advanced settings section."
+  },
+  "smartSkipDurationLimit": "Duration limit (seconds)",
+  "@smartSkipDurationLimit": {
+    "description": "Field label."
+  },
+  "smartSkipBoundaryOffset": "Boundary offset (seconds)",
+  "@smartSkipBoundaryOffset": {
+    "description": "Field label."
+  },
+  "smartSkipIntroStartOffset": "Intro start offset",
+  "@smartSkipIntroStartOffset": {
+    "description": "Field label."
+  },
+  "smartSkipIntroEndOffset": "Intro end offset",
+  "@smartSkipIntroEndOffset": {
+    "description": "Field label."
+  },
+  "smartSkipIntroMinDuration": "Minimum intro duration",
+  "@smartSkipIntroMinDuration": {
+    "description": "Field label."
+  },
+  "smartSkipIntroMaxDuration": "Maximum intro duration",
+  "@smartSkipIntroMaxDuration": {
+    "description": "Field label."
+  },
+  "smartSkipOutroMinDuration": "Minimum outro duration",
+  "@smartSkipOutroMinDuration": {
+    "description": "Field label."
+  },
+  "smartSkipOutroMaxDuration": "Maximum outro duration",
+  "@smartSkipOutroMaxDuration": {
+    "description": "Field label."
+  },
+  "smartSkipOutroEndOffset": "Outro end offset",
+  "@smartSkipOutroEndOffset": {
+    "description": "Field label."
+  },
+  "smartSkipRestoreDefaults": "Restore defaults",
+  "@smartSkipRestoreDefaults": {
+    "description": "Dialog action."
+  },
+  "playerSettingsSmartSkipIntro": "Skip intros",
+  "@playerSettingsSmartSkipIntro": {
+    "description": "Smart-skip switch label."
+  },
+  "playerSettingsSmartSkipOutro": "Skip outros",
+  "@playerSettingsSmartSkipOutro": {
+    "description": "Smart-skip switch label."
+  },
+  "smartSkipAnalysisFailedRetry": "Could not submit the analysis request. Try again later.",
+  "@smartSkipAnalysisFailedRetry": {
+    "description": "Toast when submitting season analysis fails."
+  },
+  "smartSkipLoadConfigFailed": "Could not load the smart skip settings",
+  "@smartSkipLoadConfigFailed": {
+    "description": "Error shown when loading the config fails."
+  },
+  "smartSkipSaveConfigFailed": "Could not save the smart skip settings",
+  "@smartSkipSaveConfigFailed": {
+    "description": "Error shown when saving the config fails."
+  },
+  "smartSkipConfigConfigure": "Configure",
+  "@smartSkipConfigConfigure": {
+    "description": "Button that opens the smart skip config dialog."
+  },
+  "settingsSmartSkipConfigCaption": "Server-side parameters for smart intro/outro analysis",
+  "@settingsSmartSkipConfigCaption": {
+    "description": "Caption under the smart skip config row."
   }
 }

@@ -2531,4 +2531,170 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playerEncodeMethodRkmpp => 'RKMPP encoding';
+
+  @override
+  String get smartAnalysisQueuedLoading => 'Intro/outro analysis submitted';
+
+  @override
+  String get smartAnalysisCloudOrStrmRejected =>
+      'Smart intro/outro analysis is unavailable for netdisk or STRM videos';
+
+  @override
+  String get playerSkipSegmentIntro => 'intro';
+
+  @override
+  String get playerSkipSegmentRecap => 'recap';
+
+  @override
+  String get playerSkipSegmentOutro => 'outro';
+
+  @override
+  String get playerSkipSegmentPreview => 'next-episode preview';
+
+  @override
+  String get playerSkipSegmentCommercial => 'advertisement';
+
+  @override
+  String get playerSkipSegmentGeneric => 'segment';
+
+  @override
+  String playerSkipSegmentJoined(String parts) {
+    return '$parts';
+  }
+
+  @override
+  String playerSkipSegmentInSeconds(String seconds, String subject) {
+    return 'Skipping $subject in ${seconds}s';
+  }
+
+  @override
+  String playerSkipAutoSkipped(String subject) {
+    return 'Automatically skipped $subject';
+  }
+
+  @override
+  String get playerSettingsSkipRecap => 'Skip recaps';
+
+  @override
+  String get playerSettingsSkipPreview => 'Skip next-episode previews';
+
+  @override
+  String get playerSettingsSkipCommercial => 'Skip advertisements';
+
+  @override
+  String get playerSettingsSmartSkipConfig => 'Smart skip settings';
+
+  @override
+  String get playerSettingsSkipIntroOnly => 'Skip intros';
+
+  @override
+  String get playerSettingsSkipOutroOnly => 'Skip outros';
+
+  @override
+  String get playerSkipSegmentConnector => ' and ';
+
+  @override
+  String get smartSkipConfigTitle => 'Smart skip settings';
+
+  @override
+  String get smartSkipSave => 'Save';
+
+  @override
+  String get smartSkipSaved => 'Smart skip settings saved';
+
+  @override
+  String get smartSkipSaveFailed => 'Could not save';
+
+  @override
+  String get smartSkipLoginRequired => 'Sign in to configure';
+
+  @override
+  String get smartSkipLoadFailed =>
+      'Could not load the server settings; showing defaults';
+
+  @override
+  String get smartSkipDetectMode => 'Detection mode';
+
+  @override
+  String get smartSkipAnimeMode => 'Anime mode';
+
+  @override
+  String get smartSkipPreferChromaprint => 'Prefer fingerprint matching';
+
+  @override
+  String get smartSkipAlternativeBlackFrame =>
+      'Alternative black-frame analyzer';
+
+  @override
+  String get smartSkipDetectIntro => 'Detect intros';
+
+  @override
+  String get smartSkipDetectOutro => 'Detect outros';
+
+  @override
+  String get smartSkipDetectRecap => 'Detect recaps';
+
+  @override
+  String get smartSkipDetectPreview => 'Detect next-episode previews';
+
+  @override
+  String get smartSkipDetectCommercial => 'Detect advertisements';
+
+  @override
+  String get smartSkipAdvanced => 'Advanced';
+
+  @override
+  String get smartSkipDurationLimit => 'Duration limit (seconds)';
+
+  @override
+  String get smartSkipBoundaryOffset => 'Boundary offset (seconds)';
+
+  @override
+  String get smartSkipIntroStartOffset => 'Intro start offset';
+
+  @override
+  String get smartSkipIntroEndOffset => 'Intro end offset';
+
+  @override
+  String get smartSkipIntroMinDuration => 'Minimum intro duration';
+
+  @override
+  String get smartSkipIntroMaxDuration => 'Maximum intro duration';
+
+  @override
+  String get smartSkipOutroMinDuration => 'Minimum outro duration';
+
+  @override
+  String get smartSkipOutroMaxDuration => 'Maximum outro duration';
+
+  @override
+  String get smartSkipOutroEndOffset => 'Outro end offset';
+
+  @override
+  String get smartSkipRestoreDefaults => 'Restore defaults';
+
+  @override
+  String get playerSettingsSmartSkipIntro => 'Skip intros';
+
+  @override
+  String get playerSettingsSmartSkipOutro => 'Skip outros';
+
+  @override
+  String get smartSkipAnalysisFailedRetry =>
+      'Could not submit the analysis request. Try again later.';
+
+  @override
+  String get smartSkipLoadConfigFailed =>
+      'Could not load the smart skip settings';
+
+  @override
+  String get smartSkipSaveConfigFailed =>
+      'Could not save the smart skip settings';
+
+  @override
+  String get smartSkipConfigConfigure => 'Configure';
+
+  @override
+  String get settingsSmartSkipConfigCaption =>
+      'Server-side parameters for smart intro/outro analysis';
 }

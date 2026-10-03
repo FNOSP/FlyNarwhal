@@ -29,13 +29,17 @@ import '../data/storage/user_settings_migrator.dart';
 import '../domain/repositories/i_tag_repository.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../ui/settings/app_language.dart';
+import '../ui/shared/toast.dart';
 import 'danmaku_controller.dart';
 import 'fly_narwhal_connection_test_notifier.dart';
 import 'smart_analysis_controller.dart';
 import 'smart_analysis_status_controller.dart';
+import 'smart_skip_config_controller.dart';
 import 'smart_skip_settings_controller.dart';
+import 'skip_switches_controller.dart';
 import 'season_analysis_status_controller.dart';
 import 'episode_analysis_controller.dart';
+import 'update_providers.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences not initialized');
@@ -236,6 +240,8 @@ final flyNarwhalRemoteDataSourceProvider =
   final prefsManager = ref.watch(preferencesManagerProvider);
   final flyNarwhalSettings = ref.watch(flyNarwhalSettingsProvider);
   final runtimeConfiguration = ref.watch(runtimeConfigurationProvider);
+  final clientVersionCache = ref.watch(_flyNarwhalClientVersionCacheProvider);
+  DateTime? lastClientVersionToastAt;
   return FlyNarwhalRemoteDataSource(
     getToken: () => prefsManager.getToken() ?? '',
     getCookie: () => prefsManager.getCookie() ?? '',
@@ -243,8 +249,48 @@ final flyNarwhalRemoteDataSourceProvider =
     getFlyNarwhalBaseUrl: () => flyNarwhalSettings.baseUrl ?? '',
     getFlyNarwhalServerEnabled: () => flyNarwhalSettings.enabled,
     getAuthCode: () => flyNarwhalSettings.authCode ?? '',
+    getClientVersion: () => clientVersionCache.value,
+    onClientVersionTooLow: (message) {
+      // Polling loops would otherwise stack the same upgrade prompt.
+      final now = DateTime.now();
+      if (lastClientVersionToastAt != null &&
+          now.difference(lastClientVersionToastAt!) <
+              const Duration(seconds: 15)) {
+        return;
+      }
+      lastClientVersionToastAt = now;
+      ref.read(toastManagerProvider.notifier).showToast(
+            message,
+            type: ToastType.failed,
+            category: 'fly-narwhal-client-version',
+          );
+    },
     runtimeConfiguration: runtimeConfiguration,
   );
+});
+
+final smartSkipConfigControllerProvider = StateNotifierProvider<
+    SmartSkipConfigController, SmartSkipConfigState>((ref) {
+  return SmartSkipConfigController(
+    ref.watch(flyNarwhalRemoteDataSourceProvider),
+    getL10n: () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
+  );
+});
+
+class _ClientVersionCache {
+  String value = '';
+}
+
+// 版本头注入是同步的，这里提前把 APP_FULL_VERSION/pubspec 解析结果缓存成字符串。
+final _flyNarwhalClientVersionCacheProvider =
+    Provider<_ClientVersionCache>((ref) {
+  final cache = _ClientVersionCache();
+  ref.read(currentAppVersionProvider.future).then((version) {
+    cache.value = version;
+  }).catchError((_) {});
+  return cache;
 });
 
 final flyNarwhalConnectionTestProvider = StateNotifierProvider<
@@ -268,11 +314,25 @@ final smartAnalysisControllerProvider = StateNotifierProvider<
     getL10n: () => lookupAppLocalizations(
       AppLanguage.localeFromValue(ref.read(settingsProvider).language),
     ),
+    // These run outside the season page's lifetime (a submission can finish
+    // long after the user navigated away), so they must not resurrect a season
+    // whose page is gone.
     startSeasonPolling: (seasonGuid) {
       ref
           .read(seasonAnalysisStatusControllerProvider.notifier)
-          .startForcedPolling(seasonGuid);
+          .startForcedBackgroundPolling(seasonGuid);
     },
+    // Draw the "准备中" status immediately after PREPARING is accepted,
+    // before the slow episode collection and analyze submission.
+    startSeasonPreparedPolling: (seasonGuid) {
+      ref
+          .read(seasonAnalysisStatusControllerProvider.notifier)
+          .startBackgroundPolling(seasonGuid);
+    },
+    resolveUserGuid: () => ref.read(currentUserGuidProvider),
+    // media/stream probe identifies the client like the player does (md5 of
+    // the login token) when detecting netdisk/STRM media.
+    resolveToken: () => ref.read(preferencesManagerProvider).getToken(),
   );
 });
 
@@ -287,6 +347,17 @@ final smartSkipSettingsControllerProvider =
     StateNotifierProvider<SmartSkipSettingsController, SmartSkipSettingsState>(
         (ref) {
   final controller = SmartSkipSettingsController(
+    ref.watch(preferencesManagerProvider),
+  );
+  ref.listen<AsyncValue<UserInfo?>>(userInfoProvider, (previous, next) {
+    controller.updateUserInfo(next.valueOrNull);
+  }, fireImmediately: true);
+  return controller;
+});
+
+final skipSwitchesControllerProvider =
+    StateNotifierProvider<SkipSwitchesController, SkipSwitchesState>((ref) {
+  final controller = SkipSwitchesController(
     ref.watch(preferencesManagerProvider),
   );
   ref.listen<AsyncValue<UserInfo?>>(userInfoProvider, (previous, next) {

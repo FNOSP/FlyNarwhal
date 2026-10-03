@@ -14,12 +14,14 @@ class SkipIntroPrompt extends StatelessWidget {
     required this.onUndo,
     this.isPip = false,
     this.onHoverChanged,
+    this.message,
   });
 
   final int countdown;
   final VoidCallback onUndo;
   final bool isPip;
   final ValueChanged<bool>? onHoverChanged;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +30,7 @@ class SkipIntroPrompt extends StatelessWidget {
       key: isPip ? playerSkipIntroPipPromptKey : playerSkipIntroPromptKey,
       isPip: isPip,
       onHoverChanged: onHoverChanged,
-      message: l10n.playerSkipIntroAutoSkipped,
+      message: message ?? l10n.playerSkipIntroAutoSkipped,
       undoLabel: l10n.playerUndo,
       countdown: countdown,
       actionKey: isPip ? playerSkipIntroPipUndoKey : playerSkipIntroUndoKey,

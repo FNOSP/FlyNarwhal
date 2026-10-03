@@ -2445,6 +2445,165 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get playerEncodeMethodRkmpp => 'RKMPP 编码';
+
+  @override
+  String get smartAnalysisQueuedLoading => '片头/片尾分析任务已提交';
+
+  @override
+  String get smartAnalysisCloudOrStrmRejected => '网盘或 STRM 视频无法使用“智能分析片头/片尾”功能';
+
+  @override
+  String get playerSkipSegmentIntro => '片头';
+
+  @override
+  String get playerSkipSegmentRecap => '前情提要';
+
+  @override
+  String get playerSkipSegmentOutro => '片尾';
+
+  @override
+  String get playerSkipSegmentPreview => '下集预告';
+
+  @override
+  String get playerSkipSegmentCommercial => '广告';
+
+  @override
+  String get playerSkipSegmentGeneric => '片段';
+
+  @override
+  String playerSkipSegmentJoined(String parts) {
+    return '$parts';
+  }
+
+  @override
+  String playerSkipSegmentInSeconds(String seconds, String subject) {
+    return '$seconds 秒后跳过$subject';
+  }
+
+  @override
+  String playerSkipAutoSkipped(String subject) {
+    return '已自动跳过$subject';
+  }
+
+  @override
+  String get playerSettingsSkipRecap => '跳过前情提要';
+
+  @override
+  String get playerSettingsSkipPreview => '跳过下集预告';
+
+  @override
+  String get playerSettingsSkipCommercial => '跳过广告';
+
+  @override
+  String get playerSettingsSmartSkipConfig => '智能跳过配置';
+
+  @override
+  String get playerSettingsSkipIntroOnly => '跳过片头';
+
+  @override
+  String get playerSettingsSkipOutroOnly => '跳过片尾';
+
+  @override
+  String get playerSkipSegmentConnector => '与';
+
+  @override
+  String get smartSkipConfigTitle => '智能跳过配置';
+
+  @override
+  String get smartSkipSave => '保存';
+
+  @override
+  String get smartSkipSaved => '智能跳过配置已保存';
+
+  @override
+  String get smartSkipSaveFailed => '保存失败';
+
+  @override
+  String get smartSkipLoginRequired => '请先登录后配置';
+
+  @override
+  String get smartSkipLoadFailed => '服务端配置加载失败，当前展示默认配置';
+
+  @override
+  String get smartSkipDetectMode => '检测模式';
+
+  @override
+  String get smartSkipAnimeMode => '动漫模式';
+
+  @override
+  String get smartSkipPreferChromaprint => '优先指纹匹配';
+
+  @override
+  String get smartSkipAlternativeBlackFrame => '备用黑帧分析器';
+
+  @override
+  String get smartSkipDetectIntro => '检测片头';
+
+  @override
+  String get smartSkipDetectOutro => '检测片尾';
+
+  @override
+  String get smartSkipDetectRecap => '检测前情提要';
+
+  @override
+  String get smartSkipDetectPreview => '检测下集预告';
+
+  @override
+  String get smartSkipDetectCommercial => '检测广告';
+
+  @override
+  String get smartSkipAdvanced => '高级';
+
+  @override
+  String get smartSkipDurationLimit => '时长限制（秒）';
+
+  @override
+  String get smartSkipBoundaryOffset => '边界偏移（秒）';
+
+  @override
+  String get smartSkipIntroStartOffset => '片头开始偏移';
+
+  @override
+  String get smartSkipIntroEndOffset => '片头结束偏移';
+
+  @override
+  String get smartSkipIntroMinDuration => '片头最短时长';
+
+  @override
+  String get smartSkipIntroMaxDuration => '片头最长时长';
+
+  @override
+  String get smartSkipOutroMinDuration => '片尾最短时长';
+
+  @override
+  String get smartSkipOutroMaxDuration => '片尾最长时长';
+
+  @override
+  String get smartSkipOutroEndOffset => '片尾结束偏移';
+
+  @override
+  String get smartSkipRestoreDefaults => '恢复默认';
+
+  @override
+  String get playerSettingsSmartSkipIntro => '跳过片头';
+
+  @override
+  String get playerSettingsSmartSkipOutro => '跳过片尾';
+
+  @override
+  String get smartSkipAnalysisFailedRetry => '分析请求提交失败，请稍后重试';
+
+  @override
+  String get smartSkipLoadConfigFailed => '加载智能跳过配置失败';
+
+  @override
+  String get smartSkipSaveConfigFailed => '保存智能跳过配置失败';
+
+  @override
+  String get smartSkipConfigConfigure => '配置';
+
+  @override
+  String get settingsSmartSkipConfigCaption => '服务端智能分析片头片尾的参数';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -4888,4 +5047,163 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get playerEncodeMethodRkmpp => 'RKMPP 編碼';
+
+  @override
+  String get smartAnalysisQueuedLoading => '片頭／片尾分析任務已提交';
+
+  @override
+  String get smartAnalysisCloudOrStrmRejected => '網盤或 STRM 影片無法使用「智慧分析片頭／片尾」功能';
+
+  @override
+  String get playerSkipSegmentIntro => '片頭';
+
+  @override
+  String get playerSkipSegmentRecap => '前情提要';
+
+  @override
+  String get playerSkipSegmentOutro => '片尾';
+
+  @override
+  String get playerSkipSegmentPreview => '下集預告';
+
+  @override
+  String get playerSkipSegmentCommercial => '廣告';
+
+  @override
+  String get playerSkipSegmentGeneric => '片段';
+
+  @override
+  String playerSkipSegmentJoined(String parts) {
+    return '$parts';
+  }
+
+  @override
+  String playerSkipSegmentInSeconds(String seconds, String subject) {
+    return '$seconds 秒後跳過$subject';
+  }
+
+  @override
+  String playerSkipAutoSkipped(String subject) {
+    return '已自動跳過$subject';
+  }
+
+  @override
+  String get playerSettingsSkipRecap => '跳過前情提要';
+
+  @override
+  String get playerSettingsSkipPreview => '跳過下集預告';
+
+  @override
+  String get playerSettingsSkipCommercial => '跳過廣告';
+
+  @override
+  String get playerSettingsSmartSkipConfig => '智慧跳過設定';
+
+  @override
+  String get playerSettingsSkipIntroOnly => '跳過片頭';
+
+  @override
+  String get playerSettingsSkipOutroOnly => '跳過片尾';
+
+  @override
+  String get playerSkipSegmentConnector => '與';
+
+  @override
+  String get smartSkipConfigTitle => '智慧跳過設定';
+
+  @override
+  String get smartSkipSave => '儲存';
+
+  @override
+  String get smartSkipSaved => '智慧跳過設定已儲存';
+
+  @override
+  String get smartSkipSaveFailed => '儲存失敗';
+
+  @override
+  String get smartSkipLoginRequired => '請先登入後再設定';
+
+  @override
+  String get smartSkipLoadFailed => '伺服器設定載入失敗，目前顯示預設設定';
+
+  @override
+  String get smartSkipDetectMode => '偵測模式';
+
+  @override
+  String get smartSkipAnimeMode => '動漫模式';
+
+  @override
+  String get smartSkipPreferChromaprint => '優先指紋比對';
+
+  @override
+  String get smartSkipAlternativeBlackFrame => '備用黑畫面分析器';
+
+  @override
+  String get smartSkipDetectIntro => '偵測片頭';
+
+  @override
+  String get smartSkipDetectOutro => '偵測片尾';
+
+  @override
+  String get smartSkipDetectRecap => '偵測前情提要';
+
+  @override
+  String get smartSkipDetectPreview => '偵測下集預告';
+
+  @override
+  String get smartSkipDetectCommercial => '偵測廣告';
+
+  @override
+  String get smartSkipAdvanced => '進階';
+
+  @override
+  String get smartSkipDurationLimit => '時長限制（秒）';
+
+  @override
+  String get smartSkipBoundaryOffset => '邊界偏移（秒）';
+
+  @override
+  String get smartSkipIntroStartOffset => '片頭開始偏移';
+
+  @override
+  String get smartSkipIntroEndOffset => '片頭結束偏移';
+
+  @override
+  String get smartSkipIntroMinDuration => '片頭最短時長';
+
+  @override
+  String get smartSkipIntroMaxDuration => '片頭最長時長';
+
+  @override
+  String get smartSkipOutroMinDuration => '片尾最短時長';
+
+  @override
+  String get smartSkipOutroMaxDuration => '片尾最長時長';
+
+  @override
+  String get smartSkipOutroEndOffset => '片尾結束偏移';
+
+  @override
+  String get smartSkipRestoreDefaults => '還原預設';
+
+  @override
+  String get playerSettingsSmartSkipIntro => '跳過片頭';
+
+  @override
+  String get playerSettingsSmartSkipOutro => '跳過片尾';
+
+  @override
+  String get smartSkipAnalysisFailedRetry => '分析請求提交失敗，請稍後重試';
+
+  @override
+  String get smartSkipLoadConfigFailed => '載入智慧跳過設定失敗';
+
+  @override
+  String get smartSkipSaveConfigFailed => '儲存智慧跳過設定失敗';
+
+  @override
+  String get smartSkipConfigConfigure => '設定';
+
+  @override
+  String get settingsSmartSkipConfigCaption => '伺服器智慧分析片頭片尾的參數';
 }
