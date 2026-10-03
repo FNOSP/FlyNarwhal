@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 
 import '../api_result.dart';
 import 'cdn_cancellation.dart';
+import 'cdn_concurrency_policy.dart';
 import 'cdn_proxy_constants.dart';
 import 'cdn_proxy_errors.dart';
 import 'cdn_range_diagnostics.dart';
@@ -37,7 +38,7 @@ class _ReadRequest {
       })
       : ranges = (probe ? [range] : splitCdnRange(range)).iterator,
         single = probe || range.length <= CdnProxyDefaults.chunkSize,
-        _concurrency = _initialConcurrency(bitrate);
+        _concurrency = initialConcurrency(bitrate);
   final CdnByteRange range;
   final bool probe;
   final bool single;
@@ -76,14 +77,6 @@ class _ReadRequest {
   bool _probePending = false;
   double _preProbeThroughput = 0;
 
-  static int _initialConcurrency(int bitrate) {
-    if (bitrate <= 0) return CdnProxyDefaults.initialChunksPerReader;
-    final required = bitrate ~/ 8 * CdnProxyDefaults.throughputHeadroomFactor;
-    return required <= CdnProxyDefaults.assumedBytesPerConnectionPerSecond
-        ? CdnProxyDefaults.minChunksPerReader
-        : CdnProxyDefaults.initialChunksPerReader;
-  }
-
   void _markDownloadStarted() {
     if (_activeSegmentStartMs == 0) {
       _activeSegmentStartMs = DateTime.now().millisecondsSinceEpoch;
@@ -118,40 +111,18 @@ class _ReadRequest {
 
   /// Moves the concurrency in response to [measured] aggregate throughput.
   void _adjustConcurrency(double measured) {
-    if (_probePending) {
-      // Settle the pending step: keep it if it bought throughput, give up on
-      // climbing once enough steps have been tried without a gain.
-      _probePending = false;
-      if (measured > _preProbeThroughput * 1.15) {
-        _unproductiveProbes = 0;
-      } else {
-        _unproductiveProbes++;
-        _concurrency = max(
-            _concurrency - 1, CdnProxyDefaults.minChunksPerReader);
-      }
-      return;
-    }
-
-    // bits/s to bytes/s, with headroom so playback is not riding the edge.
-    final required = bitrate ~/ 8 * CdnProxyDefaults.throughputHeadroomFactor;
-    final atFloor = _concurrency <= CdnProxyDefaults.minChunksPerReader;
-    final atCeiling = _concurrency >= CdnProxyDefaults.maxChunksPerReader;
-
-    if (measured < required && !atCeiling) {
-      if (_unproductiveProbes >= CdnProxyDefaults.maxUnproductiveProbes) {
-        return;
-      }
-      _preProbeThroughput = measured;
-      _probePending = true;
-      _concurrency++;
-      return;
-    }
-    // Drop only on a clear surplus, so a link sitting near the required rate
-    // does not oscillate between two counts.
-    if (measured > required * 2 && !atFloor) {
-      _concurrency--;
-      _unproductiveProbes = 0;
-    }
+    final decision = decideConcurrency(
+      concurrency: _concurrency,
+      bitrate: bitrate,
+      measured: measured,
+      probePending: _probePending,
+      unproductiveProbes: _unproductiveProbes,
+      preProbeThroughput: _preProbeThroughput,
+    );
+    _concurrency = decision.concurrency;
+    _probePending = decision.probePending;
+    _unproductiveProbes = decision.unproductiveProbes;
+    _preProbeThroughput = decision.preProbeThroughput;
   }
 
   /// Reserves the right to end an attempt's body connection. A later body
