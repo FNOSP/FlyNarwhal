@@ -805,6 +805,10 @@ class _LivePlayerScreenState extends ConsumerState<LivePlayerScreen>
                       style: TextStyle(color: Colors.white, fontSize: 12),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  const PlayerWindowCaptionControls(
+                    keyPrefix: 'live-window',
+                  ),
                 ],
               ),
             ),

@@ -6812,6 +6812,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final topPadding = _isMacOS && !_isFullscreen ? 12.0 : 6.0;
     final topBarContentHeight = _isMacOS ? 30.0 : 36.0;
     final topBarDragHeight = topPadding + topBarContentHeight;
+    final isWindows = !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
     return SafeArea(
       child: SizedBox(
@@ -6865,10 +6866,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             'player-window-caption-pin-button',
                           ),
                           brightness: Brightness.dark,
+                          // Match the square window controls' 34x34 hover area.
+                          compact: isWindows,
                           buttonSize: _isMacOS ? 30 : 34,
-                          iconSize: _isMacOS ? 16 : 18,
-                          borderRadius:
-                              BorderRadius.circular(_isMacOS ? 15 : 17),
+                          iconSize: isWindows || _isMacOS ? 16 : 18,
+                          borderRadius: playerTopBarActionBorderRadius,
                         ),
                         const SizedBox(width: 4),
                         // The GlobalKey lets the playback details morph
@@ -6884,11 +6886,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             onPressed: _togglePlaybackDetails,
                             tooltip: '播放详细信息',
                             size: _isMacOS ? 30 : 34,
-                            iconSize: _isMacOS ? 16 : 18,
-                            borderRadius: BorderRadius.circular(
-                              _isMacOS ? 15 : 17,
-                            ),
+                            iconSize: isWindows || _isMacOS ? 16 : 18,
+                            borderRadius: playerTopBarActionBorderRadius,
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        const PlayerWindowCaptionControls(
+                          keyPrefix: 'player-window',
                         ),
                       ],
                     ),

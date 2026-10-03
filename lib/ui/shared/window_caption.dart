@@ -1,12 +1,23 @@
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:window_manager/window_manager.dart'
     hide WindowCaption, DragToMoveArea;
 
 const double kWindowTitleBarHeight = 48.0;
+
+// Match Windows caption buttons while retaining other desktop hover styles.
+BorderRadius get playerTopBarActionBorderRadius {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    return BorderRadius.zero;
+  }
+  return BorderRadius.circular(
+    defaultTargetPlatform == TargetPlatform.macOS ? 15 : 17,
+  );
+}
 
 class WindowCaption extends StatefulWidget {
   final Widget? title;
@@ -673,23 +684,31 @@ class WindowCaptionButton extends StatefulWidget {
   final Widget icon;
   final VoidCallback? onPressed;
   final Brightness? brightness;
+  final double width;
+  final double height;
 
   const WindowCaptionButton({
     super.key,
     required this.icon,
     this.onPressed,
     this.brightness,
+    this.width = 46,
+    this.height = kWindowTitleBarHeight,
   });
 
   factory WindowCaptionButton.minimize({
     Key? key,
     VoidCallback? onPressed,
     Brightness? brightness,
+    double width = 46,
+    double height = kWindowTitleBarHeight,
   }) {
     return WindowCaptionButton(
       key: key,
       onPressed: onPressed,
       brightness: brightness,
+      width: width,
+      height: height,
       icon: _MinimizeIcon(brightness: brightness),
     );
   }
@@ -698,11 +717,15 @@ class WindowCaptionButton extends StatefulWidget {
     Key? key,
     VoidCallback? onPressed,
     Brightness? brightness,
+    double width = 46,
+    double height = kWindowTitleBarHeight,
   }) {
     return WindowCaptionButton(
       key: key,
       onPressed: onPressed,
       brightness: brightness,
+      width: width,
+      height: height,
       icon: _MaximizeIcon(brightness: brightness),
     );
   }
@@ -711,11 +734,15 @@ class WindowCaptionButton extends StatefulWidget {
     Key? key,
     VoidCallback? onPressed,
     Brightness? brightness,
+    double width = 46,
+    double height = kWindowTitleBarHeight,
   }) {
     return WindowCaptionButton(
       key: key,
       onPressed: onPressed,
       brightness: brightness,
+      width: width,
+      height: height,
       icon: _UnmaximizeIcon(brightness: brightness),
     );
   }
@@ -724,11 +751,15 @@ class WindowCaptionButton extends StatefulWidget {
     Key? key,
     VoidCallback? onPressed,
     Brightness? brightness,
+    double width = 46,
+    double height = kWindowTitleBarHeight,
   }) {
     return WindowCaptionButton(
       key: key,
       onPressed: onPressed,
       brightness: brightness,
+      width: width,
+      height: height,
       icon: _CloseIcon(brightness: brightness),
     );
   }
@@ -765,8 +796,8 @@ class _WindowCaptionButtonState extends State<WindowCaptionButton> {
       child: GestureDetector(
         onTap: widget.onPressed,
         child: Container(
-          width: 46,
-          height: kWindowTitleBarHeight,
+          width: widget.width,
+          height: widget.height,
           color: backgroundColor,
           alignment: Alignment.center,
           child: widget.icon,
@@ -774,6 +805,99 @@ class _WindowCaptionButtonState extends State<WindowCaptionButton> {
       ),
     );
   }
+}
+
+/// Compact native window actions for frameless Windows player overlays.
+class PlayerWindowCaptionControls extends StatefulWidget {
+  final String keyPrefix;
+  final double buttonSize;
+
+  const PlayerWindowCaptionControls({
+    super.key,
+    required this.keyPrefix,
+    this.buttonSize = 34,
+  });
+
+  @override
+  State<PlayerWindowCaptionControls> createState() =>
+      _PlayerWindowCaptionControlsState();
+}
+
+class _PlayerWindowCaptionControlsState
+    extends State<PlayerWindowCaptionControls> with WindowListener {
+  @override
+  void initState() {
+    windowManager.addListener(this);
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+      return const SizedBox.shrink();
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        WindowCaptionButton.minimize(
+          key: ValueKey('${widget.keyPrefix}-minimize-button'),
+          brightness: Brightness.dark,
+          width: widget.buttonSize,
+          height: widget.buttonSize,
+          onPressed: () {
+            windowManager.minimize();
+          },
+        ),
+        FutureBuilder<bool>(
+          future: windowManager.isMaximized(),
+          builder: (context, snapshot) {
+            if (snapshot.data == true) {
+              return WindowCaptionButton.unmaximize(
+                key: ValueKey('${widget.keyPrefix}-unmaximize-button'),
+                brightness: Brightness.dark,
+                width: widget.buttonSize,
+                height: widget.buttonSize,
+                onPressed: () {
+                  windowManager.unmaximize();
+                },
+              );
+            }
+            return WindowCaptionButton.maximize(
+              key: ValueKey('${widget.keyPrefix}-maximize-button'),
+              brightness: Brightness.dark,
+              width: widget.buttonSize,
+              height: widget.buttonSize,
+              onPressed: () {
+                windowManager.maximize();
+              },
+            );
+          },
+        ),
+        WindowCaptionButton.close(
+          key: ValueKey('${widget.keyPrefix}-close-button'),
+          brightness: Brightness.dark,
+          width: widget.buttonSize,
+          height: widget.buttonSize,
+          onPressed: () {
+            windowManager.close();
+          },
+        ),
+      ],
+    );
+  }
+
+  @override
+  void onWindowMaximize() => setState(() {});
+
+  @override
+  void onWindowUnmaximize() => setState(() {});
 }
 
 class _MinimizeIcon extends StatelessWidget {
