@@ -100,7 +100,7 @@ class SmartAnalysisController
     extends StateNotifier<SmartAnalysisSubmissionState> {
   static const Duration episodeThrottleDelay = Duration(milliseconds: 300);
   static const String queuedSuccessMessage = '已加入分析队列';
-  static const String queuedLoadingMessage = '已加入到分析队列';
+  static const String queuedLoadingMessage = '片头/片尾分析任务已提交';
   static const String fallbackSuccessMessage = '分析请求已提交';
   static const String cloudOrStrmRejectionMessage =
       '网盘或 STRM 视频无法使用“智能分析片头/片尾”功能';
