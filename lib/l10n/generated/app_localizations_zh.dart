@@ -252,6 +252,84 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get commonUserInfoLoading => '正在加载用户信息…';
+
+  @override
+  String get shortcutsTitle => '快捷键设置';
+
+  @override
+  String get shortcutsTabKeyboard => '快捷键';
+
+  @override
+  String get shortcutsTabPlayback => '播放';
+
+  @override
+  String get shortcutsTabHelp => '说明';
+
+  @override
+  String get shortcutsRestoreDefaults => '恢复默认';
+
+  @override
+  String get shortcutsSearch => '搜索';
+
+  @override
+  String get shortcutsPrompt => '请在键盘按下快捷键或组合';
+
+  @override
+  String get sslTrustedTitle => 'SSL 证书信任列表';
+
+  @override
+  String get sslTrustedEmpty => '暂无信任的证书。当服务器证书校验失败时，可以在提示中选择「信任此证书」。';
+
+  @override
+  String sslTrustedAddedAt(String time) {
+    return '添加时间：$time';
+  }
+
+  @override
+  String get sslTrustedRemove => '移除';
+
+  @override
+  String get sslTrustedRemoveAll => '全部清除';
+
+  @override
+  String get sslTrustedRemoveTitle => '移除信任的证书';
+
+  @override
+  String sslTrustedRemoveBody(String host) {
+    return '移除后，再次访问「$host」时该证书会重新校验。';
+  }
+
+  @override
+  String get sslTrustedClearTitle => '清除全部信任的证书';
+
+  @override
+  String get sslTrustedClearBody => '清除后，所有服务器的证书都会重新校验。';
+
+  @override
+  String get supportAuthorTitle => '支持作者';
+
+  @override
+  String get supportAuthorBody =>
+      '您的支持就是我持续更新的动力，如果觉得好用的话，请给项目点一个 Star ⭐，谢谢！(^_−)☆';
+
+  @override
+  String get supportAuthorIssues =>
+      '项目诚然还有很多地方需要完善，如果遇到软件问题或者 Bug 欢迎提交 Issue 或者 PR。';
+
+  @override
+  String get supportAuthorOpenRepo => '打开 Github 仓库';
+
+  @override
+  String get supportAuthorLater => '稍后再说';
+
+  @override
+  String get fontScaleSmall => '小';
+
+  @override
+  String get fontScaleMedium => '中';
+
+  @override
+  String get fontScaleLarge => '大';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -502,4 +580,82 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get commonUserInfoLoading => '正在載入使用者資訊…';
+
+  @override
+  String get shortcutsTitle => '快速鍵設定';
+
+  @override
+  String get shortcutsTabKeyboard => '快速鍵';
+
+  @override
+  String get shortcutsTabPlayback => '播放';
+
+  @override
+  String get shortcutsTabHelp => '說明';
+
+  @override
+  String get shortcutsRestoreDefaults => '還原預設';
+
+  @override
+  String get shortcutsSearch => '搜尋';
+
+  @override
+  String get shortcutsPrompt => '請在鍵盤按下快速鍵或組合鍵';
+
+  @override
+  String get sslTrustedTitle => 'SSL 憑證信任清單';
+
+  @override
+  String get sslTrustedEmpty => '尚無信任的憑證。當伺服器憑證驗證失敗時，可以在提示中選擇「信任此憑證」。';
+
+  @override
+  String sslTrustedAddedAt(String time) {
+    return '新增時間：$time';
+  }
+
+  @override
+  String get sslTrustedRemove => '移除';
+
+  @override
+  String get sslTrustedRemoveAll => '全部清除';
+
+  @override
+  String get sslTrustedRemoveTitle => '移除信任的憑證';
+
+  @override
+  String sslTrustedRemoveBody(String host) {
+    return '移除後，再次存取「$host」時該憑證會重新驗證。';
+  }
+
+  @override
+  String get sslTrustedClearTitle => '清除全部信任的憑證';
+
+  @override
+  String get sslTrustedClearBody => '清除後，所有伺服器的憑證都會重新驗證。';
+
+  @override
+  String get supportAuthorTitle => '支持作者';
+
+  @override
+  String get supportAuthorBody =>
+      '您的支持就是我持續更新的動力，如果覺得好用，請給專案點一個 Star ⭐，謝謝！(^_−)☆';
+
+  @override
+  String get supportAuthorIssues =>
+      '專案確實還有很多地方需要完善，如果遇到軟體問題或 Bug，歡迎提交 Issue 或 PR。';
+
+  @override
+  String get supportAuthorOpenRepo => '開啟 Github 儲存庫';
+
+  @override
+  String get supportAuthorLater => '稍後再說';
+
+  @override
+  String get fontScaleSmall => '小';
+
+  @override
+  String get fontScaleMedium => '中';
+
+  @override
+  String get fontScaleLarge => '大';
 }

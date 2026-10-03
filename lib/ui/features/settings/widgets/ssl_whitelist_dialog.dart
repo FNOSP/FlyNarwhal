@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 import '../../../../core/network/ssl/ssl_trust_manager.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../providers/providers.dart';
 import '../../../shared/dialogs/app_dialog.dart';
 
@@ -20,12 +21,13 @@ class SslWhitelistDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final entries = ref.watch(settingsProvider).sslWhitelist;
     final secondaryTextColor =
         FluentTheme.of(context).typography.body?.color?.withValues(alpha: 0.7);
 
     return AppDialog<bool>(
-      title: 'SSL 证书信任列表',
+      title: l10n.sslTrustedTitle,
       constraints: const BoxConstraints(
         minWidth: 420,
         maxWidth: 520,
@@ -34,7 +36,7 @@ class SslWhitelistDialog extends ConsumerWidget {
       content: entries.isEmpty
           ? Text(
               key: const ValueKey('settings-ssl-whitelist-empty'),
-              '暂无信任的证书。当服务器证书校验失败时，可以在提示中选择「信任此证书」。',
+              l10n.sslTrustedEmpty,
               style: TextStyle(fontSize: 13, color: secondaryTextColor),
             )
           : SizedBox(
@@ -70,9 +72,9 @@ class SslWhitelistDialog extends ConsumerWidget {
             ),
       // The tertiary slot is the left-aligned slot for an additional
       // destructive action, which is exactly what "clear all" is.
-      tertiaryButtonText: entries.isEmpty ? null : '全部清除',
+      tertiaryButtonText: entries.isEmpty ? null : l10n.sslTrustedRemoveAll,
       onTertiaryPressed: () => _confirmClear(context, ref),
-      primaryButtonText: '关闭',
+      primaryButtonText: l10n.settingsAboutClose,
       primaryResult: true,
       autoDismiss: true,
     );
@@ -98,15 +100,14 @@ class SslWhitelistDialog extends ConsumerWidget {
     WidgetRef ref,
     SslTrustEntry entry,
   ) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showAppDialog<bool>(
       context: context,
       type: AppDialogType.danger,
-      title: '移除信任的证书',
-      content: Text(
-        '移除后，再次访问「${entry.host}」时该证书会重新校验。',
-      ),
-      secondaryButtonText: '取消',
-      primaryButtonText: '移除',
+      title: l10n.sslTrustedRemoveTitle,
+      content: Text(l10n.sslTrustedRemoveBody(entry.host)),
+      secondaryButtonText: l10n.commonCancel,
+      primaryButtonText: l10n.sslTrustedRemove,
       secondaryResult: false,
       primaryResult: true,
       autoDismiss: true,
@@ -116,13 +117,14 @@ class SslWhitelistDialog extends ConsumerWidget {
   }
 
   Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showAppDialog<bool>(
       context: context,
       type: AppDialogType.danger,
-      title: '清除全部信任的证书',
-      content: const Text('清除后，所有服务器的证书都会重新校验。'),
-      secondaryButtonText: '取消',
-      primaryButtonText: '全部清除',
+      title: l10n.sslTrustedClearTitle,
+      content: Text(l10n.sslTrustedClearBody),
+      secondaryButtonText: l10n.commonCancel,
+      primaryButtonText: l10n.sslTrustedRemoveAll,
       secondaryResult: false,
       primaryResult: true,
       autoDismiss: true,
@@ -169,12 +171,13 @@ class _HostGroup extends StatelessWidget {
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 2),
-        for (final entry in group.entries) _row(entry),
+        for (final entry in group.entries) _row(context, entry),
       ],
     );
   }
 
-  Widget _row(SslTrustEntry entry) {
+  Widget _row(BuildContext context, SslTrustEntry entry) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       key: ValueKey(
         'settings-ssl-whitelist-item-${entry.host}-${entry.fingerprintSha256}',
@@ -200,7 +203,7 @@ class _HostGroup extends StatelessWidget {
                 if (entry.addedAt != null) ...[
                   const SizedBox(width: 12),
                   Text(
-                    '添加时间：${_formatAddedAt(entry.addedAt!)}',
+                    l10n.sslTrustedAddedAt(_formatAddedAt(entry.addedAt!)),
                     style: TextStyle(
                       fontSize: 11,
                       color: secondaryTextColor,
@@ -216,7 +219,7 @@ class _HostGroup extends StatelessWidget {
               '${entry.host}-${entry.fingerprintSha256}',
             ),
             onPressed: () => onRemove(entry),
-            child: const Text('移除'),
+            child: Text(l10n.sslTrustedRemove),
           ),
         ],
       ),

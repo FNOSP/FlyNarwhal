@@ -471,6 +471,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                             UiFontScale.values.length - 1,
                                         label: UiFontScale.labelFromValue(
                                           settings.uiFontScale,
+                                          l10n,
                                         ),
                                         onChanged: (index) =>
                                             settingsNotifier.setUiFontScale(
@@ -486,6 +487,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       child: Text(
                                         UiFontScale.labelFromValue(
                                           settings.uiFontScale,
+                                          l10n,
                                         ),
                                         textAlign: TextAlign.center,
                                       ),

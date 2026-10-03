@@ -309,5 +309,111 @@
   "commonUserInfoLoading": "正在載入使用者資訊…",
   "@commonUserInfoLoading": {
     "description": "Shown while user info is loading."
+  },
+  "shortcutsTitle": "快速鍵設定",
+  "@shortcutsTitle": {
+    "description": "Title of the shortcut settings dialog."
+  },
+  "shortcutsTabKeyboard": "快速鍵",
+  "@shortcutsTabKeyboard": {
+    "description": "Tab label for keyboard shortcuts."
+  },
+  "shortcutsTabPlayback": "播放",
+  "@shortcutsTabPlayback": {
+    "description": "Tab label for playback shortcuts."
+  },
+  "shortcutsTabHelp": "說明",
+  "@shortcutsTabHelp": {
+    "description": "Tab label for shortcut help."
+  },
+  "shortcutsRestoreDefaults": "還原預設",
+  "@shortcutsRestoreDefaults": {
+    "description": "Button that restores default shortcuts."
+  },
+  "shortcutsSearch": "搜尋",
+  "@shortcutsSearch": {
+    "description": "Placeholder of the shortcut search box."
+  },
+  "shortcutsPrompt": "請在鍵盤按下快速鍵或組合鍵",
+  "@shortcutsPrompt": {
+    "description": "Prompt shown while recording a shortcut."
+  },
+  "sslTrustedTitle": "SSL 憑證信任清單",
+  "@sslTrustedTitle": {
+    "description": "Title of the certificate trust dialog."
+  },
+  "sslTrustedEmpty": "尚無信任的憑證。當伺服器憑證驗證失敗時，可以在提示中選擇「信任此憑證」。",
+  "@sslTrustedEmpty": {
+    "description": "Empty state of the certificate trust list."
+  },
+  "sslTrustedAddedAt": "新增時間：{time}",
+  "@sslTrustedAddedAt": {
+    "description": "Shows when a certificate was trusted.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "sslTrustedRemove": "移除",
+  "@sslTrustedRemove": {
+    "description": "Button that removes a trusted certificate."
+  },
+  "sslTrustedRemoveAll": "全部清除",
+  "@sslTrustedRemoveAll": {
+    "description": "Button that clears every trusted certificate."
+  },
+  "sslTrustedRemoveTitle": "移除信任的憑證",
+  "@sslTrustedRemoveTitle": {
+    "description": "Title of the remove-certificate confirmation."
+  },
+  "sslTrustedRemoveBody": "移除後，再次存取「{host}」時該憑證會重新驗證。",
+  "@sslTrustedRemoveBody": {
+    "description": "Body of the remove-certificate confirmation.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "sslTrustedClearTitle": "清除全部信任的憑證",
+  "@sslTrustedClearTitle": {
+    "description": "Title of the clear-all confirmation."
+  },
+  "sslTrustedClearBody": "清除後，所有伺服器的憑證都會重新驗證。",
+  "@sslTrustedClearBody": {
+    "description": "Body of the clear-all confirmation."
+  },
+  "supportAuthorTitle": "支持作者",
+  "@supportAuthorTitle": {
+    "description": "Title of the support-the-author dialog."
+  },
+  "supportAuthorBody": "您的支持就是我持續更新的動力，如果覺得好用，請給專案點一個 Star ⭐，謝謝！(^_−)☆",
+  "@supportAuthorBody": {
+    "description": "Body of the support-the-author dialog."
+  },
+  "supportAuthorIssues": "專案確實還有很多地方需要完善，如果遇到軟體問題或 Bug，歡迎提交 Issue 或 PR。",
+  "@supportAuthorIssues": {
+    "description": "Body text inviting bug reports."
+  },
+  "supportAuthorOpenRepo": "開啟 Github 儲存庫",
+  "@supportAuthorOpenRepo": {
+    "description": "Button that opens the GitHub repository."
+  },
+  "supportAuthorLater": "稍後再說",
+  "@supportAuthorLater": {
+    "description": "Button that dismisses the dialog."
+  },
+  "fontScaleSmall": "小",
+  "@fontScaleSmall": {
+    "description": "Font size option: small."
+  },
+  "fontScaleMedium": "中",
+  "@fontScaleMedium": {
+    "description": "Font size option: medium."
+  },
+  "fontScaleLarge": "大",
+  "@fontScaleLarge": {
+    "description": "Font size option: large."
   }
 }

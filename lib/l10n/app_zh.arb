@@ -330,5 +330,111 @@
   "commonUserInfoLoading": "正在加载用户信息…",
   "@commonUserInfoLoading": {
     "description": "Shown while user info is loading."
+  },
+  "shortcutsTitle": "快捷键设置",
+  "@shortcutsTitle": {
+    "description": "Title of the shortcut settings dialog."
+  },
+  "shortcutsTabKeyboard": "快捷键",
+  "@shortcutsTabKeyboard": {
+    "description": "Tab label for keyboard shortcuts."
+  },
+  "shortcutsTabPlayback": "播放",
+  "@shortcutsTabPlayback": {
+    "description": "Tab label for playback shortcuts."
+  },
+  "shortcutsTabHelp": "说明",
+  "@shortcutsTabHelp": {
+    "description": "Tab label for shortcut help."
+  },
+  "shortcutsRestoreDefaults": "恢复默认",
+  "@shortcutsRestoreDefaults": {
+    "description": "Button that restores default shortcuts."
+  },
+  "shortcutsSearch": "搜索",
+  "@shortcutsSearch": {
+    "description": "Placeholder of the shortcut search box."
+  },
+  "shortcutsPrompt": "请在键盘按下快捷键或组合",
+  "@shortcutsPrompt": {
+    "description": "Prompt shown while recording a shortcut."
+  },
+  "sslTrustedTitle": "SSL 证书信任列表",
+  "@sslTrustedTitle": {
+    "description": "Title of the certificate trust dialog."
+  },
+  "sslTrustedEmpty": "暂无信任的证书。当服务器证书校验失败时，可以在提示中选择「信任此证书」。",
+  "@sslTrustedEmpty": {
+    "description": "Empty state of the certificate trust list."
+  },
+  "sslTrustedAddedAt": "添加时间：{time}",
+  "@sslTrustedAddedAt": {
+    "description": "Shows when a certificate was trusted.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "sslTrustedRemove": "移除",
+  "@sslTrustedRemove": {
+    "description": "Button that removes a trusted certificate."
+  },
+  "sslTrustedRemoveAll": "全部清除",
+  "@sslTrustedRemoveAll": {
+    "description": "Button that clears every trusted certificate."
+  },
+  "sslTrustedRemoveTitle": "移除信任的证书",
+  "@sslTrustedRemoveTitle": {
+    "description": "Title of the remove-certificate confirmation."
+  },
+  "sslTrustedRemoveBody": "移除后，再次访问「{host}」时该证书会重新校验。",
+  "@sslTrustedRemoveBody": {
+    "description": "Body of the remove-certificate confirmation.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "sslTrustedClearTitle": "清除全部信任的证书",
+  "@sslTrustedClearTitle": {
+    "description": "Title of the clear-all confirmation."
+  },
+  "sslTrustedClearBody": "清除后，所有服务器的证书都会重新校验。",
+  "@sslTrustedClearBody": {
+    "description": "Body of the clear-all confirmation."
+  },
+  "supportAuthorTitle": "支持作者",
+  "@supportAuthorTitle": {
+    "description": "Title of the support-the-author dialog."
+  },
+  "supportAuthorBody": "您的支持就是我持续更新的动力，如果觉得好用的话，请给项目点一个 Star ⭐，谢谢！(^_−)☆",
+  "@supportAuthorBody": {
+    "description": "Body of the support-the-author dialog."
+  },
+  "supportAuthorIssues": "项目诚然还有很多地方需要完善，如果遇到软件问题或者 Bug 欢迎提交 Issue 或者 PR。",
+  "@supportAuthorIssues": {
+    "description": "Body text inviting bug reports."
+  },
+  "supportAuthorOpenRepo": "打开 Github 仓库",
+  "@supportAuthorOpenRepo": {
+    "description": "Button that opens the GitHub repository."
+  },
+  "supportAuthorLater": "稍后再说",
+  "@supportAuthorLater": {
+    "description": "Button that dismisses the dialog."
+  },
+  "fontScaleSmall": "小",
+  "@fontScaleSmall": {
+    "description": "Font size option: small."
+  },
+  "fontScaleMedium": "中",
+  "@fontScaleMedium": {
+    "description": "Font size option: medium."
+  },
+  "fontScaleLarge": "大",
+  "@fontScaleLarge": {
+    "description": "Font size option: large."
   }
 }

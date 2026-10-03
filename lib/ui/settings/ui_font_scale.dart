@@ -1,3 +1,5 @@
+import '../../l10n/generated/app_localizations.dart';
+
 /// 界面整体文字大小的三档取值与缩放系数映射。
 ///
 /// 持久化的是语义串（'small' | 'medium' | 'large'），不是浮点系数，
@@ -26,15 +28,15 @@ class UiFontScale {
     }
   }
 
-  static String labelFromValue(String value) {
+  static String labelFromValue(String value, AppLocalizations l10n) {
     switch (value) {
       case small:
-        return '小';
+        return l10n.fontScaleSmall;
       case large:
-        return '大';
+        return l10n.fontScaleLarge;
       case medium:
       default:
-        return '中';
+        return l10n.fontScaleMedium;
     }
   }
 

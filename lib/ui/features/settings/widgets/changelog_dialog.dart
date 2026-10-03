@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../shared/dialogs/app_dialog.dart';
 
 /// Opens the changelog dialog, rendering the bundled CHANGELOG.md content
@@ -14,7 +15,7 @@ Future<void> showChangelogDialog(BuildContext context) async {
     context: context,
     builder: (dialogContext) => AppDialog<void>(
       key: const ValueKey('changelog-dialog'),
-      title: '更新日志',
+      title: AppLocalizations.of(dialogContext).settingsAboutChangelog,
       constraints: const BoxConstraints(
         minWidth: 520,
         maxWidth: 600,

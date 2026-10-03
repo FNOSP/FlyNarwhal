@@ -309,5 +309,111 @@
   "commonUserInfoLoading": "Loading user info…",
   "@commonUserInfoLoading": {
     "description": "Shown while user info is loading."
+  },
+  "shortcutsTitle": "Keyboard shortcuts",
+  "@shortcutsTitle": {
+    "description": "Title of the shortcut settings dialog."
+  },
+  "shortcutsTabKeyboard": "Keyboard",
+  "@shortcutsTabKeyboard": {
+    "description": "Tab label for keyboard shortcuts."
+  },
+  "shortcutsTabPlayback": "Playback",
+  "@shortcutsTabPlayback": {
+    "description": "Tab label for playback shortcuts."
+  },
+  "shortcutsTabHelp": "Help",
+  "@shortcutsTabHelp": {
+    "description": "Tab label for shortcut help."
+  },
+  "shortcutsRestoreDefaults": "Restore defaults",
+  "@shortcutsRestoreDefaults": {
+    "description": "Button that restores default shortcuts."
+  },
+  "shortcutsSearch": "Search",
+  "@shortcutsSearch": {
+    "description": "Placeholder of the shortcut search box."
+  },
+  "shortcutsPrompt": "Press a key or combination on the keyboard",
+  "@shortcutsPrompt": {
+    "description": "Prompt shown while recording a shortcut."
+  },
+  "sslTrustedTitle": "Trusted SSL certificates",
+  "@sslTrustedTitle": {
+    "description": "Title of the certificate trust dialog."
+  },
+  "sslTrustedEmpty": "No trusted certificates. When server certificate validation fails, you can choose \"Trust this certificate\" in the prompt.",
+  "@sslTrustedEmpty": {
+    "description": "Empty state of the certificate trust list."
+  },
+  "sslTrustedAddedAt": "Added: {time}",
+  "@sslTrustedAddedAt": {
+    "description": "Shows when a certificate was trusted.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "sslTrustedRemove": "Remove",
+  "@sslTrustedRemove": {
+    "description": "Button that removes a trusted certificate."
+  },
+  "sslTrustedRemoveAll": "Clear all",
+  "@sslTrustedRemoveAll": {
+    "description": "Button that clears every trusted certificate."
+  },
+  "sslTrustedRemoveTitle": "Remove trusted certificate",
+  "@sslTrustedRemoveTitle": {
+    "description": "Title of the remove-certificate confirmation."
+  },
+  "sslTrustedRemoveBody": "After removal, the certificate for \"{host}\" will be validated again on the next visit.",
+  "@sslTrustedRemoveBody": {
+    "description": "Body of the remove-certificate confirmation.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "sslTrustedClearTitle": "Clear all trusted certificates",
+  "@sslTrustedClearTitle": {
+    "description": "Title of the clear-all confirmation."
+  },
+  "sslTrustedClearBody": "After clearing, every server certificate will be validated again.",
+  "@sslTrustedClearBody": {
+    "description": "Body of the clear-all confirmation."
+  },
+  "supportAuthorTitle": "Support the author",
+  "@supportAuthorTitle": {
+    "description": "Title of the support-the-author dialog."
+  },
+  "supportAuthorBody": "Your support keeps this project going. If you find it useful, please give it a Star ⭐. Thank you! (^_−)☆",
+  "@supportAuthorBody": {
+    "description": "Body of the support-the-author dialog."
+  },
+  "supportAuthorIssues": "The project still has room to improve. If you hit a problem or a bug, feel free to open an Issue or a PR.",
+  "@supportAuthorIssues": {
+    "description": "Body text inviting bug reports."
+  },
+  "supportAuthorOpenRepo": "Open the GitHub repository",
+  "@supportAuthorOpenRepo": {
+    "description": "Button that opens the GitHub repository."
+  },
+  "supportAuthorLater": "Maybe later",
+  "@supportAuthorLater": {
+    "description": "Button that dismisses the dialog."
+  },
+  "fontScaleSmall": "Small",
+  "@fontScaleSmall": {
+    "description": "Font size option: small."
+  },
+  "fontScaleMedium": "Medium",
+  "@fontScaleMedium": {
+    "description": "Font size option: medium."
+  },
+  "fontScaleLarge": "Large",
+  "@fontScaleLarge": {
+    "description": "Font size option: large."
   }
 }

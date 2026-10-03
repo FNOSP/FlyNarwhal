@@ -270,4 +270,84 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commonUserInfoLoading => 'Loading user info…';
+
+  @override
+  String get shortcutsTitle => 'Keyboard shortcuts';
+
+  @override
+  String get shortcutsTabKeyboard => 'Keyboard';
+
+  @override
+  String get shortcutsTabPlayback => 'Playback';
+
+  @override
+  String get shortcutsTabHelp => 'Help';
+
+  @override
+  String get shortcutsRestoreDefaults => 'Restore defaults';
+
+  @override
+  String get shortcutsSearch => 'Search';
+
+  @override
+  String get shortcutsPrompt => 'Press a key or combination on the keyboard';
+
+  @override
+  String get sslTrustedTitle => 'Trusted SSL certificates';
+
+  @override
+  String get sslTrustedEmpty =>
+      'No trusted certificates. When server certificate validation fails, you can choose \"Trust this certificate\" in the prompt.';
+
+  @override
+  String sslTrustedAddedAt(String time) {
+    return 'Added: $time';
+  }
+
+  @override
+  String get sslTrustedRemove => 'Remove';
+
+  @override
+  String get sslTrustedRemoveAll => 'Clear all';
+
+  @override
+  String get sslTrustedRemoveTitle => 'Remove trusted certificate';
+
+  @override
+  String sslTrustedRemoveBody(String host) {
+    return 'After removal, the certificate for \"$host\" will be validated again on the next visit.';
+  }
+
+  @override
+  String get sslTrustedClearTitle => 'Clear all trusted certificates';
+
+  @override
+  String get sslTrustedClearBody =>
+      'After clearing, every server certificate will be validated again.';
+
+  @override
+  String get supportAuthorTitle => 'Support the author';
+
+  @override
+  String get supportAuthorBody =>
+      'Your support keeps this project going. If you find it useful, please give it a Star ⭐. Thank you! (^_−)☆';
+
+  @override
+  String get supportAuthorIssues =>
+      'The project still has room to improve. If you hit a problem or a bug, feel free to open an Issue or a PR.';
+
+  @override
+  String get supportAuthorOpenRepo => 'Open the GitHub repository';
+
+  @override
+  String get supportAuthorLater => 'Maybe later';
+
+  @override
+  String get fontScaleSmall => 'Small';
+
+  @override
+  String get fontScaleMedium => 'Medium';
+
+  @override
+  String get fontScaleLarge => 'Large';
 }

@@ -572,6 +572,150 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'正在加载用户信息…'**
   String get commonUserInfoLoading;
+
+  /// Title of the shortcut settings dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'快捷键设置'**
+  String get shortcutsTitle;
+
+  /// Tab label for keyboard shortcuts.
+  ///
+  /// In zh, this message translates to:
+  /// **'快捷键'**
+  String get shortcutsTabKeyboard;
+
+  /// Tab label for playback shortcuts.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放'**
+  String get shortcutsTabPlayback;
+
+  /// Tab label for shortcut help.
+  ///
+  /// In zh, this message translates to:
+  /// **'说明'**
+  String get shortcutsTabHelp;
+
+  /// Button that restores default shortcuts.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复默认'**
+  String get shortcutsRestoreDefaults;
+
+  /// Placeholder of the shortcut search box.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索'**
+  String get shortcutsSearch;
+
+  /// Prompt shown while recording a shortcut.
+  ///
+  /// In zh, this message translates to:
+  /// **'请在键盘按下快捷键或组合'**
+  String get shortcutsPrompt;
+
+  /// Title of the certificate trust dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'SSL 证书信任列表'**
+  String get sslTrustedTitle;
+
+  /// Empty state of the certificate trust list.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无信任的证书。当服务器证书校验失败时，可以在提示中选择「信任此证书」。'**
+  String get sslTrustedEmpty;
+
+  /// Shows when a certificate was trusted.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加时间：{time}'**
+  String sslTrustedAddedAt(String time);
+
+  /// Button that removes a trusted certificate.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除'**
+  String get sslTrustedRemove;
+
+  /// Button that clears every trusted certificate.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部清除'**
+  String get sslTrustedRemoveAll;
+
+  /// Title of the remove-certificate confirmation.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除信任的证书'**
+  String get sslTrustedRemoveTitle;
+
+  /// Body of the remove-certificate confirmation.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除后，再次访问「{host}」时该证书会重新校验。'**
+  String sslTrustedRemoveBody(String host);
+
+  /// Title of the clear-all confirmation.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除全部信任的证书'**
+  String get sslTrustedClearTitle;
+
+  /// Body of the clear-all confirmation.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除后，所有服务器的证书都会重新校验。'**
+  String get sslTrustedClearBody;
+
+  /// Title of the support-the-author dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持作者'**
+  String get supportAuthorTitle;
+
+  /// Body of the support-the-author dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'您的支持就是我持续更新的动力，如果觉得好用的话，请给项目点一个 Star ⭐，谢谢！(^_−)☆'**
+  String get supportAuthorBody;
+
+  /// Body text inviting bug reports.
+  ///
+  /// In zh, this message translates to:
+  /// **'项目诚然还有很多地方需要完善，如果遇到软件问题或者 Bug 欢迎提交 Issue 或者 PR。'**
+  String get supportAuthorIssues;
+
+  /// Button that opens the GitHub repository.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开 Github 仓库'**
+  String get supportAuthorOpenRepo;
+
+  /// Button that dismisses the dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'稍后再说'**
+  String get supportAuthorLater;
+
+  /// Font size option: small.
+  ///
+  /// In zh, this message translates to:
+  /// **'小'**
+  String get fontScaleSmall;
+
+  /// Font size option: medium.
+  ///
+  /// In zh, this message translates to:
+  /// **'中'**
+  String get fontScaleMedium;
+
+  /// Font size option: large.
+  ///
+  /// In zh, this message translates to:
+  /// **'大'**
+  String get fontScaleLarge;
 }
 
 class _AppLocalizationsDelegate
