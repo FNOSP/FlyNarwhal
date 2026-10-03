@@ -7,7 +7,9 @@ import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/episode_list_response.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/season_list_response.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/providers.dart';
+import '../../settings/app_language.dart';
 
 part 'tv_season_detail_view_model.g.dart';
 
@@ -107,7 +109,8 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
     final itemResult = await _fetchItemDetailResult(guid);
     final item = itemResult.dataOrNull;
     if (item == null) {
-      throw Exception(itemResult.failureOrNull?.displayMessage ?? '未找到分季信息');
+      throw Exception(itemResult.failureOrNull?.displayMessage ??
+          lookupAppLocalizations(AppLanguage.localeFromValue(ref.read(settingsProvider).language)).tvDetailSeasonNotFound);
     }
 
     // The web season page renders the header backdrop from the parent TV
@@ -204,9 +207,11 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
   }
 
   Future<ActionResult> toggleWatched() async {
+    final l10n = lookupAppLocalizations(AppLanguage.localeFromValue(ref.read(settingsProvider).language));
     final item = state.value?.item;
     if (item == null) {
-      return const ActionResult(success: false, message: '未找到分季信息');
+      return ActionResult(
+          success: false, message: l10n.tvDetailSeasonNotFound);
     }
 
     try {
@@ -232,12 +237,14 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
         ));
         return ActionResult(
           success: true,
-          message: isWatched ? '标记为未观看' : '标记为已观看',
+          message:
+              isWatched ? l10n.toastMarkedUnwatched : l10n.toastMarkedWatched,
         );
       }
       return ActionResult(
         success: false,
-        message: response.failureOrNull?.displayMessage ?? '操作失败',
+        message:
+            response.failureOrNull?.displayMessage ?? l10n.toastOperationFailed,
       );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());

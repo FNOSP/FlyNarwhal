@@ -4,12 +4,16 @@ class LoginJsInjectionBuilder {
     required this.autoLoginPasswordLiteral,
     required this.allowAutoLogin,
     required this.usernameHistoryJsonLiteral,
+    required this.rememberPasswordLabel,
   });
 
   final String autoLoginUsernameLiteral;
   final String autoLoginPasswordLiteral;
   final bool allowAutoLogin;
   final String usernameHistoryJsonLiteral;
+
+  /// Localized "remember password" label injected into the NAS login page.
+  final String rememberPasswordLabel;
 
   String build() {
     return '''
@@ -126,7 +130,7 @@ class LoginJsInjectionBuilder {
     checkmark.style.cssText = 'display:none;color:#fff;font-size:14px;font-weight:bold;';
     box.appendChild(checkmark);
     var label = document.createElement('span');
-    label.textContent = '记住密码';
+    label.textContent = $rememberPasswordLabel;
     label.style.cssText = 'font-size:16px;line-height:22px;color:#fff;';
 
     function renderRememberPassword() {

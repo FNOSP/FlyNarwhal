@@ -900,5 +900,1225 @@
   "nasBrowserEmpty": "Nothing here",
   "@nasBrowserEmpty": {
     "description": "Empty state of the NAS file browser."
+  },
+  "actionPlay": "Play",
+  "@actionPlay": {
+    "description": "Play button label."
+  },
+  "actionContinuePlay": "Continue playing",
+  "@actionContinuePlay": {
+    "description": "Play button label when resuming playback."
+  },
+  "actionFavoriteAdd": "Add to favorites",
+  "@actionFavoriteAdd": {
+    "description": "Tooltip that adds the item to favorites."
+  },
+  "actionFavoriteRemove": "Remove from favorites",
+  "@actionFavoriteRemove": {
+    "description": "Tooltip that removes the item from favorites."
+  },
+  "actionMarkWatched": "Mark as watched",
+  "@actionMarkWatched": {
+    "description": "Tooltip or menu item that marks the item watched."
+  },
+  "actionMarkUnwatched": "Mark as unwatched",
+  "@actionMarkUnwatched": {
+    "description": "Tooltip or menu item that marks the item unwatched."
+  },
+  "actionMore": "More actions",
+  "@actionMore": {
+    "description": "Tooltip of the more-actions button."
+  },
+  "actionMore2": "More",
+  "@actionMore2": {
+    "description": "Inline link that expands a truncated description."
+  },
+  "toastFavoriteAdded": "Added to favorites",
+  "@toastFavoriteAdded": {
+    "description": "Toast shown after adding to favorites."
+  },
+  "toastFavoriteRemoved": "Removed from favorites",
+  "@toastFavoriteRemoved": {
+    "description": "Toast shown after removing from favorites."
+  },
+  "toastMarkedUnwatched": "Marked as unwatched",
+  "@toastMarkedUnwatched": {
+    "description": "Toast shown after marking unwatched."
+  },
+  "toastMarkedWatched": "Marked as watched",
+  "@toastMarkedWatched": {
+    "description": "Toast shown after marking watched."
+  },
+  "toastOperationFailed": "Operation failed",
+  "@toastOperationFailed": {
+    "description": "Generic failure message when an action fails."
+  },
+  "toastOperationFailedReason": "Operation failed: {message}",
+  "@toastOperationFailedReason": {
+    "description": "Failure toast that appends the underlying error.",
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaInfoNoOverview": "No overview available",
+  "@mediaInfoNoOverview": {
+    "description": "Fallback text when an overview is missing."
+  },
+  "mediaInfoNoInfo": "No information",
+  "@mediaInfoNoInfo": {
+    "description": "Fallback text when media details are empty."
+  },
+  "mediaInfoNoContent": "No content",
+  "@mediaInfoNoContent": {
+    "description": "Empty state of a stream selector flyout."
+  },
+  "mediaInfoFileInfo": "File info",
+  "@mediaInfoFileInfo": {
+    "description": "Heading of the file info section."
+  },
+  "mediaInfoFileLocation": "File location",
+  "@mediaInfoFileLocation": {
+    "description": "Label of the file location row."
+  },
+  "mediaInfoFileSize": "File size",
+  "@mediaInfoFileSize": {
+    "description": "Label of the file size row."
+  },
+  "mediaInfoCreatedDate": "Created",
+  "@mediaInfoCreatedDate": {
+    "description": "Label of the file creation date."
+  },
+  "mediaInfoAddedDate": "Added",
+  "@mediaInfoAddedDate": {
+    "description": "Label of the date the file was added."
+  },
+  "mediaInfoStreamSection": "Video/Audio info",
+  "@mediaInfoStreamSection": {
+    "description": "Heading of the video and audio info section."
+  },
+  "linkLabel": "Link:  ",
+  "@linkLabel": {
+    "description": "Prefix label before the IMDB link."
+  },
+  "imdbLinkLabel": "IMDB link",
+  "@imdbLinkLabel": {
+    "description": "Text of the IMDB link."
+  },
+  "defaultSuffix": "{title} - Default",
+  "@defaultSuffix": {
+    "description": "Appends a default marker to a track name.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "actionViewAll": "View all",
+  "@actionViewAll": {
+    "description": "Link that opens the full media info dialog."
+  },
+  "movieDetailNotFound": "Movie information not found",
+  "@movieDetailNotFound": {
+    "description": "Error shown when the movie cannot be found."
+  },
+  "movieDetailDescriptionTitle": "Movie overview",
+  "@movieDetailDescriptionTitle": {
+    "description": "Title of the movie overview dialog."
+  },
+  "movieDetailEpisodeDescriptionTitle": "Episode overview",
+  "@movieDetailEpisodeDescriptionTitle": {
+    "description": "Title of the episode overview dialog."
+  },
+  "movieDetailSubtitleAddTitle": "Add subtitle",
+  "@movieDetailSubtitleAddTitle": {
+    "description": "Title of the add-subtitle dialog."
+  },
+  "movieDetailSubtitleAlreadyAdded": "This file is already added as a subtitle",
+  "@movieDetailSubtitleAlreadyAdded": {
+    "description": "Toast shown when the file is already a subtitle."
+  },
+  "movieDetailSubtitleAddFailed": "Failed to add subtitle",
+  "@movieDetailSubtitleAddFailed": {
+    "description": "Title of the add-subtitle failure dialog."
+  },
+  "movieDetailSubtitleRetry": "Please try again later: {error}",
+  "@movieDetailSubtitleRetry": {
+    "description": "Add-subtitle failure message.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleSearchMissingFile": "File information is missing; cannot search subtitles",
+  "@movieDetailSubtitleSearchMissingFile": {
+    "description": "Toast shown when the current file info is missing."
+  },
+  "movieDetailSubtitleUploadMissingFile": "File information is missing; cannot upload subtitles",
+  "@movieDetailSubtitleUploadMissingFile": {
+    "description": "Toast shown when the current file info is missing."
+  },
+  "movieDetailSubtitleDownloadSuccess": "Downloaded",
+  "@movieDetailSubtitleDownloadSuccess": {
+    "description": "Toast shown after a subtitle downloads successfully."
+  },
+  "movieDetailSubtitleDownloadFailed": "Failed to download subtitle: {error}",
+  "@movieDetailSubtitleDownloadFailed": {
+    "description": "Toast shown when a subtitle download fails.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleTaskCreated": "Subtitle download task created",
+  "@movieDetailSubtitleTaskCreated": {
+    "description": "Toast shown after a subtitle download task is created."
+  },
+  "movieDetailSubtitleTaskFailed": "Failed to create subtitle download task; please retry",
+  "@movieDetailSubtitleTaskFailed": {
+    "description": "Toast shown when creating a subtitle download task fails."
+  },
+  "movieDetailSubtitleExternalSuffix": " - External",
+  "@movieDetailSubtitleExternalSuffix": {
+    "description": "Appends an external marker to a subtitle display name."
+  },
+  "movieDetailSubtitleDeleteTitle": "Delete external subtitle",
+  "@movieDetailSubtitleDeleteTitle": {
+    "description": "Title of the delete-subtitle dialog."
+  },
+  "movieDetailSubtitleDeleteConfirm": "Delete the external subtitle {name}?",
+  "@movieDetailSubtitleDeleteConfirm": {
+    "description": "Confirmation body of the delete-subtitle dialog.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleDeleteSuccess": "Subtitle deleted",
+  "@movieDetailSubtitleDeleteSuccess": {
+    "description": "Toast shown after a subtitle is deleted."
+  },
+  "movieDetailSubtitleDeleteFailed": "Failed to delete subtitle: {error}",
+  "@movieDetailSubtitleDeleteFailed": {
+    "description": "Toast shown when deleting a subtitle fails.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleNone": "No subtitles",
+  "@movieDetailSubtitleNone": {
+    "description": "Subtitle selector label when subtitles are off."
+  },
+  "movieDetailSubtitleLanguageLabel": "{language} subtitles",
+  "@movieDetailSubtitleLanguageLabel": {
+    "description": "Subtitle selector label that appends a language name.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailAudioLabel": "Audio",
+  "@movieDetailAudioLabel": {
+    "description": "Audio selector label."
+  },
+  "movieDetailAudioLanguageLabel": "{language} audio",
+  "@movieDetailAudioLanguageLabel": {
+    "description": "Audio selector label that appends a language name.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailAudioStereo": "Stereo",
+  "@movieDetailAudioStereo": {
+    "description": "Audio type label for stereo."
+  },
+  "movieDetailRemaining": "{time} left",
+  "@movieDetailRemaining": {
+    "description": "Remaining playback time under the progress bar.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSmartAnalysisStatus": "Intro/outro detection status: {status}",
+  "@movieDetailSmartAnalysisStatus": {
+    "description": "Tag showing the smart analysis status.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailDolbyVision": "Dolby Vision",
+  "@movieDetailDolbyVision": {
+    "description": "Color range label for Dolby Vision."
+  },
+  "movieDetailSubtitleLabel": "Subtitles",
+  "@movieDetailSubtitleLabel": {
+    "description": "Default label of the subtitle selector."
+  },
+  "tvDetailNotFound": "TV series information not found",
+  "@tvDetailNotFound": {
+    "description": "Error shown when the TV series cannot be found."
+  },
+  "tvDetailSeasonNotFound": "Season information not found",
+  "@tvDetailSeasonNotFound": {
+    "description": "Error shown when the season cannot be found."
+  },
+  "tvDetailDescriptionTitle": "Series overview",
+  "@tvDetailDescriptionTitle": {
+    "description": "Title of the series overview dialog."
+  },
+  "tvDetailSmartAnalysis": "Analyze intro/outro",
+  "@tvDetailSmartAnalysis": {
+    "description": "Menu item that triggers smart intro/outro analysis."
+  },
+  "tvDetailSeasonListTitle": "Seasons",
+  "@tvDetailSeasonListTitle": {
+    "description": "Heading of the season list section."
+  },
+  "tvDetailEpisodeNumber": "Episode {number}",
+  "@tvDetailEpisodeNumber": {
+    "description": "Episode number label.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailSeasonNumber": "Season {number}",
+  "@tvDetailSeasonNumber": {
+    "description": "Season number label.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailSeasonEpisodeNumbers": "Season {season} Episode {episode}",
+  "@tvDetailSeasonEpisodeNumbers": {
+    "description": "Combined season and episode label.",
+    "placeholders": {
+      "season": {
+        "type": "String"
+      },
+      "episode": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailEpisodeCount": "{count} episodes",
+  "@tvDetailEpisodeCount": {
+    "description": "Season subtitle showing the episode count.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailEpisodeSectionTitle": "Episodes",
+  "@tvDetailEpisodeSectionTitle": {
+    "description": "Heading of the episode selection section."
+  },
+  "tvDetailUnknownSeason": "Unknown season",
+  "@tvDetailUnknownSeason": {
+    "description": "Fallback season label."
+  },
+  "tvDetailSeasonTitleSummary": "{title} · {count} seasons",
+  "@tvDetailSeasonTitleSummary": {
+    "description": "Title of the season selection dialog.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailEpisodeNoneOverview": "No episode overview",
+  "@tvDetailEpisodeNoneOverview": {
+    "description": "Fallback text when an episode overview is missing."
+  },
+  "tvDetailEpisodeRuntime": "{minutes} min",
+  "@tvDetailEpisodeRuntime": {
+    "description": "Episode runtime in minutes.",
+    "placeholders": {
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailRuntimeUnknown": "Unknown duration",
+  "@tvDetailRuntimeUnknown": {
+    "description": "Fallback when the runtime is unknown."
+  },
+  "tvDetailScore": "{score}",
+  "@tvDetailScore": {
+    "description": "Rating score tag.",
+    "placeholders": {
+      "score": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailPlayEpisode": "Play this episode",
+  "@tvDetailPlayEpisode": {
+    "description": "Menu item that plays the current episode."
+  },
+  "tvDetailSmartAnalysisStatus": "Smart analysis: {status}",
+  "@tvDetailSmartAnalysisStatus": {
+    "description": "Label showing the season analysis status.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailAnalysisFetching": "Fetching",
+  "@tvDetailAnalysisFetching": {
+    "description": "Season analysis status while loading."
+  },
+  "tvDetailAnalysisNotDetected": "Not detected",
+  "@tvDetailAnalysisNotDetected": {
+    "description": "Season analysis status when not detected."
+  },
+  "tvDetailAnalysisFailed": "Fetch failed",
+  "@tvDetailAnalysisFailed": {
+    "description": "Season analysis status when fetching fails."
+  },
+  "tvDetailAnalysisPreparing": "Preparing",
+  "@tvDetailAnalysisPreparing": {
+    "description": "Season analysis status while preparing."
+  },
+  "tvDetailAnalysisPending": "Pending",
+  "@tvDetailAnalysisPending": {
+    "description": "Season analysis status while pending."
+  },
+  "tvDetailAnalysisInProgress": "Analyzing",
+  "@tvDetailAnalysisInProgress": {
+    "description": "Season analysis status while running."
+  },
+  "tvDetailAnalysisPartialSuccess": "Partially succeeded",
+  "@tvDetailAnalysisPartialSuccess": {
+    "description": "Season analysis status on partial success."
+  },
+  "tvDetailAnalysisCompleted": "Completed",
+  "@tvDetailAnalysisCompleted": {
+    "description": "Season analysis status when completed."
+  },
+  "tvDetailAnalysisStatusFailed": "Failed",
+  "@tvDetailAnalysisStatusFailed": {
+    "description": "Season analysis status when failed."
+  },
+  "mediaTypeMovie": "Movie",
+  "@mediaTypeMovie": {
+    "description": "Media type label."
+  },
+  "mediaTypeTv": "TV show",
+  "@mediaTypeTv": {
+    "description": "Media type label."
+  },
+  "mediaTypeDirectory": "Folder",
+  "@mediaTypeDirectory": {
+    "description": "Media type label."
+  },
+  "mediaTypeOther": "Other",
+  "@mediaTypeOther": {
+    "description": "Media type label."
+  },
+  "mediaTypeLive": "Live TV",
+  "@mediaTypeLive": {
+    "description": "Media type label."
+  },
+  "mediaTypeEpisode": "Episode",
+  "@mediaTypeEpisode": {
+    "description": "Media type label."
+  },
+  "mediaTypeSeason": "Season",
+  "@mediaTypeSeason": {
+    "description": "Media type label."
+  },
+  "mediaSeasonCount": "{count} seasons",
+  "@mediaSeasonCount": {
+    "description": "Poster subtitle for a show with several seasons.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaSeasonNumber": "Season {number}",
+  "@mediaSeasonNumber": {
+    "description": "Poster subtitle for a single season.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaEpisodeCount": "{count} episodes",
+  "@mediaEpisodeCount": {
+    "description": "Poster subtitle for an episode count.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaEpisodeDetail": "Season {season} · Episode {episode}",
+  "@mediaEpisodeDetail": {
+    "description": "Play detail subtitle for an episode.",
+    "placeholders": {
+      "season": {
+        "type": "String"
+      },
+      "episode": {
+        "type": "String"
+      }
+    }
+  },
+  "cloudStorageBaiduPan": "Baidu Netdisk",
+  "@cloudStorageBaiduPan": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorageAliyunDrive": "Aliyun Drive",
+  "@cloudStorageAliyunDrive": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorage115": "115 Life",
+  "@cloudStorage115": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorageQuark": "Quark Drive",
+  "@cloudStorageQuark": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorage123": "123 Cloud Drive",
+  "@cloudStorage123": {
+    "description": "Cloud storage provider name."
+  },
+  "loginRememberPassword": "Remember password",
+  "@loginRememberPassword": {
+    "description": "Label of the remember-password checkbox on the login form."
+  },
+  "loginWebViewInjectedPlaceholder": "Login page",
+  "@loginWebViewInjectedPlaceholder": {
+    "description": "Fallback label for the injected remember-password checkbox on the NAS login web page."
+  },
+  "updateCurrentVersionLabel": "Currently installed version",
+  "@updateCurrentVersionLabel": {
+    "description": "Fallback label shown when the installed app version is unknown."
+  },
+  "updateManualDownloadOpenFailed": "Could not open the manual download page. Please try again later.",
+  "@updateManualDownloadOpenFailed": {
+    "description": "Toast shown when opening the manual download page fails."
+  },
+  "updateOpenLinkFailed": "Could not open the link. Please try again later.",
+  "@updateOpenLinkFailed": {
+    "description": "Toast shown when opening an update link fails."
+  },
+  "updateBadgeSemanticLabel": "New version {version} available. Open update details.",
+  "@updateBadgeSemanticLabel": {
+    "description": "Accessibility label of the update badge in the title bar.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDialogTitleChecking": "Check for updates",
+  "@updateDialogTitleChecking": {
+    "description": "Update dialog title while checking for updates."
+  },
+  "updateDialogTitleAvailable": "Update available",
+  "@updateDialogTitleAvailable": {
+    "description": "Update dialog title when a new version is available."
+  },
+  "updateDialogTitleDownloading": "Downloading update",
+  "@updateDialogTitleDownloading": {
+    "description": "Update dialog title while downloading."
+  },
+  "updateDialogTitleDownloaded": "Download complete",
+  "@updateDialogTitleDownloaded": {
+    "description": "Update dialog title after the download completes."
+  },
+  "updateDialogTitleVerifying": "Verifying update",
+  "@updateDialogTitleVerifying": {
+    "description": "Update dialog title while verifying the package."
+  },
+  "updateDialogTitleReadyToInstall": "Ready to install",
+  "@updateDialogTitleReadyToInstall": {
+    "description": "Update dialog title when the update is ready to install."
+  },
+  "updateDialogTitleInstalling": "Starting installation",
+  "@updateDialogTitleInstalling": {
+    "description": "Update dialog title while launching the installer."
+  },
+  "updateDialogTitleCheckFailed": "Update check failed",
+  "@updateDialogTitleCheckFailed": {
+    "description": "Update dialog title when checking for updates failed."
+  },
+  "updateDialogTitleDownloadFailed": "Update download failed",
+  "@updateDialogTitleDownloadFailed": {
+    "description": "Update dialog title when the download failed."
+  },
+  "updateDialogTitleVerificationFailed": "Update verification failed",
+  "@updateDialogTitleVerificationFailed": {
+    "description": "Update dialog title when package verification failed."
+  },
+  "updateDialogTitleInstallFailed": "Installation failed",
+  "@updateDialogTitleInstallFailed": {
+    "description": "Update dialog title when launching the installer failed."
+  },
+  "updateDialogTitleAutomaticDownloadExhausted": "Automatic download incomplete",
+  "@updateDialogTitleAutomaticDownloadExhausted": {
+    "description": "Update dialog title when the automatic download did not finish."
+  },
+  "updateDialogTitleNone": "App update",
+  "@updateDialogTitleNone": {
+    "description": "Update dialog title in the idle state."
+  },
+  "updateActionCheckInBackground": "Check in background",
+  "@updateActionCheckInBackground": {
+    "description": "Update dialog button to keep checking in the background."
+  },
+  "updateActionSkipVersion": "Skip this version",
+  "@updateActionSkipVersion": {
+    "description": "Update dialog button to skip this version."
+  },
+  "updateActionLater": "Later",
+  "@updateActionLater": {
+    "description": "Update dialog button to postpone the update."
+  },
+  "updateActionDownload": "Download update",
+  "@updateActionDownload": {
+    "description": "Update dialog button to download the update."
+  },
+  "updateActionDownloadInBackground": "Download in background",
+  "@updateActionDownloadInBackground": {
+    "description": "Update dialog button to continue downloading in the background."
+  },
+  "updateActionCancelDownload": "Cancel download",
+  "@updateActionCancelDownload": {
+    "description": "Update dialog button to cancel the download."
+  },
+  "updateActionInstallLater": "Install later",
+  "@updateActionInstallLater": {
+    "description": "Update dialog button to install later."
+  },
+  "updateActionQuitAndInstall": "Quit and install",
+  "@updateActionQuitAndInstall": {
+    "description": "Update dialog button to quit and install now."
+  },
+  "updateActionRunInBackground": "Run in background",
+  "@updateActionRunInBackground": {
+    "description": "Update dialog button to let the update run in the background."
+  },
+  "updateActionRetryDownload": "Download again",
+  "@updateActionRetryDownload": {
+    "description": "Update dialog button to download the update again."
+  },
+  "updateActionRetryInstall": "Retry installation",
+  "@updateActionRetryInstall": {
+    "description": "Update dialog button to retry the installation."
+  },
+  "updateActionManualDownload": "Manual download",
+  "@updateActionManualDownload": {
+    "description": "Update dialog button to open the manual download page."
+  },
+  "updateActionClose": "Close",
+  "@updateActionClose": {
+    "description": "Update dialog button to close the dialog."
+  },
+  "updateStatusCheckingMessage": "Fetching update information from GitHub Releases…",
+  "@updateStatusCheckingMessage": {
+    "description": "Update dialog status while fetching update information."
+  },
+  "updateStatusUpToDate": "You are on the latest version.",
+  "@updateStatusUpToDate": {
+    "description": "Update dialog status when the app is up to date."
+  },
+  "updateStatusDownloadedMessage": "The update has been downloaded. You can install it later or quit and install now.",
+  "@updateStatusDownloadedMessage": {
+    "description": "Update dialog status after the download completes."
+  },
+  "updateStatusReadyMessage": "A downloaded update is ready to install.",
+  "@updateStatusReadyMessage": {
+    "description": "Update dialog status when a downloaded update was found."
+  },
+  "updateStatusVerifyingMessage": "Verifying the update package securely, please wait…",
+  "@updateStatusVerifyingMessage": {
+    "description": "Update dialog status while verifying the package."
+  },
+  "updateStatusInstallingMessage": "Launching the system installer. Do not repeat this action.",
+  "@updateStatusInstallingMessage": {
+    "description": "Update dialog status while launching the installer."
+  },
+  "updateStatusIdleMessage": "No update check has been run yet.",
+  "@updateStatusIdleMessage": {
+    "description": "Update dialog status before any check has been run."
+  },
+  "updateVersionLine": "Version {version} (current {current})",
+  "@updateVersionLine": {
+    "description": "Update dialog line showing the new version and the current version.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "current": {
+        "type": "String"
+      }
+    }
+  },
+  "updatePackageSize": "Package size {size}",
+  "@updatePackageSize": {
+    "description": "Update dialog line showing the download size.",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "updateReleaseNotesHeader": "What's new",
+  "@updateReleaseNotesHeader": {
+    "description": "Heading of the release-notes section in the update dialog."
+  },
+  "updateDownloadingPackage": "Downloading update package",
+  "@updateDownloadingPackage": {
+    "description": "Fallback text used while downloading when the asset name is unknown."
+  },
+  "updateDownloadedSize": "Downloaded {size}",
+  "@updateDownloadedSize": {
+    "description": "Update dialog text showing the downloaded size.",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloadProgress": "{received} / {total}",
+  "@updateDownloadProgress": {
+    "description": "Update dialog text showing download progress.",
+    "placeholders": {
+      "received": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "updateErrorRateLimited": "The GitHub API rate limit was reached. It usually recovers automatically, so please try again later.",
+  "@updateErrorRateLimited": {
+    "description": "Failure summary when the GitHub API rate limit is reached."
+  },
+  "updateErrorVerificationFailed": "The update package failed the security check. Please download it again.",
+  "@updateErrorVerificationFailed": {
+    "description": "Failure summary when the update package failed verification."
+  },
+  "updateErrorCheckFailed": "Could not fetch update information. Check your network and try again.",
+  "@updateErrorCheckFailed": {
+    "description": "Failure summary when checking for updates failed."
+  },
+  "updateErrorDownloadFailed": "The update download did not finish. Please try again later.",
+  "@updateErrorDownloadFailed": {
+    "description": "Failure summary when the update download failed."
+  },
+  "updateErrorInstallFailed": "Could not launch the system installer. Please try again later.",
+  "@updateErrorInstallFailed": {
+    "description": "Failure summary when launching the installer failed."
+  },
+  "updateErrorAutomaticDownloadExhausted": "The automatic download did not finish after several attempts. You can retry later or download manually from the release page.",
+  "@updateErrorAutomaticDownloadExhausted": {
+    "description": "Failure summary when the automatic download was exhausted."
+  },
+  "updateErrorGeneric": "The update did not complete. Please try again later.",
+  "@updateErrorGeneric": {
+    "description": "Generic failure summary for update operations."
+  },
+  "updateMarkdownEmpty": "No release notes were provided for this update.",
+  "@updateMarkdownEmpty": {
+    "description": "Placeholder shown when the release notes are empty."
+  },
+  "updateMarkdownRemoteImageAlt": "Remote image",
+  "@updateMarkdownRemoteImageAlt": {
+    "description": "Alt text for a blocked remote image in the release notes."
+  },
+  "updateMarkdownRemoteImageBlocked": "Remote image blocked: {alt}",
+  "@updateMarkdownRemoteImageBlocked": {
+    "description": "Label for a blocked remote image in the release notes.",
+    "placeholders": {
+      "alt": {
+        "type": "String"
+      }
+    }
+  },
+  "updateMarkdownTruncatedSuffix": "\n\nRelease notes were too long and have been truncated.",
+  "@updateMarkdownTruncatedSuffix": {
+    "description": "Suffix appended to release notes when they exceed the maximum length."
+  },
+  "loginHostOrFnIdPlaceholder": "Enter IP:Port, domain, or FN ID",
+  "@loginHostOrFnIdPlaceholder": {
+    "description": "Login field placeholder for the NAS host or FN ID."
+  },
+  "loginHostValidationMessage": "Enter a valid IP, domain, or FN ID",
+  "@loginHostValidationMessage": {
+    "description": "Toast shown when the entered host or FN ID is invalid."
+  },
+  "loginHostRequiredMessage": "Enter IP, domain, or FN ID",
+  "@loginHostRequiredMessage": {
+    "description": "Toast shown when the host field is empty."
+  },
+  "loginUsernameRequiredMessage": "Enter your username",
+  "@loginUsernameRequiredMessage": {
+    "description": "Toast shown when the username field is empty."
+  },
+  "loginPasswordRequiredMessage": "Enter your password",
+  "@loginPasswordRequiredMessage": {
+    "description": "Toast shown when the password field is empty."
+  },
+  "loginWebViewInitFailed": "The browser component failed to initialize. Please try again later.",
+  "@loginWebViewInitFailed": {
+    "description": "Toast shown when preparing the WebView for NAS login fails."
+  },
+  "loginHostPlaceholder": "Enter IP, domain, or FN ID",
+  "@loginHostPlaceholder": {
+    "description": "Login field placeholder for the host."
+  },
+  "loginPortPlaceholder": "Port",
+  "@loginPortPlaceholder": {
+    "description": "Login field placeholder for the port."
+  },
+  "loginUsernameLabel": "Username",
+  "@loginUsernameLabel": {
+    "description": "Login field placeholder for the username."
+  },
+  "loginPasswordLabel": "Password",
+  "@loginPasswordLabel": {
+    "description": "Login field placeholder for the password."
+  },
+  "loginUseNasLogin": "Sign in with NAS",
+  "@loginUseNasLogin": {
+    "description": "Login toggle label to sign in with a NAS account."
+  },
+  "loginHttpsSecureAccess": "HTTPS secure access",
+  "@loginHttpsSecureAccess": {
+    "description": "Login toggle label for enabling HTTPS."
+  },
+  "loginNext": "Next",
+  "@loginNext": {
+    "description": "Login button label for the NAS probe step."
+  },
+  "loginSignIn": "Sign in",
+  "@loginSignIn": {
+    "description": "Login button label."
+  },
+  "loginVerifyingServer": "Verifying server…",
+  "@loginVerifyingServer": {
+    "description": "Login web view toolbar text while verifying the server."
+  },
+  "loginInvalidCredentials": "Incorrect username or password",
+  "@loginInvalidCredentials": {
+    "description": "Toast shown when the username or password is wrong."
+  },
+  "loginServerHttpError": "The server returned an error (HTTP {status}). Check the service status.",
+  "@loginServerHttpError": {
+    "description": "Login error for a non-success HTTP response.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "loginSslCertificateFailed": "SSL certificate verification failed. Check the HTTPS setting or the server certificate.",
+  "@loginSslCertificateFailed": {
+    "description": "Login error for an SSL certificate failure."
+  },
+  "loginConnectionTimeout": "Timed out connecting to the server. Check the server address or your network.",
+  "@loginConnectionTimeout": {
+    "description": "Login error for a connection timeout."
+  },
+  "loginConnectionFailed": "Could not connect to the server. Check the address, port, or network.",
+  "@loginConnectionFailed": {
+    "description": "Login error when the server is unreachable."
+  },
+  "loginRequestCancelled": "The sign-in request was cancelled.",
+  "@loginRequestCancelled": {
+    "description": "Login error when the request was cancelled."
+  },
+  "loginFailedCheckServer": "Sign-in failed. Check the server address or try again later.",
+  "@loginFailedCheckServer": {
+    "description": "Login error for an unknown or bad response."
+  },
+  "loginFailedCheckNetwork": "Sign-in failed. Check your network or server settings.",
+  "@loginFailedCheckNetwork": {
+    "description": "Generic login error message."
+  },
+  "loginFailedTokenEmpty": "Sign-in failed: empty token",
+  "@loginFailedTokenEmpty": {
+    "description": "Login error when the NAS flow returns an empty token."
+  },
+  "loginFailedWithError": "Sign-in failed: {error}",
+  "@loginFailedWithError": {
+    "description": "Login error with the underlying error message.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginAuthFailed": "Authentication failed",
+  "@loginAuthFailed": {
+    "description": "Fallback login error when the server rejects the token exchange."
+  },
+  "loginFnIdEmpty": "FN ID cannot be empty",
+  "@loginFnIdEmpty": {
+    "description": "Validation error when resolving an empty FN ID."
+  },
+  "loginHistoryTitle": "Login history",
+  "@loginHistoryTitle": {
+    "description": "Title of the login history sidebar."
+  },
+  "loginHistoryEmpty": "No history yet",
+  "@loginHistoryEmpty": {
+    "description": "Empty state of the login history sidebar."
+  },
+  "homeRetryLoad": "Failed to load. Click to retry",
+  "@homeRetryLoad": {
+    "description": "Retry button shown when the media library row fails to load."
+  },
+  "homeTitle": "Home",
+  "@homeTitle": {
+    "description": "Title of the home page."
+  },
+  "homeContinueWatching": "Continue watching",
+  "@homeContinueWatching": {
+    "description": "Title of the continue-watching row on the home page."
+  },
+  "homeMediaLibrary": "Media library",
+  "@homeMediaLibrary": {
+    "description": "Heading of the media library card row on the home page."
+  },
+  "homeContinueRemoved": "Removed from Continue watching",
+  "@homeContinueRemoved": {
+    "description": "Toast shown after an item is removed from continue watching."
+  },
+  "homeContinueRemoveFailed": "Failed to remove",
+  "@homeContinueRemoveFailed": {
+    "description": "Toast shown when removing an item from continue watching fails."
+  },
+  "homeContinueRemoveError": "Failed to remove: {error}",
+  "@homeContinueRemoveError": {
+    "description": "Toast shown when removing an item from continue watching throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDeleteDialogTitle": "Delete \"{title}\"",
+  "@homeDeleteDialogTitle": {
+    "description": "Title of the delete-video confirmation dialog.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDeleteDialogBody": "After removing it from the library, the selected video files will no longer be scanned into this library. Choose whether to also delete the associated video files.",
+  "@homeDeleteDialogBody": {
+    "description": "Body text of the delete-video confirmation dialog."
+  },
+  "homeDeleteRemoveAndDeleteFile": "Remove and delete files",
+  "@homeDeleteRemoveAndDeleteFile": {
+    "description": "Delete dialog button to remove the entry and delete the files."
+  },
+  "homeDeleteRemoveOnly": "Remove only",
+  "@homeDeleteRemoveOnly": {
+    "description": "Delete dialog button to remove the entry but keep the files."
+  },
+  "homeDeleted": "Deleted",
+  "@homeDeleted": {
+    "description": "Toast shown after the video is deleted."
+  },
+  "homeDeleteFailed": "Delete failed",
+  "@homeDeleteFailed": {
+    "description": "Toast shown when deleting the video fails."
+  },
+  "homeDeleteFailedWithError": "Delete failed: {error}",
+  "@homeDeleteFailedWithError": {
+    "description": "Toast shown when deleting the video throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeFavoriteRemoved": "Removed from favorites",
+  "@homeFavoriteRemoved": {
+    "description": "Toast shown after removing an item from favorites."
+  },
+  "homeFavorited": "Added to favorites",
+  "@homeFavorited": {
+    "description": "Toast shown after adding an item to favorites."
+  },
+  "homeMarkedUnwatched": "Marked as unwatched",
+  "@homeMarkedUnwatched": {
+    "description": "Toast shown after marking an item as unwatched."
+  },
+  "homeMarkedWatched": "Marked as watched",
+  "@homeMarkedWatched": {
+    "description": "Toast shown after marking an item as watched."
+  },
+  "homeActionFailed": "Operation failed",
+  "@homeActionFailed": {
+    "description": "Toast shown when a favorite or watched action fails."
+  },
+  "homeActionFailedWithError": "Operation failed: {error}",
+  "@homeActionFailedWithError": {
+    "description": "Toast shown when a favorite or watched action throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeMenuRemoveFromContinue": "Remove from Continue watching",
+  "@homeMenuRemoveFromContinue": {
+    "description": "More-menu entry to remove an item from continue watching."
+  },
+  "homeMenuResume": "Resume playback",
+  "@homeMenuResume": {
+    "description": "More-menu entry to resume playback."
+  },
+  "homeMenuRestart": "Play from the beginning",
+  "@homeMenuRestart": {
+    "description": "More-menu entry to restart playback from the beginning."
+  },
+  "homeMenuDeleteVideo": "Delete video",
+  "@homeMenuDeleteVideo": {
+    "description": "More-menu entry to delete the video."
+  },
+  "searchPlaceholder": "Search titles or actors",
+  "@searchPlaceholder": {
+    "description": "Placeholder of the capsule search box."
+  },
+  "searchTabAll": "All",
+  "@searchTabAll": {
+    "description": "Search category tab: all."
+  },
+  "searchTabMovie": "Movies",
+  "@searchTabMovie": {
+    "description": "Search category tab: movies."
+  },
+  "searchTabTv": "TV series",
+  "@searchTabTv": {
+    "description": "Search category tab: TV series."
+  },
+  "searchTabLiveChannel": "Live channels",
+  "@searchTabLiveChannel": {
+    "description": "Search category tab: live channels."
+  },
+  "searchTabPerson": "People",
+  "@searchTabPerson": {
+    "description": "Search category tab: people."
+  },
+  "searchTabOther": "Other",
+  "@searchTabOther": {
+    "description": "Search category tab: other."
+  },
+  "searchNoResults": "No results found",
+  "@searchNoResults": {
+    "description": "Empty state of the search dropdown after a search."
+  },
+  "searchEnterKeyword": "Type a keyword to search",
+  "@searchEnterKeyword": {
+    "description": "Empty state of the search dropdown before searching."
+  },
+  "searchWorkCount": "{count} works",
+  "@searchWorkCount": {
+    "description": "Work count shown for a person in the search results.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "searchScoreSuffix": "pts",
+  "@searchScoreSuffix": {
+    "description": "Suffix for the rating score in the search results."
+  },
+  "searchEpisodeCount": "{count} episodes",
+  "@searchEpisodeCount": {
+    "description": "Episode count shown for a TV series in the search results.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "personNoData": "No data",
+  "@personNoData": {
+    "description": "Empty state shown when a person has no record on the server."
+  },
+  "personSectionActor": "As actor",
+  "@personSectionActor": {
+    "description": "Works section title for acting roles."
+  },
+  "personSectionDirector": "As director",
+  "@personSectionDirector": {
+    "description": "Works section title for directing roles."
+  },
+  "personSectionWriter": "As writer",
+  "@personSectionWriter": {
+    "description": "Works section title for writing roles."
+  },
+  "personMore": "More",
+  "@personMore": {
+    "description": "Inline link that opens the full biography."
+  },
+  "personBiographyTitle": "Biography",
+  "@personBiographyTitle": {
+    "description": "Title of the full-biography dialog."
+  },
+  "commonDelete": "Delete",
+  "@commonDelete": {
+    "description": "Generic delete button label."
+  },
+  "forgotPasswordTitle": "Forgot password?",
+  "@forgotPasswordTitle": {
+    "description": "Title and link label of the forgot-password dialog."
+  },
+  "storageExternal": "External storage",
+  "@storageExternal": {
+    "description": "Sidebar label for an external storage mount."
+  },
+  "storageRemoteMount": "Remote mount",
+  "@storageRemoteMount": {
+    "description": "Sidebar label for a remote mount."
+  },
+  "storageVolumeName": "Volume {number}",
+  "@storageVolumeName": {
+    "description": "Label for a numbered storage volume.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "durationHoursMinutes": "{hours} h {minutes} min",
+  "@durationHoursMinutes": {
+    "description": "Duration with hours and minutes.",
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
+  "durationHours": "{hours} h",
+  "@durationHours": {
+    "description": "Duration in hours.",
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      }
+    }
+  },
+  "durationMinutesSeconds": "{minutes} min {seconds} s",
+  "@durationMinutesSeconds": {
+    "description": "Duration with minutes and seconds.",
+    "placeholders": {
+      "minutes": {
+        "type": "String"
+      },
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "durationMinutes": "{minutes} min",
+  "@durationMinutes": {
+    "description": "Duration in minutes.",
+    "placeholders": {
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
+  "durationZeroMinutes": "0 min",
+  "@durationZeroMinutes": {
+    "description": "Zero-length duration."
+  },
+  "authDirUserFiles": "{username}'s files",
+  "@authDirUserFiles": {
+    "description": "Label for a user's authorized directory.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "authDirUnknownUser": "User {uid}",
+  "@authDirUnknownUser": {
+    "description": "Fallback label when the user name is unknown.",
+    "placeholders": {
+      "uid": {
+        "type": "String"
+      }
+    }
+  },
+  "authDirNone": "None",
+  "@authDirNone": {
+    "description": "Empty value placeholder."
+  },
+  "authDirUnknown": "Unknown",
+  "@authDirUnknown": {
+    "description": "Unknown value placeholder."
+  },
+  "mediaStreamAudio": "Audio",
+  "@mediaStreamAudio": {
+    "description": "Media stream kind label."
+  },
+  "mediaStreamVideo": "Video",
+  "@mediaStreamVideo": {
+    "description": "Media stream kind label."
+  },
+  "mediaStreamSubtitle": "Subtitle",
+  "@mediaStreamSubtitle": {
+    "description": "Media stream kind label."
+  },
+  "forgotPasswordBody": "1. If you are a NAS user, try signing in with your NAS account.\n2. Otherwise, contact an administrator to reset your password.",
+  "@forgotPasswordBody": {
+    "description": "Body text of the forgot-password dialog."
+  },
+  "tvDetailEpisodeNumberTitle": "Episode {number} {title}",
+  "@tvDetailEpisodeNumberTitle": {
+    "description": "Episode card title combining the episode number and name.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      },
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleDefaultSuffix": " - Default",
+  "@movieDetailSubtitleDefaultSuffix": {
+    "description": "Appends a default marker to a subtitle display name."
   }
 }

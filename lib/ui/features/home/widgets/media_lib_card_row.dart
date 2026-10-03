@@ -5,6 +5,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../data/models/home_models.dart';
 import '../../../../domain/entities/media_type.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../providers/providers.dart';
 import '../../../shared/common/img_loading_progress_ring.dart';
 import '../../../shared/common/media_poster_placeholder.dart';
@@ -43,7 +44,7 @@ class MediaLibCardRow extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.only(left: 32, bottom: 12),
           child: Text(
-            '媒体库',
+            AppLocalizations.of(context).homeMediaLibrary,
             style: FluentTheme.of(context)
                 .typography
                 .subtitle

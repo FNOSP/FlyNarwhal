@@ -3,7 +3,9 @@ import '../../../core/network/api_result.dart';
 import '../../../data/models/media_request_models.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../domain/entities/tag_entity.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/providers.dart';
+import '../../settings/app_language.dart';
 
 part 'movie_detail_view_model.g.dart';
 
@@ -131,9 +133,11 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
   }
 
   Future<ActionResult> toggleFavorite() async {
+    final l10n = lookupAppLocalizations(AppLanguage.localeFromValue(ref.read(settingsProvider).language));
     final item = state.value?.item;
     if (item == null) {
-      return const ActionResult(success: false, message: '未找到影片信息');
+      return ActionResult(
+          success: false, message: l10n.movieDetailNotFound);
     }
 
     try {
@@ -150,11 +154,15 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
           item: item.copyWith(isFavorite: isFavorite ? 0 : 1),
         ));
         return ActionResult(
-            success: true, message: isFavorite ? '已取消收藏' : '已收藏');
+            success: true,
+            message: isFavorite
+                ? l10n.toastFavoriteRemoved
+                : l10n.toastFavoriteAdded);
       }
       return ActionResult(
         success: false,
-        message: response.failureOrNull?.displayMessage ?? '操作失败',
+        message:
+            response.failureOrNull?.displayMessage ?? l10n.toastOperationFailed,
       );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());
@@ -162,9 +170,11 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
   }
 
   Future<ActionResult> toggleWatched() async {
+    final l10n = lookupAppLocalizations(AppLanguage.localeFromValue(ref.read(settingsProvider).language));
     final item = state.value?.item;
     if (item == null) {
-      return const ActionResult(success: false, message: '未找到影片信息');
+      return ActionResult(
+          success: false, message: l10n.movieDetailNotFound);
     }
 
     try {
@@ -184,11 +194,15 @@ class MovieDetailNotifier extends _$MovieDetailNotifier {
           streamList: refreshedStreamList,
         ));
         return ActionResult(
-            success: true, message: isWatched ? '标记为未观看' : '标记为已观看');
+            success: true,
+            message: isWatched
+                ? l10n.toastMarkedUnwatched
+                : l10n.toastMarkedWatched);
       }
       return ActionResult(
         success: false,
-        message: response.failureOrNull?.displayMessage ?? '操作失败',
+        message:
+            response.failureOrNull?.displayMessage ?? l10n.toastOperationFailed,
       );
     } catch (e) {
       return ActionResult(success: false, message: e.toString());

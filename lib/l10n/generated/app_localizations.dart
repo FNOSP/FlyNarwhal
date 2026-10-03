@@ -1376,6 +1376,1470 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'空空如也'**
   String get nasBrowserEmpty;
+
+  /// Play button label.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放'**
+  String get actionPlay;
+
+  /// Play button label when resuming playback.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续播放'**
+  String get actionContinuePlay;
+
+  /// Tooltip that adds the item to favorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入收藏'**
+  String get actionFavoriteAdd;
+
+  /// Tooltip that removes the item from favorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消收藏'**
+  String get actionFavoriteRemove;
+
+  /// Tooltip or menu item that marks the item watched.
+  ///
+  /// In zh, this message translates to:
+  /// **'标记为已看'**
+  String get actionMarkWatched;
+
+  /// Tooltip or menu item that marks the item unwatched.
+  ///
+  /// In zh, this message translates to:
+  /// **'标记为未看'**
+  String get actionMarkUnwatched;
+
+  /// Tooltip of the more-actions button.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多操作'**
+  String get actionMore;
+
+  /// Inline link that expands a truncated description.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多'**
+  String get actionMore2;
+
+  /// Toast shown after adding to favorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'已收藏'**
+  String get toastFavoriteAdded;
+
+  /// Toast shown after removing from favorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消收藏'**
+  String get toastFavoriteRemoved;
+
+  /// Toast shown after marking unwatched.
+  ///
+  /// In zh, this message translates to:
+  /// **'标记为未观看'**
+  String get toastMarkedUnwatched;
+
+  /// Toast shown after marking watched.
+  ///
+  /// In zh, this message translates to:
+  /// **'标记为已观看'**
+  String get toastMarkedWatched;
+
+  /// Generic failure message when an action fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'操作失败'**
+  String get toastOperationFailed;
+
+  /// Failure toast that appends the underlying error.
+  ///
+  /// In zh, this message translates to:
+  /// **'操作失败，{message}'**
+  String toastOperationFailedReason(String message);
+
+  /// Fallback text when an overview is missing.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无介绍'**
+  String get mediaInfoNoOverview;
+
+  /// Fallback text when media details are empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无信息'**
+  String get mediaInfoNoInfo;
+
+  /// Empty state of a stream selector flyout.
+  ///
+  /// In zh, this message translates to:
+  /// **'无内容'**
+  String get mediaInfoNoContent;
+
+  /// Heading of the file info section.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件信息'**
+  String get mediaInfoFileInfo;
+
+  /// Label of the file location row.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件位置'**
+  String get mediaInfoFileLocation;
+
+  /// Label of the file size row.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件大小'**
+  String get mediaInfoFileSize;
+
+  /// Label of the file creation date.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建日期'**
+  String get mediaInfoCreatedDate;
+
+  /// Label of the date the file was added.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加日期'**
+  String get mediaInfoAddedDate;
+
+  /// Heading of the video and audio info section.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频/音频信息'**
+  String get mediaInfoStreamSection;
+
+  /// Prefix label before the IMDB link.
+  ///
+  /// In zh, this message translates to:
+  /// **'链接:  '**
+  String get linkLabel;
+
+  /// Text of the IMDB link.
+  ///
+  /// In zh, this message translates to:
+  /// **'IMDB链接'**
+  String get imdbLinkLabel;
+
+  /// Appends a default marker to a track name.
+  ///
+  /// In zh, this message translates to:
+  /// **'{title} - 默认'**
+  String defaultSuffix(String title);
+
+  /// Link that opens the full media info dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看全部'**
+  String get actionViewAll;
+
+  /// Error shown when the movie cannot be found.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到电影信息'**
+  String get movieDetailNotFound;
+
+  /// Title of the movie overview dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'电影简介'**
+  String get movieDetailDescriptionTitle;
+
+  /// Title of the episode overview dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧集简介'**
+  String get movieDetailEpisodeDescriptionTitle;
+
+  /// Title of the add-subtitle dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加字幕'**
+  String get movieDetailSubtitleAddTitle;
+
+  /// Toast shown when the file is already a subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'该文件已被添加为字幕'**
+  String get movieDetailSubtitleAlreadyAdded;
+
+  /// Title of the add-subtitle failure dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加字幕失败'**
+  String get movieDetailSubtitleAddFailed;
+
+  /// Add-subtitle failure message.
+  ///
+  /// In zh, this message translates to:
+  /// **'请稍后重试：{error}'**
+  String movieDetailSubtitleRetry(String error);
+
+  /// Toast shown when the current file info is missing.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前文件信息缺失，无法搜索字幕'**
+  String get movieDetailSubtitleSearchMissingFile;
+
+  /// Toast shown when the current file info is missing.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前文件信息缺失，无法上传字幕'**
+  String get movieDetailSubtitleUploadMissingFile;
+
+  /// Toast shown after a subtitle downloads successfully.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载成功'**
+  String get movieDetailSubtitleDownloadSuccess;
+
+  /// Toast shown when a subtitle download fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载字幕失败: {error}'**
+  String movieDetailSubtitleDownloadFailed(String error);
+
+  /// Toast shown after a subtitle download task is created.
+  ///
+  /// In zh, this message translates to:
+  /// **'已创建字幕下载任务'**
+  String get movieDetailSubtitleTaskCreated;
+
+  /// Toast shown when creating a subtitle download task fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建字幕下载任务失败，请重试'**
+  String get movieDetailSubtitleTaskFailed;
+
+  /// Appends an external marker to a subtitle display name.
+  ///
+  /// In zh, this message translates to:
+  /// **' - 外挂'**
+  String get movieDetailSubtitleExternalSuffix;
+
+  /// Title of the delete-subtitle dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除外挂字幕'**
+  String get movieDetailSubtitleDeleteTitle;
+
+  /// Confirmation body of the delete-subtitle dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要删除 {name} 外挂字幕吗？'**
+  String movieDetailSubtitleDeleteConfirm(String name);
+
+  /// Toast shown after a subtitle is deleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除字幕成功'**
+  String get movieDetailSubtitleDeleteSuccess;
+
+  /// Toast shown when deleting a subtitle fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除字幕失败: {error}'**
+  String movieDetailSubtitleDeleteFailed(String error);
+
+  /// Subtitle selector label when subtitles are off.
+  ///
+  /// In zh, this message translates to:
+  /// **'无字幕'**
+  String get movieDetailSubtitleNone;
+
+  /// Subtitle selector label that appends a language name.
+  ///
+  /// In zh, this message translates to:
+  /// **'{language}字幕'**
+  String movieDetailSubtitleLanguageLabel(String language);
+
+  /// Audio selector label.
+  ///
+  /// In zh, this message translates to:
+  /// **'音频'**
+  String get movieDetailAudioLabel;
+
+  /// Audio selector label that appends a language name.
+  ///
+  /// In zh, this message translates to:
+  /// **'{language}音频'**
+  String movieDetailAudioLanguageLabel(String language);
+
+  /// Audio type label for stereo.
+  ///
+  /// In zh, this message translates to:
+  /// **'立体声'**
+  String get movieDetailAudioStereo;
+
+  /// Remaining playback time under the progress bar.
+  ///
+  /// In zh, this message translates to:
+  /// **'剩余 {time}'**
+  String movieDetailRemaining(String time);
+
+  /// Tag showing the smart analysis status.
+  ///
+  /// In zh, this message translates to:
+  /// **'智能片头/片尾检测状态：{status}'**
+  String movieDetailSmartAnalysisStatus(String status);
+
+  /// Color range label for Dolby Vision.
+  ///
+  /// In zh, this message translates to:
+  /// **'杜比视界'**
+  String get movieDetailDolbyVision;
+
+  /// Default label of the subtitle selector.
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕'**
+  String get movieDetailSubtitleLabel;
+
+  /// Error shown when the TV series cannot be found.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到剧集信息'**
+  String get tvDetailNotFound;
+
+  /// Error shown when the season cannot be found.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到分季信息'**
+  String get tvDetailSeasonNotFound;
+
+  /// Title of the series overview dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧集简介'**
+  String get tvDetailDescriptionTitle;
+
+  /// Menu item that triggers smart intro/outro analysis.
+  ///
+  /// In zh, this message translates to:
+  /// **'智能分析片头/片尾'**
+  String get tvDetailSmartAnalysis;
+
+  /// Heading of the season list section.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧季列表'**
+  String get tvDetailSeasonListTitle;
+
+  /// Episode number label.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {number} 集'**
+  String tvDetailEpisodeNumber(String number);
+
+  /// Season number label.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {number} 季'**
+  String tvDetailSeasonNumber(String number);
+
+  /// Combined season and episode label.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {season} 季 第 {episode} 集'**
+  String tvDetailSeasonEpisodeNumbers(String season, String episode);
+
+  /// Season subtitle showing the episode count.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 集'**
+  String tvDetailEpisodeCount(String count);
+
+  /// Heading of the episode selection section.
+  ///
+  /// In zh, this message translates to:
+  /// **'选集'**
+  String get tvDetailEpisodeSectionTitle;
+
+  /// Fallback season label.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知季'**
+  String get tvDetailUnknownSeason;
+
+  /// Title of the season selection dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'《{title}》共 {count} 季'**
+  String tvDetailSeasonTitleSummary(String title, String count);
+
+  /// Fallback text when an episode overview is missing.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无剧集简介'**
+  String get tvDetailEpisodeNoneOverview;
+
+  /// Episode runtime in minutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'{minutes} 分钟'**
+  String tvDetailEpisodeRuntime(String minutes);
+
+  /// Fallback when the runtime is unknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'时长未知'**
+  String get tvDetailRuntimeUnknown;
+
+  /// Rating score tag.
+  ///
+  /// In zh, this message translates to:
+  /// **'{score} 分'**
+  String tvDetailScore(String score);
+
+  /// Menu item that plays the current episode.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放本集'**
+  String get tvDetailPlayEpisode;
+
+  /// Label showing the season analysis status.
+  ///
+  /// In zh, this message translates to:
+  /// **'智能分析：{status}'**
+  String tvDetailSmartAnalysisStatus(String status);
+
+  /// Season analysis status while loading.
+  ///
+  /// In zh, this message translates to:
+  /// **'获取中'**
+  String get tvDetailAnalysisFetching;
+
+  /// Season analysis status when not detected.
+  ///
+  /// In zh, this message translates to:
+  /// **'未检测'**
+  String get tvDetailAnalysisNotDetected;
+
+  /// Season analysis status when fetching fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'获取失败'**
+  String get tvDetailAnalysisFailed;
+
+  /// Season analysis status while preparing.
+  ///
+  /// In zh, this message translates to:
+  /// **'准备中'**
+  String get tvDetailAnalysisPreparing;
+
+  /// Season analysis status while pending.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待中'**
+  String get tvDetailAnalysisPending;
+
+  /// Season analysis status while running.
+  ///
+  /// In zh, this message translates to:
+  /// **'分析中'**
+  String get tvDetailAnalysisInProgress;
+
+  /// Season analysis status on partial success.
+  ///
+  /// In zh, this message translates to:
+  /// **'部分成功'**
+  String get tvDetailAnalysisPartialSuccess;
+
+  /// Season analysis status when completed.
+  ///
+  /// In zh, this message translates to:
+  /// **'已完成'**
+  String get tvDetailAnalysisCompleted;
+
+  /// Season analysis status when failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'失败'**
+  String get tvDetailAnalysisStatusFailed;
+
+  /// Media type label.
+  ///
+  /// In zh, this message translates to:
+  /// **'电影'**
+  String get mediaTypeMovie;
+
+  /// Media type label.
+  ///
+  /// In zh, this message translates to:
+  /// **'电视节目'**
+  String get mediaTypeTv;
+
+  /// Media type label.
+  ///
+  /// In zh, this message translates to:
+  /// **'目录'**
+  String get mediaTypeDirectory;
+
+  /// Media type label.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他'**
+  String get mediaTypeOther;
+
+  /// Media type label.
+  ///
+  /// In zh, this message translates to:
+  /// **'电视直播'**
+  String get mediaTypeLive;
+
+  /// Media type label.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧集'**
+  String get mediaTypeEpisode;
+
+  /// Media type label.
+  ///
+  /// In zh, this message translates to:
+  /// **'季'**
+  String get mediaTypeSeason;
+
+  /// Poster subtitle for a show with several seasons.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 季'**
+  String mediaSeasonCount(String count);
+
+  /// Poster subtitle for a single season.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {number} 季'**
+  String mediaSeasonNumber(String number);
+
+  /// Poster subtitle for an episode count.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 集'**
+  String mediaEpisodeCount(String count);
+
+  /// Play detail subtitle for an episode.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {season} 季 · 第 {episode} 集'**
+  String mediaEpisodeDetail(String season, String episode);
+
+  /// Cloud storage provider name.
+  ///
+  /// In zh, this message translates to:
+  /// **'百度网盘'**
+  String get cloudStorageBaiduPan;
+
+  /// Cloud storage provider name.
+  ///
+  /// In zh, this message translates to:
+  /// **'阿里云盘'**
+  String get cloudStorageAliyunDrive;
+
+  /// Cloud storage provider name.
+  ///
+  /// In zh, this message translates to:
+  /// **'115 生活'**
+  String get cloudStorage115;
+
+  /// Cloud storage provider name.
+  ///
+  /// In zh, this message translates to:
+  /// **'夸克网盘'**
+  String get cloudStorageQuark;
+
+  /// Cloud storage provider name.
+  ///
+  /// In zh, this message translates to:
+  /// **'123 云盘'**
+  String get cloudStorage123;
+
+  /// Label of the remember-password checkbox on the login form.
+  ///
+  /// In zh, this message translates to:
+  /// **'记住密码'**
+  String get loginRememberPassword;
+
+  /// Fallback label for the injected remember-password checkbox on the NAS login web page.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录页面'**
+  String get loginWebViewInjectedPlaceholder;
+
+  /// Fallback label shown when the installed app version is unknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前安装版本'**
+  String get updateCurrentVersionLabel;
+
+  /// Toast shown when opening the manual download page fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法打开手动下载页面，请稍后重试。'**
+  String get updateManualDownloadOpenFailed;
+
+  /// Toast shown when opening an update link fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法打开链接，请稍后重试。'**
+  String get updateOpenLinkFailed;
+
+  /// Accessibility label of the update badge in the title bar.
+  ///
+  /// In zh, this message translates to:
+  /// **'发现新版本 {version}，打开更新详情'**
+  String updateBadgeSemanticLabel(String version);
+
+  /// Update dialog title while checking for updates.
+  ///
+  /// In zh, this message translates to:
+  /// **'检查更新'**
+  String get updateDialogTitleChecking;
+
+  /// Update dialog title when a new version is available.
+  ///
+  /// In zh, this message translates to:
+  /// **'发现新版本'**
+  String get updateDialogTitleAvailable;
+
+  /// Update dialog title while downloading.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在下载更新'**
+  String get updateDialogTitleDownloading;
+
+  /// Update dialog title after the download completes.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载完成'**
+  String get updateDialogTitleDownloaded;
+
+  /// Update dialog title while verifying the package.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在校验更新'**
+  String get updateDialogTitleVerifying;
+
+  /// Update dialog title when the update is ready to install.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新已准备就绪'**
+  String get updateDialogTitleReadyToInstall;
+
+  /// Update dialog title while launching the installer.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在启动安装'**
+  String get updateDialogTitleInstalling;
+
+  /// Update dialog title when checking for updates failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'检查更新失败'**
+  String get updateDialogTitleCheckFailed;
+
+  /// Update dialog title when the download failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载更新失败'**
+  String get updateDialogTitleDownloadFailed;
+
+  /// Update dialog title when package verification failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新包校验失败'**
+  String get updateDialogTitleVerificationFailed;
+
+  /// Update dialog title when launching the installer failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'启动安装失败'**
+  String get updateDialogTitleInstallFailed;
+
+  /// Update dialog title when the automatic download did not finish.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动下载未完成'**
+  String get updateDialogTitleAutomaticDownloadExhausted;
+
+  /// Update dialog title in the idle state.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用更新'**
+  String get updateDialogTitleNone;
+
+  /// Update dialog button to keep checking in the background.
+  ///
+  /// In zh, this message translates to:
+  /// **'后台检查'**
+  String get updateActionCheckInBackground;
+
+  /// Update dialog button to skip this version.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过此版本'**
+  String get updateActionSkipVersion;
+
+  /// Update dialog button to postpone the update.
+  ///
+  /// In zh, this message translates to:
+  /// **'稍后再说'**
+  String get updateActionLater;
+
+  /// Update dialog button to download the update.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载更新'**
+  String get updateActionDownload;
+
+  /// Update dialog button to continue downloading in the background.
+  ///
+  /// In zh, this message translates to:
+  /// **'后台下载'**
+  String get updateActionDownloadInBackground;
+
+  /// Update dialog button to cancel the download.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消下载'**
+  String get updateActionCancelDownload;
+
+  /// Update dialog button to install later.
+  ///
+  /// In zh, this message translates to:
+  /// **'稍后安装'**
+  String get updateActionInstallLater;
+
+  /// Update dialog button to quit and install now.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出并安装'**
+  String get updateActionQuitAndInstall;
+
+  /// Update dialog button to let the update run in the background.
+  ///
+  /// In zh, this message translates to:
+  /// **'后台运行'**
+  String get updateActionRunInBackground;
+
+  /// Update dialog button to download the update again.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新下载'**
+  String get updateActionRetryDownload;
+
+  /// Update dialog button to retry the installation.
+  ///
+  /// In zh, this message translates to:
+  /// **'重试安装'**
+  String get updateActionRetryInstall;
+
+  /// Update dialog button to open the manual download page.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动下载'**
+  String get updateActionManualDownload;
+
+  /// Update dialog button to close the dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get updateActionClose;
+
+  /// Update dialog status while fetching update information.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在从 GitHub Releases 获取更新信息…'**
+  String get updateStatusCheckingMessage;
+
+  /// Update dialog status when the app is up to date.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前已是最新版本。'**
+  String get updateStatusUpToDate;
+
+  /// Update dialog status after the download completes.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新包已下载完成，可以稍后安装或立即退出并安装。'**
+  String get updateStatusDownloadedMessage;
+
+  /// Update dialog status when a downloaded update was found.
+  ///
+  /// In zh, this message translates to:
+  /// **'已找到可用的已下载更新包。'**
+  String get updateStatusReadyMessage;
+
+  /// Update dialog status while verifying the package.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在安全校验更新包，请稍候…'**
+  String get updateStatusVerifyingMessage;
+
+  /// Update dialog status while launching the installer.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在启动系统安装程序，请勿重复操作。'**
+  String get updateStatusInstallingMessage;
+
+  /// Update dialog status before any check has been run.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未执行更新检查。'**
+  String get updateStatusIdleMessage;
+
+  /// Update dialog line showing the new version and the current version.
+  ///
+  /// In zh, this message translates to:
+  /// **'版本 {version}（当前 {current}）'**
+  String updateVersionLine(String version, String current);
+
+  /// Update dialog line showing the download size.
+  ///
+  /// In zh, this message translates to:
+  /// **'安装包大小 {size}'**
+  String updatePackageSize(String size);
+
+  /// Heading of the release-notes section in the update dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新内容'**
+  String get updateReleaseNotesHeader;
+
+  /// Fallback text used while downloading when the asset name is unknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在下载更新包'**
+  String get updateDownloadingPackage;
+
+  /// Update dialog text showing the downloaded size.
+  ///
+  /// In zh, this message translates to:
+  /// **'已下载 {size}'**
+  String updateDownloadedSize(String size);
+
+  /// Update dialog text showing download progress.
+  ///
+  /// In zh, this message translates to:
+  /// **'{received} / {total}'**
+  String updateDownloadProgress(String received, String total);
+
+  /// Failure summary when the GitHub API rate limit is reached.
+  ///
+  /// In zh, this message translates to:
+  /// **'GitHub 接口访问频率超限，通常稍后会自动恢复，请稍后再试。'**
+  String get updateErrorRateLimited;
+
+  /// Failure summary when the update package failed verification.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新包未通过安全校验，请重新下载。'**
+  String get updateErrorVerificationFailed;
+
+  /// Failure summary when checking for updates failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时无法获取更新信息，请检查网络后重试。'**
+  String get updateErrorCheckFailed;
+
+  /// Failure summary when the update download failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新包下载未完成，请稍后重试。'**
+  String get updateErrorDownloadFailed;
+
+  /// Failure summary when launching the installer failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法启动系统安装程序，请稍后重试。'**
+  String get updateErrorInstallFailed;
+
+  /// Failure summary when the automatic download was exhausted.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动下载多次未完成，你可以稍后重试或前往发布页手动下载。'**
+  String get updateErrorAutomaticDownloadExhausted;
+
+  /// Generic failure summary for update operations.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新操作未完成，请稍后重试。'**
+  String get updateErrorGeneric;
+
+  /// Placeholder shown when the release notes are empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'本次更新未提供更新说明'**
+  String get updateMarkdownEmpty;
+
+  /// Alt text for a blocked remote image in the release notes.
+  ///
+  /// In zh, this message translates to:
+  /// **'远程图片'**
+  String get updateMarkdownRemoteImageAlt;
+
+  /// Label for a blocked remote image in the release notes.
+  ///
+  /// In zh, this message translates to:
+  /// **'远程图片已阻止：{alt}'**
+  String updateMarkdownRemoteImageBlocked(String alt);
+
+  /// Suffix appended to release notes when they exceed the maximum length.
+  ///
+  /// In zh, this message translates to:
+  /// **'\n\n更新说明过长，已截断显示。'**
+  String get updateMarkdownTruncatedSuffix;
+
+  /// Login field placeholder for the NAS host or FN ID.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入 IP:Port、域名或 FN ID'**
+  String get loginHostOrFnIdPlaceholder;
+
+  /// Toast shown when the entered host or FN ID is invalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入正确的 IP、域名或 FN ID'**
+  String get loginHostValidationMessage;
+
+  /// Toast shown when the host field is empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入 IP、域名或 FN ID'**
+  String get loginHostRequiredMessage;
+
+  /// Toast shown when the username field is empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入用户名'**
+  String get loginUsernameRequiredMessage;
+
+  /// Toast shown when the password field is empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入密码'**
+  String get loginPasswordRequiredMessage;
+
+  /// Toast shown when preparing the WebView for NAS login fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'浏览器组件初始化失败，请稍后重试。'**
+  String get loginWebViewInitFailed;
+
+  /// Login field placeholder for the host.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入 IP、域名或 FN ID'**
+  String get loginHostPlaceholder;
+
+  /// Login field placeholder for the port.
+  ///
+  /// In zh, this message translates to:
+  /// **'端口'**
+  String get loginPortPlaceholder;
+
+  /// Login field placeholder for the username.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户名'**
+  String get loginUsernameLabel;
+
+  /// Login field placeholder for the password.
+  ///
+  /// In zh, this message translates to:
+  /// **'密码'**
+  String get loginPasswordLabel;
+
+  /// Login toggle label to sign in with a NAS account.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用 NAS 登录'**
+  String get loginUseNasLogin;
+
+  /// Login toggle label for enabling HTTPS.
+  ///
+  /// In zh, this message translates to:
+  /// **'HTTPS 安全访问'**
+  String get loginHttpsSecureAccess;
+
+  /// Login button label for the NAS probe step.
+  ///
+  /// In zh, this message translates to:
+  /// **'下一步'**
+  String get loginNext;
+
+  /// Login button label.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录'**
+  String get loginSignIn;
+
+  /// Login web view toolbar text while verifying the server.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在验证服务器...'**
+  String get loginVerifyingServer;
+
+  /// Toast shown when the username or password is wrong.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户名或密码错误'**
+  String get loginInvalidCredentials;
+
+  /// Login error for a non-success HTTP response.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器返回错误（HTTP {status}），请检查服务状态。'**
+  String loginServerHttpError(String status);
+
+  /// Login error for an SSL certificate failure.
+  ///
+  /// In zh, this message translates to:
+  /// **'SSL 证书验证失败，请检查 HTTPS 设置或服务器证书。'**
+  String get loginSslCertificateFailed;
+
+  /// Login error for a connection timeout.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接服务器超时，请确认服务器地址或网络状态。'**
+  String get loginConnectionTimeout;
+
+  /// Login error when the server is unreachable.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法连接到服务器，请检查地址、端口或网络。'**
+  String get loginConnectionFailed;
+
+  /// Login error when the request was cancelled.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录请求已取消。'**
+  String get loginRequestCancelled;
+
+  /// Login error for an unknown or bad response.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录失败，请检查服务器地址或稍后再试。'**
+  String get loginFailedCheckServer;
+
+  /// Generic login error message.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录失败，请检查网络或服务器设置。'**
+  String get loginFailedCheckNetwork;
+
+  /// Login error when the NAS flow returns an empty token.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录失败: Token 为空'**
+  String get loginFailedTokenEmpty;
+
+  /// Login error with the underlying error message.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录失败: {error}'**
+  String loginFailedWithError(String error);
+
+  /// Fallback login error when the server rejects the token exchange.
+  ///
+  /// In zh, this message translates to:
+  /// **'认证失败'**
+  String get loginAuthFailed;
+
+  /// Validation error when resolving an empty FN ID.
+  ///
+  /// In zh, this message translates to:
+  /// **'FN ID 不能为空'**
+  String get loginFnIdEmpty;
+
+  /// Title of the login history sidebar.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录历史'**
+  String get loginHistoryTitle;
+
+  /// Empty state of the login history sidebar.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无历史记录'**
+  String get loginHistoryEmpty;
+
+  /// Retry button shown when the media library row fails to load.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败，点击重试'**
+  String get homeRetryLoad;
+
+  /// Title of the home page.
+  ///
+  /// In zh, this message translates to:
+  /// **'首页'**
+  String get homeTitle;
+
+  /// Title of the continue-watching row on the home page.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续观看'**
+  String get homeContinueWatching;
+
+  /// Heading of the media library card row on the home page.
+  ///
+  /// In zh, this message translates to:
+  /// **'媒体库'**
+  String get homeMediaLibrary;
+
+  /// Toast shown after an item is removed from continue watching.
+  ///
+  /// In zh, this message translates to:
+  /// **'已从“继续观看”中移除'**
+  String get homeContinueRemoved;
+
+  /// Toast shown when removing an item from continue watching fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除失败'**
+  String get homeContinueRemoveFailed;
+
+  /// Toast shown when removing an item from continue watching throws.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除失败：{error}'**
+  String homeContinueRemoveError(String error);
+
+  /// Title of the delete-video confirmation dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除 《{title}》'**
+  String homeDeleteDialogTitle(String title);
+
+  /// Body text of the delete-video confirmation dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'从媒体库移除后，所选视频文件将不再被扫描添加到当前媒体库中。请确认是否同时删除关联的视频文件。'**
+  String get homeDeleteDialogBody;
+
+  /// Delete dialog button to remove the entry and delete the files.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除并删除文件'**
+  String get homeDeleteRemoveAndDeleteFile;
+
+  /// Delete dialog button to remove the entry but keep the files.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅移除'**
+  String get homeDeleteRemoveOnly;
+
+  /// Toast shown after the video is deleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除'**
+  String get homeDeleted;
+
+  /// Toast shown when deleting the video fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除失败'**
+  String get homeDeleteFailed;
+
+  /// Toast shown when deleting the video throws.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除失败：{error}'**
+  String homeDeleteFailedWithError(String error);
+
+  /// Toast shown after removing an item from favorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消收藏'**
+  String get homeFavoriteRemoved;
+
+  /// Toast shown after adding an item to favorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'已收藏'**
+  String get homeFavorited;
+
+  /// Toast shown after marking an item as unwatched.
+  ///
+  /// In zh, this message translates to:
+  /// **'标记为未观看'**
+  String get homeMarkedUnwatched;
+
+  /// Toast shown after marking an item as watched.
+  ///
+  /// In zh, this message translates to:
+  /// **'标记为已观看'**
+  String get homeMarkedWatched;
+
+  /// Toast shown when a favorite or watched action fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'操作失败'**
+  String get homeActionFailed;
+
+  /// Toast shown when a favorite or watched action throws.
+  ///
+  /// In zh, this message translates to:
+  /// **'操作失败，{error}'**
+  String homeActionFailedWithError(String error);
+
+  /// More-menu entry to remove an item from continue watching.
+  ///
+  /// In zh, this message translates to:
+  /// **'从“继续观看”中移除'**
+  String get homeMenuRemoveFromContinue;
+
+  /// More-menu entry to resume playback.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续播放'**
+  String get homeMenuResume;
+
+  /// More-menu entry to restart playback from the beginning.
+  ///
+  /// In zh, this message translates to:
+  /// **'从头开始播放'**
+  String get homeMenuRestart;
+
+  /// More-menu entry to delete the video.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除视频'**
+  String get homeMenuDeleteVideo;
+
+  /// Placeholder of the capsule search box.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索片名、演员'**
+  String get searchPlaceholder;
+
+  /// Search category tab: all.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部'**
+  String get searchTabAll;
+
+  /// Search category tab: movies.
+  ///
+  /// In zh, this message translates to:
+  /// **'电影'**
+  String get searchTabMovie;
+
+  /// Search category tab: TV series.
+  ///
+  /// In zh, this message translates to:
+  /// **'电视剧'**
+  String get searchTabTv;
+
+  /// Search category tab: live channels.
+  ///
+  /// In zh, this message translates to:
+  /// **'电视直播'**
+  String get searchTabLiveChannel;
+
+  /// Search category tab: people.
+  ///
+  /// In zh, this message translates to:
+  /// **'人物'**
+  String get searchTabPerson;
+
+  /// Search category tab: other.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他'**
+  String get searchTabOther;
+
+  /// Empty state of the search dropdown after a search.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索无结果'**
+  String get searchNoResults;
+
+  /// Empty state of the search dropdown before searching.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入关键词搜索'**
+  String get searchEnterKeyword;
+
+  /// Work count shown for a person in the search results.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个作品'**
+  String searchWorkCount(String count);
+
+  /// Suffix for the rating score in the search results.
+  ///
+  /// In zh, this message translates to:
+  /// **'分'**
+  String get searchScoreSuffix;
+
+  /// Episode count shown for a TV series in the search results.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 集'**
+  String searchEpisodeCount(String count);
+
+  /// Empty state shown when a person has no record on the server.
+  ///
+  /// In zh, this message translates to:
+  /// **'无数据'**
+  String get personNoData;
+
+  /// Works section title for acting roles.
+  ///
+  /// In zh, this message translates to:
+  /// **'作为演员'**
+  String get personSectionActor;
+
+  /// Works section title for directing roles.
+  ///
+  /// In zh, this message translates to:
+  /// **'作为导演'**
+  String get personSectionDirector;
+
+  /// Works section title for writing roles.
+  ///
+  /// In zh, this message translates to:
+  /// **'作为编剧'**
+  String get personSectionWriter;
+
+  /// Inline link that opens the full biography.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多'**
+  String get personMore;
+
+  /// Title of the full-biography dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'演员简介'**
+  String get personBiographyTitle;
+
+  /// Generic delete button label.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除'**
+  String get commonDelete;
+
+  /// Title and link label of the forgot-password dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'忘记密码？'**
+  String get forgotPasswordTitle;
+
+  /// Sidebar label for an external storage mount.
+  ///
+  /// In zh, this message translates to:
+  /// **'外接存储'**
+  String get storageExternal;
+
+  /// Sidebar label for a remote mount.
+  ///
+  /// In zh, this message translates to:
+  /// **'远程挂载'**
+  String get storageRemoteMount;
+
+  /// Label for a numbered storage volume.
+  ///
+  /// In zh, this message translates to:
+  /// **'存储空间 {number}'**
+  String storageVolumeName(String number);
+
+  /// Duration with hours and minutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'{hours} 小时 {minutes} 分钟'**
+  String durationHoursMinutes(String hours, String minutes);
+
+  /// Duration in hours.
+  ///
+  /// In zh, this message translates to:
+  /// **'{hours} 小时'**
+  String durationHours(String hours);
+
+  /// Duration with minutes and seconds.
+  ///
+  /// In zh, this message translates to:
+  /// **'{minutes} 分钟 {seconds} 秒'**
+  String durationMinutesSeconds(String minutes, String seconds);
+
+  /// Duration in minutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'{minutes} 分钟'**
+  String durationMinutes(String minutes);
+
+  /// Zero-length duration.
+  ///
+  /// In zh, this message translates to:
+  /// **'0 分钟'**
+  String get durationZeroMinutes;
+
+  /// Label for a user's authorized directory.
+  ///
+  /// In zh, this message translates to:
+  /// **'{username} 的文件'**
+  String authDirUserFiles(String username);
+
+  /// Fallback label when the user name is unknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户 {uid}'**
+  String authDirUnknownUser(String uid);
+
+  /// Empty value placeholder.
+  ///
+  /// In zh, this message translates to:
+  /// **'无'**
+  String get authDirNone;
+
+  /// Unknown value placeholder.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知'**
+  String get authDirUnknown;
+
+  /// Media stream kind label.
+  ///
+  /// In zh, this message translates to:
+  /// **'音频'**
+  String get mediaStreamAudio;
+
+  /// Media stream kind label.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频'**
+  String get mediaStreamVideo;
+
+  /// Media stream kind label.
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕'**
+  String get mediaStreamSubtitle;
+
+  /// Body text of the forgot-password dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'1. 如果您是 NAS 用户，请尝试 NAS 帐号登录；\n2. 请联系管理员修改密码。'**
+  String get forgotPasswordBody;
+
+  /// Episode card title combining the episode number and name.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {number} 集 {title}'**
+  String tvDetailEpisodeNumberTitle(String number, String title);
+
+  /// Appends a default marker to a subtitle display name.
+  ///
+  /// In zh, this message translates to:
+  /// **' - 默认'**
+  String get movieDetailSubtitleDefaultSuffix;
 }
 
 class _AppLocalizationsDelegate

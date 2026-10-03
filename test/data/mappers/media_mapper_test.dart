@@ -9,7 +9,7 @@ void main() {
       for (final mediaType in MediaType.values) {
         final model = MediaItem(
           guid: mediaType.value,
-          title: mediaType.description,
+          title: mediaType.value,
           type: mediaType.value,
         );
 

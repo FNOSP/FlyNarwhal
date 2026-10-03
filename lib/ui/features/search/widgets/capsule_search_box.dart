@@ -9,6 +9,7 @@ import '../../../../domain/entities/search_result_type.dart';
 
 import '../../../../data/models/home_models.dart';
 import '../../../../data/storage/shortcut_settings_store.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../providers/providers.dart';
 import '../search_view_model.dart';
 import 'search_result_dropdown.dart';
@@ -21,7 +22,7 @@ class CapsuleSearchBox extends ConsumerStatefulWidget {
   final double collapsedWidth;
   final double expandedWidth;
   final double height;
-  final String placeholder;
+  final String? placeholder;
   final FocusNode? focusNode;
   final VoidCallback? onDismissed;
 
@@ -30,7 +31,7 @@ class CapsuleSearchBox extends ConsumerStatefulWidget {
     this.collapsedWidth = 130,
     this.expandedWidth = 480,
     this.height = 32,
-    this.placeholder = '搜索片名、演员',
+    this.placeholder,
     this.focusNode,
     this.onDismissed,
   });
@@ -69,9 +70,44 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
   bool _isHovered = false;
   bool _isInteractingWithDropdown = false;
 
-  // Category tabs mirroring Compose tabs
-  static const List<String> _tabs = ['全部', '电影', '电视剧', '电视直播', '人物', '其他'];
-  String _selectedTab = '全部';
+  // Category tabs mirroring Compose tabs. The tab identity is the stable ASCII
+  // [_tabAll]/[_tabMovie]/... value; labels are resolved for display only, so
+  // filtering and selection never depend on the localized text.
+  static const String _tabAll = 'all';
+  static const String _tabMovie = 'movie';
+  static const String _tabTv = 'tv';
+  static const String _tabLive = 'live';
+  static const String _tabPerson = 'person';
+  static const String _tabOther = 'other';
+
+  static const List<String> _tabIds = [
+    _tabAll,
+    _tabMovie,
+    _tabTv,
+    _tabLive,
+    _tabPerson,
+    _tabOther,
+  ];
+
+  static String _tabLabel(AppLocalizations l10n, String tabId) {
+    switch (tabId) {
+      case _tabMovie:
+        return l10n.searchTabMovie;
+      case _tabTv:
+        return l10n.searchTabTv;
+      case _tabLive:
+        return l10n.searchTabLiveChannel;
+      case _tabPerson:
+        return l10n.searchTabPerson;
+      case _tabOther:
+        return l10n.searchTabOther;
+      case _tabAll:
+      default:
+        return l10n.searchTabAll;
+    }
+  }
+
+  String _selectedTab = _tabAll;
   int _selectedIndex = -1;
 
   @override
@@ -113,7 +149,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
       // Collapse and clear on blur, like Compose collapseOnBlur
       _controller.clear();
       ref.read(searchProvider.notifier).clearSearch();
-      _selectedTab = '全部';
+      _selectedTab = _tabAll;
       _selectedIndex = -1;
       _overlayController.hide();
     }
@@ -155,19 +191,19 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
   }
 
   List<MediaItem> _filterItems(List<MediaItem> all) {
-    if (_selectedTab == '全部') return all;
+    if (_selectedTab == _tabAll) return all;
     return all.where((item) {
       final resultType = SearchResultType.tryParse(item.type);
       switch (_selectedTab) {
-        case '电影':
+        case _tabMovie:
           return resultType == SearchResultType.movie;
-        case '电视剧':
+        case _tabTv:
           return resultType == SearchResultType.tv;
-        case '电视直播':
+        case _tabLive:
           return resultType == SearchResultType.liveChannel;
-        case '人物':
+        case _tabPerson:
           return resultType == SearchResultType.person;
-        case '其他':
+        case _tabOther:
           return resultType != SearchResultType.movie &&
               resultType != SearchResultType.tv &&
               resultType != SearchResultType.liveChannel &&
@@ -190,7 +226,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
     _isInteractingWithDropdown = false;
     _controller.clear();
     ref.read(searchProvider.notifier).clearSearch();
-    _selectedTab = '全部';
+    _selectedTab = _tabAll;
     _selectedIndex = -1;
     _overlayController.hide();
     _focusNode.unfocus();
@@ -246,9 +282,9 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
       return KeyEventResult.handled;
     }
     if (shortcutStore.matches(event, ShortcutActionId.searchSwitchTab)) {
-      final currentIndex = _tabs.indexOf(_selectedTab);
+      final currentIndex = _tabIds.indexOf(_selectedTab);
       setState(() {
-        _selectedTab = _tabs[(currentIndex + 1) % _tabs.length];
+        _selectedTab = _tabIds[(currentIndex + 1) % _tabIds.length];
         final filteredItemsAfterTabSwitch = _filterItems(searchState.results);
         _selectedIndex = filteredItemsAfterTabSwitch.isEmpty ? -1 : 0;
       });
@@ -287,6 +323,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = AppLocalizations.of(context);
     final searchState = ref.watch(searchProvider);
 
     // The capsule sits in the title bar, above the MediaQuery that carries the
@@ -321,11 +358,17 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
                 width: widget.expandedWidth * textScale,
                 isLoading: searchState.isLoading,
                 hasSearched: searchState.hasSearched,
-                tabs: _tabs,
-                selectedTab: _selectedTab,
-                onTabSelected: (tab) {
+                tabs: [for (final id in _tabIds) _tabLabel(l10n, id)],
+                selectedTab: _tabLabel(l10n, _selectedTab),
+                onTabSelected: (label) {
+                  // The dropdown only knows display labels; map the tapped label
+                  // back to its stable tab identity.
+                  final tabId = _tabIds.firstWhere(
+                    (id) => _tabLabel(l10n, id) == label,
+                    orElse: () => _tabAll,
+                  );
                   setState(() {
-                    _selectedTab = tab;
+                    _selectedTab = tabId;
                     final filtered = _filterItems(searchState.results);
                     _selectedIndex = filtered.isEmpty ? -1 : 0;
                   });
@@ -382,7 +425,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
                           if (_controller.text.isEmpty)
                             IgnorePointer(
                               child: Text(
-                                widget.placeholder,
+                                widget.placeholder ?? l10n.searchPlaceholder,
                                 maxLines: 1,
                                 overflow: TextOverflow.clip,
                                 style: theme.typography.caption?.copyWith(

@@ -1,6 +1,8 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../domain/entities/media_type.dart';
+import '../../domain/entities/media_type_localization.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 part 'home_models.g.dart';
 
@@ -159,7 +161,7 @@ class MediaItem {
   }
 }
 
-String? buildPosterSubtitle(MediaItem item) {
+String? buildPosterSubtitle(MediaItem item, AppLocalizations l10n) {
   final mediaType = MediaType.tryParse(item.type);
   if (mediaType == MediaType.tv) {
     // Mirror the web layout subheading builder for TV items:
@@ -175,12 +177,12 @@ String? buildPosterSubtitle(MediaItem item) {
     final List<String> parts = [];
     if (c > 1 || u > 1) {
       if (u > 1) {
-        parts.add('共 $u 季');
+        parts.add(l10n.mediaSeasonCount('$u'));
       } else {
-        parts.add('第 ${item.seasonNumber} 季');
+        parts.add(l10n.mediaSeasonNumber('${item.seasonNumber}'));
       }
     } else if ((c == 1 || u == 1) && u == 1) {
-      parts.add('共 $l 集');
+      parts.add(l10n.mediaEpisodeCount('$l'));
     }
 
     final year = _buildAirDateYear(item.firstAirDate, item.lastAirDate);
@@ -190,7 +192,7 @@ String? buildPosterSubtitle(MediaItem item) {
   }
 
   if (_isBlank(item.releaseDate) && !_isBlank(item.type)) {
-    return _mediaTypeDescription(item.type);
+    return _mediaTypeDescription(item.type, l10n);
   }
 
   if (item.status == '1' && mediaType == MediaType.video) {
@@ -213,8 +215,8 @@ String _buildAirDateYear(String? firstAirDate, String? lastAirDate) {
   return firstYear;
 }
 
-String _mediaTypeDescription(String? type) {
-  return MediaType.fromString(type).description;
+String _mediaTypeDescription(String? type, AppLocalizations l10n) {
+  return MediaType.fromString(type).localizedLabel(l10n);
 }
 
 bool _isBlank(String? value) {
@@ -321,14 +323,17 @@ String buildPlayDetailTitle(PlayDetailResponse item) {
   return item.title;
 }
 
-String? buildPlayDetailSubtitle(PlayDetailResponse item) {
+String? buildPlayDetailSubtitle(PlayDetailResponse item, AppLocalizations l10n) {
   switch (MediaType.tryParse(item.type)) {
     case MediaType.episode:
-      return '第 ${item.seasonNumber} 季 · 第 ${item.episodeNumber} 集';
+      return l10n.mediaEpisodeDetail(
+        '${item.seasonNumber}',
+        '${item.episodeNumber}',
+      );
     case MediaType.video:
       return ' ';
     default:
-      return _mediaTypeDescription(item.type);
+      return _mediaTypeDescription(item.type, l10n);
   }
 }
 

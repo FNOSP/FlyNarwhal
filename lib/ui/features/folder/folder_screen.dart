@@ -15,6 +15,7 @@ import '../../../domain/entities/tag_entity.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../shared/filter_box.dart';
 import '../../shared/layout_flyout.dart';
 import '../../shared/movie_poster.dart';
@@ -865,6 +866,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
+        final l10n = AppLocalizations.of(context);
         final item = items[index];
         final isDirectory =
             MediaType.tryParse(item.type) == MediaType.directory;
@@ -872,7 +874,7 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
           return MoviePoster(
             title: item.title,
             // 文件夹卡片仅显示标题（与 Web 一致）。
-            subtitle: isDirectory ? null : buildPosterSubtitle(item),
+            subtitle: isDirectory ? null : buildPosterSubtitle(item, l10n),
             posterPath: item.effectivePoster,
             score: item.voteAverage,
             resolutions: item.mediaStream?.resolutions,

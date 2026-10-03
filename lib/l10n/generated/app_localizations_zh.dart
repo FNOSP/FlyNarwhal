@@ -678,6 +678,829 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get nasBrowserEmpty => '空空如也';
+
+  @override
+  String get actionPlay => '播放';
+
+  @override
+  String get actionContinuePlay => '继续播放';
+
+  @override
+  String get actionFavoriteAdd => '加入收藏';
+
+  @override
+  String get actionFavoriteRemove => '取消收藏';
+
+  @override
+  String get actionMarkWatched => '标记为已看';
+
+  @override
+  String get actionMarkUnwatched => '标记为未看';
+
+  @override
+  String get actionMore => '更多操作';
+
+  @override
+  String get actionMore2 => '更多';
+
+  @override
+  String get toastFavoriteAdded => '已收藏';
+
+  @override
+  String get toastFavoriteRemoved => '已取消收藏';
+
+  @override
+  String get toastMarkedUnwatched => '标记为未观看';
+
+  @override
+  String get toastMarkedWatched => '标记为已观看';
+
+  @override
+  String get toastOperationFailed => '操作失败';
+
+  @override
+  String toastOperationFailedReason(String message) {
+    return '操作失败，$message';
+  }
+
+  @override
+  String get mediaInfoNoOverview => '暂无介绍';
+
+  @override
+  String get mediaInfoNoInfo => '暂无信息';
+
+  @override
+  String get mediaInfoNoContent => '无内容';
+
+  @override
+  String get mediaInfoFileInfo => '文件信息';
+
+  @override
+  String get mediaInfoFileLocation => '文件位置';
+
+  @override
+  String get mediaInfoFileSize => '文件大小';
+
+  @override
+  String get mediaInfoCreatedDate => '创建日期';
+
+  @override
+  String get mediaInfoAddedDate => '添加日期';
+
+  @override
+  String get mediaInfoStreamSection => '视频/音频信息';
+
+  @override
+  String get linkLabel => '链接:  ';
+
+  @override
+  String get imdbLinkLabel => 'IMDB链接';
+
+  @override
+  String defaultSuffix(String title) {
+    return '$title - 默认';
+  }
+
+  @override
+  String get actionViewAll => '查看全部';
+
+  @override
+  String get movieDetailNotFound => '未找到电影信息';
+
+  @override
+  String get movieDetailDescriptionTitle => '电影简介';
+
+  @override
+  String get movieDetailEpisodeDescriptionTitle => '剧集简介';
+
+  @override
+  String get movieDetailSubtitleAddTitle => '添加字幕';
+
+  @override
+  String get movieDetailSubtitleAlreadyAdded => '该文件已被添加为字幕';
+
+  @override
+  String get movieDetailSubtitleAddFailed => '添加字幕失败';
+
+  @override
+  String movieDetailSubtitleRetry(String error) {
+    return '请稍后重试：$error';
+  }
+
+  @override
+  String get movieDetailSubtitleSearchMissingFile => '当前文件信息缺失，无法搜索字幕';
+
+  @override
+  String get movieDetailSubtitleUploadMissingFile => '当前文件信息缺失，无法上传字幕';
+
+  @override
+  String get movieDetailSubtitleDownloadSuccess => '下载成功';
+
+  @override
+  String movieDetailSubtitleDownloadFailed(String error) {
+    return '下载字幕失败: $error';
+  }
+
+  @override
+  String get movieDetailSubtitleTaskCreated => '已创建字幕下载任务';
+
+  @override
+  String get movieDetailSubtitleTaskFailed => '创建字幕下载任务失败，请重试';
+
+  @override
+  String get movieDetailSubtitleExternalSuffix => ' - 外挂';
+
+  @override
+  String get movieDetailSubtitleDeleteTitle => '删除外挂字幕';
+
+  @override
+  String movieDetailSubtitleDeleteConfirm(String name) {
+    return '确定要删除 $name 外挂字幕吗？';
+  }
+
+  @override
+  String get movieDetailSubtitleDeleteSuccess => '删除字幕成功';
+
+  @override
+  String movieDetailSubtitleDeleteFailed(String error) {
+    return '删除字幕失败: $error';
+  }
+
+  @override
+  String get movieDetailSubtitleNone => '无字幕';
+
+  @override
+  String movieDetailSubtitleLanguageLabel(String language) {
+    return '$language字幕';
+  }
+
+  @override
+  String get movieDetailAudioLabel => '音频';
+
+  @override
+  String movieDetailAudioLanguageLabel(String language) {
+    return '$language音频';
+  }
+
+  @override
+  String get movieDetailAudioStereo => '立体声';
+
+  @override
+  String movieDetailRemaining(String time) {
+    return '剩余 $time';
+  }
+
+  @override
+  String movieDetailSmartAnalysisStatus(String status) {
+    return '智能片头/片尾检测状态：$status';
+  }
+
+  @override
+  String get movieDetailDolbyVision => '杜比视界';
+
+  @override
+  String get movieDetailSubtitleLabel => '字幕';
+
+  @override
+  String get tvDetailNotFound => '未找到剧集信息';
+
+  @override
+  String get tvDetailSeasonNotFound => '未找到分季信息';
+
+  @override
+  String get tvDetailDescriptionTitle => '剧集简介';
+
+  @override
+  String get tvDetailSmartAnalysis => '智能分析片头/片尾';
+
+  @override
+  String get tvDetailSeasonListTitle => '剧季列表';
+
+  @override
+  String tvDetailEpisodeNumber(String number) {
+    return '第 $number 集';
+  }
+
+  @override
+  String tvDetailSeasonNumber(String number) {
+    return '第 $number 季';
+  }
+
+  @override
+  String tvDetailSeasonEpisodeNumbers(String season, String episode) {
+    return '第 $season 季 第 $episode 集';
+  }
+
+  @override
+  String tvDetailEpisodeCount(String count) {
+    return '共 $count 集';
+  }
+
+  @override
+  String get tvDetailEpisodeSectionTitle => '选集';
+
+  @override
+  String get tvDetailUnknownSeason => '未知季';
+
+  @override
+  String tvDetailSeasonTitleSummary(String title, String count) {
+    return '《$title》共 $count 季';
+  }
+
+  @override
+  String get tvDetailEpisodeNoneOverview => '暂无剧集简介';
+
+  @override
+  String tvDetailEpisodeRuntime(String minutes) {
+    return '$minutes 分钟';
+  }
+
+  @override
+  String get tvDetailRuntimeUnknown => '时长未知';
+
+  @override
+  String tvDetailScore(String score) {
+    return '$score 分';
+  }
+
+  @override
+  String get tvDetailPlayEpisode => '播放本集';
+
+  @override
+  String tvDetailSmartAnalysisStatus(String status) {
+    return '智能分析：$status';
+  }
+
+  @override
+  String get tvDetailAnalysisFetching => '获取中';
+
+  @override
+  String get tvDetailAnalysisNotDetected => '未检测';
+
+  @override
+  String get tvDetailAnalysisFailed => '获取失败';
+
+  @override
+  String get tvDetailAnalysisPreparing => '准备中';
+
+  @override
+  String get tvDetailAnalysisPending => '等待中';
+
+  @override
+  String get tvDetailAnalysisInProgress => '分析中';
+
+  @override
+  String get tvDetailAnalysisPartialSuccess => '部分成功';
+
+  @override
+  String get tvDetailAnalysisCompleted => '已完成';
+
+  @override
+  String get tvDetailAnalysisStatusFailed => '失败';
+
+  @override
+  String get mediaTypeMovie => '电影';
+
+  @override
+  String get mediaTypeTv => '电视节目';
+
+  @override
+  String get mediaTypeDirectory => '目录';
+
+  @override
+  String get mediaTypeOther => '其他';
+
+  @override
+  String get mediaTypeLive => '电视直播';
+
+  @override
+  String get mediaTypeEpisode => '剧集';
+
+  @override
+  String get mediaTypeSeason => '季';
+
+  @override
+  String mediaSeasonCount(String count) {
+    return '共 $count 季';
+  }
+
+  @override
+  String mediaSeasonNumber(String number) {
+    return '第 $number 季';
+  }
+
+  @override
+  String mediaEpisodeCount(String count) {
+    return '共 $count 集';
+  }
+
+  @override
+  String mediaEpisodeDetail(String season, String episode) {
+    return '第 $season 季 · 第 $episode 集';
+  }
+
+  @override
+  String get cloudStorageBaiduPan => '百度网盘';
+
+  @override
+  String get cloudStorageAliyunDrive => '阿里云盘';
+
+  @override
+  String get cloudStorage115 => '115 生活';
+
+  @override
+  String get cloudStorageQuark => '夸克网盘';
+
+  @override
+  String get cloudStorage123 => '123 云盘';
+
+  @override
+  String get loginRememberPassword => '记住密码';
+
+  @override
+  String get loginWebViewInjectedPlaceholder => '登录页面';
+
+  @override
+  String get updateCurrentVersionLabel => '当前安装版本';
+
+  @override
+  String get updateManualDownloadOpenFailed => '无法打开手动下载页面，请稍后重试。';
+
+  @override
+  String get updateOpenLinkFailed => '无法打开链接，请稍后重试。';
+
+  @override
+  String updateBadgeSemanticLabel(String version) {
+    return '发现新版本 $version，打开更新详情';
+  }
+
+  @override
+  String get updateDialogTitleChecking => '检查更新';
+
+  @override
+  String get updateDialogTitleAvailable => '发现新版本';
+
+  @override
+  String get updateDialogTitleDownloading => '正在下载更新';
+
+  @override
+  String get updateDialogTitleDownloaded => '下载完成';
+
+  @override
+  String get updateDialogTitleVerifying => '正在校验更新';
+
+  @override
+  String get updateDialogTitleReadyToInstall => '更新已准备就绪';
+
+  @override
+  String get updateDialogTitleInstalling => '正在启动安装';
+
+  @override
+  String get updateDialogTitleCheckFailed => '检查更新失败';
+
+  @override
+  String get updateDialogTitleDownloadFailed => '下载更新失败';
+
+  @override
+  String get updateDialogTitleVerificationFailed => '更新包校验失败';
+
+  @override
+  String get updateDialogTitleInstallFailed => '启动安装失败';
+
+  @override
+  String get updateDialogTitleAutomaticDownloadExhausted => '自动下载未完成';
+
+  @override
+  String get updateDialogTitleNone => '应用更新';
+
+  @override
+  String get updateActionCheckInBackground => '后台检查';
+
+  @override
+  String get updateActionSkipVersion => '跳过此版本';
+
+  @override
+  String get updateActionLater => '稍后再说';
+
+  @override
+  String get updateActionDownload => '下载更新';
+
+  @override
+  String get updateActionDownloadInBackground => '后台下载';
+
+  @override
+  String get updateActionCancelDownload => '取消下载';
+
+  @override
+  String get updateActionInstallLater => '稍后安装';
+
+  @override
+  String get updateActionQuitAndInstall => '退出并安装';
+
+  @override
+  String get updateActionRunInBackground => '后台运行';
+
+  @override
+  String get updateActionRetryDownload => '重新下载';
+
+  @override
+  String get updateActionRetryInstall => '重试安装';
+
+  @override
+  String get updateActionManualDownload => '手动下载';
+
+  @override
+  String get updateActionClose => '关闭';
+
+  @override
+  String get updateStatusCheckingMessage => '正在从 GitHub Releases 获取更新信息…';
+
+  @override
+  String get updateStatusUpToDate => '当前已是最新版本。';
+
+  @override
+  String get updateStatusDownloadedMessage => '更新包已下载完成，可以稍后安装或立即退出并安装。';
+
+  @override
+  String get updateStatusReadyMessage => '已找到可用的已下载更新包。';
+
+  @override
+  String get updateStatusVerifyingMessage => '正在安全校验更新包，请稍候…';
+
+  @override
+  String get updateStatusInstallingMessage => '正在启动系统安装程序，请勿重复操作。';
+
+  @override
+  String get updateStatusIdleMessage => '尚未执行更新检查。';
+
+  @override
+  String updateVersionLine(String version, String current) {
+    return '版本 $version（当前 $current）';
+  }
+
+  @override
+  String updatePackageSize(String size) {
+    return '安装包大小 $size';
+  }
+
+  @override
+  String get updateReleaseNotesHeader => '更新内容';
+
+  @override
+  String get updateDownloadingPackage => '正在下载更新包';
+
+  @override
+  String updateDownloadedSize(String size) {
+    return '已下载 $size';
+  }
+
+  @override
+  String updateDownloadProgress(String received, String total) {
+    return '$received / $total';
+  }
+
+  @override
+  String get updateErrorRateLimited => 'GitHub 接口访问频率超限，通常稍后会自动恢复，请稍后再试。';
+
+  @override
+  String get updateErrorVerificationFailed => '更新包未通过安全校验，请重新下载。';
+
+  @override
+  String get updateErrorCheckFailed => '暂时无法获取更新信息，请检查网络后重试。';
+
+  @override
+  String get updateErrorDownloadFailed => '更新包下载未完成，请稍后重试。';
+
+  @override
+  String get updateErrorInstallFailed => '无法启动系统安装程序，请稍后重试。';
+
+  @override
+  String get updateErrorAutomaticDownloadExhausted =>
+      '自动下载多次未完成，你可以稍后重试或前往发布页手动下载。';
+
+  @override
+  String get updateErrorGeneric => '更新操作未完成，请稍后重试。';
+
+  @override
+  String get updateMarkdownEmpty => '本次更新未提供更新说明';
+
+  @override
+  String get updateMarkdownRemoteImageAlt => '远程图片';
+
+  @override
+  String updateMarkdownRemoteImageBlocked(String alt) {
+    return '远程图片已阻止：$alt';
+  }
+
+  @override
+  String get updateMarkdownTruncatedSuffix => '\n\n更新说明过长，已截断显示。';
+
+  @override
+  String get loginHostOrFnIdPlaceholder => '请输入 IP:Port、域名或 FN ID';
+
+  @override
+  String get loginHostValidationMessage => '请输入正确的 IP、域名或 FN ID';
+
+  @override
+  String get loginHostRequiredMessage => '请输入 IP、域名或 FN ID';
+
+  @override
+  String get loginUsernameRequiredMessage => '请输入用户名';
+
+  @override
+  String get loginPasswordRequiredMessage => '请输入密码';
+
+  @override
+  String get loginWebViewInitFailed => '浏览器组件初始化失败，请稍后重试。';
+
+  @override
+  String get loginHostPlaceholder => '请输入 IP、域名或 FN ID';
+
+  @override
+  String get loginPortPlaceholder => '端口';
+
+  @override
+  String get loginUsernameLabel => '用户名';
+
+  @override
+  String get loginPasswordLabel => '密码';
+
+  @override
+  String get loginUseNasLogin => '使用 NAS 登录';
+
+  @override
+  String get loginHttpsSecureAccess => 'HTTPS 安全访问';
+
+  @override
+  String get loginNext => '下一步';
+
+  @override
+  String get loginSignIn => '登录';
+
+  @override
+  String get loginVerifyingServer => '正在验证服务器...';
+
+  @override
+  String get loginInvalidCredentials => '用户名或密码错误';
+
+  @override
+  String loginServerHttpError(String status) {
+    return '服务器返回错误（HTTP $status），请检查服务状态。';
+  }
+
+  @override
+  String get loginSslCertificateFailed => 'SSL 证书验证失败，请检查 HTTPS 设置或服务器证书。';
+
+  @override
+  String get loginConnectionTimeout => '连接服务器超时，请确认服务器地址或网络状态。';
+
+  @override
+  String get loginConnectionFailed => '无法连接到服务器，请检查地址、端口或网络。';
+
+  @override
+  String get loginRequestCancelled => '登录请求已取消。';
+
+  @override
+  String get loginFailedCheckServer => '登录失败，请检查服务器地址或稍后再试。';
+
+  @override
+  String get loginFailedCheckNetwork => '登录失败，请检查网络或服务器设置。';
+
+  @override
+  String get loginFailedTokenEmpty => '登录失败: Token 为空';
+
+  @override
+  String loginFailedWithError(String error) {
+    return '登录失败: $error';
+  }
+
+  @override
+  String get loginAuthFailed => '认证失败';
+
+  @override
+  String get loginFnIdEmpty => 'FN ID 不能为空';
+
+  @override
+  String get loginHistoryTitle => '登录历史';
+
+  @override
+  String get loginHistoryEmpty => '暂无历史记录';
+
+  @override
+  String get homeRetryLoad => '加载失败，点击重试';
+
+  @override
+  String get homeTitle => '首页';
+
+  @override
+  String get homeContinueWatching => '继续观看';
+
+  @override
+  String get homeMediaLibrary => '媒体库';
+
+  @override
+  String get homeContinueRemoved => '已从“继续观看”中移除';
+
+  @override
+  String get homeContinueRemoveFailed => '移除失败';
+
+  @override
+  String homeContinueRemoveError(String error) {
+    return '移除失败：$error';
+  }
+
+  @override
+  String homeDeleteDialogTitle(String title) {
+    return '删除 《$title》';
+  }
+
+  @override
+  String get homeDeleteDialogBody =>
+      '从媒体库移除后，所选视频文件将不再被扫描添加到当前媒体库中。请确认是否同时删除关联的视频文件。';
+
+  @override
+  String get homeDeleteRemoveAndDeleteFile => '移除并删除文件';
+
+  @override
+  String get homeDeleteRemoveOnly => '仅移除';
+
+  @override
+  String get homeDeleted => '已删除';
+
+  @override
+  String get homeDeleteFailed => '删除失败';
+
+  @override
+  String homeDeleteFailedWithError(String error) {
+    return '删除失败：$error';
+  }
+
+  @override
+  String get homeFavoriteRemoved => '已取消收藏';
+
+  @override
+  String get homeFavorited => '已收藏';
+
+  @override
+  String get homeMarkedUnwatched => '标记为未观看';
+
+  @override
+  String get homeMarkedWatched => '标记为已观看';
+
+  @override
+  String get homeActionFailed => '操作失败';
+
+  @override
+  String homeActionFailedWithError(String error) {
+    return '操作失败，$error';
+  }
+
+  @override
+  String get homeMenuRemoveFromContinue => '从“继续观看”中移除';
+
+  @override
+  String get homeMenuResume => '继续播放';
+
+  @override
+  String get homeMenuRestart => '从头开始播放';
+
+  @override
+  String get homeMenuDeleteVideo => '删除视频';
+
+  @override
+  String get searchPlaceholder => '搜索片名、演员';
+
+  @override
+  String get searchTabAll => '全部';
+
+  @override
+  String get searchTabMovie => '电影';
+
+  @override
+  String get searchTabTv => '电视剧';
+
+  @override
+  String get searchTabLiveChannel => '电视直播';
+
+  @override
+  String get searchTabPerson => '人物';
+
+  @override
+  String get searchTabOther => '其他';
+
+  @override
+  String get searchNoResults => '搜索无结果';
+
+  @override
+  String get searchEnterKeyword => '输入关键词搜索';
+
+  @override
+  String searchWorkCount(String count) {
+    return '$count 个作品';
+  }
+
+  @override
+  String get searchScoreSuffix => '分';
+
+  @override
+  String searchEpisodeCount(String count) {
+    return '共 $count 集';
+  }
+
+  @override
+  String get personNoData => '无数据';
+
+  @override
+  String get personSectionActor => '作为演员';
+
+  @override
+  String get personSectionDirector => '作为导演';
+
+  @override
+  String get personSectionWriter => '作为编剧';
+
+  @override
+  String get personMore => '更多';
+
+  @override
+  String get personBiographyTitle => '演员简介';
+
+  @override
+  String get commonDelete => '删除';
+
+  @override
+  String get forgotPasswordTitle => '忘记密码？';
+
+  @override
+  String get storageExternal => '外接存储';
+
+  @override
+  String get storageRemoteMount => '远程挂载';
+
+  @override
+  String storageVolumeName(String number) {
+    return '存储空间 $number';
+  }
+
+  @override
+  String durationHoursMinutes(String hours, String minutes) {
+    return '$hours 小时 $minutes 分钟';
+  }
+
+  @override
+  String durationHours(String hours) {
+    return '$hours 小时';
+  }
+
+  @override
+  String durationMinutesSeconds(String minutes, String seconds) {
+    return '$minutes 分钟 $seconds 秒';
+  }
+
+  @override
+  String durationMinutes(String minutes) {
+    return '$minutes 分钟';
+  }
+
+  @override
+  String get durationZeroMinutes => '0 分钟';
+
+  @override
+  String authDirUserFiles(String username) {
+    return '$username 的文件';
+  }
+
+  @override
+  String authDirUnknownUser(String uid) {
+    return '用户 $uid';
+  }
+
+  @override
+  String get authDirNone => '无';
+
+  @override
+  String get authDirUnknown => '未知';
+
+  @override
+  String get mediaStreamAudio => '音频';
+
+  @override
+  String get mediaStreamVideo => '视频';
+
+  @override
+  String get mediaStreamSubtitle => '字幕';
+
+  @override
+  String get forgotPasswordBody =>
+      '1. 如果您是 NAS 用户，请尝试 NAS 帐号登录；\n2. 请联系管理员修改密码。';
+
+  @override
+  String tvDetailEpisodeNumberTitle(String number, String title) {
+    return '第 $number 集 $title';
+  }
+
+  @override
+  String get movieDetailSubtitleDefaultSuffix => ' - 默认';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -1354,4 +2177,827 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get nasBrowserEmpty => '空空如也';
+
+  @override
+  String get actionPlay => '播放';
+
+  @override
+  String get actionContinuePlay => '繼續播放';
+
+  @override
+  String get actionFavoriteAdd => '加入收藏';
+
+  @override
+  String get actionFavoriteRemove => '取消收藏';
+
+  @override
+  String get actionMarkWatched => '標記為已看';
+
+  @override
+  String get actionMarkUnwatched => '標記為未看';
+
+  @override
+  String get actionMore => '更多操作';
+
+  @override
+  String get actionMore2 => '更多';
+
+  @override
+  String get toastFavoriteAdded => '已收藏';
+
+  @override
+  String get toastFavoriteRemoved => '已取消收藏';
+
+  @override
+  String get toastMarkedUnwatched => '標記為未觀看';
+
+  @override
+  String get toastMarkedWatched => '標記為已觀看';
+
+  @override
+  String get toastOperationFailed => '操作失敗';
+
+  @override
+  String toastOperationFailedReason(String message) {
+    return '操作失敗，$message';
+  }
+
+  @override
+  String get mediaInfoNoOverview => '暫無介紹';
+
+  @override
+  String get mediaInfoNoInfo => '暫無信息';
+
+  @override
+  String get mediaInfoNoContent => '無內容';
+
+  @override
+  String get mediaInfoFileInfo => '檔案資訊';
+
+  @override
+  String get mediaInfoFileLocation => '檔案位置';
+
+  @override
+  String get mediaInfoFileSize => '檔案大小';
+
+  @override
+  String get mediaInfoCreatedDate => '建立日期';
+
+  @override
+  String get mediaInfoAddedDate => '新增日期';
+
+  @override
+  String get mediaInfoStreamSection => '影片/音訊資訊';
+
+  @override
+  String get linkLabel => '連結:  ';
+
+  @override
+  String get imdbLinkLabel => 'IMDB 連結';
+
+  @override
+  String defaultSuffix(String title) {
+    return '$title - 預設';
+  }
+
+  @override
+  String get actionViewAll => '查看全部';
+
+  @override
+  String get movieDetailNotFound => '找不到電影資訊';
+
+  @override
+  String get movieDetailDescriptionTitle => '電影簡介';
+
+  @override
+  String get movieDetailEpisodeDescriptionTitle => '劇集簡介';
+
+  @override
+  String get movieDetailSubtitleAddTitle => '新增字幕';
+
+  @override
+  String get movieDetailSubtitleAlreadyAdded => '該檔案已被新增為字幕';
+
+  @override
+  String get movieDetailSubtitleAddFailed => '新增字幕失敗';
+
+  @override
+  String movieDetailSubtitleRetry(String error) {
+    return '請稍後重試：$error';
+  }
+
+  @override
+  String get movieDetailSubtitleSearchMissingFile => '目前檔案資訊缺失，無法搜尋字幕';
+
+  @override
+  String get movieDetailSubtitleUploadMissingFile => '目前檔案資訊缺失，無法上傳字幕';
+
+  @override
+  String get movieDetailSubtitleDownloadSuccess => '下載成功';
+
+  @override
+  String movieDetailSubtitleDownloadFailed(String error) {
+    return '下載字幕失敗: $error';
+  }
+
+  @override
+  String get movieDetailSubtitleTaskCreated => '已建立字幕下載任務';
+
+  @override
+  String get movieDetailSubtitleTaskFailed => '建立字幕下載任務失敗，請重試';
+
+  @override
+  String get movieDetailSubtitleExternalSuffix => ' - 外掛';
+
+  @override
+  String get movieDetailSubtitleDeleteTitle => '刪除外掛字幕';
+
+  @override
+  String movieDetailSubtitleDeleteConfirm(String name) {
+    return '確定要刪除 $name 外掛字幕嗎？';
+  }
+
+  @override
+  String get movieDetailSubtitleDeleteSuccess => '刪除字幕成功';
+
+  @override
+  String movieDetailSubtitleDeleteFailed(String error) {
+    return '刪除字幕失敗: $error';
+  }
+
+  @override
+  String get movieDetailSubtitleNone => '無字幕';
+
+  @override
+  String movieDetailSubtitleLanguageLabel(String language) {
+    return '$language字幕';
+  }
+
+  @override
+  String get movieDetailAudioLabel => '音訊';
+
+  @override
+  String movieDetailAudioLanguageLabel(String language) {
+    return '$language音訊';
+  }
+
+  @override
+  String get movieDetailAudioStereo => '立體聲';
+
+  @override
+  String movieDetailRemaining(String time) {
+    return '剩餘 $time';
+  }
+
+  @override
+  String movieDetailSmartAnalysisStatus(String status) {
+    return '智慧片頭/片尾偵測狀態：$status';
+  }
+
+  @override
+  String get movieDetailDolbyVision => '杜比視界';
+
+  @override
+  String get movieDetailSubtitleLabel => '字幕';
+
+  @override
+  String get tvDetailNotFound => '找不到劇集資訊';
+
+  @override
+  String get tvDetailSeasonNotFound => '找不到分季資訊';
+
+  @override
+  String get tvDetailDescriptionTitle => '劇集簡介';
+
+  @override
+  String get tvDetailSmartAnalysis => '智慧分析片頭/片尾';
+
+  @override
+  String get tvDetailSeasonListTitle => '季列表';
+
+  @override
+  String tvDetailEpisodeNumber(String number) {
+    return '第 $number 集';
+  }
+
+  @override
+  String tvDetailSeasonNumber(String number) {
+    return '第 $number 季';
+  }
+
+  @override
+  String tvDetailSeasonEpisodeNumbers(String season, String episode) {
+    return '第 $season 季 第 $episode 集';
+  }
+
+  @override
+  String tvDetailEpisodeCount(String count) {
+    return '共 $count 集';
+  }
+
+  @override
+  String get tvDetailEpisodeSectionTitle => '選集';
+
+  @override
+  String get tvDetailUnknownSeason => '未知季';
+
+  @override
+  String tvDetailSeasonTitleSummary(String title, String count) {
+    return '《$title》共 $count 季';
+  }
+
+  @override
+  String get tvDetailEpisodeNoneOverview => '暫無劇集簡介';
+
+  @override
+  String tvDetailEpisodeRuntime(String minutes) {
+    return '$minutes 分鐘';
+  }
+
+  @override
+  String get tvDetailRuntimeUnknown => '時長未知';
+
+  @override
+  String tvDetailScore(String score) {
+    return '$score 分';
+  }
+
+  @override
+  String get tvDetailPlayEpisode => '播放本集';
+
+  @override
+  String tvDetailSmartAnalysisStatus(String status) {
+    return '智慧分析：$status';
+  }
+
+  @override
+  String get tvDetailAnalysisFetching => '取得中';
+
+  @override
+  String get tvDetailAnalysisNotDetected => '未偵測';
+
+  @override
+  String get tvDetailAnalysisFailed => '取得失敗';
+
+  @override
+  String get tvDetailAnalysisPreparing => '準備中';
+
+  @override
+  String get tvDetailAnalysisPending => '等待中';
+
+  @override
+  String get tvDetailAnalysisInProgress => '分析中';
+
+  @override
+  String get tvDetailAnalysisPartialSuccess => '部分成功';
+
+  @override
+  String get tvDetailAnalysisCompleted => '已完成';
+
+  @override
+  String get tvDetailAnalysisStatusFailed => '失敗';
+
+  @override
+  String get mediaTypeMovie => '電影';
+
+  @override
+  String get mediaTypeTv => '電視節目';
+
+  @override
+  String get mediaTypeDirectory => '目錄';
+
+  @override
+  String get mediaTypeOther => '其他';
+
+  @override
+  String get mediaTypeLive => '電視直播';
+
+  @override
+  String get mediaTypeEpisode => '劇集';
+
+  @override
+  String get mediaTypeSeason => '季';
+
+  @override
+  String mediaSeasonCount(String count) {
+    return '共 $count 季';
+  }
+
+  @override
+  String mediaSeasonNumber(String number) {
+    return '第 $number 季';
+  }
+
+  @override
+  String mediaEpisodeCount(String count) {
+    return '共 $count 集';
+  }
+
+  @override
+  String mediaEpisodeDetail(String season, String episode) {
+    return '第 $season 季 · 第 $episode 集';
+  }
+
+  @override
+  String get cloudStorageBaiduPan => '百度網盤';
+
+  @override
+  String get cloudStorageAliyunDrive => '阿里雲盤';
+
+  @override
+  String get cloudStorage115 => '115 生活';
+
+  @override
+  String get cloudStorageQuark => '夸克網盤';
+
+  @override
+  String get cloudStorage123 => '123 雲盤';
+
+  @override
+  String get loginRememberPassword => '記住密碼';
+
+  @override
+  String get loginWebViewInjectedPlaceholder => '登入頁面';
+
+  @override
+  String get updateCurrentVersionLabel => '目前安裝版本';
+
+  @override
+  String get updateManualDownloadOpenFailed => '無法開啟手動下載頁面，請稍後重試。';
+
+  @override
+  String get updateOpenLinkFailed => '無法開啟連結，請稍後重試。';
+
+  @override
+  String updateBadgeSemanticLabel(String version) {
+    return '發現新版本 $version，開啟更新詳情';
+  }
+
+  @override
+  String get updateDialogTitleChecking => '檢查更新';
+
+  @override
+  String get updateDialogTitleAvailable => '發現新版本';
+
+  @override
+  String get updateDialogTitleDownloading => '正在下載更新';
+
+  @override
+  String get updateDialogTitleDownloaded => '下載完成';
+
+  @override
+  String get updateDialogTitleVerifying => '正在校驗更新';
+
+  @override
+  String get updateDialogTitleReadyToInstall => '更新已準備就緒';
+
+  @override
+  String get updateDialogTitleInstalling => '正在啟動安裝';
+
+  @override
+  String get updateDialogTitleCheckFailed => '檢查更新失敗';
+
+  @override
+  String get updateDialogTitleDownloadFailed => '下載更新失敗';
+
+  @override
+  String get updateDialogTitleVerificationFailed => '更新包校驗失敗';
+
+  @override
+  String get updateDialogTitleInstallFailed => '啟動安裝失敗';
+
+  @override
+  String get updateDialogTitleAutomaticDownloadExhausted => '自動下載未完成';
+
+  @override
+  String get updateDialogTitleNone => '應用程式更新';
+
+  @override
+  String get updateActionCheckInBackground => '背景下載';
+
+  @override
+  String get updateActionSkipVersion => '略過此版本';
+
+  @override
+  String get updateActionLater => '稍後再說';
+
+  @override
+  String get updateActionDownload => '下載更新';
+
+  @override
+  String get updateActionDownloadInBackground => '背景下載';
+
+  @override
+  String get updateActionCancelDownload => '取消下載';
+
+  @override
+  String get updateActionInstallLater => '稍後安裝';
+
+  @override
+  String get updateActionQuitAndInstall => '結束並安裝';
+
+  @override
+  String get updateActionRunInBackground => '背景執行';
+
+  @override
+  String get updateActionRetryDownload => '重新下載';
+
+  @override
+  String get updateActionRetryInstall => '重試安裝';
+
+  @override
+  String get updateActionManualDownload => '手動下載';
+
+  @override
+  String get updateActionClose => '關閉';
+
+  @override
+  String get updateStatusCheckingMessage => '正在從 GitHub Releases 取得更新資訊…';
+
+  @override
+  String get updateStatusUpToDate => '目前已是最新版本。';
+
+  @override
+  String get updateStatusDownloadedMessage => '更新包已下載完成，可以稍後安裝或立即結束並安裝。';
+
+  @override
+  String get updateStatusReadyMessage => '已找到可用的已下載更新包。';
+
+  @override
+  String get updateStatusVerifyingMessage => '正在安全校驗更新包，請稍候…';
+
+  @override
+  String get updateStatusInstallingMessage => '正在啟動系統安裝程式，請勿重複操作。';
+
+  @override
+  String get updateStatusIdleMessage => '尚未執行更新檢查。';
+
+  @override
+  String updateVersionLine(String version, String current) {
+    return '版本 $version（目前 $current）';
+  }
+
+  @override
+  String updatePackageSize(String size) {
+    return '安裝包大小 $size';
+  }
+
+  @override
+  String get updateReleaseNotesHeader => '更新內容';
+
+  @override
+  String get updateDownloadingPackage => '正在下載更新包';
+
+  @override
+  String updateDownloadedSize(String size) {
+    return '已下載 $size';
+  }
+
+  @override
+  String updateDownloadProgress(String received, String total) {
+    return '$received / $total';
+  }
+
+  @override
+  String get updateErrorRateLimited => 'GitHub API 存取頻率超限，通常稍後會自動恢復，請稍後再試。';
+
+  @override
+  String get updateErrorVerificationFailed => '更新包未通過安全校驗，請重新下載。';
+
+  @override
+  String get updateErrorCheckFailed => '暫時無法取得更新資訊，請檢查網路後重試。';
+
+  @override
+  String get updateErrorDownloadFailed => '更新包下載未完成，請稍後重試。';
+
+  @override
+  String get updateErrorInstallFailed => '無法啟動系統安裝程式，請稍後重試。';
+
+  @override
+  String get updateErrorAutomaticDownloadExhausted =>
+      '自動下載多次未完成，你可以稍後重試或前往發佈頁手動下載。';
+
+  @override
+  String get updateErrorGeneric => '更新操作未完成，請稍後重試。';
+
+  @override
+  String get updateMarkdownEmpty => '本次更新未提供更新說明';
+
+  @override
+  String get updateMarkdownRemoteImageAlt => '遠端圖片';
+
+  @override
+  String updateMarkdownRemoteImageBlocked(String alt) {
+    return '遠端圖片已封鎖：$alt';
+  }
+
+  @override
+  String get updateMarkdownTruncatedSuffix => '\n\n更新說明過長，已截斷顯示。';
+
+  @override
+  String get loginHostOrFnIdPlaceholder => '請輸入 IP:Port、網域或 FN ID';
+
+  @override
+  String get loginHostValidationMessage => '請輸入正確的 IP、網域或 FN ID';
+
+  @override
+  String get loginHostRequiredMessage => '請輸入 IP、網域或 FN ID';
+
+  @override
+  String get loginUsernameRequiredMessage => '請輸入使用者名稱';
+
+  @override
+  String get loginPasswordRequiredMessage => '請輸入密碼';
+
+  @override
+  String get loginWebViewInitFailed => '瀏覽器元件初始化失敗，請稍後重試。';
+
+  @override
+  String get loginHostPlaceholder => '請輸入 IP、網域或 FN ID';
+
+  @override
+  String get loginPortPlaceholder => '連接埠';
+
+  @override
+  String get loginUsernameLabel => '使用者名稱';
+
+  @override
+  String get loginPasswordLabel => '密碼';
+
+  @override
+  String get loginUseNasLogin => '使用 NAS 登入';
+
+  @override
+  String get loginHttpsSecureAccess => 'HTTPS 安全存取';
+
+  @override
+  String get loginNext => '下一步';
+
+  @override
+  String get loginSignIn => '登入';
+
+  @override
+  String get loginVerifyingServer => '正在驗證伺服器...';
+
+  @override
+  String get loginInvalidCredentials => '使用者名稱或密碼錯誤';
+
+  @override
+  String loginServerHttpError(String status) {
+    return '伺服器傳回錯誤（HTTP $status），請檢查服務狀態。';
+  }
+
+  @override
+  String get loginSslCertificateFailed => 'SSL 憑證驗證失敗，請檢查 HTTPS 設定或伺服器憑證。';
+
+  @override
+  String get loginConnectionTimeout => '連線伺服器逾時，請確認伺服器位址或網路狀態。';
+
+  @override
+  String get loginConnectionFailed => '無法連線到伺服器，請檢查位址、連接埠或網路。';
+
+  @override
+  String get loginRequestCancelled => '登入要求已取消。';
+
+  @override
+  String get loginFailedCheckServer => '登入失敗，請檢查伺服器位址或稍後再試。';
+
+  @override
+  String get loginFailedCheckNetwork => '登入失敗，請檢查網路或伺服器設定。';
+
+  @override
+  String get loginFailedTokenEmpty => '登入失敗：Token 為空';
+
+  @override
+  String loginFailedWithError(String error) {
+    return '登入失敗：$error';
+  }
+
+  @override
+  String get loginAuthFailed => '認證失敗';
+
+  @override
+  String get loginFnIdEmpty => 'FN ID 不能為空';
+
+  @override
+  String get loginHistoryTitle => '登入歷史';
+
+  @override
+  String get loginHistoryEmpty => '尚無歷史記錄';
+
+  @override
+  String get homeRetryLoad => '載入失敗，點擊重試';
+
+  @override
+  String get homeTitle => '首頁';
+
+  @override
+  String get homeContinueWatching => '繼續觀看';
+
+  @override
+  String get homeMediaLibrary => '媒體庫';
+
+  @override
+  String get homeContinueRemoved => '已從「繼續觀看」中移除';
+
+  @override
+  String get homeContinueRemoveFailed => '移除失敗';
+
+  @override
+  String homeContinueRemoveError(String error) {
+    return '移除失敗：$error';
+  }
+
+  @override
+  String homeDeleteDialogTitle(String title) {
+    return '刪除 《$title》';
+  }
+
+  @override
+  String get homeDeleteDialogBody =>
+      '從媒體庫移除後，所選影片檔案將不再被掃描加入目前媒體庫中。請確認是否同時刪除關聯的影片檔案。';
+
+  @override
+  String get homeDeleteRemoveAndDeleteFile => '移除並刪除檔案';
+
+  @override
+  String get homeDeleteRemoveOnly => '僅移除';
+
+  @override
+  String get homeDeleted => '已刪除';
+
+  @override
+  String get homeDeleteFailed => '刪除失敗';
+
+  @override
+  String homeDeleteFailedWithError(String error) {
+    return '刪除失敗：$error';
+  }
+
+  @override
+  String get homeFavoriteRemoved => '已取消收藏';
+
+  @override
+  String get homeFavorited => '已收藏';
+
+  @override
+  String get homeMarkedUnwatched => '標記為未觀看';
+
+  @override
+  String get homeMarkedWatched => '標記為已觀看';
+
+  @override
+  String get homeActionFailed => '操作失敗';
+
+  @override
+  String homeActionFailedWithError(String error) {
+    return '操作失敗，$error';
+  }
+
+  @override
+  String get homeMenuRemoveFromContinue => '從「繼續觀看」中移除';
+
+  @override
+  String get homeMenuResume => '繼續播放';
+
+  @override
+  String get homeMenuRestart => '從頭開始播放';
+
+  @override
+  String get homeMenuDeleteVideo => '刪除影片';
+
+  @override
+  String get searchPlaceholder => '搜尋片名、演員';
+
+  @override
+  String get searchTabAll => '全部';
+
+  @override
+  String get searchTabMovie => '電影';
+
+  @override
+  String get searchTabTv => '電視劇';
+
+  @override
+  String get searchTabLiveChannel => '電視直播';
+
+  @override
+  String get searchTabPerson => '人物';
+
+  @override
+  String get searchTabOther => '其他';
+
+  @override
+  String get searchNoResults => '搜尋沒有結果';
+
+  @override
+  String get searchEnterKeyword => '輸入關鍵字搜尋';
+
+  @override
+  String searchWorkCount(String count) {
+    return '$count 個作品';
+  }
+
+  @override
+  String get searchScoreSuffix => '分';
+
+  @override
+  String searchEpisodeCount(String count) {
+    return '共 $count 集';
+  }
+
+  @override
+  String get personNoData => '無資料';
+
+  @override
+  String get personSectionActor => '作為演員';
+
+  @override
+  String get personSectionDirector => '作為導演';
+
+  @override
+  String get personSectionWriter => '作為編劇';
+
+  @override
+  String get personMore => '更多';
+
+  @override
+  String get personBiographyTitle => '演員簡介';
+
+  @override
+  String get commonDelete => '刪除';
+
+  @override
+  String get forgotPasswordTitle => '忘記密碼？';
+
+  @override
+  String get storageExternal => '外接儲存';
+
+  @override
+  String get storageRemoteMount => '遠端掛載';
+
+  @override
+  String storageVolumeName(String number) {
+    return '儲存空間 $number';
+  }
+
+  @override
+  String durationHoursMinutes(String hours, String minutes) {
+    return '$hours 小時 $minutes 分鐘';
+  }
+
+  @override
+  String durationHours(String hours) {
+    return '$hours 小時';
+  }
+
+  @override
+  String durationMinutesSeconds(String minutes, String seconds) {
+    return '$minutes 分鐘 $seconds 秒';
+  }
+
+  @override
+  String durationMinutes(String minutes) {
+    return '$minutes 分鐘';
+  }
+
+  @override
+  String get durationZeroMinutes => '0 分鐘';
+
+  @override
+  String authDirUserFiles(String username) {
+    return '$username 的檔案';
+  }
+
+  @override
+  String authDirUnknownUser(String uid) {
+    return '使用者 $uid';
+  }
+
+  @override
+  String get authDirNone => '無';
+
+  @override
+  String get authDirUnknown => '未知';
+
+  @override
+  String get mediaStreamAudio => '音訊';
+
+  @override
+  String get mediaStreamVideo => '視訊';
+
+  @override
+  String get mediaStreamSubtitle => '字幕';
+
+  @override
+  String get forgotPasswordBody =>
+      '1. 如果您是 NAS 使用者，請嘗試以 NAS 帳號登入；\n2. 請聯絡管理員修改密碼。';
+
+  @override
+  String tvDetailEpisodeNumberTitle(String number, String title) {
+    return '第 $number 集 $title';
+  }
+
+  @override
+  String get movieDetailSubtitleDefaultSuffix => ' - 預設';
 }

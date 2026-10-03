@@ -13,6 +13,7 @@ import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/file_models.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../domain/entities/media_type.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     as cache_manager;
 import '../../../providers/global_refresh.dart';
@@ -56,9 +57,9 @@ String _buildImageUrl(String baseUrl, String path) {
   return '$normalizedBaseUrl/v/api/v1/sys/img$normalizedPath';
 }
 
-String _formatAudioTypeLabel(String audioType) {
+String _formatAudioTypeLabel(BuildContext context, String audioType) {
   return switch (audioType.trim().toLowerCase()) {
-    'stereo' => '立体声',
+    'stereo' => AppLocalizations.of(context).movieDetailAudioStereo,
     _ => audioType,
   };
 }
@@ -289,7 +290,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     showDialog(
       context: context,
       builder: (dialogContext) => AddNasSubtitleDialog(
-        title: '添加字幕',
+        title: AppLocalizations.of(context).movieDetailSubtitleAddTitle,
         currentPath: _resolveCurrentFilePath(),
         onConfirm: (paths) async {
           try {
@@ -321,20 +322,22 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
             if (error is FailureInfo &&
                 error.code == ResponseCodes.subtitleAlreadyMarked) {
               ref.read(toastManagerProvider.notifier).showToast(
-                    '该文件已被添加为字幕',
+                    AppLocalizations.of(context)
+                        .movieDetailSubtitleAlreadyAdded,
                     type: ToastType.info,
                     category: 'nas-subtitle:$mediaGuid',
                   );
               return;
             }
+            final l10n = AppLocalizations.of(context);
             showDialog(
               context: context,
               builder: (errorContext) => ContentDialog(
-                title: const Text('添加字幕失败'),
-                content: Text('请稍后重试：$error'),
+                title: Text(l10n.movieDetailSubtitleAddFailed),
+                content: Text(l10n.movieDetailSubtitleRetry('$error')),
                 actions: [
                   AppButton(
-                    child: const Text('确定'),
+                    child: Text(l10n.commonConfirm),
                     onPressed: () => Navigator.of(errorContext).pop(),
                   ),
                 ],
@@ -373,7 +376,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
             files.firstOrNull;
     if (currentFile == null || currentFile.guid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '当前文件信息缺失，无法搜索字幕',
+            AppLocalizations.of(context).movieDetailSubtitleSearchMissingFile,
             type: ToastType.info,
             category: 'subtitle-search:${widget.guid}',
           );
@@ -416,7 +419,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                       );
               if (!mounted) return subtitleStream.guid;
               ref.read(toastManagerProvider.notifier).showToast(
-                    '下载成功',
+                    AppLocalizations.of(context)
+                        .movieDetailSubtitleDownloadSuccess,
                     type: ToastType.success,
                     category: 'subtitle-download:${item.trimId}',
                   );
@@ -427,7 +431,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
             } catch (error) {
               if (mounted) {
                 ref.read(toastManagerProvider.notifier).showToast(
-                      '下载字幕失败: $error',
+                      AppLocalizations.of(context)
+                          .movieDetailSubtitleDownloadFailed('$error'),
                       type: ToastType.failed,
                       category: 'subtitle-download:${item.trimId}',
                     );
@@ -443,14 +448,16 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                   );
               if (!mounted) return;
               ref.read(toastManagerProvider.notifier).showToast(
-                    '已创建字幕下载任务',
+                    AppLocalizations.of(context)
+                        .movieDetailSubtitleTaskCreated,
                     type: ToastType.success,
                     category: 'subtitle-predownload:${item.trimId}',
                   );
             } catch (error) {
               if (mounted) {
                 ref.read(toastManagerProvider.notifier).showToast(
-                      '创建字幕下载任务失败，请重试',
+                      AppLocalizations.of(context)
+                          .movieDetailSubtitleTaskFailed,
                       type: ToastType.failed,
                       category: 'subtitle-predownload:${item.trimId}',
                     );
@@ -470,7 +477,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     if (_isUploadingLocalSubtitle) return;
     if (_currentMediaGuid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '当前文件信息缺失，无法上传字幕',
+            AppLocalizations.of(context).movieDetailSubtitleUploadMissingFile,
             type: ToastType.info,
             category: 'local-subtitle:${widget.guid}',
           );
@@ -497,17 +504,22 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
       widget.state.iso6391,
       widget.state.iso6392,
     );
+    final l10n = AppLocalizations.of(context);
     final displayName = StringBuffer(languageName);
-    if (subtitle.isExternal == 1) displayName.write(' - 外挂');
-    if (subtitle.isDefault == 1) displayName.write(' - 默认');
+    if (subtitle.isExternal == 1) {
+      displayName.write(l10n.movieDetailSubtitleExternalSuffix);
+    }
+    if (subtitle.isDefault == 1) {
+      displayName.write(l10n.movieDetailSubtitleDefaultSuffix);
+    }
 
     final confirmed = await showAppDialog<bool>(
       context: context,
       type: AppDialogType.danger,
-      title: '删除外挂字幕',
-      content: Text('确定要删除 $displayName 外挂字幕吗？'),
-      primaryButtonText: '删除',
-      secondaryButtonText: '取消',
+      title: l10n.movieDetailSubtitleDeleteTitle,
+      content: Text(l10n.movieDetailSubtitleDeleteConfirm('$displayName')),
+      primaryButtonText: l10n.commonDelete,
+      secondaryButtonText: l10n.commonCancel,
       primaryResult: true,
       secondaryResult: false,
     );
@@ -517,7 +529,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
       await ref.read(fileRepositoryProvider).deleteSubtitle(subtitle.guid);
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '删除字幕成功',
+            l10n.movieDetailSubtitleDeleteSuccess,
             type: ToastType.success,
             category: 'subtitle-delete:${subtitle.guid}',
           );
@@ -534,7 +546,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     } catch (error) {
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '删除字幕失败: $error',
+            l10n.movieDetailSubtitleDeleteFailed('$error'),
             type: ToastType.failed,
             category: 'subtitle-delete:${subtitle.guid}',
           );
@@ -552,14 +564,14 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           );
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '已创建字幕下载任务',
+            AppLocalizations.of(context).movieDetailSubtitleTaskCreated,
             type: ToastType.success,
             category: 'subtitle-predownload-flyout:${subtitle.guid}',
           );
     } catch (error) {
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '创建字幕下载任务失败，请重试',
+            AppLocalizations.of(context).movieDetailSubtitleTaskFailed,
             type: ToastType.failed,
             category: 'subtitle-predownload-flyout:${subtitle.guid}',
           );
@@ -584,7 +596,10 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         .toggleFavorite();
     if (!mounted) return;
     ref.read(toastManagerProvider.notifier).showToast(
-          result.success ? result.message : '操作失败，${result.message}',
+          result.success
+              ? result.message
+              : AppLocalizations.of(context)
+                  .toastOperationFailedReason(result.message),
           type: result.success ? ToastType.success : ToastType.failed,
           category: 'favorite:${widget.guid}',
         );
@@ -596,7 +611,10 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         .toggleWatched();
     if (!mounted) return;
     ref.read(toastManagerProvider.notifier).showToast(
-          result.success ? result.message : '操作失败，${result.message}',
+          result.success
+              ? result.message
+              : AppLocalizations.of(context)
+                  .toastOperationFailedReason(result.message),
           type: result.success ? ToastType.success : ToastType.failed,
           category: 'watched:${widget.guid}',
         );
@@ -629,8 +647,11 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final item = widget.state.item;
-    if (item == null) return const Center(child: Text('未找到电影信息'));
+    if (item == null) {
+      return Center(child: Text(l10n.movieDetailNotFound));
+    }
 
     _maybeRestoreCastScroll();
 
@@ -709,8 +730,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
             .where((s) => s.guid == _selectedSubtitleGuid)
             .firstOrNull;
         final subtitleLabel = _selectedSubtitleGuid == '_no_display_'
-            ? '无字幕'
-            : '${FnDataConvertor.getLanguageName(currentSubtitle?.language ?? '', widget.state.iso6391, widget.state.iso6392)}字幕';
+            ? l10n.movieDetailSubtitleNone
+            : l10n.movieDetailSubtitleLanguageLabel(FnDataConvertor.getLanguageName(
+                currentSubtitle?.language ?? '',
+                widget.state.iso6391,
+                widget.state.iso6392,
+              ));
         rowChildren.add(SubtitleStreamSelector(
           selectedLabel: subtitleLabel,
           subtitles: subtitleStreams,
@@ -742,8 +767,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         final currentAudio =
             audioStreams.where((s) => s.guid == _selectedAudioGuid).firstOrNull;
         final audioLabel = currentAudio == null
-            ? '音频'
-            : '${FnDataConvertor.getLanguageName(currentAudio.language, widget.state.iso6391, widget.state.iso6392)}音频';
+            ? l10n.movieDetailAudioLabel
+            : l10n.movieDetailAudioLanguageLabel(FnDataConvertor.getLanguageName(
+                currentAudio.language,
+                widget.state.iso6391,
+                widget.state.iso6392,
+              ));
         final audioItems = audioStreams.map((s) {
           final lang = FnDataConvertor.getLanguageName(
               s.language, widget.state.iso6391, widget.state.iso6392);
@@ -758,7 +787,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         }).toList();
         if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 12));
         rowChildren.add(StreamSelector<String>(
-          placeholder: '音频',
+          placeholder: l10n.movieDetailAudioLabel,
           selectedLabel: audioLabel,
           selectedValue: _selectedAudioGuid,
           items: audioItems,
@@ -771,7 +800,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         ));
       }
       // 质量标签：仅在有值时显示（与 Web 一致；STRM 占位流三者均为空）。
-      final audioTypeLabel = _formatAudioTypeLabel(streamList.audioStreams
+      final audioTypeLabel = _formatAudioTypeLabel(context, streamList.audioStreams
               .where((s) => s.guid == _selectedAudioGuid)
               .firstOrNull
               ?.audioType ??
@@ -899,7 +928,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                           children: [
                             DetailPlayButton(
                               key: const ValueKey('movie-detail-play'),
-                              text: item.watchedTs > 0 ? '继续播放' : '播放',
+                              text: item.watchedTs > 0
+                                  ? l10n.actionContinuePlay
+                                  : l10n.actionPlay,
                               onPressed: _playMedia,
                             ),
                             const SizedBox(width: 16),
@@ -921,7 +952,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                   BlendMode.srcIn,
                                 ),
                               ),
-                              tooltip: item.isFavorite == 1 ? '取消收藏' : '加入收藏',
+                              tooltip: item.isFavorite == 1
+                                  ? l10n.actionFavoriteRemove
+                                  : l10n.actionFavoriteAdd,
                               onPressed: _handleToggleFavorite,
                             ),
                             const SizedBox(width: 16),
@@ -939,13 +972,15 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                   BlendMode.srcIn,
                                 ),
                               ),
-                              tooltip: item.isWatched == 1 ? '标记为未看' : '标记为已看',
+                              tooltip: item.isWatched == 1
+                                  ? l10n.actionMarkUnwatched
+                                  : l10n.actionMarkWatched,
                               onPressed: _handleToggleWatched,
                             ),
                             const SizedBox(width: 16),
                             CircleIconButton(
                               icon: FluentIcons.more,
-                              tooltip: '更多操作',
+                              tooltip: l10n.actionMore,
                               onPressed: () {},
                             ),
                           ],
@@ -992,7 +1027,9 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                         onMore: () => showDialog(
                           context: context,
                           builder: (_) => MediaDescriptionDialog(
-                              title: isEpisode ? '剧集简介' : '电影简介',
+                              title: isEpisode
+                                  ? l10n.movieDetailEpisodeDescriptionTitle
+                                  : l10n.movieDetailDescriptionTitle,
                               content: item.overview!),
                         ),
                       ),
@@ -1164,10 +1201,12 @@ class _EpisodeTitleBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final parts = <String>[
       if (item.tvTitle.trim().isNotEmpty) item.tvTitle.trim(),
       if (item.parentTitle.trim().isNotEmpty) item.parentTitle.trim(),
-      if (item.episodeNumber > 0) '第 ${item.episodeNumber} 集',
+      if (item.episodeNumber > 0)
+        l10n.tvDetailEpisodeNumber('${item.episodeNumber}'),
     ];
     final breadcrumb = parts.join(' · ');
 
@@ -1228,7 +1267,8 @@ class _ProgressBar extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Text(
-          '剩余 ${FnDataConvertor.formatSecondsToCNDateTime(remaining)}',
+          AppLocalizations.of(context).movieDetailRemaining(
+              FnDataConvertor.formatSecondsToCNDateTime(remaining)),
           style: FluentTheme.of(context).typography.caption?.copyWith(
                 color: FluentTheme.of(context)
                     .typography
@@ -1262,7 +1302,7 @@ class _MediaSourceBoxes extends StatelessWidget {
         final stream = videoStreams[index];
         final isSelected = index == selectedIndex;
         final colorRangeType = stream.colorRangeType == 'DolbyVision'
-            ? '杜比视界'
+            ? AppLocalizations.of(context).movieDetailDolbyVision
             : stream.colorRangeType;
         final label = '${stream.resolutionType.toUpperCase()} $colorRangeType';
 
@@ -1375,6 +1415,7 @@ class _MediaInfoSection extends StatelessWidget {
     );
 
     final iso6391Map = state.iso6391;
+    final l10n = AppLocalizations.of(context);
 
     final mediaDetails = FnDataConvertor.convertToMediaDetails(
       fileInfo: fileInfo.guid.isNotEmpty ? fileInfo : null,
@@ -1391,7 +1432,7 @@ class _MediaInfoSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '媒体信息',
+          l10n.mediaInfoTitle,
           style: FluentTheme.of(context)
               .typography
               .subtitle
@@ -1401,24 +1442,27 @@ class _MediaInfoSection extends StatelessWidget {
 
         // File Info Section
         _InfoSection(
-          title: '文件信息',
+          title: l10n.mediaInfoFileInfo,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _InfoRow(label: '文件位置', value: mediaDetails.fileInfo.location),
+              _InfoRow(
+                  label: l10n.mediaInfoFileLocation,
+                  value: mediaDetails.fileInfo.location),
               const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
                       child: _InfoRow(
-                          label: '文件大小', value: mediaDetails.fileInfo.size)),
+                          label: l10n.mediaInfoFileSize,
+                          value: mediaDetails.fileInfo.size)),
                   Expanded(
                       child: _InfoRow(
-                          label: '创建日期',
+                          label: l10n.mediaInfoCreatedDate,
                           value: mediaDetails.fileInfo.createdDate)),
                   Expanded(
                       child: _InfoRow(
-                          label: '添加日期',
+                          label: l10n.mediaInfoAddedDate,
                           value: mediaDetails.fileInfo.addedDate)),
                 ],
               ),
@@ -1430,7 +1474,7 @@ class _MediaInfoSection extends StatelessWidget {
         if (!hideStreamInfo) ...[
           const SizedBox(height: 24),
           _InfoSection(
-            title: '视频/音频信息',
+            title: l10n.mediaInfoStreamSection,
             trailing: videoStream != null
                 ? _ViewAllMediaInfoButton(
                     key: const ValueKey('file-media-info-view-all'),
@@ -1628,7 +1672,9 @@ class _TrackItem extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          info.details.isNotEmpty ? info.details : '暂无信息',
+          info.details.isNotEmpty
+              ? info.details
+              : AppLocalizations.of(context).mediaInfoNoInfo,
           style: theme.typography.body?.copyWith(
             fontSize: 13,
             color: primaryColor,
@@ -1669,7 +1715,7 @@ class _ViewAllMediaInfoButtonState extends State<_ViewAllMediaInfoButton> {
             children: [
               const SizedBox(width: 4),
               Text(
-                '查看全部',
+                AppLocalizations.of(context).actionViewAll,
                 style: TextStyle(color: color, fontSize: 12),
               ),
               const SizedBox(width: 8),

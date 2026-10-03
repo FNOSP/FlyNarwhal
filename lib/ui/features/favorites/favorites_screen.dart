@@ -565,6 +565,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 ),
                                 itemCount: items.length,
                                 itemBuilder: (context, index) {
+                                  final l10n =
+                                      AppLocalizations.of(context);
                                   final item = items[index];
                                   return LayoutBuilder(
                                       builder: (context, constraints) {
@@ -575,7 +577,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                       builder: (moreFlyoutController) =>
                                           MoviePoster(
                                     title: item.title,
-                                    subtitle: buildPosterSubtitle(item),
+                                    subtitle: buildPosterSubtitle(item, l10n),
                                     posterPath: item.effectivePoster,
                                     score: item.voteAverage,
                                     resolutions: item.mediaStream?.resolutions,

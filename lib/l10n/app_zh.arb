@@ -921,5 +921,1225 @@
   "nasBrowserEmpty": "空空如也",
   "@nasBrowserEmpty": {
     "description": "Empty state of the NAS file browser."
+  },
+  "actionPlay": "播放",
+  "@actionPlay": {
+    "description": "Play button label."
+  },
+  "actionContinuePlay": "继续播放",
+  "@actionContinuePlay": {
+    "description": "Play button label when resuming playback."
+  },
+  "actionFavoriteAdd": "加入收藏",
+  "@actionFavoriteAdd": {
+    "description": "Tooltip that adds the item to favorites."
+  },
+  "actionFavoriteRemove": "取消收藏",
+  "@actionFavoriteRemove": {
+    "description": "Tooltip that removes the item from favorites."
+  },
+  "actionMarkWatched": "标记为已看",
+  "@actionMarkWatched": {
+    "description": "Tooltip or menu item that marks the item watched."
+  },
+  "actionMarkUnwatched": "标记为未看",
+  "@actionMarkUnwatched": {
+    "description": "Tooltip or menu item that marks the item unwatched."
+  },
+  "actionMore": "更多操作",
+  "@actionMore": {
+    "description": "Tooltip of the more-actions button."
+  },
+  "actionMore2": "更多",
+  "@actionMore2": {
+    "description": "Inline link that expands a truncated description."
+  },
+  "toastFavoriteAdded": "已收藏",
+  "@toastFavoriteAdded": {
+    "description": "Toast shown after adding to favorites."
+  },
+  "toastFavoriteRemoved": "已取消收藏",
+  "@toastFavoriteRemoved": {
+    "description": "Toast shown after removing from favorites."
+  },
+  "toastMarkedUnwatched": "标记为未观看",
+  "@toastMarkedUnwatched": {
+    "description": "Toast shown after marking unwatched."
+  },
+  "toastMarkedWatched": "标记为已观看",
+  "@toastMarkedWatched": {
+    "description": "Toast shown after marking watched."
+  },
+  "toastOperationFailed": "操作失败",
+  "@toastOperationFailed": {
+    "description": "Generic failure message when an action fails."
+  },
+  "toastOperationFailedReason": "操作失败，{message}",
+  "@toastOperationFailedReason": {
+    "description": "Failure toast that appends the underlying error.",
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaInfoNoOverview": "暂无介绍",
+  "@mediaInfoNoOverview": {
+    "description": "Fallback text when an overview is missing."
+  },
+  "mediaInfoNoInfo": "暂无信息",
+  "@mediaInfoNoInfo": {
+    "description": "Fallback text when media details are empty."
+  },
+  "mediaInfoNoContent": "无内容",
+  "@mediaInfoNoContent": {
+    "description": "Empty state of a stream selector flyout."
+  },
+  "mediaInfoFileInfo": "文件信息",
+  "@mediaInfoFileInfo": {
+    "description": "Heading of the file info section."
+  },
+  "mediaInfoFileLocation": "文件位置",
+  "@mediaInfoFileLocation": {
+    "description": "Label of the file location row."
+  },
+  "mediaInfoFileSize": "文件大小",
+  "@mediaInfoFileSize": {
+    "description": "Label of the file size row."
+  },
+  "mediaInfoCreatedDate": "创建日期",
+  "@mediaInfoCreatedDate": {
+    "description": "Label of the file creation date."
+  },
+  "mediaInfoAddedDate": "添加日期",
+  "@mediaInfoAddedDate": {
+    "description": "Label of the date the file was added."
+  },
+  "mediaInfoStreamSection": "视频/音频信息",
+  "@mediaInfoStreamSection": {
+    "description": "Heading of the video and audio info section."
+  },
+  "linkLabel": "链接:  ",
+  "@linkLabel": {
+    "description": "Prefix label before the IMDB link."
+  },
+  "imdbLinkLabel": "IMDB链接",
+  "@imdbLinkLabel": {
+    "description": "Text of the IMDB link."
+  },
+  "defaultSuffix": "{title} - 默认",
+  "@defaultSuffix": {
+    "description": "Appends a default marker to a track name.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "actionViewAll": "查看全部",
+  "@actionViewAll": {
+    "description": "Link that opens the full media info dialog."
+  },
+  "movieDetailNotFound": "未找到电影信息",
+  "@movieDetailNotFound": {
+    "description": "Error shown when the movie cannot be found."
+  },
+  "movieDetailDescriptionTitle": "电影简介",
+  "@movieDetailDescriptionTitle": {
+    "description": "Title of the movie overview dialog."
+  },
+  "movieDetailEpisodeDescriptionTitle": "剧集简介",
+  "@movieDetailEpisodeDescriptionTitle": {
+    "description": "Title of the episode overview dialog."
+  },
+  "movieDetailSubtitleAddTitle": "添加字幕",
+  "@movieDetailSubtitleAddTitle": {
+    "description": "Title of the add-subtitle dialog."
+  },
+  "movieDetailSubtitleAlreadyAdded": "该文件已被添加为字幕",
+  "@movieDetailSubtitleAlreadyAdded": {
+    "description": "Toast shown when the file is already a subtitle."
+  },
+  "movieDetailSubtitleAddFailed": "添加字幕失败",
+  "@movieDetailSubtitleAddFailed": {
+    "description": "Title of the add-subtitle failure dialog."
+  },
+  "movieDetailSubtitleRetry": "请稍后重试：{error}",
+  "@movieDetailSubtitleRetry": {
+    "description": "Add-subtitle failure message.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleSearchMissingFile": "当前文件信息缺失，无法搜索字幕",
+  "@movieDetailSubtitleSearchMissingFile": {
+    "description": "Toast shown when the current file info is missing."
+  },
+  "movieDetailSubtitleUploadMissingFile": "当前文件信息缺失，无法上传字幕",
+  "@movieDetailSubtitleUploadMissingFile": {
+    "description": "Toast shown when the current file info is missing."
+  },
+  "movieDetailSubtitleDownloadSuccess": "下载成功",
+  "@movieDetailSubtitleDownloadSuccess": {
+    "description": "Toast shown after a subtitle downloads successfully."
+  },
+  "movieDetailSubtitleDownloadFailed": "下载字幕失败: {error}",
+  "@movieDetailSubtitleDownloadFailed": {
+    "description": "Toast shown when a subtitle download fails.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleTaskCreated": "已创建字幕下载任务",
+  "@movieDetailSubtitleTaskCreated": {
+    "description": "Toast shown after a subtitle download task is created."
+  },
+  "movieDetailSubtitleTaskFailed": "创建字幕下载任务失败，请重试",
+  "@movieDetailSubtitleTaskFailed": {
+    "description": "Toast shown when creating a subtitle download task fails."
+  },
+  "movieDetailSubtitleExternalSuffix": " - 外挂",
+  "@movieDetailSubtitleExternalSuffix": {
+    "description": "Appends an external marker to a subtitle display name."
+  },
+  "movieDetailSubtitleDeleteTitle": "删除外挂字幕",
+  "@movieDetailSubtitleDeleteTitle": {
+    "description": "Title of the delete-subtitle dialog."
+  },
+  "movieDetailSubtitleDeleteConfirm": "确定要删除 {name} 外挂字幕吗？",
+  "@movieDetailSubtitleDeleteConfirm": {
+    "description": "Confirmation body of the delete-subtitle dialog.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleDeleteSuccess": "删除字幕成功",
+  "@movieDetailSubtitleDeleteSuccess": {
+    "description": "Toast shown after a subtitle is deleted."
+  },
+  "movieDetailSubtitleDeleteFailed": "删除字幕失败: {error}",
+  "@movieDetailSubtitleDeleteFailed": {
+    "description": "Toast shown when deleting a subtitle fails.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleNone": "无字幕",
+  "@movieDetailSubtitleNone": {
+    "description": "Subtitle selector label when subtitles are off."
+  },
+  "movieDetailSubtitleLanguageLabel": "{language}字幕",
+  "@movieDetailSubtitleLanguageLabel": {
+    "description": "Subtitle selector label that appends a language name.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailAudioLabel": "音频",
+  "@movieDetailAudioLabel": {
+    "description": "Audio selector label."
+  },
+  "movieDetailAudioLanguageLabel": "{language}音频",
+  "@movieDetailAudioLanguageLabel": {
+    "description": "Audio selector label that appends a language name.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailAudioStereo": "立体声",
+  "@movieDetailAudioStereo": {
+    "description": "Audio type label for stereo."
+  },
+  "movieDetailRemaining": "剩余 {time}",
+  "@movieDetailRemaining": {
+    "description": "Remaining playback time under the progress bar.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSmartAnalysisStatus": "智能片头/片尾检测状态：{status}",
+  "@movieDetailSmartAnalysisStatus": {
+    "description": "Tag showing the smart analysis status.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailDolbyVision": "杜比视界",
+  "@movieDetailDolbyVision": {
+    "description": "Color range label for Dolby Vision."
+  },
+  "movieDetailSubtitleLabel": "字幕",
+  "@movieDetailSubtitleLabel": {
+    "description": "Default label of the subtitle selector."
+  },
+  "tvDetailNotFound": "未找到剧集信息",
+  "@tvDetailNotFound": {
+    "description": "Error shown when the TV series cannot be found."
+  },
+  "tvDetailSeasonNotFound": "未找到分季信息",
+  "@tvDetailSeasonNotFound": {
+    "description": "Error shown when the season cannot be found."
+  },
+  "tvDetailDescriptionTitle": "剧集简介",
+  "@tvDetailDescriptionTitle": {
+    "description": "Title of the series overview dialog."
+  },
+  "tvDetailSmartAnalysis": "智能分析片头/片尾",
+  "@tvDetailSmartAnalysis": {
+    "description": "Menu item that triggers smart intro/outro analysis."
+  },
+  "tvDetailSeasonListTitle": "剧季列表",
+  "@tvDetailSeasonListTitle": {
+    "description": "Heading of the season list section."
+  },
+  "tvDetailEpisodeNumber": "第 {number} 集",
+  "@tvDetailEpisodeNumber": {
+    "description": "Episode number label.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailSeasonNumber": "第 {number} 季",
+  "@tvDetailSeasonNumber": {
+    "description": "Season number label.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailSeasonEpisodeNumbers": "第 {season} 季 第 {episode} 集",
+  "@tvDetailSeasonEpisodeNumbers": {
+    "description": "Combined season and episode label.",
+    "placeholders": {
+      "season": {
+        "type": "String"
+      },
+      "episode": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailEpisodeCount": "共 {count} 集",
+  "@tvDetailEpisodeCount": {
+    "description": "Season subtitle showing the episode count.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailEpisodeSectionTitle": "选集",
+  "@tvDetailEpisodeSectionTitle": {
+    "description": "Heading of the episode selection section."
+  },
+  "tvDetailUnknownSeason": "未知季",
+  "@tvDetailUnknownSeason": {
+    "description": "Fallback season label."
+  },
+  "tvDetailSeasonTitleSummary": "《{title}》共 {count} 季",
+  "@tvDetailSeasonTitleSummary": {
+    "description": "Title of the season selection dialog.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailEpisodeNoneOverview": "暂无剧集简介",
+  "@tvDetailEpisodeNoneOverview": {
+    "description": "Fallback text when an episode overview is missing."
+  },
+  "tvDetailEpisodeRuntime": "{minutes} 分钟",
+  "@tvDetailEpisodeRuntime": {
+    "description": "Episode runtime in minutes.",
+    "placeholders": {
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailRuntimeUnknown": "时长未知",
+  "@tvDetailRuntimeUnknown": {
+    "description": "Fallback when the runtime is unknown."
+  },
+  "tvDetailScore": "{score} 分",
+  "@tvDetailScore": {
+    "description": "Rating score tag.",
+    "placeholders": {
+      "score": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailPlayEpisode": "播放本集",
+  "@tvDetailPlayEpisode": {
+    "description": "Menu item that plays the current episode."
+  },
+  "tvDetailSmartAnalysisStatus": "智能分析：{status}",
+  "@tvDetailSmartAnalysisStatus": {
+    "description": "Label showing the season analysis status.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "tvDetailAnalysisFetching": "获取中",
+  "@tvDetailAnalysisFetching": {
+    "description": "Season analysis status while loading."
+  },
+  "tvDetailAnalysisNotDetected": "未检测",
+  "@tvDetailAnalysisNotDetected": {
+    "description": "Season analysis status when not detected."
+  },
+  "tvDetailAnalysisFailed": "获取失败",
+  "@tvDetailAnalysisFailed": {
+    "description": "Season analysis status when fetching fails."
+  },
+  "tvDetailAnalysisPreparing": "准备中",
+  "@tvDetailAnalysisPreparing": {
+    "description": "Season analysis status while preparing."
+  },
+  "tvDetailAnalysisPending": "等待中",
+  "@tvDetailAnalysisPending": {
+    "description": "Season analysis status while pending."
+  },
+  "tvDetailAnalysisInProgress": "分析中",
+  "@tvDetailAnalysisInProgress": {
+    "description": "Season analysis status while running."
+  },
+  "tvDetailAnalysisPartialSuccess": "部分成功",
+  "@tvDetailAnalysisPartialSuccess": {
+    "description": "Season analysis status on partial success."
+  },
+  "tvDetailAnalysisCompleted": "已完成",
+  "@tvDetailAnalysisCompleted": {
+    "description": "Season analysis status when completed."
+  },
+  "tvDetailAnalysisStatusFailed": "失败",
+  "@tvDetailAnalysisStatusFailed": {
+    "description": "Season analysis status when failed."
+  },
+  "mediaTypeMovie": "电影",
+  "@mediaTypeMovie": {
+    "description": "Media type label."
+  },
+  "mediaTypeTv": "电视节目",
+  "@mediaTypeTv": {
+    "description": "Media type label."
+  },
+  "mediaTypeDirectory": "目录",
+  "@mediaTypeDirectory": {
+    "description": "Media type label."
+  },
+  "mediaTypeOther": "其他",
+  "@mediaTypeOther": {
+    "description": "Media type label."
+  },
+  "mediaTypeLive": "电视直播",
+  "@mediaTypeLive": {
+    "description": "Media type label."
+  },
+  "mediaTypeEpisode": "剧集",
+  "@mediaTypeEpisode": {
+    "description": "Media type label."
+  },
+  "mediaTypeSeason": "季",
+  "@mediaTypeSeason": {
+    "description": "Media type label."
+  },
+  "mediaSeasonCount": "共 {count} 季",
+  "@mediaSeasonCount": {
+    "description": "Poster subtitle for a show with several seasons.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaSeasonNumber": "第 {number} 季",
+  "@mediaSeasonNumber": {
+    "description": "Poster subtitle for a single season.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaEpisodeCount": "共 {count} 集",
+  "@mediaEpisodeCount": {
+    "description": "Poster subtitle for an episode count.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaEpisodeDetail": "第 {season} 季 · 第 {episode} 集",
+  "@mediaEpisodeDetail": {
+    "description": "Play detail subtitle for an episode.",
+    "placeholders": {
+      "season": {
+        "type": "String"
+      },
+      "episode": {
+        "type": "String"
+      }
+    }
+  },
+  "cloudStorageBaiduPan": "百度网盘",
+  "@cloudStorageBaiduPan": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorageAliyunDrive": "阿里云盘",
+  "@cloudStorageAliyunDrive": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorage115": "115 生活",
+  "@cloudStorage115": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorageQuark": "夸克网盘",
+  "@cloudStorageQuark": {
+    "description": "Cloud storage provider name."
+  },
+  "cloudStorage123": "123 云盘",
+  "@cloudStorage123": {
+    "description": "Cloud storage provider name."
+  },
+  "loginRememberPassword": "记住密码",
+  "@loginRememberPassword": {
+    "description": "Label of the remember-password checkbox on the login form."
+  },
+  "loginWebViewInjectedPlaceholder": "登录页面",
+  "@loginWebViewInjectedPlaceholder": {
+    "description": "Fallback label for the injected remember-password checkbox on the NAS login web page."
+  },
+  "updateCurrentVersionLabel": "当前安装版本",
+  "@updateCurrentVersionLabel": {
+    "description": "Fallback label shown when the installed app version is unknown."
+  },
+  "updateManualDownloadOpenFailed": "无法打开手动下载页面，请稍后重试。",
+  "@updateManualDownloadOpenFailed": {
+    "description": "Toast shown when opening the manual download page fails."
+  },
+  "updateOpenLinkFailed": "无法打开链接，请稍后重试。",
+  "@updateOpenLinkFailed": {
+    "description": "Toast shown when opening an update link fails."
+  },
+  "updateBadgeSemanticLabel": "发现新版本 {version}，打开更新详情",
+  "@updateBadgeSemanticLabel": {
+    "description": "Accessibility label of the update badge in the title bar.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDialogTitleChecking": "检查更新",
+  "@updateDialogTitleChecking": {
+    "description": "Update dialog title while checking for updates."
+  },
+  "updateDialogTitleAvailable": "发现新版本",
+  "@updateDialogTitleAvailable": {
+    "description": "Update dialog title when a new version is available."
+  },
+  "updateDialogTitleDownloading": "正在下载更新",
+  "@updateDialogTitleDownloading": {
+    "description": "Update dialog title while downloading."
+  },
+  "updateDialogTitleDownloaded": "下载完成",
+  "@updateDialogTitleDownloaded": {
+    "description": "Update dialog title after the download completes."
+  },
+  "updateDialogTitleVerifying": "正在校验更新",
+  "@updateDialogTitleVerifying": {
+    "description": "Update dialog title while verifying the package."
+  },
+  "updateDialogTitleReadyToInstall": "更新已准备就绪",
+  "@updateDialogTitleReadyToInstall": {
+    "description": "Update dialog title when the update is ready to install."
+  },
+  "updateDialogTitleInstalling": "正在启动安装",
+  "@updateDialogTitleInstalling": {
+    "description": "Update dialog title while launching the installer."
+  },
+  "updateDialogTitleCheckFailed": "检查更新失败",
+  "@updateDialogTitleCheckFailed": {
+    "description": "Update dialog title when checking for updates failed."
+  },
+  "updateDialogTitleDownloadFailed": "下载更新失败",
+  "@updateDialogTitleDownloadFailed": {
+    "description": "Update dialog title when the download failed."
+  },
+  "updateDialogTitleVerificationFailed": "更新包校验失败",
+  "@updateDialogTitleVerificationFailed": {
+    "description": "Update dialog title when package verification failed."
+  },
+  "updateDialogTitleInstallFailed": "启动安装失败",
+  "@updateDialogTitleInstallFailed": {
+    "description": "Update dialog title when launching the installer failed."
+  },
+  "updateDialogTitleAutomaticDownloadExhausted": "自动下载未完成",
+  "@updateDialogTitleAutomaticDownloadExhausted": {
+    "description": "Update dialog title when the automatic download did not finish."
+  },
+  "updateDialogTitleNone": "应用更新",
+  "@updateDialogTitleNone": {
+    "description": "Update dialog title in the idle state."
+  },
+  "updateActionCheckInBackground": "后台检查",
+  "@updateActionCheckInBackground": {
+    "description": "Update dialog button to keep checking in the background."
+  },
+  "updateActionSkipVersion": "跳过此版本",
+  "@updateActionSkipVersion": {
+    "description": "Update dialog button to skip this version."
+  },
+  "updateActionLater": "稍后再说",
+  "@updateActionLater": {
+    "description": "Update dialog button to postpone the update."
+  },
+  "updateActionDownload": "下载更新",
+  "@updateActionDownload": {
+    "description": "Update dialog button to download the update."
+  },
+  "updateActionDownloadInBackground": "后台下载",
+  "@updateActionDownloadInBackground": {
+    "description": "Update dialog button to continue downloading in the background."
+  },
+  "updateActionCancelDownload": "取消下载",
+  "@updateActionCancelDownload": {
+    "description": "Update dialog button to cancel the download."
+  },
+  "updateActionInstallLater": "稍后安装",
+  "@updateActionInstallLater": {
+    "description": "Update dialog button to install later."
+  },
+  "updateActionQuitAndInstall": "退出并安装",
+  "@updateActionQuitAndInstall": {
+    "description": "Update dialog button to quit and install now."
+  },
+  "updateActionRunInBackground": "后台运行",
+  "@updateActionRunInBackground": {
+    "description": "Update dialog button to let the update run in the background."
+  },
+  "updateActionRetryDownload": "重新下载",
+  "@updateActionRetryDownload": {
+    "description": "Update dialog button to download the update again."
+  },
+  "updateActionRetryInstall": "重试安装",
+  "@updateActionRetryInstall": {
+    "description": "Update dialog button to retry the installation."
+  },
+  "updateActionManualDownload": "手动下载",
+  "@updateActionManualDownload": {
+    "description": "Update dialog button to open the manual download page."
+  },
+  "updateActionClose": "关闭",
+  "@updateActionClose": {
+    "description": "Update dialog button to close the dialog."
+  },
+  "updateStatusCheckingMessage": "正在从 GitHub Releases 获取更新信息…",
+  "@updateStatusCheckingMessage": {
+    "description": "Update dialog status while fetching update information."
+  },
+  "updateStatusUpToDate": "当前已是最新版本。",
+  "@updateStatusUpToDate": {
+    "description": "Update dialog status when the app is up to date."
+  },
+  "updateStatusDownloadedMessage": "更新包已下载完成，可以稍后安装或立即退出并安装。",
+  "@updateStatusDownloadedMessage": {
+    "description": "Update dialog status after the download completes."
+  },
+  "updateStatusReadyMessage": "已找到可用的已下载更新包。",
+  "@updateStatusReadyMessage": {
+    "description": "Update dialog status when a downloaded update was found."
+  },
+  "updateStatusVerifyingMessage": "正在安全校验更新包，请稍候…",
+  "@updateStatusVerifyingMessage": {
+    "description": "Update dialog status while verifying the package."
+  },
+  "updateStatusInstallingMessage": "正在启动系统安装程序，请勿重复操作。",
+  "@updateStatusInstallingMessage": {
+    "description": "Update dialog status while launching the installer."
+  },
+  "updateStatusIdleMessage": "尚未执行更新检查。",
+  "@updateStatusIdleMessage": {
+    "description": "Update dialog status before any check has been run."
+  },
+  "updateVersionLine": "版本 {version}（当前 {current}）",
+  "@updateVersionLine": {
+    "description": "Update dialog line showing the new version and the current version.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "current": {
+        "type": "String"
+      }
+    }
+  },
+  "updatePackageSize": "安装包大小 {size}",
+  "@updatePackageSize": {
+    "description": "Update dialog line showing the download size.",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "updateReleaseNotesHeader": "更新内容",
+  "@updateReleaseNotesHeader": {
+    "description": "Heading of the release-notes section in the update dialog."
+  },
+  "updateDownloadingPackage": "正在下载更新包",
+  "@updateDownloadingPackage": {
+    "description": "Fallback text used while downloading when the asset name is unknown."
+  },
+  "updateDownloadedSize": "已下载 {size}",
+  "@updateDownloadedSize": {
+    "description": "Update dialog text showing the downloaded size.",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloadProgress": "{received} / {total}",
+  "@updateDownloadProgress": {
+    "description": "Update dialog text showing download progress.",
+    "placeholders": {
+      "received": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "updateErrorRateLimited": "GitHub 接口访问频率超限，通常稍后会自动恢复，请稍后再试。",
+  "@updateErrorRateLimited": {
+    "description": "Failure summary when the GitHub API rate limit is reached."
+  },
+  "updateErrorVerificationFailed": "更新包未通过安全校验，请重新下载。",
+  "@updateErrorVerificationFailed": {
+    "description": "Failure summary when the update package failed verification."
+  },
+  "updateErrorCheckFailed": "暂时无法获取更新信息，请检查网络后重试。",
+  "@updateErrorCheckFailed": {
+    "description": "Failure summary when checking for updates failed."
+  },
+  "updateErrorDownloadFailed": "更新包下载未完成，请稍后重试。",
+  "@updateErrorDownloadFailed": {
+    "description": "Failure summary when the update download failed."
+  },
+  "updateErrorInstallFailed": "无法启动系统安装程序，请稍后重试。",
+  "@updateErrorInstallFailed": {
+    "description": "Failure summary when launching the installer failed."
+  },
+  "updateErrorAutomaticDownloadExhausted": "自动下载多次未完成，你可以稍后重试或前往发布页手动下载。",
+  "@updateErrorAutomaticDownloadExhausted": {
+    "description": "Failure summary when the automatic download was exhausted."
+  },
+  "updateErrorGeneric": "更新操作未完成，请稍后重试。",
+  "@updateErrorGeneric": {
+    "description": "Generic failure summary for update operations."
+  },
+  "updateMarkdownEmpty": "本次更新未提供更新说明",
+  "@updateMarkdownEmpty": {
+    "description": "Placeholder shown when the release notes are empty."
+  },
+  "updateMarkdownRemoteImageAlt": "远程图片",
+  "@updateMarkdownRemoteImageAlt": {
+    "description": "Alt text for a blocked remote image in the release notes."
+  },
+  "updateMarkdownRemoteImageBlocked": "远程图片已阻止：{alt}",
+  "@updateMarkdownRemoteImageBlocked": {
+    "description": "Label for a blocked remote image in the release notes.",
+    "placeholders": {
+      "alt": {
+        "type": "String"
+      }
+    }
+  },
+  "updateMarkdownTruncatedSuffix": "\n\n更新说明过长，已截断显示。",
+  "@updateMarkdownTruncatedSuffix": {
+    "description": "Suffix appended to release notes when they exceed the maximum length."
+  },
+  "loginHostOrFnIdPlaceholder": "请输入 IP:Port、域名或 FN ID",
+  "@loginHostOrFnIdPlaceholder": {
+    "description": "Login field placeholder for the NAS host or FN ID."
+  },
+  "loginHostValidationMessage": "请输入正确的 IP、域名或 FN ID",
+  "@loginHostValidationMessage": {
+    "description": "Toast shown when the entered host or FN ID is invalid."
+  },
+  "loginHostRequiredMessage": "请输入 IP、域名或 FN ID",
+  "@loginHostRequiredMessage": {
+    "description": "Toast shown when the host field is empty."
+  },
+  "loginUsernameRequiredMessage": "请输入用户名",
+  "@loginUsernameRequiredMessage": {
+    "description": "Toast shown when the username field is empty."
+  },
+  "loginPasswordRequiredMessage": "请输入密码",
+  "@loginPasswordRequiredMessage": {
+    "description": "Toast shown when the password field is empty."
+  },
+  "loginWebViewInitFailed": "浏览器组件初始化失败，请稍后重试。",
+  "@loginWebViewInitFailed": {
+    "description": "Toast shown when preparing the WebView for NAS login fails."
+  },
+  "loginHostPlaceholder": "请输入 IP、域名或 FN ID",
+  "@loginHostPlaceholder": {
+    "description": "Login field placeholder for the host."
+  },
+  "loginPortPlaceholder": "端口",
+  "@loginPortPlaceholder": {
+    "description": "Login field placeholder for the port."
+  },
+  "loginUsernameLabel": "用户名",
+  "@loginUsernameLabel": {
+    "description": "Login field placeholder for the username."
+  },
+  "loginPasswordLabel": "密码",
+  "@loginPasswordLabel": {
+    "description": "Login field placeholder for the password."
+  },
+  "loginUseNasLogin": "使用 NAS 登录",
+  "@loginUseNasLogin": {
+    "description": "Login toggle label to sign in with a NAS account."
+  },
+  "loginHttpsSecureAccess": "HTTPS 安全访问",
+  "@loginHttpsSecureAccess": {
+    "description": "Login toggle label for enabling HTTPS."
+  },
+  "loginNext": "下一步",
+  "@loginNext": {
+    "description": "Login button label for the NAS probe step."
+  },
+  "loginSignIn": "登录",
+  "@loginSignIn": {
+    "description": "Login button label."
+  },
+  "loginVerifyingServer": "正在验证服务器...",
+  "@loginVerifyingServer": {
+    "description": "Login web view toolbar text while verifying the server."
+  },
+  "loginInvalidCredentials": "用户名或密码错误",
+  "@loginInvalidCredentials": {
+    "description": "Toast shown when the username or password is wrong."
+  },
+  "loginServerHttpError": "服务器返回错误（HTTP {status}），请检查服务状态。",
+  "@loginServerHttpError": {
+    "description": "Login error for a non-success HTTP response.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "loginSslCertificateFailed": "SSL 证书验证失败，请检查 HTTPS 设置或服务器证书。",
+  "@loginSslCertificateFailed": {
+    "description": "Login error for an SSL certificate failure."
+  },
+  "loginConnectionTimeout": "连接服务器超时，请确认服务器地址或网络状态。",
+  "@loginConnectionTimeout": {
+    "description": "Login error for a connection timeout."
+  },
+  "loginConnectionFailed": "无法连接到服务器，请检查地址、端口或网络。",
+  "@loginConnectionFailed": {
+    "description": "Login error when the server is unreachable."
+  },
+  "loginRequestCancelled": "登录请求已取消。",
+  "@loginRequestCancelled": {
+    "description": "Login error when the request was cancelled."
+  },
+  "loginFailedCheckServer": "登录失败，请检查服务器地址或稍后再试。",
+  "@loginFailedCheckServer": {
+    "description": "Login error for an unknown or bad response."
+  },
+  "loginFailedCheckNetwork": "登录失败，请检查网络或服务器设置。",
+  "@loginFailedCheckNetwork": {
+    "description": "Generic login error message."
+  },
+  "loginFailedTokenEmpty": "登录失败: Token 为空",
+  "@loginFailedTokenEmpty": {
+    "description": "Login error when the NAS flow returns an empty token."
+  },
+  "loginFailedWithError": "登录失败: {error}",
+  "@loginFailedWithError": {
+    "description": "Login error with the underlying error message.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginAuthFailed": "认证失败",
+  "@loginAuthFailed": {
+    "description": "Fallback login error when the server rejects the token exchange."
+  },
+  "loginFnIdEmpty": "FN ID 不能为空",
+  "@loginFnIdEmpty": {
+    "description": "Validation error when resolving an empty FN ID."
+  },
+  "loginHistoryTitle": "登录历史",
+  "@loginHistoryTitle": {
+    "description": "Title of the login history sidebar."
+  },
+  "loginHistoryEmpty": "暂无历史记录",
+  "@loginHistoryEmpty": {
+    "description": "Empty state of the login history sidebar."
+  },
+  "homeRetryLoad": "加载失败，点击重试",
+  "@homeRetryLoad": {
+    "description": "Retry button shown when the media library row fails to load."
+  },
+  "homeTitle": "首页",
+  "@homeTitle": {
+    "description": "Title of the home page."
+  },
+  "homeContinueWatching": "继续观看",
+  "@homeContinueWatching": {
+    "description": "Title of the continue-watching row on the home page."
+  },
+  "homeMediaLibrary": "媒体库",
+  "@homeMediaLibrary": {
+    "description": "Heading of the media library card row on the home page."
+  },
+  "homeContinueRemoved": "已从“继续观看”中移除",
+  "@homeContinueRemoved": {
+    "description": "Toast shown after an item is removed from continue watching."
+  },
+  "homeContinueRemoveFailed": "移除失败",
+  "@homeContinueRemoveFailed": {
+    "description": "Toast shown when removing an item from continue watching fails."
+  },
+  "homeContinueRemoveError": "移除失败：{error}",
+  "@homeContinueRemoveError": {
+    "description": "Toast shown when removing an item from continue watching throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDeleteDialogTitle": "删除 《{title}》",
+  "@homeDeleteDialogTitle": {
+    "description": "Title of the delete-video confirmation dialog.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDeleteDialogBody": "从媒体库移除后，所选视频文件将不再被扫描添加到当前媒体库中。请确认是否同时删除关联的视频文件。",
+  "@homeDeleteDialogBody": {
+    "description": "Body text of the delete-video confirmation dialog."
+  },
+  "homeDeleteRemoveAndDeleteFile": "移除并删除文件",
+  "@homeDeleteRemoveAndDeleteFile": {
+    "description": "Delete dialog button to remove the entry and delete the files."
+  },
+  "homeDeleteRemoveOnly": "仅移除",
+  "@homeDeleteRemoveOnly": {
+    "description": "Delete dialog button to remove the entry but keep the files."
+  },
+  "homeDeleted": "已删除",
+  "@homeDeleted": {
+    "description": "Toast shown after the video is deleted."
+  },
+  "homeDeleteFailed": "删除失败",
+  "@homeDeleteFailed": {
+    "description": "Toast shown when deleting the video fails."
+  },
+  "homeDeleteFailedWithError": "删除失败：{error}",
+  "@homeDeleteFailedWithError": {
+    "description": "Toast shown when deleting the video throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeFavoriteRemoved": "已取消收藏",
+  "@homeFavoriteRemoved": {
+    "description": "Toast shown after removing an item from favorites."
+  },
+  "homeFavorited": "已收藏",
+  "@homeFavorited": {
+    "description": "Toast shown after adding an item to favorites."
+  },
+  "homeMarkedUnwatched": "标记为未观看",
+  "@homeMarkedUnwatched": {
+    "description": "Toast shown after marking an item as unwatched."
+  },
+  "homeMarkedWatched": "标记为已观看",
+  "@homeMarkedWatched": {
+    "description": "Toast shown after marking an item as watched."
+  },
+  "homeActionFailed": "操作失败",
+  "@homeActionFailed": {
+    "description": "Toast shown when a favorite or watched action fails."
+  },
+  "homeActionFailedWithError": "操作失败，{error}",
+  "@homeActionFailedWithError": {
+    "description": "Toast shown when a favorite or watched action throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeMenuRemoveFromContinue": "从“继续观看”中移除",
+  "@homeMenuRemoveFromContinue": {
+    "description": "More-menu entry to remove an item from continue watching."
+  },
+  "homeMenuResume": "继续播放",
+  "@homeMenuResume": {
+    "description": "More-menu entry to resume playback."
+  },
+  "homeMenuRestart": "从头开始播放",
+  "@homeMenuRestart": {
+    "description": "More-menu entry to restart playback from the beginning."
+  },
+  "homeMenuDeleteVideo": "删除视频",
+  "@homeMenuDeleteVideo": {
+    "description": "More-menu entry to delete the video."
+  },
+  "searchPlaceholder": "搜索片名、演员",
+  "@searchPlaceholder": {
+    "description": "Placeholder of the capsule search box."
+  },
+  "searchTabAll": "全部",
+  "@searchTabAll": {
+    "description": "Search category tab: all."
+  },
+  "searchTabMovie": "电影",
+  "@searchTabMovie": {
+    "description": "Search category tab: movies."
+  },
+  "searchTabTv": "电视剧",
+  "@searchTabTv": {
+    "description": "Search category tab: TV series."
+  },
+  "searchTabLiveChannel": "电视直播",
+  "@searchTabLiveChannel": {
+    "description": "Search category tab: live channels."
+  },
+  "searchTabPerson": "人物",
+  "@searchTabPerson": {
+    "description": "Search category tab: people."
+  },
+  "searchTabOther": "其他",
+  "@searchTabOther": {
+    "description": "Search category tab: other."
+  },
+  "searchNoResults": "搜索无结果",
+  "@searchNoResults": {
+    "description": "Empty state of the search dropdown after a search."
+  },
+  "searchEnterKeyword": "输入关键词搜索",
+  "@searchEnterKeyword": {
+    "description": "Empty state of the search dropdown before searching."
+  },
+  "searchWorkCount": "{count} 个作品",
+  "@searchWorkCount": {
+    "description": "Work count shown for a person in the search results.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "searchScoreSuffix": "分",
+  "@searchScoreSuffix": {
+    "description": "Suffix for the rating score in the search results."
+  },
+  "searchEpisodeCount": "共 {count} 集",
+  "@searchEpisodeCount": {
+    "description": "Episode count shown for a TV series in the search results.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "personNoData": "无数据",
+  "@personNoData": {
+    "description": "Empty state shown when a person has no record on the server."
+  },
+  "personSectionActor": "作为演员",
+  "@personSectionActor": {
+    "description": "Works section title for acting roles."
+  },
+  "personSectionDirector": "作为导演",
+  "@personSectionDirector": {
+    "description": "Works section title for directing roles."
+  },
+  "personSectionWriter": "作为编剧",
+  "@personSectionWriter": {
+    "description": "Works section title for writing roles."
+  },
+  "personMore": "更多",
+  "@personMore": {
+    "description": "Inline link that opens the full biography."
+  },
+  "personBiographyTitle": "演员简介",
+  "@personBiographyTitle": {
+    "description": "Title of the full-biography dialog."
+  },
+  "commonDelete": "删除",
+  "@commonDelete": {
+    "description": "Generic delete button label."
+  },
+  "forgotPasswordTitle": "忘记密码？",
+  "@forgotPasswordTitle": {
+    "description": "Title and link label of the forgot-password dialog."
+  },
+  "storageExternal": "外接存储",
+  "@storageExternal": {
+    "description": "Sidebar label for an external storage mount."
+  },
+  "storageRemoteMount": "远程挂载",
+  "@storageRemoteMount": {
+    "description": "Sidebar label for a remote mount."
+  },
+  "storageVolumeName": "存储空间 {number}",
+  "@storageVolumeName": {
+    "description": "Label for a numbered storage volume.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "durationHoursMinutes": "{hours} 小时 {minutes} 分钟",
+  "@durationHoursMinutes": {
+    "description": "Duration with hours and minutes.",
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
+  "durationHours": "{hours} 小时",
+  "@durationHours": {
+    "description": "Duration in hours.",
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      }
+    }
+  },
+  "durationMinutesSeconds": "{minutes} 分钟 {seconds} 秒",
+  "@durationMinutesSeconds": {
+    "description": "Duration with minutes and seconds.",
+    "placeholders": {
+      "minutes": {
+        "type": "String"
+      },
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "durationMinutes": "{minutes} 分钟",
+  "@durationMinutes": {
+    "description": "Duration in minutes.",
+    "placeholders": {
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
+  "durationZeroMinutes": "0 分钟",
+  "@durationZeroMinutes": {
+    "description": "Zero-length duration."
+  },
+  "authDirUserFiles": "{username} 的文件",
+  "@authDirUserFiles": {
+    "description": "Label for a user's authorized directory.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "authDirUnknownUser": "用户 {uid}",
+  "@authDirUnknownUser": {
+    "description": "Fallback label when the user name is unknown.",
+    "placeholders": {
+      "uid": {
+        "type": "String"
+      }
+    }
+  },
+  "authDirNone": "无",
+  "@authDirNone": {
+    "description": "Empty value placeholder."
+  },
+  "authDirUnknown": "未知",
+  "@authDirUnknown": {
+    "description": "Unknown value placeholder."
+  },
+  "mediaStreamAudio": "音频",
+  "@mediaStreamAudio": {
+    "description": "Media stream kind label."
+  },
+  "mediaStreamVideo": "视频",
+  "@mediaStreamVideo": {
+    "description": "Media stream kind label."
+  },
+  "mediaStreamSubtitle": "字幕",
+  "@mediaStreamSubtitle": {
+    "description": "Media stream kind label."
+  },
+  "forgotPasswordBody": "1. 如果您是 NAS 用户，请尝试 NAS 帐号登录；\n2. 请联系管理员修改密码。",
+  "@forgotPasswordBody": {
+    "description": "Body text of the forgot-password dialog."
+  },
+  "tvDetailEpisodeNumberTitle": "第 {number} 集 {title}",
+  "@tvDetailEpisodeNumberTitle": {
+    "description": "Episode card title combining the episode number and name.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      },
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "movieDetailSubtitleDefaultSuffix": " - 默认",
+  "@movieDetailSubtitleDefaultSuffix": {
+    "description": "Appends a default marker to a subtitle display name."
   }
 }

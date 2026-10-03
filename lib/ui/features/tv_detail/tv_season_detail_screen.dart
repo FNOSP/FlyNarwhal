@@ -173,18 +173,22 @@ class _TvSeasonDetailContentState
         .toggleWatched();
     if (!mounted) return;
     ref.read(toastManagerProvider.notifier).showToast(
-          result.success ? result.message : '操作失败，${result.message}',
+          result.success
+              ? result.message
+              : AppLocalizations.of(context)
+                  .toastOperationFailedReason(result.message),
           type: result.success ? ToastType.success : ToastType.failed,
           category: 'watched:${widget.guid}',
         );
   }
 
   void _showDescriptionDialog(BuildContext context, ItemResponse item) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (_) => MediaDescriptionDialog(
-        title: '剧集简介',
-        content: item.overview ?? '暂无介绍',
+        title: l10n.tvDetailDescriptionTitle,
+        content: item.overview ?? l10n.mediaInfoNoOverview,
       ),
     );
   }
@@ -220,7 +224,7 @@ class _TvSeasonDetailContentState
         items: [
           MenuFlyoutItem(
             key: const ValueKey('season-detail-smart-analysis'),
-            text: const Text('智能分析片头/片尾'),
+            text: Text(AppLocalizations.of(context).tvDetailSmartAnalysis),
             onPressed: ref.read(smartAnalysisControllerProvider).isSubmitting(
                       SmartAnalysisTargetType.season,
                       widget.guid,
@@ -237,30 +241,36 @@ class _TvSeasonDetailContentState
   }
 
   String _buildSeasonStatusText() {
+    final l10n = AppLocalizations.of(context);
     final entry =
         ref.watch(seasonAnalysisStatusControllerProvider)[widget.guid];
     if (entry == null ||
         entry.phase == SeasonAnalysisViewPhase.initial ||
         entry.phase == SeasonAnalysisViewPhase.loading) {
-      return '获取中';
+      return l10n.tvDetailAnalysisFetching;
     }
-    if (entry.phase == SeasonAnalysisViewPhase.notDetected) return '未检测';
-    if (entry.phase == SeasonAnalysisViewPhase.failed) return '获取失败';
+    if (entry.phase == SeasonAnalysisViewPhase.notDetected) {
+      return l10n.tvDetailAnalysisNotDetected;
+    }
+    if (entry.phase == SeasonAnalysisViewPhase.failed) {
+      return l10n.tvDetailAnalysisFailed;
+    }
     return switch (entry.status) {
-      AnalysisStatus.preparing => '准备中',
-      AnalysisStatus.pending => '等待中',
-      AnalysisStatus.inProgress => '分析中',
-      AnalysisStatus.partialSuccess => '部分成功',
-      AnalysisStatus.completed => '已完成',
-      AnalysisStatus.failed => '失败',
-      null => '获取失败',
+      AnalysisStatus.preparing => l10n.tvDetailAnalysisPreparing,
+      AnalysisStatus.pending => l10n.tvDetailAnalysisPending,
+      AnalysisStatus.inProgress => l10n.tvDetailAnalysisInProgress,
+      AnalysisStatus.partialSuccess => l10n.tvDetailAnalysisPartialSuccess,
+      AnalysisStatus.completed => l10n.tvDetailAnalysisCompleted,
+      AnalysisStatus.failed => l10n.tvDetailAnalysisStatusFailed,
+      null => l10n.tvDetailAnalysisFailed,
     };
   }
 
   String _buildPlayButtonText() {
+    final l10n = AppLocalizations.of(context);
     final playInfo = widget.state.playInfo;
-    if (playInfo == null) return '播放';
-    return '第 ${playInfo.item.episodeNumber} 集';
+    if (playInfo == null) return l10n.actionPlay;
+    return l10n.tvDetailEpisodeNumber('${playInfo.item.episodeNumber}');
   }
 
   /// When this page is re-entered by going back from a cast member's person
@@ -292,7 +302,10 @@ class _TvSeasonDetailContentState
   @override
   Widget build(BuildContext context) {
     final item = widget.state.item;
-    if (item == null) return const Center(child: Text('未找到分季信息'));
+    if (item == null) {
+      return Center(
+          child: Text(AppLocalizations.of(context).tvDetailSeasonNotFound));
+    }
 
     _maybeRestoreCastScroll();
 
@@ -494,7 +507,9 @@ class _TvSeasonDetailContentState
                                     .watch(settingsProvider)
                                     .isFlyNarwhalServerAvailable) ...[
                                   Text(
-                                    '智能分析：${_buildSeasonStatusText()}',
+                                    AppLocalizations.of(context)
+                                        .tvDetailSmartAnalysisStatus(
+                                            _buildSeasonStatusText()),
                                     key: const ValueKey(
                                       'season-analysis-status',
                                     ),
@@ -614,7 +629,8 @@ class _TvSeasonDetailContentState
     final voteAverage = double.tryParse(item.voteAverage) ?? 0.0;
     if (voteAverage > 0) {
       items.add(Text(
-        '${voteAverage.toStringAsFixed(1)} 分',
+        AppLocalizations.of(context)
+            .tvDetailScore(voteAverage.toStringAsFixed(1)),
         style: const TextStyle(
           color: Color(0xFFFACC15),
           fontSize: 14,
@@ -663,6 +679,7 @@ class _TvSeasonDetailContentState
     Color? textColor,
     Color resolvedTextColor,
   ) {
+    final l10n = AppLocalizations.of(context);
     final playInfo = widget.state.playInfo;
     final playButtonText = _buildPlayButtonText();
 
@@ -696,7 +713,9 @@ class _TvSeasonDetailContentState
               BlendMode.srcIn,
             ),
           ),
-          tooltip: item.isWatched == 1 ? '标记为未看' : '标记为已看',
+          tooltip: item.isWatched == 1
+              ? l10n.actionMarkUnwatched
+              : l10n.actionMarkWatched,
           onPressed: _handleToggleWatched,
         ),
         if (ref.watch(settingsProvider).flyNarwhalServerEnabled) ...[
@@ -705,7 +724,7 @@ class _TvSeasonDetailContentState
             controller: _moreController,
             child: CircleIconButton(
               icon: FluentIcons.more,
-              tooltip: '更多操作',
+              tooltip: l10n.actionMore,
               onPressed: () => _showMoreFlyout(item),
             ),
           ),
@@ -804,6 +823,7 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
   }
 
   String _buildSeasonSelectorLabel() {
+    final l10n = AppLocalizations.of(context);
     final currentSeason = widget.seasonList.firstWhere(
       (s) => s.guid == widget.currentSeasonGuid,
       orElse: () => widget.seasonList.isNotEmpty
@@ -811,10 +831,10 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
           : throw StateError('season list is empty'),
     );
     if (currentSeason.seasonNumber > 0) {
-      return '第 ${currentSeason.seasonNumber} 季';
+      return l10n.tvDetailSeasonNumber('${currentSeason.seasonNumber}');
     }
     final title = currentSeason.title.trim();
-    return title.isNotEmpty ? title : '未知季';
+    return title.isNotEmpty ? title : l10n.tvDetailUnknownSeason;
   }
 
   void _showSeasonSelectionDialog(BuildContext context) {
@@ -853,7 +873,7 @@ class _EpisodeListSectionState extends State<_EpisodeListSection> {
             else
               Expanded(
                 child: Text(
-                  '选集',
+                  AppLocalizations.of(context).tvDetailEpisodeSectionTitle,
                   style: FluentTheme.of(context).typography.subtitle?.copyWith(
                         fontWeight: FontWeight.normal,
                         fontSize: 20,
@@ -992,26 +1012,31 @@ class _EpisodeCardState extends State<_EpisodeCard> {
       _moreController.close();
       return;
     }
+    final l10n = AppLocalizations.of(context);
     _moreController.showFlyout<void>(
       placementMode: FlyoutPlacementMode.bottomCenter,
       builder: (context) => MenuFlyout(
         items: [
           MenuFlyoutItem(
-            text: const Text('播放本集'),
+            text: Text(l10n.tvDetailPlayEpisode),
             onPressed: () {
               Flyout.of(context).close();
               widget.onPlay();
             },
           ),
           MenuFlyoutItem(
-            text: Text(_isWatched ? '标记为未看' : '标记为已看'),
+            text: Text(_isWatched
+                ? l10n.actionMarkUnwatched
+                : l10n.actionMarkWatched),
             onPressed: () {
               Flyout.of(context).close();
               _handleWatchedToggle();
             },
           ),
           MenuFlyoutItem(
-            text: Text(_isFavorite ? '取消收藏' : '加入收藏'),
+            text: Text(_isFavorite
+                ? l10n.actionFavoriteRemove
+                : l10n.actionFavoriteAdd),
             onPressed: () {
               Flyout.of(context).close();
               _handleFavoriteToggle();
@@ -1025,6 +1050,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = AppLocalizations.of(context);
     final posterUrl = widget.episode.poster != null
         ? _buildImageUrl(widget.baseUrl, widget.episode.poster!)
         : '';
@@ -1248,7 +1274,9 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '第 ${widget.episode.episodeNumber} 集 ${widget.episode.title}',
+                        l10n.tvDetailEpisodeNumberTitle(
+                            '${widget.episode.episodeNumber}',
+                            widget.episode.title),
                         style: theme.typography.bodyStrong?.copyWith(
                           fontSize: 14,
                         ),
@@ -1259,7 +1287,7 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                       Text(
                         widget.episode.overview?.trim().isNotEmpty == true
                             ? widget.episode.overview!.trim()
-                            : '暂无剧集简介',
+                            : l10n.tvDetailEpisodeNoneOverview,
                         style: theme.typography.caption?.copyWith(
                           color: theme.typography.caption?.color
                               ?.withValues(alpha: 0.78),
@@ -1276,8 +1304,9 @@ class _EpisodeCardState extends State<_EpisodeCard> {
                           Text(
                             widget.episode.runtime != null &&
                                     widget.episode.runtime! > 0
-                                ? '${widget.episode.runtime} 分钟'
-                                : '时长未知',
+                                ? l10n.tvDetailEpisodeRuntime(
+                                    '${widget.episode.runtime}')
+                                : l10n.tvDetailRuntimeUnknown,
                             style: theme.typography.caption?.copyWith(
                               fontSize: 12,
                               color: theme.typography.caption?.color
@@ -1585,9 +1614,12 @@ class _SeasonSelectionDialogState extends State<_SeasonSelectionDialog> {
   }
 
   String _buildSeasonLabel(SeasonListResponse season) {
-    if (season.seasonNumber > 0) return '第 ${season.seasonNumber} 季';
+    final l10n = AppLocalizations.of(context);
+    if (season.seasonNumber > 0) {
+      return l10n.tvDetailSeasonNumber('${season.seasonNumber}');
+    }
     final title = season.title.trim();
-    return title.isNotEmpty ? title : '未知季';
+    return title.isNotEmpty ? title : l10n.tvDetailUnknownSeason;
   }
 
   @override
@@ -1599,7 +1631,8 @@ class _SeasonSelectionDialogState extends State<_SeasonSelectionDialog> {
         children: [
           Expanded(
             child: Text(
-              '《${widget.tvTitle}》共 ${widget.seasons.length} 季',
+              AppLocalizations.of(context).tvDetailSeasonTitleSummary(
+                  widget.tvTitle, '${widget.seasons.length}'),
               style: FluentTheme.of(context).typography.subtitle,
             ),
           ),
@@ -1684,6 +1717,7 @@ class _SeasonSelectionItemState extends State<_SeasonSelectionItem> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = AppLocalizations.of(context);
     final textColor = theme.typography.body?.color ?? Colors.white;
     final voteAverage = double.tryParse(widget.season.voteAverage) ?? 0.0;
 
@@ -1766,7 +1800,7 @@ class _SeasonSelectionItemState extends State<_SeasonSelectionItem> {
                         if (voteAverage > 0) ...[
                           const SizedBox(width: 12),
                           Text(
-                            '${voteAverage.toStringAsFixed(1)} 分',
+                            l10n.tvDetailScore(voteAverage.toStringAsFixed(1)),
                             style: const TextStyle(
                               color: Color(0xFFFACC15),
                               fontSize: 14,
@@ -1777,7 +1811,7 @@ class _SeasonSelectionItemState extends State<_SeasonSelectionItem> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      (widget.season.overview ?? '暂无介绍')
+                      (widget.season.overview ?? l10n.mediaInfoNoOverview)
                           .replaceAll('\n\n', '\n'),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

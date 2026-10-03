@@ -702,4 +702,854 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nasBrowserEmpty => 'Nothing here';
+
+  @override
+  String get actionPlay => 'Play';
+
+  @override
+  String get actionContinuePlay => 'Continue playing';
+
+  @override
+  String get actionFavoriteAdd => 'Add to favorites';
+
+  @override
+  String get actionFavoriteRemove => 'Remove from favorites';
+
+  @override
+  String get actionMarkWatched => 'Mark as watched';
+
+  @override
+  String get actionMarkUnwatched => 'Mark as unwatched';
+
+  @override
+  String get actionMore => 'More actions';
+
+  @override
+  String get actionMore2 => 'More';
+
+  @override
+  String get toastFavoriteAdded => 'Added to favorites';
+
+  @override
+  String get toastFavoriteRemoved => 'Removed from favorites';
+
+  @override
+  String get toastMarkedUnwatched => 'Marked as unwatched';
+
+  @override
+  String get toastMarkedWatched => 'Marked as watched';
+
+  @override
+  String get toastOperationFailed => 'Operation failed';
+
+  @override
+  String toastOperationFailedReason(String message) {
+    return 'Operation failed: $message';
+  }
+
+  @override
+  String get mediaInfoNoOverview => 'No overview available';
+
+  @override
+  String get mediaInfoNoInfo => 'No information';
+
+  @override
+  String get mediaInfoNoContent => 'No content';
+
+  @override
+  String get mediaInfoFileInfo => 'File info';
+
+  @override
+  String get mediaInfoFileLocation => 'File location';
+
+  @override
+  String get mediaInfoFileSize => 'File size';
+
+  @override
+  String get mediaInfoCreatedDate => 'Created';
+
+  @override
+  String get mediaInfoAddedDate => 'Added';
+
+  @override
+  String get mediaInfoStreamSection => 'Video/Audio info';
+
+  @override
+  String get linkLabel => 'Link:  ';
+
+  @override
+  String get imdbLinkLabel => 'IMDB link';
+
+  @override
+  String defaultSuffix(String title) {
+    return '$title - Default';
+  }
+
+  @override
+  String get actionViewAll => 'View all';
+
+  @override
+  String get movieDetailNotFound => 'Movie information not found';
+
+  @override
+  String get movieDetailDescriptionTitle => 'Movie overview';
+
+  @override
+  String get movieDetailEpisodeDescriptionTitle => 'Episode overview';
+
+  @override
+  String get movieDetailSubtitleAddTitle => 'Add subtitle';
+
+  @override
+  String get movieDetailSubtitleAlreadyAdded =>
+      'This file is already added as a subtitle';
+
+  @override
+  String get movieDetailSubtitleAddFailed => 'Failed to add subtitle';
+
+  @override
+  String movieDetailSubtitleRetry(String error) {
+    return 'Please try again later: $error';
+  }
+
+  @override
+  String get movieDetailSubtitleSearchMissingFile =>
+      'File information is missing; cannot search subtitles';
+
+  @override
+  String get movieDetailSubtitleUploadMissingFile =>
+      'File information is missing; cannot upload subtitles';
+
+  @override
+  String get movieDetailSubtitleDownloadSuccess => 'Downloaded';
+
+  @override
+  String movieDetailSubtitleDownloadFailed(String error) {
+    return 'Failed to download subtitle: $error';
+  }
+
+  @override
+  String get movieDetailSubtitleTaskCreated => 'Subtitle download task created';
+
+  @override
+  String get movieDetailSubtitleTaskFailed =>
+      'Failed to create subtitle download task; please retry';
+
+  @override
+  String get movieDetailSubtitleExternalSuffix => ' - External';
+
+  @override
+  String get movieDetailSubtitleDeleteTitle => 'Delete external subtitle';
+
+  @override
+  String movieDetailSubtitleDeleteConfirm(String name) {
+    return 'Delete the external subtitle $name?';
+  }
+
+  @override
+  String get movieDetailSubtitleDeleteSuccess => 'Subtitle deleted';
+
+  @override
+  String movieDetailSubtitleDeleteFailed(String error) {
+    return 'Failed to delete subtitle: $error';
+  }
+
+  @override
+  String get movieDetailSubtitleNone => 'No subtitles';
+
+  @override
+  String movieDetailSubtitleLanguageLabel(String language) {
+    return '$language subtitles';
+  }
+
+  @override
+  String get movieDetailAudioLabel => 'Audio';
+
+  @override
+  String movieDetailAudioLanguageLabel(String language) {
+    return '$language audio';
+  }
+
+  @override
+  String get movieDetailAudioStereo => 'Stereo';
+
+  @override
+  String movieDetailRemaining(String time) {
+    return '$time left';
+  }
+
+  @override
+  String movieDetailSmartAnalysisStatus(String status) {
+    return 'Intro/outro detection status: $status';
+  }
+
+  @override
+  String get movieDetailDolbyVision => 'Dolby Vision';
+
+  @override
+  String get movieDetailSubtitleLabel => 'Subtitles';
+
+  @override
+  String get tvDetailNotFound => 'TV series information not found';
+
+  @override
+  String get tvDetailSeasonNotFound => 'Season information not found';
+
+  @override
+  String get tvDetailDescriptionTitle => 'Series overview';
+
+  @override
+  String get tvDetailSmartAnalysis => 'Analyze intro/outro';
+
+  @override
+  String get tvDetailSeasonListTitle => 'Seasons';
+
+  @override
+  String tvDetailEpisodeNumber(String number) {
+    return 'Episode $number';
+  }
+
+  @override
+  String tvDetailSeasonNumber(String number) {
+    return 'Season $number';
+  }
+
+  @override
+  String tvDetailSeasonEpisodeNumbers(String season, String episode) {
+    return 'Season $season Episode $episode';
+  }
+
+  @override
+  String tvDetailEpisodeCount(String count) {
+    return '$count episodes';
+  }
+
+  @override
+  String get tvDetailEpisodeSectionTitle => 'Episodes';
+
+  @override
+  String get tvDetailUnknownSeason => 'Unknown season';
+
+  @override
+  String tvDetailSeasonTitleSummary(String title, String count) {
+    return '$title · $count seasons';
+  }
+
+  @override
+  String get tvDetailEpisodeNoneOverview => 'No episode overview';
+
+  @override
+  String tvDetailEpisodeRuntime(String minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String get tvDetailRuntimeUnknown => 'Unknown duration';
+
+  @override
+  String tvDetailScore(String score) {
+    return '$score';
+  }
+
+  @override
+  String get tvDetailPlayEpisode => 'Play this episode';
+
+  @override
+  String tvDetailSmartAnalysisStatus(String status) {
+    return 'Smart analysis: $status';
+  }
+
+  @override
+  String get tvDetailAnalysisFetching => 'Fetching';
+
+  @override
+  String get tvDetailAnalysisNotDetected => 'Not detected';
+
+  @override
+  String get tvDetailAnalysisFailed => 'Fetch failed';
+
+  @override
+  String get tvDetailAnalysisPreparing => 'Preparing';
+
+  @override
+  String get tvDetailAnalysisPending => 'Pending';
+
+  @override
+  String get tvDetailAnalysisInProgress => 'Analyzing';
+
+  @override
+  String get tvDetailAnalysisPartialSuccess => 'Partially succeeded';
+
+  @override
+  String get tvDetailAnalysisCompleted => 'Completed';
+
+  @override
+  String get tvDetailAnalysisStatusFailed => 'Failed';
+
+  @override
+  String get mediaTypeMovie => 'Movie';
+
+  @override
+  String get mediaTypeTv => 'TV show';
+
+  @override
+  String get mediaTypeDirectory => 'Folder';
+
+  @override
+  String get mediaTypeOther => 'Other';
+
+  @override
+  String get mediaTypeLive => 'Live TV';
+
+  @override
+  String get mediaTypeEpisode => 'Episode';
+
+  @override
+  String get mediaTypeSeason => 'Season';
+
+  @override
+  String mediaSeasonCount(String count) {
+    return '$count seasons';
+  }
+
+  @override
+  String mediaSeasonNumber(String number) {
+    return 'Season $number';
+  }
+
+  @override
+  String mediaEpisodeCount(String count) {
+    return '$count episodes';
+  }
+
+  @override
+  String mediaEpisodeDetail(String season, String episode) {
+    return 'Season $season · Episode $episode';
+  }
+
+  @override
+  String get cloudStorageBaiduPan => 'Baidu Netdisk';
+
+  @override
+  String get cloudStorageAliyunDrive => 'Aliyun Drive';
+
+  @override
+  String get cloudStorage115 => '115 Life';
+
+  @override
+  String get cloudStorageQuark => 'Quark Drive';
+
+  @override
+  String get cloudStorage123 => '123 Cloud Drive';
+
+  @override
+  String get loginRememberPassword => 'Remember password';
+
+  @override
+  String get loginWebViewInjectedPlaceholder => 'Login page';
+
+  @override
+  String get updateCurrentVersionLabel => 'Currently installed version';
+
+  @override
+  String get updateManualDownloadOpenFailed =>
+      'Could not open the manual download page. Please try again later.';
+
+  @override
+  String get updateOpenLinkFailed =>
+      'Could not open the link. Please try again later.';
+
+  @override
+  String updateBadgeSemanticLabel(String version) {
+    return 'New version $version available. Open update details.';
+  }
+
+  @override
+  String get updateDialogTitleChecking => 'Check for updates';
+
+  @override
+  String get updateDialogTitleAvailable => 'Update available';
+
+  @override
+  String get updateDialogTitleDownloading => 'Downloading update';
+
+  @override
+  String get updateDialogTitleDownloaded => 'Download complete';
+
+  @override
+  String get updateDialogTitleVerifying => 'Verifying update';
+
+  @override
+  String get updateDialogTitleReadyToInstall => 'Ready to install';
+
+  @override
+  String get updateDialogTitleInstalling => 'Starting installation';
+
+  @override
+  String get updateDialogTitleCheckFailed => 'Update check failed';
+
+  @override
+  String get updateDialogTitleDownloadFailed => 'Update download failed';
+
+  @override
+  String get updateDialogTitleVerificationFailed =>
+      'Update verification failed';
+
+  @override
+  String get updateDialogTitleInstallFailed => 'Installation failed';
+
+  @override
+  String get updateDialogTitleAutomaticDownloadExhausted =>
+      'Automatic download incomplete';
+
+  @override
+  String get updateDialogTitleNone => 'App update';
+
+  @override
+  String get updateActionCheckInBackground => 'Check in background';
+
+  @override
+  String get updateActionSkipVersion => 'Skip this version';
+
+  @override
+  String get updateActionLater => 'Later';
+
+  @override
+  String get updateActionDownload => 'Download update';
+
+  @override
+  String get updateActionDownloadInBackground => 'Download in background';
+
+  @override
+  String get updateActionCancelDownload => 'Cancel download';
+
+  @override
+  String get updateActionInstallLater => 'Install later';
+
+  @override
+  String get updateActionQuitAndInstall => 'Quit and install';
+
+  @override
+  String get updateActionRunInBackground => 'Run in background';
+
+  @override
+  String get updateActionRetryDownload => 'Download again';
+
+  @override
+  String get updateActionRetryInstall => 'Retry installation';
+
+  @override
+  String get updateActionManualDownload => 'Manual download';
+
+  @override
+  String get updateActionClose => 'Close';
+
+  @override
+  String get updateStatusCheckingMessage =>
+      'Fetching update information from GitHub Releases…';
+
+  @override
+  String get updateStatusUpToDate => 'You are on the latest version.';
+
+  @override
+  String get updateStatusDownloadedMessage =>
+      'The update has been downloaded. You can install it later or quit and install now.';
+
+  @override
+  String get updateStatusReadyMessage =>
+      'A downloaded update is ready to install.';
+
+  @override
+  String get updateStatusVerifyingMessage =>
+      'Verifying the update package securely, please wait…';
+
+  @override
+  String get updateStatusInstallingMessage =>
+      'Launching the system installer. Do not repeat this action.';
+
+  @override
+  String get updateStatusIdleMessage => 'No update check has been run yet.';
+
+  @override
+  String updateVersionLine(String version, String current) {
+    return 'Version $version (current $current)';
+  }
+
+  @override
+  String updatePackageSize(String size) {
+    return 'Package size $size';
+  }
+
+  @override
+  String get updateReleaseNotesHeader => 'What\'s new';
+
+  @override
+  String get updateDownloadingPackage => 'Downloading update package';
+
+  @override
+  String updateDownloadedSize(String size) {
+    return 'Downloaded $size';
+  }
+
+  @override
+  String updateDownloadProgress(String received, String total) {
+    return '$received / $total';
+  }
+
+  @override
+  String get updateErrorRateLimited =>
+      'The GitHub API rate limit was reached. It usually recovers automatically, so please try again later.';
+
+  @override
+  String get updateErrorVerificationFailed =>
+      'The update package failed the security check. Please download it again.';
+
+  @override
+  String get updateErrorCheckFailed =>
+      'Could not fetch update information. Check your network and try again.';
+
+  @override
+  String get updateErrorDownloadFailed =>
+      'The update download did not finish. Please try again later.';
+
+  @override
+  String get updateErrorInstallFailed =>
+      'Could not launch the system installer. Please try again later.';
+
+  @override
+  String get updateErrorAutomaticDownloadExhausted =>
+      'The automatic download did not finish after several attempts. You can retry later or download manually from the release page.';
+
+  @override
+  String get updateErrorGeneric =>
+      'The update did not complete. Please try again later.';
+
+  @override
+  String get updateMarkdownEmpty =>
+      'No release notes were provided for this update.';
+
+  @override
+  String get updateMarkdownRemoteImageAlt => 'Remote image';
+
+  @override
+  String updateMarkdownRemoteImageBlocked(String alt) {
+    return 'Remote image blocked: $alt';
+  }
+
+  @override
+  String get updateMarkdownTruncatedSuffix =>
+      '\n\nRelease notes were too long and have been truncated.';
+
+  @override
+  String get loginHostOrFnIdPlaceholder => 'Enter IP:Port, domain, or FN ID';
+
+  @override
+  String get loginHostValidationMessage => 'Enter a valid IP, domain, or FN ID';
+
+  @override
+  String get loginHostRequiredMessage => 'Enter IP, domain, or FN ID';
+
+  @override
+  String get loginUsernameRequiredMessage => 'Enter your username';
+
+  @override
+  String get loginPasswordRequiredMessage => 'Enter your password';
+
+  @override
+  String get loginWebViewInitFailed =>
+      'The browser component failed to initialize. Please try again later.';
+
+  @override
+  String get loginHostPlaceholder => 'Enter IP, domain, or FN ID';
+
+  @override
+  String get loginPortPlaceholder => 'Port';
+
+  @override
+  String get loginUsernameLabel => 'Username';
+
+  @override
+  String get loginPasswordLabel => 'Password';
+
+  @override
+  String get loginUseNasLogin => 'Sign in with NAS';
+
+  @override
+  String get loginHttpsSecureAccess => 'HTTPS secure access';
+
+  @override
+  String get loginNext => 'Next';
+
+  @override
+  String get loginSignIn => 'Sign in';
+
+  @override
+  String get loginVerifyingServer => 'Verifying server…';
+
+  @override
+  String get loginInvalidCredentials => 'Incorrect username or password';
+
+  @override
+  String loginServerHttpError(String status) {
+    return 'The server returned an error (HTTP $status). Check the service status.';
+  }
+
+  @override
+  String get loginSslCertificateFailed =>
+      'SSL certificate verification failed. Check the HTTPS setting or the server certificate.';
+
+  @override
+  String get loginConnectionTimeout =>
+      'Timed out connecting to the server. Check the server address or your network.';
+
+  @override
+  String get loginConnectionFailed =>
+      'Could not connect to the server. Check the address, port, or network.';
+
+  @override
+  String get loginRequestCancelled => 'The sign-in request was cancelled.';
+
+  @override
+  String get loginFailedCheckServer =>
+      'Sign-in failed. Check the server address or try again later.';
+
+  @override
+  String get loginFailedCheckNetwork =>
+      'Sign-in failed. Check your network or server settings.';
+
+  @override
+  String get loginFailedTokenEmpty => 'Sign-in failed: empty token';
+
+  @override
+  String loginFailedWithError(String error) {
+    return 'Sign-in failed: $error';
+  }
+
+  @override
+  String get loginAuthFailed => 'Authentication failed';
+
+  @override
+  String get loginFnIdEmpty => 'FN ID cannot be empty';
+
+  @override
+  String get loginHistoryTitle => 'Login history';
+
+  @override
+  String get loginHistoryEmpty => 'No history yet';
+
+  @override
+  String get homeRetryLoad => 'Failed to load. Click to retry';
+
+  @override
+  String get homeTitle => 'Home';
+
+  @override
+  String get homeContinueWatching => 'Continue watching';
+
+  @override
+  String get homeMediaLibrary => 'Media library';
+
+  @override
+  String get homeContinueRemoved => 'Removed from Continue watching';
+
+  @override
+  String get homeContinueRemoveFailed => 'Failed to remove';
+
+  @override
+  String homeContinueRemoveError(String error) {
+    return 'Failed to remove: $error';
+  }
+
+  @override
+  String homeDeleteDialogTitle(String title) {
+    return 'Delete \"$title\"';
+  }
+
+  @override
+  String get homeDeleteDialogBody =>
+      'After removing it from the library, the selected video files will no longer be scanned into this library. Choose whether to also delete the associated video files.';
+
+  @override
+  String get homeDeleteRemoveAndDeleteFile => 'Remove and delete files';
+
+  @override
+  String get homeDeleteRemoveOnly => 'Remove only';
+
+  @override
+  String get homeDeleted => 'Deleted';
+
+  @override
+  String get homeDeleteFailed => 'Delete failed';
+
+  @override
+  String homeDeleteFailedWithError(String error) {
+    return 'Delete failed: $error';
+  }
+
+  @override
+  String get homeFavoriteRemoved => 'Removed from favorites';
+
+  @override
+  String get homeFavorited => 'Added to favorites';
+
+  @override
+  String get homeMarkedUnwatched => 'Marked as unwatched';
+
+  @override
+  String get homeMarkedWatched => 'Marked as watched';
+
+  @override
+  String get homeActionFailed => 'Operation failed';
+
+  @override
+  String homeActionFailedWithError(String error) {
+    return 'Operation failed: $error';
+  }
+
+  @override
+  String get homeMenuRemoveFromContinue => 'Remove from Continue watching';
+
+  @override
+  String get homeMenuResume => 'Resume playback';
+
+  @override
+  String get homeMenuRestart => 'Play from the beginning';
+
+  @override
+  String get homeMenuDeleteVideo => 'Delete video';
+
+  @override
+  String get searchPlaceholder => 'Search titles or actors';
+
+  @override
+  String get searchTabAll => 'All';
+
+  @override
+  String get searchTabMovie => 'Movies';
+
+  @override
+  String get searchTabTv => 'TV series';
+
+  @override
+  String get searchTabLiveChannel => 'Live channels';
+
+  @override
+  String get searchTabPerson => 'People';
+
+  @override
+  String get searchTabOther => 'Other';
+
+  @override
+  String get searchNoResults => 'No results found';
+
+  @override
+  String get searchEnterKeyword => 'Type a keyword to search';
+
+  @override
+  String searchWorkCount(String count) {
+    return '$count works';
+  }
+
+  @override
+  String get searchScoreSuffix => 'pts';
+
+  @override
+  String searchEpisodeCount(String count) {
+    return '$count episodes';
+  }
+
+  @override
+  String get personNoData => 'No data';
+
+  @override
+  String get personSectionActor => 'As actor';
+
+  @override
+  String get personSectionDirector => 'As director';
+
+  @override
+  String get personSectionWriter => 'As writer';
+
+  @override
+  String get personMore => 'More';
+
+  @override
+  String get personBiographyTitle => 'Biography';
+
+  @override
+  String get commonDelete => 'Delete';
+
+  @override
+  String get forgotPasswordTitle => 'Forgot password?';
+
+  @override
+  String get storageExternal => 'External storage';
+
+  @override
+  String get storageRemoteMount => 'Remote mount';
+
+  @override
+  String storageVolumeName(String number) {
+    return 'Volume $number';
+  }
+
+  @override
+  String durationHoursMinutes(String hours, String minutes) {
+    return '$hours h $minutes min';
+  }
+
+  @override
+  String durationHours(String hours) {
+    return '$hours h';
+  }
+
+  @override
+  String durationMinutesSeconds(String minutes, String seconds) {
+    return '$minutes min $seconds s';
+  }
+
+  @override
+  String durationMinutes(String minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String get durationZeroMinutes => '0 min';
+
+  @override
+  String authDirUserFiles(String username) {
+    return '$username\'s files';
+  }
+
+  @override
+  String authDirUnknownUser(String uid) {
+    return 'User $uid';
+  }
+
+  @override
+  String get authDirNone => 'None';
+
+  @override
+  String get authDirUnknown => 'Unknown';
+
+  @override
+  String get mediaStreamAudio => 'Audio';
+
+  @override
+  String get mediaStreamVideo => 'Video';
+
+  @override
+  String get mediaStreamSubtitle => 'Subtitle';
+
+  @override
+  String get forgotPasswordBody =>
+      '1. If you are a NAS user, try signing in with your NAS account.\n2. Otherwise, contact an administrator to reset your password.';
+
+  @override
+  String tvDetailEpisodeNumberTitle(String number, String title) {
+    return 'Episode $number $title';
+  }
+
+  @override
+  String get movieDetailSubtitleDefaultSuffix => ' - Default';
 }

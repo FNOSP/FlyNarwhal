@@ -4,7 +4,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../domain/entities/media_type.dart';
 import '../../../data/models/home_models.dart';
 import '../../../data/models/media_request_models.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/providers.dart';
+import '../../settings/app_language.dart';
 
 part 'home_view_model.g.dart';
 
@@ -117,6 +119,8 @@ class FavoriteNotifier extends _$FavoriteNotifier {
 
   Future<FavoriteActionResult> toggleFavorite(
       String guid, bool currentFavoriteState) async {
+    final l10n = lookupAppLocalizations(AppLanguage.localeFromValue(
+        ref.read(settingsProvider).language));
     try {
       final remote = ref.read(mediaRemoteDataSourceProvider);
       final response = await remote.toggleFavorite(
@@ -130,8 +134,10 @@ class FavoriteNotifier extends _$FavoriteNotifier {
         isFavorite: !currentFavoriteState,
         success: isSuccess,
         message: isSuccess
-            ? (currentFavoriteState ? '已取消收藏' : '已收藏')
-            : (response.failureOrNull?.displayMessage ?? '操作失败'),
+            ? (currentFavoriteState
+                ? l10n.homeFavoriteRemoved
+                : l10n.homeFavorited)
+            : (response.failureOrNull?.displayMessage ?? l10n.homeActionFailed),
         previousState: currentFavoriteState,
       );
 
@@ -142,7 +148,7 @@ class FavoriteNotifier extends _$FavoriteNotifier {
         guid: guid,
         isFavorite: currentFavoriteState,
         success: false,
-        message: '操作失败，$e',
+        message: l10n.homeActionFailedWithError('$e'),
         previousState: currentFavoriteState,
       );
       state = result;
@@ -162,6 +168,8 @@ class WatchedNotifier extends _$WatchedNotifier {
 
   Future<WatchedActionResult> toggleWatched(
       String guid, bool currentWatchedState) async {
+    final l10n = lookupAppLocalizations(AppLanguage.localeFromValue(
+        ref.read(settingsProvider).language));
     try {
       final remote = ref.read(mediaRemoteDataSourceProvider);
       final response = await remote.toggleWatched(
@@ -174,8 +182,10 @@ class WatchedNotifier extends _$WatchedNotifier {
         isWatched: !currentWatchedState,
         success: isSuccess,
         message: isSuccess
-            ? (currentWatchedState ? '标记为未观看' : '标记为已观看')
-            : (response.failureOrNull?.displayMessage ?? '操作失败'),
+            ? (currentWatchedState
+                ? l10n.homeMarkedUnwatched
+                : l10n.homeMarkedWatched)
+            : (response.failureOrNull?.displayMessage ?? l10n.homeActionFailed),
         previousState: currentWatchedState,
       );
 
@@ -186,7 +196,7 @@ class WatchedNotifier extends _$WatchedNotifier {
         guid: guid,
         isWatched: currentWatchedState,
         success: false,
-        message: '操作失败，$e',
+        message: l10n.homeActionFailedWithError('$e'),
         previousState: currentWatchedState,
       );
       state = result;

@@ -25,6 +25,7 @@ import '../../../core/network/ssl/ssl_error_detector.dart';
 import '../../../core/utils/log/app_talker.dart';
 import '../../../data/models/login_history.dart';
 import '../../../data/storage/preferences_manager.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import 'widgets/history_sidebar.dart';
@@ -163,7 +164,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       AppTalker.info('Login', 'nas login: normalizedUrl="$url"');
       if (url.isEmpty) {
         AppTalker.warning('Login', 'nas login: empty url, abort');
-        _showToast('请输入 IP:Port、域名或 FN ID');
+        _showToast(AppLocalizations.of(context).loginHostOrFnIdPlaceholder);
         return;
       }
       final shouldAutoLogin =
@@ -187,7 +188,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       AppTalker.info('Login', 'probe: normalizedUrl="$probeUrl"');
       if (probeUrl.isEmpty) {
         AppTalker.warning('Login', 'probe: empty url, abort');
-        _showToast('请输入正确的 IP、域名或 FN ID');
+        _showToast(AppLocalizations.of(context).loginHostValidationMessage);
         return;
       }
       await _openFnConnectWebView(url: probeUrl, isProbe: true);
@@ -195,15 +196,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     if (host.trim().isEmpty) {
-      _showToast('请输入 IP、域名或 FN ID');
+      _showToast(AppLocalizations.of(context).loginHostRequiredMessage);
       return;
     }
     if (username.trim().isEmpty) {
-      _showToast('请输入用户名');
+      _showToast(AppLocalizations.of(context).loginUsernameRequiredMessage);
       return;
     }
     if (password.isEmpty) {
-      _showToast('请输入密码');
+      _showToast(AppLocalizations.of(context).loginPasswordRequiredMessage);
       return;
     }
 
@@ -219,6 +220,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             isHttps: _isHttps,
             rememberPassword: _rememberPassword,
             isNasLogin: false,
+            fnIdEmptyMessage: AppLocalizations.of(context).loginFnIdEmpty,
             fnId: null,
             displayHost: _displayHost,
             displayPort: _displayPort,
@@ -264,7 +266,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         'LoginBridge',
         'prepare WebView environment failed: $error',
       );
-      _showToast('浏览器组件初始化失败，请稍后重试。');
+      _showToast(AppLocalizations.of(context).loginWebViewInitFailed);
       return;
     }
 
@@ -300,6 +302,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Initialize network processor for NAS auth flow
     AppTalker.info('LoginBridge', 'prepare network processor');
     _networkMessageProcessor = _NetworkMessageProcessor(
+      l10n: AppLocalizations.of(context),
       dioClient: dioClient,
       preferencesManager: prefs,
       onError: _showToast,
@@ -393,6 +396,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       autoLoginPasswordLiteral: jsonEncode(_autoLoginPassword),
       allowAutoLogin: _allowAutoLogin,
       usernameHistoryJsonLiteral: jsonEncode(_buildUsernameHistory(history)),
+      rememberPasswordLabel: jsonEncode(
+          AppLocalizations.of(context).loginWebViewInjectedPlaceholder),
     ).build();
     await controller.evaluateJavascript(source: script);
   }
@@ -681,7 +686,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               key: const ValueKey('login-history-button'),
                               child: _buildGlassField(
                                 controller: _fnIdController,
-                                placeholder: '请输入 IP:Port、域名或 FN ID',
+                                placeholder: AppLocalizations.of(context)
+                                    .loginHostOrFnIdPlaceholder,
                                 onChanged: (_) => _autoLoginFromHistory = false,
                                 suffixIcon: const Icon(
                                   material.Icons.history,
@@ -698,7 +704,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   flex: 2,
                                   child: _buildGlassField(
                                     controller: _hostController,
-                                    placeholder: '请输入 IP、域名或 FN ID',
+                                    placeholder: AppLocalizations.of(context)
+                                        .loginHostPlaceholder,
                                     onChanged: (_) =>
                                         _autoLoginFromHistory = false,
                                     suffixIcon: const Icon(
@@ -713,7 +720,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   flex: 1,
                                   child: _buildGlassField(
                                     controller: _portController,
-                                    placeholder: '端口',
+                                    placeholder: AppLocalizations.of(context)
+                                        .loginPortPlaceholder,
                                     keyboardType: TextInputType.number,
                                     inputFormatters: [
                                       FilteringTextInputFormatter.digitsOnly,
@@ -728,13 +736,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             const SizedBox(height: 16),
                             _buildGlassField(
                               controller: _usernameController,
-                              placeholder: '用户名',
+                              placeholder: AppLocalizations.of(context)
+                                  .loginUsernameLabel,
                               onChanged: (_) => _autoLoginFromHistory = false,
                             ),
                             const SizedBox(height: 16),
                             _buildGlassField(
                               controller: _passwordController,
-                              placeholder: '密码',
+                              placeholder: AppLocalizations.of(context)
+                                  .loginPasswordLabel,
                               obscureText: !_passwordVisible,
                               onChanged: (_) => _autoLoginFromHistory = false,
                               suffixIcon: Icon(
@@ -760,9 +770,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     activeColor: _primaryBlue,
                                   ),
                                 ),
-                                const Expanded(
-                                  child: Text('记住密码',
-                                      style: TextStyle(color: _textColor)),
+                                Expanded(
+                                  child: Text(
+                                      AppLocalizations.of(context)
+                                          .loginRememberPassword,
+                                      style: const TextStyle(color: _textColor)),
                                 ),
                                 _withClickCursor(
                                   material.TextButton(
@@ -771,7 +783,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       enabledMouseCursor:
                                           SystemMouseCursors.click,
                                     ),
-                                    child: const Text('忘记密码'),
+                                    child: Text(AppLocalizations.of(context)
+                                        .forgotPasswordTitle),
                                   ),
                                 ),
                               ],
@@ -780,9 +793,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Expanded(
-                                child: Text('使用 NAS 登录',
-                                    style: TextStyle(color: _hintColor)),
+                              Expanded(
+                                child: Text(
+                                    AppLocalizations.of(context)
+                                        .loginUseNasLogin,
+                                    style: const TextStyle(color: _hintColor)),
                               ),
                               _withClickCursor(
                                 GlassSwitch(
@@ -801,9 +816,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Expanded(
-                                child: Text('HTTPS 安全访问',
-                                    style: TextStyle(color: _hintColor)),
+                              Expanded(
+                                child: Text(
+                                    AppLocalizations.of(context)
+                                        .loginHttpsSecureAccess,
+                                    style: const TextStyle(color: _hintColor)),
                               ),
                               _withClickCursor(
                                 GlassSwitch(
@@ -831,7 +848,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       child: AppLoadingProgressRing(
                                           size: 22, strokeWidth: 2),
                                     )
-                                  : Text(_isNasLogin ? '下一步' : '登录',
+                                  : Text(
+                                      _isNasLogin
+                                          ? AppLocalizations.of(context)
+                                              .loginNext
+                                          : AppLocalizations.of(context)
+                                              .loginSignIn,
                                       style: const TextStyle(fontSize: 16)),
                             ),
                           ),
@@ -922,7 +944,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             const SizedBox(width: kMacOSTrafficLightInset),
                           _withClickCursor(
                             AppButton(
-                              child: const Text('关闭'),
+                              child: Text(
+                                  AppLocalizations.of(context).commonCancel),
                               onPressed: () {
                                 setState(() {
                                   _showFnConnectWebView = false;
@@ -932,8 +955,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          const Text('正在验证服务器...',
-                              style: TextStyle(color: Colors.grey)),
+                          Text(AppLocalizations.of(context).loginVerifyingServer,
+                              style: const TextStyle(color: Colors.grey)),
                         ],
                       ),
                     ),
@@ -1064,6 +1087,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             isHttps: _isHttps,
             rememberPassword: _rememberPassword,
             isNasLogin: false,
+            fnIdEmptyMessage: AppLocalizations.of(context).loginFnIdEmpty,
             displayHost: displayHost ?? _displayHost,
             displayPort: displayPort ?? _displayPort,
           );
@@ -1093,7 +1117,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _handleLoginError(Object error) {
     if (error is LoginException) {
       if (error.code == -15) {
-        _showToast('用户名或密码错误');
+        _showToast(AppLocalizations.of(context).loginInvalidCredentials);
         return;
       }
       _showToast(error.message);
@@ -1102,38 +1126,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _showToast(_humanizeLoginError(error));
   }
 
-  /// Translates low-level network errors into plain Chinese text for users.
+  /// Translates low-level network errors into plain text for users.
   /// Keep the original class names out of the toast; release obfuscation makes
   /// them unreadable anyway (e.g. `Instance of 'wNa'`).
   String _humanizeLoginError(Object error) {
+    final l10n = AppLocalizations.of(context);
     if (error is DioException) {
       final statusCode = error.response?.statusCode;
       if (statusCode != null) {
-        return '服务器返回错误（HTTP $statusCode），请检查服务状态。';
+        return l10n.loginServerHttpError('$statusCode');
       }
       // A TLS failure normally arrives as `DioExceptionType.unknown` wrapping a
       // HandshakeException, not as `badCertificate`, so inspect the cause chain
       // before falling through to the generic messages.
       if (isCertificateException(error.error ?? error)) {
-        return 'SSL 证书验证失败，请检查 HTTPS 设置或服务器证书。';
+        return l10n.loginSslCertificateFailed;
       }
       switch (error.type) {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.sendTimeout:
         case DioExceptionType.receiveTimeout:
-          return '连接服务器超时，请确认服务器地址或网络状态。';
+          return l10n.loginConnectionTimeout;
         case DioExceptionType.connectionError:
-          return '无法连接到服务器，请检查地址、端口或网络。';
+          return l10n.loginConnectionFailed;
         case DioExceptionType.badCertificate:
-          return 'SSL 证书验证失败，请检查 HTTPS 设置或服务器证书。';
+          return l10n.loginSslCertificateFailed;
         case DioExceptionType.cancel:
-          return '登录请求已取消。';
+          return l10n.loginRequestCancelled;
         case DioExceptionType.unknown:
         case DioExceptionType.badResponse:
-          return '登录失败，请检查服务器地址或稍后再试。';
+          return l10n.loginFailedCheckServer;
       }
     }
-    return '登录失败，请检查网络或服务器设置。';
+    return l10n.loginFailedCheckNetwork;
   }
 
   void _showToast(String message) {
@@ -1147,13 +1172,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _showForgotPasswordDialog() {
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
     showAppDialog<void>(
       context: context,
-      title: '忘记密码？',
-      content: const Text(
-        '1. 如果您是 NAS 用户，请尝试 NAS 帐号登录；\n2. 请联系管理员修改密码。',
-      ),
-      primaryButtonText: '确认',
+      title: l10n.forgotPasswordTitle,
+      content: Text(l10n.forgotPasswordBody),
+      primaryButtonText: l10n.commonConfirm,
       onPrimaryPressed: () {},
       autoDismiss: true,
     );
@@ -1176,6 +1200,7 @@ class _NasLoginResult {
 
 class _NetworkMessageProcessor {
   _NetworkMessageProcessor({
+    required this.l10n,
     required this.dioClient,
     required this.preferencesManager,
     required this.onError,
@@ -1188,6 +1213,7 @@ class _NetworkMessageProcessor {
     required this.autoLoginUsername,
   });
 
+  final AppLocalizations l10n;
   final DioClient dioClient;
   final PreferencesManager preferencesManager;
   final void Function(String message) onError;
@@ -1415,7 +1441,7 @@ class _NetworkMessageProcessor {
       final token = await _exchangeCodeForToken(resolvedBaseUrl, code);
       if (token.isEmpty) {
         _isAuthRequested = false;
-        onError('登录失败: Token 为空');
+        onError(l10n.loginFailedTokenEmpty);
         return;
       }
       final relayCookie =
@@ -1459,7 +1485,7 @@ class _NetworkMessageProcessor {
       );
     } catch (e) {
       _isAuthRequested = false;
-      onError('登录失败: $e');
+      onError(l10n.loginFailedWithError('$e'));
     }
   }
 
@@ -1497,7 +1523,8 @@ class _NetworkMessageProcessor {
       );
       final codeValue = data['code'];
       if (codeValue is int && codeValue != 0) {
-        final msg = data['msg']?.toString() ?? '认证失败';
+        final msg = data['msg']?.toString() ??
+            l10n.loginAuthFailed;
         throw Exception(msg);
       }
       final body = data['data'];

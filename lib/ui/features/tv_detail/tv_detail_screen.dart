@@ -130,7 +130,10 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         .toggleFavorite();
     if (!mounted) return;
     ref.read(toastManagerProvider.notifier).showToast(
-          result.success ? result.message : '操作失败，${result.message}',
+          result.success
+              ? result.message
+              : AppLocalizations.of(context)
+                  .toastOperationFailedReason(result.message),
           type: result.success ? ToastType.success : ToastType.failed,
           category: 'favorite:${widget.guid}',
         );
@@ -142,7 +145,10 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         .toggleWatched();
     if (!mounted) return;
     ref.read(toastManagerProvider.notifier).showToast(
-          result.success ? result.message : '操作失败，${result.message}',
+          result.success
+              ? result.message
+              : AppLocalizations.of(context)
+                  .toastOperationFailedReason(result.message),
           type: result.success ? ToastType.success : ToastType.failed,
           category: 'watched:${widget.guid}',
         );
@@ -155,7 +161,10 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
         .toggleSeasonWatched(seasonGuid, isWatched);
     if (!mounted) return false;
     ref.read(toastManagerProvider.notifier).showToast(
-          result.success ? result.message : '操作失败，${result.message}',
+          result.success
+              ? result.message
+              : AppLocalizations.of(context)
+                  .toastOperationFailedReason(result.message),
           type: result.success ? ToastType.success : ToastType.failed,
           category: 'season-watched:$seasonGuid',
         );
@@ -174,11 +183,13 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 
   void _showDescriptionDialog(ItemResponse item) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (_) => MediaDescriptionDialog(
-        title: '剧集简介',
-        content: (item.overview ?? '暂无介绍').replaceAll('\n\n', '\n'),
+        title: l10n.tvDetailDescriptionTitle,
+        content: (item.overview ?? l10n.mediaInfoNoOverview)
+            .replaceAll('\n\n', '\n'),
       ),
     );
   }
@@ -262,7 +273,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
           if (ref.read(settingsProvider).flyNarwhalServerEnabled)
             MenuFlyoutItem(
               key: const ValueKey('tv-smart-analysis'),
-              text: const Text('智能分析片头/片尾'),
+              text: Text(AppLocalizations.of(context).tvDetailSmartAnalysis),
               onPressed: ref
                       .read(smartAnalysisControllerProvider)
                       .isSubmitting(SmartAnalysisTargetType.tv, widget.guid)
@@ -278,20 +289,26 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 
   String _buildPlayButtonText() {
+    final l10n = AppLocalizations.of(context);
     final playInfo = widget.state.playInfo;
-    if (playInfo == null) return '播放';
+    if (playInfo == null) return l10n.actionPlay;
 
     if (widget.state.seasonList.length == 1) {
-      return '第 ${playInfo.item.episodeNumber} 集';
+      return l10n.tvDetailEpisodeNumber('${playInfo.item.episodeNumber}');
     }
 
-    return '第 ${playInfo.item.seasonNumber} 季 第 ${playInfo.item.episodeNumber} 集';
+    return l10n.tvDetailSeasonEpisodeNumbers(
+      '${playInfo.item.seasonNumber}',
+      '${playInfo.item.episodeNumber}',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final item = widget.state.item;
-    if (item == null) return const Center(child: Text('未找到剧集信息'));
+    if (item == null) {
+      return Center(child: Text(AppLocalizations.of(context).tvDetailNotFound));
+    }
 
     ref.listen<AsyncValue<String>?>(
       smartAnalysisControllerProvider.select(
@@ -448,7 +465,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '剧季列表',
+                        AppLocalizations.of(context).tvDetailSeasonListTitle,
                         style: FluentTheme.of(context)
                             .typography
                             .subtitle
@@ -484,6 +501,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
   }
 
   Widget _buildActionRow(BuildContext context, ItemResponse item) {
+    final l10n = AppLocalizations.of(context);
     final textColor = FluentTheme.of(context).typography.body?.color;
     final resolvedTextColor = textColor ?? Colors.white;
     final isFavorite = item.isFavorite == 1;
@@ -517,7 +535,9 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                   BlendMode.srcIn,
                 ),
               ),
-              tooltip: item.isFavorite == 1 ? '取消收藏' : '加入收藏',
+              tooltip: item.isFavorite == 1
+                  ? l10n.actionFavoriteRemove
+                  : l10n.actionFavoriteAdd,
               onPressed: _handleToggleFavorite,
             ),
             const SizedBox(width: 16),
@@ -535,7 +555,9 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
                   BlendMode.srcIn,
                 ),
               ),
-              tooltip: item.isWatched == 1 ? '标记为未看' : '标记为已看',
+              tooltip: item.isWatched == 1
+                  ? l10n.actionMarkUnwatched
+                  : l10n.actionMarkWatched,
               onPressed: _handleToggleWatched,
             ),
             const SizedBox(width: 16),
@@ -544,7 +566,7 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
               child: CircleIconButton(
                 icon: FluentIcons.more,
                 iconColor: textColor,
-                tooltip: '更多操作',
+                tooltip: l10n.actionMore,
                 onPressed: () => _showMoreFlyout(item),
               ),
             ),
@@ -592,6 +614,7 @@ class _SeasonListGrid extends StatefulWidget {
 class _SeasonListGridState extends State<_SeasonListGrid> {
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return LayoutBuilder(builder: (context, constraints) {
       final availableWidth = constraints.maxWidth;
       final posterMinWidth = 128.0 * widget.scaleFactor;
@@ -622,9 +645,10 @@ class _SeasonListGridState extends State<_SeasonListGrid> {
           //   then append the air_date year.
           final List<String> parts = [];
           if (season.localNumberOfEpisodes > 0) {
-            parts.add('共 ${season.localNumberOfEpisodes} 集');
+            parts.add(l10n.tvDetailEpisodeCount(
+                '${season.localNumberOfEpisodes}'));
           } else if (season.seasonNumber > 0) {
-            parts.add('第 ${season.seasonNumber} 季');
+            parts.add(l10n.tvDetailSeasonNumber('${season.seasonNumber}'));
           }
           if (season.airDate != null && season.airDate!.length >= 4) {
             parts.add(season.airDate!.substring(0, 4));
@@ -704,7 +728,7 @@ class _SeasonPosterCardState extends State<_SeasonPosterCard> {
         items: [
           MenuFlyoutItem(
             key: ValueKey('season-smart-analysis-${season.guid}'),
-            text: const Text('智能分析片头/片尾'),
+            text: Text(AppLocalizations.of(context).tvDetailSmartAnalysis),
             onPressed: () {
               Flyout.of(context).close();
               widget.onAnalyze(season);

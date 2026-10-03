@@ -1148,11 +1148,13 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                                                 MediaType.directory;
                                         return LayoutBuilder(
                                             builder: (context, constraints) {
+                                          final l10n =
+                                              AppLocalizations.of(context);
                                           return MoviePoster(
                                           title: item.title,
                                           // 文件夹卡片仅显示标题（与 Web 一致）。
                                           subtitle:
-                                              isDirectory ? null : buildPosterSubtitle(item),
+                                              isDirectory ? null : buildPosterSubtitle(item, l10n),
                                           posterPath: item.effectivePoster,
                                           score: item.voteAverage,
                                           resolutions:

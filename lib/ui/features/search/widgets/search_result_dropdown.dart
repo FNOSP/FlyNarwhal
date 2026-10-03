@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../domain/entities/search_result_type.dart';
 
 import '../../../../data/models/home_models.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../shared/common/fn_cached_image.dart';
 import '../../../shared/common/app_loading_progress_ring.dart';
 import '../../../shared/movie_poster.dart' show formatVoteAverage;
@@ -261,7 +262,9 @@ class _EmptyResult extends StatelessWidget {
             ),
           const SizedBox(height: 12),
           Text(
-            hasSearched ? '搜索无结果' : '输入关键词搜索',
+            hasSearched
+                ? AppLocalizations.of(context).searchNoResults
+                : AppLocalizations.of(context).searchEnterKeyword,
             style: theme.typography.body?.copyWith(
               color: theme.resources.textFillColorSecondary,
             ),
@@ -381,7 +384,8 @@ class _SearchResultItemState extends State<_SearchResultItem> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${item.numberOfItem ?? 0} 个作品',
+            AppLocalizations.of(context)
+                .searchWorkCount('${item.numberOfItem ?? 0}'),
             style: theme.typography.caption?.copyWith(
               color: theme.resources.textFillColorSecondary,
             ),
@@ -426,7 +430,7 @@ class _SearchResultItemState extends State<_SearchResultItem> {
               ),
               const SizedBox(width: 4),
               Text(
-                '分',
+                AppLocalizations.of(context).searchScoreSuffix,
                 style: theme.typography.caption?.copyWith(
                   color: theme.resources.textFillColorSecondary,
                 ),
@@ -461,7 +465,8 @@ class _SearchResultItemState extends State<_SearchResultItem> {
               if (item.type == 'TV' && (item.numberOfEpisodes ?? 0) > 0) ...[
                 if (year.isNotEmpty) const SizedBox(width: 8),
                 Text(
-                  '共 ${item.numberOfEpisodes} 集',
+                  AppLocalizations.of(context)
+                      .searchEpisodeCount('${item.numberOfEpisodes}'),
                   style: theme.typography.caption?.copyWith(
                     color: theme.resources.textFillColorSecondary,
                   ),

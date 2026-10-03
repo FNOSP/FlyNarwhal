@@ -1,5 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import '../../l10n/generated/app_localizations.dart';
 import '../../data/models/cloud_storage_type.dart';
+import '../../data/models/cloud_storage_type_localization.dart';
 import '../../data/models/file_models.dart';
 import '../../data/models/movie_detail_models.dart';
 
@@ -76,7 +78,26 @@ class FnDataConvertor {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
-  static String formatSecondsToCNDateTime(int seconds) {
+  static String formatSecondsToCNDateTime(int seconds, {AppLocalizations? l10n}) {
+    if (l10n == null) return _formatSecondsLegacy(seconds);
+    if (seconds <= 0) return l10n.durationZeroMinutes;
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final remainingSeconds = seconds % 60;
+
+    if (hours > 0 && minutes > 0) {
+      return l10n.durationHoursMinutes('$hours', '$minutes');
+    } else if (hours > 0) {
+      return l10n.durationHours('$hours');
+    } else if (minutes > 0 && remainingSeconds > 0) {
+      return l10n.durationMinutesSeconds('$minutes', '$remainingSeconds');
+    } else {
+      return l10n.durationMinutes('$minutes');
+    }
+  }
+
+  // Kept for callers that run outside a widget tree (models, caches).
+  static String _formatSecondsLegacy(int seconds) {
     if (seconds <= 0) return '0 分钟';
     final hours = seconds ~/ 3600;
     final minutes = (seconds % 3600) ~/ 60;
@@ -96,12 +117,15 @@ class FnDataConvertor {
   static String getLanguageName(
     String? langCode,
     Map<String, String> iso6391,
-    Map<String, String> iso6392,
-  ) {
+    Map<String, String> iso6392, {
+    AppLocalizations? l10n,
+  }) {
+    final none = l10n?.authDirNone ?? '无';
+    final unknown = l10n?.authDirUnknown ?? '未知';
     final language = langCode?.trim();
-    if (language == null || language == '_no_display_') return '无';
+    if (language == null || language == '_no_display_') return none;
     if ({'', 'und', 'zxx', 'qaa-qtz', 'zz-unknow'}.contains(language)) {
-      return '未知';
+      return unknown;
     }
 
     if (language.length == 2) {
@@ -231,12 +255,17 @@ class FnDataConvertor {
     return 'https://www.imdb.com/title/$imdbId/';
   }
 
-  static String getVolumeCNName(String path, {bool hasSpace = true}) {
+  static String getVolumeCNName(
+    String path, {
+    bool hasSpace = true,
+    AppLocalizations? l10n,
+  }) {
     if (path.isEmpty) return '';
     final regex = RegExp(r'^/vol(\d+)');
     final match = regex.firstMatch(path);
     if (match != null) {
       final volumeNumber = match.group(1);
+      if (l10n != null) return l10n.storageVolumeName(volumeNumber!);
       return '存储空间${hasSpace ? ' ' : ''}$volumeNumber';
     }
     return path;
@@ -247,16 +276,20 @@ class FnDataConvertor {
   ///   0 -> 外接存储, 2 -> 远程挂载, 3 -> 存储空间 N, else -> volume name.
   /// A path-regex alone is wrong here: a remote mount such as `/vol02/...`
   /// would otherwise be mislabelled "存储空间 02".
-  static String getAuthDirSidebarLabel(String path, int storageType) {
+  static String getAuthDirSidebarLabel(
+    String path,
+    int storageType, {
+    AppLocalizations? l10n,
+  }) {
     switch (storageType) {
       case 0:
-        return '外接存储';
+        return l10n?.storageExternal ?? '外接存储';
       case 2:
-        return '远程挂载';
+        return l10n?.storageRemoteMount ?? '远程挂载';
       case 3:
-        return getVolumeCNName(path);
+        return getVolumeCNName(path, l10n: l10n);
       default:
-        final name = getVolumeCNName(path);
+        final name = getVolumeCNName(path, l10n: l10n);
         return name.isEmpty ? path : name;
     }
   }
@@ -265,8 +298,12 @@ class FnDataConvertor {
     return CloudStorageType.fromValue(cloudStorageType).isKnown;
   }
 
-  static String getCloudStorageTypeLabel(int? cloudStorageType) {
-    return CloudStorageType.fromValue(cloudStorageType).displayLabel;
+  static String getCloudStorageTypeLabel(
+    int? cloudStorageType, {
+    AppLocalizations? l10n,
+  }) {
+    final type = CloudStorageType.fromValue(cloudStorageType);
+    return l10n == null ? type.displayLabel : type.localizedLabel(l10n);
   }
 
   /// Build the display name for an authorized directory root node.
@@ -274,7 +311,7 @@ class FnDataConvertor {
   ///   <cloud storage label> - <comment>
   /// For other remote mounts, fall back to:
   ///   <comment> - <username>@<address>
-  static String getAuthDirRootLabel(AuthDir dir) {
+  static String getAuthDirRootLabel(AuthDir dir, {AppLocalizations? l10n}) {
     if (dir.storageType != 2) {
       final segments =
           dir.path.split('/').where((segment) => segment.isNotEmpty);
@@ -282,7 +319,8 @@ class FnDataConvertor {
     }
 
     if (isValidCloudStorageType(dir.cloudStorageType)) {
-      final cloudLabel = getCloudStorageTypeLabel(dir.cloudStorageType);
+      final cloudLabel =
+          getCloudStorageTypeLabel(dir.cloudStorageType, l10n: l10n);
       final displayName = dir.comment.trim();
       if (cloudLabel.isNotEmpty && displayName.isNotEmpty) {
         return '$cloudLabel - $displayName';

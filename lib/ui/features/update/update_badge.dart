@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/update_providers.dart';
 import 'update_dialog.dart';
 import 'update_state.dart';
@@ -47,7 +48,8 @@ class _UpdateBadgeState extends State<UpdateBadge> {
 
   @override
   Widget build(BuildContext context) {
-    final semanticLabel = '发现新版本 ${widget.version}，打开更新详情';
+    final semanticLabel = AppLocalizations.of(context)
+        .updateBadgeSemanticLabel(widget.version);
 
     // Match the 20px compact caption buttons (back / pin / refresh) in the
     // macOS title bar: same size, same circular hover background, same

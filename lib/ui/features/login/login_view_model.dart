@@ -23,6 +23,7 @@ class LoginViewModel extends _$LoginViewModel {
     required bool isHttps,
     required bool rememberPassword,
     required bool isNasLogin,
+    required String fnIdEmptyMessage,
     String? fnId,
     String? displayHost,
     int? displayPort,
@@ -34,7 +35,7 @@ class LoginViewModel extends _$LoginViewModel {
 
       final protocol = isHttps ? 'https' : 'http';
       final baseUrl = isNasLogin
-          ? (await _resolveNasUrl(fnId!))
+          ? (await _resolveNasUrl(fnId!, fnIdEmptyMessage))
           : (port == 0 ? '$protocol://$host' : '$protocol://$host:$port');
 
       dioClient.updateBaseUrl(baseUrl);
@@ -179,10 +180,10 @@ class LoginViewModel extends _$LoginViewModel {
     }
   }
 
-  Future<String> _resolveNasUrl(String fnId) async {
+  Future<String> _resolveNasUrl(String fnId, String fnIdEmptyMessage) async {
     final raw = fnId.trim();
     if (raw.isEmpty) {
-      throw Exception('FN ID 不能为空');
+      throw Exception(fnIdEmptyMessage);
     }
     final hasScheme = raw.startsWith('http://') || raw.startsWith('https://');
     if (hasScheme) {
