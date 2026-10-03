@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../data/storage/update_settings_store.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/update_providers.dart';
 import '../../../providers/update_settings_provider.dart';
@@ -64,18 +65,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _openFlyNarwhalAuthCodeDialog() {
+    final l10n = AppLocalizations.of(context);
     _flyNarwhalAuthCodeController.text =
         ref.read(settingsProvider.notifier).getFlyNarwhalAuthCode();
     _isFlyNarwhalAuthCodeVisible = false;
     showAppDialog(
       context: context,
-      title: '填写授权码',
+      title: l10n.settingsServerAuthCodePrompt,
       content: StatefulBuilder(
         builder: (context, setDialogState) => Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('请输入飞鲸服务端授权码：'),
+            Text(l10n.settingsServerAuthCodeLabel),
             const SizedBox(height: 12),
             TextBox(
               key: const ValueKey('settings-fly-narwhal-auth-code-input'),
@@ -103,15 +105,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
-              '请在飞鲸服务端页面点击“获取授权码”后粘贴到此处。',
-              style: TextStyle(fontSize: 12),
+            Text(
+              l10n.settingsServerAuthCodeHint,
+              style: const TextStyle(fontSize: 12),
             ),
           ],
         ),
       ),
-      secondaryButtonText: '取消',
-      primaryButtonText: '确定',
+      secondaryButtonText: l10n.commonCancel,
+      primaryButtonText: l10n.commonConfirm,
       // AppDialog waits for this and then closes itself using its own context.
       onPrimaryPressed: _saveFlyNarwhalAuthCode,
       autoDismiss: true,
@@ -175,6 +177,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final settings = ref.watch(settingsProvider);
     final settingsNotifier = ref.read(settingsProvider.notifier);
     final errorLogExporter = ref.watch(errorLogExporterProvider);
@@ -195,16 +198,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           data: (version) {
             if (version == null) return;
             ref.read(toastManagerProvider.notifier).showToast(
-                  '飞鲸服务端连接成功，当前服务端版本号：$version',
+                  l10n.settingsServerTestSuccess(version),
                   type: ToastType.success,
                   category: 'fly-narwhal-connection',
                 );
             ref.read(flyNarwhalConnectionTestProvider.notifier).clear();
           },
           error: (error, _) {
-            final isUnreachable = error.toString() == '飞鲸服务端无法访问';
+            final isUnreachable =
+                error.toString() == l10n.settingsServerUnreachable;
             ref.read(toastManagerProvider.notifier).showToast(
-                  isUnreachable ? '飞鲸服务端无法访问' : '飞鲸服务端连接失败：$error',
+                  isUnreachable
+                      ? l10n.settingsServerUnreachable
+                      : l10n.settingsServerTestConnectFailed('$error'),
                   type: ToastType.failed,
                   category: 'fly-narwhal-connection',
                 );
@@ -225,7 +231,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 padding: const EdgeInsets.only(top: 16, bottom: 8),
                 child: _HorizontalSpace(
                   child: Text(
-                    '设置',
+                    l10n.settingsTitle,
                     style: FluentTheme.of(context)
                         .typography
                         .subtitle
@@ -247,14 +253,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const _Header(title: '账号'),
+                              _Header(title: l10n.settingsSectionAccount),
                               userInfoAsync.when(
                                 data: (user) {
                                   if (user == null) {
-                                    return const CardExpanderItem(
-                                      icon: Icon(FluentIcons.contact),
-                                      heading: Text('未加载用户信息'),
-                                      caption: Text('登录后将在首页自动完成用户信息校验'),
+                                    return CardExpanderItem(
+                                      icon: const Icon(FluentIcons.contact),
+                                      heading: Text(l10n.settingsAccountUnloaded),
+                                      caption: Text(
+                                        l10n.settingsAccountUnloadedCaption,
+                                      ),
                                     );
                                   }
 
@@ -281,7 +289,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                     BorderRadius.circular(50),
                                               ),
                                               child: Text(
-                                                '管理员',
+                                                l10n.settingsAccountAdminBadge,
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   color: Colors.blue,
@@ -294,34 +302,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                     caption: const Text('FN_Media'),
                                   );
                                 },
-                                loading: () => const CardExpanderItem(
+                                loading: () => CardExpanderItem(
                                   heading: Row(
                                     children: [
-                                      AppLoadingProgressRing(size: 18),
-                                      SizedBox(width: 12),
-                                      Text('正在加载用户信息…'),
+                                      const AppLoadingProgressRing(size: 18),
+                                      const SizedBox(width: 12),
+                                      Text(l10n.commonUserInfoLoading),
                                     ],
                                   ),
                                 ),
                                 error: (e, _) => CardExpanderItem(
                                   icon: const Icon(FluentIcons.error),
-                                  heading: const Text('加载用户信息失败'),
+                                  heading: Text(l10n.commonUserInfoLoadFailed),
                                   caption: Text(e.toString()),
                                 ),
                               ),
                               CardExpanderItem(
                                 key: const ValueKey('settings-logout'),
                                 icon: const Icon(FluentIcons.sign_out),
-                                heading: const Text('退出登录'),
-                                caption: const Text('退出当前账号'),
+                                heading: Text(l10n.settingsAccountSignOut),
+                                caption: Text(l10n.settingsAccountSignOutCaption),
                                 onPressed: () async {
                                   final confirmed = await showAppDialog<bool>(
                                     context: context,
                                     type: AppDialogType.confirmation,
-                                    title: '退出登录',
-                                    content: const Text('确认退出当前帐号？'),
-                                    primaryButtonText: '确定',
-                                    secondaryButtonText: '取消',
+                                    title: l10n.settingsAccountSignOut,
+                                    content: Text(
+                                      l10n.settingsAccountSignOutConfirm,
+                                    ),
+                                    primaryButtonText: l10n.commonConfirm,
+                                    secondaryButtonText: l10n.commonCancel,
                                     primaryResult: true,
                                     secondaryResult: false,
                                   );
@@ -342,19 +352,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 },
                               ),
                               const SizedBox(height: 4),
-                              const _Header(title: '外观'),
+                              _Header(title: l10n.settingsSectionAppearance),
                               CardExpanderItem(
                                 icon: const Icon(FluentIcons.color),
-                                heading: const Text('主题模式'),
-                                caption: const Text('是否跟随系统主题'),
+                                heading: Text(l10n.settingsAppearanceThemeMode),
+                                caption: Text(l10n.settingsAppearanceThemeModeCaption),
                                 trailing: ToggleSwitch(
                                   checked: settings.followSystemTheme,
                                   onChanged: (v) =>
                                       settingsNotifier.setFollowSystemTheme(v),
                                   content: Text(
                                     settings.followSystemTheme
-                                        ? '跟随系统'
-                                        : '手动设置',
+                                        ? l10n.settingsAppearanceFollowSystem
+                                        : l10n.settingsAppearanceManual,
                                   ),
                                 ),
                               ),
@@ -366,22 +376,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         ? FluentIcons.clear_night
                                         : FluentIcons.brightness,
                                   ),
-                                  heading: const Text('颜色'),
-                                  caption: const Text('请选择主题颜色'),
+                                  heading: Text(l10n.settingsAppearanceColor),
+                                  caption: Text(l10n.settingsAppearanceColorCaption),
                                   trailing: ToggleSwitch(
                                     checked: settings.darkMode,
                                     onChanged: (v) =>
                                         settingsNotifier.setDarkMode(v),
                                     content:
-                                        Text(settings.darkMode ? '深色' : '浅色'),
+                                        Text(settings.darkMode
+                                            ? l10n.settingsAppearanceDark
+                                            : l10n.settingsAppearanceLight),
                                   ),
                                 ),
                               ),
                               CardExpanderItem(
                                 icon:
                                     const Icon(FluentIcons.navigation_flipper),
-                                heading: const Text('导航栏样式'),
-                                caption: const Text('请选择导航视图布局'),
+                                heading: Text(l10n.settingsAppearanceNavStyle),
+                                caption: Text(l10n.settingsAppearanceNavStyleCaption),
                                 trailing: DropDownButton(
                                   title: Text(
                                     NavigationDisplayModeMapper.labelFromValue(
@@ -408,11 +420,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              const _Header(title: '通用'),
+                              _Header(title: l10n.settingsSectionGeneral),
                               CardExpanderItem(
                                 icon: const Icon(FluentIcons.locale_language),
-                                heading: const Text('语言'),
-                                caption: const Text('选择应用界面的显示语言'),
+                                heading: Text(l10n.settingsLanguageTitle),
+                                caption: Text(l10n.settingsLanguageCaption),
                                 trailing: DropDownButton(
                                   key: const ValueKey(
                                     'settings-language-dropdown',
@@ -437,8 +449,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ),
                               CardExpanderItem(
                                 icon: const Icon(FluentIcons.font_size),
-                                heading: const Text('字体大小'),
-                                caption: const Text('调整应用整体文字大小'),
+                                heading: Text(l10n.settingsGeneralFontSize),
+                                caption: Text(l10n.settingsGeneralFontSizeCaption),
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -483,12 +495,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ),
                               CardExpanderItem(
                                 icon: const Icon(FluentIcons.keyboard_classic),
-                                heading: const Text('快捷键设置'),
-                                caption: const Text('自定义快捷键'),
+                                heading: Text(l10n.settingsGeneralShortcuts),
+                                caption: Text(l10n.settingsGeneralShortcutsCaption),
                                 trailing: AppButton(
                                   key:
                                       const ValueKey('settings-shortcuts-open'),
-                                  child: const Text('自定义'),
+                                  child: Text(l10n.settingsGeneralCustomize),
                                   onPressed: () {
                                     showDialog(
                                       context: context,
@@ -499,15 +511,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              const _Header(title: '服务器'),
+                              _Header(title: l10n.settingsSectionServer),
                               CardExpanderItem(
                                 key: const ValueKey(
                                   'settings-fly-narwhal-enabled',
                                 ),
                                 icon: const Icon(FluentIcons.server),
-                                heading: const Text('启用飞鲸服务端'),
-                                caption: const Text(
-                                  '启用后可连接飞鲸服务端实现智能识别片头/片尾、弹幕等功能支持',
+                                heading: Text(l10n.settingsServerEnable),
+                                caption: Text(
+                                  l10n.settingsServerEnableCaption,
                                 ),
                                 trailing: ToggleSwitch(
                                   checked: settings.flyNarwhalServerEnabled,
@@ -515,8 +527,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       .setFlyNarwhalServerEnabled,
                                   content: Text(
                                     settings.flyNarwhalServerEnabled
-                                        ? '开启'
-                                        : '关闭',
+                                        ? l10n.settingsAboutOpen
+                                        : l10n.settingsAboutClose,
                                   ),
                                 ),
                               ),
@@ -529,8 +541,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         'settings-fly-narwhal-url',
                                       ),
                                       icon: const Icon(FluentIcons.globe),
-                                      heading: const Text('飞鲸服务端地址'),
-                                      caption: const Text('请填写完整的服务端 URL'),
+                                      heading: Text(l10n.settingsServerAddress),
+                                      caption: Text(l10n.settingsServerAddressIncomplete),
                                       trailing: SizedBox(
                                         width: 360,
                                         child: Row(
@@ -616,8 +628,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                         },
                                               child: Text(
                                                 isTestingFlyNarwhalServer
-                                                    ? '测试中'
-                                                    : '测试',
+                                                    ? l10n.settingsServerTesting
+                                                    : l10n.settingsServerTest,
                                               ),
                                             ),
                                           ],
@@ -631,30 +643,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       icon: const Icon(FluentIcons.permissions),
                                       heading: Row(
                                         children: [
-                                          const Text('授权码'),
+                                          Text(l10n.settingsServerAuthCode),
                                           const SizedBox(width: 6),
-                                          const HoverTip(
+                                          HoverTip(
                                             tipText:
-                                                '请在浏览器中访问部署在 NAS 中的飞鲸服务端地址（应用中心版请点击飞牛 OS 桌面中的「飞鲸影视」），点击右上角的「获取授权码」按钮，复制授权码后粘贴到填写授权码的文本框中。\n需要服务端版本 >= 0.6.0，低于 0.6.0 版的服务端不支持自动更新到 0.6.0 或以上版本，请手动更新到 0.6.0 或以上版本',
+                                                l10n.settingsServerAuthCodeHelp,
                                           ),
                                         ],
                                       ),
                                       caption: Text(
                                         settings.hasFlyNarwhalAuthCode
-                                            ? '已填写飞鲸服务端授权码'
-                                            : '填写飞鲸服务端授权码',
+                                            ? l10n.settingsServerAuthCodeFilled
+                                            : l10n.settingsServerAuthCodePrompt,
                                       ),
                                       trailing: AppButton(
                                         onPressed:
                                             _openFlyNarwhalAuthCodeDialog,
-                                        child: const Text('填写授权码'),
+                                        child: Text(l10n.settingsServerAuthCodePlaceholder),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              const _Header(title: '隐私与安全'),
+                              _Header(title: l10n.settingsSectionPrivacy),
                               CardExpanderItem(
                                 key: const ValueKey('settings-ssl-whitelist'),
                                 // `currentColor` in an SVG does not read
@@ -665,18 +677,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   size: 18,
                                   color: IconTheme.of(context).color,
                                 ),
-                                heading: const Text('SSL 证书信任列表'),
+                                heading: Text(l10n.settingsPrivacySslTitle),
                                 caption: Text(
                                   settings.sslWhitelist.isEmpty
-                                      ? '服务器证书校验失败时可加入信任，在此管理'
-                                      : '已信任 ${settings.sslWhitelist.length} 张证书',
+                                      ? l10n.settingsPrivacySslCaption
+                                      : l10n.settingsPrivacySslTrustedCount(
+                                          '${settings.sslWhitelist.length}',
+                                        ),
                                 ),
                                 trailing: AppButton(
                                   key: const ValueKey(
                                     'settings-ssl-whitelist-open',
                                   ),
                                   onPressed: _openSslWhitelistDialog,
-                                  child: const Text('管理'),
+                                  child: Text(l10n.settingsPrivacyManage),
                                 ),
                               ),
                               CardExpanderItem(
@@ -697,27 +711,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                     );
                                   },
                                 ),
-                                heading: const Text('隐私声明'),
-                                caption: const Text('隐私声明'),
+                                heading: Text(l10n.settingsPrivacyStatement),
+                                caption: Text(l10n.settingsPrivacyStatement),
                                 onPressed: () {
                                   showAppDialog(
                                     context: context,
-                                    title: '隐私声明',
-                                    content: const Text(
-                                      '为了改进软件性能，我们会收集部分硬件信息（如 CPU、GPU 型号等）作为参考依据。这些信息将仅用于优化软件，不会涉及个人隐私。',
+                                    title: l10n.settingsPrivacyStatement,
+                                    content: Text(
+                                      l10n.settingsPrivacyStatementBody,
                                     ),
-                                    primaryButtonText: '我知道了',
+                                    primaryButtonText: l10n.commonGotIt,
                                   );
                                 },
                               ),
                               const SizedBox(height: 4),
-                              const _Header(title: '关于'),
+                              _Header(title: l10n.settingsSectionAbout),
                               CardExpanderItem(
                                 key: const ValueKey('settings-check-update'),
                                 icon: const Icon(FluentIcons.info),
                                 heading: Row(
                                   children: [
-                                    const Text('当前版本'),
+                                    Text(l10n.settingsAboutVersion),
                                     if (updateState.hasUpdateBadge) ...[
                                       const SizedBox(width: 6),
                                       const SharedUpdateBadge(
@@ -728,8 +742,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 ),
                                 caption: currentVersionAsync.when(
                                   data: (version) => Text(version),
-                                  loading: () => const Text('正在读取版本信息…'),
-                                  error: (error, _) => const Text('无法读取版本信息'),
+                                  loading: () => Text(l10n.settingsAboutVersionLoading),
+                                  error: (error, _) => Text(l10n.settingsAboutVersionUnavailable),
                                 ),
                                 trailing: AppButton(
                                   key: const ValueKey(
@@ -750,7 +764,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                               width: 18,
                                               height: 18,
                                               child: ProgressRing())
-                                          : const Text('检查更新'),
+                                          : Text(l10n.settingsAboutCheckUpdate),
                                 ),
                               ),
                               SettingsUpdateControls(
@@ -813,17 +827,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               CardExpanderItem(
                                 key: const ValueKey('settings-changelog'),
                                 icon: const Icon(FluentIcons.history),
-                                heading: const Text('更新日志'),
-                                caption: const Text('查看各版本的更新内容'),
+                                heading: Text(l10n.settingsAboutChangelog),
+                                caption: Text(l10n.settingsAboutChangelogCaption),
                                 onPressed: () => showChangelogDialog(context),
                               ),
                               if (canExportLogs)
                                 CardExpanderItem(
                                   key: const ValueKey('settings-log-export'),
                                   icon: const Icon(FluentIcons.download),
-                                  heading: const Text('导出报错日志'),
-                                  caption: const Text(
-                                    '支持导出近三天的报错日志，方便开发者排查问题',
+                                  heading: Text(l10n.settingsAboutExportLogs),
+                                  caption: Text(
+                                    l10n.settingsAboutExportLogsCaption,
                                   ),
                                   trailing: Row(
                                     children: [
@@ -853,7 +867,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         onPressed: _isExportingLogs
                                             ? null
                                             : _exportErrorLogs,
-                                        child: const Text('导出'),
+                                        child: Text(l10n.settingsAboutExport),
                                       ),
                                     ],
                                   ),
@@ -873,11 +887,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _DialogOverlay(
             child: ContentDialog(
               key: const ValueKey('settings-log-export-error-dialog'),
-              title: const Text('导出错误'),
+              title: Text(l10n.settingsAboutExportError),
               content: Text(_logExportErrorMessage!),
               actions: [
                 AppButton(
-                  child: const Text('确定'),
+                  child: Text(l10n.commonConfirm),
                   onPressed: () {
                     setState(() {
                       _logExportErrorMessage = null;
@@ -932,20 +946,21 @@ class SettingsUpdateControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final currentSettings = settings;
     return Column(
       children: [
         CardExpanderItem(
           key: const ValueKey('settings-update-prerelease'),
           icon: const Icon(FluentIcons.test_beaker),
-          heading: const Text('抢先体验'),
-          caption: const Text('接收预发布版本更新'),
+          heading: Text(l10n.settingsAboutPrereleaseEarly),
+          caption: Text(l10n.settingsAboutPrerelease),
           trailing: ToggleSwitch(
             key: const ValueKey('settings-update-prerelease-toggle'),
             checked: currentSettings?.includePrerelease ?? false,
             onChanged:
                 currentSettings == null ? null : onIncludePrereleaseChanged,
-            content: Text(_toggleLabel(
+            content: Text(_toggleLabel(l10n, 
               isLoading: currentSettings == null,
               value: currentSettings?.includePrerelease ?? false,
             )),
@@ -954,13 +969,13 @@ class SettingsUpdateControls extends StatelessWidget {
         CardExpanderItem(
           key: const ValueKey('settings-update-auto-download'),
           icon: const Icon(FluentIcons.cloud_download),
-          heading: const Text('自动下载更新'),
-          caption: const Text('发现更新后在后台下载并校验安装包'),
+          heading: Text(l10n.settingsAboutAutoDownload),
+          caption: Text(l10n.settingsAboutAutoDownloadCaption),
           trailing: ToggleSwitch(
             key: const ValueKey('settings-update-auto-download-toggle'),
             checked: currentSettings?.autoDownload ?? false,
             onChanged: currentSettings == null ? null : onAutoDownloadChanged,
-            content: Text(_toggleLabel(
+            content: Text(_toggleLabel(l10n, 
               isLoading: currentSettings == null,
               value: currentSettings?.autoDownload ?? false,
             )),
@@ -969,13 +984,13 @@ class SettingsUpdateControls extends StatelessWidget {
         CardExpanderItem(
           key: const ValueKey('settings-update-proxy-enabled'),
           icon: const Icon(FluentIcons.globe),
-          heading: const Text('GitHub 资源代理'),
-          caption: const Text('仅用于安装包下载，默认关闭'),
+          heading: Text(l10n.settingsPrivacyGitHubProxy),
+          caption: Text(l10n.settingsPrivacyGitHubProxyCaption),
           trailing: ToggleSwitch(
             key: const ValueKey('settings-update-proxy-enabled-toggle'),
             checked: currentSettings?.isProxyEnabled ?? false,
             onChanged: currentSettings == null ? null : onProxyEnabledChanged,
-            content: Text(_toggleLabel(
+            content: Text(_toggleLabel(l10n, 
               isLoading: currentSettings == null,
               value: currentSettings?.isProxyEnabled ?? false,
             )),
@@ -986,8 +1001,8 @@ class SettingsUpdateControls extends StatelessWidget {
           child: CardExpanderItem(
             key: const ValueKey('settings-update-proxy-url'),
             icon: const Icon(FluentIcons.link),
-            heading: const Text('代理地址'),
-            caption: const Text('必须使用 HTTPS 地址'),
+            heading: Text(l10n.settingsPrivacyProxyAddress),
+            caption: Text(l10n.settingsServerAddressHttpsRequired),
             trailing: SizedBox(
               width: 360,
               child: TextBox(
@@ -1002,9 +1017,13 @@ class SettingsUpdateControls extends StatelessWidget {
     );
   }
 
-  String _toggleLabel({required bool isLoading, required bool value}) {
-    if (isLoading) return '加载中';
-    return value ? '开启' : '关闭';
+  String _toggleLabel(
+    AppLocalizations l10n, {
+    required bool isLoading,
+    required bool value,
+  }) {
+    if (isLoading) return l10n.commonLoading;
+    return value ? l10n.settingsAboutOpen : l10n.settingsAboutClose;
   }
 }
 

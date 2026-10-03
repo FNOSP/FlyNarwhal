@@ -1,11 +1,313 @@
 {
   "@@locale": "en",
-
   "appTitle": "FlyNarwhal",
   "settingsTitle": "Settings",
   "settingsSectionAccount": "Account",
   "settingsSectionAppearance": "Appearance",
   "settingsSectionGeneral": "General",
   "settingsLanguageTitle": "Language",
-  "settingsLanguageCaption": "Choose the display language of the app"
+  "settingsLanguageCaption": "Choose the display language of the app",
+  "settingsSectionServer": "Server",
+  "@settingsSectionServer": {
+    "description": "Settings section header for the server rows."
+  },
+  "settingsSectionPrivacy": "Privacy and Security",
+  "@settingsSectionPrivacy": {
+    "description": "Settings section header for privacy rows."
+  },
+  "settingsSectionAbout": "About",
+  "@settingsSectionAbout": {
+    "description": "Settings section header for the about rows."
+  },
+  "settingsAccountUnloaded": "User info not loaded",
+  "@settingsAccountUnloaded": {
+    "description": "Account row heading shown before user info loads."
+  },
+  "settingsAccountUnloadedCaption": "Sign in to verify the account automatically on the home page",
+  "@settingsAccountUnloadedCaption": {
+    "description": "Caption for the unloaded account row."
+  },
+  "settingsAccountAdminBadge": "Admin",
+  "@settingsAccountAdminBadge": {
+    "description": "Badge shown next to an administrator's name."
+  },
+  "settingsAccountSignOut": "Sign out",
+  "@settingsAccountSignOut": {
+    "description": "Row heading for signing out."
+  },
+  "settingsAccountSignOutCaption": "Sign out of the current account",
+  "@settingsAccountSignOutCaption": {
+    "description": "Caption for the sign-out row."
+  },
+  "settingsAccountSignOutConfirm": "Sign out of the current account?",
+  "@settingsAccountSignOutConfirm": {
+    "description": "Confirmation shown before signing out."
+  },
+  "settingsAppearanceThemeMode": "Theme",
+  "@settingsAppearanceThemeMode": {
+    "description": "Row heading for the theme mode setting."
+  },
+  "settingsAppearanceThemeModeCaption": "Whether to follow the system theme",
+  "@settingsAppearanceThemeModeCaption": {
+    "description": "Caption for the theme mode row."
+  },
+  "settingsAppearanceFollowSystem": "Follow system",
+  "@settingsAppearanceFollowSystem": {
+    "description": "Theme switch label when following the system theme."
+  },
+  "settingsAppearanceManual": "Manual",
+  "@settingsAppearanceManual": {
+    "description": "Theme switch label when the theme is set manually."
+  },
+  "settingsAppearanceColor": "Theme color",
+  "@settingsAppearanceColor": {
+    "description": "Row heading for the light/dark toggle."
+  },
+  "settingsAppearanceColorCaption": "Choose the theme color",
+  "@settingsAppearanceColorCaption": {
+    "description": "Caption for the theme color row."
+  },
+  "settingsAppearanceDark": "Dark",
+  "@settingsAppearanceDark": {
+    "description": "Dark mode label."
+  },
+  "settingsAppearanceLight": "Light",
+  "@settingsAppearanceLight": {
+    "description": "Light mode label."
+  },
+  "settingsAppearanceNavStyle": "Navigation layout",
+  "@settingsAppearanceNavStyle": {
+    "description": "Row heading for the navigation pane style."
+  },
+  "settingsAppearanceNavStyleCaption": "Choose the navigation view layout",
+  "@settingsAppearanceNavStyleCaption": {
+    "description": "Caption for the navigation style row."
+  },
+  "settingsGeneralFontSize": "Font size",
+  "@settingsGeneralFontSize": {
+    "description": "Row heading for the UI font size."
+  },
+  "settingsGeneralFontSizeCaption": "Adjust the overall text size of the app",
+  "@settingsGeneralFontSizeCaption": {
+    "description": "Caption for the font size row."
+  },
+  "settingsGeneralShortcuts": "Keyboard shortcuts",
+  "@settingsGeneralShortcuts": {
+    "description": "Row heading for shortcut settings."
+  },
+  "settingsGeneralShortcutsCaption": "Customize keyboard shortcuts",
+  "@settingsGeneralShortcutsCaption": {
+    "description": "Caption for the shortcut settings row."
+  },
+  "settingsGeneralCustomize": "Customize",
+  "@settingsGeneralCustomize": {
+    "description": "Button that opens the shortcut dialog."
+  },
+  "settingsServerEnable": "Enable the FlyNarwhal server",
+  "@settingsServerEnable": {
+    "description": "Toggle that enables the FlyNarwhal server features."
+  },
+  "settingsServerEnableCaption": "Connect to the FlyNarwhal server for intro/outro detection, danmaku and more",
+  "@settingsServerEnableCaption": {
+    "description": "Caption for the server enable toggle."
+  },
+  "settingsServerAddress": "FlyNarwhal server address",
+  "@settingsServerAddress": {
+    "description": "Row heading for the server base URL."
+  },
+  "settingsServerAddressHttpsRequired": "An HTTPS address is required",
+  "@settingsServerAddressHttpsRequired": {
+    "description": "Validation message for the server address."
+  },
+  "settingsServerAddressIncomplete": "Enter the complete server URL",
+  "@settingsServerAddressIncomplete": {
+    "description": "Validation message for an incomplete server URL."
+  },
+  "settingsServerAuthCode": "Auth code",
+  "@settingsServerAuthCode": {
+    "description": "Row heading for the server auth code."
+  },
+  "settingsServerAuthCodePlaceholder": "Enter auth code",
+  "@settingsServerAuthCodePlaceholder": {
+    "description": "Placeholder for the auth code field."
+  },
+  "settingsServerAuthCodeFilled": "Auth code is set",
+  "@settingsServerAuthCodeFilled": {
+    "description": "Caption shown once an auth code is stored."
+  },
+  "settingsServerAuthCodePrompt": "Enter the FlyNarwhal server auth code",
+  "@settingsServerAuthCodePrompt": {
+    "description": "Heading for the auth code prompt."
+  },
+  "settingsServerAuthCodeLabel": "Enter the FlyNarwhal server auth code:",
+  "@settingsServerAuthCodeLabel": {
+    "description": "Label above the auth code input."
+  },
+  "settingsServerAuthCodeHint": "On the FlyNarwhal server page, click \"Get auth code\" and paste it here.",
+  "@settingsServerAuthCodeHint": {
+    "description": "Hint under the auth code input."
+  },
+  "settingsServerAuthCodeHelp": "Open the FlyNarwhal server address deployed on your NAS in a browser (for the app-center build, click \"FlyNarwhal\" on the fnOS desktop), click \"Get auth code\" in the top-right corner, then paste the code into the auth code field.\\nServer version >= 0.6.0 is required. Older servers cannot auto-update to 0.6.0 or above; update them manually.",
+  "@settingsServerAuthCodeHelp": {
+    "description": "Long help text explaining how to obtain the auth code."
+  },
+  "settingsServerTest": "Test",
+  "@settingsServerTest": {
+    "description": "Button that tests the server connection."
+  },
+  "settingsServerTesting": "Testing",
+  "@settingsServerTesting": {
+    "description": "Label while the connection test runs."
+  },
+  "settingsServerTestSuccess": "Connected to the FlyNarwhal server. Server version: {version}",
+  "@settingsServerTestSuccess": {
+    "description": "Success message after a connection test.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsServerTestConnectFailed": "Could not connect to the FlyNarwhal server: {error}",
+  "@settingsServerTestConnectFailed": {
+    "description": "Failure message after a connection test.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsServerUnreachable": "The FlyNarwhal server is unreachable",
+  "@settingsServerUnreachable": {
+    "description": "Message when the server cannot be reached."
+  },
+  "settingsPrivacySslTitle": "Trusted SSL certificates",
+  "@settingsPrivacySslTitle": {
+    "description": "Row heading for the trusted certificate list."
+  },
+  "settingsPrivacySslCaption": "Trust a server certificate when validation fails; manage them here",
+  "@settingsPrivacySslCaption": {
+    "description": "Caption for the SSL trust list row."
+  },
+  "settingsPrivacySslTrustedCount": "{count} trusted certificates",
+  "@settingsPrivacySslTrustedCount": {
+    "description": "Shows how many certificates are trusted.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPrivacyManage": "Manage",
+  "@settingsPrivacyManage": {
+    "description": "Button that opens the certificate management dialog."
+  },
+  "settingsPrivacyStatement": "Privacy statement",
+  "@settingsPrivacyStatement": {
+    "description": "Row heading for the privacy statement."
+  },
+  "settingsPrivacyStatementBody": "To improve performance we collect some hardware information (such as CPU and GPU models) for reference. It is used only to optimize the software and does not involve personal privacy.",
+  "@settingsPrivacyStatementBody": {
+    "description": "Body text of the privacy statement dialog."
+  },
+  "settingsPrivacyGitHubProxy": "GitHub asset proxy",
+  "@settingsPrivacyGitHubProxy": {
+    "description": "Row heading for the GitHub asset proxy."
+  },
+  "settingsPrivacyGitHubProxyCaption": "Used only for installer downloads; off by default",
+  "@settingsPrivacyGitHubProxyCaption": {
+    "description": "Caption for the GitHub proxy row."
+  },
+  "settingsPrivacyProxyAddress": "Proxy address",
+  "@settingsPrivacyProxyAddress": {
+    "description": "Label for the proxy address field."
+  },
+  "settingsAboutVersion": "Current version",
+  "@settingsAboutVersion": {
+    "description": "Row heading showing the current app version."
+  },
+  "settingsAboutCheckUpdate": "Check for updates",
+  "@settingsAboutCheckUpdate": {
+    "description": "Row heading for checking updates."
+  },
+  "settingsAboutChangelog": "Changelog",
+  "@settingsAboutChangelog": {
+    "description": "Row heading for the changelog."
+  },
+  "settingsAboutChangelogCaption": "See what changed in each version",
+  "@settingsAboutChangelogCaption": {
+    "description": "Caption for the changelog row."
+  },
+  "settingsAboutPrerelease": "Receive pre-release updates",
+  "@settingsAboutPrerelease": {
+    "description": "Toggle for opting into pre-release builds."
+  },
+  "settingsAboutPrereleaseEarly": "Early access",
+  "@settingsAboutPrereleaseEarly": {
+    "description": "Label next to the pre-release toggle."
+  },
+  "settingsAboutAutoDownload": "Download updates automatically",
+  "@settingsAboutAutoDownload": {
+    "description": "Toggle for automatic update downloads."
+  },
+  "settingsAboutAutoDownloadCaption": "Download and verify an installer in the background when an update is found",
+  "@settingsAboutAutoDownloadCaption": {
+    "description": "Caption for the automatic download toggle."
+  },
+  "settingsAboutOpen": "On",
+  "@settingsAboutOpen": {
+    "description": "Toggle label for enabled."
+  },
+  "settingsAboutClose": "Off",
+  "@settingsAboutClose": {
+    "description": "Toggle label for disabled."
+  },
+  "settingsAboutExportLogs": "Export error logs",
+  "@settingsAboutExportLogs": {
+    "description": "Row heading for exporting error logs."
+  },
+  "settingsAboutExportLogsCaption": "Export the last three days of error logs to help developers diagnose issues",
+  "@settingsAboutExportLogsCaption": {
+    "description": "Caption for the export logs row."
+  },
+  "settingsAboutExport": "Export",
+  "@settingsAboutExport": {
+    "description": "Button that exports the logs."
+  },
+  "settingsAboutExportError": "Export failed",
+  "@settingsAboutExportError": {
+    "description": "Title shown when exporting logs fails."
+  },
+  "settingsAboutVersionLoading": "Reading version information…",
+  "@settingsAboutVersionLoading": {
+    "description": "Shown while the version is loading."
+  },
+  "settingsAboutVersionUnavailable": "Could not read version information",
+  "@settingsAboutVersionUnavailable": {
+    "description": "Shown when the version cannot be resolved."
+  },
+  "commonLoading": "Loading",
+  "@commonLoading": {
+    "description": "Generic loading label."
+  },
+  "commonConfirm": "OK",
+  "@commonConfirm": {
+    "description": "Generic confirm button."
+  },
+  "commonCancel": "Cancel",
+  "@commonCancel": {
+    "description": "Generic cancel button."
+  },
+  "commonGotIt": "Got it",
+  "@commonGotIt": {
+    "description": "Button that dismisses an informational dialog."
+  },
+  "commonUserInfoLoadFailed": "Failed to load user info",
+  "@commonUserInfoLoadFailed": {
+    "description": "Error message when user info cannot be loaded."
+  },
+  "commonUserInfoLoading": "Loading user info…",
+  "@commonUserInfoLoading": {
+    "description": "Shown while user info is loading."
+  }
 }
