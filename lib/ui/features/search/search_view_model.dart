@@ -110,6 +110,8 @@ final searchProvider =
 /// Genre id -> name map for displaying genre labels in search results.
 final searchGenresProvider = FutureProvider.autoDispose<Map<int, String>>(
   (ref) async {
+    // Rebuild when the UI language changes so genre labels follow the locale.
+    ref.watch(settingsProvider.select((s) => s.language));
     final repo = ref.read(iTagRepositoryProvider);
     final result = await repo.getGenres();
     final list = result.dataOrNull ?? const <GenreEntity>[];

@@ -1,0 +1,11 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "FlyNarwhal",
+  "settingsTitle": "Settings",
+  "settingsSectionAccount": "Account",
+  "settingsSectionAppearance": "Appearance",
+  "settingsSectionGeneral": "General",
+  "settingsLanguageTitle": "Language",
+  "settingsLanguageCaption": "Choose the display language of the app"
+}

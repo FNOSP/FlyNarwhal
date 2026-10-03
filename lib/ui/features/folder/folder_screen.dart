@@ -69,6 +69,15 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
   @override
   void initState() {
     super.initState();
+    // Tag labels are language-dependent; reload them on a language switch.
+    ref.listenManual(
+      settingsProvider.select((s) => s.language),
+      (previous, next) {
+        if (previous != next) {
+          _loadStaticTags();
+        }
+      },
+    );
     _loadFolderInfo();
     _loadStaticTags();
     _refreshBrowse();

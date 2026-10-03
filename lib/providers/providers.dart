@@ -27,6 +27,7 @@ import '../data/storage/preferences_manager.dart';
 import '../data/storage/shortcut_settings_store.dart';
 import '../data/storage/user_settings_migrator.dart';
 import '../domain/repositories/i_tag_repository.dart';
+import '../ui/settings/app_language.dart';
 import 'danmaku_controller.dart';
 import 'fly_narwhal_connection_test_notifier.dart';
 import 'smart_analysis_controller.dart';
@@ -191,7 +192,12 @@ final tagRemoteDataSourceProvider = Provider<TagRemoteDataSource>((ref) {
 
 final iTagRepositoryProvider = Provider<ITagRepository>((ref) {
   final remoteDataSource = ref.watch(tagRemoteDataSourceProvider);
-  return TagRepositoryImpl(remoteDataSource);
+  // Rebuild when the UI language changes so tag requests carry the matching
+  // `lan` value and the language-keyed data source cache starts fresh.
+  final language = ref.watch(
+    settingsProvider.select((s) => AppLanguage.tagLanFromValue(s.language)),
+  );
+  return TagRepositoryImpl(remoteDataSource, language: language);
 });
 
 final mediaRemoteDataSourceProvider = Provider<MediaRemoteDataSource>((ref) {
@@ -330,6 +336,7 @@ class SettingsState {
   final bool darkMode;
   final String navigationDisplayMode;
   final String uiFontScale;
+  final String language;
   final bool flyNarwhalServerEnabled;
   final String flyNarwhalServerBaseUrl;
   final bool hasFlyNarwhalAuthCode;
@@ -340,6 +347,7 @@ class SettingsState {
     required this.darkMode,
     required this.navigationDisplayMode,
     required this.uiFontScale,
+    required this.language,
     required this.flyNarwhalServerEnabled,
     required this.flyNarwhalServerBaseUrl,
     required this.hasFlyNarwhalAuthCode,
@@ -358,6 +366,7 @@ class SettingsState {
     bool? darkMode,
     String? navigationDisplayMode,
     String? uiFontScale,
+    String? language,
     bool? flyNarwhalServerEnabled,
     String? flyNarwhalServerBaseUrl,
     bool? hasFlyNarwhalAuthCode,
@@ -369,6 +378,7 @@ class SettingsState {
       navigationDisplayMode:
           navigationDisplayMode ?? this.navigationDisplayMode,
       uiFontScale: uiFontScale ?? this.uiFontScale,
+      language: language ?? this.language,
       flyNarwhalServerEnabled:
           flyNarwhalServerEnabled ?? this.flyNarwhalServerEnabled,
       flyNarwhalServerBaseUrl:
@@ -389,6 +399,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           navigationDisplayMode:
               _prefs.getNavigationDisplayMode(userGuid: userGuid),
           uiFontScale: _prefs.getUiFontScale(userGuid: userGuid),
+          language: _prefs.getLanguage(userGuid: userGuid),
           flyNarwhalServerEnabled: _flyNarwhalSettings.enabled,
           flyNarwhalServerBaseUrl: _flyNarwhalSettings.baseUrl?.trim() ?? '',
           hasFlyNarwhalAuthCode:
@@ -418,6 +429,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setUiFontScale(String value) async {
     await _prefs.saveUiFontScale(value, userGuid: _userGuid);
     state = state.copyWith(uiFontScale: value);
+  }
+
+  Future<void> setLanguage(String value) async {
+    await _prefs.saveLanguage(value, userGuid: _userGuid);
+    state = state.copyWith(language: value);
   }
 
   Future<void> setFlyNarwhalServerEnabled(bool value) async {

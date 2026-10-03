@@ -9,8 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
   cupertino_icons: ^1.0.8
-  
+
   # UI
   fluent_ui: ^4.13.0
   flutter_acrylic: ^1.1.4
@@ -99,6 +102,7 @@ dependency_overrides:
       ref: fix/minimal-pane-reserved-top
 
 flutter:
+  generate: true
   uses-material-design: true
   assets:
     - pubspec.yaml

@@ -337,6 +337,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     super.initState();
     // Start with an empty list until device-level hwdec support is resolved.
     _availableHwdec = const [];
+    // Subtitle language labels are language-dependent; reload them on a switch.
+    ref.listenManual(
+      settingsProvider.select((s) => s.language),
+      (previous, next) {
+        if (previous != next) {
+          unawaited(_ensureSubtitleLanguageMapsLoaded(force: true));
+          // Re-push the mpv subtitle font so an open session picks up the new
+          // script's font family instead of keeping the old one.
+          unawaited(_applySubtitleSettingsToMpv(
+            ref.read(subtitleSettingsProvider),
+          ));
+        }
+      },
+    );
     _episodeAnalysisController =
         ref.read(episodeAnalysisControllerProvider.notifier);
     _introSkipController = IntroSkipController();
@@ -1317,15 +1331,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  Future<void> _ensureSubtitleLanguageMapsLoaded() async {
-    if (_iso6391Map.isNotEmpty && _iso6392Map.isNotEmpty) {
+  Future<void> _ensureSubtitleLanguageMapsLoaded({bool force = false}) async {
+    if (!force && _iso6391Map.isNotEmpty && _iso6392Map.isNotEmpty) {
       return;
     }
     try {
       final tagRepository = ref.read(iTagRepositoryProvider);
       final results = await Future.wait<ApiResult<Map<String, String>>>([
-        tagRepository.getTag('iso6391'),
-        tagRepository.getTag('iso6392'),
+        tagRepository.getTag('iso6391', force: force),
+        tagRepository.getTag('iso6392', force: force),
       ]);
       if (!mounted) return;
       setState(() {
@@ -2570,7 +2584,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await platform.setProperty(
           'sub-scale', settings.fontScale.toStringAsFixed(3));
       source?.ensureCurrent(isConsumerCurrent: () => mounted);
-      await platform.setProperty('sub-font', AppFonts.primary);
+      await platform.setProperty(
+        'sub-font',
+        AppFonts.primaryFor(ref.read(settingsProvider).language),
+      );
       // Let sub-pos move ASS subtitles that rely on style margins. Has no
       // effect on absolutely-positioned (\pos/\move) danmaku tracks.
       source?.ensureCurrent(isConsumerCurrent: () => mounted);
@@ -5650,6 +5667,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final subtitleSettings = ref.watch(subtitleSettingsProvider);
     final danmakuState = ref.watch(danmakuControllerProvider);
     final overlayState = ref.watch(playerOverlayControllerProvider);
+    // 字幕与弹幕跟界面语言使用同一字体族（繁体需要 TC 字形）。
+    final playerFontFamily = AppFonts.primaryFor(
+      ref.watch(settingsProvider.select((s) => s.language)),
+    );
     _scheduleMacOSWindowButtonsSync(
       visible: overlayState.isUiVisible,
     );
@@ -5696,6 +5717,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     settings: danmakuState.settings,
                     loadStatus: danmakuState.loadStatus,
                     resetGeneration: _danmakuResetGeneration,
+                    fontFamily: playerFontFamily,
                   );
                 },
               ),
@@ -5709,6 +5731,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   lines: lines,
                   visible: _useHlsSubtitleOverlay,
                   settings: subtitleSettings,
+                  fontFamily: playerFontFamily,
                 );
               },
             ),

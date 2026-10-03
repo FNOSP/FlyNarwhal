@@ -11,6 +11,7 @@ import '../update/update_badge.dart';
 import '../update/update_dialog.dart';
 import '../update/update_state.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
+import '../../settings/app_language.dart';
 import '../../settings/ui_font_scale.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
@@ -408,6 +409,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ),
                               const SizedBox(height: 4),
                               const _Header(title: '通用'),
+                              CardExpanderItem(
+                                icon: const Icon(FluentIcons.locale_language),
+                                heading: const Text('语言'),
+                                caption: const Text('选择应用界面的显示语言'),
+                                trailing: DropDownButton(
+                                  key: const ValueKey(
+                                    'settings-language-dropdown',
+                                  ),
+                                  title: Text(
+                                    AppLanguage.labelFromValue(
+                                      settings.language,
+                                    ),
+                                  ),
+                                  items: AppLanguage.values
+                                      .map(
+                                        (value) => MenuFlyoutItem(
+                                          text: Text(
+                                            AppLanguage.labelFromValue(value),
+                                          ),
+                                          onPressed: () => settingsNotifier
+                                              .setLanguage(value),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ),
                               CardExpanderItem(
                                 icon: const Icon(FluentIcons.font_size),
                                 heading: const Text('字体大小'),

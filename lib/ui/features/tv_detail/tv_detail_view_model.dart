@@ -101,6 +101,8 @@ class TvDetailNotifier extends _$TvDetailNotifier {
   @override
   FutureOr<TvDetailState> build(String guid) async {
     final remote = ref.read(mediaRemoteDataSourceProvider);
+    // Watch so tag requests (and their labels) reload when the UI language changes.
+    ref.watch(settingsProvider.select((s) => s.language));
     final tagRepo = ref.read(iTagRepositoryProvider);
 
     Future<T?> safeApiRequest<T>(

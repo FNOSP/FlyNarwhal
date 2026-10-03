@@ -8,25 +8,27 @@ import '../../models/tag_models.dart';
 class TagRemoteDataSource {
   final DioClient _dioClient;
 
-  // Cache
-  List<GenresResponse>? _genresCache;
+  // Caches are keyed by language: the same tag returns different text per `lan`,
+  // so a single-language cache would serve stale rows after a language switch.
+  final Map<String, List<GenresResponse>> _genresCache = {};
   final Map<String, Map<String, String>> _tagCache = {};
 
   TagRemoteDataSource(this._dioClient);
 
   /// Get genres list
   Future<ApiResult<List<GenresResponse>>> getGenres({
-    String? language = 'zh-CN',
+    required String language,
     bool force = false,
   }) async {
     // Check cache
-    if (!force && _genresCache != null && _genresCache!.isNotEmpty) {
-      return Success(_genresCache!);
+    final cached = _genresCache[language];
+    if (!force && cached != null && cached.isNotEmpty) {
+      return Success(cached);
     }
 
     final result = await _dioClient.get<List<GenresResponse>>(
       ApiEndpoints.tagGenres,
-      queryParameters: language != null ? {'lan': language} : null,
+      queryParameters: {'lan': language},
       converter: (data) => _parseGenresResponse(data),
     );
 
@@ -34,7 +36,7 @@ class TagRemoteDataSource {
     if (result.isSuccess) {
       final data = result.dataOrNull;
       if (data != null && data.isNotEmpty) {
-        _genresCache = data;
+        _genresCache[language] = data;
       }
     }
 
@@ -44,11 +46,12 @@ class TagRemoteDataSource {
   /// Get tag map by tag name
   Future<ApiResult<Map<String, String>>> getTag(
     String tag, {
-    String? language = 'zh-CN',
+    required String language,
     bool force = false,
   }) async {
+    final cacheKey = '$language::$tag';
     // Check cache
-    final cached = _tagCache[tag];
+    final cached = _tagCache[cacheKey];
     if (!force && cached != null && cached.isNotEmpty) {
       return Success(cached);
     }
@@ -56,7 +59,7 @@ class TagRemoteDataSource {
     // Use the same tag detail URL as the verified Kotlin client implementation.
     final result = await _dioClient.get<List<QueryTagResponse>>(
       ApiEndpoints.tagByName(tag),
-      queryParameters: language != null ? {'lan': language} : null,
+      queryParameters: {'lan': language},
       converter: (data) => _parseTagResponse(data),
     );
 
@@ -66,7 +69,7 @@ class TagRemoteDataSource {
       if (data != null && data.isNotEmpty) {
         final dataMap = {for (final item in data) item.key: item.value};
         if (dataMap.isNotEmpty) {
-          _tagCache[tag] = dataMap;
+          _tagCache[cacheKey] = dataMap;
         }
         return Success(dataMap);
       }

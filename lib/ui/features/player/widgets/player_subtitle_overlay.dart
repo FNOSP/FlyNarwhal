@@ -8,12 +8,14 @@ class PlayerSubtitleOverlay extends StatelessWidget {
   final List<String> lines;
   final bool visible;
   final SubtitleSettings settings;
+  final String fontFamily;
 
   const PlayerSubtitleOverlay({
     super.key,
     required this.lines,
     required this.visible,
     required this.settings,
+    this.fontFamily = 'SourceHanSansSC',
   });
 
   @override
@@ -51,7 +53,7 @@ class PlayerSubtitleOverlay extends StatelessWidget {
             style: TextStyle(
               fontSize: fontSize,
               height: 1.35,
-              fontFamily: AppFonts.primary,
+              fontFamily: fontFamily,
               fontFamilyFallback: AppFonts.fallback,
               fontWeight: FontWeight.w400,
               color: Colors.white,

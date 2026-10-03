@@ -1,0 +1,11 @@
+{
+  "@@locale": "zh_Hant",
+
+  "appTitle": "飛鯨影視",
+  "settingsTitle": "設定",
+  "settingsSectionAccount": "帳號",
+  "settingsSectionAppearance": "外觀",
+  "settingsSectionGeneral": "一般",
+  "settingsLanguageTitle": "語言",
+  "settingsLanguageCaption": "選擇應用介面的顯示語言"
+}

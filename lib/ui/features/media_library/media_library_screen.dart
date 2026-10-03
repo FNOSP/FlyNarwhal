@@ -58,6 +58,17 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   @override
   void initState() {
     super.initState();
+    // Tag labels are language-dependent; reload them on a language switch.
+    ref.listenManual(
+      settingsProvider.select((s) => s.language),
+      (previous, next) {
+        if (previous != next) {
+          _loadStaticTags(
+            type: widget.categoryType == 'live' ? 'LiveChannel' : null,
+          );
+        }
+      },
+    );
     _loadStaticTags(
       type: widget.categoryType == 'live' ? 'LiveChannel' : null,
     );

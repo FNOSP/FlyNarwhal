@@ -32,8 +32,10 @@ import 'providers/reporting_providers.dart';
 import 'providers/update_providers.dart';
 import 'services/update/update_scheduler.dart';
 import 'services/window/main_window_lifecycle_controller.dart';
+import 'l10n/generated/app_localizations.dart';
 import 'tooling/driver_test_mode.dart';
 import 'ui/navigation/app_router.dart';
+import 'ui/settings/app_language.dart';
 import 'ui/settings/ui_font_scale.dart';
 import 'ui/shared/ssl_trust_dialog_host.dart';
 import 'ui/shared/toast.dart';
@@ -392,10 +394,20 @@ class MyApp extends ConsumerWidget {
     return FluentApp.router(
       title: '飞鲸影视',
       debugShowCheckedModeBanner: false,
+      locale: AppLanguage.localeFromValue(settings.language),
+      supportedLocales: const <Locale>[
+        Locale('zh'),
+        Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+        Locale('en'),
+      ],
+      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+        AppLocalizations.delegate,
+        ...FluentLocalizations.localizationsDelegates,
+      ],
       theme: FluentThemeData(
         brightness: isDark ? Brightness.dark : Brightness.light,
         accentColor: Colors.blue,
-        fontFamily: AppFonts.primary,
+        fontFamily: AppFonts.primaryFor(settings.language),
       ),
       routeInformationParser: router.routeInformationParser,
       routerDelegate: router.routerDelegate,

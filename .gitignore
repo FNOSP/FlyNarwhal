@@ -136,3 +136,7 @@ export_wireshark_http_json.ps1
 
 # Local CMake test build output for the native update helpers
 windows/native/build-test/
+
+# flutter gen-l10n incremental build bookkeeping
+gen_l10n_inputs_and_outputs.json
+lib/l10n/untranslated.json

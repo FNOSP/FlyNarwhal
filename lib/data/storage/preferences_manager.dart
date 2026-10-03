@@ -12,6 +12,8 @@ class PreferencesManager {
   static const String _keyNavigationDisplayMode = 'navigation_display_mode';
   // 界面整体文字大小：'small' | 'medium' | 'large'，默认 'medium'。
   static const String _keyUiFontScale = 'ui_font_scale';
+  // 界面语言：'zh-Hans' | 'zh-Hant' | 'en'，默认 'zh-Hans'。
+  static const String _keyLanguage = 'language';
   // 选集/剧集列表视图：'card' (卡片/海报) | 'button' (序号按钮网格)。
   // 镜像 Web 端 playlist setting 的 view_type，全局记忆。
   static const String _keyEpisodeListViewType = 'episode_list_view_type';
@@ -110,6 +112,19 @@ class PreferencesManager {
 
   Future<void> saveUiFontScale(String value, {String? userGuid}) {
     return _writeStringScoped(_keyUiFontScale, userGuid, value);
+  }
+
+  // 界面语言：'zh-Hans' | 'zh-Hant' | 'en'，默认简体中文。
+  String getLanguage({String? userGuid}) {
+    return _readStringScoped(
+      _keyLanguage,
+      userGuid,
+      defaultValue: 'zh-Hans',
+    );
+  }
+
+  Future<void> saveLanguage(String value, {String? userGuid}) {
+    return _writeStringScoped(_keyLanguage, userGuid, value);
   }
 
   // 选集/剧集列表视图：'card' | 'button'，默认卡片视图。

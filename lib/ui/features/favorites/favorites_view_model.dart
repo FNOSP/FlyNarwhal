@@ -177,6 +177,13 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
   @override
   FavoritesBrowseState build() {
     final initialState = FavoritesBrowseState.initial();
+    // Tag labels (genres / countries) are language-dependent; reload metadata
+    // when the UI language changes so the filters do not show stale text.
+    ref.listen(settingsProvider.select((s) => s.language), (previous, next) {
+      if (previous != next) {
+        unawaited(_loadMetadata(force: false));
+      }
+    });
     unawaited(_bootstrap());
     return initialState;
   }

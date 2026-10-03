@@ -1,0 +1,38 @@
+{
+  "@@locale": "zh",
+
+  "appTitle": "飞鲸影视",
+  "@appTitle": {
+    "description": "Application name shown in the window title and about pages."
+  },
+
+  "settingsTitle": "设置",
+  "@settingsTitle": {
+    "description": "Title of the settings screen."
+  },
+
+  "settingsSectionAccount": "账号",
+  "@settingsSectionAccount": {
+    "description": "Settings section header for account-related rows."
+  },
+
+  "settingsSectionAppearance": "外观",
+  "@settingsSectionAppearance": {
+    "description": "Settings section header for appearance-related rows."
+  },
+
+  "settingsSectionGeneral": "通用",
+  "@settingsSectionGeneral": {
+    "description": "Settings section header for general rows, including language."
+  },
+
+  "settingsLanguageTitle": "语言",
+  "@settingsLanguageTitle": {
+    "description": "Heading of the language selector row in the settings screen."
+  },
+
+  "settingsLanguageCaption": "选择应用界面的显示语言",
+  "@settingsLanguageCaption": {
+    "description": "Caption under the language selector row."
+  }
+}

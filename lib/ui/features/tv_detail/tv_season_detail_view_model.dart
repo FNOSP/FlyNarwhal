@@ -100,6 +100,8 @@ class TvSeasonDetailNotifier extends _$TvSeasonDetailNotifier {
   @override
   FutureOr<TvSeasonDetailState> build(String guid) async {
     final remote = ref.read(mediaRemoteDataSourceProvider);
+    // Watch so tag requests (and their labels) reload when the UI language changes.
+    ref.watch(settingsProvider.select((s) => s.language));
     final tagRepo = ref.read(iTagRepositoryProvider);
 
     final itemResult = await _fetchItemDetailResult(guid);
