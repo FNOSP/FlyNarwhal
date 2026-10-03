@@ -29,6 +29,10 @@ class WindowCaption extends StatefulWidget {
   final bool showPinAction;
   final Future<void> Function()? onRefreshPressed;
 
+  /// App-wide text scale from the font-size setting. The caption lives above
+  /// the MediaQuery that carries it, so it has to be applied here.
+  final double textScaleFactor;
+
   // When true, always show the back button (enabled when onBack is set,
   // grayed-out and non-interactive when onBack is null).
   final bool showBackButton;
@@ -55,6 +59,7 @@ class WindowCaption extends StatefulWidget {
     this.onBack,
     this.onNavToggle,
     this.showNavToggle = false,
+    this.textScaleFactor = 1.0,
   });
 
   @override
@@ -115,7 +120,14 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
                                 : Colors.black.withValues(alpha: 0.8956),
                             fontSize: 14,
                           ),
-                          child: widget.title ?? const SizedBox.shrink(),
+                          child: MediaQuery(
+                            data: MediaQuery.of(context).copyWith(
+                              textScaler: TextScaler.linear(
+                                widget.textScaleFactor,
+                              ),
+                            ),
+                            child: widget.title ?? const SizedBox.shrink(),
+                          ),
                         ),
                         if (widget.titleTrailing != null) ...[
                           // Keep the trailing badge visually separated from the title text.
@@ -176,11 +188,18 @@ class _WindowCaptionState extends State<WindowCaption> with WindowListener {
               ],
             ],
           ),
-          // Centered content (e.g. search box) overlaid on the caption.
+          // Centered content (e.g. search box) overlaid on the caption. It
+          // scales with the caption title: the search capsule reads the
+          // scaler to size itself, so its text and width grow together.
           if (widget.center != null)
             Align(
               alignment: Alignment.center,
-              child: widget.center!,
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.linear(widget.textScaleFactor),
+                ),
+                child: widget.center!,
+              ),
             ),
         ],
       ),

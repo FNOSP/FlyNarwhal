@@ -10,6 +10,7 @@ import '../../../providers/providers.dart';
 import '../../../providers/global_refresh.dart';
 import '../../../data/storage/shortcut_settings_store.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
+import '../../settings/ui_font_scale.dart';
 import '../../shared/window_caption.dart';
 import '../../shared/media_category_icon.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
@@ -662,6 +663,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
               onBack: canGoBack ? handleBackNavigation : null,
               showNavToggle: isMinimalDisplayMode,
               onNavToggle: isMinimalDisplayMode ? handleNavToggle : null,
+              textScaleFactor: UiFontScale.factorFromValue(settings.uiFontScale),
             );
 
     return Focus(

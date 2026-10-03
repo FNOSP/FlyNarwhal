@@ -289,7 +289,14 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
     final theme = FluentTheme.of(context);
     final searchState = ref.watch(searchProvider);
 
-    final width = _isFocused ? widget.expandedWidth : widget.collapsedWidth;
+    // The capsule sits in the title bar, above the MediaQuery that carries the
+    // font-size setting, so its own text scales by hand via WindowCaption's
+    // textScaleFactor. Scale the fixed widths by the same factor to keep the
+    // placeholder from being clipped at larger text sizes.
+    final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+
+    final width = (_isFocused ? widget.expandedWidth : widget.collapsedWidth) *
+        textScale;
     final showBackground = _isHovered || _isFocused;
     final backgroundColor = showBackground
         ? theme.resources.controlFillColorDefault
@@ -301,7 +308,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
       overlayChildBuilder: (context) {
         final items = _filterItems(searchState.results);
         return Positioned(
-          width: widget.expandedWidth,
+          width: widget.expandedWidth * textScale,
           child: CompositedTransformFollower(
             link: _layerLink,
             showWhenUnlinked: false,
@@ -311,7 +318,7 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
             child: Align(
               alignment: Alignment.topCenter,
               child: SearchResultDropdown(
-                width: widget.expandedWidth,
+                width: widget.expandedWidth * textScale,
                 isLoading: searchState.isLoading,
                 hasSearched: searchState.hasSearched,
                 tabs: _tabs,

@@ -34,6 +34,7 @@ import 'services/update/update_scheduler.dart';
 import 'services/window/main_window_lifecycle_controller.dart';
 import 'tooling/driver_test_mode.dart';
 import 'ui/navigation/app_router.dart';
+import 'ui/settings/ui_font_scale.dart';
 import 'ui/shared/ssl_trust_dialog_host.dart';
 import 'ui/shared/toast.dart';
 
@@ -400,16 +401,25 @@ class MyApp extends ConsumerWidget {
       routerDelegate: router.routerDelegate,
       routeInformationProvider: router.routeInformationProvider,
       builder: (context, child) {
-        return _MouseBackNavigationListener(
-          router: router,
-          navigationStackNotifier: ref.read(navigationStackProvider.notifier),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (child != null) child,
-              const ToastHost(),
-              const SslTrustDialogHost(),
-            ],
+        // Applied above the Navigator, so the scale reaches every route,
+        // dialog and the self-drawn window caption.
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(
+              UiFontScale.factorFromValue(settings.uiFontScale),
+            ),
+          ),
+          child: _MouseBackNavigationListener(
+            router: router,
+            navigationStackNotifier: ref.read(navigationStackProvider.notifier),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (child != null) child,
+                const ToastHost(),
+                const SslTrustDialogHost(),
+              ],
+            ),
           ),
         );
       },

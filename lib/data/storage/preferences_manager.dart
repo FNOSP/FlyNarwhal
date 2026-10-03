@@ -10,6 +10,8 @@ class PreferencesManager {
   static const String _keyFollowSystemTheme = 'follow_system_theme';
   static const String _keyDarkMode = 'dark_mode';
   static const String _keyNavigationDisplayMode = 'navigation_display_mode';
+  // 界面整体文字大小：'small' | 'medium' | 'large'，默认 'medium'。
+  static const String _keyUiFontScale = 'ui_font_scale';
   // 选集/剧集列表视图：'card' (卡片/海报) | 'button' (序号按钮网格)。
   // 镜像 Web 端 playlist setting 的 view_type，全局记忆。
   static const String _keyEpisodeListViewType = 'episode_list_view_type';
@@ -96,6 +98,18 @@ class PreferencesManager {
 
   Future<void> saveNavigationDisplayMode(String value, {String? userGuid}) {
     return _writeStringScoped(_keyNavigationDisplayMode, userGuid, value);
+  }
+
+  String getUiFontScale({String? userGuid}) {
+    return _readStringScoped(
+      _keyUiFontScale,
+      userGuid,
+      defaultValue: 'medium',
+    );
+  }
+
+  Future<void> saveUiFontScale(String value, {String? userGuid}) {
+    return _writeStringScoped(_keyUiFontScale, userGuid, value);
   }
 
   // 选集/剧集列表视图：'card' | 'button'，默认卡片视图。

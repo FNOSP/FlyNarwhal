@@ -329,6 +329,7 @@ class SettingsState {
   final bool followSystemTheme;
   final bool darkMode;
   final String navigationDisplayMode;
+  final String uiFontScale;
   final bool flyNarwhalServerEnabled;
   final String flyNarwhalServerBaseUrl;
   final bool hasFlyNarwhalAuthCode;
@@ -338,6 +339,7 @@ class SettingsState {
     required this.followSystemTheme,
     required this.darkMode,
     required this.navigationDisplayMode,
+    required this.uiFontScale,
     required this.flyNarwhalServerEnabled,
     required this.flyNarwhalServerBaseUrl,
     required this.hasFlyNarwhalAuthCode,
@@ -355,6 +357,7 @@ class SettingsState {
     bool? followSystemTheme,
     bool? darkMode,
     String? navigationDisplayMode,
+    String? uiFontScale,
     bool? flyNarwhalServerEnabled,
     String? flyNarwhalServerBaseUrl,
     bool? hasFlyNarwhalAuthCode,
@@ -365,6 +368,7 @@ class SettingsState {
       darkMode: darkMode ?? this.darkMode,
       navigationDisplayMode:
           navigationDisplayMode ?? this.navigationDisplayMode,
+      uiFontScale: uiFontScale ?? this.uiFontScale,
       flyNarwhalServerEnabled:
           flyNarwhalServerEnabled ?? this.flyNarwhalServerEnabled,
       flyNarwhalServerBaseUrl:
@@ -384,6 +388,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           darkMode: _prefs.getDarkMode(userGuid: userGuid),
           navigationDisplayMode:
               _prefs.getNavigationDisplayMode(userGuid: userGuid),
+          uiFontScale: _prefs.getUiFontScale(userGuid: userGuid),
           flyNarwhalServerEnabled: _flyNarwhalSettings.enabled,
           flyNarwhalServerBaseUrl: _flyNarwhalSettings.baseUrl?.trim() ?? '',
           hasFlyNarwhalAuthCode:
@@ -408,6 +413,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setNavigationDisplayMode(String value) async {
     await _prefs.saveNavigationDisplayMode(value, userGuid: _userGuid);
     state = state.copyWith(navigationDisplayMode: value);
+  }
+
+  Future<void> setUiFontScale(String value) async {
+    await _prefs.saveUiFontScale(value, userGuid: _userGuid);
+    state = state.copyWith(uiFontScale: value);
   }
 
   Future<void> setFlyNarwhalServerEnabled(bool value) async {

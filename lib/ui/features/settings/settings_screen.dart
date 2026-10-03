@@ -11,6 +11,7 @@ import '../update/update_badge.dart';
 import '../update/update_dialog.dart';
 import '../update/update_state.dart';
 import '../../navigation/navigation_display_mode_mapper.dart';
+import '../../settings/ui_font_scale.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/toast.dart';
 import '../../shared/hover_tip.dart';
@@ -407,6 +408,52 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ),
                               const SizedBox(height: 4),
                               const _Header(title: '通用'),
+                              CardExpanderItem(
+                                icon: const Icon(FluentIcons.font_size),
+                                heading: const Text('字体大小'),
+                                caption: const Text('调整应用整体文字大小'),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 160,
+                                      child: Slider(
+                                        key: const ValueKey(
+                                          'settings-ui-font-scale',
+                                        ),
+                                        value: UiFontScale.indexFromValue(
+                                          settings.uiFontScale,
+                                        ).toDouble(),
+                                        min: 0,
+                                        max:
+                                            (UiFontScale.values.length - 1)
+                                                .toDouble(),
+                                        divisions:
+                                            UiFontScale.values.length - 1,
+                                        label: UiFontScale.labelFromValue(
+                                          settings.uiFontScale,
+                                        ),
+                                        onChanged: (index) =>
+                                            settingsNotifier.setUiFontScale(
+                                          UiFontScale.valueFromIndex(
+                                            index.round(),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    SizedBox(
+                                      width: 20,
+                                      child: Text(
+                                        UiFontScale.labelFromValue(
+                                          settings.uiFontScale,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               CardExpanderItem(
                                 icon: const Icon(FluentIcons.keyboard_classic),
                                 heading: const Text('快捷键设置'),
@@ -1009,6 +1056,9 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.only(top: 16, bottom: 4),
       child: Text(
         title,
+        // FluentTheme's typography carries fixed font sizes, so it ignores the
+        // app-wide textScaler; scale it here to keep headers in step.
+        textScaler: MediaQuery.textScalerOf(context),
         style: FluentTheme.of(context).typography.bodyStrong,
       ),
     );
