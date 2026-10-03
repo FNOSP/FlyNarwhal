@@ -110,20 +110,20 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   // 文件夹视图（Web /v/folder/:guid）：guid 以 fv_ 前缀标识目录项。
   bool get _isFolder => widget.id?.startsWith('fv_') ?? false;
 
-  String _resolveTitle() {
+  String _resolveTitle(AppLocalizations l10n) {
     switch (widget.categoryType) {
       case 'total':
-        return '全部';
+        return l10n.searchTabAll;
       case 'tv':
-        return '电视节目';
+        return l10n.mediaTypeTv;
       case 'movie':
-        return '电影';
+        return l10n.mediaTypeMovie;
       case 'video':
-        return '其他';
+        return l10n.mediaTypeOther;
       case 'live':
-        return '电视直播';
+        return l10n.mediaTypeLive;
       default:
-        return '媒体库';
+        return l10n.homeMediaLibrary;
     }
   }
 
@@ -735,7 +735,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         items: [
           MenuFlyoutItem(
             key: ValueKey('smart-analysis-${item.guid}'),
-            text: const Text('智能分析片头/片尾'),
+            text: Text(AppLocalizations.of(context).tvDetailSmartAnalysis),
             onPressed: isSubmitting
                 ? null
                 : () {
@@ -899,6 +899,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
       return const Center(child: Text("Invalid Library ID"));
     }
 
+    final l10n = AppLocalizations.of(context);
     final globalRefreshManager = ref.read(globalRefreshManagerProvider);
 
     // Consume each global refresh event once for the current media-library page.
@@ -960,9 +961,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
         : null;
     final title = widget.id != null
         ? (_isFolder
-            ? (folderTitle ?? libraryData?.mdbName ?? '文件夹')
-            : (libraryData?.mdbName ?? mediaDbTitle ?? '媒体库'))
-        : _resolveTitle();
+            ? (folderTitle ?? libraryData?.mdbName ?? l10n.folderFallbackName)
+            : (libraryData?.mdbName ?? mediaDbTitle ?? l10n.homeMediaLibrary))
+        : _resolveTitle(l10n);
 
     return ScaffoldPage(
       header: _isFolder ? null : PageHeader(title: Text(title)),
@@ -1052,7 +1053,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                       if (_isFolder) ...[
                         const Spacer(),
                         Text(
-                          '共 ${libraryData?.total ?? 0} 项',
+                          l10n.folderItemCount('${libraryData?.total ?? 0}'),
                           style: FluentTheme.of(context)
                               .typography
                               .body
@@ -1112,7 +1113,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                               child: Padding(
                                 padding: const EdgeInsets.all(32.0),
                                 child: Text(
-                                  '加载失败：${mediaLibraryState.error}',
+                                  '${l10n.loadFailedTitle}：${mediaLibraryState.error}',
                                   textAlign: TextAlign.center,
                                 ),
                               ),

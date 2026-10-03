@@ -1,12 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
+import '../l10n/generated/app_localizations.dart';
 
 class FlyNarwhalConnectionTestNotifier
     extends StateNotifier<AsyncValue<String?>> {
   final FlyNarwhalRemoteDataSource _remoteDataSource;
+  final AppLocalizations Function() _getL10n;
 
-  FlyNarwhalConnectionTestNotifier(this._remoteDataSource)
+  FlyNarwhalConnectionTestNotifier(this._remoteDataSource, this._getL10n)
       : super(const AsyncValue.data(null));
 
   Future<void> testConnection(String baseUrl) async {
@@ -16,7 +18,8 @@ class FlyNarwhalConnectionTestNotifier
         (uri.scheme == 'http' || uri.scheme == 'https') &&
         uri.host.isNotEmpty;
     if (!isValidServerUrl) {
-      state = AsyncValue.error('FlyNarwhal 服务端地址无效', StackTrace.current);
+      state = AsyncValue.error(
+          _getL10n().connectionTestInvalidUrl, StackTrace.current);
       return;
     }
 
@@ -30,7 +33,7 @@ class FlyNarwhalConnectionTestNotifier
           final version = smartResult.data?.replaceAll('-fnapp', '') ?? '';
           if (version.isEmpty) {
             state = AsyncValue.error(
-              Exception('FlyNarwhal 服务端未返回版本号'),
+              Exception(_getL10n().connectionTestNoVersion),
               StackTrace.current,
             );
             return;

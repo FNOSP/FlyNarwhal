@@ -2840,6 +2840,270 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **' - 默认'**
   String get movieDetailSubtitleDefaultSuffix;
+
+  /// Relative time: now.
+  ///
+  /// In zh, this message translates to:
+  /// **'刚刚'**
+  String get timeJustNow;
+
+  /// Relative time.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 分钟前'**
+  String timeMinutesAgo(String count);
+
+  /// Relative time.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 小时前'**
+  String timeHoursAgo(String count);
+
+  /// Relative time.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 天前'**
+  String timeDaysAgo(String count);
+
+  /// Relative time.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 周前'**
+  String timeWeeksAgo(String count);
+
+  /// Relative time.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个月前'**
+  String timeMonthsAgo(String count);
+
+  /// Relative time.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 年前'**
+  String timeYearsAgo(String count);
+
+  /// Shown when a release has no notes.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无更新说明。'**
+  String get updateNotesEmpty;
+
+  /// Appended when release notes exceed the size limit.
+  ///
+  /// In zh, this message translates to:
+  /// **'\n\n> 更新说明已截断。请前往 [Release 页面]({url}) 查看完整内容。'**
+  String updateNotesTruncated(String url);
+
+  /// Navigation pane label for the categories section.
+  ///
+  /// In zh, this message translates to:
+  /// **'分类'**
+  String get navCategories;
+
+  /// Navigation pane label and fallback title for the favorites page.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get navFavorites;
+
+  /// Placeholder shown in the navigation pane when the media library list is empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无媒体库'**
+  String get navNoMediaLibrary;
+
+  /// Fallback title used for a folder when its real name is unavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件夹'**
+  String get folderFallbackName;
+
+  /// Menu action that rescrapes (re-identifies) the current folder.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新识别'**
+  String get folderRescrap;
+
+  /// Toast shown after a folder rescrape request is accepted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已发起重新识别'**
+  String get folderRescrapStarted;
+
+  /// Toast title shown when a folder rescrape request fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新识别失败'**
+  String get folderRescrapFailed;
+
+  /// Toast shown when a folder rescrape request throws.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新识别失败：{error}'**
+  String folderRescrapFailedWithError(String error);
+
+  /// Menu action that refreshes the current folder's metadata.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新元数据'**
+  String get folderRefreshMetadata;
+
+  /// Toast shown after a folder metadata refresh request is accepted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已发起刷新元数据'**
+  String get folderRefreshMetadataStarted;
+
+  /// Toast title shown when a folder metadata refresh request fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新元数据失败'**
+  String get folderRefreshMetadataFailed;
+
+  /// Toast shown when a folder metadata refresh request throws.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新元数据失败：{error}'**
+  String folderRefreshMetadataFailedWithError(String error);
+
+  /// Fallback name used in the folder delete confirmation when the folder name is unknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'该文件夹'**
+  String get folderThisFolder;
+
+  /// Title of the folder deletion confirmation dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除'**
+  String get folderDeleteConfirmTitle;
+
+  /// Body of the folder deletion confirmation dialog, reusing the generic delete title.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要从媒体库删除「{title}」吗？\n仅移除媒体库条目，不会删除磁盘上的文件。'**
+  String folderDeleteConfirmBody(String title);
+
+  /// Toast shown when a folder deletion request throws.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除失败：{error}'**
+  String folderDeleteFailedWithError(String error);
+
+  /// Footer count of items shown in the folder screen.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 项'**
+  String folderItemCount(String count);
+
+  /// Favorites tab label for single episodes.
+  ///
+  /// In zh, this message translates to:
+  /// **'单集'**
+  String get favoritesTabSingleEpisode;
+
+  /// Error shown when the server version could not be fetched.
+  ///
+  /// In zh, this message translates to:
+  /// **'获取服务端版本失败'**
+  String get serverUpdateGetVersionFailed;
+
+  /// Error shown when checking for a server update throws.
+  ///
+  /// In zh, this message translates to:
+  /// **'检查服务端更新异常'**
+  String get serverUpdateCheckFailed;
+
+  /// Error shown when checking for a server update throws, with the error detail.
+  ///
+  /// In zh, this message translates to:
+  /// **'检查服务端更新异常: {error}'**
+  String serverUpdateCheckFailedWithError(String error);
+
+  /// Error shown when no matching server release was found.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务端更新包未找到'**
+  String get serverUpdatePackageNotFound;
+
+  /// Error shown when the server release has no usable asset.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务端更新包资产缺失'**
+  String get serverUpdateAssetMissing;
+
+  /// Status shown when the server self-update is starting.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始服务端更新...'**
+  String get serverUpdateStarting;
+
+  /// Error shown when the server self-update fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务端更新失败'**
+  String get serverUpdateFailed;
+
+  /// Error shown when the server self-update fails, with the error detail.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务端更新失败: {error}'**
+  String serverUpdateFailedWithError(String error);
+
+  /// Status shown while waiting for the server to restart after updating.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待服务端重启...'**
+  String get serverUpdateWaitingRestart;
+
+  /// Status shown when the server finished updating to a new version.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务端已更新到 {version}'**
+  String serverUpdateSucceeded(String version);
+
+  /// Error shown when the server did not come back after updating.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务端更新超时，请检查服务端日志'**
+  String get serverUpdateTimeout;
+
+  /// Error shown when the FlyNarwhal server address is not a valid URL.
+  ///
+  /// In zh, this message translates to:
+  /// **'FlyNarwhal 服务端地址无效'**
+  String get connectionTestInvalidUrl;
+
+  /// Error shown when the FlyNarwhal server returned an empty version.
+  ///
+  /// In zh, this message translates to:
+  /// **'FlyNarwhal 服务端未返回版本号'**
+  String get connectionTestNoVersion;
+
+  /// Success message shown when a smart analysis request was queued.
+  ///
+  /// In zh, this message translates to:
+  /// **'已加入分析队列'**
+  String get smartAnalysisQueued;
+
+  /// Fallback success message shown when a smart analysis request was submitted.
+  ///
+  /// In zh, this message translates to:
+  /// **'分析请求已提交'**
+  String get smartAnalysisSubmitted;
+
+  /// Error shown listing the seasons whose smart analysis submission failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'失败剧季：{seasons}'**
+  String smartAnalysisFailedSeasons(String seasons);
+
+  /// Error shown when a smart analysis request could not be submitted.
+  ///
+  /// In zh, this message translates to:
+  /// **'分析请求提交失败'**
+  String get smartAnalysisSubmitFailed;
 }
 
 class _AppLocalizationsDelegate

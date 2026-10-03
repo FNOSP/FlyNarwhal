@@ -27,6 +27,7 @@ import '../data/storage/preferences_manager.dart';
 import '../data/storage/shortcut_settings_store.dart';
 import '../data/storage/user_settings_migrator.dart';
 import '../domain/repositories/i_tag_repository.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../ui/settings/app_language.dart';
 import 'danmaku_controller.dart';
 import 'fly_narwhal_connection_test_notifier.dart';
@@ -249,7 +250,12 @@ final flyNarwhalRemoteDataSourceProvider =
 final flyNarwhalConnectionTestProvider = StateNotifierProvider<
     FlyNarwhalConnectionTestNotifier, AsyncValue<String?>>((ref) {
   final dataSource = ref.watch(flyNarwhalRemoteDataSourceProvider);
-  return FlyNarwhalConnectionTestNotifier(dataSource);
+  return FlyNarwhalConnectionTestNotifier(
+    dataSource,
+    () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
+  );
 });
 
 final smartAnalysisControllerProvider = StateNotifierProvider<
@@ -259,6 +265,9 @@ final smartAnalysisControllerProvider = StateNotifierProvider<
   return SmartAnalysisController(
     flyNarwhalDataSource,
     mediaDataSource,
+    getL10n: () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
     startSeasonPolling: (seasonGuid) {
       ref
           .read(seasonAnalysisStatusControllerProvider.notifier)

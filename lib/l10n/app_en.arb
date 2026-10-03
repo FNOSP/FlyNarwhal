@@ -2120,5 +2120,111 @@
   "movieDetailSubtitleDefaultSuffix": " - Default",
   "@movieDetailSubtitleDefaultSuffix": {
     "description": "Appends a default marker to a subtitle display name."
-  }
+  },
+  "timeJustNow": "Just now",
+  "@timeJustNow": {
+    "description": "Relative time: now."
+  },
+  "timeMinutesAgo": "{count} min ago",
+  "@timeMinutesAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeHoursAgo": "{count} h ago",
+  "@timeHoursAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeDaysAgo": "{count} d ago",
+  "@timeDaysAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeWeeksAgo": "{count} wk ago",
+  "@timeWeeksAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeMonthsAgo": "{count} mo ago",
+  "@timeMonthsAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeYearsAgo": "{count} y ago",
+  "@timeYearsAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "updateNotesEmpty": "No release notes.",
+  "@updateNotesEmpty": {
+    "description": "Shown when a release has no notes."
+  },
+  "updateNotesTruncated": "\n\n> Release notes were truncated. See the [Release page]({url}) for the full content.",
+  "@updateNotesTruncated": {
+    "description": "Appended when release notes exceed the size limit.",
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "navCategories": "Categories",
+  "navFavorites": "Favorites",
+  "navNoMediaLibrary": "No media library",
+  "folderFallbackName": "Folder",
+  "folderRescrap": "Re-identify",
+  "folderRescrapStarted": "Re-identification started",
+  "folderRescrapFailed": "Re-identification failed",
+  "folderRescrapFailedWithError": "Re-identification failed: {error}",
+  "folderRefreshMetadata": "Refresh metadata",
+  "folderRefreshMetadataStarted": "Metadata refresh started",
+  "folderRefreshMetadataFailed": "Metadata refresh failed",
+  "folderRefreshMetadataFailedWithError": "Metadata refresh failed: {error}",
+  "folderThisFolder": "this folder",
+  "folderDeleteConfirmTitle": "Delete",
+  "folderDeleteConfirmBody": "Remove \"{title}\" from the media library?\nOnly the media library entry is removed; files on disk are kept.",
+  "folderDeleteFailedWithError": "Delete failed: {error}",
+  "folderItemCount": "{count} items in total",
+  "favoritesTabSingleEpisode": "Episode",
+  "serverUpdateGetVersionFailed": "Failed to get the server version",
+  "serverUpdateCheckFailed": "Server update check failed",
+  "serverUpdateCheckFailedWithError": "Server update check failed: {error}",
+  "serverUpdatePackageNotFound": "Server update package not found",
+  "serverUpdateAssetMissing": "Server update package asset is missing",
+  "serverUpdateStarting": "Starting server update...",
+  "serverUpdateFailed": "Server update failed",
+  "serverUpdateFailedWithError": "Server update failed: {error}",
+  "serverUpdateWaitingRestart": "Waiting for the server to restart...",
+  "serverUpdateSucceeded": "Server updated to {version}",
+  "serverUpdateTimeout": "Server update timed out; check the server logs",
+  "connectionTestInvalidUrl": "Invalid FlyNarwhal server address",
+  "connectionTestNoVersion": "FlyNarwhal server returned no version",
+  "smartAnalysisQueued": "Added to the analysis queue",
+  "smartAnalysisSubmitted": "Analysis request submitted",
+  "smartAnalysisFailedSeasons": "Failed seasons: {seasons}",
+  "smartAnalysisSubmitFailed": "Failed to submit the analysis request"
 }

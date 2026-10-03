@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
 import '../data/datasources/remote/media_remote_data_source.dart';
 import '../data/models/fly_narwhal/index.dart';
+import '../l10n/generated/app_localizations.dart';
 
 typedef AnalysisDelay = Future<void> Function(Duration duration);
 typedef StartSeasonPolling = void Function(String seasonGuid);
@@ -59,8 +60,6 @@ class SmartAnalysisSubmissionState {
 class SmartAnalysisController
     extends StateNotifier<SmartAnalysisSubmissionState> {
   static const Duration episodeThrottleDelay = Duration(milliseconds: 300);
-  static const String queuedSuccessMessage = '已加入分析队列';
-  static const String fallbackSuccessMessage = '分析请求已提交';
 
   final FlyNarwhalRemoteDataSource _flyNarwhalRemoteDataSource;
   final MediaRemoteDataSource _mediaRemoteDataSource;
@@ -71,11 +70,15 @@ class SmartAnalysisController
   SmartAnalysisController(
     this._flyNarwhalRemoteDataSource,
     this._mediaRemoteDataSource, {
+    required AppLocalizations Function() getL10n,
     AnalysisDelay? delay,
     StartSeasonPolling? startSeasonPolling,
-  })  : _delay = delay ?? Future<void>.delayed,
+  })  : _getL10n = getL10n,
+        _delay = delay ?? Future<void>.delayed,
         _startSeasonPolling = startSeasonPolling ?? _ignorePollingRequest,
         super(const SmartAnalysisSubmissionState());
+
+  final AppLocalizations Function() _getL10n;
 
   static void _ignorePollingRequest(String seasonGuid) {}
 
@@ -152,11 +155,13 @@ class SmartAnalysisController
       }
 
       if (failedSeasonTitles.isNotEmpty) {
-        throw Exception('失败剧季：${failedSeasonTitles.join('、')}');
+        throw Exception(
+          _getL10n().smartAnalysisFailedSeasons(failedSeasonTitles.join('、')),
+        );
       }
       final serviceMessage = successMessages.firstWhere(
         (message) => message.trim().isNotEmpty,
-        orElse: () => fallbackSuccessMessage,
+        orElse: () => _getL10n().smartAnalysisSubmitted,
       );
       _setSubmission(targetKey, AsyncData<String>(serviceMessage));
     } catch (error, stackTrace) {
@@ -237,18 +242,22 @@ class SmartAnalysisController
     // Force polling only after the analysis request is accepted.
     _startSeasonPolling(seasonGuid);
     if (response.success == true) {
-      return queuedSuccessMessage;
+      return _getL10n().smartAnalysisQueued;
     }
 
     final serviceMessage = response.msg.trim().isNotEmpty
         ? response.msg.trim()
         : response.data?.trim() ?? '';
-    return serviceMessage.isEmpty ? fallbackSuccessMessage : serviceMessage;
+    return serviceMessage.isEmpty
+        ? _getL10n().smartAnalysisSubmitted
+        : serviceMessage;
   }
 
   String _failureMessage(String message) {
     final normalizedMessage = message.trim();
-    return normalizedMessage.isEmpty ? '分析请求提交失败' : normalizedMessage;
+    return normalizedMessage.isEmpty
+        ? _getL10n().smartAnalysisSubmitFailed
+        : normalizedMessage;
   }
 
   void _setSubmission(

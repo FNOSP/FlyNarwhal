@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../../core/version/semantic_version.dart';
 import '../../../core/version/version_parser.dart';
 import '../entities/update_models.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 /// A safely formatted release-note fragment.
 final class FormattedUpdateReleaseNotes {
@@ -22,6 +23,8 @@ final class UpdateReleaseNotesService {
   const UpdateReleaseNotesService();
 
   static const int maximumNotesBytes = 256 * 1024;
+  /// Legacy Chinese text, kept for callers that run without a localized
+  /// context. UI callers should pass [l10n] to [formatFragment].
   static const String emptyNotesText = '暂无更新说明。';
 
   List<UpdateReleaseNotesFragment> collectFragments({
@@ -61,12 +64,13 @@ final class UpdateReleaseNotesService {
   }
 
   FormattedUpdateReleaseNotes formatFragment(
-    UpdateReleaseNotesFragment fragment,
-  ) {
+    UpdateReleaseNotesFragment fragment, {
+    AppLocalizations? l10n,
+  }) {
     final markdown = fragment.markdown;
     if (markdown.trim().isEmpty) {
-      return const FormattedUpdateReleaseNotes(
-        markdown: emptyNotesText,
+      return FormattedUpdateReleaseNotes(
+        markdown: l10n?.updateNotesEmpty ?? emptyNotesText,
         wasTruncated: false,
         originalUtf8Length: 0,
       );
@@ -104,9 +108,11 @@ final class UpdateReleaseNotesService {
       }
     }
     final releaseUrl = fragment.releasePageUrl.toString();
+    final truncatedNotice = l10n?.updateNotesTruncated(releaseUrl) ??
+        '\n\n'
+            '> 更新说明已截断。请前往 [Release 页面]($releaseUrl) 查看完整内容。';
     return FormattedUpdateReleaseNotes(
-      markdown: '$truncatedNotes\n\n'
-          '> 更新说明已截断。请前往 [Release 页面]($releaseUrl) 查看完整内容。',
+      markdown: '$truncatedNotes$truncatedNotice',
       wasTruncated: true,
       originalUtf8Length: encodedNotes.length,
     );

@@ -32,7 +32,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   static const Duration _tabSwitchAnimationDuration =
       Duration(milliseconds: 300);
 
-  String _selectedTab = favoritesTabs.first;
+  FavoritesTab _selectedTab = favoritesTabs.first;
   int _selectedTabIndex = 0;
   int _tabSwitchDirection = 1;
   bool _enableTabAnimation = false;
@@ -214,7 +214,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         items: [
           MenuFlyoutItem(
             key: ValueKey('smart-analysis-${item.guid}'),
-            text: const Text('智能分析片头/片尾'),
+            text: Text(AppLocalizations.of(context).tvDetailSmartAnalysis),
             onPressed: isSubmitting
                 ? null
                 : () {
@@ -286,6 +286,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final globalRefreshManager = ref.read(globalRefreshManagerProvider);
     final favoritesState = ref.watch(favoritesBrowseNotifierProvider);
     final favoritesNotifier =
@@ -338,7 +339,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     }
 
     final selectedFilters = favoritesState.query.selectedFilters;
-    final headerTitle = favoritesState.mdbName ?? '收藏';
+    final headerTitle = favoritesState.mdbName ?? l10n.navFavorites;
     final selectedCacheKey = favoritesState.query.selectedCacheKey;
     final scrollController = _getScrollController(selectedCacheKey);
     final contentKey = favoritesState.isInitializing ||
@@ -396,7 +397,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                 unawaited(favoritesNotifier.switchTab(tab));
                               },
                               builder: (context, states) => Text(
-                                tab,
+                                favoritesTabLabel(l10n, tab),
                                 style: TextStyle(
                                   fontWeight: isSelected
                                       ? FontWeight.bold
@@ -433,7 +434,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                   ),
                   child: Row(
                     children: [
-                      if (_selectedTab != '人物')
+                      if (_selectedTab != FavoritesTab.person)
                         FilterButton(
                           isSelected: _isFilterOpen,
                           selectedFilters: selectedFilters,
@@ -451,11 +452,11 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         onSortOrderSelected: (order) {
                           unawaited(favoritesNotifier.updateSortOrder(order));
                         },
-                        sortOptions: const [
-                          SortItem('收藏时间', 'create_time'),
-                          SortItem('发行年份', 'release_date'),
-                          SortItem('标题', 'sort_title'),
-                          SortItem('评分', 'vote_average'),
+                        sortOptions: [
+                          SortItem(l10n.sortAddedDate, 'create_time'),
+                          SortItem(l10n.sortReleaseYear, 'release_date'),
+                          SortItem(l10n.sortTitle, 'sort_title'),
+                          SortItem(l10n.sortScore, 'vote_average'),
                         ],
                       ),
                     ],
@@ -548,7 +549,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                       height: 150 * scaleFactor,
                                     ),
                                     const SizedBox(height: 12),
-                                    const Text('无数据'),
+                                    Text(l10n.personNoData),
                                   ],
                                 ),
                               )

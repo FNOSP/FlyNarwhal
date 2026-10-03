@@ -4,21 +4,52 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/models/home_models.dart';
 import '../../../domain/entities/tag_entity.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/providers.dart';
 import '../../shared/filter_box.dart';
 
 part 'favorites_view_model.g.dart';
 
-const List<String> favoritesTabs = <String>[
-  '全部',
-  '电影',
-  '电视节目',
-  '电视直播',
-  '单集',
-  '人物',
+/// Stable ASCII identifiers for the favorites tab bar. The Chinese label is a
+/// display-only concern resolved through [favoritesTabLabel]; these constants
+/// keep the tab logic (switch/case, comparisons) language-independent.
+enum FavoritesTab {
+  all,
+  movie,
+  tv,
+  live,
+  singleEpisode,
+  person,
+}
+
+const List<FavoritesTab> favoritesTabs = <FavoritesTab>[
+  FavoritesTab.all,
+  FavoritesTab.movie,
+  FavoritesTab.tv,
+  FavoritesTab.live,
+  FavoritesTab.singleEpisode,
+  FavoritesTab.person,
 ];
 
-const String _personTab = '人物';
+/// Localized display label for a favorites tab.
+String favoritesTabLabel(AppLocalizations l10n, FavoritesTab tab) {
+  switch (tab) {
+    case FavoritesTab.all:
+      return l10n.searchTabAll;
+    case FavoritesTab.movie:
+      return l10n.mediaTypeMovie;
+    case FavoritesTab.tv:
+      return l10n.mediaTypeTv;
+    case FavoritesTab.live:
+      return l10n.mediaTypeLive;
+    case FavoritesTab.singleEpisode:
+      return l10n.favoritesTabSingleEpisode;
+    case FavoritesTab.person:
+      return l10n.searchTabPerson;
+  }
+}
+
+const FavoritesTab _personTab = FavoritesTab.person;
 const String _defaultSortColumn = 'create_time';
 const String _defaultSortOrder = 'DESC';
 // Placeholder whose label is replaced by FilterBox on rebuild; only the
@@ -26,7 +57,7 @@ const String _defaultSortOrder = 'DESC';
 const FilterItem _defaultFilterItem = FilterItem('', null);
 
 class FavoritesBrowseQuery {
-  final String selectedTab;
+  final FavoritesTab selectedTab;
   final Map<String, FilterItem> selectedFilters;
   final String sortColumn;
   final String sortOrder;
@@ -56,7 +87,7 @@ class FavoritesBrowseQuery {
   }
 
   FavoritesBrowseQuery copyWith({
-    String? selectedTab,
+    FavoritesTab? selectedTab,
     Map<String, FilterItem>? selectedFilters,
     String? sortColumn,
     String? sortOrder,
@@ -132,7 +163,7 @@ class FavoritesBrowseState {
 
   bool get hasMore => !(currentEntry?.isLastPage ?? false);
 
-  TagListEntity? get selectedTagList => tagListsByTab[query.selectedTab];
+  TagListEntity? get selectedTagList => tagListsByTab[query.selectedTab.name];
 
   FavoritesBrowseState copyWith({
     FavoritesBrowseQuery? query,
@@ -158,7 +189,7 @@ class FavoritesBrowseState {
 }
 
 String buildFavoritesCacheKey(
-  String tab,
+  FavoritesTab tab,
   Map<String, FilterItem> filters,
   String sortColumn,
   String sortOrder,
@@ -190,7 +221,7 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
     return initialState;
   }
 
-  Future<void> switchTab(String tab) async {
+  Future<void> switchTab(FavoritesTab tab) async {
     _backgroundWarmSerial++;
     final nextQuery = state.query.copyWith(
       selectedTab: tab,
@@ -359,7 +390,7 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
       final tagMap = <String, TagListEntity>{};
       for (final entry in tagLists) {
         if (entry != null) {
-          tagMap[entry.$1] = entry.$2;
+          tagMap[entry.$1.name] = entry.$2;
         }
       }
 
@@ -373,8 +404,8 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
     }
   }
 
-  Future<(String, TagListEntity)?> _fetchTagList(
-    String tab, {
+  Future<(FavoritesTab, TagListEntity)?> _fetchTagList(
+    FavoritesTab tab, {
     required bool force,
   }) async {
     final repo = ref.read(iTagRepositoryProvider);
@@ -404,7 +435,7 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
       return;
     }
     final nextTagLists = Map<String, TagListEntity>.from(state.tagListsByTab)
-      ..[refreshed.$1] = refreshed.$2;
+      ..[refreshed.$1.name] = refreshed.$2;
     state = state.copyWith(tagListsByTab: nextTagLists);
   }
 
@@ -544,40 +575,39 @@ class FavoritesBrowseNotifier extends _$FavoritesBrowseNotifier {
     }
   }
 
-  String? _getTypeForTagApi(String tab) {
+  String? _getTypeForTagApi(FavoritesTab tab) {
     switch (tab) {
-      case '电影':
+      case FavoritesTab.movie:
         return 'Movie';
-      case '电视节目':
+      case FavoritesTab.tv:
         return 'TV';
-      case '电视直播':
+      case FavoritesTab.live:
         return 'LiveChannel';
-      case '单集':
+      case FavoritesTab.singleEpisode:
         return 'Episode';
       default:
         return null;
     }
   }
 
-  List<String>? _getTypesForTab(String tab) {
+  List<String>? _getTypesForTab(FavoritesTab tab) {
     switch (tab) {
-      case '电影':
+      case FavoritesTab.movie:
         return <String>['Movie'];
-      case '电视节目':
+      case FavoritesTab.tv:
         return <String>['TV', 'Season'];
-      case '电视直播':
+      case FavoritesTab.live:
         return <String>['LiveChannel'];
-      case '单集':
+      case FavoritesTab.singleEpisode:
         return <String>['Episode'];
-      case '人物':
+      case FavoritesTab.person:
         return <String>['Person'];
-      case '全部':
-      default:
+      case FavoritesTab.all:
         return null;
     }
   }
 
-  Tags _buildTagsForTab(String tab, Map<String, FilterItem> filters) {
+  Tags _buildTagsForTab(FavoritesTab tab, Map<String, FilterItem> filters) {
     final types = List<String>.from(
       _getTypesForTab(tab) ??
           <String>[

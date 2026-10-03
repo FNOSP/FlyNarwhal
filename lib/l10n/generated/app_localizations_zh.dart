@@ -1501,6 +1501,170 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get movieDetailSubtitleDefaultSuffix => ' - 默认';
+
+  @override
+  String get timeJustNow => '刚刚';
+
+  @override
+  String timeMinutesAgo(String count) {
+    return '$count 分钟前';
+  }
+
+  @override
+  String timeHoursAgo(String count) {
+    return '$count 小时前';
+  }
+
+  @override
+  String timeDaysAgo(String count) {
+    return '$count 天前';
+  }
+
+  @override
+  String timeWeeksAgo(String count) {
+    return '$count 周前';
+  }
+
+  @override
+  String timeMonthsAgo(String count) {
+    return '$count 个月前';
+  }
+
+  @override
+  String timeYearsAgo(String count) {
+    return '$count 年前';
+  }
+
+  @override
+  String get updateNotesEmpty => '暂无更新说明。';
+
+  @override
+  String updateNotesTruncated(String url) {
+    return '\n\n> 更新说明已截断。请前往 [Release 页面]($url) 查看完整内容。';
+  }
+
+  @override
+  String get navCategories => '分类';
+
+  @override
+  String get navFavorites => '收藏';
+
+  @override
+  String get navNoMediaLibrary => '暂无媒体库';
+
+  @override
+  String get folderFallbackName => '文件夹';
+
+  @override
+  String get folderRescrap => '重新识别';
+
+  @override
+  String get folderRescrapStarted => '已发起重新识别';
+
+  @override
+  String get folderRescrapFailed => '重新识别失败';
+
+  @override
+  String folderRescrapFailedWithError(String error) {
+    return '重新识别失败：$error';
+  }
+
+  @override
+  String get folderRefreshMetadata => '刷新元数据';
+
+  @override
+  String get folderRefreshMetadataStarted => '已发起刷新元数据';
+
+  @override
+  String get folderRefreshMetadataFailed => '刷新元数据失败';
+
+  @override
+  String folderRefreshMetadataFailedWithError(String error) {
+    return '刷新元数据失败：$error';
+  }
+
+  @override
+  String get folderThisFolder => '该文件夹';
+
+  @override
+  String get folderDeleteConfirmTitle => '删除';
+
+  @override
+  String folderDeleteConfirmBody(String title) {
+    return '确定要从媒体库删除「$title」吗？\n仅移除媒体库条目，不会删除磁盘上的文件。';
+  }
+
+  @override
+  String folderDeleteFailedWithError(String error) {
+    return '删除失败：$error';
+  }
+
+  @override
+  String folderItemCount(String count) {
+    return '共 $count 项';
+  }
+
+  @override
+  String get favoritesTabSingleEpisode => '单集';
+
+  @override
+  String get serverUpdateGetVersionFailed => '获取服务端版本失败';
+
+  @override
+  String get serverUpdateCheckFailed => '检查服务端更新异常';
+
+  @override
+  String serverUpdateCheckFailedWithError(String error) {
+    return '检查服务端更新异常: $error';
+  }
+
+  @override
+  String get serverUpdatePackageNotFound => '服务端更新包未找到';
+
+  @override
+  String get serverUpdateAssetMissing => '服务端更新包资产缺失';
+
+  @override
+  String get serverUpdateStarting => '开始服务端更新...';
+
+  @override
+  String get serverUpdateFailed => '服务端更新失败';
+
+  @override
+  String serverUpdateFailedWithError(String error) {
+    return '服务端更新失败: $error';
+  }
+
+  @override
+  String get serverUpdateWaitingRestart => '等待服务端重启...';
+
+  @override
+  String serverUpdateSucceeded(String version) {
+    return '服务端已更新到 $version';
+  }
+
+  @override
+  String get serverUpdateTimeout => '服务端更新超时，请检查服务端日志';
+
+  @override
+  String get connectionTestInvalidUrl => 'FlyNarwhal 服务端地址无效';
+
+  @override
+  String get connectionTestNoVersion => 'FlyNarwhal 服务端未返回版本号';
+
+  @override
+  String get smartAnalysisQueued => '已加入分析队列';
+
+  @override
+  String get smartAnalysisSubmitted => '分析请求已提交';
+
+  @override
+  String smartAnalysisFailedSeasons(String seasons) {
+    return '失败剧季：$seasons';
+  }
+
+  @override
+  String get smartAnalysisSubmitFailed => '分析请求提交失败';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -3000,4 +3164,168 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get movieDetailSubtitleDefaultSuffix => ' - 預設';
+
+  @override
+  String get timeJustNow => '剛剛';
+
+  @override
+  String timeMinutesAgo(String count) {
+    return '$count 分鐘前';
+  }
+
+  @override
+  String timeHoursAgo(String count) {
+    return '$count 小時前';
+  }
+
+  @override
+  String timeDaysAgo(String count) {
+    return '$count 天前';
+  }
+
+  @override
+  String timeWeeksAgo(String count) {
+    return '$count 週前';
+  }
+
+  @override
+  String timeMonthsAgo(String count) {
+    return '$count 個月前';
+  }
+
+  @override
+  String timeYearsAgo(String count) {
+    return '$count 年前';
+  }
+
+  @override
+  String get updateNotesEmpty => '暫無更新說明。';
+
+  @override
+  String updateNotesTruncated(String url) {
+    return '\n\n> 更新說明已截斷。請前往 [Release 頁面]($url) 查看完整內容。';
+  }
+
+  @override
+  String get navCategories => '分類';
+
+  @override
+  String get navFavorites => '收藏';
+
+  @override
+  String get navNoMediaLibrary => '暫無媒體庫';
+
+  @override
+  String get folderFallbackName => '資料夾';
+
+  @override
+  String get folderRescrap => '重新識別';
+
+  @override
+  String get folderRescrapStarted => '已發起重新識別';
+
+  @override
+  String get folderRescrapFailed => '重新識別失敗';
+
+  @override
+  String folderRescrapFailedWithError(String error) {
+    return '重新識別失敗：$error';
+  }
+
+  @override
+  String get folderRefreshMetadata => '重新整理中繼資料';
+
+  @override
+  String get folderRefreshMetadataStarted => '已發起重新整理中繼資料';
+
+  @override
+  String get folderRefreshMetadataFailed => '重新整理中繼資料失敗';
+
+  @override
+  String folderRefreshMetadataFailedWithError(String error) {
+    return '重新整理中繼資料失敗：$error';
+  }
+
+  @override
+  String get folderThisFolder => '該資料夾';
+
+  @override
+  String get folderDeleteConfirmTitle => '刪除';
+
+  @override
+  String folderDeleteConfirmBody(String title) {
+    return '確定要從媒體庫刪除「$title」嗎？\n僅移除媒體庫項目，不會刪除磁碟上的檔案。';
+  }
+
+  @override
+  String folderDeleteFailedWithError(String error) {
+    return '刪除失敗：$error';
+  }
+
+  @override
+  String folderItemCount(String count) {
+    return '共 $count 項';
+  }
+
+  @override
+  String get favoritesTabSingleEpisode => '單集';
+
+  @override
+  String get serverUpdateGetVersionFailed => '取得伺服器版本失敗';
+
+  @override
+  String get serverUpdateCheckFailed => '檢查伺服器更新異常';
+
+  @override
+  String serverUpdateCheckFailedWithError(String error) {
+    return '檢查伺服器更新異常: $error';
+  }
+
+  @override
+  String get serverUpdatePackageNotFound => '找不到伺服器更新套件';
+
+  @override
+  String get serverUpdateAssetMissing => '伺服器更新套件資產缺失';
+
+  @override
+  String get serverUpdateStarting => '開始伺服器更新...';
+
+  @override
+  String get serverUpdateFailed => '伺服器更新失敗';
+
+  @override
+  String serverUpdateFailedWithError(String error) {
+    return '伺服器更新失敗: $error';
+  }
+
+  @override
+  String get serverUpdateWaitingRestart => '等待伺服器重新啟動...';
+
+  @override
+  String serverUpdateSucceeded(String version) {
+    return '伺服器已更新至 $version';
+  }
+
+  @override
+  String get serverUpdateTimeout => '伺服器更新逾時，請檢查伺服器日誌';
+
+  @override
+  String get connectionTestInvalidUrl => 'FlyNarwhal 伺服器位址無效';
+
+  @override
+  String get connectionTestNoVersion => 'FlyNarwhal 伺服器未回傳版本號';
+
+  @override
+  String get smartAnalysisQueued => '已加入分析佇列';
+
+  @override
+  String get smartAnalysisSubmitted => '分析請求已提交';
+
+  @override
+  String smartAnalysisFailedSeasons(String seasons) {
+    return '失敗劇季：$seasons';
+  }
+
+  @override
+  String get smartAnalysisSubmitFailed => '分析請求提交失敗';
 }

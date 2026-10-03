@@ -2141,5 +2141,261 @@
   "movieDetailSubtitleDefaultSuffix": " - 默认",
   "@movieDetailSubtitleDefaultSuffix": {
     "description": "Appends a default marker to a subtitle display name."
+  },
+  "timeJustNow": "刚刚",
+  "@timeJustNow": {
+    "description": "Relative time: now."
+  },
+  "timeMinutesAgo": "{count} 分钟前",
+  "@timeMinutesAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeHoursAgo": "{count} 小时前",
+  "@timeHoursAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeDaysAgo": "{count} 天前",
+  "@timeDaysAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeWeeksAgo": "{count} 周前",
+  "@timeWeeksAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeMonthsAgo": "{count} 个月前",
+  "@timeMonthsAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeYearsAgo": "{count} 年前",
+  "@timeYearsAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "updateNotesEmpty": "暂无更新说明。",
+  "@updateNotesEmpty": {
+    "description": "Shown when a release has no notes."
+  },
+  "updateNotesTruncated": "\n\n> 更新说明已截断。请前往 [Release 页面]({url}) 查看完整内容。",
+  "@updateNotesTruncated": {
+    "description": "Appended when release notes exceed the size limit.",
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "navCategories": "分类",
+  "@navCategories": {
+    "description": "Navigation pane label for the categories section."
+  },
+  "navFavorites": "收藏",
+  "@navFavorites": {
+    "description": "Navigation pane label and fallback title for the favorites page."
+  },
+  "navNoMediaLibrary": "暂无媒体库",
+  "@navNoMediaLibrary": {
+    "description": "Placeholder shown in the navigation pane when the media library list is empty."
+  },
+  "folderFallbackName": "文件夹",
+  "@folderFallbackName": {
+    "description": "Fallback title used for a folder when its real name is unavailable."
+  },
+  "folderRescrap": "重新识别",
+  "@folderRescrap": {
+    "description": "Menu action that rescrapes (re-identifies) the current folder."
+  },
+  "folderRescrapStarted": "已发起重新识别",
+  "@folderRescrapStarted": {
+    "description": "Toast shown after a folder rescrape request is accepted."
+  },
+  "folderRescrapFailed": "重新识别失败",
+  "@folderRescrapFailed": {
+    "description": "Toast title shown when a folder rescrape request fails."
+  },
+  "folderRescrapFailedWithError": "重新识别失败：{error}",
+  "@folderRescrapFailedWithError": {
+    "description": "Toast shown when a folder rescrape request throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "folderRefreshMetadata": "刷新元数据",
+  "@folderRefreshMetadata": {
+    "description": "Menu action that refreshes the current folder's metadata."
+  },
+  "folderRefreshMetadataStarted": "已发起刷新元数据",
+  "@folderRefreshMetadataStarted": {
+    "description": "Toast shown after a folder metadata refresh request is accepted."
+  },
+  "folderRefreshMetadataFailed": "刷新元数据失败",
+  "@folderRefreshMetadataFailed": {
+    "description": "Toast title shown when a folder metadata refresh request fails."
+  },
+  "folderRefreshMetadataFailedWithError": "刷新元数据失败：{error}",
+  "@folderRefreshMetadataFailedWithError": {
+    "description": "Toast shown when a folder metadata refresh request throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "folderThisFolder": "该文件夹",
+  "@folderThisFolder": {
+    "description": "Fallback name used in the folder delete confirmation when the folder name is unknown."
+  },
+  "folderDeleteConfirmTitle": "删除",
+  "@folderDeleteConfirmTitle": {
+    "description": "Title of the folder deletion confirmation dialog."
+  },
+  "folderDeleteConfirmBody": "确定要从媒体库删除「{title}」吗？\n仅移除媒体库条目，不会删除磁盘上的文件。",
+  "@folderDeleteConfirmBody": {
+    "description": "Body of the folder deletion confirmation dialog, reusing the generic delete title.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "folderDeleteFailedWithError": "删除失败：{error}",
+  "@folderDeleteFailedWithError": {
+    "description": "Toast shown when a folder deletion request throws.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "folderItemCount": "共 {count} 项",
+  "@folderItemCount": {
+    "description": "Footer count of items shown in the folder screen.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "favoritesTabSingleEpisode": "单集",
+  "@favoritesTabSingleEpisode": {
+    "description": "Favorites tab label for single episodes."
+  },
+  "serverUpdateGetVersionFailed": "获取服务端版本失败",
+  "@serverUpdateGetVersionFailed": {
+    "description": "Error shown when the server version could not be fetched."
+  },
+  "serverUpdateCheckFailed": "检查服务端更新异常",
+  "@serverUpdateCheckFailed": {
+    "description": "Error shown when checking for a server update throws."
+  },
+  "serverUpdateCheckFailedWithError": "检查服务端更新异常: {error}",
+  "@serverUpdateCheckFailedWithError": {
+    "description": "Error shown when checking for a server update throws, with the error detail.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "serverUpdatePackageNotFound": "服务端更新包未找到",
+  "@serverUpdatePackageNotFound": {
+    "description": "Error shown when no matching server release was found."
+  },
+  "serverUpdateAssetMissing": "服务端更新包资产缺失",
+  "@serverUpdateAssetMissing": {
+    "description": "Error shown when the server release has no usable asset."
+  },
+  "serverUpdateStarting": "开始服务端更新...",
+  "@serverUpdateStarting": {
+    "description": "Status shown when the server self-update is starting."
+  },
+  "serverUpdateFailed": "服务端更新失败",
+  "@serverUpdateFailed": {
+    "description": "Error shown when the server self-update fails."
+  },
+  "serverUpdateFailedWithError": "服务端更新失败: {error}",
+  "@serverUpdateFailedWithError": {
+    "description": "Error shown when the server self-update fails, with the error detail.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "serverUpdateWaitingRestart": "等待服务端重启...",
+  "@serverUpdateWaitingRestart": {
+    "description": "Status shown while waiting for the server to restart after updating."
+  },
+  "serverUpdateSucceeded": "服务端已更新到 {version}",
+  "@serverUpdateSucceeded": {
+    "description": "Status shown when the server finished updating to a new version.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "serverUpdateTimeout": "服务端更新超时，请检查服务端日志",
+  "@serverUpdateTimeout": {
+    "description": "Error shown when the server did not come back after updating."
+  },
+  "connectionTestInvalidUrl": "FlyNarwhal 服务端地址无效",
+  "@connectionTestInvalidUrl": {
+    "description": "Error shown when the FlyNarwhal server address is not a valid URL."
+  },
+  "connectionTestNoVersion": "FlyNarwhal 服务端未返回版本号",
+  "@connectionTestNoVersion": {
+    "description": "Error shown when the FlyNarwhal server returned an empty version."
+  },
+  "smartAnalysisQueued": "已加入分析队列",
+  "@smartAnalysisQueued": {
+    "description": "Success message shown when a smart analysis request was queued."
+  },
+  "smartAnalysisSubmitted": "分析请求已提交",
+  "@smartAnalysisSubmitted": {
+    "description": "Fallback success message shown when a smart analysis request was submitted."
+  },
+  "smartAnalysisFailedSeasons": "失败剧季：{seasons}",
+  "@smartAnalysisFailedSeasons": {
+    "description": "Error shown listing the seasons whose smart analysis submission failed.",
+    "placeholders": {
+      "seasons": {
+        "type": "String"
+      }
+    }
+  },
+  "smartAnalysisSubmitFailed": "分析请求提交失败",
+  "@smartAnalysisSubmitFailed": {
+    "description": "Error shown when a smart analysis request could not be submitted."
   }
 }

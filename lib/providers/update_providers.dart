@@ -19,6 +19,7 @@ import '../domain/update/entities/update_models.dart';
 import '../domain/update/repositories/update_repository.dart';
 import '../domain/update/services/update_asset_selector.dart';
 import '../domain/update/services/update_policy.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../services/update/app_version_service.dart';
 import '../services/update/download_url_resolver.dart';
 import '../services/update/linux_package_identity.dart';
@@ -37,6 +38,7 @@ import '../services/update/update_file_store.dart';
 import '../services/update/update_scheduler.dart';
 import '../ui/features/update/update_controller.dart';
 import '../ui/features/update/update_state.dart';
+import '../ui/settings/app_language.dart';
 import 'fly_narwhal_server_update_notifier.dart';
 import 'providers.dart';
 
@@ -358,6 +360,9 @@ final flyNarwhalServerUpdateProvider = StateNotifierProvider<
     targetVersion: AppConstants.flyNarwhalServerVersion,
     isEnabled: () => ref.read(settingsProvider).isFlyNarwhalServerAvailable,
     getProxyUrl: () => updateSettingsStore.proxyUrl,
+    getL10n: () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
   );
 
   // Re-check when the server is enabled.

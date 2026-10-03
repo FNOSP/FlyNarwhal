@@ -2120,5 +2120,111 @@
   "movieDetailSubtitleDefaultSuffix": " - 預設",
   "@movieDetailSubtitleDefaultSuffix": {
     "description": "Appends a default marker to a subtitle display name."
-  }
+  },
+  "timeJustNow": "剛剛",
+  "@timeJustNow": {
+    "description": "Relative time: now."
+  },
+  "timeMinutesAgo": "{count} 分鐘前",
+  "@timeMinutesAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeHoursAgo": "{count} 小時前",
+  "@timeHoursAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeDaysAgo": "{count} 天前",
+  "@timeDaysAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeWeeksAgo": "{count} 週前",
+  "@timeWeeksAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeMonthsAgo": "{count} 個月前",
+  "@timeMonthsAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "timeYearsAgo": "{count} 年前",
+  "@timeYearsAgo": {
+    "description": "Relative time.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "updateNotesEmpty": "暫無更新說明。",
+  "@updateNotesEmpty": {
+    "description": "Shown when a release has no notes."
+  },
+  "updateNotesTruncated": "\n\n> 更新說明已截斷。請前往 [Release 頁面]({url}) 查看完整內容。",
+  "@updateNotesTruncated": {
+    "description": "Appended when release notes exceed the size limit.",
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "navCategories": "分類",
+  "navFavorites": "收藏",
+  "navNoMediaLibrary": "暫無媒體庫",
+  "folderFallbackName": "資料夾",
+  "folderRescrap": "重新識別",
+  "folderRescrapStarted": "已發起重新識別",
+  "folderRescrapFailed": "重新識別失敗",
+  "folderRescrapFailedWithError": "重新識別失敗：{error}",
+  "folderRefreshMetadata": "重新整理中繼資料",
+  "folderRefreshMetadataStarted": "已發起重新整理中繼資料",
+  "folderRefreshMetadataFailed": "重新整理中繼資料失敗",
+  "folderRefreshMetadataFailedWithError": "重新整理中繼資料失敗：{error}",
+  "folderThisFolder": "該資料夾",
+  "folderDeleteConfirmTitle": "刪除",
+  "folderDeleteConfirmBody": "確定要從媒體庫刪除「{title}」嗎？\n僅移除媒體庫項目，不會刪除磁碟上的檔案。",
+  "folderDeleteFailedWithError": "刪除失敗：{error}",
+  "folderItemCount": "共 {count} 項",
+  "favoritesTabSingleEpisode": "單集",
+  "serverUpdateGetVersionFailed": "取得伺服器版本失敗",
+  "serverUpdateCheckFailed": "檢查伺服器更新異常",
+  "serverUpdateCheckFailedWithError": "檢查伺服器更新異常: {error}",
+  "serverUpdatePackageNotFound": "找不到伺服器更新套件",
+  "serverUpdateAssetMissing": "伺服器更新套件資產缺失",
+  "serverUpdateStarting": "開始伺服器更新...",
+  "serverUpdateFailed": "伺服器更新失敗",
+  "serverUpdateFailedWithError": "伺服器更新失敗: {error}",
+  "serverUpdateWaitingRestart": "等待伺服器重新啟動...",
+  "serverUpdateSucceeded": "伺服器已更新至 {version}",
+  "serverUpdateTimeout": "伺服器更新逾時，請檢查伺服器日誌",
+  "connectionTestInvalidUrl": "FlyNarwhal 伺服器位址無效",
+  "connectionTestNoVersion": "FlyNarwhal 伺服器未回傳版本號",
+  "smartAnalysisQueued": "已加入分析佇列",
+  "smartAnalysisSubmitted": "分析請求已提交",
+  "smartAnalysisFailedSeasons": "失敗劇季：{seasons}",
+  "smartAnalysisSubmitFailed": "分析請求提交失敗"
 }

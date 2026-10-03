@@ -1552,4 +1552,172 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get movieDetailSubtitleDefaultSuffix => ' - Default';
+
+  @override
+  String get timeJustNow => 'Just now';
+
+  @override
+  String timeMinutesAgo(String count) {
+    return '$count min ago';
+  }
+
+  @override
+  String timeHoursAgo(String count) {
+    return '$count h ago';
+  }
+
+  @override
+  String timeDaysAgo(String count) {
+    return '$count d ago';
+  }
+
+  @override
+  String timeWeeksAgo(String count) {
+    return '$count wk ago';
+  }
+
+  @override
+  String timeMonthsAgo(String count) {
+    return '$count mo ago';
+  }
+
+  @override
+  String timeYearsAgo(String count) {
+    return '$count y ago';
+  }
+
+  @override
+  String get updateNotesEmpty => 'No release notes.';
+
+  @override
+  String updateNotesTruncated(String url) {
+    return '\n\n> Release notes were truncated. See the [Release page]($url) for the full content.';
+  }
+
+  @override
+  String get navCategories => 'Categories';
+
+  @override
+  String get navFavorites => 'Favorites';
+
+  @override
+  String get navNoMediaLibrary => 'No media library';
+
+  @override
+  String get folderFallbackName => 'Folder';
+
+  @override
+  String get folderRescrap => 'Re-identify';
+
+  @override
+  String get folderRescrapStarted => 'Re-identification started';
+
+  @override
+  String get folderRescrapFailed => 'Re-identification failed';
+
+  @override
+  String folderRescrapFailedWithError(String error) {
+    return 'Re-identification failed: $error';
+  }
+
+  @override
+  String get folderRefreshMetadata => 'Refresh metadata';
+
+  @override
+  String get folderRefreshMetadataStarted => 'Metadata refresh started';
+
+  @override
+  String get folderRefreshMetadataFailed => 'Metadata refresh failed';
+
+  @override
+  String folderRefreshMetadataFailedWithError(String error) {
+    return 'Metadata refresh failed: $error';
+  }
+
+  @override
+  String get folderThisFolder => 'this folder';
+
+  @override
+  String get folderDeleteConfirmTitle => 'Delete';
+
+  @override
+  String folderDeleteConfirmBody(String title) {
+    return 'Remove \"$title\" from the media library?\nOnly the media library entry is removed; files on disk are kept.';
+  }
+
+  @override
+  String folderDeleteFailedWithError(String error) {
+    return 'Delete failed: $error';
+  }
+
+  @override
+  String folderItemCount(String count) {
+    return '$count items in total';
+  }
+
+  @override
+  String get favoritesTabSingleEpisode => 'Episode';
+
+  @override
+  String get serverUpdateGetVersionFailed => 'Failed to get the server version';
+
+  @override
+  String get serverUpdateCheckFailed => 'Server update check failed';
+
+  @override
+  String serverUpdateCheckFailedWithError(String error) {
+    return 'Server update check failed: $error';
+  }
+
+  @override
+  String get serverUpdatePackageNotFound => 'Server update package not found';
+
+  @override
+  String get serverUpdateAssetMissing =>
+      'Server update package asset is missing';
+
+  @override
+  String get serverUpdateStarting => 'Starting server update...';
+
+  @override
+  String get serverUpdateFailed => 'Server update failed';
+
+  @override
+  String serverUpdateFailedWithError(String error) {
+    return 'Server update failed: $error';
+  }
+
+  @override
+  String get serverUpdateWaitingRestart =>
+      'Waiting for the server to restart...';
+
+  @override
+  String serverUpdateSucceeded(String version) {
+    return 'Server updated to $version';
+  }
+
+  @override
+  String get serverUpdateTimeout =>
+      'Server update timed out; check the server logs';
+
+  @override
+  String get connectionTestInvalidUrl => 'Invalid FlyNarwhal server address';
+
+  @override
+  String get connectionTestNoVersion => 'FlyNarwhal server returned no version';
+
+  @override
+  String get smartAnalysisQueued => 'Added to the analysis queue';
+
+  @override
+  String get smartAnalysisSubmitted => 'Analysis request submitted';
+
+  @override
+  String smartAnalysisFailedSeasons(String seasons) {
+    return 'Failed seasons: $seasons';
+  }
+
+  @override
+  String get smartAnalysisSubmitFailed =>
+      'Failed to submit the analysis request';
 }

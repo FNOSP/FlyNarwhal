@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/utils/log/app_talker.dart';
 import '../data/datasources/remote/fly_narwhal_remote_data_source.dart';
 import '../data/datasources/remote/fly_narwhal_server_release_data_source.dart';
+import '../l10n/generated/app_localizations.dart';
 
 /// Lifecycle of the FlyNarwhal server self-update flow.
 enum FlyNarwhalServerUpdatePhase {
@@ -60,12 +61,14 @@ final class FlyNarwhalServerUpdateNotifier
     required String targetVersion,
     required bool Function() isEnabled,
     required String Function() getProxyUrl,
+    required AppLocalizations Function() getL10n,
     DateTime Function()? now,
   })  : _dataSource = dataSource,
         _fetchServerRelease = fetchServerRelease,
         _targetVersion = targetVersion,
         _isEnabled = isEnabled,
         _getProxyUrl = getProxyUrl,
+        _getL10n = getL10n,
         _now = now ?? DateTime.now,
         super(const FlyNarwhalServerUpdateState());
 
@@ -88,6 +91,7 @@ final class FlyNarwhalServerUpdateNotifier
   final String _targetVersion;
   final bool Function() _isEnabled;
   final String Function() _getProxyUrl;
+  final AppLocalizations Function() _getL10n;
   final DateTime Function() _now;
 
   bool _checkRunning = false;
@@ -119,12 +123,12 @@ final class FlyNarwhalServerUpdateNotifier
       if (current.isEmpty) {
         AppTalker.error(
           'FlyNarwhalServerUpdate',
-          error: result.failureOrNull ?? Exception('服务端未返回版本号'),
-          message: '获取服务端版本失败',
+          error: result.failureOrNull ?? Exception('server version missing'),
+          message: _getL10n().serverUpdateGetVersionFailed,
         );
         state = FlyNarwhalServerUpdateState(
           phase: FlyNarwhalServerUpdatePhase.failed,
-          message: '获取服务端版本失败',
+          message: _getL10n().serverUpdateGetVersionFailed,
           targetVersion: _targetVersion,
         );
         return;
@@ -155,11 +159,11 @@ final class FlyNarwhalServerUpdateNotifier
         'FlyNarwhalServerUpdate',
         error: error,
         stackTrace: stackTrace,
-        message: '检查服务端更新异常',
+        message: _getL10n().serverUpdateCheckFailed,
       );
       state = FlyNarwhalServerUpdateState(
         phase: FlyNarwhalServerUpdatePhase.failed,
-        message: '检查服务端更新异常: $error',
+        message: _getL10n().serverUpdateCheckFailedWithError('$error'),
       );
     } finally {
       _checkRunning = false;
@@ -191,7 +195,7 @@ final class FlyNarwhalServerUpdateNotifier
         );
         state = state.copyWith(
           phase: FlyNarwhalServerUpdatePhase.failed,
-          message: '服务端更新包未找到',
+          message: _getL10n().serverUpdatePackageNotFound,
         );
         return;
       }
@@ -204,7 +208,7 @@ final class FlyNarwhalServerUpdateNotifier
         );
         state = state.copyWith(
           phase: FlyNarwhalServerUpdatePhase.failed,
-          message: '服务端更新包资产缺失',
+          message: _getL10n().serverUpdateAssetMissing,
         );
         return;
       }
@@ -215,7 +219,7 @@ final class FlyNarwhalServerUpdateNotifier
       );
       state = state.copyWith(
         phase: FlyNarwhalServerUpdatePhase.updating,
-        message: '开始服务端更新...',
+        message: _getL10n().serverUpdateStarting,
       );
 
       final started = await _streamStartUpdate(
@@ -233,11 +237,11 @@ final class FlyNarwhalServerUpdateNotifier
         'FlyNarwhalServerUpdate',
         error: error,
         stackTrace: stackTrace,
-        message: '服务端更新失败',
+        message: _getL10n().serverUpdateFailed,
       );
       state = state.copyWith(
         phase: FlyNarwhalServerUpdatePhase.failed,
-        message: '服务端更新失败: $error',
+        message: _getL10n().serverUpdateFailedWithError('$error'),
       );
     } finally {
       _updateRunning = false;
@@ -288,7 +292,7 @@ final class FlyNarwhalServerUpdateNotifier
   Future<void> _pollForRecovery() async {
     state = state.copyWith(
       phase: FlyNarwhalServerUpdatePhase.waitingForRestart,
-      message: '等待服务端重启...',
+      message: _getL10n().serverUpdateWaitingRestart,
     );
     final deadline = _now().add(_recoveryTimeout);
     var connected = false;
@@ -301,7 +305,7 @@ final class FlyNarwhalServerUpdateNotifier
           connected = true;
           state = FlyNarwhalServerUpdateState(
             phase: FlyNarwhalServerUpdatePhase.succeeded,
-            message: '服务端已更新到 $version',
+            message: _getL10n().serverUpdateSucceeded(version),
             currentVersion: version,
             targetVersion: _targetVersion,
           );
@@ -315,12 +319,12 @@ final class FlyNarwhalServerUpdateNotifier
     if (!connected) {
       state = state.copyWith(
         phase: FlyNarwhalServerUpdatePhase.failed,
-        message: '服务端更新超时，请检查服务端日志',
+        message: _getL10n().serverUpdateTimeout,
       );
       AppTalker.error(
         'FlyNarwhalServerUpdate',
-        error: TimeoutException('服务端恢复超时'),
-        message: '服务端恢复超时',
+        error: TimeoutException('server recovery timeout'),
+        message: _getL10n().serverUpdateTimeout,
       );
     }
     await Future<void>.delayed(_recoveryPollInterval);
