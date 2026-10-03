@@ -296,17 +296,20 @@ final smartAnalysisControllerProvider = StateNotifierProvider<
   return SmartAnalysisController(
     flyNarwhalDataSource,
     mediaDataSource,
+    // These run outside the season page's lifetime (a submission can finish
+    // long after the user navigated away), so they must not resurrect a season
+    // whose page is gone.
     startSeasonPolling: (seasonGuid) {
       ref
           .read(seasonAnalysisStatusControllerProvider.notifier)
-          .startForcedPolling(seasonGuid);
+          .startForcedBackgroundPolling(seasonGuid);
     },
     // Draw the "准备中" status immediately after PREPARING is accepted,
     // before the slow episode collection and analyze submission.
     startSeasonPreparedPolling: (seasonGuid) {
       ref
           .read(seasonAnalysisStatusControllerProvider.notifier)
-          .startPolling(seasonGuid);
+          .startBackgroundPolling(seasonGuid);
     },
     resolveUserGuid: () => ref.read(currentUserGuidProvider),
     // media/stream probe identifies the client like the player does (md5 of
