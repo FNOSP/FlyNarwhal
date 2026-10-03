@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import 'subtitle_selection_panel.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 import 'package:fly_narwhal/tooling/driver_test_mode.dart';
@@ -527,6 +528,7 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: subtitleFlyoutWidth,
       height: subtitleFlyoutPanelHeight,
@@ -547,10 +549,10 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                   onPressed: onBack,
                 ),
                 const SizedBox(width: 6),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    '调整字幕',
-                    style: TextStyle(
+                    l10n.playerSubtitleAdjust,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -558,7 +560,7 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                   ),
                 ),
                 SubtitleHeaderPillButton(
-                  label: '重置',
+                  label: l10n.playerSubtitleReset,
                   onPressed: () => onSettingsChanged(const SubtitleSettings()),
                 ),
               ],
@@ -572,13 +574,13 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _AdjustmentSliderSection(
-                    title: '偏移',
+                    title: l10n.playerSubtitleOffset,
                     value: settings.offsetSeconds,
                     min: -5,
                     max: 5,
-                    leftLabel: '-5秒',
-                    rightLabel: '+5秒',
-                    suffix: '秒',
+                    leftLabel: l10n.playerSubtitleOffsetMin,
+                    rightLabel: l10n.playerSubtitleOffsetMax,
+                    suffix: l10n.playerSubtitleSecondsSuffix,
                     showCenterMarker: true,
                     snapToCenter: true,
                     centerValue: 0,
@@ -589,15 +591,16 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 18),
                   _AdjustmentSliderSection(
-                    title: '位置',
+                    title: l10n.playerSubtitlePosition,
                     value: settings.verticalPosition,
                     min: 0,
                     max: 1,
-                    leftLabel: '底部',
-                    rightLabel: '顶部',
+                    leftLabel: l10n.playerSubtitlePositionBottom,
+                    rightLabel: l10n.playerSubtitlePositionTop,
                     enabled: !isPositionLocked,
-                    disabledHint:
-                        isPositionLocked ? '当前字幕为弹幕/特效字幕（含定位标签），位置调整不可用' : null,
+                    disabledHint: isPositionLocked
+                        ? l10n.playerSubtitlePositionLockedHint
+                        : null,
                     showCenterMarker: true,
                     snapToCenter: true,
                     centerValue: 0.5,
@@ -608,12 +611,12 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 18),
                   _AdjustmentSliderSection(
-                    title: '字号',
+                    title: l10n.playerSubtitleFontSize,
                     value: settings.fontScale,
                     min: 0.5,
                     max: 1.5,
-                    leftLabel: '最小',
-                    rightLabel: '最大',
+                    leftLabel: l10n.playerSubtitleFontSizeMin,
+                    rightLabel: l10n.playerSubtitleFontSizeMax,
                     showCenterMarker: true,
                     snapToCenter: true,
                     centerValue: 1.0,

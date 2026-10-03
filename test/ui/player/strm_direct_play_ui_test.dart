@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fly_narwhal/l10n/generated/app_localizations.dart';
+
 import 'package:fly_narwhal/data/models/cloud_storage_type.dart';
 import 'package:fly_narwhal/data/models/player_models.dart';
 import 'package:fly_narwhal/tooling/driver_test_mode.dart';
@@ -21,6 +23,12 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           FluentApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              ...FluentLocalizations.localizationsDelegates,
+            ],
+            supportedLocales: const [Locale('zh'), Locale('en')],
+            locale: const Locale('zh'),
             home: Align(
               alignment: Alignment.bottomCenter,
               child: StrmPlayTipsFlyout(
@@ -44,6 +52,12 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           FluentApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              ...FluentLocalizations.localizationsDelegates,
+            ],
+            supportedLocales: const [Locale('zh'), Locale('en')],
+            locale: const Locale('zh'),
             home: Align(
               alignment: Alignment.bottomCenter,
               child: StrmPlayTipsFlyout(
@@ -70,6 +84,12 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           FluentApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              ...FluentLocalizations.localizationsDelegates,
+            ],
+            supportedLocales: const [Locale('zh'), Locale('en')],
+            locale: const Locale('zh'),
             home: Align(
               alignment: Alignment.center,
               child: PlaybackDetailsPanel(
@@ -101,6 +121,12 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           FluentApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              ...FluentLocalizations.localizationsDelegates,
+            ],
+            supportedLocales: const [Locale('zh'), Locale('en')],
+            locale: const Locale('zh'),
             home: Align(
               alignment: Alignment.center,
               child: PlaybackDetailsPanel(
@@ -135,6 +161,12 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           FluentApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              ...FluentLocalizations.localizationsDelegates,
+            ],
+            supportedLocales: const [Locale('zh'), Locale('en')],
+            locale: const Locale('zh'),
             home: Align(
               alignment: Alignment.bottomCenter,
               child: QualityControlFlyout(
@@ -162,6 +194,12 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           FluentApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              ...FluentLocalizations.localizationsDelegates,
+            ],
+            supportedLocales: const [Locale('zh'), Locale('en')],
+            locale: const Locale('zh'),
             home: Align(
               alignment: Alignment.bottomCenter,
               child: QualityControlFlyout(
@@ -186,6 +224,12 @@ void main() {
   group('CloudPlaybackErrorDialog STRM variant', () {
     Widget buildDialog({required bool isStrm}) {
       return FluentApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              ...FluentLocalizations.localizationsDelegates,
+            ],
+            supportedLocales: const [Locale('zh'), Locale('en')],
+            locale: const Locale('zh'),
         home: Stack(
           children: [
             CloudPlaybackErrorDialog(

@@ -1665,6 +1665,786 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get smartAnalysisSubmitFailed => '分析请求提交失败';
+
+  @override
+  String get shortcutFocusSearch => '聚焦搜索输入框';
+
+  @override
+  String get shortcutTogglePlayPause => '播放/暂停';
+
+  @override
+  String get shortcutMute => '静音/取消静音';
+
+  @override
+  String get shortcutSeekBackward => '快退 10 秒';
+
+  @override
+  String get shortcutSeekForward => '快进 10 秒';
+
+  @override
+  String get shortcutVolumeUp => '音量增加';
+
+  @override
+  String get shortcutVolumeDown => '音量减少';
+
+  @override
+  String get shortcutToggleFullscreen => '切换全屏';
+
+  @override
+  String get shortcutExitFullscreen => '退出全屏';
+
+  @override
+  String get shortcutSearchNext => '下一个搜索项';
+
+  @override
+  String get shortcutSearchPrev => '上一个搜索项';
+
+  @override
+  String get shortcutSearchSelect => '选中搜索项';
+
+  @override
+  String get shortcutSearchSwitchTab => '切换搜索分类';
+
+  @override
+  String get shortcutSearchExit => '退出搜索';
+
+  @override
+  String get playerSubtitleExternalSuffix => ' - 外挂';
+
+  @override
+  String get playerSubtitleDefaultSuffix => ' - 默认';
+
+  @override
+  String playerVolumeLabel(String value) {
+    return '当前音量：$value%';
+  }
+
+  @override
+  String playerVolumeUnmuteLabel(String value) {
+    return '解除静音：$value%';
+  }
+
+  @override
+  String get playerVolumeMute => '静音';
+
+  @override
+  String get playerSeekRewindTo => '快退至';
+
+  @override
+  String get playerSeekForwardTo => '快进至';
+
+  @override
+  String playerSeekTimeToast(String label, String time) {
+    return '$label：$time';
+  }
+
+  @override
+  String get playerForceH264Disabled => '当前视频为 H.264';
+
+  @override
+  String get playerForceSdrDisabled => '当前视频为 SDR';
+
+  @override
+  String get playerDirectLinkCdnRangeNotDirect => '当前不是网盘直连播放';
+
+  @override
+  String get playerDirectLinkCdnRangeQuarkOnly => '仅支持夸克网盘';
+
+  @override
+  String get playerCloudModeDirect => '网盘直连播放';
+
+  @override
+  String get playerCloudModeNasProxy => 'NAS 代理播放';
+
+  @override
+  String playerCloudModeSwitchedToast(String label) {
+    return '播放方式切换至 $label';
+  }
+
+  @override
+  String get playerCloudProxyFailedFallbackDirect => 'NAS 代理播放失败，正在切换为网盘直连播放';
+
+  @override
+  String get playerInfoMissingSearchSubtitle => '当前文件信息缺失，无法搜索字幕';
+
+  @override
+  String get playerInfoMissingAddNasSubtitle => '当前文件信息缺失，无法添加 NAS 字幕';
+
+  @override
+  String get playerInfoMissingUploadSubtitle => '当前文件信息缺失，无法上传字幕';
+
+  @override
+  String get playerSubtitleDeleteTitle => '删除外挂字幕';
+
+  @override
+  String playerSubtitleDeleteConfirm(String displayName) {
+    return '确定要删除 $displayName 外挂字幕吗？';
+  }
+
+  @override
+  String get playerSubtitleDeleteSuccess => '删除字幕成功';
+
+  @override
+  String playerSubtitleDeleteFailed(String error) {
+    return '删除字幕失败: $error';
+  }
+
+  @override
+  String get playerSubtitleAddNasTitle => '添加 NAS 字幕文件';
+
+  @override
+  String get playerSubtitleAddNasSuccess => 'NAS 字幕添加成功';
+
+  @override
+  String get playerSubtitleAlreadyMarked => '该文件已被添加为字幕';
+
+  @override
+  String playerSubtitleAddNasFailed(String error) {
+    return '添加 NAS 字幕失败: $error';
+  }
+
+  @override
+  String get playerSubtitleDownloadSuccess => '下载成功';
+
+  @override
+  String playerSubtitleDownloadFailed(String error) {
+    return '下载字幕失败: $error';
+  }
+
+  @override
+  String get playerSubtitleTaskCreated => '已创建字幕下载任务';
+
+  @override
+  String get playerSubtitleTaskFailed => '创建字幕下载任务失败，请重试';
+
+  @override
+  String playerSubtitleSwitchFailed(String error) {
+    return '切换字幕失败: $error';
+  }
+
+  @override
+  String playerSwitchOriginalQualityFailed(String error) {
+    return '切换原画失败: $error';
+  }
+
+  @override
+  String playerLoadFailed(String error) {
+    return '加载失败: $error';
+  }
+
+  @override
+  String playerToggleFullscreenFailed(String error) {
+    return '切换全屏失败: $error';
+  }
+
+  @override
+  String playerSwitchPlaybackSettingsFailed(String error) {
+    return '切换播放设置失败: $error';
+  }
+
+  @override
+  String get playerNotReady => '播放器尚未准备完成';
+
+  @override
+  String playerEnterPipFailed(String error) {
+    return '进入画中画失败: $error';
+  }
+
+  @override
+  String playerExitPipFailed(String error) {
+    return '退出画中画失败: $error';
+  }
+
+  @override
+  String playerSwitchQualityFailed(String error) {
+    return '切换画质失败: $error';
+  }
+
+  @override
+  String playerSwitchPlayModeFailed(String error) {
+    return '切换播放方式失败: $error';
+  }
+
+  @override
+  String playerSwitchAudioFailed(String error) {
+    return '切换音频失败: $error';
+  }
+
+  @override
+  String playerSubtitleSwitchingTo(String language) {
+    return '字幕正在切换至：$language';
+  }
+
+  @override
+  String playerSubtitleSwitchingToFormat(String language, String format) {
+    return '字幕正在切换至：$language $format';
+  }
+
+  @override
+  String get playerClose => '关闭';
+
+  @override
+  String get playerBack => '返回';
+
+  @override
+  String get playerRewindTenSeconds => '快退 10 秒';
+
+  @override
+  String get playerForwardTenSeconds => '快进 10 秒';
+
+  @override
+  String get playerPlayPause => '播放/暂停';
+
+  @override
+  String get playerPip => '画中画';
+
+  @override
+  String get playerExitPip => '退出画中画';
+
+  @override
+  String get playerDanmakuClose => '关闭弹幕';
+
+  @override
+  String get playerDanmakuOpen => '开启弹幕';
+
+  @override
+  String get playerPlaybackDetailsTooltip => '播放详细信息';
+
+  @override
+  String get playerSkipConfigSaved => '设置成功';
+
+  @override
+  String playerSkipConfigSaveFailed(String error) {
+    return '设置失败: $error';
+  }
+
+  @override
+  String get playerDanmakuRequestFailed => '请求弹幕接口失败，请检查飞鲸服务端配置';
+
+  @override
+  String get playerSmartSkipRequestFailed => '请求智能片头片尾接口失败，请检查飞鲸服务端配置';
+
+  @override
+  String playerFeatureComingSoon(String feature) {
+    return '$feature 暂未接入';
+  }
+
+  @override
+  String get playerPlayErrorRetrySwitch => '播放出错,请尝试切换线路';
+
+  @override
+  String get playerNoPlayableLine => '该频道没有可用的播放线路';
+
+  @override
+  String get playerLoadFailedBackRetry => '加载失败,请返回重试';
+
+  @override
+  String get playerPlayFailedSwitchLine => '播放失败,请尝试切换线路';
+
+  @override
+  String get playerLive => '直播中';
+
+  @override
+  String get playerPause => '暂停';
+
+  @override
+  String get playerPlay => '播放';
+
+  @override
+  String get playerDanmakuSettingsTooltip => '弹幕设置';
+
+  @override
+  String get playerDanmakuSettingsTitle => '弹幕设置';
+
+  @override
+  String get playerDanmakuAdvancedSettings => '高级设置';
+
+  @override
+  String playerDanmakuDisplayArea(String value) {
+    return '显示区域 $value%';
+  }
+
+  @override
+  String playerDanmakuOpacity(String value) {
+    return '不透明度 $value%';
+  }
+
+  @override
+  String playerDanmakuFontSize(String value) {
+    return '字号 $value%';
+  }
+
+  @override
+  String playerDanmakuSpeed(String value) {
+    return '速度 $value';
+  }
+
+  @override
+  String get playerDanmakuSpeedVerySlow => '极慢';
+
+  @override
+  String get playerDanmakuSpeedSlow => '较慢';
+
+  @override
+  String get playerDanmakuSpeedNormal => '适中';
+
+  @override
+  String get playerDanmakuSpeedFast => '较快';
+
+  @override
+  String get playerDanmakuSpeedVeryFast => '极快';
+
+  @override
+  String get playerDanmakuSyncPlaybackSpeed => '弹幕速度同步播放倍速';
+
+  @override
+  String get playerDanmakuShowDebugInfo => '显示弹幕调试信息';
+
+  @override
+  String get playerStrmDirectPlaying => '正在直连播放 STRM 文件';
+
+  @override
+  String get playerCloudModeDirectDescription => '速度较快、省流';
+
+  @override
+  String get playerCloudModeNasProxyDescription => '色调或音频异常时可尝试切换';
+
+  @override
+  String get playerCloudPlayRecommend => '推荐';
+
+  @override
+  String get playerCloudPlayingNotice => '正在播放网盘上的文件，播放速度和画质取决于网盘方规则。';
+
+  @override
+  String get playerCloudSwitchNotice => '如遇播放异常，可尝试切换播放方式。';
+
+  @override
+  String get playerPlayModeLabel => '播放方式';
+
+  @override
+  String get playerCloudFallbackName => '网盘';
+
+  @override
+  String get playerCloudPlayErrorTitle => '抱歉，播放出错了';
+
+  @override
+  String get playerCloudSwitchQuality => '播放其他画质';
+
+  @override
+  String get playerCloudSwitchToProxy => '切换 NAS 代理播放';
+
+  @override
+  String get playerStrmPlaybackErrorHint =>
+      'STRM 直连播放异常，可能原因：网盘挂载连接断开、触发网盘风控、网盘限制非会员操作、浏览器不支持该文件类型。';
+
+  @override
+  String get playerChannelLineFallback => '线路';
+
+  @override
+  String get playerSubtitleAddDialogTitle => '添加字幕';
+
+  @override
+  String get playerSubtitleSearchSortHint => '按相关度排序：';
+
+  @override
+  String get playerSubtitleSearchNoResults => '未搜索到相关字幕';
+
+  @override
+  String playerSubtitleSearchDownloadCount(String count) {
+    return '下载量 $count';
+  }
+
+  @override
+  String get playerSubtitleSearchDownloading => '下载中';
+
+  @override
+  String get playerSubtitleSearchDownloadDone => '下载完成';
+
+  @override
+  String get playerSubtitleSearchDownload => '下载字幕';
+
+  @override
+  String get playerSubtitleDownloadSimilarForEpisodes => '为其他集下载相似字幕';
+
+  @override
+  String get playerSubtitleLanguageSimplifiedChinese => '简体中文';
+
+  @override
+  String get playerSubtitleLanguageEnglish => '英文';
+
+  @override
+  String get playerSubtitleAdjust => '调整字幕';
+
+  @override
+  String get playerSubtitleReset => '重置';
+
+  @override
+  String get playerSubtitleOffset => '偏移';
+
+  @override
+  String get playerSubtitleOffsetMin => '-5秒';
+
+  @override
+  String get playerSubtitleOffsetMax => '+5秒';
+
+  @override
+  String get playerSubtitleSecondsSuffix => '秒';
+
+  @override
+  String get playerSubtitlePosition => '位置';
+
+  @override
+  String get playerSubtitlePositionBottom => '底部';
+
+  @override
+  String get playerSubtitlePositionTop => '顶部';
+
+  @override
+  String get playerSubtitlePositionLockedHint => '当前字幕为弹幕/特效字幕（含定位标签），位置调整不可用';
+
+  @override
+  String get playerSubtitleFontSize => '字号';
+
+  @override
+  String get playerSubtitleFontSizeMin => '最小';
+
+  @override
+  String get playerSubtitleFontSizeMax => '最大';
+
+  @override
+  String get playerSubtitlePanelTitle => '字幕';
+
+  @override
+  String get playerSubtitleAdjustButton => '调整';
+
+  @override
+  String get playerSubtitleAddButton => '添加';
+
+  @override
+  String get playerSubtitleOff => '关闭';
+
+  @override
+  String get playerSubtitleSearchMenu => '搜索字幕';
+
+  @override
+  String get playerSubtitleAddNasFile => '添加 NAS 字幕文件';
+
+  @override
+  String get playerSubtitleAddLocalFile => '添加电脑字幕文件';
+
+  @override
+  String get playerSubtitleDirectLinkMissingTitle => '直连播放缺失内置字幕';
+
+  @override
+  String get playerSubtitleDirectLinkMissingContent =>
+      '由于网盘方的限制，直连转码播放时可能无法获取内置字幕列表。如需切换内置字幕，请切换播放方式为“NAS 代理播放”。';
+
+  @override
+  String get playerDetailSeparator => '：';
+
+  @override
+  String get playerPlayType => '播放类型';
+
+  @override
+  String get playerPlayTypeStrmDirect => 'STRM 直连播放';
+
+  @override
+  String get playerPlayTypeTranscode => '转码播放';
+
+  @override
+  String get playerPlayTypeDirect => '直接播放';
+
+  @override
+  String get playerTranscodeReason => '转码原因';
+
+  @override
+  String get playerTranscodeReasonSeparator => '；';
+
+  @override
+  String get playerPlaybackInfo => '播放信息';
+
+  @override
+  String get playerMediaSourceInfo => '媒体源信息';
+
+  @override
+  String get playerContainerFormat => '封装容器';
+
+  @override
+  String get playerBufferDuration => '缓冲时长';
+
+  @override
+  String get playerAudioCodec => '音频编码';
+
+  @override
+  String get playerGpuEnabled => '启用 GPU';
+
+  @override
+  String get playerDecodeMethod => '解码方式';
+
+  @override
+  String get playerEncodeMethod => '编码方式';
+
+  @override
+  String get playerTranscodeFrameRate => '转码帧率';
+
+  @override
+  String get playerDroppedFrames => '丢帧';
+
+  @override
+  String get playerCorruptedFrames => '坏帧';
+
+  @override
+  String get playerCodec => '编码';
+
+  @override
+  String get playerDynamicRange => '动态范围';
+
+  @override
+  String get playerFullscreenEnter => '进入全屏';
+
+  @override
+  String get playerFullscreenExit => '退出全屏';
+
+  @override
+  String get playerNextVideo => '下一个视频';
+
+  @override
+  String playerEpisodeNumber(String number) {
+    return '第 $number 集';
+  }
+
+  @override
+  String get playerReplay => '重播';
+
+  @override
+  String get playerUndo => '撤销';
+
+  @override
+  String get playerSkipIntroAutoSkipped => '已自动跳过片头';
+
+  @override
+  String playerSkipOutroInSeconds(int seconds) {
+    return '$seconds 秒后跳过片尾';
+  }
+
+  @override
+  String playerSkipOutroNextEpisodeInSeconds(int seconds) {
+    return '$seconds 秒后播放下一集';
+  }
+
+  @override
+  String playerSkipOutroEndInSeconds(int seconds) {
+    return '$seconds 秒后结束播放';
+  }
+
+  @override
+  String get playerUnknown => '未知';
+
+  @override
+  String playerAudioDefaultSuffix(String language) {
+    return '$language - 默认';
+  }
+
+  @override
+  String get playerSettingsWindowAspectRatioFollowVideo => '跟随视频比例';
+
+  @override
+  String get playerSettingsAspectRatioDefault => '默认';
+
+  @override
+  String get playerSettingsAdvanced => '高级';
+
+  @override
+  String get playerSettingsAutoNext => '自动连播';
+
+  @override
+  String get playerSettingsSkipIntroOutro => '跳过片头/片尾';
+
+  @override
+  String get playerSettingsWindowRatio => '窗口比例';
+
+  @override
+  String get playerSettingsAspectRatio => '画面比例';
+
+  @override
+  String get playerSettingsClientDecodeMode => '客户端解码模式';
+
+  @override
+  String get playerSettingsAudio => '音频';
+
+  @override
+  String get playerSettingsAdvancedTitle => '高级设置';
+
+  @override
+  String get playerSettingsHevcToH264 => 'HEVC 转为 H.264';
+
+  @override
+  String get playerSettingsHevcToH264Description => '播放有声音无画面时可尝试开启';
+
+  @override
+  String get playerSettingsForceSdr => '色调强制映射为 SDR';
+
+  @override
+  String get playerSettingsForceSdrDescription => '画面偏暗时可尝试开启，适用于不支持 HDR 的设备';
+
+  @override
+  String get playerSettingsQuarkCdnSegment => '夸克 CDN 分片直连';
+
+  @override
+  String get playerSettingsQuarkCdnSegmentDescription =>
+      '开启后按分片预取夸克网盘直连流；关闭则使用原有直连方式';
+
+  @override
+  String get playerSettingsSmartSkip => '智能跳过';
+
+  @override
+  String get playerSettingsSkipIntroOutroBoth => '跳过片头片尾';
+
+  @override
+  String get playerSettingsIntroConfigured => '已设置片头';
+
+  @override
+  String get playerSettingsOutroConfigured => '已设置片尾';
+
+  @override
+  String get playerSettingsNotSet => '未设置';
+
+  @override
+  String playerSettingsSkipScope(String title, String season) {
+    return '生效范围: 《$title》 第 $season 季';
+  }
+
+  @override
+  String get playerSettingsSmartSkipIntroOutro => '智能跳过片头/片尾';
+
+  @override
+  String get playerSettingsIntroDuration => '片头时长';
+
+  @override
+  String get playerSettingsOutroDuration => '片尾时长';
+
+  @override
+  String playerSettingsSetOutroToRemaining(String time) {
+    return '将当前剩余时长 $time 设为片尾';
+  }
+
+  @override
+  String playerSettingsSetIntroToCurrent(String time) {
+    return '将当前时间 $time 设为片头';
+  }
+
+  @override
+  String get playerSettingsTenMinutes => '10 分钟';
+
+  @override
+  String get playerSettingsSliderStart => '开始';
+
+  @override
+  String get playerSettingsSliderEnd => '结束';
+
+  @override
+  String get playerSettingsDecodeAutoTip => '自动选择硬件解码,失败时回退到软件解码。推荐。';
+
+  @override
+  String get playerSettingsDecodeSoftwareTip => '强制使用软件解码,兼容性最好;硬解花屏/黑屏时的兜底方案。';
+
+  @override
+  String get playerSettingsDecodeCopyTip =>
+      '硬件解码但将帧拷回内存,可与所有滤镜/弹幕/截图功能共存;略费 CPU。';
+
+  @override
+  String get playerSettingsSoftwareDecode => '软件解码';
+
+  @override
+  String get playerSettingsCopyBackMode => '回拷模式';
+
+  @override
+  String get playerSettingsSpecifyHwdec => '指定硬件解码器';
+
+  @override
+  String get playerSettingsNoHwdecAvailable => '未探测到可用的硬件解码器';
+
+  @override
+  String get playerQualityTitle => '视频质量';
+
+  @override
+  String get playerQualityOriginal => '原画';
+
+  @override
+  String get playerQualityCustom => '自定义';
+
+  @override
+  String get playerQualityCustomTitle => '自定义视频质量';
+
+  @override
+  String get playerQualityDirectUnsupported => '直连播放暂不支持该画质';
+
+  @override
+  String get playerQualityLowRiskHint => '选项风控概率相对低，建议优先选择';
+
+  @override
+  String get playerQualityOriginalNoAudioHint => '直连播放原画无声音';
+
+  @override
+  String get playerQualityOriginalNoAudioTooltip =>
+      '由于播放器对音频编码格式的支持有限，直连播放原画可能出现无声音的情况。可尝试切换播放方式为 “NAS 代理播放”。';
+
+  @override
+  String get playerSpeedLabel => '倍速';
+
+  @override
+  String get playerSettingsAuto => '自动';
+
+  @override
+  String get playerTranscodeReasonLowerQuality => '根据视频质量设置降低画质';
+
+  @override
+  String get playerTranscodeReasonSubtitleBurn => '字幕烧录';
+
+  @override
+  String get playerTranscodeReasonSubtitleToVtt => '字幕转为 vtt 切片';
+
+  @override
+  String get playerTranscodeReasonVideoFormat => '视频格式转换';
+
+  @override
+  String get playerTranscodeReasonAudioFormat => '音频格式转换';
+
+  @override
+  String get playerTranscodeReasonToneMapping => '色调映射';
+
+  @override
+  String get playerDecodeMethodSoftware => '软解码';
+
+  @override
+  String get playerDecodeMethodQsv => 'QSV 解码';
+
+  @override
+  String get playerDecodeMethodVaapi => 'VAAPI 解码';
+
+  @override
+  String get playerDecodeMethodNvdec => 'NVDEC 解码';
+
+  @override
+  String get playerDecodeMethodRkmpp => 'RKMPP 解码';
+
+  @override
+  String get playerEncodeMethodSoftware => '软编码';
+
+  @override
+  String get playerEncodeMethodQsv => 'QSV 编码';
+
+  @override
+  String get playerEncodeMethodQsvLowPower => 'QSV 低电压编码';
+
+  @override
+  String get playerEncodeMethodVaapi => 'VAAPI 编码';
+
+  @override
+  String get playerEncodeMethodNvenc => 'NVENC 编码';
+
+  @override
+  String get playerEncodeMethodRkmpp => 'RKMPP 编码';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -3328,4 +4108,784 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get smartAnalysisSubmitFailed => '分析請求提交失敗';
+
+  @override
+  String get shortcutFocusSearch => '聚焦搜尋輸入框';
+
+  @override
+  String get shortcutTogglePlayPause => '播放／暫停';
+
+  @override
+  String get shortcutMute => '靜音／取消靜音';
+
+  @override
+  String get shortcutSeekBackward => '倒轉 10 秒';
+
+  @override
+  String get shortcutSeekForward => '快轉 10 秒';
+
+  @override
+  String get shortcutVolumeUp => '提高音量';
+
+  @override
+  String get shortcutVolumeDown => '降低音量';
+
+  @override
+  String get shortcutToggleFullscreen => '切換全螢幕';
+
+  @override
+  String get shortcutExitFullscreen => '結束全螢幕';
+
+  @override
+  String get shortcutSearchNext => '下一個搜尋項目';
+
+  @override
+  String get shortcutSearchPrev => '上一個搜尋項目';
+
+  @override
+  String get shortcutSearchSelect => '選取搜尋項目';
+
+  @override
+  String get shortcutSearchSwitchTab => '切換搜尋分類';
+
+  @override
+  String get shortcutSearchExit => '結束搜尋';
+
+  @override
+  String get playerSubtitleExternalSuffix => ' - 外掛';
+
+  @override
+  String get playerSubtitleDefaultSuffix => ' - 預設';
+
+  @override
+  String playerVolumeLabel(String value) {
+    return '目前音量：$value%';
+  }
+
+  @override
+  String playerVolumeUnmuteLabel(String value) {
+    return '解除靜音：$value%';
+  }
+
+  @override
+  String get playerVolumeMute => '靜音';
+
+  @override
+  String get playerSeekRewindTo => '倒轉至';
+
+  @override
+  String get playerSeekForwardTo => '快進至';
+
+  @override
+  String playerSeekTimeToast(String label, String time) {
+    return '$label：$time';
+  }
+
+  @override
+  String get playerForceH264Disabled => '目前影片為 H.264';
+
+  @override
+  String get playerForceSdrDisabled => '目前影片為 SDR';
+
+  @override
+  String get playerDirectLinkCdnRangeNotDirect => '目前不是網盤直連播放';
+
+  @override
+  String get playerDirectLinkCdnRangeQuarkOnly => '僅支援夸克網盤';
+
+  @override
+  String get playerCloudModeDirect => '網盤直連播放';
+
+  @override
+  String get playerCloudModeNasProxy => 'NAS 代理播放';
+
+  @override
+  String playerCloudModeSwitchedToast(String label) {
+    return '播放方式切換至 $label';
+  }
+
+  @override
+  String get playerCloudProxyFailedFallbackDirect => 'NAS 代理播放失敗，正在切換為網盤直連播放';
+
+  @override
+  String get playerInfoMissingSearchSubtitle => '目前檔案資訊缺失，無法搜尋字幕';
+
+  @override
+  String get playerInfoMissingAddNasSubtitle => '目前檔案資訊缺失，無法新增 NAS 字幕';
+
+  @override
+  String get playerInfoMissingUploadSubtitle => '目前檔案資訊缺失，無法上傳字幕';
+
+  @override
+  String get playerSubtitleDeleteTitle => '刪除外掛字幕';
+
+  @override
+  String playerSubtitleDeleteConfirm(String displayName) {
+    return '確定要刪除 $displayName 外掛字幕嗎？';
+  }
+
+  @override
+  String get playerSubtitleDeleteSuccess => '刪除字幕成功';
+
+  @override
+  String playerSubtitleDeleteFailed(String error) {
+    return '刪除字幕失敗: $error';
+  }
+
+  @override
+  String get playerSubtitleAddNasTitle => '新增 NAS 字幕檔案';
+
+  @override
+  String get playerSubtitleAddNasSuccess => 'NAS 字幕新增成功';
+
+  @override
+  String get playerSubtitleAlreadyMarked => '該檔案已被新增為字幕';
+
+  @override
+  String playerSubtitleAddNasFailed(String error) {
+    return '新增 NAS 字幕失敗: $error';
+  }
+
+  @override
+  String get playerSubtitleDownloadSuccess => '下載成功';
+
+  @override
+  String playerSubtitleDownloadFailed(String error) {
+    return '下載字幕失敗: $error';
+  }
+
+  @override
+  String get playerSubtitleTaskCreated => '已建立字幕下載任務';
+
+  @override
+  String get playerSubtitleTaskFailed => '建立字幕下載任務失敗，請重試';
+
+  @override
+  String playerSubtitleSwitchFailed(String error) {
+    return '切換字幕失敗: $error';
+  }
+
+  @override
+  String playerSwitchOriginalQualityFailed(String error) {
+    return '切換原畫失敗: $error';
+  }
+
+  @override
+  String playerLoadFailed(String error) {
+    return '載入失敗: $error';
+  }
+
+  @override
+  String playerToggleFullscreenFailed(String error) {
+    return '切換全螢幕失敗: $error';
+  }
+
+  @override
+  String playerSwitchPlaybackSettingsFailed(String error) {
+    return '切換播放設定失敗: $error';
+  }
+
+  @override
+  String get playerNotReady => '播放器尚未準備完成';
+
+  @override
+  String playerEnterPipFailed(String error) {
+    return '進入子母畫面失敗: $error';
+  }
+
+  @override
+  String playerExitPipFailed(String error) {
+    return '結束子母畫面失敗: $error';
+  }
+
+  @override
+  String playerSwitchQualityFailed(String error) {
+    return '切換畫質失敗: $error';
+  }
+
+  @override
+  String playerSwitchPlayModeFailed(String error) {
+    return '切換播放方式失敗: $error';
+  }
+
+  @override
+  String playerSwitchAudioFailed(String error) {
+    return '切換音訊失敗: $error';
+  }
+
+  @override
+  String playerSubtitleSwitchingTo(String language) {
+    return '字幕正在切換至：$language';
+  }
+
+  @override
+  String playerSubtitleSwitchingToFormat(String language, String format) {
+    return '字幕正在切換至：$language $format';
+  }
+
+  @override
+  String get playerClose => '關閉';
+
+  @override
+  String get playerBack => '返回';
+
+  @override
+  String get playerRewindTenSeconds => '倒轉 10 秒';
+
+  @override
+  String get playerForwardTenSeconds => '快進 10 秒';
+
+  @override
+  String get playerPlayPause => '播放/暫停';
+
+  @override
+  String get playerPip => '子母畫面';
+
+  @override
+  String get playerExitPip => '結束子母畫面';
+
+  @override
+  String get playerDanmakuClose => '關閉彈幕';
+
+  @override
+  String get playerDanmakuOpen => '開啟彈幕';
+
+  @override
+  String get playerPlaybackDetailsTooltip => '播放詳細資訊';
+
+  @override
+  String get playerSkipConfigSaved => '設定成功';
+
+  @override
+  String playerSkipConfigSaveFailed(String error) {
+    return '設定失敗: $error';
+  }
+
+  @override
+  String get playerDanmakuRequestFailed => '請求彈幕介面失敗，請檢查飛鯨服務端設定';
+
+  @override
+  String get playerSmartSkipRequestFailed => '請求智慧片頭片尾介面失敗，請檢查飛鯨服務端設定';
+
+  @override
+  String playerFeatureComingSoon(String feature) {
+    return '$feature 暫未接入';
+  }
+
+  @override
+  String get playerPlayErrorRetrySwitch => '播放出錯,請嘗試切換線路';
+
+  @override
+  String get playerNoPlayableLine => '該頻道沒有可用的播放線路';
+
+  @override
+  String get playerLoadFailedBackRetry => '載入失敗,請返回重試';
+
+  @override
+  String get playerPlayFailedSwitchLine => '播放失敗,請嘗試切換線路';
+
+  @override
+  String get playerLive => '直播中';
+
+  @override
+  String get playerPause => '暫停';
+
+  @override
+  String get playerPlay => '播放';
+
+  @override
+  String get playerDanmakuSettingsTooltip => '彈幕設定';
+
+  @override
+  String get playerDanmakuSettingsTitle => '彈幕設定';
+
+  @override
+  String get playerDanmakuAdvancedSettings => '進階設定';
+
+  @override
+  String playerDanmakuDisplayArea(String value) {
+    return '顯示區域 $value%';
+  }
+
+  @override
+  String playerDanmakuOpacity(String value) {
+    return '不透明度 $value%';
+  }
+
+  @override
+  String playerDanmakuFontSize(String value) {
+    return '字號 $value%';
+  }
+
+  @override
+  String playerDanmakuSpeed(String value) {
+    return '速度 $value';
+  }
+
+  @override
+  String get playerDanmakuSpeedVerySlow => '極慢';
+
+  @override
+  String get playerDanmakuSpeedSlow => '較慢';
+
+  @override
+  String get playerDanmakuSpeedNormal => '適中';
+
+  @override
+  String get playerDanmakuSpeedFast => '較快';
+
+  @override
+  String get playerDanmakuSpeedVeryFast => '極快';
+
+  @override
+  String get playerDanmakuSyncPlaybackSpeed => '彈幕速度同步播放倍速';
+
+  @override
+  String get playerDanmakuShowDebugInfo => '顯示彈幕除錯資訊';
+
+  @override
+  String get playerStrmDirectPlaying => '正在直連播放 STRM 檔案';
+
+  @override
+  String get playerCloudModeDirectDescription => '速度較快、省流';
+
+  @override
+  String get playerCloudModeNasProxyDescription => '色調或音訊異常時可嘗試切換';
+
+  @override
+  String get playerCloudPlayRecommend => '推薦';
+
+  @override
+  String get playerCloudPlayingNotice => '正在播放網盤上的檔案，播放速度和畫質取決於網盤方規則。';
+
+  @override
+  String get playerCloudSwitchNotice => '如遇播放異常，可嘗試切換播放方式。';
+
+  @override
+  String get playerPlayModeLabel => '播放方式';
+
+  @override
+  String get playerCloudFallbackName => '網盤';
+
+  @override
+  String get playerCloudPlayErrorTitle => '抱歉，播放出錯了';
+
+  @override
+  String get playerCloudSwitchQuality => '播放其他畫質';
+
+  @override
+  String get playerCloudSwitchToProxy => '切換 NAS 代理播放';
+
+  @override
+  String get playerStrmPlaybackErrorHint =>
+      'STRM 直連播放異常，可能原因：網盤掛載連線中斷、觸發網盤風控、網盤限制非會員操作、瀏覽器不支援該檔案類型。';
+
+  @override
+  String get playerChannelLineFallback => '線路';
+
+  @override
+  String get playerSubtitleAddDialogTitle => '新增字幕';
+
+  @override
+  String get playerSubtitleSearchSortHint => '按相關度排序：';
+
+  @override
+  String get playerSubtitleSearchNoResults => '未搜尋到相關字幕';
+
+  @override
+  String playerSubtitleSearchDownloadCount(String count) {
+    return '下載量 $count';
+  }
+
+  @override
+  String get playerSubtitleSearchDownloading => '下載中';
+
+  @override
+  String get playerSubtitleSearchDownloadDone => '下載完成';
+
+  @override
+  String get playerSubtitleSearchDownload => '下載字幕';
+
+  @override
+  String get playerSubtitleDownloadSimilarForEpisodes => '為其他集下載相似字幕';
+
+  @override
+  String get playerSubtitleLanguageSimplifiedChinese => '簡體中文';
+
+  @override
+  String get playerSubtitleLanguageEnglish => '英文';
+
+  @override
+  String get playerSubtitleAdjust => '調整字幕';
+
+  @override
+  String get playerSubtitleReset => '重設';
+
+  @override
+  String get playerSubtitleOffset => '偏移';
+
+  @override
+  String get playerSubtitleOffsetMin => '-5秒';
+
+  @override
+  String get playerSubtitleOffsetMax => '+5秒';
+
+  @override
+  String get playerSubtitleSecondsSuffix => '秒';
+
+  @override
+  String get playerSubtitlePosition => '位置';
+
+  @override
+  String get playerSubtitlePositionBottom => '底部';
+
+  @override
+  String get playerSubtitlePositionTop => '頂部';
+
+  @override
+  String get playerSubtitlePositionLockedHint => '當前字幕為彈幕/特效字幕（含定位標籤），位置調整不可用';
+
+  @override
+  String get playerSubtitleFontSize => '字號';
+
+  @override
+  String get playerSubtitleFontSizeMin => '最小';
+
+  @override
+  String get playerSubtitleFontSizeMax => '最大';
+
+  @override
+  String get playerSubtitlePanelTitle => '字幕';
+
+  @override
+  String get playerSubtitleAdjustButton => '調整';
+
+  @override
+  String get playerSubtitleAddButton => '新增';
+
+  @override
+  String get playerSubtitleOff => '關閉';
+
+  @override
+  String get playerSubtitleSearchMenu => '搜尋字幕';
+
+  @override
+  String get playerSubtitleAddNasFile => '新增 NAS 字幕檔案';
+
+  @override
+  String get playerSubtitleAddLocalFile => '新增電腦字幕檔案';
+
+  @override
+  String get playerSubtitleDirectLinkMissingTitle => '直連播放缺失內建字幕';
+
+  @override
+  String get playerSubtitleDirectLinkMissingContent =>
+      '由於網盤方的限制，直連轉碼播放時可能無法取得內建字幕列表。如需切換內建字幕，請切換播放方式為「NAS 代理播放」。';
+
+  @override
+  String get playerDetailSeparator => '：';
+
+  @override
+  String get playerPlayType => '播放類型';
+
+  @override
+  String get playerPlayTypeStrmDirect => 'STRM 直連播放';
+
+  @override
+  String get playerPlayTypeTranscode => '轉碼播放';
+
+  @override
+  String get playerPlayTypeDirect => '直接播放';
+
+  @override
+  String get playerTranscodeReason => '轉碼原因';
+
+  @override
+  String get playerTranscodeReasonSeparator => '；';
+
+  @override
+  String get playerPlaybackInfo => '播放資訊';
+
+  @override
+  String get playerMediaSourceInfo => '媒體源資訊';
+
+  @override
+  String get playerContainerFormat => '封裝容器';
+
+  @override
+  String get playerBufferDuration => '緩衝時長';
+
+  @override
+  String get playerAudioCodec => '音訊編碼';
+
+  @override
+  String get playerGpuEnabled => '啟用 GPU';
+
+  @override
+  String get playerDecodeMethod => '解碼方式';
+
+  @override
+  String get playerEncodeMethod => '編碼方式';
+
+  @override
+  String get playerTranscodeFrameRate => '轉碼幀率';
+
+  @override
+  String get playerDroppedFrames => '丟幀';
+
+  @override
+  String get playerCorruptedFrames => '壞幀';
+
+  @override
+  String get playerCodec => '編碼';
+
+  @override
+  String get playerDynamicRange => '動態範圍';
+
+  @override
+  String get playerFullscreenEnter => '進入全螢幕';
+
+  @override
+  String get playerFullscreenExit => '退出全螢幕';
+
+  @override
+  String get playerNextVideo => '下一個影片';
+
+  @override
+  String playerEpisodeNumber(String number) {
+    return '第 $number 集';
+  }
+
+  @override
+  String get playerReplay => '重播';
+
+  @override
+  String get playerUndo => '復原';
+
+  @override
+  String get playerSkipIntroAutoSkipped => '已自動跳過片頭';
+
+  @override
+  String playerSkipOutroInSeconds(int seconds) {
+    return '$seconds 秒後跳過片尾';
+  }
+
+  @override
+  String playerSkipOutroNextEpisodeInSeconds(int seconds) {
+    return '$seconds 秒後播放下一集';
+  }
+
+  @override
+  String playerSkipOutroEndInSeconds(int seconds) {
+    return '$seconds 秒後結束播放';
+  }
+
+  @override
+  String get playerUnknown => '未知';
+
+  @override
+  String playerAudioDefaultSuffix(String language) {
+    return '$language - 預設';
+  }
+
+  @override
+  String get playerSettingsWindowAspectRatioFollowVideo => '跟隨影片比例';
+
+  @override
+  String get playerSettingsAspectRatioDefault => '預設';
+
+  @override
+  String get playerSettingsAdvanced => '進階';
+
+  @override
+  String get playerSettingsAutoNext => '自動連播';
+
+  @override
+  String get playerSettingsSkipIntroOutro => '跳過片頭/片尾';
+
+  @override
+  String get playerSettingsWindowRatio => '視窗比例';
+
+  @override
+  String get playerSettingsAspectRatio => '畫面比例';
+
+  @override
+  String get playerSettingsClientDecodeMode => '客戶端解碼模式';
+
+  @override
+  String get playerSettingsAudio => '音訊';
+
+  @override
+  String get playerSettingsAdvancedTitle => '進階設定';
+
+  @override
+  String get playerSettingsHevcToH264 => 'HEVC 轉為 H.264';
+
+  @override
+  String get playerSettingsHevcToH264Description => '播放有聲音無畫面時可嘗試開啟';
+
+  @override
+  String get playerSettingsForceSdr => '色調強制映射為 SDR';
+
+  @override
+  String get playerSettingsForceSdrDescription => '畫面偏暗時可嘗試開啟，適用於不支援 HDR 的裝置';
+
+  @override
+  String get playerSettingsQuarkCdnSegment => '夸克 CDN 分片直連';
+
+  @override
+  String get playerSettingsQuarkCdnSegmentDescription =>
+      '開啟後按分片預取夸克網盤直連流；關閉則使用原有直連方式';
+
+  @override
+  String get playerSettingsSmartSkip => '智能跳過';
+
+  @override
+  String get playerSettingsSkipIntroOutroBoth => '跳過片頭片尾';
+
+  @override
+  String get playerSettingsIntroConfigured => '已設定片頭';
+
+  @override
+  String get playerSettingsOutroConfigured => '已設定片尾';
+
+  @override
+  String get playerSettingsNotSet => '未設定';
+
+  @override
+  String playerSettingsSkipScope(String title, String season) {
+    return '生效範圍: 《$title》 第 $season 季';
+  }
+
+  @override
+  String get playerSettingsSmartSkipIntroOutro => '智能跳過片頭/片尾';
+
+  @override
+  String get playerSettingsIntroDuration => '片頭時長';
+
+  @override
+  String get playerSettingsOutroDuration => '片尾時長';
+
+  @override
+  String playerSettingsSetOutroToRemaining(String time) {
+    return '將當前剩餘時長 $time 設為片尾';
+  }
+
+  @override
+  String playerSettingsSetIntroToCurrent(String time) {
+    return '將當前時間 $time 設為片頭';
+  }
+
+  @override
+  String get playerSettingsTenMinutes => '10 分鐘';
+
+  @override
+  String get playerSettingsSliderStart => '開始';
+
+  @override
+  String get playerSettingsSliderEnd => '結束';
+
+  @override
+  String get playerSettingsDecodeAutoTip => '自動選擇硬體解碼，失敗時回退到軟體解碼。推薦。';
+
+  @override
+  String get playerSettingsDecodeSoftwareTip => '強制使用軟體解碼，相容性最好；硬解花屏/黑屏時的兜底方案。';
+
+  @override
+  String get playerSettingsDecodeCopyTip =>
+      '硬體解碼但將幀拷回記憶體，可與所有濾鏡/彈幕/截圖功能共存；略費 CPU。';
+
+  @override
+  String get playerSettingsSoftwareDecode => '軟體解碼';
+
+  @override
+  String get playerSettingsCopyBackMode => '回拷模式';
+
+  @override
+  String get playerSettingsSpecifyHwdec => '指定硬體解碼器';
+
+  @override
+  String get playerSettingsNoHwdecAvailable => '未偵測到可用的硬體解碼器';
+
+  @override
+  String get playerQualityTitle => '影片畫質';
+
+  @override
+  String get playerQualityOriginal => '原畫';
+
+  @override
+  String get playerQualityCustom => '自訂';
+
+  @override
+  String get playerQualityCustomTitle => '自訂影片畫質';
+
+  @override
+  String get playerQualityDirectUnsupported => '直連播放暫不支援此畫質';
+
+  @override
+  String get playerQualityLowRiskHint => '此選項風控機率相對較低，建議優先選擇';
+
+  @override
+  String get playerQualityOriginalNoAudioHint => '直連播放原畫無聲音';
+
+  @override
+  String get playerQualityOriginalNoAudioTooltip =>
+      '由於播放器對音訊編碼格式的支援有限，直連播放原畫可能出現無聲音的情況。可嘗試切換播放方式為「NAS 代理播放」。';
+
+  @override
+  String get playerSpeedLabel => '倍速';
+
+  @override
+  String get playerSettingsAuto => '自動';
+
+  @override
+  String get playerTranscodeReasonLowerQuality => '依影片畫質設定降低畫質';
+
+  @override
+  String get playerTranscodeReasonSubtitleBurn => '字幕燒錄';
+
+  @override
+  String get playerTranscodeReasonSubtitleToVtt => '字幕轉為 vtt 切片';
+
+  @override
+  String get playerTranscodeReasonVideoFormat => '視訊格式轉換';
+
+  @override
+  String get playerTranscodeReasonAudioFormat => '音訊格式轉換';
+
+  @override
+  String get playerTranscodeReasonToneMapping => '色調映射';
+
+  @override
+  String get playerDecodeMethodSoftware => '軟解碼';
+
+  @override
+  String get playerDecodeMethodQsv => 'QSV 解碼';
+
+  @override
+  String get playerDecodeMethodVaapi => 'VAAPI 解碼';
+
+  @override
+  String get playerDecodeMethodNvdec => 'NVDEC 解碼';
+
+  @override
+  String get playerDecodeMethodRkmpp => 'RKMPP 解碼';
+
+  @override
+  String get playerEncodeMethodSoftware => '軟編碼';
+
+  @override
+  String get playerEncodeMethodQsv => 'QSV 編碼';
+
+  @override
+  String get playerEncodeMethodQsvLowPower => 'QSV 低電壓編碼';
+
+  @override
+  String get playerEncodeMethodVaapi => 'VAAPI 編碼';
+
+  @override
+  String get playerEncodeMethodNvenc => 'NVENC 編碼';
+
+  @override
+  String get playerEncodeMethodRkmpp => 'RKMPP 編碼';
 }

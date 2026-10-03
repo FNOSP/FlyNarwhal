@@ -1720,4 +1720,815 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get smartAnalysisSubmitFailed =>
       'Failed to submit the analysis request';
+
+  @override
+  String get shortcutFocusSearch => 'Focus the search box';
+
+  @override
+  String get shortcutTogglePlayPause => 'Play/Pause';
+
+  @override
+  String get shortcutMute => 'Mute/Unmute';
+
+  @override
+  String get shortcutSeekBackward => 'Rewind 10 seconds';
+
+  @override
+  String get shortcutSeekForward => 'Forward 10 seconds';
+
+  @override
+  String get shortcutVolumeUp => 'Volume up';
+
+  @override
+  String get shortcutVolumeDown => 'Volume down';
+
+  @override
+  String get shortcutToggleFullscreen => 'Enter fullscreen';
+
+  @override
+  String get shortcutExitFullscreen => 'Exit fullscreen';
+
+  @override
+  String get shortcutSearchNext => 'Next search result';
+
+  @override
+  String get shortcutSearchPrev => 'Previous search result';
+
+  @override
+  String get shortcutSearchSelect => 'Select search result';
+
+  @override
+  String get shortcutSearchSwitchTab => 'Switch search category';
+
+  @override
+  String get shortcutSearchExit => 'Exit search';
+
+  @override
+  String get playerSubtitleExternalSuffix => ' - External';
+
+  @override
+  String get playerSubtitleDefaultSuffix => ' - Default';
+
+  @override
+  String playerVolumeLabel(String value) {
+    return 'Volume: $value%';
+  }
+
+  @override
+  String playerVolumeUnmuteLabel(String value) {
+    return 'Unmuted: $value%';
+  }
+
+  @override
+  String get playerVolumeMute => 'Mute';
+
+  @override
+  String get playerSeekRewindTo => 'Rewind to';
+
+  @override
+  String get playerSeekForwardTo => 'Fast-forward to';
+
+  @override
+  String playerSeekTimeToast(String label, String time) {
+    return '$label: $time';
+  }
+
+  @override
+  String get playerForceH264Disabled => 'This video is already H.264';
+
+  @override
+  String get playerForceSdrDisabled => 'This video is already SDR';
+
+  @override
+  String get playerDirectLinkCdnRangeNotDirect =>
+      'This is not a netdisk direct-link playback';
+
+  @override
+  String get playerDirectLinkCdnRangeQuarkOnly =>
+      'Only Quark netdisk is supported';
+
+  @override
+  String get playerCloudModeDirect => 'Netdisk direct link';
+
+  @override
+  String get playerCloudModeNasProxy => 'NAS proxy';
+
+  @override
+  String playerCloudModeSwitchedToast(String label) {
+    return 'Playback mode switched to $label';
+  }
+
+  @override
+  String get playerCloudProxyFailedFallbackDirect =>
+      'NAS proxy playback failed, switching to netdisk direct link';
+
+  @override
+  String get playerInfoMissingSearchSubtitle =>
+      'Current file info is missing; cannot search subtitles';
+
+  @override
+  String get playerInfoMissingAddNasSubtitle =>
+      'Current file info is missing; cannot add a NAS subtitle';
+
+  @override
+  String get playerInfoMissingUploadSubtitle =>
+      'Current file info is missing; cannot upload a subtitle';
+
+  @override
+  String get playerSubtitleDeleteTitle => 'Delete external subtitle';
+
+  @override
+  String playerSubtitleDeleteConfirm(String displayName) {
+    return 'Delete the external subtitle $displayName?';
+  }
+
+  @override
+  String get playerSubtitleDeleteSuccess => 'Subtitle deleted';
+
+  @override
+  String playerSubtitleDeleteFailed(String error) {
+    return 'Failed to delete subtitle: $error';
+  }
+
+  @override
+  String get playerSubtitleAddNasTitle => 'Add NAS subtitle file';
+
+  @override
+  String get playerSubtitleAddNasSuccess => 'NAS subtitle added';
+
+  @override
+  String get playerSubtitleAlreadyMarked =>
+      'This file has already been added as a subtitle';
+
+  @override
+  String playerSubtitleAddNasFailed(String error) {
+    return 'Failed to add NAS subtitle: $error';
+  }
+
+  @override
+  String get playerSubtitleDownloadSuccess => 'Downloaded';
+
+  @override
+  String playerSubtitleDownloadFailed(String error) {
+    return 'Failed to download subtitle: $error';
+  }
+
+  @override
+  String get playerSubtitleTaskCreated => 'Subtitle download task created';
+
+  @override
+  String get playerSubtitleTaskFailed =>
+      'Failed to create subtitle download task; please retry';
+
+  @override
+  String playerSubtitleSwitchFailed(String error) {
+    return 'Failed to switch subtitle: $error';
+  }
+
+  @override
+  String playerSwitchOriginalQualityFailed(String error) {
+    return 'Failed to switch to original quality: $error';
+  }
+
+  @override
+  String playerLoadFailed(String error) {
+    return 'Load failed: $error';
+  }
+
+  @override
+  String playerToggleFullscreenFailed(String error) {
+    return 'Failed to toggle fullscreen: $error';
+  }
+
+  @override
+  String playerSwitchPlaybackSettingsFailed(String error) {
+    return 'Failed to switch playback settings: $error';
+  }
+
+  @override
+  String get playerNotReady => 'The player is not ready yet';
+
+  @override
+  String playerEnterPipFailed(String error) {
+    return 'Failed to enter picture-in-picture: $error';
+  }
+
+  @override
+  String playerExitPipFailed(String error) {
+    return 'Failed to exit picture-in-picture: $error';
+  }
+
+  @override
+  String playerSwitchQualityFailed(String error) {
+    return 'Failed to switch quality: $error';
+  }
+
+  @override
+  String playerSwitchPlayModeFailed(String error) {
+    return 'Failed to switch playback mode: $error';
+  }
+
+  @override
+  String playerSwitchAudioFailed(String error) {
+    return 'Failed to switch audio: $error';
+  }
+
+  @override
+  String playerSubtitleSwitchingTo(String language) {
+    return 'Switching subtitle to: $language';
+  }
+
+  @override
+  String playerSubtitleSwitchingToFormat(String language, String format) {
+    return 'Switching subtitle to: $language $format';
+  }
+
+  @override
+  String get playerClose => 'Close';
+
+  @override
+  String get playerBack => 'Back';
+
+  @override
+  String get playerRewindTenSeconds => 'Rewind 10 seconds';
+
+  @override
+  String get playerForwardTenSeconds => 'Forward 10 seconds';
+
+  @override
+  String get playerPlayPause => 'Play/Pause';
+
+  @override
+  String get playerPip => 'Picture-in-picture';
+
+  @override
+  String get playerExitPip => 'Exit picture-in-picture';
+
+  @override
+  String get playerDanmakuClose => 'Hide danmaku';
+
+  @override
+  String get playerDanmakuOpen => 'Show danmaku';
+
+  @override
+  String get playerPlaybackDetailsTooltip => 'Playback details';
+
+  @override
+  String get playerSkipConfigSaved => 'Saved';
+
+  @override
+  String playerSkipConfigSaveFailed(String error) {
+    return 'Failed to save: $error';
+  }
+
+  @override
+  String get playerDanmakuRequestFailed =>
+      'Danmaku API request failed; please check the FlyNarwhal server configuration';
+
+  @override
+  String get playerSmartSkipRequestFailed =>
+      'Smart intro/credits API request failed; please check the FlyNarwhal server configuration';
+
+  @override
+  String playerFeatureComingSoon(String feature) {
+    return '$feature is not available yet';
+  }
+
+  @override
+  String get playerPlayErrorRetrySwitch =>
+      'Playback error, please try switching lines';
+
+  @override
+  String get playerNoPlayableLine =>
+      'This channel has no available playback line';
+
+  @override
+  String get playerLoadFailedBackRetry =>
+      'Load failed, please go back and retry';
+
+  @override
+  String get playerPlayFailedSwitchLine =>
+      'Playback failed, please try switching lines';
+
+  @override
+  String get playerLive => 'LIVE';
+
+  @override
+  String get playerPause => 'Pause';
+
+  @override
+  String get playerPlay => 'Play';
+
+  @override
+  String get playerDanmakuSettingsTooltip => 'Danmaku settings';
+
+  @override
+  String get playerDanmakuSettingsTitle => 'Danmaku settings';
+
+  @override
+  String get playerDanmakuAdvancedSettings => 'Advanced settings';
+
+  @override
+  String playerDanmakuDisplayArea(String value) {
+    return 'Display area $value%';
+  }
+
+  @override
+  String playerDanmakuOpacity(String value) {
+    return 'Opacity $value%';
+  }
+
+  @override
+  String playerDanmakuFontSize(String value) {
+    return 'Font size $value%';
+  }
+
+  @override
+  String playerDanmakuSpeed(String value) {
+    return 'Speed $value';
+  }
+
+  @override
+  String get playerDanmakuSpeedVerySlow => 'Very slow';
+
+  @override
+  String get playerDanmakuSpeedSlow => 'Slow';
+
+  @override
+  String get playerDanmakuSpeedNormal => 'Normal';
+
+  @override
+  String get playerDanmakuSpeedFast => 'Fast';
+
+  @override
+  String get playerDanmakuSpeedVeryFast => 'Very fast';
+
+  @override
+  String get playerDanmakuSyncPlaybackSpeed =>
+      'Sync danmaku speed with playback rate';
+
+  @override
+  String get playerDanmakuShowDebugInfo => 'Show danmaku debug info';
+
+  @override
+  String get playerStrmDirectPlaying => 'Playing STRM file via direct link';
+
+  @override
+  String get playerCloudModeDirectDescription => 'Faster, saves bandwidth';
+
+  @override
+  String get playerCloudModeNasProxyDescription =>
+      'Try switching when color or audio is abnormal';
+
+  @override
+  String get playerCloudPlayRecommend => 'Recommended';
+
+  @override
+  String get playerCloudPlayingNotice =>
+      'Playing a file on the netdisk. Playback speed and quality depend on the netdisk provider\'s rules.';
+
+  @override
+  String get playerCloudSwitchNotice =>
+      'If playback is abnormal, try switching the play mode.';
+
+  @override
+  String get playerPlayModeLabel => 'Play Mode';
+
+  @override
+  String get playerCloudFallbackName => 'Netdisk';
+
+  @override
+  String get playerCloudPlayErrorTitle => 'Sorry, playback failed';
+
+  @override
+  String get playerCloudSwitchQuality => 'Play another quality';
+
+  @override
+  String get playerCloudSwitchToProxy => 'Switch to NAS proxy playback';
+
+  @override
+  String get playerStrmPlaybackErrorHint =>
+      'STRM direct playback failed. Possible causes: the netdisk mount is disconnected, netdisk risk control was triggered, netdisk restrictions on non-members, or the browser does not support this file type.';
+
+  @override
+  String get playerChannelLineFallback => 'Line';
+
+  @override
+  String get playerSubtitleAddDialogTitle => 'Add Subtitle';
+
+  @override
+  String get playerSubtitleSearchSortHint => 'Sorted by relevance:';
+
+  @override
+  String get playerSubtitleSearchNoResults => 'No matching subtitles found';
+
+  @override
+  String playerSubtitleSearchDownloadCount(String count) {
+    return 'Downloads $count';
+  }
+
+  @override
+  String get playerSubtitleSearchDownloading => 'Downloading';
+
+  @override
+  String get playerSubtitleSearchDownloadDone => 'Downloaded';
+
+  @override
+  String get playerSubtitleSearchDownload => 'Download Subtitle';
+
+  @override
+  String get playerSubtitleDownloadSimilarForEpisodes =>
+      'Download similar subtitles for other episodes';
+
+  @override
+  String get playerSubtitleLanguageSimplifiedChinese => 'Simplified Chinese';
+
+  @override
+  String get playerSubtitleLanguageEnglish => 'English';
+
+  @override
+  String get playerSubtitleAdjust => 'Adjust Subtitle';
+
+  @override
+  String get playerSubtitleReset => 'Reset';
+
+  @override
+  String get playerSubtitleOffset => 'Offset';
+
+  @override
+  String get playerSubtitleOffsetMin => '-5s';
+
+  @override
+  String get playerSubtitleOffsetMax => '+5s';
+
+  @override
+  String get playerSubtitleSecondsSuffix => 's';
+
+  @override
+  String get playerSubtitlePosition => 'Position';
+
+  @override
+  String get playerSubtitlePositionBottom => 'Bottom';
+
+  @override
+  String get playerSubtitlePositionTop => 'Top';
+
+  @override
+  String get playerSubtitlePositionLockedHint =>
+      'This subtitle is a danmaku/effect subtitle (with positioning tags); position adjustment is unavailable.';
+
+  @override
+  String get playerSubtitleFontSize => 'Font Size';
+
+  @override
+  String get playerSubtitleFontSizeMin => 'Min';
+
+  @override
+  String get playerSubtitleFontSizeMax => 'Max';
+
+  @override
+  String get playerSubtitlePanelTitle => 'Subtitles';
+
+  @override
+  String get playerSubtitleAdjustButton => 'Adjust';
+
+  @override
+  String get playerSubtitleAddButton => 'Add';
+
+  @override
+  String get playerSubtitleOff => 'Off';
+
+  @override
+  String get playerSubtitleSearchMenu => 'Search Subtitles';
+
+  @override
+  String get playerSubtitleAddNasFile => 'Add NAS Subtitle File';
+
+  @override
+  String get playerSubtitleAddLocalFile => 'Add Computer Subtitle File';
+
+  @override
+  String get playerSubtitleDirectLinkMissingTitle =>
+      'Built-in subtitles missing in direct-link playback';
+
+  @override
+  String get playerSubtitleDirectLinkMissingContent =>
+      'Due to cloud storage restrictions, the built-in subtitle list may be unavailable during direct-link transcoded playback. To switch built-in subtitles, change the playback mode to \"NAS proxy playback\".';
+
+  @override
+  String get playerDetailSeparator => ':';
+
+  @override
+  String get playerPlayType => 'Play type';
+
+  @override
+  String get playerPlayTypeStrmDirect => 'STRM direct playback';
+
+  @override
+  String get playerPlayTypeTranscode => 'Transcode playback';
+
+  @override
+  String get playerPlayTypeDirect => 'Direct playback';
+
+  @override
+  String get playerTranscodeReason => 'Transcode reason';
+
+  @override
+  String get playerTranscodeReasonSeparator => '; ';
+
+  @override
+  String get playerPlaybackInfo => 'Playback info';
+
+  @override
+  String get playerMediaSourceInfo => 'Media source info';
+
+  @override
+  String get playerContainerFormat => 'Container';
+
+  @override
+  String get playerBufferDuration => 'Buffer duration';
+
+  @override
+  String get playerAudioCodec => 'Audio codec';
+
+  @override
+  String get playerGpuEnabled => 'GPU enabled';
+
+  @override
+  String get playerDecodeMethod => 'Decode method';
+
+  @override
+  String get playerEncodeMethod => 'Encode method';
+
+  @override
+  String get playerTranscodeFrameRate => 'Transcode frame rate';
+
+  @override
+  String get playerDroppedFrames => 'Dropped frames';
+
+  @override
+  String get playerCorruptedFrames => 'Corrupted frames';
+
+  @override
+  String get playerCodec => 'Codec';
+
+  @override
+  String get playerDynamicRange => 'Dynamic range';
+
+  @override
+  String get playerFullscreenEnter => 'Enter fullscreen';
+
+  @override
+  String get playerFullscreenExit => 'Exit fullscreen';
+
+  @override
+  String get playerNextVideo => 'Next video';
+
+  @override
+  String playerEpisodeNumber(String number) {
+    return 'Episode $number';
+  }
+
+  @override
+  String get playerReplay => 'Replay';
+
+  @override
+  String get playerUndo => 'Undo';
+
+  @override
+  String get playerSkipIntroAutoSkipped => 'Intro automatically skipped';
+
+  @override
+  String playerSkipOutroInSeconds(int seconds) {
+    return 'Skipping outro in ${seconds}s';
+  }
+
+  @override
+  String playerSkipOutroNextEpisodeInSeconds(int seconds) {
+    return 'Playing next episode in ${seconds}s';
+  }
+
+  @override
+  String playerSkipOutroEndInSeconds(int seconds) {
+    return 'Ending playback in ${seconds}s';
+  }
+
+  @override
+  String get playerUnknown => 'Unknown';
+
+  @override
+  String playerAudioDefaultSuffix(String language) {
+    return '$language - Default';
+  }
+
+  @override
+  String get playerSettingsWindowAspectRatioFollowVideo => 'Follow video';
+
+  @override
+  String get playerSettingsAspectRatioDefault => 'Default';
+
+  @override
+  String get playerSettingsAdvanced => 'Advanced';
+
+  @override
+  String get playerSettingsAutoNext => 'Auto next';
+
+  @override
+  String get playerSettingsSkipIntroOutro => 'Skip intro/outro';
+
+  @override
+  String get playerSettingsWindowRatio => 'Window ratio';
+
+  @override
+  String get playerSettingsAspectRatio => 'Aspect ratio';
+
+  @override
+  String get playerSettingsClientDecodeMode => 'Client decode mode';
+
+  @override
+  String get playerSettingsAudio => 'Audio';
+
+  @override
+  String get playerSettingsAdvancedTitle => 'Advanced settings';
+
+  @override
+  String get playerSettingsHevcToH264 => 'Convert HEVC to H.264';
+
+  @override
+  String get playerSettingsHevcToH264Description =>
+      'Try enabling it when playback has audio but no video.';
+
+  @override
+  String get playerSettingsForceSdr => 'Force tone mapping to SDR';
+
+  @override
+  String get playerSettingsForceSdrDescription =>
+      'Try enabling it when the image looks too dark; for devices that do not support HDR.';
+
+  @override
+  String get playerSettingsQuarkCdnSegment => 'Quark CDN segment direct link';
+
+  @override
+  String get playerSettingsQuarkCdnSegmentDescription =>
+      'When on, prefetches the Quark netdisk direct stream by segment; when off, uses the original direct link method.';
+
+  @override
+  String get playerSettingsSmartSkip => 'Smart skip';
+
+  @override
+  String get playerSettingsSkipIntroOutroBoth => 'Skip intro and outro';
+
+  @override
+  String get playerSettingsIntroConfigured => 'Intro set';
+
+  @override
+  String get playerSettingsOutroConfigured => 'Outro set';
+
+  @override
+  String get playerSettingsNotSet => 'Not set';
+
+  @override
+  String playerSettingsSkipScope(String title, String season) {
+    return 'Applies to: $title Season $season';
+  }
+
+  @override
+  String get playerSettingsSmartSkipIntroOutro => 'Smart skip intro/outro';
+
+  @override
+  String get playerSettingsIntroDuration => 'Intro duration';
+
+  @override
+  String get playerSettingsOutroDuration => 'Outro duration';
+
+  @override
+  String playerSettingsSetOutroToRemaining(String time) {
+    return 'Set outro to the current remaining time $time';
+  }
+
+  @override
+  String playerSettingsSetIntroToCurrent(String time) {
+    return 'Set intro to the current time $time';
+  }
+
+  @override
+  String get playerSettingsTenMinutes => '10 minutes';
+
+  @override
+  String get playerSettingsSliderStart => 'Start';
+
+  @override
+  String get playerSettingsSliderEnd => 'End';
+
+  @override
+  String get playerSettingsDecodeAutoTip =>
+      'Automatically selects hardware decoding and falls back to software decoding on failure. Recommended.';
+
+  @override
+  String get playerSettingsDecodeSoftwareTip =>
+      'Forces software decoding; best compatibility and a fallback when hardware decoding shows artifacts or a black screen.';
+
+  @override
+  String get playerSettingsDecodeCopyTip =>
+      'Hardware decoding with frames copied back to memory; works with all filters, danmaku and screenshot features at a slight CPU cost.';
+
+  @override
+  String get playerSettingsSoftwareDecode => 'Software decoding';
+
+  @override
+  String get playerSettingsCopyBackMode => 'Copy-back mode';
+
+  @override
+  String get playerSettingsSpecifyHwdec => 'Specify hardware decoder';
+
+  @override
+  String get playerSettingsNoHwdecAvailable =>
+      'No usable hardware decoder was detected';
+
+  @override
+  String get playerQualityTitle => 'Video quality';
+
+  @override
+  String get playerQualityOriginal => 'Original';
+
+  @override
+  String get playerQualityCustom => 'Custom';
+
+  @override
+  String get playerQualityCustomTitle => 'Custom video quality';
+
+  @override
+  String get playerQualityDirectUnsupported =>
+      'This quality is not yet supported for direct-link playback';
+
+  @override
+  String get playerQualityLowRiskHint =>
+      'This option carries a relatively lower risk-control chance; choosing it first is recommended';
+
+  @override
+  String get playerQualityOriginalNoAudioHint =>
+      'Original quality may have no sound via direct link';
+
+  @override
+  String get playerQualityOriginalNoAudioTooltip =>
+      'Because the player has limited support for audio codec formats, the original quality may have no sound in direct-link playback. Try switching the playback mode to “NAS proxy”.';
+
+  @override
+  String get playerSpeedLabel => 'Speed';
+
+  @override
+  String get playerSettingsAuto => 'Auto';
+
+  @override
+  String get playerTranscodeReasonLowerQuality =>
+      'Lower quality per video quality setting';
+
+  @override
+  String get playerTranscodeReasonSubtitleBurn => 'Subtitle burn-in';
+
+  @override
+  String get playerTranscodeReasonSubtitleToVtt =>
+      'Subtitle converted to vtt segments';
+
+  @override
+  String get playerTranscodeReasonVideoFormat => 'Video format conversion';
+
+  @override
+  String get playerTranscodeReasonAudioFormat => 'Audio format conversion';
+
+  @override
+  String get playerTranscodeReasonToneMapping => 'Tone mapping';
+
+  @override
+  String get playerDecodeMethodSoftware => 'Software decoding';
+
+  @override
+  String get playerDecodeMethodQsv => 'QSV decoding';
+
+  @override
+  String get playerDecodeMethodVaapi => 'VAAPI decoding';
+
+  @override
+  String get playerDecodeMethodNvdec => 'NVDEC decoding';
+
+  @override
+  String get playerDecodeMethodRkmpp => 'RKMPP decoding';
+
+  @override
+  String get playerEncodeMethodSoftware => 'Software encoding';
+
+  @override
+  String get playerEncodeMethodQsv => 'QSV encoding';
+
+  @override
+  String get playerEncodeMethodQsvLowPower => 'QSV low-power encoding';
+
+  @override
+  String get playerEncodeMethodVaapi => 'VAAPI encoding';
+
+  @override
+  String get playerEncodeMethodNvenc => 'NVENC encoding';
+
+  @override
+  String get playerEncodeMethodRkmpp => 'RKMPP encoding';
 }

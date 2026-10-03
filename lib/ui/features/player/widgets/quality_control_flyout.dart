@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../../../data/models/player_models.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../tooling/driver_test_mode.dart';
 
 const Color _flyoutBackgroundColor = Color(0xCC000000);
@@ -390,6 +391,7 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isOriginal = widget.qualities.isNotEmpty &&
         widget.qualities.first.resolution == widget.currentResolution &&
         widget.currentBitrate == widget.qualities.first.bitrate;
@@ -418,7 +420,9 @@ class _QualityControlFlyoutState extends State<QualityControlFlyout>
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              isOriginal ? '原画' : _formatResolution(widget.currentResolution),
+              isOriginal
+                  ? l10n.playerQualityOriginal
+                  : _formatResolution(widget.currentResolution),
               style: TextStyle(
                 color: _isButtonHovered ? Colors.white : _defaultTextColor,
                 fontSize: 17,
@@ -541,6 +545,7 @@ class _SimpleQualityPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final originalQuality = qualities.firstOrNull;
     final grouped = _groupQualitiesByResolution(qualities);
     final distinctResolutions =
@@ -565,9 +570,9 @@ class _SimpleQualityPage extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  '视频质量',
-                  style: TextStyle(
+                Text(
+                  l10n.playerQualityTitle,
+                  style: const TextStyle(
                     color: _defaultTextColor,
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
@@ -577,16 +582,16 @@ class _SimpleQualityPage extends StatelessWidget {
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
                     onTap: onToCustom,
-                    child: const Row(
+                    child: Row(
                       children: [
                         Text(
-                          '自定义',
-                          style: TextStyle(
+                          l10n.playerQualityCustom,
+                          style: const TextStyle(
                             color: _defaultTextColor,
                             fontSize: 14,
                           ),
                         ),
-                        Icon(
+                        const Icon(
                           FluentIcons.chevron_right,
                           size: 12,
                           color: _defaultTextColor,
@@ -607,7 +612,7 @@ class _SimpleQualityPage extends StatelessWidget {
           // Custom selection item if active
           if (isCustomSelection && currentBitrate != null)
             _QualityItem(
-              label: '自定义',
+              label: l10n.playerQualityCustom,
               rightText:
                   '${_formatResolution(currentResolution)} ${_formatBitrateSimple(currentBitrate!)}',
               isSelected: true,
@@ -630,7 +635,9 @@ class _SimpleQualityPage extends StatelessWidget {
                 currentResolution == resolution &&
                 (isOriginal ? currentBitrate == targetQuality.bitrate : true);
 
-            final label = isOriginal ? '原画' : _formatResolution(resolution);
+            final label = isOriginal
+                ? l10n.playerQualityOriginal
+                : _formatResolution(resolution);
             final rightInfo = isOriginal
                 ? '${_formatResolution(targetQuality.resolution)} ${_formatBitrateSimple(targetQuality.bitrate)}'
                 : null;
@@ -715,6 +722,7 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final currentQ = widget.qualities
         .where((q) =>
             q.resolution == widget.currentResolution &&
@@ -737,17 +745,17 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
                       onTap: widget.onBack,
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             FluentIcons.chevron_left,
                             size: 12,
                             color: Colors.white,
                           ),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Text(
-                            '自定义视频质量',
-                            style: TextStyle(
+                            l10n.playerQualityCustomTitle,
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
@@ -761,7 +769,7 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                     Text(
                       '${_formatResolution(currentQ.resolution)} '
                       '${_formatBitrateSimple(currentQ.bitrate)}'
-                      '${currentQ == widget.qualities.first ? ' - 原画' : ''}',
+                      '${currentQ == widget.qualities.first ? ' - ${l10n.playerQualityOriginal}' : ''}',
                       style: const TextStyle(
                         color: _selectedTextColor,
                         fontSize: 14,
@@ -817,7 +825,7 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                             '${q.resolution}-${q.bitrate}',
                           ),
                           label: '${_formatBitrateSimple(q.bitrate)}'
-                              '${q == widget.qualities.first ? ' - 原画' : ''}',
+                              '${q == widget.qualities.first ? ' - ${l10n.playerQualityOriginal}' : ''}',
                           isSelected: isSelected,
                           highlightText: false,
                           showArrow: false,
@@ -947,17 +955,18 @@ class _CloudQualityPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Text(
-              '视频质量',
-              style: TextStyle(
+              l10n.playerQualityTitle,
+              style: const TextStyle(
                 color: _defaultTextColor,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
@@ -981,7 +990,7 @@ class _CloudQualityPage extends StatelessWidget {
             );
             if (!disabled) return item;
             return Tooltip(
-              message: '直连播放暂不支持该画质',
+              message: l10n.playerQualityDirectUnsupported,
               child: item,
             );
           }),
@@ -997,17 +1006,17 @@ class _CloudQualityPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_showDotFooter) ...[
-                  const Row(
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
+                      const Padding(
                         padding: EdgeInsets.only(top: 6, right: 6),
                         child: _GreenDot(),
                       ),
                       Expanded(
                         child: Text(
-                          '选项风控概率相对低，建议优先选择',
-                          style: TextStyle(
+                          l10n.playerQualityLowRiskHint,
+                          style: const TextStyle(
                             color: Color(0xA0FFFFFF),
                             fontSize: 12,
                           ),
@@ -1020,18 +1029,19 @@ class _CloudQualityPage extends StatelessWidget {
                 // The web player hides this hint (and its NAS 代理切换 advice)
                 // for STRM direct-link sessions.
                 if (!isStrm)
-                  const Row(
+                  Row(
                     children: [
                       Text(
-                        '直连播放原画无声音',
-                        style: TextStyle(color: Color(0xA0FFFFFF), fontSize: 12),
+                        l10n.playerQualityOriginalNoAudioHint,
+                        style: const TextStyle(
+                          color: Color(0xA0FFFFFF),
+                          fontSize: 12,
+                        ),
                       ),
-                      SizedBox(width: 6),
+                      const SizedBox(width: 6),
                       Tooltip(
-                        message:
-                            '由于播放器对音频编码格式的支持有限，直连播放原画可能出现无声音'
-                            '的情况。可尝试切换播放方式为 “NAS 代理播放”。',
-                        child: Icon(
+                        message: l10n.playerQualityOriginalNoAudioTooltip,
+                        child: const Icon(
                           FluentIcons.unknown,
                           size: 13,
                           color: Color(0x80FFFFFF),

@@ -6,6 +6,7 @@ import '../../../../domain/entities/media_type.dart';
 import '../../../../data/utils/fn_data_convertor.dart';
 import '../../../../data/models/player_models.dart';
 import '../../../../data/models/movie_detail_models.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../tooling/driver_test_mode.dart';
 import '../../../shared/tip_box.dart';
 import 'player_action_button.dart';
@@ -71,15 +72,18 @@ class PlayerAudioDisplayTexts {
 PlayerAudioDisplayTexts buildPlayerAudioDisplayTexts(
   AudioStream? audio,
   Map<String, String>? iso6391Map,
-  Map<String, String>? iso6392Map,
-) {
+  Map<String, String>? iso6392Map, {
+  String unknownLabel = '',
+  String defaultSuffixTemplate = '{language}',
+}) {
   if (audio == null) {
-    return const PlayerAudioDisplayTexts(
-      summaryText: '未知',
-      primaryText: '未知',
+    final unknownTexts = PlayerAudioDisplayTexts(
+      summaryText: unknownLabel,
+      primaryText: unknownLabel,
       secondaryLeadingText: '',
       secondaryTrailingText: '',
     );
+    return unknownTexts;
   }
 
   final languageName = _getPlayerAudioLanguageName(
@@ -94,8 +98,9 @@ PlayerAudioDisplayTexts buildPlayerAudioDisplayTexts(
   final readableTitle = audio.title.trim().isNotEmpty
       ? audio.title.trim()
       : _buildPlayerAudioReadableTitle(languageName, audio);
-  final primaryText =
-      audio.isDefault == 1 ? '$languageName - 默认' : languageName;
+  final primaryText = audio.isDefault == 1
+      ? defaultSuffixTemplate.replaceFirst('{language}', languageName)
+      : languageName;
 
   return PlayerAudioDisplayTexts(
     summaryText: _joinAudioParts([languageName, technicalSummary]),
@@ -147,14 +152,18 @@ String _joinAudioParts(List<String?> parts) {
 // "auto" / "no" / "auto-copy" plus a concrete hardware-decoder API name chosen
 // from the probed list (e.g. "videotoolbox"). `availableHwdec` maps an api to
 // its display label so a concrete selection renders its friendly name.
-String decodeModeLabel(String mode, List<HwdecOption> availableHwdec) {
+String decodeModeLabel(
+  AppLocalizations l10n,
+  String mode,
+  List<HwdecOption> availableHwdec,
+) {
   switch (mode) {
     case 'no':
-      return '软件解码';
+      return l10n.playerSettingsSoftwareDecode;
     case 'auto-copy':
-      return '回拷模式';
+      return l10n.playerSettingsCopyBackMode;
     case 'auto':
-      return '自动';
+      return l10n.playerSettingsAuto;
     default:
       for (final option in availableHwdec) {
         if (option.api == mode) {
@@ -193,6 +202,7 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool forceSdrColor;
   final void Function(bool enabled)? onForceSdrColorChanged;
   final String? forceSdrDisabledReason;
+
   /// Quark netdisk direct-play transport: on routes the raw CDN link through the
   /// local range proxy (分片直连), off lets mpv open the NAS /media/range link.
   final bool directLinkCdnRange;
@@ -913,22 +923,28 @@ class _MainSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final currentAudio = playingInfoCache?.currentAudioStream;
-    final audioDisplayTexts =
-        buildPlayerAudioDisplayTexts(currentAudio, iso6391Map, iso6392Map);
+    final audioDisplayTexts = buildPlayerAudioDisplayTexts(
+      currentAudio,
+      iso6391Map,
+      iso6392Map,
+      unknownLabel: l10n.playerUnknown,
+      defaultSuffixTemplate: l10n.playerAudioDefaultSuffix('{language}'),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         PlayerSettingsHeader(
-          title: '设置',
-          actionLabel: '高级',
+          title: l10n.settingsTitle,
+          actionLabel: l10n.playerSettingsAdvanced,
           onAction: onNavigateToAdvanced,
         ),
         const SizedBox(height: 8),
         PlayerSettingsToggleRow(
           key: const ValueKey('player-settings-autoplay-toggle'),
-          title: '自动连播',
+          title: l10n.playerSettingsAutoNext,
           checked: isAutoPlay,
           onChanged: onAutoPlayChanged,
         ),
@@ -938,31 +954,35 @@ class _MainSettingsScreen extends StatelessWidget {
                 MediaType.episode)
           _SettingsMenuItem(
             key: const ValueKey('player-settings-skip-config'),
-            title: '跳过片头/片尾',
-            value: _getSkipText(playingInfoCache?.playConfig),
+            title: l10n.playerSettingsSkipIntroOutro,
+            value: _getSkipText(l10n, playingInfoCache?.playConfig),
             onClick: onNavigateToSkipConfig,
           ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-window-ratio'),
-          title: '窗口比例',
-          value: windowAspectRatio == 'AUTO' ? '跟随视频比例' : windowAspectRatio,
+          title: l10n.playerSettingsWindowRatio,
+          value: windowAspectRatio == 'AUTO'
+              ? l10n.playerSettingsWindowAspectRatioFollowVideo
+              : windowAspectRatio,
           onClick: onNavigateToWindowAspectRatio,
         ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-video-fill-mode'),
-          title: '画面比例',
-          value: videoFillMode == 'default' ? '默认' : videoFillMode,
+          title: l10n.playerSettingsAspectRatio,
+          value: videoFillMode == 'default'
+              ? l10n.playerSettingsAspectRatioDefault
+              : videoFillMode,
           onClick: onNavigateToVideoFillMode,
         ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-decode-mode'),
-          title: '客户端解码模式',
-          value: decodeModeLabel(decodeMode, availableHwdec),
+          title: l10n.playerSettingsClientDecodeMode,
+          value: decodeModeLabel(l10n, decodeMode, availableHwdec),
           onClick: onNavigateToDecodeMode,
         ),
         _SettingsMenuItem(
           key: const ValueKey('player-settings-audio'),
-          title: '音频',
+          title: l10n.playerSettingsAudio,
           value: audioDisplayTexts.summaryText,
           onClick: onNavigateToAudio,
         ),
@@ -970,23 +990,23 @@ class _MainSettingsScreen extends StatelessWidget {
     );
   }
 
-  String _getSkipText(PlayConfig? config) {
+  String _getSkipText(AppLocalizations l10n, PlayConfig? config) {
     final skipOpening = config?.skipOpening ?? 0;
     final skipEnding = config?.skipEnding ?? 0;
 
     if (isSmartAnalysisGloballyEnabled && smartSkipEnabled) {
-      return '智能跳过';
+      return l10n.playerSettingsSmartSkip;
     }
     if (skipOpening > 0 && skipEnding > 0) {
-      return '跳过片头片尾';
+      return l10n.playerSettingsSkipIntroOutroBoth;
     }
     if (skipOpening > 0) {
-      return '已设置片头';
+      return l10n.playerSettingsIntroConfigured;
     }
     if (skipEnding > 0) {
-      return '已设置片尾';
+      return l10n.playerSettingsOutroConfigured;
     }
-    return '未设置';
+    return l10n.playerSettingsNotSet;
   }
 }
 
@@ -1017,31 +1037,35 @@ class _AdvancedSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        PlayerSettingsHeader(title: '高级设置', onBack: onBack),
+        PlayerSettingsHeader(
+          title: l10n.playerSettingsAdvancedTitle,
+          onBack: onBack,
+        ),
         const SizedBox(height: 8),
         PlayerSettingsToggleRow(
           key: const ValueKey('player-advanced-force-h264'),
-          title: 'HEVC 转为 H.264',
-          description: '播放有声音无画面时可尝试开启',
+          title: l10n.playerSettingsHevcToH264,
+          description: l10n.playerSettingsHevcToH264Description,
           checked: forceH264,
           onChanged: onForceH264Changed,
           disabledReason: forceH264DisabledReason,
         ),
         PlayerSettingsToggleRow(
           key: const ValueKey('player-advanced-force-sdr'),
-          title: '色调强制映射为 SDR',
-          description: '画面偏暗时可尝试开启，适用于不支持 HDR 的设备',
+          title: l10n.playerSettingsForceSdr,
+          description: l10n.playerSettingsForceSdrDescription,
           checked: forceSdrColor,
           onChanged: onForceSdrColorChanged,
           disabledReason: forceSdrDisabledReason,
         ),
         PlayerSettingsToggleRow(
           key: const ValueKey('player-advanced-direct-link-cdn-range'),
-          title: '夸克 CDN 分片直连',
-          description: '开启后按分片预取夸克网盘直连流；关闭则使用原有直连方式',
+          title: l10n.playerSettingsQuarkCdnSegment,
+          description: l10n.playerSettingsQuarkCdnSegmentDescription,
           checked: directLinkCdnRange,
           onChanged: onDirectLinkCdnRangeChanged,
           disabledReason: directLinkCdnRangeDisabledReason,
@@ -1185,6 +1209,7 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final audioList = widget.playingInfoCache?.currentAudioStreamList ?? [];
     final currentAudioStream =
         _selectedAudioStream ?? widget.playingInfoCache?.currentAudioStream;
@@ -1202,17 +1227,17 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
                   onTap: widget.onBack,
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         FluentIcons.chevron_left,
                         size: 12,
                         color: Colors.white,
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Text(
-                        '音频',
-                        style: TextStyle(
+                        l10n.playerSettingsAudio,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1247,6 +1272,9 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
                     audio,
                     widget.iso6391Map,
                     widget.iso6392Map,
+                    unknownLabel: l10n.playerUnknown,
+                    defaultSuffixTemplate:
+                        l10n.playerAudioDefaultSuffix('{language}'),
                   );
 
                   return KeyedSubtree(
@@ -1401,9 +1429,10 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     const options = ['AUTO', '4:3', '16:9', '21:9'];
-    const optionLabels = {
-      'AUTO': '跟随视频比例',
+    final optionLabels = {
+      'AUTO': l10n.playerSettingsWindowAspectRatioFollowVideo,
       '4:3': '4:3',
       '16:9': '16:9',
       '21:9': '21:9',
@@ -1416,17 +1445,17 @@ class _WindowAspectRatioSettingsScreen extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onBack,
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   FluentIcons.chevron_left,
                   size: 12,
                   color: Colors.white,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
-                  '窗口比例',
-                  style: TextStyle(
+                  l10n.playerSettingsWindowRatio,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1466,9 +1495,10 @@ class _VideoFillModeSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     const options = ['default', '4:3', '16:9', '21:9'];
-    const optionLabels = {
-      'default': '默认',
+    final optionLabels = {
+      'default': l10n.playerSettingsAspectRatioDefault,
       '4:3': '4:3',
       '16:9': '16:9',
       '21:9': '21:9',
@@ -1481,17 +1511,17 @@ class _VideoFillModeSettingsScreen extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onBack,
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   FluentIcons.chevron_left,
                   size: 12,
                   color: Colors.white,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
-                  '画面比例',
-                  style: TextStyle(
+                  l10n.playerSettingsAspectRatio,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1535,17 +1565,18 @@ class _DecodeModeSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     // 回拷模式暂时不展示在菜单里,保留映射以便日后恢复。
     const baseOptions = ['auto', 'no' /* , 'auto-copy' */];
-    const optionLabels = {
-      'auto': '自动',
-      'no': '软件解码',
-      'auto-copy': '回拷模式',
+    final optionLabels = {
+      'auto': l10n.playerSettingsAuto,
+      'no': l10n.playerSettingsSoftwareDecode,
+      'auto-copy': l10n.playerSettingsCopyBackMode,
     };
-    const optionTips = {
-      'auto': '自动选择硬件解码,失败时回退到软件解码。推荐。',
-      'no': '强制使用软件解码,兼容性最好;硬解花屏/黑屏时的兜底方案。',
-      'auto-copy': '硬件解码但将帧拷回内存,可与所有滤镜/弹幕/截图功能共存;略费 CPU。',
+    final optionTips = {
+      'auto': l10n.playerSettingsDecodeAutoTip,
+      'no': l10n.playerSettingsDecodeSoftwareTip,
+      'auto-copy': l10n.playerSettingsDecodeCopyTip,
     };
     // A concrete hardware-decoder API from the probed list is stored in
     // decodeMode when 指定硬件解码器 is active.
@@ -1561,17 +1592,17 @@ class _DecodeModeSettingsScreen extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onBack,
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   FluentIcons.chevron_left,
                   size: 12,
                   color: Colors.white,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
-                  '客户端解码模式',
-                  style: TextStyle(
+                  l10n.playerSettingsClientDecodeMode,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1609,9 +1640,9 @@ class _DecodeModeSettingsScreen extends StatelessWidget {
         // empty otherwise. Greyed out when no hardware decoder was probed.
         _SettingsMenuItem(
           key: const ValueKey('player-decode-mode-specify'),
-          title: '指定硬件解码器',
+          title: l10n.playerSettingsSpecifyHwdec,
           value: isSpecifySelected
-              ? decodeModeLabel(currentMode, availableHwdec)
+              ? decodeModeLabel(l10n, currentMode, availableHwdec)
               : null,
           onClick: availableHwdec.isEmpty ? null : onNavigateToSpecify,
         ),
@@ -1635,6 +1666,7 @@ class _SpecifyDecodeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1642,17 +1674,17 @@ class _SpecifyDecodeScreen extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onBack,
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   FluentIcons.chevron_left,
                   size: 12,
                   color: Colors.white,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
-                  '指定硬件解码器',
-                  style: TextStyle(
+                  l10n.playerSettingsSpecifyHwdec,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1666,11 +1698,11 @@ class _SpecifyDecodeScreen extends StatelessWidget {
         const Divider(),
         const SizedBox(height: 8),
         if (availableHwdec.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
             child: Text(
-              '未探测到可用的硬件解码器',
-              style: TextStyle(color: _defaultTextColor, fontSize: 14),
+              l10n.playerSettingsNoHwdecAvailable,
+              style: const TextStyle(color: _defaultTextColor, fontSize: 14),
             ),
           )
         else
@@ -1812,8 +1844,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
   int get _currentSecondsCeil => (widget.currentPositionMillis + 999) ~/ 1000;
 
   int get _remainingSeconds {
-    final remaining =
-        widget.totalDurationMillis - widget.currentPositionMillis;
+    final remaining = widget.totalDurationMillis - widget.currentPositionMillis;
     final seconds = (remaining < 0 ? 0 : remaining) ~/ 1000;
     return seconds;
   }
@@ -1825,13 +1856,13 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
 
   int get _openingShortcutSeconds => _currentSecondsCeil;
 
-  bool get _endingShortcutVisible =>
-      _isValidShortcutSeconds(_remainingSeconds);
+  bool get _endingShortcutVisible => _isValidShortcutSeconds(_remainingSeconds);
 
   int get _endingShortcutSeconds => _remainingSeconds;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final manualEnabled = !widget.isSavingSkipConfig &&
         (!widget.isSmartAnalysisGloballyEnabled || !_smartSkipEnabled);
 
@@ -1851,15 +1882,15 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                       onTap: widget.onBack,
                       child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             FluentIcons.chevron_left,
                             size: 12,
                             color: Colors.white,
                           ),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Text(
-                            '跳过片头/片尾',
-                            style: TextStyle(
+                            l10n.playerSettingsSkipIntroOutro,
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -1871,7 +1902,11 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '生效范围: 《${widget.playingInfoCache?.item?.tvTitle ?? '未知'}》 第 ${widget.playingInfoCache?.item?.seasonNumber ?? 0} 季',
+                    l10n.playerSettingsSkipScope(
+                      widget.playingInfoCache?.item?.tvTitle ??
+                          l10n.playerUnknown,
+                      '${widget.playingInfoCache?.item?.seasonNumber ?? 0}',
+                    ),
                     style: const TextStyle(
                       color: Color(0xCCFFFFFF),
                       fontSize: 12,
@@ -1906,7 +1941,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
                     borderRadius: BorderRadius.circular(9999),
                   ),
                   child: Text(
-                    '重置',
+                    l10n.filterReset,
                     style: TextStyle(
                       color: manualEnabled
                           ? const Color(0xCCFFFFFF)
@@ -1923,7 +1958,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
         if (widget.isSmartAnalysisGloballyEnabled)
           PlayerSettingsToggleRow(
             key: const ValueKey('player-settings-smart-skip-toggle'),
-            title: '智能跳过片头/片尾',
+            title: l10n.playerSettingsSmartSkipIntroOutro,
             checked: _smartSkipEnabled,
             onChanged: widget.isSavingSkipConfig ||
                     widget.onSmartSkipEnabledChanged == null
@@ -1955,7 +1990,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
         const SizedBox(height: 8),
         // Skip opening
         _SkipSlider(
-          label: '片头时长',
+          label: l10n.playerSettingsIntroDuration,
           value: _skipOpening.toDouble(),
           maxValue: 600,
           enabled: manualEnabled,
@@ -1977,7 +2012,7 @@ class _SkipConfigSettingsScreenState extends State<_SkipConfigSettingsScreen> {
         const SizedBox(height: 32),
         // Skip ending
         _SkipSlider(
-          label: '片尾时长',
+          label: l10n.playerSettingsOutroDuration,
           value: _skipEnding.toDouble(),
           maxValue: 600,
           enabled: manualEnabled,
@@ -2038,11 +2073,14 @@ class _SkipSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final shortcutSeconds = setCurrentTimeSeconds;
     final showShortcut = enabled && shortcutSeconds != null;
     final shortcutLabel = isReverse
-        ? '将当前剩余时长 ${_formatDuration(shortcutSeconds ?? 0)} 设为片尾'
-        : '将当前时间 ${_formatDuration(shortcutSeconds ?? 0)} 设为片头';
+        ? l10n.playerSettingsSetOutroToRemaining(
+            _formatDuration(shortcutSeconds ?? 0))
+        : l10n.playerSettingsSetIntroToCurrent(
+            _formatDuration(shortcutSeconds ?? 0));
     return Opacity(
       opacity: enabled ? 1.0 : 0.5,
       child: Column(
@@ -2101,14 +2139,18 @@ class _SkipSlider extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                isReverse ? '10 分钟' : '开始',
+                isReverse
+                    ? l10n.playerSettingsTenMinutes
+                    : l10n.playerSettingsSliderStart,
                 style: const TextStyle(
                   color: _skipCaptionColor,
                   fontSize: 12,
                 ),
               ),
               Text(
-                isReverse ? '结束' : '10 分钟',
+                isReverse
+                    ? l10n.playerSettingsSliderEnd
+                    : l10n.playerSettingsTenMinutes,
                 style: const TextStyle(
                   color: _skipCaptionColor,
                   fontSize: 12,
@@ -2210,8 +2252,7 @@ class _SkipSliderBar extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             onTapUp: enabled
                 ? (details) {
-                    final v =
-                        _valueFromX(details.localPosition.dx, trackWidth);
+                    final v = _valueFromX(details.localPosition.dx, trackWidth);
                     onChanged(v);
                     onChangeEnd(v);
                   }
@@ -2224,8 +2265,7 @@ class _SkipSliderBar extends StatelessWidget {
                 ? (details) =>
                     onChanged(_valueFromX(details.localPosition.dx, trackWidth))
                 : null,
-            onHorizontalDragEnd:
-                enabled ? (_) => onChangeEnd(value) : null,
+            onHorizontalDragEnd: enabled ? (_) => onChangeEnd(value) : null,
             child: CustomPaint(
               size: Size(trackWidth, _skipSliderHeight),
               painter: _SkipSliderPainter(
@@ -2281,8 +2321,7 @@ class _SkipSliderPainter extends CustomPainter {
 
     // Thumb: 14px white circle with a 1px primary-blue border and a subtle
     // drop shadow, matching the web player.
-    final thumbCenter =
-        Offset(thumbLeft + _skipThumbSize / 2, size.height / 2);
+    final thumbCenter = Offset(thumbLeft + _skipThumbSize / 2, size.height / 2);
     canvas.drawCircle(
       thumbCenter + const Offset(0, 1),
       _skipThumbSize / 2,

@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:fly_narwhal/domain/entities/media_type.dart';
+import 'package:fly_narwhal/l10n/generated/app_localizations.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 import 'package:fly_narwhal/ui/shared/common/fn_cached_image.dart';
 import 'package:fly_narwhal/ui/shared/common/media_poster_placeholder.dart';
@@ -41,14 +42,17 @@ class PlaybackEndOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final s = isPip ? 0.7 : 1.0;
     final type = MediaType.tryParse(mediaType);
-    final displayTitle = episodeNumber > 0
-        ? (title.isEmpty
-            ? '第 $episodeNumber 集'
-            : '第 $episodeNumber 集 $title')
-        : title;
-    final durationText = _formatRuntime(durationSeconds);
+    final episodeTitle = title.isEmpty
+        ? l10n.playerEpisodeNumber('$episodeNumber')
+        : l10n.tvDetailEpisodeNumberTitle(
+            '$episodeNumber',
+            title,
+          );
+    final displayTitle = episodeNumber > 0 ? episodeTitle : title;
+    final durationText = _formatRuntime(durationSeconds, l10n);
 
     return Positioned.fill(
       key: isPip ? playerPlaybackEndPipOverlayKey : playerPlaybackEndOverlayKey,
@@ -100,7 +104,7 @@ class PlaybackEndOverlay extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(4 * s),
                               ),
                               child: Text(
-                                '已观看',
+                                l10n.filterOptionWatched,
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 12 * s,
@@ -154,7 +158,7 @@ class PlaybackEndOverlay extends StatelessWidget {
                           ? playerPlaybackEndPipReplayKey
                           : playerPlaybackEndReplayKey,
                       icon: FluentIcons.refresh,
-                      label: '重播',
+                      label: l10n.playerReplay,
                       scaleFactor: s,
                       onPressed: onReplay,
                     ),
@@ -164,7 +168,7 @@ class PlaybackEndOverlay extends StatelessWidget {
                           ? playerPlaybackEndPipHomeKey
                           : playerPlaybackEndHomeKey,
                       icon: FluentIcons.home,
-                      label: '回到首页',
+                      label: l10n.homeTitle,
                       scaleFactor: s,
                       onPressed: onReturnHome,
                     ),
@@ -178,13 +182,15 @@ class PlaybackEndOverlay extends StatelessWidget {
     );
   }
 
-  static String _formatRuntime(int seconds) {
+  static String _formatRuntime(int seconds, AppLocalizations l10n) {
     final minutes = seconds ~/ 60;
     final hours = minutes ~/ 60;
     final rest = minutes % 60;
-    if (hours > 0 && rest > 0) return '$hours 小时 $rest 分钟';
-    if (hours > 0) return '$hours 小时';
-    return '$rest 分钟';
+    if (hours > 0 && rest > 0) {
+      return l10n.durationHoursMinutes('$hours', '$rest');
+    }
+    if (hours > 0) return l10n.durationHours('$hours');
+    return l10n.durationMinutes('$rest');
   }
 }
 

@@ -2226,5 +2226,1129 @@
   "smartAnalysisQueued": "Added to the analysis queue",
   "smartAnalysisSubmitted": "Analysis request submitted",
   "smartAnalysisFailedSeasons": "Failed seasons: {seasons}",
-  "smartAnalysisSubmitFailed": "Failed to submit the analysis request"
+  "smartAnalysisSubmitFailed": "Failed to submit the analysis request",
+  "shortcutFocusSearch": "Focus the search box",
+  "@shortcutFocusSearch": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutTogglePlayPause": "Play/Pause",
+  "@shortcutTogglePlayPause": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutMute": "Mute/Unmute",
+  "@shortcutMute": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSeekBackward": "Rewind 10 seconds",
+  "@shortcutSeekBackward": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSeekForward": "Forward 10 seconds",
+  "@shortcutSeekForward": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutVolumeUp": "Volume up",
+  "@shortcutVolumeUp": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutVolumeDown": "Volume down",
+  "@shortcutVolumeDown": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutToggleFullscreen": "Enter fullscreen",
+  "@shortcutToggleFullscreen": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutExitFullscreen": "Exit fullscreen",
+  "@shortcutExitFullscreen": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchNext": "Next search result",
+  "@shortcutSearchNext": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchPrev": "Previous search result",
+  "@shortcutSearchPrev": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchSelect": "Select search result",
+  "@shortcutSearchSelect": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchSwitchTab": "Switch search category",
+  "@shortcutSearchSwitchTab": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchExit": "Exit search",
+  "@shortcutSearchExit": {
+    "description": "Keyboard shortcut action name."
+  },
+  "playerSubtitleExternalSuffix": " - External",
+  "@playerSubtitleExternalSuffix": {
+    "description": "Suffix appended to a subtitle language name when the subtitle is external."
+  },
+  "playerSubtitleDefaultSuffix": " - Default",
+  "@playerSubtitleDefaultSuffix": {
+    "description": "Suffix appended to a subtitle language name when the subtitle is the default track."
+  },
+  "playerVolumeLabel": "Volume: {value}%",
+  "@playerVolumeLabel": {
+    "description": "Toast shown when the volume changes, with the new volume percentage.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVolumeUnmuteLabel": "Unmuted: {value}%",
+  "@playerVolumeUnmuteLabel": {
+    "description": "Toast shown when unmuting, with the restored volume percentage.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVolumeMute": "Mute",
+  "@playerVolumeMute": {
+    "description": "Toast shown when muting the player."
+  },
+  "playerSeekRewindTo": "Rewind to",
+  "@playerSeekRewindTo": {
+    "description": "Toast prefix shown when rewinding, followed by the target timestamp."
+  },
+  "playerSeekForwardTo": "Fast-forward to",
+  "@playerSeekForwardTo": {
+    "description": "Toast prefix shown when fast-forwarding, followed by the target timestamp."
+  },
+  "playerSeekTimeToast": "{label}: {time}",
+  "@playerSeekTimeToast": {
+    "description": "Toast shown when seeking via keyboard, combining the rewind/forward label and the target timestamp.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerForceH264Disabled": "This video is already H.264",
+  "@playerForceH264Disabled": {
+    "description": "Reason shown when the force-H.264 transcoding switch is disabled because the video is already H.264."
+  },
+  "playerForceSdrDisabled": "This video is already SDR",
+  "@playerForceSdrDisabled": {
+    "description": "Reason shown when the force-SDR color switch is disabled because the video is already SDR."
+  },
+  "playerDirectLinkCdnRangeNotDirect": "This is not a netdisk direct-link playback",
+  "@playerDirectLinkCdnRangeNotDirect": {
+    "description": "Reason shown when the direct-link CDN range switch is disabled because playback is not a netdisk direct link."
+  },
+  "playerDirectLinkCdnRangeQuarkOnly": "Only Quark netdisk is supported",
+  "@playerDirectLinkCdnRangeQuarkOnly": {
+    "description": "Reason shown when the direct-link CDN range switch is disabled because the cloud storage is not Quark."
+  },
+  "playerCloudModeDirect": "Netdisk direct link",
+  "@playerCloudModeDirect": {
+    "description": "Label for the netdisk direct-link cloud playback mode."
+  },
+  "playerCloudModeNasProxy": "NAS proxy",
+  "@playerCloudModeNasProxy": {
+    "description": "Label for the NAS proxy cloud playback mode."
+  },
+  "playerCloudModeSwitchedToast": "Playback mode switched to {label}",
+  "@playerCloudModeSwitchedToast": {
+    "description": "Toast shown after the cloud playback mode is switched, with the new mode label.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "playerCloudProxyFailedFallbackDirect": "NAS proxy playback failed, switching to netdisk direct link",
+  "@playerCloudProxyFailedFallbackDirect": {
+    "description": "Toast shown when NAS proxy negotiation fails and playback falls back to the netdisk direct link."
+  },
+  "playerInfoMissingSearchSubtitle": "Current file info is missing; cannot search subtitles",
+  "@playerInfoMissingSearchSubtitle": {
+    "description": "Toast shown when subtitle search is invoked but the current file info is missing."
+  },
+  "playerInfoMissingAddNasSubtitle": "Current file info is missing; cannot add a NAS subtitle",
+  "@playerInfoMissingAddNasSubtitle": {
+    "description": "Toast shown when adding a NAS subtitle is invoked but the current file info is missing."
+  },
+  "playerInfoMissingUploadSubtitle": "Current file info is missing; cannot upload a subtitle",
+  "@playerInfoMissingUploadSubtitle": {
+    "description": "Toast shown when uploading a local subtitle is invoked but the current file info is missing."
+  },
+  "playerSubtitleDeleteTitle": "Delete external subtitle",
+  "@playerSubtitleDeleteTitle": {
+    "description": "Title of the confirm dialog for deleting an external subtitle."
+  },
+  "playerSubtitleDeleteConfirm": "Delete the external subtitle {displayName}?",
+  "@playerSubtitleDeleteConfirm": {
+    "description": "Body of the confirm dialog for deleting an external subtitle, with the subtitle display name.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleDeleteSuccess": "Subtitle deleted",
+  "@playerSubtitleDeleteSuccess": {
+    "description": "Toast shown after a subtitle is deleted successfully."
+  },
+  "playerSubtitleDeleteFailed": "Failed to delete subtitle: {error}",
+  "@playerSubtitleDeleteFailed": {
+    "description": "Toast shown when deleting a subtitle fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleAddNasTitle": "Add NAS subtitle file",
+  "@playerSubtitleAddNasTitle": {
+    "description": "Title of the dialog for adding a NAS subtitle file."
+  },
+  "playerSubtitleAddNasSuccess": "NAS subtitle added",
+  "@playerSubtitleAddNasSuccess": {
+    "description": "Toast shown after a NAS subtitle is added successfully."
+  },
+  "playerSubtitleAlreadyMarked": "This file has already been added as a subtitle",
+  "@playerSubtitleAlreadyMarked": {
+    "description": "Toast shown when the selected file has already been added as a subtitle."
+  },
+  "playerSubtitleAddNasFailed": "Failed to add NAS subtitle: {error}",
+  "@playerSubtitleAddNasFailed": {
+    "description": "Toast shown when adding a NAS subtitle fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleDownloadSuccess": "Downloaded",
+  "@playerSubtitleDownloadSuccess": {
+    "description": "Toast shown after a subtitle is downloaded successfully."
+  },
+  "playerSubtitleDownloadFailed": "Failed to download subtitle: {error}",
+  "@playerSubtitleDownloadFailed": {
+    "description": "Toast shown when downloading a subtitle fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleTaskCreated": "Subtitle download task created",
+  "@playerSubtitleTaskCreated": {
+    "description": "Toast shown after a subtitle download task is created."
+  },
+  "playerSubtitleTaskFailed": "Failed to create subtitle download task; please retry",
+  "@playerSubtitleTaskFailed": {
+    "description": "Toast shown when creating a subtitle download task fails."
+  },
+  "playerSubtitleSwitchFailed": "Failed to switch subtitle: {error}",
+  "@playerSubtitleSwitchFailed": {
+    "description": "Toast shown when switching subtitles fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchOriginalQualityFailed": "Failed to switch to original quality: {error}",
+  "@playerSwitchOriginalQualityFailed": {
+    "description": "Toast shown when switching back to the original quality fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerLoadFailed": "Load failed: {error}",
+  "@playerLoadFailed": {
+    "description": "Toast shown when loading media fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerToggleFullscreenFailed": "Failed to toggle fullscreen: {error}",
+  "@playerToggleFullscreenFailed": {
+    "description": "Toast shown when toggling fullscreen fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchPlaybackSettingsFailed": "Failed to switch playback settings: {error}",
+  "@playerSwitchPlaybackSettingsFailed": {
+    "description": "Toast shown when restarting for transcode settings fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerNotReady": "The player is not ready yet",
+  "@playerNotReady": {
+    "description": "Toast shown when a player action is requested before the player is ready."
+  },
+  "playerEnterPipFailed": "Failed to enter picture-in-picture: {error}",
+  "@playerEnterPipFailed": {
+    "description": "Toast shown when entering picture-in-picture fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerExitPipFailed": "Failed to exit picture-in-picture: {error}",
+  "@playerExitPipFailed": {
+    "description": "Toast shown when exiting picture-in-picture fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchQualityFailed": "Failed to switch quality: {error}",
+  "@playerSwitchQualityFailed": {
+    "description": "Toast shown when switching video quality fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchPlayModeFailed": "Failed to switch playback mode: {error}",
+  "@playerSwitchPlayModeFailed": {
+    "description": "Toast shown when switching the cloud playback mode fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchAudioFailed": "Failed to switch audio: {error}",
+  "@playerSwitchAudioFailed": {
+    "description": "Toast shown when switching audio tracks fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleSwitchingTo": "Switching subtitle to: {language}",
+  "@playerSubtitleSwitchingTo": {
+    "description": "Toast shown when switching to a subtitle, with the language name only.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleSwitchingToFormat": "Switching subtitle to: {language} {format}",
+  "@playerSubtitleSwitchingToFormat": {
+    "description": "Toast shown when switching to a subtitle, with the language name and uppercased format.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  "playerClose": "Close",
+  "@playerClose": {
+    "description": "Tooltip for the close button."
+  },
+  "playerBack": "Back",
+  "@playerBack": {
+    "description": "Tooltip for the back button."
+  },
+  "playerRewindTenSeconds": "Rewind 10 seconds",
+  "@playerRewindTenSeconds": {
+    "description": "Tooltip for the rewind 10 seconds button."
+  },
+  "playerForwardTenSeconds": "Forward 10 seconds",
+  "@playerForwardTenSeconds": {
+    "description": "Tooltip for the forward 10 seconds button."
+  },
+  "playerPlayPause": "Play/Pause",
+  "@playerPlayPause": {
+    "description": "Tooltip for the play/pause button."
+  },
+  "playerPip": "Picture-in-picture",
+  "@playerPip": {
+    "description": "Tooltip for the picture-in-picture button."
+  },
+  "playerExitPip": "Exit picture-in-picture",
+  "@playerExitPip": {
+    "description": "Tooltip for the exit picture-in-picture button."
+  },
+  "playerDanmakuClose": "Hide danmaku",
+  "@playerDanmakuClose": {
+    "description": "Tooltip for the danmaku button when danmaku is visible."
+  },
+  "playerDanmakuOpen": "Show danmaku",
+  "@playerDanmakuOpen": {
+    "description": "Tooltip for the danmaku button when danmaku is hidden."
+  },
+  "playerPlaybackDetailsTooltip": "Playback details",
+  "@playerPlaybackDetailsTooltip": {
+    "description": "Tooltip for the playback details button."
+  },
+  "playerSkipConfigSaved": "Saved",
+  "@playerSkipConfigSaved": {
+    "description": "Toast shown after the intro/credits skip configuration is saved successfully."
+  },
+  "playerSkipConfigSaveFailed": "Failed to save: {error}",
+  "@playerSkipConfigSaveFailed": {
+    "description": "Toast shown when saving the skip configuration fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuRequestFailed": "Danmaku API request failed; please check the FlyNarwhal server configuration",
+  "@playerDanmakuRequestFailed": {
+    "description": "Toast shown when the danmaku API request fails."
+  },
+  "playerSmartSkipRequestFailed": "Smart intro/credits API request failed; please check the FlyNarwhal server configuration",
+  "@playerSmartSkipRequestFailed": {
+    "description": "Toast shown when the smart intro/credits analysis API request fails."
+  },
+  "playerFeatureComingSoon": "{feature} is not available yet",
+  "@playerFeatureComingSoon": {
+    "description": "Toast shown when a not-yet-implemented feature is invoked, with the feature name.",
+    "placeholders": {
+      "feature": {
+        "type": "String"
+      }
+    }
+  },
+  "playerPlayErrorRetrySwitch": "Playback error, please try switching lines",
+  "@playerPlayErrorRetrySwitch": {
+    "description": "Live player error message shown when playback fails, suggesting switching lines."
+  },
+  "playerNoPlayableLine": "This channel has no available playback line",
+  "@playerNoPlayableLine": {
+    "description": "Live player error message shown when the channel has no available playback line."
+  },
+  "playerLoadFailedBackRetry": "Load failed, please go back and retry",
+  "@playerLoadFailedBackRetry": {
+    "description": "Live player error message shown when loading fails, suggesting going back and retrying."
+  },
+  "playerPlayFailedSwitchLine": "Playback failed, please try switching lines",
+  "@playerPlayFailedSwitchLine": {
+    "description": "Live player error message shown when playback fails, suggesting switching lines."
+  },
+  "playerLive": "LIVE",
+  "@playerLive": {
+    "description": "Badge text shown while a live stream is playing."
+  },
+  "playerPause": "Pause",
+  "@playerPause": {
+    "description": "Tooltip for the pause button."
+  },
+  "playerPlay": "Play",
+  "@playerPlay": {
+    "description": "Tooltip for the play button."
+  },
+  "playerDanmakuSettingsTooltip": "Danmaku settings",
+  "@playerDanmakuSettingsTooltip": {
+    "description": "Tooltip for the danmaku settings control-bar button."
+  },
+  "playerDanmakuSettingsTitle": "Danmaku settings",
+  "@playerDanmakuSettingsTitle": {
+    "description": "Title of the danmaku settings flyout."
+  },
+  "playerDanmakuAdvancedSettings": "Advanced settings",
+  "@playerDanmakuAdvancedSettings": {
+    "description": "Action label that opens the advanced danmaku settings page."
+  },
+  "playerDanmakuDisplayArea": "Display area {value}%",
+  "@playerDanmakuDisplayArea": {
+    "description": "Label of the danmaku display-area slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuOpacity": "Opacity {value}%",
+  "@playerDanmakuOpacity": {
+    "description": "Label of the danmaku opacity slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuFontSize": "Font size {value}%",
+  "@playerDanmakuFontSize": {
+    "description": "Label of the danmaku font-size slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuSpeed": "Speed {value}",
+  "@playerDanmakuSpeed": {
+    "description": "Label of the danmaku speed slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuSpeedVerySlow": "Very slow",
+  "@playerDanmakuSpeedVerySlow": {
+    "description": "Danmaku speed label for the slowest speed step."
+  },
+  "playerDanmakuSpeedSlow": "Slow",
+  "@playerDanmakuSpeedSlow": {
+    "description": "Danmaku speed label for a slower-than-normal speed step."
+  },
+  "playerDanmakuSpeedNormal": "Normal",
+  "@playerDanmakuSpeedNormal": {
+    "description": "Danmaku speed label for the normal speed step."
+  },
+  "playerDanmakuSpeedFast": "Fast",
+  "@playerDanmakuSpeedFast": {
+    "description": "Danmaku speed label for a faster-than-normal speed step."
+  },
+  "playerDanmakuSpeedVeryFast": "Very fast",
+  "@playerDanmakuSpeedVeryFast": {
+    "description": "Danmaku speed label for the fastest speed step."
+  },
+  "playerDanmakuSyncPlaybackSpeed": "Sync danmaku speed with playback rate",
+  "@playerDanmakuSyncPlaybackSpeed": {
+    "description": "Toggle title for syncing danmaku speed with playback rate."
+  },
+  "playerDanmakuShowDebugInfo": "Show danmaku debug info",
+  "@playerDanmakuShowDebugInfo": {
+    "description": "Toggle title for showing danmaku debug information."
+  },
+  "playerStrmDirectPlaying": "Playing STRM file via direct link",
+  "@playerStrmDirectPlaying": {
+    "description": "Hover tip shown on the cloud icon for STRM media that is playing via direct link."
+  },
+  "playerCloudModeDirectDescription": "Faster, saves bandwidth",
+  "@playerCloudModeDirectDescription": {
+    "description": "Description under the direct-link play mode card (faster, saves bandwidth)."
+  },
+  "playerCloudModeNasProxyDescription": "Try switching when color or audio is abnormal",
+  "@playerCloudModeNasProxyDescription": {
+    "description": "Description under the NAS proxy play mode card (try switching when color or audio is abnormal)."
+  },
+  "playerCloudPlayRecommend": "Recommended",
+  "@playerCloudPlayRecommend": {
+    "description": "Badge marking the recommended play mode card."
+  },
+  "playerCloudPlayingNotice": "Playing a file on the netdisk. Playback speed and quality depend on the netdisk provider's rules.",
+  "@playerCloudPlayingNotice": {
+    "description": "Notice that a netdisk file is playing and that speed/quality follow the netdisk provider's rules."
+  },
+  "playerCloudSwitchNotice": "If playback is abnormal, try switching the play mode.",
+  "@playerCloudSwitchNotice": {
+    "description": "Hint suggesting the user switch the play mode when playback is abnormal."
+  },
+  "playerPlayModeLabel": "Play Mode",
+  "@playerPlayModeLabel": {
+    "description": "Section label of the play-mode selector flyout."
+  },
+  "playerCloudFallbackName": "Netdisk",
+  "@playerCloudFallbackName": {
+    "description": "Fallback account name shown in the cloud flyout when the masked nickname is empty."
+  },
+  "playerCloudPlayErrorTitle": "Sorry, playback failed",
+  "@playerCloudPlayErrorTitle": {
+    "description": "Generic title on the cloud playback error page."
+  },
+  "playerCloudSwitchQuality": "Play another quality",
+  "@playerCloudSwitchQuality": {
+    "description": "Error page action button that switches to another quality."
+  },
+  "playerCloudSwitchToProxy": "Switch to NAS proxy playback",
+  "@playerCloudSwitchToProxy": {
+    "description": "Error page action button that switches to NAS proxy playback."
+  },
+  "playerStrmPlaybackErrorHint": "STRM direct playback failed. Possible causes: the netdisk mount is disconnected, netdisk risk control was triggered, netdisk restrictions on non-members, or the browser does not support this file type.",
+  "@playerStrmPlaybackErrorHint": {
+    "description": "Cause hint on the STRM playback error page."
+  },
+  "playerChannelLineFallback": "Line",
+  "@playerChannelLineFallback": {
+    "description": "Fallback line label shown by the live channel selector when no channel name is available."
+  },
+  "playerFullscreenEnter": "Enter fullscreen",
+  "@playerFullscreenEnter": {
+    "description": "Tooltip of the fullscreen button when the player is not in fullscreen mode."
+  },
+  "playerFullscreenExit": "Exit fullscreen",
+  "@playerFullscreenExit": {
+    "description": "Tooltip of the fullscreen button when the player is in fullscreen mode."
+  },
+  "playerDetailSeparator": ":",
+  "@playerDetailSeparator": {
+    "description": "Separator placed between a playback details field label and its value."
+  },
+  "playerPlayType": "Play type",
+  "@playerPlayType": {
+    "description": "Playback details field label for the current play type."
+  },
+  "playerPlayTypeStrmDirect": "STRM direct playback",
+  "@playerPlayTypeStrmDirect": {
+    "description": "Play type value for a STRM file played via direct link."
+  },
+  "playerPlayTypeTranscode": "Transcode playback",
+  "@playerPlayTypeTranscode": {
+    "description": "Play type value for a transcoded playback session."
+  },
+  "playerPlayTypeDirect": "Direct playback",
+  "@playerPlayTypeDirect": {
+    "description": "Play type value for direct playback of a local file."
+  },
+  "playerTranscodeReason": "Transcode reason",
+  "@playerTranscodeReason": {
+    "description": "Playback details field label for the transcoding reasons."
+  },
+  "playerTranscodeReasonSeparator": "; ",
+  "@playerTranscodeReasonSeparator": {
+    "description": "Separator joining multiple transcoding reasons."
+  },
+  "playerPlaybackInfo": "Playback info",
+  "@playerPlaybackInfo": {
+    "description": "Section heading for live playback statistics."
+  },
+  "playerMediaSourceInfo": "Media source info",
+  "@playerMediaSourceInfo": {
+    "description": "Section heading for media source information."
+  },
+  "playerContainerFormat": "Container",
+  "@playerContainerFormat": {
+    "description": "Playback details field label for the container format."
+  },
+  "playerBufferDuration": "Buffer duration",
+  "@playerBufferDuration": {
+    "description": "Playback details field label for the buffer duration."
+  },
+  "playerAudioCodec": "Audio codec",
+  "@playerAudioCodec": {
+    "description": "Playback details field label for the audio codec."
+  },
+  "playerGpuEnabled": "GPU enabled",
+  "@playerGpuEnabled": {
+    "description": "Playback details field label for the GPU in use."
+  },
+  "playerDecodeMethod": "Decode method",
+  "@playerDecodeMethod": {
+    "description": "Playback details field label for the decode method."
+  },
+  "playerEncodeMethod": "Encode method",
+  "@playerEncodeMethod": {
+    "description": "Playback details field label for the encode method."
+  },
+  "playerTranscodeFrameRate": "Transcode frame rate",
+  "@playerTranscodeFrameRate": {
+    "description": "Playback details field label for the transcode frame rate."
+  },
+  "playerDroppedFrames": "Dropped frames",
+  "@playerDroppedFrames": {
+    "description": "Playback details field label for the dropped frame count."
+  },
+  "playerCorruptedFrames": "Corrupted frames",
+  "@playerCorruptedFrames": {
+    "description": "Playback details field label for the corrupted frame count."
+  },
+  "playerCodec": "Codec",
+  "@playerCodec": {
+    "description": "Media source stream field label for the codec."
+  },
+  "playerDynamicRange": "Dynamic range",
+  "@playerDynamicRange": {
+    "description": "Media source stream field label for the dynamic range."
+  },
+  "playerSubtitleAddDialogTitle": "Add Subtitle",
+  "@playerSubtitleAddDialogTitle": {
+    "description": "Title of the subtitle search dialog for adding subtitles."
+  },
+  "playerSubtitleSearchSortHint": "Sorted by relevance:",
+  "@playerSubtitleSearchSortHint": {
+    "description": "Hint shown above the subtitle search results explaining they are sorted by relevance."
+  },
+  "playerSubtitleSearchNoResults": "No matching subtitles found",
+  "@playerSubtitleSearchNoResults": {
+    "description": "Empty-state text shown when a subtitle search returns no results."
+  },
+  "playerSubtitleSearchDownloadCount": "Downloads {count}",
+  "@playerSubtitleSearchDownloadCount": {
+    "description": "Download count shown next to a subtitle search result.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleSearchDownloading": "Downloading",
+  "@playerSubtitleSearchDownloading": {
+    "description": "Label of the subtitle download button while a download is in progress."
+  },
+  "playerSubtitleSearchDownloadDone": "Downloaded",
+  "@playerSubtitleSearchDownloadDone": {
+    "description": "Label of the subtitle download button once the download has finished."
+  },
+  "playerSubtitleSearchDownload": "Download Subtitle",
+  "@playerSubtitleSearchDownload": {
+    "description": "Label of the button that downloads a subtitle from the search results."
+  },
+  "playerSubtitleDownloadSimilarForEpisodes": "Download similar subtitles for other episodes",
+  "@playerSubtitleDownloadSimilarForEpisodes": {
+    "description": "Label of the button that downloads a similar subtitle for the other episodes of a series."
+  },
+  "playerSubtitleLanguageSimplifiedChinese": "Simplified Chinese",
+  "@playerSubtitleLanguageSimplifiedChinese": {
+    "description": "Display label of the Simplified Chinese subtitle search language option."
+  },
+  "playerSubtitleLanguageEnglish": "English",
+  "@playerSubtitleLanguageEnglish": {
+    "description": "Display label of the English subtitle search language option."
+  },
+  "playerSubtitleAdjust": "Adjust Subtitle",
+  "@playerSubtitleAdjust": {
+    "description": "Title of the subtitle adjustment panel."
+  },
+  "playerSubtitleReset": "Reset",
+  "@playerSubtitleReset": {
+    "description": "Label of the button that resets subtitle adjustments to their defaults."
+  },
+  "playerSubtitleOffset": "Offset",
+  "@playerSubtitleOffset": {
+    "description": "Title of the subtitle timing offset adjustment slider."
+  },
+  "playerSubtitleOffsetMin": "-5s",
+  "@playerSubtitleOffsetMin": {
+    "description": "Left label of the subtitle offset slider (minus five seconds)."
+  },
+  "playerSubtitleOffsetMax": "+5s",
+  "@playerSubtitleOffsetMax": {
+    "description": "Right label of the subtitle offset slider (plus five seconds)."
+  },
+  "playerSubtitleSecondsSuffix": "s",
+  "@playerSubtitleSecondsSuffix": {
+    "description": "Unit suffix shown next to the subtitle offset input value."
+  },
+  "playerSubtitlePosition": "Position",
+  "@playerSubtitlePosition": {
+    "description": "Title of the subtitle vertical position adjustment slider."
+  },
+  "playerSubtitlePositionBottom": "Bottom",
+  "@playerSubtitlePositionBottom": {
+    "description": "Left label of the subtitle position slider (bottom)."
+  },
+  "playerSubtitlePositionTop": "Top",
+  "@playerSubtitlePositionTop": {
+    "description": "Right label of the subtitle position slider (top)."
+  },
+  "playerSubtitlePositionLockedHint": "This subtitle is a danmaku/effect subtitle (with positioning tags); position adjustment is unavailable.",
+  "@playerSubtitlePositionLockedHint": {
+    "description": "Hint shown when the subtitle position slider is disabled because the subtitle is a danmaku or ASS effect subtitle with positioning tags."
+  },
+  "playerSubtitleFontSize": "Font Size",
+  "@playerSubtitleFontSize": {
+    "description": "Title of the subtitle font size adjustment slider."
+  },
+  "playerSubtitleFontSizeMin": "Min",
+  "@playerSubtitleFontSizeMin": {
+    "description": "Left label of the subtitle font size slider (minimum)."
+  },
+  "playerSubtitleFontSizeMax": "Max",
+  "@playerSubtitleFontSizeMax": {
+    "description": "Right label of the subtitle font size slider (maximum)."
+  },
+  "playerSubtitlePanelTitle": "Subtitles",
+  "@playerSubtitlePanelTitle": {
+    "description": "Title of the subtitle selection panel."
+  },
+  "playerSubtitleAdjustButton": "Adjust",
+  "@playerSubtitleAdjustButton": {
+    "description": "Label of the button that opens the subtitle adjustment panel."
+  },
+  "playerSubtitleAddButton": "Add",
+  "@playerSubtitleAddButton": {
+    "description": "Label of the button that opens the add-subtitle menu."
+  },
+  "playerSubtitleOff": "Off",
+  "@playerSubtitleOff": {
+    "description": "Label of the list row that turns off subtitles."
+  },
+  "playerSubtitleSearchMenu": "Search Subtitles",
+  "@playerSubtitleSearchMenu": {
+    "description": "Menu item that opens the subtitle search dialog."
+  },
+  "playerSubtitleAddNasFile": "Add NAS Subtitle File",
+  "@playerSubtitleAddNasFile": {
+    "description": "Menu item that adds a subtitle file stored on the NAS."
+  },
+  "playerSubtitleAddLocalFile": "Add Computer Subtitle File",
+  "@playerSubtitleAddLocalFile": {
+    "description": "Menu item that adds a subtitle file stored on the local computer."
+  },
+  "playerSubtitleDirectLinkMissingTitle": "Built-in subtitles missing in direct-link playback",
+  "@playerSubtitleDirectLinkMissingTitle": {
+    "description": "Label shown at the bottom of the subtitle panel when built-in subtitles cannot be fetched during direct-link transcoded playback."
+  },
+  "playerSubtitleDirectLinkMissingContent": "Due to cloud storage restrictions, the built-in subtitle list may be unavailable during direct-link transcoded playback. To switch built-in subtitles, change the playback mode to \"NAS proxy playback\".",
+  "@playerSubtitleDirectLinkMissingContent": {
+    "description": "Bubble hint explaining why built-in subtitles are missing and how to switch playback mode."
+  },
+  "playerNextVideo": "Next video",
+  "@playerNextVideo": {
+    "description": "Label and tooltip of the next-episode button in the player."
+  },
+  "playerEpisodeNumber": "Episode {number}",
+  "@playerEpisodeNumber": {
+    "description": "Episode number label shown in the player episode list.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "playerReplay": "Replay",
+  "@playerReplay": {
+    "description": "Label of the replay button on the playback end overlay."
+  },
+  "playerUndo": "Undo",
+  "@playerUndo": {
+    "description": "Label of the undo action on the auto-skipped intro prompt."
+  },
+  "playerSkipIntroAutoSkipped": "Intro automatically skipped",
+  "@playerSkipIntroAutoSkipped": {
+    "description": "Message shown on the prompt after the intro was auto-skipped."
+  },
+  "playerSkipOutroInSeconds": "Skipping outro in {seconds}s",
+  "@playerSkipOutroInSeconds": {
+    "description": "Outro prompt message shown when autoplay is off or credits have post-credits content.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerSkipOutroNextEpisodeInSeconds": "Playing next episode in {seconds}s",
+  "@playerSkipOutroNextEpisodeInSeconds": {
+    "description": "Outro prompt message shown when the next episode is ready to autoplay.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerSkipOutroEndInSeconds": "Ending playback in {seconds}s",
+  "@playerSkipOutroEndInSeconds": {
+    "description": "Outro prompt message shown when playback will simply stop.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerUnknown": "Unknown",
+  "@playerUnknown": {
+    "description": "Fallback label for an unknown audio track language or episode title."
+  },
+  "playerAudioDefaultSuffix": "{language} - Default",
+  "@playerAudioDefaultSuffix": {
+    "description": "Audio track primary label suffix marking the track as the default one.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsWindowAspectRatioFollowVideo": "Follow video",
+  "@playerSettingsWindowAspectRatioFollowVideo": {
+    "description": "Value of the window aspect ratio setting when it follows the video."
+  },
+  "playerSettingsAspectRatioDefault": "Default",
+  "@playerSettingsAspectRatioDefault": {
+    "description": "Value of the video fill mode setting meaning the original aspect ratio."
+  },
+  "playerSettingsAdvanced": "Advanced",
+  "@playerSettingsAdvanced": {
+    "description": "Title of the player settings main panel; opens the advanced settings."
+  },
+  "playerSettingsAutoNext": "Auto next",
+  "@playerSettingsAutoNext": {
+    "description": "Player setting label for automatically playing the next episode."
+  },
+  "playerSettingsSkipIntroOutro": "Skip intro/outro",
+  "@playerSettingsSkipIntroOutro": {
+    "description": "Player setting label for the skip intro and outro configuration."
+  },
+  "playerSettingsWindowRatio": "Window ratio",
+  "@playerSettingsWindowRatio": {
+    "description": "Player setting label and screen title for the window aspect ratio."
+  },
+  "playerSettingsAspectRatio": "Aspect ratio",
+  "@playerSettingsAspectRatio": {
+    "description": "Player setting label and screen title for the video fill mode."
+  },
+  "playerSettingsClientDecodeMode": "Client decode mode",
+  "@playerSettingsClientDecodeMode": {
+    "description": "Player setting label and screen title for the decode mode."
+  },
+  "playerSettingsAudio": "Audio",
+  "@playerSettingsAudio": {
+    "description": "Player settings audio option label and audio screen title."
+  },
+  "playerSettingsAdvancedTitle": "Advanced settings",
+  "@playerSettingsAdvancedTitle": {
+    "description": "Header title of the player advanced settings screen."
+  },
+  "playerSettingsHevcToH264": "Convert HEVC to H.264",
+  "@playerSettingsHevcToH264": {
+    "description": "Advanced player setting title toggling HEVC to H.264 transcoding."
+  },
+  "playerSettingsHevcToH264Description": "Try enabling it when playback has audio but no video.",
+  "@playerSettingsHevcToH264Description": {
+    "description": "Description of the HEVC to H.264 advanced player setting."
+  },
+  "playerSettingsForceSdr": "Force tone mapping to SDR",
+  "@playerSettingsForceSdr": {
+    "description": "Advanced player setting title forcing tone mapping to SDR."
+  },
+  "playerSettingsForceSdrDescription": "Try enabling it when the image looks too dark; for devices that do not support HDR.",
+  "@playerSettingsForceSdrDescription": {
+    "description": "Description of the force SDR advanced player setting."
+  },
+  "playerSettingsQuarkCdnSegment": "Quark CDN segment direct link",
+  "@playerSettingsQuarkCdnSegment": {
+    "description": "Advanced player setting title enabling Quark CDN segment direct link."
+  },
+  "playerSettingsQuarkCdnSegmentDescription": "When on, prefetches the Quark netdisk direct stream by segment; when off, uses the original direct link method.",
+  "@playerSettingsQuarkCdnSegmentDescription": {
+    "description": "Description of the Quark CDN segment direct link advanced player setting."
+  },
+  "playerSettingsSmartSkip": "Smart skip",
+  "@playerSettingsSmartSkip": {
+    "description": "Value shown when smart skip is enabled for the intro/outro configuration."
+  },
+  "playerSettingsSkipIntroOutroBoth": "Skip intro and outro",
+  "@playerSettingsSkipIntroOutroBoth": {
+    "description": "Value shown when both a manual intro and outro are configured."
+  },
+  "playerSettingsIntroConfigured": "Intro set",
+  "@playerSettingsIntroConfigured": {
+    "description": "Value shown when only a manual intro is configured."
+  },
+  "playerSettingsOutroConfigured": "Outro set",
+  "@playerSettingsOutroConfigured": {
+    "description": "Value shown when only a manual outro is configured."
+  },
+  "playerSettingsNotSet": "Not set",
+  "@playerSettingsNotSet": {
+    "description": "Value shown when no intro/outro configuration exists."
+  },
+  "playerSettingsSkipScope": "Applies to: {title} Season {season}",
+  "@playerSettingsSkipScope": {
+    "description": "Scope line of the skip intro/outro settings, with the series title and season number.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "season": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsSmartSkipIntroOutro": "Smart skip intro/outro",
+  "@playerSettingsSmartSkipIntroOutro": {
+    "description": "Toggle title enabling smart intro/outro skipping."
+  },
+  "playerSettingsIntroDuration": "Intro duration",
+  "@playerSettingsIntroDuration": {
+    "description": "Label of the intro duration slider."
+  },
+  "playerSettingsOutroDuration": "Outro duration",
+  "@playerSettingsOutroDuration": {
+    "description": "Label of the outro duration slider."
+  },
+  "playerSettingsSetOutroToRemaining": "Set outro to the current remaining time {time}",
+  "@playerSettingsSetOutroToRemaining": {
+    "description": "One-click shortcut button label setting the outro to the current remaining time.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsSetIntroToCurrent": "Set intro to the current time {time}",
+  "@playerSettingsSetIntroToCurrent": {
+    "description": "One-click shortcut button label setting the intro to the current time.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsTenMinutes": "10 minutes",
+  "@playerSettingsTenMinutes": {
+    "description": "Slider boundary caption for a ten minute range."
+  },
+  "playerSettingsSliderStart": "Start",
+  "@playerSettingsSliderStart": {
+    "description": "Slider start boundary caption."
+  },
+  "playerSettingsSliderEnd": "End",
+  "@playerSettingsSliderEnd": {
+    "description": "Slider end boundary caption."
+  },
+  "playerSettingsDecodeAutoTip": "Automatically selects hardware decoding and falls back to software decoding on failure. Recommended.",
+  "@playerSettingsDecodeAutoTip": {
+    "description": "Tooltip describing the automatic decode mode."
+  },
+  "playerSettingsDecodeSoftwareTip": "Forces software decoding; best compatibility and a fallback when hardware decoding shows artifacts or a black screen.",
+  "@playerSettingsDecodeSoftwareTip": {
+    "description": "Tooltip describing the software decode mode."
+  },
+  "playerSettingsDecodeCopyTip": "Hardware decoding with frames copied back to memory; works with all filters, danmaku and screenshot features at a slight CPU cost.",
+  "@playerSettingsDecodeCopyTip": {
+    "description": "Tooltip describing the copy-back decode mode."
+  },
+  "playerSettingsSoftwareDecode": "Software decoding",
+  "@playerSettingsSoftwareDecode": {
+    "description": "Decode mode option using software decoding."
+  },
+  "playerSettingsCopyBackMode": "Copy-back mode",
+  "@playerSettingsCopyBackMode": {
+    "description": "Decode mode option copying hardware-decoded frames back to memory."
+  },
+  "playerSettingsSpecifyHwdec": "Specify hardware decoder",
+  "@playerSettingsSpecifyHwdec": {
+    "description": "Decode mode option and screen title for choosing a specific hardware decoder."
+  },
+  "playerSettingsNoHwdecAvailable": "No usable hardware decoder was detected",
+  "@playerSettingsNoHwdecAvailable": {
+    "description": "Empty-state message when no hardware decoder was probed as usable."
+  },
+  "playerQualityTitle": "Video quality",
+  "@playerQualityTitle": {
+    "description": "Header of the video quality selection panel in the player."
+  },
+  "playerQualityOriginal": "Original",
+  "@playerQualityOriginal": {
+    "description": "Label for the original (highest) video quality option."
+  },
+  "playerQualityCustom": "Custom",
+  "@playerQualityCustom": {
+    "description": "Label for the custom video quality entry that opens the fine-grained picker."
+  },
+  "playerQualityCustomTitle": "Custom video quality",
+  "@playerQualityCustomTitle": {
+    "description": "Title of the custom video quality selection page."
+  },
+  "playerQualityDirectUnsupported": "This quality is not yet supported for direct-link playback",
+  "@playerQualityDirectUnsupported": {
+    "description": "Tooltip shown on a disabled quality option that direct-link playback does not support."
+  },
+  "playerQualityLowRiskHint": "This option carries a relatively lower risk-control chance; choosing it first is recommended",
+  "@playerQualityLowRiskHint": {
+    "description": "Hint in the cloud direct-link quality panel explaining the low-risk marked option."
+  },
+  "playerQualityOriginalNoAudioHint": "Original quality may have no sound via direct link",
+  "@playerQualityOriginalNoAudioHint": {
+    "description": "Short hint title warning that the original quality may have no sound in direct-link playback."
+  },
+  "playerQualityOriginalNoAudioTooltip": "Because the player has limited support for audio codec formats, the original quality may have no sound in direct-link playback. Try switching the playback mode to “NAS proxy”.",
+  "@playerQualityOriginalNoAudioTooltip": {
+    "description": "Tooltip explaining why the original quality may have no sound in direct-link playback and how to work around it."
+  },
+  "playerSpeedLabel": "Speed",
+  "@playerSpeedLabel": {
+    "description": "Neutral label for the playback speed control at the default speed."
+  },
+  "playerSettingsAuto": "Auto",
+  "@playerSettingsAuto": {
+    "description": "Decode mode option that automatically selects hardware decoding."
+  },
+  "playerTranscodeReasonLowerQuality": "Lower quality per video quality setting",
+  "@playerTranscodeReasonLowerQuality": {
+    "description": "Lower quality per video quality setting"
+  },
+  "playerTranscodeReasonSubtitleBurn": "Subtitle burn-in",
+  "@playerTranscodeReasonSubtitleBurn": {
+    "description": "Subtitle burn-in"
+  },
+  "playerTranscodeReasonSubtitleToVtt": "Subtitle converted to vtt segments",
+  "@playerTranscodeReasonSubtitleToVtt": {
+    "description": "Subtitle converted to vtt segments"
+  },
+  "playerTranscodeReasonVideoFormat": "Video format conversion",
+  "@playerTranscodeReasonVideoFormat": {
+    "description": "Video format conversion"
+  },
+  "playerTranscodeReasonAudioFormat": "Audio format conversion",
+  "@playerTranscodeReasonAudioFormat": {
+    "description": "Audio format conversion"
+  },
+  "playerTranscodeReasonToneMapping": "Tone mapping",
+  "@playerTranscodeReasonToneMapping": {
+    "description": "Tone mapping"
+  },
+  "playerDecodeMethodSoftware": "Software decoding",
+  "@playerDecodeMethodSoftware": {
+    "description": "Software decoding"
+  },
+  "playerDecodeMethodQsv": "QSV decoding",
+  "@playerDecodeMethodQsv": {
+    "description": "QSV decoding"
+  },
+  "playerDecodeMethodVaapi": "VAAPI decoding",
+  "@playerDecodeMethodVaapi": {
+    "description": "VAAPI decoding"
+  },
+  "playerDecodeMethodNvdec": "NVDEC decoding",
+  "@playerDecodeMethodNvdec": {
+    "description": "NVDEC decoding"
+  },
+  "playerDecodeMethodRkmpp": "RKMPP decoding",
+  "@playerDecodeMethodRkmpp": {
+    "description": "RKMPP decoding"
+  },
+  "playerEncodeMethodSoftware": "Software encoding",
+  "@playerEncodeMethodSoftware": {
+    "description": "Software encoding"
+  },
+  "playerEncodeMethodQsv": "QSV encoding",
+  "@playerEncodeMethodQsv": {
+    "description": "QSV encoding"
+  },
+  "playerEncodeMethodQsvLowPower": "QSV low-power encoding",
+  "@playerEncodeMethodQsvLowPower": {
+    "description": "QSV low-power encoding"
+  },
+  "playerEncodeMethodVaapi": "VAAPI encoding",
+  "@playerEncodeMethodVaapi": {
+    "description": "VAAPI encoding"
+  },
+  "playerEncodeMethodNvenc": "NVENC encoding",
+  "@playerEncodeMethodNvenc": {
+    "description": "NVENC encoding"
+  },
+  "playerEncodeMethodRkmpp": "RKMPP encoding",
+  "@playerEncodeMethodRkmpp": {
+    "description": "RKMPP encoding"
+  }
 }

@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:fly_narwhal/l10n/generated/app_localizations.dart';
 import 'package:fly_narwhal/ui/shared/app_button.dart';
 
 const playerSkipIntroPromptKey = ValueKey('player-skip-intro-prompt');
@@ -22,12 +23,13 @@ class SkipIntroPrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return PlayerSkipPromptContainer(
       key: isPip ? playerSkipIntroPipPromptKey : playerSkipIntroPromptKey,
       isPip: isPip,
       onHoverChanged: onHoverChanged,
-      message: '已自动跳过片头',
-      undoLabel: '撤销',
+      message: l10n.playerSkipIntroAutoSkipped,
+      undoLabel: l10n.playerUndo,
       countdown: countdown,
       actionKey: isPip ? playerSkipIntroPipUndoKey : playerSkipIntroUndoKey,
       onPressed: onUndo,

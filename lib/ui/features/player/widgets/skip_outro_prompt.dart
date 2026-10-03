@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:fly_narwhal/l10n/generated/app_localizations.dart';
 
 import '../models/player_skip_action.dart';
 import 'skip_intro_prompt.dart';
@@ -9,6 +10,7 @@ const playerSkipOutroPipPromptKey = ValueKey('player-skip-outro-pip-prompt');
 const playerSkipOutroPipCancelKey = ValueKey('player-skip-outro-pip-cancel');
 
 String resolveOutroPromptMessage({
+  required AppLocalizations l10n,
   required int countdown,
   required bool autoPlayEnabled,
   required bool hasContentAfterCredits,
@@ -16,12 +18,12 @@ String resolveOutroPromptMessage({
 }) {
   final safeCountdown = countdown < 0 ? 0 : countdown;
   if (!autoPlayEnabled || hasContentAfterCredits) {
-    return '$safeCountdown 秒后跳过片尾';
+    return l10n.playerSkipOutroInSeconds(safeCountdown);
   }
   if (nextEpisodePhase == NextEpisodeLoadPhase.available) {
-    return '$safeCountdown 秒后播放下一集';
+    return l10n.playerSkipOutroNextEpisodeInSeconds(safeCountdown);
   }
-  return '$safeCountdown 秒后结束播放';
+  return l10n.playerSkipOutroEndInSeconds(safeCountdown);
 }
 
 class SkipOutroPrompt extends StatelessWidget {
@@ -46,16 +48,18 @@ class SkipOutroPrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return PlayerSkipPromptContainer(
       key: isPip ? playerSkipOutroPipPromptKey : playerSkipOutroPromptKey,
       isPip: isPip,
       message: resolveOutroPromptMessage(
+        l10n: l10n,
         countdown: countdown,
         autoPlayEnabled: autoPlayEnabled,
         hasContentAfterCredits: hasContentAfterCredits,
         nextEpisodePhase: nextEpisodePhase,
       ),
-      undoLabel: '取消',
+      undoLabel: l10n.commonCancel,
       countdown: 0,
       actionKey: isPip ? playerSkipOutroPipCancelKey : playerSkipOutroCancelKey,
       onPressed: onCancel,

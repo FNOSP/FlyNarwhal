@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../../../data/models/player_models.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 
 const Color _flyoutBackgroundColor = Color(0xCC000000);
 const Color _flyoutBorderColor = Color(0x80808080);
@@ -290,6 +291,7 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -307,7 +309,11 @@ class _SpeedControlFlyoutState extends State<SpeedControlFlyout>
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Text(
-            _selectedSpeed.label == '1.0x' ? '倍速' : _selectedSpeed.label,
+            // '1.0x' is the neutral default speed: show a localized label
+            // instead of the raw rate. Any other rate keeps its own label.
+            _selectedSpeed.label == '1.0x'
+                ? l10n.playerSpeedLabel
+                : _selectedSpeed.label,
             style: TextStyle(
               color: _isButtonHovered ? Colors.white : _defaultTextColor,
               fontSize: 17,

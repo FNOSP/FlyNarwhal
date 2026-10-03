@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fly_narwhal/core/network/api_result.dart';
+import 'package:fly_narwhal/l10n/generated/app_localizations.dart';
 import 'package:fly_narwhal/data/storage/preferences_manager.dart';
 import 'package:fly_narwhal/domain/repositories/i_tag_repository.dart';
 import 'package:fly_narwhal/providers/providers.dart';
@@ -25,7 +26,16 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(preferences),
         playerDeviceContextServiceProvider.overrideWithValue(device),
         iTagRepositoryProvider.overrideWithValue(_Tags()),
-      ], child: const FluentApp(home: PlayerScreen(guid: 'pending'))));
+      ],
+          child: FluentApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              ...FluentLocalizations.localizationsDelegates,
+            ],
+            supportedLocales: const [Locale('zh'), Locale('en')],
+            locale: const Locale('zh'),
+            home: const PlayerScreen(guid: 'pending'),
+          )));
       await tester.pump();
       expect(device.calls, 1);
       expect(tester.takeException(), isNull);

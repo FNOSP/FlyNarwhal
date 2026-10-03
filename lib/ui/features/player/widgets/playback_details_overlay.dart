@@ -5,36 +5,68 @@ import '../../../../core/utils/file_utils.dart';
 import '../../../../data/models/cloud_storage_type.dart';
 import '../../../../data/models/movie_detail_models.dart';
 import '../../../../data/models/player_models.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 
 const Color _titleTextColor = Color(0xE6FFFFFF);
 const Color _secondaryTextColor = Color(0xC8FFFFFF);
 const double _columnGap = 24;
 
-const Map<int, String> _transcodingReasonMap = {
-  1: '根据视频质量设置降低画质',
-  2: '字幕烧录',
-  3: '字幕转为 vtt 切片',
-  4: '视频格式转换',
-  5: '音频格式转换',
-  6: '色调映射',
-};
+// Server enum -> localized label for the transcode reason list. The int keys
+// are the stable logic identifiers; only the labels are user-visible.
+String? _transcodingReasonLabel(AppLocalizations l10n, int reason) {
+  switch (reason) {
+    case 1:
+      return l10n.playerTranscodeReasonLowerQuality;
+    case 2:
+      return l10n.playerTranscodeReasonSubtitleBurn;
+    case 3:
+      return l10n.playerTranscodeReasonSubtitleToVtt;
+    case 4:
+      return l10n.playerTranscodeReasonVideoFormat;
+    case 5:
+      return l10n.playerTranscodeReasonAudioFormat;
+    case 6:
+      return l10n.playerTranscodeReasonToneMapping;
+    default:
+      return null;
+  }
+}
 
-const Map<int, String> _decodeMethodLabels = {
-  0: '软解码',
-  1: 'QSV 解码',
-  2: 'VAAPI 解码',
-  3: 'NVDEC 解码',
-  4: 'RKMPP 解码',
-};
+String? _decodeMethodLabel(AppLocalizations l10n, int method) {
+  switch (method) {
+    case 0:
+      return l10n.playerDecodeMethodSoftware;
+    case 1:
+      return l10n.playerDecodeMethodQsv;
+    case 2:
+      return l10n.playerDecodeMethodVaapi;
+    case 3:
+      return l10n.playerDecodeMethodNvdec;
+    case 4:
+      return l10n.playerDecodeMethodRkmpp;
+    default:
+      return null;
+  }
+}
 
-const Map<int, String> _encodeMethodLabels = {
-  0: '软编码',
-  1: 'QSV 编码',
-  2: 'QSV 低电压编码',
-  3: 'VAAPI 编码',
-  4: 'NVENC 编码',
-  5: 'RKMPP 编码',
-};
+String? _encodeMethodLabel(AppLocalizations l10n, int method) {
+  switch (method) {
+    case 0:
+      return l10n.playerEncodeMethodSoftware;
+    case 1:
+      return l10n.playerEncodeMethodQsv;
+    case 2:
+      return l10n.playerEncodeMethodQsvLowPower;
+    case 3:
+      return l10n.playerEncodeMethodVaapi;
+    case 4:
+      return l10n.playerEncodeMethodNvenc;
+    case 5:
+      return l10n.playerEncodeMethodRkmpp;
+    default:
+      return null;
+  }
+}
 
 // Matches the web player's bitrate rendering, e.g. 24556026 -> "24.56 Mbps",
 // 768000 -> "768 Kbps", 20000000 -> "20 Mbps".
@@ -82,24 +114,23 @@ class PlaybackDetailsPanel extends StatelessWidget {
     return CloudStorageType.fromValue(cloudType).isKnown;
   }
 
-  String get _playTypeLabel {
+  String _playTypeLabel(AppLocalizations l10n) {
     if (cache.isUseDirectLink && _isCloudMedia) {
       // The web player shows a dedicated label for STRM direct-link sessions.
-      if (cache.streamInfo?.cloudStorageInfo?.isStrm ?? false) {
-        return 'STRM 直连播放';
-      }
-      return '网盘直连播放';
+      return cache.streamInfo?.cloudStorageInfo?.isStrm ?? false
+          ? l10n.playerPlayTypeStrmDirect
+          : l10n.playerCloudModeDirect;
     }
-    if (_isTranscoded) return '转码播放';
-    return '直接播放';
+    if (_isTranscoded) return l10n.playerPlayTypeTranscode;
+    return l10n.playerPlayTypeDirect;
   }
 
-  String get _transcodingReasonText {
+  String _transcodingReasonText(AppLocalizations l10n) {
     final reasons = transcodeStatus?.transcodingReason ?? const <int>[];
     return reasons
-        .map((reason) => _transcodingReasonMap[reason])
+        .map((reason) => _transcodingReasonLabel(l10n, reason))
         .whereType<String>()
-        .join('；');
+        .join(l10n.playerTranscodeReasonSeparator);
   }
 
   bool get _hasPlaybackInfo {
@@ -119,6 +150,7 @@ class PlaybackDetailsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final fileStream = cache.currentFileStream;
     final videoStream = cache.currentVideoStream;
     final audioStream = cache.currentAudioStream;
@@ -134,10 +166,12 @@ class PlaybackDetailsPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _detailLine('播放类型', _playTypeLabel),
+                    _detailLine(
+                        context, l10n.playerPlayType, _playTypeLabel(l10n)),
                     if (_isTranscoded &&
-                        _transcodingReasonText.isNotEmpty)
-                      _detailLine('转码原因', _transcodingReasonText),
+                        _transcodingReasonText(l10n).isNotEmpty)
+                      _detailLine(context, l10n.playerTranscodeReason,
+                          _transcodingReasonText(l10n)),
                   ],
                 ),
               ),
@@ -148,27 +182,28 @@ class PlaybackDetailsPanel extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (_hasPlaybackInfo) ...[
-            _sectionTitle('播放信息'),
+            _sectionTitle(l10n.playerPlaybackInfo),
             const SizedBox(height: 8),
-            _buildPlaybackInfoRows(),
+            _buildPlaybackInfoRows(context),
             const SizedBox(height: 16),
           ],
-          _sectionTitle('媒体源信息'),
+          _sectionTitle(l10n.playerMediaSourceInfo),
           const SizedBox(height: 8),
           if (videoStream?.wrapper.isNotEmpty ?? false)
-            _detailLine('封装容器', videoStream!.wrapper),
+            _detailLine(context, l10n.playerContainerFormat, videoStream!.wrapper),
           if (fileStream != null && fileStream.size > 0)
             _detailLine(
-              '文件大小',
+              context,
+              l10n.mediaInfoFileSize,
               FileUtils.formatFileSize(fileStream.size),
             ),
           const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: _buildVideoGroup(videoStream)),
+              Expanded(child: _buildVideoGroup(context, videoStream)),
               const SizedBox(width: _columnGap),
-              Expanded(child: _buildAudioGroup(audioStream)),
+              Expanded(child: _buildAudioGroup(context, audioStream)),
             ],
           ),
         ],
@@ -179,7 +214,8 @@ class PlaybackDetailsPanel extends StatelessWidget {
   /// Two-column playback statistics matching the web layout: buffering and
   /// stream info on the left, GPU/codec methods and frame counters on the
   /// right.
-  Widget _buildPlaybackInfoRows() {
+  Widget _buildPlaybackInfoRows(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final status = transcodeStatus;
     final hasServerStats = status != null && status.result == 'succ';
     final videoStream = cache.currentVideoStream;
@@ -197,35 +233,45 @@ class PlaybackDetailsPanel extends StatelessWidget {
 
     final left = <Widget>[
       if (bufferedSeconds != null)
-        _detailLine('缓冲时长', '${bufferedSeconds!.toStringAsFixed(2)} s'),
-      if (resolution.isNotEmpty) _detailLine('分辨率', resolution),
-      if (bitrate > 0) _detailLine('码率', _formatBitrate(bitrate)),
+        _detailLine(context, l10n.playerBufferDuration,
+            '${bufferedSeconds!.toStringAsFixed(2)} s'),
+      if (resolution.isNotEmpty)
+        _detailLine(context, l10n.mediaInfoFieldResolution, resolution),
+      if (bitrate > 0)
+        _detailLine(context, l10n.mediaInfoFieldBitRate, _formatBitrate(bitrate)),
     ];
     final right = <Widget>[];
     if (hasServerStats) {
       final video = status.video;
       if (_isTranscoded) {
         left.addAll([
-          if (video.encoder.isNotEmpty) _detailLine('编码器', video.encoder),
+          if (video.encoder.isNotEmpty)
+            _detailLine(context, l10n.mediaInfoFieldCodec, video.encoder),
           if (video.dynamicRange.isNotEmpty)
-            _detailLine('视频动态范围', video.dynamicRange),
+            _detailLine(
+                context, l10n.mediaInfoFieldDynamicRange, video.dynamicRange),
           if (status.audio.encoder.isNotEmpty)
-            _detailLine('音频编码', status.audio.encoder),
-          _detailLine('声道', '${status.audio.channels}'),
+            _detailLine(context, l10n.playerAudioCodec, status.audio.encoder),
+          _detailLine(
+              context, l10n.mediaInfoFieldChannels, '${status.audio.channels}'),
         ]);
       }
       right.addAll([
         if (video.selectedGpu.isNotEmpty)
-          _detailLine('启用 GPU', video.selectedGpu),
-        if (_decodeMethodLabels[video.decodeMethod] != null)
-          _detailLine('解码方式', _decodeMethodLabels[video.decodeMethod]!),
-        if (_encodeMethodLabels[video.encodeMethod] != null)
-          _detailLine('编码方式', _encodeMethodLabels[video.encodeMethod]!),
+          _detailLine(context, l10n.playerGpuEnabled, video.selectedGpu),
+        if (_decodeMethodLabel(l10n, video.decodeMethod) != null)
+          _detailLine(context, l10n.playerDecodeMethod,
+              _decodeMethodLabel(l10n, video.decodeMethod)!),
+        if (_encodeMethodLabel(l10n, video.encodeMethod) != null)
+          _detailLine(context, l10n.playerEncodeMethod,
+              _encodeMethodLabel(l10n, video.encodeMethod)!),
         if (_isTranscoded) ...[
           if (video.transcodingRate.isNotEmpty)
-            _detailLine('转码帧率', video.transcodingRate),
-          _detailLine('丢帧', '${video.droppedFrames}'),
-          _detailLine('坏帧', '${video.corruptedFrames}'),
+            _detailLine(
+                context, l10n.playerTranscodeFrameRate, video.transcodingRate),
+          _detailLine(context, l10n.playerDroppedFrames, '${video.droppedFrames}'),
+          _detailLine(
+              context, l10n.playerCorruptedFrames, '${video.corruptedFrames}'),
         ],
       ]);
     }
@@ -256,42 +302,54 @@ class PlaybackDetailsPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildVideoGroup(VideoStream? videoStream) {
+  Widget _buildVideoGroup(BuildContext context, VideoStream? videoStream) {
     if (videoStream == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _groupHeader('assets/images/vedio.svg', '视频'),
+        _groupHeader(
+            'assets/images/vedio.svg', l10n.mediaInfoSectionVideo),
         const SizedBox(height: 8),
         if (videoStream.codecName.isNotEmpty)
-          _detailLine('编码', videoStream.codecName.toUpperCase()),
+          _detailLine(
+              context, l10n.playerCodec, videoStream.codecName.toUpperCase()),
         if (videoStream.colorRangeType.isNotEmpty)
-          _detailLine('动态范围', videoStream.colorRangeType),
+          _detailLine(context, l10n.playerDynamicRange, videoStream.colorRangeType),
         if (videoStream.width > 0 && videoStream.height > 0)
-          _detailLine('分辨率', '${videoStream.width} x ${videoStream.height}'),
+          _detailLine(context, l10n.mediaInfoFieldResolution,
+              '${videoStream.width} x ${videoStream.height}'),
         if (videoStream.bps > 0)
-          _detailLine('码率', _formatBitrate(videoStream.bps)),
+          _detailLine(
+              context, l10n.mediaInfoFieldBitRate, _formatBitrate(videoStream.bps)),
         if (videoStream.avgFrameRate.isNotEmpty)
-          _detailLine('帧率', videoStream.avgFrameRate),
+          _detailLine(
+              context, l10n.mediaInfoFieldFrameRate, videoStream.avgFrameRate),
       ],
     );
   }
 
-  Widget _buildAudioGroup(AudioStream? audioStream) {
+  Widget _buildAudioGroup(BuildContext context, AudioStream? audioStream) {
     if (audioStream == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _groupHeader('assets/images/audio.svg', '音频'),
+        _groupHeader(
+            'assets/images/audio.svg', l10n.mediaInfoSectionAudio),
         const SizedBox(height: 8),
         if (audioStream.codecName.isNotEmpty)
-          _detailLine('编码', audioStream.codecName.toUpperCase()),
+          _detailLine(
+              context, l10n.playerCodec, audioStream.codecName.toUpperCase()),
         if (audioStream.channels > 0)
-          _detailLine('声道', '${audioStream.channels}'),
+          _detailLine(
+              context, l10n.mediaInfoFieldChannels, '${audioStream.channels}'),
         if (audioStream.bps > 0)
-          _detailLine('码率', _formatBitrate(audioStream.bps)),
+          _detailLine(
+              context, l10n.mediaInfoFieldBitRate, _formatBitrate(audioStream.bps)),
         if (audioStream.sampleRate.isNotEmpty)
-          _detailLine('采样率', '${audioStream.sampleRate} Hz'),
+          _detailLine(context, l10n.mediaInfoFieldSampleRate,
+              '${audioStream.sampleRate} Hz'),
       ],
     );
   }
@@ -332,11 +390,11 @@ class PlaybackDetailsPanel extends StatelessWidget {
     );
   }
 
-  Widget _detailLine(String label, String value) {
+  Widget _detailLine(BuildContext context, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Text(
-        '$label： $value',
+        '$label${AppLocalizations.of(context).playerDetailSeparator} $value',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(color: _secondaryTextColor, fontSize: 14),

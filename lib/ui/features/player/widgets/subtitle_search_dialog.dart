@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../data/models/subtitle_models.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../shared/common/app_load_error_view.dart';
 import '../../../shared/common/app_loading_progress_ring.dart';
 
@@ -20,11 +21,21 @@ const Color _pillHoverBackgroundColor = Color(0x14FFFFFF);
 
 enum _SubtitleDownloadStatus { idle, downloading, done }
 
-// Language option: (server code, display label).
-const List<(String code, String label)> _languageOptions = <(String, String)>[
-  ('zh-CN', '简体中文'),
-  ('en', '英文'),
-];
+// Language option codes sent to the server. These are LOGIC keys (API query
+// values) and must stay ASCII; their display labels are resolved through
+// [_languageLabel] so they can be localized.
+const List<String> _languageCodes = <String>['zh-CN', 'en'];
+
+String _languageLabel(AppLocalizations l10n, String code) {
+  switch (code) {
+    case 'zh-CN':
+      return l10n.playerSubtitleLanguageSimplifiedChinese;
+    case 'en':
+      return l10n.playerSubtitleLanguageEnglish;
+    default:
+      return code;
+  }
+}
 
 class SubtitleSearchDialog extends StatefulWidget {
   final String mediaFileName;
@@ -95,11 +106,11 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
     super.dispose();
   }
 
-  String get _currentLanguageLabel {
-    for (final option in _languageOptions) {
-      if (option.$1 == _language) return option.$2;
+  String _currentLanguageLabel(AppLocalizations l10n) {
+    if (_languageCodes.contains(_language)) {
+      return _languageLabel(l10n, _language);
     }
-    return _languageOptions.first.$2;
+    return _languageLabel(l10n, _languageCodes.first);
   }
 
   Future<void> _loadSearchResults() async {
@@ -181,6 +192,7 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final screenSize = MediaQuery.of(context).size;
     // The dialog route's canvas is the whole screen even in fullscreen, so the
     // smaller of width/height drives the scale (capped for very large displays).
@@ -233,16 +245,16 @@ class _SubtitleSearchDialogState extends State<SubtitleSearchDialog> {
                   FlyoutTarget(
                     controller: _languageFlyoutController,
                     child: _LanguageSwitchButton(
-                      label: _currentLanguageLabel,
+                      label: _currentLanguageLabel(l10n),
                       onPressed: _showLanguageFlyout,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 20),
-              const Text(
-                '按相关度排序：',
-                style: TextStyle(
+              Text(
+                l10n.playerSubtitleSearchSortHint,
+                style: const TextStyle(
                   color: _secondaryTextColor,
                   fontSize: 14,
                 ),
@@ -305,13 +317,14 @@ class _DialogHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Expanded(
+        Expanded(
           child: Text(
-            '添加字幕',
-            style: TextStyle(
+            l10n.playerSubtitleAddDialogTitle,
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -477,6 +490,7 @@ class _LanguageMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: 160,
       decoration: BoxDecoration(
@@ -487,11 +501,11 @@ class _LanguageMenu extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final option in _languageOptions)
+          for (final code in _languageCodes)
             _LanguageMenuItem(
-              label: option.$2,
-              isSelected: option.$1 == selectedCode,
-              onTap: () => onSelected(option.$1),
+              label: _languageLabel(l10n, code),
+              isSelected: code == selectedCode,
+              onTap: () => onSelected(code),
             ),
         ],
       ),
@@ -550,6 +564,7 @@ class _SubtitleEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -560,9 +575,9 @@ class _SubtitleEmptyState extends StatelessWidget {
             height: 110,
           ),
           const SizedBox(height: 12),
-          const Text(
-            '未搜索到相关字幕',
-            style: TextStyle(color: _secondaryTextColor, fontSize: 14),
+          Text(
+            l10n.playerSubtitleSearchNoResults,
+            style: const TextStyle(color: _secondaryTextColor, fontSize: 14),
           ),
         ],
       ),
@@ -587,6 +602,7 @@ class _SubtitleSearchItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -606,7 +622,7 @@ class _SubtitleSearchItem extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Text(
-              '下载量 ${item.download}',
+              l10n.playerSubtitleSearchDownloadCount('${item.download}'),
               style: const TextStyle(
                 color: _secondaryTextColor,
                 fontSize: 14,
@@ -615,12 +631,12 @@ class _SubtitleSearchItem extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        _buildActions(),
+        _buildActions(l10n),
       ],
     );
   }
 
-  Widget _buildActions() {
+  Widget _buildActions(AppLocalizations l10n) {
     if (status == _SubtitleDownloadStatus.downloading) {
       return _PillButton(
         icon: const SizedBox(
@@ -628,7 +644,7 @@ class _SubtitleSearchItem extends StatelessWidget {
           height: 15,
           child: AppLoadingProgressRing(size: 15, strokeWidth: 2),
         ),
-        label: '下载中',
+        label: l10n.playerSubtitleSearchDownloading,
         enabled: false,
         onPressed: () {},
       );
@@ -639,7 +655,7 @@ class _SubtitleSearchItem extends StatelessWidget {
           _PillButton(
             icon: const Icon(FluentIcons.check_mark,
                 size: 16, color: Colors.white),
-            label: '下载完成',
+            label: l10n.playerSubtitleSearchDownloadDone,
             enabled: false,
             onPressed: () {},
           ),
@@ -647,7 +663,7 @@ class _SubtitleSearchItem extends StatelessWidget {
             const SizedBox(width: 12),
             _PillButton(
               icon: const _CircleDownArrowIcon(size: 16, color: Colors.white),
-              label: '为其他集下载相似字幕',
+              label: l10n.playerSubtitleDownloadSimilarForEpisodes,
               enabled: true,
               onPressed: onDownloadSimilar,
             ),
@@ -657,7 +673,7 @@ class _SubtitleSearchItem extends StatelessWidget {
     }
     return _PillButton(
       icon: const Icon(FluentIcons.download, size: 16, color: Colors.white),
-      label: '下载字幕',
+      label: l10n.playerSubtitleSearchDownload,
       enabled: true,
       onPressed: onDownload,
     );

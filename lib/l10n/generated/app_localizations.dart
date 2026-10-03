@@ -3104,6 +3104,1416 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'分析请求提交失败'**
   String get smartAnalysisSubmitFailed;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'聚焦搜索输入框'**
+  String get shortcutFocusSearch;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放/暂停'**
+  String get shortcutTogglePlayPause;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'静音/取消静音'**
+  String get shortcutMute;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'快退 10 秒'**
+  String get shortcutSeekBackward;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'快进 10 秒'**
+  String get shortcutSeekForward;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'音量增加'**
+  String get shortcutVolumeUp;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'音量减少'**
+  String get shortcutVolumeDown;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换全屏'**
+  String get shortcutToggleFullscreen;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出全屏'**
+  String get shortcutExitFullscreen;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'下一个搜索项'**
+  String get shortcutSearchNext;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'上一个搜索项'**
+  String get shortcutSearchPrev;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'选中搜索项'**
+  String get shortcutSearchSelect;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换搜索分类'**
+  String get shortcutSearchSwitchTab;
+
+  /// Keyboard shortcut action name.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出搜索'**
+  String get shortcutSearchExit;
+
+  /// Suffix appended to a subtitle language name when the subtitle is external.
+  ///
+  /// In zh, this message translates to:
+  /// **' - 外挂'**
+  String get playerSubtitleExternalSuffix;
+
+  /// Suffix appended to a subtitle language name when the subtitle is the default track.
+  ///
+  /// In zh, this message translates to:
+  /// **' - 默认'**
+  String get playerSubtitleDefaultSuffix;
+
+  /// Toast shown when the volume changes, with the new volume percentage.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前音量：{value}%'**
+  String playerVolumeLabel(String value);
+
+  /// Toast shown when unmuting, with the restored volume percentage.
+  ///
+  /// In zh, this message translates to:
+  /// **'解除静音：{value}%'**
+  String playerVolumeUnmuteLabel(String value);
+
+  /// Toast shown when muting the player.
+  ///
+  /// In zh, this message translates to:
+  /// **'静音'**
+  String get playerVolumeMute;
+
+  /// Toast prefix shown when rewinding, followed by the target timestamp.
+  ///
+  /// In zh, this message translates to:
+  /// **'快退至'**
+  String get playerSeekRewindTo;
+
+  /// Toast prefix shown when fast-forwarding, followed by the target timestamp.
+  ///
+  /// In zh, this message translates to:
+  /// **'快进至'**
+  String get playerSeekForwardTo;
+
+  /// Toast shown when seeking via keyboard, combining the rewind/forward label and the target timestamp.
+  ///
+  /// In zh, this message translates to:
+  /// **'{label}：{time}'**
+  String playerSeekTimeToast(String label, String time);
+
+  /// Reason shown when the force-H.264 transcoding switch is disabled because the video is already H.264.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前视频为 H.264'**
+  String get playerForceH264Disabled;
+
+  /// Reason shown when the force-SDR color switch is disabled because the video is already SDR.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前视频为 SDR'**
+  String get playerForceSdrDisabled;
+
+  /// Reason shown when the direct-link CDN range switch is disabled because playback is not a netdisk direct link.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前不是网盘直连播放'**
+  String get playerDirectLinkCdnRangeNotDirect;
+
+  /// Reason shown when the direct-link CDN range switch is disabled because the cloud storage is not Quark.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅支持夸克网盘'**
+  String get playerDirectLinkCdnRangeQuarkOnly;
+
+  /// Label for the netdisk direct-link cloud playback mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'网盘直连播放'**
+  String get playerCloudModeDirect;
+
+  /// Label for the NAS proxy cloud playback mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'NAS 代理播放'**
+  String get playerCloudModeNasProxy;
+
+  /// Toast shown after the cloud playback mode is switched, with the new mode label.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放方式切换至 {label}'**
+  String playerCloudModeSwitchedToast(String label);
+
+  /// Toast shown when NAS proxy negotiation fails and playback falls back to the netdisk direct link.
+  ///
+  /// In zh, this message translates to:
+  /// **'NAS 代理播放失败，正在切换为网盘直连播放'**
+  String get playerCloudProxyFailedFallbackDirect;
+
+  /// Toast shown when subtitle search is invoked but the current file info is missing.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前文件信息缺失，无法搜索字幕'**
+  String get playerInfoMissingSearchSubtitle;
+
+  /// Toast shown when adding a NAS subtitle is invoked but the current file info is missing.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前文件信息缺失，无法添加 NAS 字幕'**
+  String get playerInfoMissingAddNasSubtitle;
+
+  /// Toast shown when uploading a local subtitle is invoked but the current file info is missing.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前文件信息缺失，无法上传字幕'**
+  String get playerInfoMissingUploadSubtitle;
+
+  /// Title of the confirm dialog for deleting an external subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除外挂字幕'**
+  String get playerSubtitleDeleteTitle;
+
+  /// Body of the confirm dialog for deleting an external subtitle, with the subtitle display name.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要删除 {displayName} 外挂字幕吗？'**
+  String playerSubtitleDeleteConfirm(String displayName);
+
+  /// Toast shown after a subtitle is deleted successfully.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除字幕成功'**
+  String get playerSubtitleDeleteSuccess;
+
+  /// Toast shown when deleting a subtitle fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除字幕失败: {error}'**
+  String playerSubtitleDeleteFailed(String error);
+
+  /// Title of the dialog for adding a NAS subtitle file.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加 NAS 字幕文件'**
+  String get playerSubtitleAddNasTitle;
+
+  /// Toast shown after a NAS subtitle is added successfully.
+  ///
+  /// In zh, this message translates to:
+  /// **'NAS 字幕添加成功'**
+  String get playerSubtitleAddNasSuccess;
+
+  /// Toast shown when the selected file has already been added as a subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'该文件已被添加为字幕'**
+  String get playerSubtitleAlreadyMarked;
+
+  /// Toast shown when adding a NAS subtitle fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加 NAS 字幕失败: {error}'**
+  String playerSubtitleAddNasFailed(String error);
+
+  /// Toast shown after a subtitle is downloaded successfully.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载成功'**
+  String get playerSubtitleDownloadSuccess;
+
+  /// Toast shown when downloading a subtitle fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载字幕失败: {error}'**
+  String playerSubtitleDownloadFailed(String error);
+
+  /// Toast shown after a subtitle download task is created.
+  ///
+  /// In zh, this message translates to:
+  /// **'已创建字幕下载任务'**
+  String get playerSubtitleTaskCreated;
+
+  /// Toast shown when creating a subtitle download task fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建字幕下载任务失败，请重试'**
+  String get playerSubtitleTaskFailed;
+
+  /// Toast shown when switching subtitles fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换字幕失败: {error}'**
+  String playerSubtitleSwitchFailed(String error);
+
+  /// Toast shown when switching back to the original quality fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换原画失败: {error}'**
+  String playerSwitchOriginalQualityFailed(String error);
+
+  /// Toast shown when loading media fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败: {error}'**
+  String playerLoadFailed(String error);
+
+  /// Toast shown when toggling fullscreen fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换全屏失败: {error}'**
+  String playerToggleFullscreenFailed(String error);
+
+  /// Toast shown when restarting for transcode settings fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换播放设置失败: {error}'**
+  String playerSwitchPlaybackSettingsFailed(String error);
+
+  /// Toast shown when a player action is requested before the player is ready.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放器尚未准备完成'**
+  String get playerNotReady;
+
+  /// Toast shown when entering picture-in-picture fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'进入画中画失败: {error}'**
+  String playerEnterPipFailed(String error);
+
+  /// Toast shown when exiting picture-in-picture fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出画中画失败: {error}'**
+  String playerExitPipFailed(String error);
+
+  /// Toast shown when switching video quality fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换画质失败: {error}'**
+  String playerSwitchQualityFailed(String error);
+
+  /// Toast shown when switching the cloud playback mode fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换播放方式失败: {error}'**
+  String playerSwitchPlayModeFailed(String error);
+
+  /// Toast shown when switching audio tracks fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换音频失败: {error}'**
+  String playerSwitchAudioFailed(String error);
+
+  /// Toast shown when switching to a subtitle, with the language name only.
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕正在切换至：{language}'**
+  String playerSubtitleSwitchingTo(String language);
+
+  /// Toast shown when switching to a subtitle, with the language name and uppercased format.
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕正在切换至：{language} {format}'**
+  String playerSubtitleSwitchingToFormat(String language, String format);
+
+  /// Tooltip for the close button.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get playerClose;
+
+  /// Tooltip for the back button.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回'**
+  String get playerBack;
+
+  /// Tooltip for the rewind 10 seconds button.
+  ///
+  /// In zh, this message translates to:
+  /// **'快退 10 秒'**
+  String get playerRewindTenSeconds;
+
+  /// Tooltip for the forward 10 seconds button.
+  ///
+  /// In zh, this message translates to:
+  /// **'快进 10 秒'**
+  String get playerForwardTenSeconds;
+
+  /// Tooltip for the play/pause button.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放/暂停'**
+  String get playerPlayPause;
+
+  /// Tooltip for the picture-in-picture button.
+  ///
+  /// In zh, this message translates to:
+  /// **'画中画'**
+  String get playerPip;
+
+  /// Tooltip for the exit picture-in-picture button.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出画中画'**
+  String get playerExitPip;
+
+  /// Tooltip for the danmaku button when danmaku is visible.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭弹幕'**
+  String get playerDanmakuClose;
+
+  /// Tooltip for the danmaku button when danmaku is hidden.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启弹幕'**
+  String get playerDanmakuOpen;
+
+  /// Tooltip for the playback details button.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放详细信息'**
+  String get playerPlaybackDetailsTooltip;
+
+  /// Toast shown after the intro/credits skip configuration is saved successfully.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置成功'**
+  String get playerSkipConfigSaved;
+
+  /// Toast shown when saving the skip configuration fails, with the error.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置失败: {error}'**
+  String playerSkipConfigSaveFailed(String error);
+
+  /// Toast shown when the danmaku API request fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求弹幕接口失败，请检查飞鲸服务端配置'**
+  String get playerDanmakuRequestFailed;
+
+  /// Toast shown when the smart intro/credits analysis API request fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求智能片头片尾接口失败，请检查飞鲸服务端配置'**
+  String get playerSmartSkipRequestFailed;
+
+  /// Toast shown when a not-yet-implemented feature is invoked, with the feature name.
+  ///
+  /// In zh, this message translates to:
+  /// **'{feature} 暂未接入'**
+  String playerFeatureComingSoon(String feature);
+
+  /// Live player error message shown when playback fails, suggesting switching lines.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放出错,请尝试切换线路'**
+  String get playerPlayErrorRetrySwitch;
+
+  /// Live player error message shown when the channel has no available playback line.
+  ///
+  /// In zh, this message translates to:
+  /// **'该频道没有可用的播放线路'**
+  String get playerNoPlayableLine;
+
+  /// Live player error message shown when loading fails, suggesting going back and retrying.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败,请返回重试'**
+  String get playerLoadFailedBackRetry;
+
+  /// Live player error message shown when playback fails, suggesting switching lines.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放失败,请尝试切换线路'**
+  String get playerPlayFailedSwitchLine;
+
+  /// Badge text shown while a live stream is playing.
+  ///
+  /// In zh, this message translates to:
+  /// **'直播中'**
+  String get playerLive;
+
+  /// Tooltip for the pause button.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂停'**
+  String get playerPause;
+
+  /// Tooltip for the play button.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放'**
+  String get playerPlay;
+
+  /// Tooltip for the danmaku settings control-bar button.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹幕设置'**
+  String get playerDanmakuSettingsTooltip;
+
+  /// Title of the danmaku settings flyout.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹幕设置'**
+  String get playerDanmakuSettingsTitle;
+
+  /// Action label that opens the advanced danmaku settings page.
+  ///
+  /// In zh, this message translates to:
+  /// **'高级设置'**
+  String get playerDanmakuAdvancedSettings;
+
+  /// Label of the danmaku display-area slider.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示区域 {value}%'**
+  String playerDanmakuDisplayArea(String value);
+
+  /// Label of the danmaku opacity slider.
+  ///
+  /// In zh, this message translates to:
+  /// **'不透明度 {value}%'**
+  String playerDanmakuOpacity(String value);
+
+  /// Label of the danmaku font-size slider.
+  ///
+  /// In zh, this message translates to:
+  /// **'字号 {value}%'**
+  String playerDanmakuFontSize(String value);
+
+  /// Label of the danmaku speed slider.
+  ///
+  /// In zh, this message translates to:
+  /// **'速度 {value}'**
+  String playerDanmakuSpeed(String value);
+
+  /// Danmaku speed label for the slowest speed step.
+  ///
+  /// In zh, this message translates to:
+  /// **'极慢'**
+  String get playerDanmakuSpeedVerySlow;
+
+  /// Danmaku speed label for a slower-than-normal speed step.
+  ///
+  /// In zh, this message translates to:
+  /// **'较慢'**
+  String get playerDanmakuSpeedSlow;
+
+  /// Danmaku speed label for the normal speed step.
+  ///
+  /// In zh, this message translates to:
+  /// **'适中'**
+  String get playerDanmakuSpeedNormal;
+
+  /// Danmaku speed label for a faster-than-normal speed step.
+  ///
+  /// In zh, this message translates to:
+  /// **'较快'**
+  String get playerDanmakuSpeedFast;
+
+  /// Danmaku speed label for the fastest speed step.
+  ///
+  /// In zh, this message translates to:
+  /// **'极快'**
+  String get playerDanmakuSpeedVeryFast;
+
+  /// Toggle title for syncing danmaku speed with playback rate.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹幕速度同步播放倍速'**
+  String get playerDanmakuSyncPlaybackSpeed;
+
+  /// Toggle title for showing danmaku debug information.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示弹幕调试信息'**
+  String get playerDanmakuShowDebugInfo;
+
+  /// Hover tip shown on the cloud icon for STRM media that is playing via direct link.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在直连播放 STRM 文件'**
+  String get playerStrmDirectPlaying;
+
+  /// Description under the direct-link play mode card (faster, saves bandwidth).
+  ///
+  /// In zh, this message translates to:
+  /// **'速度较快、省流'**
+  String get playerCloudModeDirectDescription;
+
+  /// Description under the NAS proxy play mode card (try switching when color or audio is abnormal).
+  ///
+  /// In zh, this message translates to:
+  /// **'色调或音频异常时可尝试切换'**
+  String get playerCloudModeNasProxyDescription;
+
+  /// Badge marking the recommended play mode card.
+  ///
+  /// In zh, this message translates to:
+  /// **'推荐'**
+  String get playerCloudPlayRecommend;
+
+  /// Notice that a netdisk file is playing and that speed/quality follow the netdisk provider's rules.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在播放网盘上的文件，播放速度和画质取决于网盘方规则。'**
+  String get playerCloudPlayingNotice;
+
+  /// Hint suggesting the user switch the play mode when playback is abnormal.
+  ///
+  /// In zh, this message translates to:
+  /// **'如遇播放异常，可尝试切换播放方式。'**
+  String get playerCloudSwitchNotice;
+
+  /// Section label of the play-mode selector flyout.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放方式'**
+  String get playerPlayModeLabel;
+
+  /// Fallback account name shown in the cloud flyout when the masked nickname is empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'网盘'**
+  String get playerCloudFallbackName;
+
+  /// Generic title on the cloud playback error page.
+  ///
+  /// In zh, this message translates to:
+  /// **'抱歉，播放出错了'**
+  String get playerCloudPlayErrorTitle;
+
+  /// Error page action button that switches to another quality.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放其他画质'**
+  String get playerCloudSwitchQuality;
+
+  /// Error page action button that switches to NAS proxy playback.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换 NAS 代理播放'**
+  String get playerCloudSwitchToProxy;
+
+  /// Cause hint on the STRM playback error page.
+  ///
+  /// In zh, this message translates to:
+  /// **'STRM 直连播放异常，可能原因：网盘挂载连接断开、触发网盘风控、网盘限制非会员操作、浏览器不支持该文件类型。'**
+  String get playerStrmPlaybackErrorHint;
+
+  /// Fallback line label shown by the live channel selector when no channel name is available.
+  ///
+  /// In zh, this message translates to:
+  /// **'线路'**
+  String get playerChannelLineFallback;
+
+  /// Title of the subtitle search dialog for adding subtitles.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加字幕'**
+  String get playerSubtitleAddDialogTitle;
+
+  /// Hint shown above the subtitle search results explaining they are sorted by relevance.
+  ///
+  /// In zh, this message translates to:
+  /// **'按相关度排序：'**
+  String get playerSubtitleSearchSortHint;
+
+  /// Empty-state text shown when a subtitle search returns no results.
+  ///
+  /// In zh, this message translates to:
+  /// **'未搜索到相关字幕'**
+  String get playerSubtitleSearchNoResults;
+
+  /// Download count shown next to a subtitle search result.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载量 {count}'**
+  String playerSubtitleSearchDownloadCount(String count);
+
+  /// Label of the subtitle download button while a download is in progress.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载中'**
+  String get playerSubtitleSearchDownloading;
+
+  /// Label of the subtitle download button once the download has finished.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载完成'**
+  String get playerSubtitleSearchDownloadDone;
+
+  /// Label of the button that downloads a subtitle from the search results.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载字幕'**
+  String get playerSubtitleSearchDownload;
+
+  /// Label of the button that downloads a similar subtitle for the other episodes of a series.
+  ///
+  /// In zh, this message translates to:
+  /// **'为其他集下载相似字幕'**
+  String get playerSubtitleDownloadSimilarForEpisodes;
+
+  /// Display label of the Simplified Chinese subtitle search language option.
+  ///
+  /// In zh, this message translates to:
+  /// **'简体中文'**
+  String get playerSubtitleLanguageSimplifiedChinese;
+
+  /// Display label of the English subtitle search language option.
+  ///
+  /// In zh, this message translates to:
+  /// **'英文'**
+  String get playerSubtitleLanguageEnglish;
+
+  /// Title of the subtitle adjustment panel.
+  ///
+  /// In zh, this message translates to:
+  /// **'调整字幕'**
+  String get playerSubtitleAdjust;
+
+  /// Label of the button that resets subtitle adjustments to their defaults.
+  ///
+  /// In zh, this message translates to:
+  /// **'重置'**
+  String get playerSubtitleReset;
+
+  /// Title of the subtitle timing offset adjustment slider.
+  ///
+  /// In zh, this message translates to:
+  /// **'偏移'**
+  String get playerSubtitleOffset;
+
+  /// Left label of the subtitle offset slider (minus five seconds).
+  ///
+  /// In zh, this message translates to:
+  /// **'-5秒'**
+  String get playerSubtitleOffsetMin;
+
+  /// Right label of the subtitle offset slider (plus five seconds).
+  ///
+  /// In zh, this message translates to:
+  /// **'+5秒'**
+  String get playerSubtitleOffsetMax;
+
+  /// Unit suffix shown next to the subtitle offset input value.
+  ///
+  /// In zh, this message translates to:
+  /// **'秒'**
+  String get playerSubtitleSecondsSuffix;
+
+  /// Title of the subtitle vertical position adjustment slider.
+  ///
+  /// In zh, this message translates to:
+  /// **'位置'**
+  String get playerSubtitlePosition;
+
+  /// Left label of the subtitle position slider (bottom).
+  ///
+  /// In zh, this message translates to:
+  /// **'底部'**
+  String get playerSubtitlePositionBottom;
+
+  /// Right label of the subtitle position slider (top).
+  ///
+  /// In zh, this message translates to:
+  /// **'顶部'**
+  String get playerSubtitlePositionTop;
+
+  /// Hint shown when the subtitle position slider is disabled because the subtitle is a danmaku or ASS effect subtitle with positioning tags.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前字幕为弹幕/特效字幕（含定位标签），位置调整不可用'**
+  String get playerSubtitlePositionLockedHint;
+
+  /// Title of the subtitle font size adjustment slider.
+  ///
+  /// In zh, this message translates to:
+  /// **'字号'**
+  String get playerSubtitleFontSize;
+
+  /// Left label of the subtitle font size slider (minimum).
+  ///
+  /// In zh, this message translates to:
+  /// **'最小'**
+  String get playerSubtitleFontSizeMin;
+
+  /// Right label of the subtitle font size slider (maximum).
+  ///
+  /// In zh, this message translates to:
+  /// **'最大'**
+  String get playerSubtitleFontSizeMax;
+
+  /// Title of the subtitle selection panel.
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕'**
+  String get playerSubtitlePanelTitle;
+
+  /// Label of the button that opens the subtitle adjustment panel.
+  ///
+  /// In zh, this message translates to:
+  /// **'调整'**
+  String get playerSubtitleAdjustButton;
+
+  /// Label of the button that opens the add-subtitle menu.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加'**
+  String get playerSubtitleAddButton;
+
+  /// Label of the list row that turns off subtitles.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get playerSubtitleOff;
+
+  /// Menu item that opens the subtitle search dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索字幕'**
+  String get playerSubtitleSearchMenu;
+
+  /// Menu item that adds a subtitle file stored on the NAS.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加 NAS 字幕文件'**
+  String get playerSubtitleAddNasFile;
+
+  /// Menu item that adds a subtitle file stored on the local computer.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加电脑字幕文件'**
+  String get playerSubtitleAddLocalFile;
+
+  /// Label shown at the bottom of the subtitle panel when built-in subtitles cannot be fetched during direct-link transcoded playback.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连播放缺失内置字幕'**
+  String get playerSubtitleDirectLinkMissingTitle;
+
+  /// Bubble hint explaining why built-in subtitles are missing and how to switch playback mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'由于网盘方的限制，直连转码播放时可能无法获取内置字幕列表。如需切换内置字幕，请切换播放方式为“NAS 代理播放”。'**
+  String get playerSubtitleDirectLinkMissingContent;
+
+  /// Separator placed between a playback details field label and its value.
+  ///
+  /// In zh, this message translates to:
+  /// **'：'**
+  String get playerDetailSeparator;
+
+  /// Playback details field label for the current play type.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放类型'**
+  String get playerPlayType;
+
+  /// Play type value for a STRM file played via direct link.
+  ///
+  /// In zh, this message translates to:
+  /// **'STRM 直连播放'**
+  String get playerPlayTypeStrmDirect;
+
+  /// Play type value for a transcoded playback session.
+  ///
+  /// In zh, this message translates to:
+  /// **'转码播放'**
+  String get playerPlayTypeTranscode;
+
+  /// Play type value for direct playback of a local file.
+  ///
+  /// In zh, this message translates to:
+  /// **'直接播放'**
+  String get playerPlayTypeDirect;
+
+  /// Playback details field label for the transcoding reasons.
+  ///
+  /// In zh, this message translates to:
+  /// **'转码原因'**
+  String get playerTranscodeReason;
+
+  /// Separator joining multiple transcoding reasons.
+  ///
+  /// In zh, this message translates to:
+  /// **'；'**
+  String get playerTranscodeReasonSeparator;
+
+  /// Section heading for live playback statistics.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放信息'**
+  String get playerPlaybackInfo;
+
+  /// Section heading for media source information.
+  ///
+  /// In zh, this message translates to:
+  /// **'媒体源信息'**
+  String get playerMediaSourceInfo;
+
+  /// Playback details field label for the container format.
+  ///
+  /// In zh, this message translates to:
+  /// **'封装容器'**
+  String get playerContainerFormat;
+
+  /// Playback details field label for the buffer duration.
+  ///
+  /// In zh, this message translates to:
+  /// **'缓冲时长'**
+  String get playerBufferDuration;
+
+  /// Playback details field label for the audio codec.
+  ///
+  /// In zh, this message translates to:
+  /// **'音频编码'**
+  String get playerAudioCodec;
+
+  /// Playback details field label for the GPU in use.
+  ///
+  /// In zh, this message translates to:
+  /// **'启用 GPU'**
+  String get playerGpuEnabled;
+
+  /// Playback details field label for the decode method.
+  ///
+  /// In zh, this message translates to:
+  /// **'解码方式'**
+  String get playerDecodeMethod;
+
+  /// Playback details field label for the encode method.
+  ///
+  /// In zh, this message translates to:
+  /// **'编码方式'**
+  String get playerEncodeMethod;
+
+  /// Playback details field label for the transcode frame rate.
+  ///
+  /// In zh, this message translates to:
+  /// **'转码帧率'**
+  String get playerTranscodeFrameRate;
+
+  /// Playback details field label for the dropped frame count.
+  ///
+  /// In zh, this message translates to:
+  /// **'丢帧'**
+  String get playerDroppedFrames;
+
+  /// Playback details field label for the corrupted frame count.
+  ///
+  /// In zh, this message translates to:
+  /// **'坏帧'**
+  String get playerCorruptedFrames;
+
+  /// Media source stream field label for the codec.
+  ///
+  /// In zh, this message translates to:
+  /// **'编码'**
+  String get playerCodec;
+
+  /// Media source stream field label for the dynamic range.
+  ///
+  /// In zh, this message translates to:
+  /// **'动态范围'**
+  String get playerDynamicRange;
+
+  /// Tooltip of the fullscreen button when the player is not in fullscreen mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'进入全屏'**
+  String get playerFullscreenEnter;
+
+  /// Tooltip of the fullscreen button when the player is in fullscreen mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出全屏'**
+  String get playerFullscreenExit;
+
+  /// Label and tooltip of the next-episode button in the player.
+  ///
+  /// In zh, this message translates to:
+  /// **'下一个视频'**
+  String get playerNextVideo;
+
+  /// Episode number label shown in the player episode list.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {number} 集'**
+  String playerEpisodeNumber(String number);
+
+  /// Label of the replay button on the playback end overlay.
+  ///
+  /// In zh, this message translates to:
+  /// **'重播'**
+  String get playerReplay;
+
+  /// Label of the undo action on the auto-skipped intro prompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'撤销'**
+  String get playerUndo;
+
+  /// Message shown on the prompt after the intro was auto-skipped.
+  ///
+  /// In zh, this message translates to:
+  /// **'已自动跳过片头'**
+  String get playerSkipIntroAutoSkipped;
+
+  /// Outro prompt message shown when autoplay is off or credits have post-credits content.
+  ///
+  /// In zh, this message translates to:
+  /// **'{seconds} 秒后跳过片尾'**
+  String playerSkipOutroInSeconds(int seconds);
+
+  /// Outro prompt message shown when the next episode is ready to autoplay.
+  ///
+  /// In zh, this message translates to:
+  /// **'{seconds} 秒后播放下一集'**
+  String playerSkipOutroNextEpisodeInSeconds(int seconds);
+
+  /// Outro prompt message shown when playback will simply stop.
+  ///
+  /// In zh, this message translates to:
+  /// **'{seconds} 秒后结束播放'**
+  String playerSkipOutroEndInSeconds(int seconds);
+
+  /// Fallback label for an unknown audio track language or episode title.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知'**
+  String get playerUnknown;
+
+  /// Audio track primary label suffix marking the track as the default one.
+  ///
+  /// In zh, this message translates to:
+  /// **'{language} - 默认'**
+  String playerAudioDefaultSuffix(String language);
+
+  /// Value of the window aspect ratio setting when it follows the video.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随视频比例'**
+  String get playerSettingsWindowAspectRatioFollowVideo;
+
+  /// Value of the video fill mode setting meaning the original aspect ratio.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认'**
+  String get playerSettingsAspectRatioDefault;
+
+  /// Title of the player settings main panel; opens the advanced settings.
+  ///
+  /// In zh, this message translates to:
+  /// **'高级'**
+  String get playerSettingsAdvanced;
+
+  /// Player setting label for automatically playing the next episode.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动连播'**
+  String get playerSettingsAutoNext;
+
+  /// Player setting label for the skip intro and outro configuration.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过片头/片尾'**
+  String get playerSettingsSkipIntroOutro;
+
+  /// Player setting label and screen title for the window aspect ratio.
+  ///
+  /// In zh, this message translates to:
+  /// **'窗口比例'**
+  String get playerSettingsWindowRatio;
+
+  /// Player setting label and screen title for the video fill mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'画面比例'**
+  String get playerSettingsAspectRatio;
+
+  /// Player setting label and screen title for the decode mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'客户端解码模式'**
+  String get playerSettingsClientDecodeMode;
+
+  /// Player settings audio option label and audio screen title.
+  ///
+  /// In zh, this message translates to:
+  /// **'音频'**
+  String get playerSettingsAudio;
+
+  /// Header title of the player advanced settings screen.
+  ///
+  /// In zh, this message translates to:
+  /// **'高级设置'**
+  String get playerSettingsAdvancedTitle;
+
+  /// Advanced player setting title toggling HEVC to H.264 transcoding.
+  ///
+  /// In zh, this message translates to:
+  /// **'HEVC 转为 H.264'**
+  String get playerSettingsHevcToH264;
+
+  /// Description of the HEVC to H.264 advanced player setting.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放有声音无画面时可尝试开启'**
+  String get playerSettingsHevcToH264Description;
+
+  /// Advanced player setting title forcing tone mapping to SDR.
+  ///
+  /// In zh, this message translates to:
+  /// **'色调强制映射为 SDR'**
+  String get playerSettingsForceSdr;
+
+  /// Description of the force SDR advanced player setting.
+  ///
+  /// In zh, this message translates to:
+  /// **'画面偏暗时可尝试开启，适用于不支持 HDR 的设备'**
+  String get playerSettingsForceSdrDescription;
+
+  /// Advanced player setting title enabling Quark CDN segment direct link.
+  ///
+  /// In zh, this message translates to:
+  /// **'夸克 CDN 分片直连'**
+  String get playerSettingsQuarkCdnSegment;
+
+  /// Description of the Quark CDN segment direct link advanced player setting.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后按分片预取夸克网盘直连流；关闭则使用原有直连方式'**
+  String get playerSettingsQuarkCdnSegmentDescription;
+
+  /// Value shown when smart skip is enabled for the intro/outro configuration.
+  ///
+  /// In zh, this message translates to:
+  /// **'智能跳过'**
+  String get playerSettingsSmartSkip;
+
+  /// Value shown when both a manual intro and outro are configured.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过片头片尾'**
+  String get playerSettingsSkipIntroOutroBoth;
+
+  /// Value shown when only a manual intro is configured.
+  ///
+  /// In zh, this message translates to:
+  /// **'已设置片头'**
+  String get playerSettingsIntroConfigured;
+
+  /// Value shown when only a manual outro is configured.
+  ///
+  /// In zh, this message translates to:
+  /// **'已设置片尾'**
+  String get playerSettingsOutroConfigured;
+
+  /// Value shown when no intro/outro configuration exists.
+  ///
+  /// In zh, this message translates to:
+  /// **'未设置'**
+  String get playerSettingsNotSet;
+
+  /// Scope line of the skip intro/outro settings, with the series title and season number.
+  ///
+  /// In zh, this message translates to:
+  /// **'生效范围: 《{title}》 第 {season} 季'**
+  String playerSettingsSkipScope(String title, String season);
+
+  /// Toggle title enabling smart intro/outro skipping.
+  ///
+  /// In zh, this message translates to:
+  /// **'智能跳过片头/片尾'**
+  String get playerSettingsSmartSkipIntroOutro;
+
+  /// Label of the intro duration slider.
+  ///
+  /// In zh, this message translates to:
+  /// **'片头时长'**
+  String get playerSettingsIntroDuration;
+
+  /// Label of the outro duration slider.
+  ///
+  /// In zh, this message translates to:
+  /// **'片尾时长'**
+  String get playerSettingsOutroDuration;
+
+  /// One-click shortcut button label setting the outro to the current remaining time.
+  ///
+  /// In zh, this message translates to:
+  /// **'将当前剩余时长 {time} 设为片尾'**
+  String playerSettingsSetOutroToRemaining(String time);
+
+  /// One-click shortcut button label setting the intro to the current time.
+  ///
+  /// In zh, this message translates to:
+  /// **'将当前时间 {time} 设为片头'**
+  String playerSettingsSetIntroToCurrent(String time);
+
+  /// Slider boundary caption for a ten minute range.
+  ///
+  /// In zh, this message translates to:
+  /// **'10 分钟'**
+  String get playerSettingsTenMinutes;
+
+  /// Slider start boundary caption.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始'**
+  String get playerSettingsSliderStart;
+
+  /// Slider end boundary caption.
+  ///
+  /// In zh, this message translates to:
+  /// **'结束'**
+  String get playerSettingsSliderEnd;
+
+  /// Tooltip describing the automatic decode mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动选择硬件解码,失败时回退到软件解码。推荐。'**
+  String get playerSettingsDecodeAutoTip;
+
+  /// Tooltip describing the software decode mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'强制使用软件解码,兼容性最好;硬解花屏/黑屏时的兜底方案。'**
+  String get playerSettingsDecodeSoftwareTip;
+
+  /// Tooltip describing the copy-back decode mode.
+  ///
+  /// In zh, this message translates to:
+  /// **'硬件解码但将帧拷回内存,可与所有滤镜/弹幕/截图功能共存;略费 CPU。'**
+  String get playerSettingsDecodeCopyTip;
+
+  /// Decode mode option using software decoding.
+  ///
+  /// In zh, this message translates to:
+  /// **'软件解码'**
+  String get playerSettingsSoftwareDecode;
+
+  /// Decode mode option copying hardware-decoded frames back to memory.
+  ///
+  /// In zh, this message translates to:
+  /// **'回拷模式'**
+  String get playerSettingsCopyBackMode;
+
+  /// Decode mode option and screen title for choosing a specific hardware decoder.
+  ///
+  /// In zh, this message translates to:
+  /// **'指定硬件解码器'**
+  String get playerSettingsSpecifyHwdec;
+
+  /// Empty-state message when no hardware decoder was probed as usable.
+  ///
+  /// In zh, this message translates to:
+  /// **'未探测到可用的硬件解码器'**
+  String get playerSettingsNoHwdecAvailable;
+
+  /// Header of the video quality selection panel in the player.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频质量'**
+  String get playerQualityTitle;
+
+  /// Label for the original (highest) video quality option.
+  ///
+  /// In zh, this message translates to:
+  /// **'原画'**
+  String get playerQualityOriginal;
+
+  /// Label for the custom video quality entry that opens the fine-grained picker.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义'**
+  String get playerQualityCustom;
+
+  /// Title of the custom video quality selection page.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义视频质量'**
+  String get playerQualityCustomTitle;
+
+  /// Tooltip shown on a disabled quality option that direct-link playback does not support.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连播放暂不支持该画质'**
+  String get playerQualityDirectUnsupported;
+
+  /// Hint in the cloud direct-link quality panel explaining the low-risk marked option.
+  ///
+  /// In zh, this message translates to:
+  /// **'选项风控概率相对低，建议优先选择'**
+  String get playerQualityLowRiskHint;
+
+  /// Short hint title warning that the original quality may have no sound in direct-link playback.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连播放原画无声音'**
+  String get playerQualityOriginalNoAudioHint;
+
+  /// Tooltip explaining why the original quality may have no sound in direct-link playback and how to work around it.
+  ///
+  /// In zh, this message translates to:
+  /// **'由于播放器对音频编码格式的支持有限，直连播放原画可能出现无声音的情况。可尝试切换播放方式为 “NAS 代理播放”。'**
+  String get playerQualityOriginalNoAudioTooltip;
+
+  /// Neutral label for the playback speed control at the default speed.
+  ///
+  /// In zh, this message translates to:
+  /// **'倍速'**
+  String get playerSpeedLabel;
+
+  /// Decode mode option that automatically selects hardware decoding.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动'**
+  String get playerSettingsAuto;
+
+  /// Lower quality per video quality setting
+  ///
+  /// In zh, this message translates to:
+  /// **'根据视频质量设置降低画质'**
+  String get playerTranscodeReasonLowerQuality;
+
+  /// Subtitle burn-in
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕烧录'**
+  String get playerTranscodeReasonSubtitleBurn;
+
+  /// Subtitle converted to vtt segments
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕转为 vtt 切片'**
+  String get playerTranscodeReasonSubtitleToVtt;
+
+  /// Video format conversion
+  ///
+  /// In zh, this message translates to:
+  /// **'视频格式转换'**
+  String get playerTranscodeReasonVideoFormat;
+
+  /// Audio format conversion
+  ///
+  /// In zh, this message translates to:
+  /// **'音频格式转换'**
+  String get playerTranscodeReasonAudioFormat;
+
+  /// Tone mapping
+  ///
+  /// In zh, this message translates to:
+  /// **'色调映射'**
+  String get playerTranscodeReasonToneMapping;
+
+  /// Software decoding
+  ///
+  /// In zh, this message translates to:
+  /// **'软解码'**
+  String get playerDecodeMethodSoftware;
+
+  /// QSV decoding
+  ///
+  /// In zh, this message translates to:
+  /// **'QSV 解码'**
+  String get playerDecodeMethodQsv;
+
+  /// VAAPI decoding
+  ///
+  /// In zh, this message translates to:
+  /// **'VAAPI 解码'**
+  String get playerDecodeMethodVaapi;
+
+  /// NVDEC decoding
+  ///
+  /// In zh, this message translates to:
+  /// **'NVDEC 解码'**
+  String get playerDecodeMethodNvdec;
+
+  /// RKMPP decoding
+  ///
+  /// In zh, this message translates to:
+  /// **'RKMPP 解码'**
+  String get playerDecodeMethodRkmpp;
+
+  /// Software encoding
+  ///
+  /// In zh, this message translates to:
+  /// **'软编码'**
+  String get playerEncodeMethodSoftware;
+
+  /// QSV encoding
+  ///
+  /// In zh, this message translates to:
+  /// **'QSV 编码'**
+  String get playerEncodeMethodQsv;
+
+  /// QSV low-power encoding
+  ///
+  /// In zh, this message translates to:
+  /// **'QSV 低电压编码'**
+  String get playerEncodeMethodQsvLowPower;
+
+  /// VAAPI encoding
+  ///
+  /// In zh, this message translates to:
+  /// **'VAAPI 编码'**
+  String get playerEncodeMethodVaapi;
+
+  /// NVENC encoding
+  ///
+  /// In zh, this message translates to:
+  /// **'NVENC 编码'**
+  String get playerEncodeMethodNvenc;
+
+  /// RKMPP encoding
+  ///
+  /// In zh, this message translates to:
+  /// **'RKMPP 编码'**
+  String get playerEncodeMethodRkmpp;
 }
 
 class _AppLocalizationsDelegate

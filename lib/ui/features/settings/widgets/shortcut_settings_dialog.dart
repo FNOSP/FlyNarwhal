@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../data/storage/shortcut_settings_store.dart';
+import '../../../settings/shortcut_action_localization.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../providers/providers.dart';
 import '../../../shared/dialogs/app_dialog.dart';
@@ -184,7 +185,7 @@ class _ShortcutSettingsDialogState
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Expanded(child: Text(definition.title)),
+          Expanded(child: Text(definition.id.localizedTitle(l10n))),
           MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(

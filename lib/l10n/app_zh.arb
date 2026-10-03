@@ -2397,5 +2397,1129 @@
   "smartAnalysisSubmitFailed": "分析请求提交失败",
   "@smartAnalysisSubmitFailed": {
     "description": "Error shown when a smart analysis request could not be submitted."
+  },
+  "shortcutFocusSearch": "聚焦搜索输入框",
+  "@shortcutFocusSearch": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutTogglePlayPause": "播放/暂停",
+  "@shortcutTogglePlayPause": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutMute": "静音/取消静音",
+  "@shortcutMute": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSeekBackward": "快退 10 秒",
+  "@shortcutSeekBackward": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSeekForward": "快进 10 秒",
+  "@shortcutSeekForward": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutVolumeUp": "音量增加",
+  "@shortcutVolumeUp": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutVolumeDown": "音量减少",
+  "@shortcutVolumeDown": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutToggleFullscreen": "切换全屏",
+  "@shortcutToggleFullscreen": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutExitFullscreen": "退出全屏",
+  "@shortcutExitFullscreen": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchNext": "下一个搜索项",
+  "@shortcutSearchNext": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchPrev": "上一个搜索项",
+  "@shortcutSearchPrev": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchSelect": "选中搜索项",
+  "@shortcutSearchSelect": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchSwitchTab": "切换搜索分类",
+  "@shortcutSearchSwitchTab": {
+    "description": "Keyboard shortcut action name."
+  },
+  "shortcutSearchExit": "退出搜索",
+  "@shortcutSearchExit": {
+    "description": "Keyboard shortcut action name."
+  },
+  "playerSubtitleExternalSuffix": " - 外挂",
+  "@playerSubtitleExternalSuffix": {
+    "description": "Suffix appended to a subtitle language name when the subtitle is external."
+  },
+  "playerSubtitleDefaultSuffix": " - 默认",
+  "@playerSubtitleDefaultSuffix": {
+    "description": "Suffix appended to a subtitle language name when the subtitle is the default track."
+  },
+  "playerVolumeLabel": "当前音量：{value}%",
+  "@playerVolumeLabel": {
+    "description": "Toast shown when the volume changes, with the new volume percentage.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVolumeUnmuteLabel": "解除静音：{value}%",
+  "@playerVolumeUnmuteLabel": {
+    "description": "Toast shown when unmuting, with the restored volume percentage.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVolumeMute": "静音",
+  "@playerVolumeMute": {
+    "description": "Toast shown when muting the player."
+  },
+  "playerSeekRewindTo": "快退至",
+  "@playerSeekRewindTo": {
+    "description": "Toast prefix shown when rewinding, followed by the target timestamp."
+  },
+  "playerSeekForwardTo": "快进至",
+  "@playerSeekForwardTo": {
+    "description": "Toast prefix shown when fast-forwarding, followed by the target timestamp."
+  },
+  "playerSeekTimeToast": "{label}：{time}",
+  "@playerSeekTimeToast": {
+    "description": "Toast shown when seeking via keyboard, combining the rewind/forward label and the target timestamp.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerForceH264Disabled": "当前视频为 H.264",
+  "@playerForceH264Disabled": {
+    "description": "Reason shown when the force-H.264 transcoding switch is disabled because the video is already H.264."
+  },
+  "playerForceSdrDisabled": "当前视频为 SDR",
+  "@playerForceSdrDisabled": {
+    "description": "Reason shown when the force-SDR color switch is disabled because the video is already SDR."
+  },
+  "playerDirectLinkCdnRangeNotDirect": "当前不是网盘直连播放",
+  "@playerDirectLinkCdnRangeNotDirect": {
+    "description": "Reason shown when the direct-link CDN range switch is disabled because playback is not a netdisk direct link."
+  },
+  "playerDirectLinkCdnRangeQuarkOnly": "仅支持夸克网盘",
+  "@playerDirectLinkCdnRangeQuarkOnly": {
+    "description": "Reason shown when the direct-link CDN range switch is disabled because the cloud storage is not Quark."
+  },
+  "playerCloudModeDirect": "网盘直连播放",
+  "@playerCloudModeDirect": {
+    "description": "Label for the netdisk direct-link cloud playback mode."
+  },
+  "playerCloudModeNasProxy": "NAS 代理播放",
+  "@playerCloudModeNasProxy": {
+    "description": "Label for the NAS proxy cloud playback mode."
+  },
+  "playerCloudModeSwitchedToast": "播放方式切换至 {label}",
+  "@playerCloudModeSwitchedToast": {
+    "description": "Toast shown after the cloud playback mode is switched, with the new mode label.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "playerCloudProxyFailedFallbackDirect": "NAS 代理播放失败，正在切换为网盘直连播放",
+  "@playerCloudProxyFailedFallbackDirect": {
+    "description": "Toast shown when NAS proxy negotiation fails and playback falls back to the netdisk direct link."
+  },
+  "playerInfoMissingSearchSubtitle": "当前文件信息缺失，无法搜索字幕",
+  "@playerInfoMissingSearchSubtitle": {
+    "description": "Toast shown when subtitle search is invoked but the current file info is missing."
+  },
+  "playerInfoMissingAddNasSubtitle": "当前文件信息缺失，无法添加 NAS 字幕",
+  "@playerInfoMissingAddNasSubtitle": {
+    "description": "Toast shown when adding a NAS subtitle is invoked but the current file info is missing."
+  },
+  "playerInfoMissingUploadSubtitle": "当前文件信息缺失，无法上传字幕",
+  "@playerInfoMissingUploadSubtitle": {
+    "description": "Toast shown when uploading a local subtitle is invoked but the current file info is missing."
+  },
+  "playerSubtitleDeleteTitle": "删除外挂字幕",
+  "@playerSubtitleDeleteTitle": {
+    "description": "Title of the confirm dialog for deleting an external subtitle."
+  },
+  "playerSubtitleDeleteConfirm": "确定要删除 {displayName} 外挂字幕吗？",
+  "@playerSubtitleDeleteConfirm": {
+    "description": "Body of the confirm dialog for deleting an external subtitle, with the subtitle display name.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleDeleteSuccess": "删除字幕成功",
+  "@playerSubtitleDeleteSuccess": {
+    "description": "Toast shown after a subtitle is deleted successfully."
+  },
+  "playerSubtitleDeleteFailed": "删除字幕失败: {error}",
+  "@playerSubtitleDeleteFailed": {
+    "description": "Toast shown when deleting a subtitle fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleAddNasTitle": "添加 NAS 字幕文件",
+  "@playerSubtitleAddNasTitle": {
+    "description": "Title of the dialog for adding a NAS subtitle file."
+  },
+  "playerSubtitleAddNasSuccess": "NAS 字幕添加成功",
+  "@playerSubtitleAddNasSuccess": {
+    "description": "Toast shown after a NAS subtitle is added successfully."
+  },
+  "playerSubtitleAlreadyMarked": "该文件已被添加为字幕",
+  "@playerSubtitleAlreadyMarked": {
+    "description": "Toast shown when the selected file has already been added as a subtitle."
+  },
+  "playerSubtitleAddNasFailed": "添加 NAS 字幕失败: {error}",
+  "@playerSubtitleAddNasFailed": {
+    "description": "Toast shown when adding a NAS subtitle fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleDownloadSuccess": "下载成功",
+  "@playerSubtitleDownloadSuccess": {
+    "description": "Toast shown after a subtitle is downloaded successfully."
+  },
+  "playerSubtitleDownloadFailed": "下载字幕失败: {error}",
+  "@playerSubtitleDownloadFailed": {
+    "description": "Toast shown when downloading a subtitle fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleTaskCreated": "已创建字幕下载任务",
+  "@playerSubtitleTaskCreated": {
+    "description": "Toast shown after a subtitle download task is created."
+  },
+  "playerSubtitleTaskFailed": "创建字幕下载任务失败，请重试",
+  "@playerSubtitleTaskFailed": {
+    "description": "Toast shown when creating a subtitle download task fails."
+  },
+  "playerSubtitleSwitchFailed": "切换字幕失败: {error}",
+  "@playerSubtitleSwitchFailed": {
+    "description": "Toast shown when switching subtitles fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchOriginalQualityFailed": "切换原画失败: {error}",
+  "@playerSwitchOriginalQualityFailed": {
+    "description": "Toast shown when switching back to the original quality fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerLoadFailed": "加载失败: {error}",
+  "@playerLoadFailed": {
+    "description": "Toast shown when loading media fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerToggleFullscreenFailed": "切换全屏失败: {error}",
+  "@playerToggleFullscreenFailed": {
+    "description": "Toast shown when toggling fullscreen fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchPlaybackSettingsFailed": "切换播放设置失败: {error}",
+  "@playerSwitchPlaybackSettingsFailed": {
+    "description": "Toast shown when restarting for transcode settings fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerNotReady": "播放器尚未准备完成",
+  "@playerNotReady": {
+    "description": "Toast shown when a player action is requested before the player is ready."
+  },
+  "playerEnterPipFailed": "进入画中画失败: {error}",
+  "@playerEnterPipFailed": {
+    "description": "Toast shown when entering picture-in-picture fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerExitPipFailed": "退出画中画失败: {error}",
+  "@playerExitPipFailed": {
+    "description": "Toast shown when exiting picture-in-picture fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchQualityFailed": "切换画质失败: {error}",
+  "@playerSwitchQualityFailed": {
+    "description": "Toast shown when switching video quality fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchPlayModeFailed": "切换播放方式失败: {error}",
+  "@playerSwitchPlayModeFailed": {
+    "description": "Toast shown when switching the cloud playback mode fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSwitchAudioFailed": "切换音频失败: {error}",
+  "@playerSwitchAudioFailed": {
+    "description": "Toast shown when switching audio tracks fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleSwitchingTo": "字幕正在切换至：{language}",
+  "@playerSubtitleSwitchingTo": {
+    "description": "Toast shown when switching to a subtitle, with the language name only.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleSwitchingToFormat": "字幕正在切换至：{language} {format}",
+  "@playerSubtitleSwitchingToFormat": {
+    "description": "Toast shown when switching to a subtitle, with the language name and uppercased format.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  "playerClose": "关闭",
+  "@playerClose": {
+    "description": "Tooltip for the close button."
+  },
+  "playerBack": "返回",
+  "@playerBack": {
+    "description": "Tooltip for the back button."
+  },
+  "playerRewindTenSeconds": "快退 10 秒",
+  "@playerRewindTenSeconds": {
+    "description": "Tooltip for the rewind 10 seconds button."
+  },
+  "playerForwardTenSeconds": "快进 10 秒",
+  "@playerForwardTenSeconds": {
+    "description": "Tooltip for the forward 10 seconds button."
+  },
+  "playerPlayPause": "播放/暂停",
+  "@playerPlayPause": {
+    "description": "Tooltip for the play/pause button."
+  },
+  "playerPip": "画中画",
+  "@playerPip": {
+    "description": "Tooltip for the picture-in-picture button."
+  },
+  "playerExitPip": "退出画中画",
+  "@playerExitPip": {
+    "description": "Tooltip for the exit picture-in-picture button."
+  },
+  "playerDanmakuClose": "关闭弹幕",
+  "@playerDanmakuClose": {
+    "description": "Tooltip for the danmaku button when danmaku is visible."
+  },
+  "playerDanmakuOpen": "开启弹幕",
+  "@playerDanmakuOpen": {
+    "description": "Tooltip for the danmaku button when danmaku is hidden."
+  },
+  "playerPlaybackDetailsTooltip": "播放详细信息",
+  "@playerPlaybackDetailsTooltip": {
+    "description": "Tooltip for the playback details button."
+  },
+  "playerSkipConfigSaved": "设置成功",
+  "@playerSkipConfigSaved": {
+    "description": "Toast shown after the intro/credits skip configuration is saved successfully."
+  },
+  "playerSkipConfigSaveFailed": "设置失败: {error}",
+  "@playerSkipConfigSaveFailed": {
+    "description": "Toast shown when saving the skip configuration fails, with the error.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuRequestFailed": "请求弹幕接口失败，请检查飞鲸服务端配置",
+  "@playerDanmakuRequestFailed": {
+    "description": "Toast shown when the danmaku API request fails."
+  },
+  "playerSmartSkipRequestFailed": "请求智能片头片尾接口失败，请检查飞鲸服务端配置",
+  "@playerSmartSkipRequestFailed": {
+    "description": "Toast shown when the smart intro/credits analysis API request fails."
+  },
+  "playerFeatureComingSoon": "{feature} 暂未接入",
+  "@playerFeatureComingSoon": {
+    "description": "Toast shown when a not-yet-implemented feature is invoked, with the feature name.",
+    "placeholders": {
+      "feature": {
+        "type": "String"
+      }
+    }
+  },
+  "playerPlayErrorRetrySwitch": "播放出错,请尝试切换线路",
+  "@playerPlayErrorRetrySwitch": {
+    "description": "Live player error message shown when playback fails, suggesting switching lines."
+  },
+  "playerNoPlayableLine": "该频道没有可用的播放线路",
+  "@playerNoPlayableLine": {
+    "description": "Live player error message shown when the channel has no available playback line."
+  },
+  "playerLoadFailedBackRetry": "加载失败,请返回重试",
+  "@playerLoadFailedBackRetry": {
+    "description": "Live player error message shown when loading fails, suggesting going back and retrying."
+  },
+  "playerPlayFailedSwitchLine": "播放失败,请尝试切换线路",
+  "@playerPlayFailedSwitchLine": {
+    "description": "Live player error message shown when playback fails, suggesting switching lines."
+  },
+  "playerLive": "直播中",
+  "@playerLive": {
+    "description": "Badge text shown while a live stream is playing."
+  },
+  "playerPause": "暂停",
+  "@playerPause": {
+    "description": "Tooltip for the pause button."
+  },
+  "playerPlay": "播放",
+  "@playerPlay": {
+    "description": "Tooltip for the play button."
+  },
+  "playerDanmakuSettingsTooltip": "弹幕设置",
+  "@playerDanmakuSettingsTooltip": {
+    "description": "Tooltip for the danmaku settings control-bar button."
+  },
+  "playerDanmakuSettingsTitle": "弹幕设置",
+  "@playerDanmakuSettingsTitle": {
+    "description": "Title of the danmaku settings flyout."
+  },
+  "playerDanmakuAdvancedSettings": "高级设置",
+  "@playerDanmakuAdvancedSettings": {
+    "description": "Action label that opens the advanced danmaku settings page."
+  },
+  "playerDanmakuDisplayArea": "显示区域 {value}%",
+  "@playerDanmakuDisplayArea": {
+    "description": "Label of the danmaku display-area slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuOpacity": "不透明度 {value}%",
+  "@playerDanmakuOpacity": {
+    "description": "Label of the danmaku opacity slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuFontSize": "字号 {value}%",
+  "@playerDanmakuFontSize": {
+    "description": "Label of the danmaku font-size slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuSpeed": "速度 {value}",
+  "@playerDanmakuSpeed": {
+    "description": "Label of the danmaku speed slider.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "playerDanmakuSpeedVerySlow": "极慢",
+  "@playerDanmakuSpeedVerySlow": {
+    "description": "Danmaku speed label for the slowest speed step."
+  },
+  "playerDanmakuSpeedSlow": "较慢",
+  "@playerDanmakuSpeedSlow": {
+    "description": "Danmaku speed label for a slower-than-normal speed step."
+  },
+  "playerDanmakuSpeedNormal": "适中",
+  "@playerDanmakuSpeedNormal": {
+    "description": "Danmaku speed label for the normal speed step."
+  },
+  "playerDanmakuSpeedFast": "较快",
+  "@playerDanmakuSpeedFast": {
+    "description": "Danmaku speed label for a faster-than-normal speed step."
+  },
+  "playerDanmakuSpeedVeryFast": "极快",
+  "@playerDanmakuSpeedVeryFast": {
+    "description": "Danmaku speed label for the fastest speed step."
+  },
+  "playerDanmakuSyncPlaybackSpeed": "弹幕速度同步播放倍速",
+  "@playerDanmakuSyncPlaybackSpeed": {
+    "description": "Toggle title for syncing danmaku speed with playback rate."
+  },
+  "playerDanmakuShowDebugInfo": "显示弹幕调试信息",
+  "@playerDanmakuShowDebugInfo": {
+    "description": "Toggle title for showing danmaku debug information."
+  },
+  "playerStrmDirectPlaying": "正在直连播放 STRM 文件",
+  "@playerStrmDirectPlaying": {
+    "description": "Hover tip shown on the cloud icon for STRM media that is playing via direct link."
+  },
+  "playerCloudModeDirectDescription": "速度较快、省流",
+  "@playerCloudModeDirectDescription": {
+    "description": "Description under the direct-link play mode card (faster, saves bandwidth)."
+  },
+  "playerCloudModeNasProxyDescription": "色调或音频异常时可尝试切换",
+  "@playerCloudModeNasProxyDescription": {
+    "description": "Description under the NAS proxy play mode card (try switching when color or audio is abnormal)."
+  },
+  "playerCloudPlayRecommend": "推荐",
+  "@playerCloudPlayRecommend": {
+    "description": "Badge marking the recommended play mode card."
+  },
+  "playerCloudPlayingNotice": "正在播放网盘上的文件，播放速度和画质取决于网盘方规则。",
+  "@playerCloudPlayingNotice": {
+    "description": "Notice that a netdisk file is playing and that speed/quality follow the netdisk provider's rules."
+  },
+  "playerCloudSwitchNotice": "如遇播放异常，可尝试切换播放方式。",
+  "@playerCloudSwitchNotice": {
+    "description": "Hint suggesting the user switch the play mode when playback is abnormal."
+  },
+  "playerPlayModeLabel": "播放方式",
+  "@playerPlayModeLabel": {
+    "description": "Section label of the play-mode selector flyout."
+  },
+  "playerCloudFallbackName": "网盘",
+  "@playerCloudFallbackName": {
+    "description": "Fallback account name shown in the cloud flyout when the masked nickname is empty."
+  },
+  "playerCloudPlayErrorTitle": "抱歉，播放出错了",
+  "@playerCloudPlayErrorTitle": {
+    "description": "Generic title on the cloud playback error page."
+  },
+  "playerCloudSwitchQuality": "播放其他画质",
+  "@playerCloudSwitchQuality": {
+    "description": "Error page action button that switches to another quality."
+  },
+  "playerCloudSwitchToProxy": "切换 NAS 代理播放",
+  "@playerCloudSwitchToProxy": {
+    "description": "Error page action button that switches to NAS proxy playback."
+  },
+  "playerStrmPlaybackErrorHint": "STRM 直连播放异常，可能原因：网盘挂载连接断开、触发网盘风控、网盘限制非会员操作、浏览器不支持该文件类型。",
+  "@playerStrmPlaybackErrorHint": {
+    "description": "Cause hint on the STRM playback error page."
+  },
+  "playerChannelLineFallback": "线路",
+  "@playerChannelLineFallback": {
+    "description": "Fallback line label shown by the live channel selector when no channel name is available."
+  },
+  "playerSubtitleAddDialogTitle": "添加字幕",
+  "@playerSubtitleAddDialogTitle": {
+    "description": "Title of the subtitle search dialog for adding subtitles."
+  },
+  "playerSubtitleSearchSortHint": "按相关度排序：",
+  "@playerSubtitleSearchSortHint": {
+    "description": "Hint shown above the subtitle search results explaining they are sorted by relevance."
+  },
+  "playerSubtitleSearchNoResults": "未搜索到相关字幕",
+  "@playerSubtitleSearchNoResults": {
+    "description": "Empty-state text shown when a subtitle search returns no results."
+  },
+  "playerSubtitleSearchDownloadCount": "下载量 {count}",
+  "@playerSubtitleSearchDownloadCount": {
+    "description": "Download count shown next to a subtitle search result.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSubtitleSearchDownloading": "下载中",
+  "@playerSubtitleSearchDownloading": {
+    "description": "Label of the subtitle download button while a download is in progress."
+  },
+  "playerSubtitleSearchDownloadDone": "下载完成",
+  "@playerSubtitleSearchDownloadDone": {
+    "description": "Label of the subtitle download button once the download has finished."
+  },
+  "playerSubtitleSearchDownload": "下载字幕",
+  "@playerSubtitleSearchDownload": {
+    "description": "Label of the button that downloads a subtitle from the search results."
+  },
+  "playerSubtitleDownloadSimilarForEpisodes": "为其他集下载相似字幕",
+  "@playerSubtitleDownloadSimilarForEpisodes": {
+    "description": "Label of the button that downloads a similar subtitle for the other episodes of a series."
+  },
+  "playerSubtitleLanguageSimplifiedChinese": "简体中文",
+  "@playerSubtitleLanguageSimplifiedChinese": {
+    "description": "Display label of the Simplified Chinese subtitle search language option."
+  },
+  "playerSubtitleLanguageEnglish": "英文",
+  "@playerSubtitleLanguageEnglish": {
+    "description": "Display label of the English subtitle search language option."
+  },
+  "playerSubtitleAdjust": "调整字幕",
+  "@playerSubtitleAdjust": {
+    "description": "Title of the subtitle adjustment panel."
+  },
+  "playerSubtitleReset": "重置",
+  "@playerSubtitleReset": {
+    "description": "Label of the button that resets subtitle adjustments to their defaults."
+  },
+  "playerSubtitleOffset": "偏移",
+  "@playerSubtitleOffset": {
+    "description": "Title of the subtitle timing offset adjustment slider."
+  },
+  "playerSubtitleOffsetMin": "-5秒",
+  "@playerSubtitleOffsetMin": {
+    "description": "Left label of the subtitle offset slider (minus five seconds)."
+  },
+  "playerSubtitleOffsetMax": "+5秒",
+  "@playerSubtitleOffsetMax": {
+    "description": "Right label of the subtitle offset slider (plus five seconds)."
+  },
+  "playerSubtitleSecondsSuffix": "秒",
+  "@playerSubtitleSecondsSuffix": {
+    "description": "Unit suffix shown next to the subtitle offset input value."
+  },
+  "playerSubtitlePosition": "位置",
+  "@playerSubtitlePosition": {
+    "description": "Title of the subtitle vertical position adjustment slider."
+  },
+  "playerSubtitlePositionBottom": "底部",
+  "@playerSubtitlePositionBottom": {
+    "description": "Left label of the subtitle position slider (bottom)."
+  },
+  "playerSubtitlePositionTop": "顶部",
+  "@playerSubtitlePositionTop": {
+    "description": "Right label of the subtitle position slider (top)."
+  },
+  "playerSubtitlePositionLockedHint": "当前字幕为弹幕/特效字幕（含定位标签），位置调整不可用",
+  "@playerSubtitlePositionLockedHint": {
+    "description": "Hint shown when the subtitle position slider is disabled because the subtitle is a danmaku or ASS effect subtitle with positioning tags."
+  },
+  "playerSubtitleFontSize": "字号",
+  "@playerSubtitleFontSize": {
+    "description": "Title of the subtitle font size adjustment slider."
+  },
+  "playerSubtitleFontSizeMin": "最小",
+  "@playerSubtitleFontSizeMin": {
+    "description": "Left label of the subtitle font size slider (minimum)."
+  },
+  "playerSubtitleFontSizeMax": "最大",
+  "@playerSubtitleFontSizeMax": {
+    "description": "Right label of the subtitle font size slider (maximum)."
+  },
+  "playerSubtitlePanelTitle": "字幕",
+  "@playerSubtitlePanelTitle": {
+    "description": "Title of the subtitle selection panel."
+  },
+  "playerSubtitleAdjustButton": "调整",
+  "@playerSubtitleAdjustButton": {
+    "description": "Label of the button that opens the subtitle adjustment panel."
+  },
+  "playerSubtitleAddButton": "添加",
+  "@playerSubtitleAddButton": {
+    "description": "Label of the button that opens the add-subtitle menu."
+  },
+  "playerSubtitleOff": "关闭",
+  "@playerSubtitleOff": {
+    "description": "Label of the list row that turns off subtitles."
+  },
+  "playerSubtitleSearchMenu": "搜索字幕",
+  "@playerSubtitleSearchMenu": {
+    "description": "Menu item that opens the subtitle search dialog."
+  },
+  "playerSubtitleAddNasFile": "添加 NAS 字幕文件",
+  "@playerSubtitleAddNasFile": {
+    "description": "Menu item that adds a subtitle file stored on the NAS."
+  },
+  "playerSubtitleAddLocalFile": "添加电脑字幕文件",
+  "@playerSubtitleAddLocalFile": {
+    "description": "Menu item that adds a subtitle file stored on the local computer."
+  },
+  "playerSubtitleDirectLinkMissingTitle": "直连播放缺失内置字幕",
+  "@playerSubtitleDirectLinkMissingTitle": {
+    "description": "Label shown at the bottom of the subtitle panel when built-in subtitles cannot be fetched during direct-link transcoded playback."
+  },
+  "playerSubtitleDirectLinkMissingContent": "由于网盘方的限制，直连转码播放时可能无法获取内置字幕列表。如需切换内置字幕，请切换播放方式为“NAS 代理播放”。",
+  "@playerSubtitleDirectLinkMissingContent": {
+    "description": "Bubble hint explaining why built-in subtitles are missing and how to switch playback mode."
+  },
+  "playerDetailSeparator": "：",
+  "@playerDetailSeparator": {
+    "description": "Separator placed between a playback details field label and its value."
+  },
+  "playerPlayType": "播放类型",
+  "@playerPlayType": {
+    "description": "Playback details field label for the current play type."
+  },
+  "playerPlayTypeStrmDirect": "STRM 直连播放",
+  "@playerPlayTypeStrmDirect": {
+    "description": "Play type value for a STRM file played via direct link."
+  },
+  "playerPlayTypeTranscode": "转码播放",
+  "@playerPlayTypeTranscode": {
+    "description": "Play type value for a transcoded playback session."
+  },
+  "playerPlayTypeDirect": "直接播放",
+  "@playerPlayTypeDirect": {
+    "description": "Play type value for direct playback of a local file."
+  },
+  "playerTranscodeReason": "转码原因",
+  "@playerTranscodeReason": {
+    "description": "Playback details field label for the transcoding reasons."
+  },
+  "playerTranscodeReasonSeparator": "；",
+  "@playerTranscodeReasonSeparator": {
+    "description": "Separator joining multiple transcoding reasons."
+  },
+  "playerPlaybackInfo": "播放信息",
+  "@playerPlaybackInfo": {
+    "description": "Section heading for live playback statistics."
+  },
+  "playerMediaSourceInfo": "媒体源信息",
+  "@playerMediaSourceInfo": {
+    "description": "Section heading for media source information."
+  },
+  "playerContainerFormat": "封装容器",
+  "@playerContainerFormat": {
+    "description": "Playback details field label for the container format."
+  },
+  "playerBufferDuration": "缓冲时长",
+  "@playerBufferDuration": {
+    "description": "Playback details field label for the buffer duration."
+  },
+  "playerAudioCodec": "音频编码",
+  "@playerAudioCodec": {
+    "description": "Playback details field label for the audio codec."
+  },
+  "playerGpuEnabled": "启用 GPU",
+  "@playerGpuEnabled": {
+    "description": "Playback details field label for the GPU in use."
+  },
+  "playerDecodeMethod": "解码方式",
+  "@playerDecodeMethod": {
+    "description": "Playback details field label for the decode method."
+  },
+  "playerEncodeMethod": "编码方式",
+  "@playerEncodeMethod": {
+    "description": "Playback details field label for the encode method."
+  },
+  "playerTranscodeFrameRate": "转码帧率",
+  "@playerTranscodeFrameRate": {
+    "description": "Playback details field label for the transcode frame rate."
+  },
+  "playerDroppedFrames": "丢帧",
+  "@playerDroppedFrames": {
+    "description": "Playback details field label for the dropped frame count."
+  },
+  "playerCorruptedFrames": "坏帧",
+  "@playerCorruptedFrames": {
+    "description": "Playback details field label for the corrupted frame count."
+  },
+  "playerCodec": "编码",
+  "@playerCodec": {
+    "description": "Media source stream field label for the codec."
+  },
+  "playerDynamicRange": "动态范围",
+  "@playerDynamicRange": {
+    "description": "Media source stream field label for the dynamic range."
+  },
+  "playerFullscreenEnter": "进入全屏",
+  "@playerFullscreenEnter": {
+    "description": "Tooltip of the fullscreen button when the player is not in fullscreen mode."
+  },
+  "playerFullscreenExit": "退出全屏",
+  "@playerFullscreenExit": {
+    "description": "Tooltip of the fullscreen button when the player is in fullscreen mode."
+  },
+  "playerNextVideo": "下一个视频",
+  "@playerNextVideo": {
+    "description": "Label and tooltip of the next-episode button in the player."
+  },
+  "playerEpisodeNumber": "第 {number} 集",
+  "@playerEpisodeNumber": {
+    "description": "Episode number label shown in the player episode list.",
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "playerReplay": "重播",
+  "@playerReplay": {
+    "description": "Label of the replay button on the playback end overlay."
+  },
+  "playerUndo": "撤销",
+  "@playerUndo": {
+    "description": "Label of the undo action on the auto-skipped intro prompt."
+  },
+  "playerSkipIntroAutoSkipped": "已自动跳过片头",
+  "@playerSkipIntroAutoSkipped": {
+    "description": "Message shown on the prompt after the intro was auto-skipped."
+  },
+  "playerSkipOutroInSeconds": "{seconds} 秒后跳过片尾",
+  "@playerSkipOutroInSeconds": {
+    "description": "Outro prompt message shown when autoplay is off or credits have post-credits content.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerSkipOutroNextEpisodeInSeconds": "{seconds} 秒后播放下一集",
+  "@playerSkipOutroNextEpisodeInSeconds": {
+    "description": "Outro prompt message shown when the next episode is ready to autoplay.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerSkipOutroEndInSeconds": "{seconds} 秒后结束播放",
+  "@playerSkipOutroEndInSeconds": {
+    "description": "Outro prompt message shown when playback will simply stop.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerUnknown": "未知",
+  "@playerUnknown": {
+    "description": "Fallback label for an unknown audio track language or episode title."
+  },
+  "playerAudioDefaultSuffix": "{language} - 默认",
+  "@playerAudioDefaultSuffix": {
+    "description": "Audio track primary label suffix marking the track as the default one.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsWindowAspectRatioFollowVideo": "跟随视频比例",
+  "@playerSettingsWindowAspectRatioFollowVideo": {
+    "description": "Value of the window aspect ratio setting when it follows the video."
+  },
+  "playerSettingsAspectRatioDefault": "默认",
+  "@playerSettingsAspectRatioDefault": {
+    "description": "Value of the video fill mode setting meaning the original aspect ratio."
+  },
+  "playerSettingsAdvanced": "高级",
+  "@playerSettingsAdvanced": {
+    "description": "Title of the player settings main panel; opens the advanced settings."
+  },
+  "playerSettingsAutoNext": "自动连播",
+  "@playerSettingsAutoNext": {
+    "description": "Player setting label for automatically playing the next episode."
+  },
+  "playerSettingsSkipIntroOutro": "跳过片头/片尾",
+  "@playerSettingsSkipIntroOutro": {
+    "description": "Player setting label for the skip intro and outro configuration."
+  },
+  "playerSettingsWindowRatio": "窗口比例",
+  "@playerSettingsWindowRatio": {
+    "description": "Player setting label and screen title for the window aspect ratio."
+  },
+  "playerSettingsAspectRatio": "画面比例",
+  "@playerSettingsAspectRatio": {
+    "description": "Player setting label and screen title for the video fill mode."
+  },
+  "playerSettingsClientDecodeMode": "客户端解码模式",
+  "@playerSettingsClientDecodeMode": {
+    "description": "Player setting label and screen title for the decode mode."
+  },
+  "playerSettingsAudio": "音频",
+  "@playerSettingsAudio": {
+    "description": "Player settings audio option label and audio screen title."
+  },
+  "playerSettingsAdvancedTitle": "高级设置",
+  "@playerSettingsAdvancedTitle": {
+    "description": "Header title of the player advanced settings screen."
+  },
+  "playerSettingsHevcToH264": "HEVC 转为 H.264",
+  "@playerSettingsHevcToH264": {
+    "description": "Advanced player setting title toggling HEVC to H.264 transcoding."
+  },
+  "playerSettingsHevcToH264Description": "播放有声音无画面时可尝试开启",
+  "@playerSettingsHevcToH264Description": {
+    "description": "Description of the HEVC to H.264 advanced player setting."
+  },
+  "playerSettingsForceSdr": "色调强制映射为 SDR",
+  "@playerSettingsForceSdr": {
+    "description": "Advanced player setting title forcing tone mapping to SDR."
+  },
+  "playerSettingsForceSdrDescription": "画面偏暗时可尝试开启，适用于不支持 HDR 的设备",
+  "@playerSettingsForceSdrDescription": {
+    "description": "Description of the force SDR advanced player setting."
+  },
+  "playerSettingsQuarkCdnSegment": "夸克 CDN 分片直连",
+  "@playerSettingsQuarkCdnSegment": {
+    "description": "Advanced player setting title enabling Quark CDN segment direct link."
+  },
+  "playerSettingsQuarkCdnSegmentDescription": "开启后按分片预取夸克网盘直连流；关闭则使用原有直连方式",
+  "@playerSettingsQuarkCdnSegmentDescription": {
+    "description": "Description of the Quark CDN segment direct link advanced player setting."
+  },
+  "playerSettingsSmartSkip": "智能跳过",
+  "@playerSettingsSmartSkip": {
+    "description": "Value shown when smart skip is enabled for the intro/outro configuration."
+  },
+  "playerSettingsSkipIntroOutroBoth": "跳过片头片尾",
+  "@playerSettingsSkipIntroOutroBoth": {
+    "description": "Value shown when both a manual intro and outro are configured."
+  },
+  "playerSettingsIntroConfigured": "已设置片头",
+  "@playerSettingsIntroConfigured": {
+    "description": "Value shown when only a manual intro is configured."
+  },
+  "playerSettingsOutroConfigured": "已设置片尾",
+  "@playerSettingsOutroConfigured": {
+    "description": "Value shown when only a manual outro is configured."
+  },
+  "playerSettingsNotSet": "未设置",
+  "@playerSettingsNotSet": {
+    "description": "Value shown when no intro/outro configuration exists."
+  },
+  "playerSettingsSkipScope": "生效范围: 《{title}》 第 {season} 季",
+  "@playerSettingsSkipScope": {
+    "description": "Scope line of the skip intro/outro settings, with the series title and season number.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "season": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsSmartSkipIntroOutro": "智能跳过片头/片尾",
+  "@playerSettingsSmartSkipIntroOutro": {
+    "description": "Toggle title enabling smart intro/outro skipping."
+  },
+  "playerSettingsIntroDuration": "片头时长",
+  "@playerSettingsIntroDuration": {
+    "description": "Label of the intro duration slider."
+  },
+  "playerSettingsOutroDuration": "片尾时长",
+  "@playerSettingsOutroDuration": {
+    "description": "Label of the outro duration slider."
+  },
+  "playerSettingsSetOutroToRemaining": "将当前剩余时长 {time} 设为片尾",
+  "@playerSettingsSetOutroToRemaining": {
+    "description": "One-click shortcut button label setting the outro to the current remaining time.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsSetIntroToCurrent": "将当前时间 {time} 设为片头",
+  "@playerSettingsSetIntroToCurrent": {
+    "description": "One-click shortcut button label setting the intro to the current time.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "playerSettingsTenMinutes": "10 分钟",
+  "@playerSettingsTenMinutes": {
+    "description": "Slider boundary caption for a ten minute range."
+  },
+  "playerSettingsSliderStart": "开始",
+  "@playerSettingsSliderStart": {
+    "description": "Slider start boundary caption."
+  },
+  "playerSettingsSliderEnd": "结束",
+  "@playerSettingsSliderEnd": {
+    "description": "Slider end boundary caption."
+  },
+  "playerSettingsDecodeAutoTip": "自动选择硬件解码,失败时回退到软件解码。推荐。",
+  "@playerSettingsDecodeAutoTip": {
+    "description": "Tooltip describing the automatic decode mode."
+  },
+  "playerSettingsDecodeSoftwareTip": "强制使用软件解码,兼容性最好;硬解花屏/黑屏时的兜底方案。",
+  "@playerSettingsDecodeSoftwareTip": {
+    "description": "Tooltip describing the software decode mode."
+  },
+  "playerSettingsDecodeCopyTip": "硬件解码但将帧拷回内存,可与所有滤镜/弹幕/截图功能共存;略费 CPU。",
+  "@playerSettingsDecodeCopyTip": {
+    "description": "Tooltip describing the copy-back decode mode."
+  },
+  "playerSettingsSoftwareDecode": "软件解码",
+  "@playerSettingsSoftwareDecode": {
+    "description": "Decode mode option using software decoding."
+  },
+  "playerSettingsCopyBackMode": "回拷模式",
+  "@playerSettingsCopyBackMode": {
+    "description": "Decode mode option copying hardware-decoded frames back to memory."
+  },
+  "playerSettingsSpecifyHwdec": "指定硬件解码器",
+  "@playerSettingsSpecifyHwdec": {
+    "description": "Decode mode option and screen title for choosing a specific hardware decoder."
+  },
+  "playerSettingsNoHwdecAvailable": "未探测到可用的硬件解码器",
+  "@playerSettingsNoHwdecAvailable": {
+    "description": "Empty-state message when no hardware decoder was probed as usable."
+  },
+  "playerQualityTitle": "视频质量",
+  "@playerQualityTitle": {
+    "description": "Header of the video quality selection panel in the player."
+  },
+  "playerQualityOriginal": "原画",
+  "@playerQualityOriginal": {
+    "description": "Label for the original (highest) video quality option."
+  },
+  "playerQualityCustom": "自定义",
+  "@playerQualityCustom": {
+    "description": "Label for the custom video quality entry that opens the fine-grained picker."
+  },
+  "playerQualityCustomTitle": "自定义视频质量",
+  "@playerQualityCustomTitle": {
+    "description": "Title of the custom video quality selection page."
+  },
+  "playerQualityDirectUnsupported": "直连播放暂不支持该画质",
+  "@playerQualityDirectUnsupported": {
+    "description": "Tooltip shown on a disabled quality option that direct-link playback does not support."
+  },
+  "playerQualityLowRiskHint": "选项风控概率相对低，建议优先选择",
+  "@playerQualityLowRiskHint": {
+    "description": "Hint in the cloud direct-link quality panel explaining the low-risk marked option."
+  },
+  "playerQualityOriginalNoAudioHint": "直连播放原画无声音",
+  "@playerQualityOriginalNoAudioHint": {
+    "description": "Short hint title warning that the original quality may have no sound in direct-link playback."
+  },
+  "playerQualityOriginalNoAudioTooltip": "由于播放器对音频编码格式的支持有限，直连播放原画可能出现无声音的情况。可尝试切换播放方式为 “NAS 代理播放”。",
+  "@playerQualityOriginalNoAudioTooltip": {
+    "description": "Tooltip explaining why the original quality may have no sound in direct-link playback and how to work around it."
+  },
+  "playerSpeedLabel": "倍速",
+  "@playerSpeedLabel": {
+    "description": "Neutral label for the playback speed control at the default speed."
+  },
+  "playerSettingsAuto": "自动",
+  "@playerSettingsAuto": {
+    "description": "Decode mode option that automatically selects hardware decoding."
+  },
+  "playerTranscodeReasonLowerQuality": "根据视频质量设置降低画质",
+  "@playerTranscodeReasonLowerQuality": {
+    "description": "Lower quality per video quality setting"
+  },
+  "playerTranscodeReasonSubtitleBurn": "字幕烧录",
+  "@playerTranscodeReasonSubtitleBurn": {
+    "description": "Subtitle burn-in"
+  },
+  "playerTranscodeReasonSubtitleToVtt": "字幕转为 vtt 切片",
+  "@playerTranscodeReasonSubtitleToVtt": {
+    "description": "Subtitle converted to vtt segments"
+  },
+  "playerTranscodeReasonVideoFormat": "视频格式转换",
+  "@playerTranscodeReasonVideoFormat": {
+    "description": "Video format conversion"
+  },
+  "playerTranscodeReasonAudioFormat": "音频格式转换",
+  "@playerTranscodeReasonAudioFormat": {
+    "description": "Audio format conversion"
+  },
+  "playerTranscodeReasonToneMapping": "色调映射",
+  "@playerTranscodeReasonToneMapping": {
+    "description": "Tone mapping"
+  },
+  "playerDecodeMethodSoftware": "软解码",
+  "@playerDecodeMethodSoftware": {
+    "description": "Software decoding"
+  },
+  "playerDecodeMethodQsv": "QSV 解码",
+  "@playerDecodeMethodQsv": {
+    "description": "QSV decoding"
+  },
+  "playerDecodeMethodVaapi": "VAAPI 解码",
+  "@playerDecodeMethodVaapi": {
+    "description": "VAAPI decoding"
+  },
+  "playerDecodeMethodNvdec": "NVDEC 解码",
+  "@playerDecodeMethodNvdec": {
+    "description": "NVDEC decoding"
+  },
+  "playerDecodeMethodRkmpp": "RKMPP 解码",
+  "@playerDecodeMethodRkmpp": {
+    "description": "RKMPP decoding"
+  },
+  "playerEncodeMethodSoftware": "软编码",
+  "@playerEncodeMethodSoftware": {
+    "description": "Software encoding"
+  },
+  "playerEncodeMethodQsv": "QSV 编码",
+  "@playerEncodeMethodQsv": {
+    "description": "QSV encoding"
+  },
+  "playerEncodeMethodQsvLowPower": "QSV 低电压编码",
+  "@playerEncodeMethodQsvLowPower": {
+    "description": "QSV low-power encoding"
+  },
+  "playerEncodeMethodVaapi": "VAAPI 编码",
+  "@playerEncodeMethodVaapi": {
+    "description": "VAAPI encoding"
+  },
+  "playerEncodeMethodNvenc": "NVENC 编码",
+  "@playerEncodeMethodNvenc": {
+    "description": "NVENC encoding"
+  },
+  "playerEncodeMethodRkmpp": "RKMPP 编码",
+  "@playerEncodeMethodRkmpp": {
+    "description": "RKMPP encoding"
   }
 }

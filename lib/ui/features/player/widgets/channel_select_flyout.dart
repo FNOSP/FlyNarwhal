@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../../../data/models/movie_detail_models.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../tooling/driver_test_mode.dart';
 
 // Shared dark-flyout palette, identical to the other player control flyouts.
@@ -299,6 +300,7 @@ class _ChannelSelectFlyoutState extends State<ChannelSelectFlyout>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final currentChannel = widget.channels.isEmpty
         ? null
         : widget.channels[widget.selectedIndex];
@@ -333,7 +335,7 @@ class _ChannelSelectFlyoutState extends State<ChannelSelectFlyout>
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              currentChannel?.fileName ?? '线路',
+              currentChannel?.fileName ?? l10n.playerChannelLineFallback,
               style: const TextStyle(color: Colors.white, fontSize: 14),
             ),
           ),
@@ -381,6 +383,7 @@ class _ChannelFlyoutContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: _flyoutWidth,
       constraints: const BoxConstraints(maxHeight: _flyoutMaxHeight),
@@ -393,13 +396,16 @@ class _ChannelFlyoutContent extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 10, 12, 6),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '线路',
-                  style: TextStyle(color: Color(0xB3FFFFFF), fontSize: 12),
+                  l10n.playerChannelLineFallback,
+                  style: const TextStyle(
+                    color: Color(0xB3FFFFFF),
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ),

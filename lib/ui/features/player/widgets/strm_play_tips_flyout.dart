@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../tooling/driver_test_mode.dart';
 import 'player_action_button.dart';
 
@@ -106,10 +107,9 @@ class _StrmPlayTipsFlyoutState extends State<StrmPlayTipsFlyout>
         final left = preferredLeft > maxLeft
             ? maxLeft
             : (preferredLeft < 8.0 ? 8.0 : preferredLeft);
-        final bridgeHeight = (widget.yOffset +
-                _bridgeOffset -
-                buttonSize.height)
-            .clamp(0.0, double.infinity);
+        final bridgeHeight =
+            (widget.yOffset + _bridgeOffset - buttonSize.height)
+                .clamp(0.0, double.infinity);
         final bridgeWidth = (buttonSize.width + _bridgeHorizontalPadding * 2)
             .clamp(_minBridgeWidth, flyoutWidth);
         final bridgeLeft = (buttonCenterX - left - (bridgeWidth / 2))
@@ -146,7 +146,9 @@ class _StrmPlayTipsFlyoutState extends State<StrmPlayTipsFlyout>
                             _setPopupHovered(false);
                             _hideFlyoutWithDelay();
                           },
-                          child: _buildAnimatedFlyout(),
+                          child: _buildAnimatedFlyout(
+                            AppLocalizations.of(context),
+                          ),
                         ),
                       ),
                       Positioned(
@@ -276,7 +278,7 @@ class _StrmPlayTipsFlyoutState extends State<StrmPlayTipsFlyout>
     );
   }
 
-  Widget _buildAnimatedFlyout() {
+  Widget _buildAnimatedFlyout(AppLocalizations l10n) {
     return AnimatedBuilder(
       animation: _animationController,
       builder: (context, child) {
@@ -298,9 +300,9 @@ class _StrmPlayTipsFlyoutState extends State<StrmPlayTipsFlyout>
           border: Border.all(color: _flyoutBorderColor),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Text(
-          '正在直连播放 STRM 文件',
-          style: TextStyle(
+        child: Text(
+          l10n.playerStrmDirectPlaying,
+          style: const TextStyle(
             color: _defaultTextColor,
             fontSize: 18,
           ),

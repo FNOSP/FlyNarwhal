@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fly_narwhal/data/models/player_models.dart';
+import 'package:fly_narwhal/l10n/generated/app_localizations.dart';
 import 'package:fly_narwhal/ui/features/player/widgets/playback_details_overlay.dart';
 
 MediaTranscodeResponse _transcodeStatus() {
@@ -32,6 +33,12 @@ void main() {
   ) async {
     await tester.pumpWidget(
       FluentApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          ...FluentLocalizations.localizationsDelegates,
+        ],
+        supportedLocales: const [Locale('zh'), Locale('en')],
+        locale: const Locale('zh'),
         home: Align(
             alignment: Alignment.center,
             child: PlaybackDetailsPanel(
@@ -82,6 +89,12 @@ void main() {
   ) async {
     await tester.pumpWidget(
       FluentApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          ...FluentLocalizations.localizationsDelegates,
+        ],
+        supportedLocales: const [Locale('zh'), Locale('en')],
+        locale: const Locale('zh'),
         home: Align(
             alignment: Alignment.center,
             child: PlaybackDetailsPanel(

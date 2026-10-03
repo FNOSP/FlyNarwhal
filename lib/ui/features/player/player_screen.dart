@@ -112,6 +112,8 @@ class PlayerScreen extends ConsumerStatefulWidget {
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with TickerProviderStateMixin, WindowListener {
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
   static const int _controlFlyoutOffset = 15;
   static const double _trailingControlSpacing = 12;
   static const Duration _playbackIndicatorVisibleDuration =
@@ -1382,7 +1384,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final currentFile = _playingInfoCache?.currentFileStream;
     if (currentFile == null || currentFile.guid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '当前文件信息缺失，无法搜索字幕',
+            _l10n.playerInfoMissingSearchSubtitle,
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'subtitle-search:${widget.guid}',
@@ -1420,7 +1422,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       );
               if (!mounted) return subtitleStream.guid;
               ref.read(toastManagerProvider.notifier).showToast(
-                    '下载成功',
+                    _l10n.playerSubtitleDownloadSuccess,
                     style: ToastStyle.liquidGlass,
                     type: ToastType.success,
                     category: 'subtitle-download:${item.trimId}',
@@ -1430,7 +1432,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             } catch (error) {
               if (mounted) {
                 ref.read(toastManagerProvider.notifier).showToast(
-                      '下载字幕失败: $error',
+                      _l10n.playerSubtitleDownloadFailed('$error'),
                       style: ToastStyle.liquidGlass,
                       type: ToastType.failed,
                       category: 'subtitle-download:${item.trimId}',
@@ -1447,7 +1449,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   );
               if (!mounted) return;
               ref.read(toastManagerProvider.notifier).showToast(
-                    '已创建字幕下载任务',
+                    _l10n.playerSubtitleTaskCreated,
                     style: ToastStyle.liquidGlass,
                     type: ToastType.success,
                     category: 'subtitle-predownload:${item.trimId}',
@@ -1455,7 +1457,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             } catch (error) {
               if (mounted) {
                 ref.read(toastManagerProvider.notifier).showToast(
-                      '创建字幕下载任务失败，请重试',
+                      _l10n.playerSubtitleTaskFailed,
                       style: ToastStyle.liquidGlass,
                       type: ToastType.failed,
                       category: 'subtitle-predownload:${item.trimId}',
@@ -1479,16 +1481,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _iso6392Map,
     );
     final displayName = StringBuffer(languageName);
-    if (subtitle.isExternal == 1) displayName.write(' - 外挂');
-    if (subtitle.isDefault == 1) displayName.write(' - 默认');
+    if (subtitle.isExternal == 1) displayName.write(_l10n.playerSubtitleExternalSuffix);
+    if (subtitle.isDefault == 1) displayName.write(_l10n.playerSubtitleDefaultSuffix);
 
     final confirmed = await showAppDialog<bool>(
       context: context,
       type: AppDialogType.danger,
-      title: '删除外挂字幕',
-      content: Text('确定要删除 $displayName 外挂字幕吗？'),
-      primaryButtonText: '删除',
-      secondaryButtonText: '取消',
+      title: _l10n.playerSubtitleDeleteTitle,
+      content: Text(_l10n.playerSubtitleDeleteConfirm('$displayName')),
+      primaryButtonText: _l10n.commonDelete,
+      secondaryButtonText: _l10n.commonCancel,
       primaryResult: true,
       secondaryResult: false,
     );
@@ -1498,7 +1500,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await ref.read(fileRepositoryProvider).deleteSubtitle(subtitle.guid);
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '删除字幕成功',
+            _l10n.playerSubtitleDeleteSuccess,
             style: ToastStyle.liquidGlass,
             type: ToastType.success,
             category: 'subtitle-delete:${subtitle.guid}',
@@ -1507,7 +1509,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } catch (error) {
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '删除字幕失败: $error',
+            _l10n.playerSubtitleDeleteFailed('$error'),
             style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'subtitle-delete:${subtitle.guid}',
@@ -1528,7 +1530,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '已创建字幕下载任务',
+            _l10n.playerSubtitleTaskCreated,
             style: ToastStyle.liquidGlass,
             type: ToastType.success,
             category: 'subtitle-predownload-flyout:${subtitle.guid}',
@@ -1536,7 +1538,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } catch (error) {
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '创建字幕下载任务失败，请重试',
+            _l10n.playerSubtitleTaskFailed,
             style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'subtitle-predownload-flyout:${subtitle.guid}',
@@ -1549,7 +1551,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final mediaGuid = _playingInfoCache?.currentFileStream?.guid ?? '';
     if (mediaGuid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '当前文件信息缺失，无法添加 NAS 字幕',
+            _l10n.playerInfoMissingAddNasSubtitle,
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'nas-subtitle:${widget.guid}',
@@ -1562,7 +1564,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await showDialog<void>(
         context: context,
         builder: (_) => AddNasSubtitleDialog(
-          title: '添加 NAS 字幕文件',
+          title: _l10n.playerSubtitleAddNasTitle,
           currentPath: _resolveCurrentFilePath(),
           toastStyle: ToastStyle.liquidGlass,
           onConfirm: (paths) async {
@@ -1572,7 +1574,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   .markSubtitle(mediaGuid, paths);
               if (!mounted) return;
               ref.read(toastManagerProvider.notifier).showToast(
-                    'NAS 字幕添加成功',
+                    _l10n.playerSubtitleAddNasSuccess,
                     style: ToastStyle.liquidGlass,
                     type: ToastType.success,
                     category: 'nas-subtitle:$mediaGuid',
@@ -1601,7 +1603,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               if (error is FailureInfo &&
                   error.code == ResponseCodes.subtitleAlreadyMarked) {
                 toastManager.showToast(
-                  '该文件已被添加为字幕',
+                  _l10n.playerSubtitleAlreadyMarked,
                   style: ToastStyle.liquidGlass,
                   type: ToastType.info,
                   category: 'nas-subtitle:$mediaGuid',
@@ -1609,7 +1611,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 return;
               }
               toastManager.showToast(
-                '添加 NAS 字幕失败: $error',
+                _l10n.playerSubtitleAddNasFailed('$error'),
                 style: ToastStyle.liquidGlass,
                 type: ToastType.failed,
                 category: 'nas-subtitle:$mediaGuid',
@@ -1632,7 +1634,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         '';
     if (mediaGuid.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
-            '当前文件信息缺失，无法上传字幕',
+            _l10n.playerInfoMissingUploadSubtitle,
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'local-subtitle:${widget.guid}',
@@ -2227,7 +2229,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       AppTalker.warning('Player', 'handle quit success failed: $e');
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
-              '切换原画失败: $e',
+              _l10n.playerSwitchOriginalQualityFailed('$e'),
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'playback-source:${widget.guid}',
@@ -2348,7 +2350,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
-              '切换字幕失败: $e',
+              _l10n.playerSubtitleSwitchFailed('$e'),
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'subtitle-switch:${widget.guid}',
@@ -2742,7 +2744,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     ref.read(toastManagerProvider.notifier).showToast(
-          '切换字幕失败: $error',
+          _l10n.playerSubtitleSwitchFailed('$error'),
           style: ToastStyle.liquidGlass,
           type: ToastType.failed,
           category: 'subtitle-switch:${widget.guid}',
@@ -3534,7 +3536,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'Error loading media',
       );
       ref.read(toastManagerProvider.notifier).showToast(
-            '加载失败: $e',
+            _l10n.playerLoadFailed('$e'),
             style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'playback-load:${widget.guid}',
@@ -3933,9 +3935,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final origin =
         _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
     _scheduleCoalescedSeek(target, origin);
-    final label = milliseconds < 0 ? '快退至' : '快进至';
+    final label = milliseconds < 0
+        ? _l10n.playerSeekRewindTo
+        : _l10n.playerSeekForwardTo;
     ref.read(toastManagerProvider.notifier).showToast(
-          '$label：${formatDurationToDateTime(target)}',
+          _l10n.playerSeekTimeToast(label, formatDurationToDateTime(target)),
           style: ToastStyle.liquidGlass,
           type: ToastType.info,
           category: 'seek',
@@ -4068,7 +4072,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _setVolume(clampedVolume);
     _lastVolumeBeforeMute = 0.0;
     ref.read(toastManagerProvider.notifier).showToast(
-          '当前音量：${(clampedVolume * 100).toInt()}%',
+          _l10n.playerVolumeLabel('${(clampedVolume * 100).toInt()}'),
           style: ToastStyle.liquidGlass,
           type: ToastType.info,
           category: 'volume',
@@ -4081,7 +4085,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _lastVolumeBeforeMute = _volume;
       _setVolume(0.0);
       ref.read(toastManagerProvider.notifier).showToast(
-            '静音',
+            _l10n.playerVolumeMute,
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'volume',
@@ -4091,7 +4095,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _lastVolumeBeforeMute > 0 ? _lastVolumeBeforeMute : 0.05;
       _setVolume(restoreVolume);
       ref.read(toastManagerProvider.notifier).showToast(
-            '解除静音：${(restoreVolume * 100).toInt()}%',
+            _l10n.playerVolumeUnmuteLabel('${(restoreVolume * 100).toInt()}'),
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'volume',
@@ -4118,7 +4122,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast('切换全屏失败: $error', style: ToastStyle.liquidGlass, type: ToastType.failed);
+            .showToast(_l10n.playerToggleFullscreenFailed('$error'), style: ToastStyle.liquidGlass, type: ToastType.failed);
       }
     }
   }
@@ -4231,13 +4235,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   String? get _forceH264DisabledReason {
     final codec = _playingInfoCache?.currentVideoStream?.codecName ?? '';
-    return codec.toLowerCase() == 'h264' ? '当前视频为 H.264' : null;
+    return codec.toLowerCase() == 'h264' ? _l10n.playerForceH264Disabled : null;
   }
 
   String? get _forceSdrDisabledReason {
     final colorRangeType =
         _playingInfoCache?.currentVideoStream?.colorRangeType ?? '';
-    return colorRangeType.toLowerCase() == 'sdr' ? '当前视频为 SDR' : null;
+    return colorRangeType.toLowerCase() == 'sdr' ? _l10n.playerForceSdrDisabled : null;
   }
 
   void _onForceH264Changed(bool enabled) {
@@ -4262,9 +4266,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// the switch is a no-op everywhere else and must not restart those streams.
   String? get _directLinkCdnRangeDisabledReason {
     final cache = _playingInfoCache;
-    if (cache == null || !cache.isUseDirectLink) return '当前不是网盘直连播放';
+    if (cache == null || !cache.isUseDirectLink) return _l10n.playerDirectLinkCdnRangeNotDirect;
     final cloudType = cache.streamInfo?.cloudStorageInfo?.cloudStorageType;
-    if (!CloudStorageType.fromValue(cloudType).isQuarkPan) return '仅支持夸克网盘';
+    if (!CloudStorageType.fromValue(cloudType).isQuarkPan) return _l10n.playerDirectLinkCdnRangeQuarkOnly;
     return null;
   }
 
@@ -4412,7 +4416,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       AppTalker.warning('Player', 'restart for transcode settings failed: $e');
       if (mounted) {
         ref.read(toastManagerProvider.notifier).showToast(
-              '切换播放设置失败: $e',
+              _l10n.playerSwitchPlaybackSettingsFailed('$e'),
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
             );
@@ -4480,7 +4484,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _enterPipMode() async {
     AppTalker.info('PiP', 'PiP requested from player screen');
     if (!_isDesktopPlatform()) {
-      _showFeatureComingSoon('画中画');
+      _showFeatureComingSoon(_l10n.playerPip);
       return;
     }
 
@@ -4488,7 +4492,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (player == null || !_isInitialized) {
       ref
           .read(toastManagerProvider.notifier)
-          .showToast('播放器尚未准备完成', style: ToastStyle.liquidGlass, type: ToastType.info);
+          .showToast(_l10n.playerNotReady, style: ToastStyle.liquidGlass, type: ToastType.info);
       return;
     }
 
@@ -4534,7 +4538,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         unawaited(_applyWindowAspectRatio());
         ref
             .read(toastManagerProvider.notifier)
-            .showToast('进入画中画失败: $error', style: ToastStyle.liquidGlass, type: ToastType.failed);
+            .showToast(_l10n.playerEnterPipFailed('$error'), style: ToastStyle.liquidGlass, type: ToastType.failed);
       }
     } finally {
       _isPipTransitioning = false;
@@ -4576,7 +4580,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast('退出画中画失败: $error', style: ToastStyle.liquidGlass, type: ToastType.failed);
+            .showToast(_l10n.playerExitPipFailed('$error'), style: ToastStyle.liquidGlass, type: ToastType.failed);
       }
     } finally {
       _isPipTransitioning = false;
@@ -4708,7 +4712,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast('切换画质失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
+            .showToast(_l10n.playerSwitchQualityFailed('$e'), style: ToastStyle.liquidGlass, type: ToastType.failed);
         setState(() => _isLoading = false);
       }
     }
@@ -4827,10 +4831,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .setCloudPlayMode(cloudType, mode, userGuid: userGuid),
     );
     final label =
-        mode == CloudPlayMode.direct ? '网盘直连播放' : 'NAS 代理播放';
+        mode == CloudPlayMode.direct ? _l10n.playerCloudModeDirect : _l10n.playerCloudModeNasProxy;
     ref
         .read(toastManagerProvider.notifier)
-        .showToast('播放方式切换至 $label', style: ToastStyle.liquidGlass, type: ToastType.success);
+        .showToast(_l10n.playerCloudModeSwitchedToast(label), style: ToastStyle.liquidGlass, type: ToastType.success);
 
     final switchToken = ++_cloudSwitchToken;
     final isCurrent = _capturePlaybackOperation();
@@ -4934,7 +4938,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
           ref
               .read(toastManagerProvider.notifier)
-              .showToast('NAS 代理播放失败，正在切换为网盘直连播放',
+              .showToast(_l10n.playerCloudProxyFailedFallbackDirect,
                   style: ToastStyle.liquidGlass, type: ToastType.info);
           if (!_isCurrentCloudSwitch(switchToken)) return;
           final directEntered = await _enterCloudDirectMode(
@@ -4973,13 +4977,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
         ref
             .read(toastManagerProvider.notifier)
-            .showToast('切换播放方式失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
+            .showToast(_l10n.playerSwitchPlayModeFailed('$e'), style: ToastStyle.liquidGlass, type: ToastType.failed);
         setState(() => _isLoading = false);
       }
     }
   }
 
-  /// Switches the current cloud session to 网盘直连播放, mirroring the direct
+  /// Switches the current cloud session to netdisk direct-link playback, mirroring the direct
   /// branch of [_switchCloudPlayMode]. Returns true when the direct link opens
   /// and verifies successfully; otherwise returns false so callers can decide
   /// whether to show the error overlay.
@@ -5227,7 +5231,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       AppTalker.warning('Player', 'switch quality failed: $e');
       ref
           .read(toastManagerProvider.notifier)
-          .showToast('切换画质失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
+          .showToast(_l10n.playerSwitchQualityFailed('$e'), style: ToastStyle.liquidGlass, type: ToastType.failed);
       setState(() => _isLoading = false);
     }
   }
@@ -5297,7 +5301,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (_isCurrentAudioSwitch(switchToken)) {
         _requestedAudioGuid = null;
         ref.read(toastManagerProvider.notifier).showToast(
-              '切换音频失败: $error',
+              _l10n.playerSwitchAudioFailed('$error'),
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'player-audio-switch',
@@ -5548,7 +5552,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       AppTalker.warning('Player', 'switch subtitle failed: $e');
       ref
           .read(toastManagerProvider.notifier)
-          .showToast('切换字幕失败: $e', style: ToastStyle.liquidGlass, type: ToastType.failed);
+          .showToast(_l10n.playerSubtitleSwitchFailed('$e'), style: ToastStyle.liquidGlass, type: ToastType.failed);
       if (mounted) {
         setState(() {
           _isSubtitleSwitching = false;
@@ -5571,8 +5575,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final format =
         subtitle.format.isNotEmpty ? subtitle.format.toUpperCase() : '';
     return format.isEmpty
-        ? '字幕正在切换至：$languageName'
-        : '字幕正在切换至：$languageName $format';
+        ? _l10n.playerSubtitleSwitchingTo(languageName)
+        : _l10n.playerSubtitleSwitchingToFormat(languageName, format);
   }
 
   Future<void> _handleBack() async {
@@ -5896,7 +5900,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       key: const ValueKey('player-playback-details-close'),
                       iconData: FluentIcons.chrome_close,
                       onPressed: _closePlaybackDetails,
-                      tooltip: '关闭',
+                      tooltip: _l10n.playerClose,
                       size: 30,
                       iconSize: 14,
                       borderRadius: BorderRadius.circular(15),
@@ -6098,7 +6102,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           child: PlayerActionButton.icon(
             key: const ValueKey('pip-close'),
             iconData: FluentIcons.chrome_close,
-            tooltip: '关闭',
+            tooltip: _l10n.playerClose,
             onPressed: () => unawaited(_closeFromPip()),
             size: 28,
             iconSize: 14,
@@ -6114,7 +6118,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 PlayerActionButton.svg(
                   key: const ValueKey('pip-seek-backward'),
                   svgAssetPath: 'assets/images/back10s.svg',
-                  tooltip: '快退 10 秒',
+                  tooltip: _l10n.playerRewindTenSeconds,
                   onPressed: () => _seekRelative(-10000),
                   size: 38,
                   iconSize: 24,
@@ -6126,7 +6130,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   svgAssetPath: _isPlaying
                       ? 'assets/images/pause.svg'
                       : 'assets/images/play.svg',
-                  tooltip: '播放/暂停',
+                  tooltip: _l10n.playerPlayPause,
                   onPressed: _togglePlayPause,
                   size: 52,
                   iconSize: 34,
@@ -6136,7 +6140,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 PlayerActionButton.svg(
                   key: const ValueKey('pip-seek-forward'),
                   svgAssetPath: 'assets/images/forward10s.svg',
-                  tooltip: '快进 10 秒',
+                  tooltip: _l10n.playerForwardTenSeconds,
                   onPressed: () => _seekRelative(10000),
                   size: 38,
                   iconSize: 24,
@@ -6167,7 +6171,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           child: PlayerActionButton.lottie(
             key: const ValueKey('pip-exit'),
             lottieAssetPath: 'assets/lottie/quit_pip.json',
-            tooltip: '退出画中画',
+            tooltip: _l10n.playerExitPip,
             onPressed: () => unawaited(_exitPipMode()),
             size: 30,
             iconSize: 22,
@@ -6253,7 +6257,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
       if (!mounted) return;
       ref.read(toastManagerProvider.notifier).showToast(
-            '设置成功',
+            _l10n.playerSkipConfigSaved,
             style: ToastStyle.liquidGlass,
             type: ToastType.success,
             category: 'skip-config',
@@ -6268,7 +6272,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .updatePlayingInfo(_playingInfoCache);
       _resolveAndDispatchSkipSegments();
       ref.read(toastManagerProvider.notifier).showToast(
-            '设置失败: $error',
+            _l10n.playerSkipConfigSaveFailed('$error'),
             style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'skip-config',
@@ -6320,7 +6324,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         controller.setVisibility(true);
       } else {
         ref.read(toastManagerProvider.notifier).showToast(
-              '请求弹幕接口失败，请检查飞鲸服务端配置',
+              _l10n.playerDanmakuRequestFailed,
               style: ToastStyle.liquidGlass,
               type: ToastType.failed,
               category: 'danmaku-load-error',
@@ -6357,7 +6361,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (!mounted) return false;
         if (!succeeded) {
           ref.read(toastManagerProvider.notifier).showToast(
-                '请求智能片头片尾接口失败，请检查飞鲸服务端配置',
+                _l10n.playerSmartSkipRequestFailed,
                 style: ToastStyle.liquidGlass,
                 type: ToastType.failed,
                 category: 'smart-skip-load-error',
@@ -6376,7 +6380,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     } catch (error) {
       if (!mounted) return false;
       ref.read(toastManagerProvider.notifier).showToast(
-            '设置失败: $error',
+            _l10n.playerSkipConfigSaveFailed('$error'),
             style: ToastStyle.liquidGlass,
             type: ToastType.failed,
             category: 'smart-skip-setting',
@@ -6435,7 +6439,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           svgAssetPath:
               _isPlaying ? 'assets/images/pause.svg' : 'assets/images/play.svg',
           onPressed: _togglePlayPause,
-          tooltip: '播放/暂停',
+          tooltip: _l10n.playerPlayPause,
           size: 34,
           iconSize: 22,
         ),
@@ -6443,7 +6447,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         PlayerActionButton.svg(
           svgAssetPath: 'assets/images/back10s.svg',
           onPressed: () => _seekRelative(-10000),
-          tooltip: '快退 10 秒',
+          tooltip: _l10n.playerRewindTenSeconds,
           size: 30,
           iconSize: 20,
         ),
@@ -6451,7 +6455,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         PlayerActionButton.svg(
           svgAssetPath: 'assets/images/forward10s.svg',
           onPressed: () => _seekRelative(10000),
-          tooltip: '快进 10 秒',
+          tooltip: _l10n.playerForwardTenSeconds,
           size: 30,
           iconSize: 20,
         ),
@@ -6561,7 +6565,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ? 'assets/images/danmu_open.svg'
                   : 'assets/images/danmu_close.svg',
               onPressed: () => unawaited(_onDanmakuTogglePressed()),
-              tooltip: danmakuState.isVisible ? '关闭弹幕' : '开启弹幕',
+              tooltip: danmakuState.isVisible ? _l10n.playerDanmakuClose : _l10n.playerDanmakuOpen,
               size: 34,
               iconSize: 24,
             ),
@@ -6698,7 +6702,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             key: const ValueKey('player-enter-pip'),
             lottieAssetPath: 'assets/lottie/to_pip.json',
             onPressed: () => unawaited(_enterPipMode()),
-            tooltip: '画中画',
+            tooltip: _l10n.playerPip,
             size: 30,
             iconSize: 22,
           ),
@@ -6912,7 +6916,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             ),
                             iconData: FluentIcons.info,
                             onPressed: _togglePlaybackDetails,
-                            tooltip: '播放详细信息',
+                            tooltip: _l10n.playerPlaybackDetailsTooltip,
                             size: _isMacOS ? 30 : 34,
                             iconSize: isWindows || _isMacOS ? 16 : 18,
                             borderRadius: playerTopBarActionBorderRadius,
@@ -6939,7 +6943,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       key: const ValueKey('player-back-button'),
       iconData: FluentIcons.back,
       onPressed: _handleBack,
-      tooltip: '返回',
+      tooltip: _l10n.playerBack,
       size: _isMacOS ? 30 : 34,
       iconSize: _isMacOS ? 15 : 18,
       borderRadius: BorderRadius.circular(_isMacOS ? 15 : 17),
@@ -7502,6 +7506,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _showFeatureComingSoon(String feature) {
     ref
         .read(toastManagerProvider.notifier)
-        .showToast('$feature 暂未接入', style: ToastStyle.liquidGlass, type: ToastType.info);
+        .showToast(_l10n.playerFeatureComingSoon(feature), style: ToastStyle.liquidGlass, type: ToastType.info);
   }
 }
