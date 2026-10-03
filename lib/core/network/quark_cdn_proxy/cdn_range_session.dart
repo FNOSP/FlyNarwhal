@@ -28,7 +28,6 @@ class _StreamingChunk {
   int get outputLength => empty ? 0 : range.length;
   int get readable => complete ? accepted : min(accepted, outputLength - 1);
   void release() => _bytes = null;
-  final Stopwatch transfer = Stopwatch()..start();
 }
 
 class _ReadRequest {
@@ -64,7 +63,15 @@ class _ReadRequest {
 
   /// Cumulative bytes pulled since the current measurement window opened.
   int _windowBytes = 0;
-  int _windowStartedAtMs = 0;
+
+  /// Active download time accumulated since the current measurement window
+  /// opened. Gaps where the player paused reading are excluded, so the
+  /// measured rate reflects the transport rather than downstream backpressure.
+  int _windowActiveMs = 0;
+
+  /// Wall-clock start of the current active download segment, or zero when no
+  /// chunk is downloading. Backpressure gaps are excluded from [_windowActiveMs].
+  int _activeSegmentStartMs = 0;
   int _unproductiveProbes = 0;
   bool _probePending = false;
   double _preProbeThroughput = 0;
@@ -77,20 +84,35 @@ class _ReadRequest {
         : CdnProxyDefaults.initialChunksPerReader;
   }
 
-  /// Records one completed chunk download and, once a measurement window has
-  /// elapsed, moves the concurrency in response.
-  void recordNetworkWindow(int bytes, int millis) {
+  void _markDownloadStarted() {
+    if (_activeSegmentStartMs == 0) {
+      _activeSegmentStartMs = DateTime.now().millisecondsSinceEpoch;
+    }
+  }
+
+  void _markDownloadStopped() {
+    if (work.isNotEmpty) return;
+    if (_activeSegmentStartMs == 0) return;
+    _windowActiveMs +=
+        DateTime.now().millisecondsSinceEpoch - _activeSegmentStartMs;
+    _activeSegmentStartMs = 0;
+  }
+
+  /// Records one completed chunk download and, once an active-download
+  /// measurement window has elapsed, moves the concurrency in response.
+  void recordNetworkWindow(int bytes) {
     if (probe || bytes <= 0 || bitrate <= 0) return;
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (_windowStartedAtMs == 0) {
-      _windowStartedAtMs = now - millis;
-    }
+    final activeMs = _windowActiveMs +
+        (_activeSegmentStartMs == 0 ? 0 : now - _activeSegmentStartMs);
     _windowBytes += bytes;
-    final span = now - _windowStartedAtMs;
-    if (span < CdnProxyDefaults.throughputMeasurementWindowMs) return;
-    final measured = _windowBytes * 1000 / span;
+    if (activeMs < CdnProxyDefaults.throughputMeasurementWindowMs) return;
+    final measured = _windowBytes * 1000 / activeMs;
     _windowBytes = 0;
-    _windowStartedAtMs = now;
+    _windowActiveMs = 0;
+    if (_activeSegmentStartMs != 0) {
+      _activeSegmentStartMs = now;
+    }
     _adjustConcurrency(measured);
   }
 
@@ -104,6 +126,8 @@ class _ReadRequest {
         _unproductiveProbes = 0;
       } else {
         _unproductiveProbes++;
+        _concurrency = max(
+            _concurrency - 1, CdnProxyDefaults.minChunksPerReader);
       }
       return;
     }
@@ -396,6 +420,7 @@ class CdnRangeSession {
           request.fail(_safeError(cause));
         } finally {
           request.work.remove(task);
+          request._markDownloadStopped();
         }
       });
       request.work.add(task);
@@ -456,11 +481,11 @@ class CdnRangeSession {
             }
             bodyPhase = true;
             unreadBody = null;
+            request._markDownloadStarted();
             await _consume(
                 response.stream, request, chunk, token, trace, owning);
             chunk.complete = true;
-            request.recordNetworkWindow(
-                chunk.accepted, chunk.transfer.elapsedMilliseconds);
+            request.recordNetworkWindow(chunk.accepted);
           }
           request.signal();
           outcome = 'success';
