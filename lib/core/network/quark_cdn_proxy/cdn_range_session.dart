@@ -111,8 +111,9 @@ class _ReadRequest {
 
   /// Moves the concurrency in response to [measured] aggregate throughput.
   void _adjustConcurrency(double measured) {
+    final previous = _concurrency;
     final decision = decideConcurrency(
-      concurrency: _concurrency,
+      concurrency: previous,
       bitrate: bitrate,
       measured: measured,
       probePending: _probePending,
@@ -279,8 +280,7 @@ class CdnRangeSession {
   Future<void> _initialize() async {
     _checkActive();
     final request = _ReadRequest(const CdnByteRange(start: 0, end: 0),
-        probe: true,
-        bitrate: bitrate);
+        probe: true, bitrate: bitrate);
     try {
       await _read(request).drain<void>();
       _checkActive();
