@@ -1,7 +1,14 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/services.dart' show MethodChannel;
+import 'package:flutter/services.dart'
+    show
+        HardwareKeyboard,
+        KeyDownEvent,
+        LogicalKeyboardKey,
+        MethodChannel,
+        PhysicalKeyboardKey,
+        SelectionChangedCause;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +47,45 @@ import 'ui/settings/ui_font_scale.dart';
 import 'ui/shared/ssl_trust_dialog_host.dart';
 import 'ui/shared/toast.dart';
 
+/// Windows clipboard-history (Win+V) paste workaround.
+///
+/// Choosing an item in the Win+V panel makes Windows synthesize a Ctrl+V chord
+/// from raw injected key events that carry no scan code. Flutter's Windows
+/// embedder reads the Control modifier state while processing that chord and,
+/// because the whole injected sequence is flushed at once, it sees Control
+/// already released: the V key-down reaches the framework as a bare "V", so the
+/// default `Ctrl+V -> PasteTextIntent` shortcut never fires and nothing is
+/// pasted. The injected V is still recognizable — with no scan code it cannot be
+/// mapped to a physical key, so its `physicalKey` never equals
+/// [PhysicalKeyboardKey.keyV] (a physical V always does). Detect that case and
+/// run the paste action ourselves so every text field accepts clipboard-history
+/// pastes. A physical Ctrl+V is unaffected (Control is genuinely held, so it is
+/// left to the default shortcut).
+void _installWindowsClipboardHistoryPasteFallback() {
+  if (kIsWeb || !Platform.isWindows) return;
+  HardwareKeyboard.instance.addHandler((event) {
+    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyV) {
+      return false;
+    }
+    // A genuine Ctrl+V arrives with Control pressed and is already handled by
+    // the framework; only rescue the modifier-less injected variant, which is
+    // identified by its empty scan code (unresolvable physical key). The
+    // control character is checked too in case the embedder ever preserves it.
+    if (HardwareKeyboard.instance.isControlPressed) return false;
+    final isInjected = event.physicalKey != PhysicalKeyboardKey.keyV ||
+        event.character == '\u0016';
+    if (!isInjected) return false;
+    final context = FocusManager.instance.primaryFocus?.context;
+    if (context != null) {
+      Actions.maybeInvoke(
+        context,
+        const PasteTextIntent(SelectionChangedCause.keyboard),
+      );
+    }
+    return true;
+  });
+}
+
 MainWindowLifecycleController? mainWindowLifecycleController;
 
 const _windowChannel = MethodChannel('fly_narwhal/window');
@@ -48,6 +94,7 @@ Future<void> bootstrapApp() async {
   // Keep the whole bootstrap chain inside one guarded zone.
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    _installWindowsClipboardHistoryPasteFallback();
     await LiquidGlassWidgets.initialize();
     final talker = await AppTalker.initialize();
 
