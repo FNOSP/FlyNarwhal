@@ -489,8 +489,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       autoLoginPasswordLiteral: jsonEncode(_autoLoginPassword),
       allowAutoLogin: _allowAutoLogin,
       usernameHistoryJsonLiteral: jsonEncode(_buildUsernameHistory(history)),
-      rememberPasswordLabel: jsonEncode(
-          AppLocalizations.of(context).loginWebViewInjectedPlaceholder),
+      rememberPasswordLabel:
+          jsonEncode(AppLocalizations.of(context).loginRememberPassword),
     ).build();
     await controller.evaluateJavascript(source: script);
   }

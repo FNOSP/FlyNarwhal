@@ -140,6 +140,15 @@ class LoginJsInjectionBuilder {
     if (existingInput) return existingInput;
 
     var originalCheckbox = document.getElementById('stay');
+    if (!originalCheckbox) {
+      var stayDivs = document.querySelectorAll('div');
+      for (var stayIndex = 0; stayIndex < stayDivs.length; stayIndex++) {
+        if ((stayDivs[stayIndex].innerText || '').trim() === '保持登录') {
+          originalCheckbox = stayDivs[stayIndex].closest('.semi-checkbox');
+          break;
+        }
+      }
+    }
     var originalField = originalCheckbox ? originalCheckbox.closest('.semi-form-field') : null;
     var insertionContainer = originalField ? originalField.parentElement : null;
     if (!insertionContainer) {
@@ -308,7 +317,10 @@ class LoginJsInjectionBuilder {
     hookFetch();
     hookXhr();
     bindAccessCodeCapture();
-    if (window.location.href.indexOf('/login') !== -1) {
+    // The fnOS login form is not always served under /login (the OAuth entry
+    // point is /signin?client_id=...), so detect it by its own fields rather
+    // than by the URL path.
+    if (getUsernameInput() && getPasswordInput()) {
       ensureRememberPasswordCheckbox();
       bindLoginCapture();
       injectUsernameHistory();
