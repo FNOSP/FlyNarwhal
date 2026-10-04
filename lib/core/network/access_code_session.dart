@@ -93,6 +93,18 @@ String mergeCookies(List<String?> values) {
   return parts.join('; ');
 }
 
+/// Whether [host] belongs to the FN Connect relay family (`5ddd.com` /
+/// `fnos.net` or one of their subdomains). Matched by exact host or a
+/// `.<domain>` suffix, so lookalike hosts such as `5ddd.com.evil.com` are NOT
+/// treated as FN Connect.
+bool isFnConnectHost(String host) {
+  final value = host.toLowerCase();
+  return value == '5ddd.com' ||
+      value.endsWith('.5ddd.com') ||
+      value == 'fnos.net' ||
+      value.endsWith('.fnos.net');
+}
+
 /// Establishes a gateway session by calling `GET <base>/access_code_verify`
 /// with the Base64-encoded code, mirroring the Electron client.
 class AccessCodeSession {
@@ -240,14 +252,6 @@ class AccessCodeSession {
       return null;
     }
     return target;
-  }
-
-  static bool isFnConnectHost(String host) {
-    final value = host.toLowerCase();
-    return value == '5ddd.com' ||
-        value.endsWith('.5ddd.com') ||
-        value == 'fnos.net' ||
-        value.endsWith('.fnos.net');
   }
 
   static String _composeGrant(List<String> setCookies) {

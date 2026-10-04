@@ -44,9 +44,7 @@ class LoginViewModel extends _$LoginViewModel {
       await prefs.saveBaseUrl(baseUrl);
 
       final parsed = Uri.tryParse(baseUrl);
-      final isRelay = (parsed?.host.contains('5ddd.com') ?? false) ||
-          (parsed?.host.contains('fnos.net') ?? false) ||
-          isNasLogin;
+      final isRelay = isFnConnectHost(parsed?.host ?? '') || isNasLogin;
       if (isRelay) {
         await prefs.saveCookie('mode=relay');
         AppTalker.info(

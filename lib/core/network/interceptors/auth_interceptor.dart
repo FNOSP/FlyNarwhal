@@ -53,7 +53,7 @@ class AuthInterceptor extends Interceptor {
     // The FN Connect relay requires `mode=relay` on every request; without it
     // API paths are answered with the portal HTML page (and the OAuth token
     // exchange never yields a token).
-    if (AccessCodeSession.isFnConnectHost(options.uri.host) &&
+    if (isFnConnectHost(options.uri.host) &&
         !mergedCookie.toLowerCase().contains('mode=relay')) {
       mergedCookie =
           mergedCookie.isEmpty ? 'mode=relay' : '$mergedCookie; mode=relay';

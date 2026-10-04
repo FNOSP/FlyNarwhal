@@ -1200,19 +1200,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final host = slashIndex == -1 ? raw : raw.substring(0, slashIndex);
     final path = slashIndex == -1 ? '' : raw.substring(slashIndex);
     final normalizedHost = host.contains('.') ? host : '5ddd.com/$host';
-    final protocolPrefix = normalizedHost.contains('5ddd.com') ||
-            normalizedHost.contains('fnos.net')
-        ? 'https://'
-        : (https ? 'https://' : 'http://');
+    // A bare token is an FN ID and maps to the 5ddd.com portal; the FN Connect
+    // family always uses HTTPS.
+    final isFnConnect = !host.contains('.') || isFnConnectHost(host);
+    final protocolPrefix =
+        isFnConnect ? 'https://' : (https ? 'https://' : 'http://');
     return '$protocolPrefix$normalizedHost$path';
   }
 
   bool _needsProbe(String host) {
     final h = host.trim().toLowerCase();
     if (h.isEmpty) return false;
-    if (!h.contains('.')) return true;
-    if (h.contains('5ddd.com') || h.contains('fnos.net')) return true;
-    return false;
+    // A bare token is an FN ID; an FN Connect domain also needs the webview.
+    return !h.contains('.') || isFnConnectHost(h);
   }
 
   String _stripQuotes(String url) {
@@ -1771,7 +1771,8 @@ class _NetworkMessageProcessor {
   }
 
   String _normalizeRelayCookie(String cookie, String baseUrl) {
-    if (!baseUrl.contains('5ddd.com') && !baseUrl.contains('fnos.net')) {
+    final host = Uri.tryParse(baseUrl)?.host ?? '';
+    if (!isFnConnectHost(host)) {
       return cookie;
     }
     if (cookie.contains('mode=relay')) {
