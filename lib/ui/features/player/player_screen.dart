@@ -578,6 +578,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// decode instead of decoding it to PCM locally. Changing the property
   /// re-initializes the audio output, so this also applies to a playing stream.
   ///
+  /// On macOS this also toggles [coreaudio-spdif-hack]: most Mac digital outputs
+  /// (HDMI, USB S/PDIF) do not advertise AC3/DTS to CoreAudio, and without the
+  /// hack mpv refuses to open a passthrough audio output for them.
+  ///
   /// Deliberately does not touch [audio-exclusive]: WASAPI shared mode already
   /// carries a compressed bitstream, while forcing exclusive mode makes mpv
   /// abort playback outright when the device refuses to open in exclusive mode
@@ -591,6 +595,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       'audio-spdif',
       _isAudioPassthrough ? _audioPassthroughCodecs : '',
     );
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) {
+      await platform.setProperty(
+        'coreaudio-spdif-hack',
+        _isAudioPassthrough ? 'yes' : 'no',
+      );
+    }
   }
 
   /// Applies the user's audio output device to mpv via the [audio-device]
@@ -670,10 +680,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     unawaited(
       ref.read(playerSettingsManagerProvider).setAudioPassthrough(false),
     );
-    final platform = player.platform;
-    if (platform is NativePlayer) {
-      unawaited(platform.setProperty('audio-spdif', ''));
-    }
+    unawaited(_applyAudioPassthrough(player));
     AppTalker.warning(
       'Player',
       'audio passthrough unsupported by the selected output device; '
