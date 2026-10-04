@@ -83,6 +83,14 @@
   "@settingsAppearanceNavStyleCaption": {
     "description": "Caption for the navigation style row."
   },
+  "settingsAppearanceDetailsLiquidGlass": "Enable liquid glass for the playback details panel",
+  "@settingsAppearanceDetailsLiquidGlass": {
+    "description": "Row heading for the playback details panel animation style."
+  },
+  "settingsAppearanceDetailsLiquidGlassCaption": "When on, the playback details panel uses the animated liquid glass style; when off, it uses the static frosted glass style",
+  "@settingsAppearanceDetailsLiquidGlassCaption": {
+    "description": "Caption for the playback details panel animation style row."
+  },
   "settingsGeneralFontSize": "Font size",
   "@settingsGeneralFontSize": {
     "description": "Row heading for the UI font size."

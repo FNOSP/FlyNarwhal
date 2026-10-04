@@ -255,6 +255,18 @@ abstract class AppLocalizations {
   /// **'请选择导航视图布局'**
   String get settingsAppearanceNavStyleCaption;
 
+  /// Row heading for the playback details panel animation style.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放详细信息面板启用液态玻璃效果'**
+  String get settingsAppearanceDetailsLiquidGlass;
+
+  /// Caption for the playback details panel animation style row.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后播放详细信息面板使用带动画的液态玻璃样式，关闭则使用静态毛玻璃样式'**
+  String get settingsAppearanceDetailsLiquidGlassCaption;
+
   /// Row heading for the UI font size.
   ///
   /// In zh, this message translates to:

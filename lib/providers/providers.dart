@@ -420,6 +420,7 @@ class SettingsState {
   final bool flyNarwhalServerEnabled;
   final String flyNarwhalServerBaseUrl;
   final bool hasFlyNarwhalAuthCode;
+  final bool playerDetailsLiquidGlass;
   final List<SslTrustEntry> sslWhitelist;
 
   const SettingsState({
@@ -431,6 +432,7 @@ class SettingsState {
     required this.flyNarwhalServerEnabled,
     required this.flyNarwhalServerBaseUrl,
     required this.hasFlyNarwhalAuthCode,
+    this.playerDetailsLiquidGlass = true,
     this.sslWhitelist = const <SslTrustEntry>[],
   });
 
@@ -450,6 +452,7 @@ class SettingsState {
     bool? flyNarwhalServerEnabled,
     String? flyNarwhalServerBaseUrl,
     bool? hasFlyNarwhalAuthCode,
+    bool? playerDetailsLiquidGlass,
     List<SslTrustEntry>? sslWhitelist,
   }) {
     return SettingsState(
@@ -465,6 +468,8 @@ class SettingsState {
           flyNarwhalServerBaseUrl ?? this.flyNarwhalServerBaseUrl,
       hasFlyNarwhalAuthCode:
           hasFlyNarwhalAuthCode ?? this.hasFlyNarwhalAuthCode,
+      playerDetailsLiquidGlass:
+          playerDetailsLiquidGlass ?? this.playerDetailsLiquidGlass,
       sslWhitelist: sslWhitelist ?? this.sslWhitelist,
     );
   }
@@ -484,6 +489,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           flyNarwhalServerBaseUrl: _flyNarwhalSettings.baseUrl?.trim() ?? '',
           hasFlyNarwhalAuthCode:
               _flyNarwhalSettings.authCode?.trim().isNotEmpty ?? false,
+          playerDetailsLiquidGlass:
+              _prefs.getPlayerDetailsLiquidGlass(userGuid: userGuid),
           sslWhitelist: SslTrustManager.instance.persistedEntries.toList(),
         )) {
     // 首次运行（该作用域无语言记录）时固化系统语言推断结果，
@@ -510,6 +517,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setNavigationDisplayMode(String value) async {
     await _prefs.saveNavigationDisplayMode(value, userGuid: _userGuid);
     state = state.copyWith(navigationDisplayMode: value);
+  }
+
+  Future<void> setPlayerDetailsLiquidGlass(bool value) async {
+    await _prefs.savePlayerDetailsLiquidGlass(value, userGuid: _userGuid);
+    state = state.copyWith(playerDetailsLiquidGlass: value);
   }
 
   Future<void> setUiFontScale(String value) async {

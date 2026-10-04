@@ -83,6 +83,7 @@ import 'widgets/skip_outro_prompt.dart';
 import 'widgets/playback_end_overlay.dart';
 import 'widgets/playback_details_morph.dart';
 import 'widgets/playback_details_overlay.dart';
+import 'widgets/frosted_playback_details.dart';
 import 'widgets/subtitle_control_flyout.dart';
 import 'widgets/subtitle_search_dialog.dart';
 import '../../shared/local_subtitle_upload.dart';
@@ -5938,6 +5939,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 builder: (context, constraints) {
                   final cache = _playingInfoCache;
                   if (cache == null) return const SizedBox.shrink();
+                  // The frosted style has no morph, so a settled close never
+                  // leaves a collapsing subtree behind.
+                  if (!ref.watch(settingsProvider).playerDetailsLiquidGlass) {
+                    if (!_isPlaybackDetailsVisible) {
+                      return const SizedBox.shrink();
+                    }
+                    return FrostedPlaybackDetails(
+                      cache: cache,
+                      transcodeStatus: _playbackDetailsTranscodeStatus,
+                      bufferedSeconds: _isInitialized
+                          ? ((_bufferedPosition - _currentPosition) / 1000)
+                              .clamp(0.0, double.infinity)
+                          : null,
+                      onClose: _closePlaybackDetails,
+                      closeTooltip: _l10n.playerClose,
+                    );
+                  }
                   final maxWidth = constraints.maxWidth - 32;
                   final maxHeight = constraints.maxHeight - 76;
                   final spawnSize = _isMacOS ? 30.0 : 34.0;
@@ -6825,15 +6843,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Closes the “播放详细信息” panel. Kept a single code path so the panel's
-  /// close button and the top-bar toggle run the exact same cleanup. The
-  /// panel collapses back into its trigger button with the liquid morph
-  /// animation; the widget tree is disposed once the morph has settled
-  /// (see [_handlePlaybackDetailsMorphSettled]).
+  /// close button and the top-bar toggle run the exact same cleanup. In the
+  /// liquid glass style the panel collapses back into its trigger button with
+  /// the morph animation and the widget tree is disposed once the morph has
+  /// settled (see [_handlePlaybackDetailsMorphSettled]); the frosted style has
+  /// no transition, so the subtree simply disappears.
   void _closePlaybackDetails() {
     if (!_isPlaybackDetailsVisible) return;
+    final liquidGlass = ref.read(settingsProvider).playerDetailsLiquidGlass;
     setState(() => _isPlaybackDetailsVisible = false);
-    _playbackDetailsAnimClosing = true;
-    _playbackDetailsMorphController.close();
+    _playbackDetailsAnimClosing = liquidGlass;
+    if (liquidGlass) _playbackDetailsMorphController.close();
     _stopPlaybackDetailsPolling();
     _showUi();
   }

@@ -87,6 +87,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsAppearanceNavStyleCaption => '请选择导航视图布局';
 
   @override
+  String get settingsAppearanceDetailsLiquidGlass => '播放详细信息面板启用液态玻璃效果';
+
+  @override
+  String get settingsAppearanceDetailsLiquidGlassCaption =>
+      '开启后播放详细信息面板使用带动画的液态玻璃样式，关闭则使用静态毛玻璃样式';
+
+  @override
   String get settingsGeneralFontSize => '字体大小';
 
   @override
@@ -2687,6 +2694,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get settingsAppearanceNavStyleCaption => '請選擇導覽檢視版面';
+
+  @override
+  String get settingsAppearanceDetailsLiquidGlass => '播放詳細資訊面板啟用液態玻璃效果';
+
+  @override
+  String get settingsAppearanceDetailsLiquidGlassCaption =>
+      '開啟後播放詳細資訊面板使用帶動畫的液態玻璃樣式，關閉則使用靜態毛玻璃樣式';
 
   @override
   String get settingsGeneralFontSize => '字型大小';

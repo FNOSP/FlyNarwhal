@@ -420,6 +420,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       .toList(),
                                 ),
                               ),
+                              CardExpanderItem(
+                                icon: const Icon(FluentIcons.blur),
+                                heading: Text(
+                                  l10n.settingsAppearanceDetailsLiquidGlass,
+                                ),
+                                caption: Text(
+                                  l10n.settingsAppearanceDetailsLiquidGlassCaption,
+                                ),
+                                trailing: ToggleSwitch(
+                                  key: const ValueKey(
+                                    'settings-player-details-liquid-glass-toggle',
+                                  ),
+                                  checked: settings.playerDetailsLiquidGlass,
+                                  onChanged: (v) => settingsNotifier
+                                      .setPlayerDetailsLiquidGlass(v),
+                                ),
+                              ),
                               const SizedBox(height: 4),
                               _Header(title: l10n.settingsSectionGeneral),
                               CardExpanderItem(

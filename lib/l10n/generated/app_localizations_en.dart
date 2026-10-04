@@ -92,6 +92,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose the navigation view layout';
 
   @override
+  String get settingsAppearanceDetailsLiquidGlass =>
+      'Enable liquid glass for the playback details panel';
+
+  @override
+  String get settingsAppearanceDetailsLiquidGlassCaption =>
+      'When on, the playback details panel uses the animated liquid glass style; when off, it uses the static frosted glass style';
+
+  @override
   String get settingsGeneralFontSize => 'Font size';
 
   @override

@@ -83,6 +83,14 @@
   "@settingsAppearanceNavStyleCaption": {
     "description": "Caption for the navigation style row."
   },
+  "settingsAppearanceDetailsLiquidGlass": "播放詳細資訊面板啟用液態玻璃效果",
+  "@settingsAppearanceDetailsLiquidGlass": {
+    "description": "Row heading for the playback details panel animation style."
+  },
+  "settingsAppearanceDetailsLiquidGlassCaption": "開啟後播放詳細資訊面板使用帶動畫的液態玻璃樣式，關閉則使用靜態毛玻璃樣式",
+  "@settingsAppearanceDetailsLiquidGlassCaption": {
+    "description": "Caption for the playback details panel animation style row."
+  },
   "settingsGeneralFontSize": "字型大小",
   "@settingsGeneralFontSize": {
     "description": "Row heading for the UI font size."

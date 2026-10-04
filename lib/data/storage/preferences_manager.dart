@@ -28,6 +28,8 @@ class PreferencesManager {
   static const String _keySkipRecap = 'skip_recap';
   static const String _keySkipPreview = 'skip_preview';
   static const String _keySkipCommercial = 'skip_commercial';
+  // 播放详细信息面板样式：true = 带动画的液态玻璃面板，false = 静态毛玻璃面板。
+  static const String _keyPlayerDetailsLiquidGlass = 'player_details_liquid_glass';
 
   final SharedPreferences _prefs;
 
@@ -127,6 +129,19 @@ class PreferencesManager {
 
   Future<void> saveNavigationDisplayMode(String value, {String? userGuid}) {
     return _writeStringScoped(_keyNavigationDisplayMode, userGuid, value);
+  }
+
+  // 播放详细信息面板是否使用带动画的液态玻璃样式，默认开启（保持现状）。
+  bool getPlayerDetailsLiquidGlass({String? userGuid}) {
+    return _readBoolScoped(
+      _keyPlayerDetailsLiquidGlass,
+      userGuid,
+      defaultValue: true,
+    );
+  }
+
+  Future<void> savePlayerDetailsLiquidGlass(bool value, {String? userGuid}) {
+    return _writeBoolScoped(_keyPlayerDetailsLiquidGlass, userGuid, value);
   }
 
   String getUiFontScale({String? userGuid}) {
