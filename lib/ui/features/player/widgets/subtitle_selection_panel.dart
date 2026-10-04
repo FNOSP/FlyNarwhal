@@ -187,8 +187,8 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
                       l10n.playerSubtitlePanelTitle,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),

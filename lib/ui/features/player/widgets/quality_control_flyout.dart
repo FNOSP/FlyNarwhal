@@ -757,7 +757,7 @@ class _CustomQualityPageState extends State<_CustomQualityPage> {
                             l10n.playerQualityCustomTitle,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 14,
+                              fontSize: 15,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
