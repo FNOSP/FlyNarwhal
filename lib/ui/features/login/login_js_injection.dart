@@ -30,11 +30,20 @@ class LoginJsInjectionBuilder {
   // which trips that reload loop even though the page recovers. The
   // alert only blocks the recovered page, so suppress it; fnOS's own
   // reload counter still terminates the loop on the recovered page.
+  // The alert is rendered in the fnOS UI locale, so match both the
+  // Chinese and English wording (kept loose to tolerate minor phrasing
+  // differences between fnOS versions).
   if (!window.__flynarwhal_alert_guarded) {
     window.__flynarwhal_alert_guarded = true;
     var originalAlert = window.alert ? window.alert.bind(window) : null;
+    function isTerminalSystemErrorAlert(message) {
+      var text = String(message);
+      if (text.indexOf('系统异常') !== -1 && text.indexOf('管理员') !== -1) return true;
+      if (text.indexOf('System error') !== -1 && text.indexOf('administrator') !== -1) return true;
+      return false;
+    }
     window.alert = function(message) {
-      if (String(message).indexOf('系统异常，请联系管理员修复系统') !== -1) return;
+      if (isTerminalSystemErrorAlert(message)) return;
       if (originalAlert) originalAlert(message);
     };
   }
