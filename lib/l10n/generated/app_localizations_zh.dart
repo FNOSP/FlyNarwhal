@@ -1285,6 +1285,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginAuthFailed => '认证失败';
 
   @override
+  String get loginAccessCodeInvalid => '访问码错误';
+
+  @override
   String get loginFnIdEmpty => 'FN ID 不能为空';
 
   @override
@@ -3905,6 +3908,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get loginAuthFailed => '認證失敗';
+
+  @override
+  String get loginAccessCodeInvalid => '存取碼錯誤';
 
   @override
   String get loginFnIdEmpty => 'FN ID 不能為空';

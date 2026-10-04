@@ -20,6 +20,7 @@ import '../../shared/dialogs/app_dialog.dart';
 import '../../shared/toast.dart';
 
 import '../../../core/error/login_exception.dart';
+import '../../../core/network/access_code_session.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/network/ssl/ssl_error_detector.dart';
 import '../../../core/utils/log/app_talker.dart';
@@ -248,7 +249,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _capturedUsername = '';
     _capturedPassword = '';
     _capturedRememberPassword = false;
-
     try {
       // Create a shared Windows environment before accessing its cookie store.
       if (!kIsWeb && Platform.isWindows) {
@@ -494,6 +494,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (method == 'LogNetwork') {
       AppTalker.info('LoginBridge', 'receive network log payload');
       _handleNetworkLog(params);
+      return;
+    }
+    if (method == 'CaptureAccessCode') {
+      unawaited(_handleAccessCodeCaptured(params));
+    }
+  }
+
+  /// Verifies the fnOS access code captured from the webview and stores the
+  /// gateway session so native NAS API requests are authorized (the gateway
+  /// otherwise answers API paths with the HTML page, stalling the login).
+  Future<void> _handleAccessCodeCaptured(String params) async {
+    String code = '';
+    try {
+      final data = jsonDecode(params);
+      if (data is Map) {
+        code = (data['code'] ?? '').toString().trim();
+      }
+    } catch (_) {}
+    if (code.isEmpty || _baseUrl.isEmpty) return;
+    AppTalker.info(
+      'LoginBridge',
+      'access code captured for "$_baseUrl" length=${code.length}',
+    );
+    try {
+      final result = await AccessCodeSession.establish(
+        dio: ref.read(dioClientProvider).dio,
+        baseUrl: _baseUrl,
+        accessCode: code,
+      );
+      AppTalker.info(
+        'LoginBridge',
+        'access code session established origin="${result.baseUrl}"',
+      );
+      // The native sys/config fallback may already have run (and been rejected)
+      // before the grant was ready; retry it now so the flow can continue.
+      await _networkMessageProcessor?.retrySysConfig(result.baseUrl);
+    } on AccessCodeVerificationException catch (e) {
+      AppTalker.warning('LoginBridge', 'access code verify failed: $e');
+      if (mounted && e.isRejected) {
+        _showToast(AppLocalizations.of(context).loginAccessCodeInvalid);
+      }
+    } catch (e) {
+      AppTalker.warning('LoginBridge', 'access code session error: $e');
     }
   }
 
@@ -551,7 +594,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _onNasLoginSuccess(_NasLoginResult result) async {
     final prefs = ref.read(preferencesManagerProvider);
     await prefs.saveToken(result.token);
-    await prefs.saveCookie(result.cookie);
+    // Fold any access-code gateway session into the persisted cookie so media
+    // API requests keep working after the app restarts.
+    final persistedCookie = mergeCookies([
+      getAccessCookieHeader(result.baseUrl),
+      result.cookie,
+    ]);
+    await prefs.saveCookie(persistedCookie);
     await prefs.saveBaseUrl(result.baseUrl);
     await prefs.saveLoginHistory(result.history);
     ref.invalidate(loginHistoryNotifierProvider);
@@ -995,6 +1044,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               return null;
                             },
                           );
+                          controller.addJavaScriptHandler(
+                            handlerName: 'CaptureAccessCode',
+                            callback: (arguments) {
+                              if (arguments.isNotEmpty) {
+                                unawaited(
+                                  _handleAccessCodeCaptured(
+                                    arguments.first.toString(),
+                                  ),
+                                );
+                              }
+                              return null;
+                            },
+                          );
                         },
                         onLoadStop: (controller, url) async {
                           if (url == null) return;
@@ -1229,6 +1291,7 @@ class _NetworkMessageProcessor {
   bool _isAuthRequested = false;
   bool _isSysConfigInFlight = false;
   bool _isSysConfigLoaded = false;
+  String _lastSysCookie = '';
 
   // Route network logs to NAS OAuth flow handlers
   Future<void> process({
@@ -1293,7 +1356,16 @@ class _NetworkMessageProcessor {
     final cookie = _extractCookie(payload);
     if (cookie == null || cookie.isEmpty) return;
     final normalizedCookie = _normalizeRelayCookie(cookie, baseUrl);
+    _lastSysCookie = normalizedCookie;
     await _fetchSysConfig(baseUrl, normalizedCookie);
+  }
+
+  /// Re-runs the native sys/config lookup once the access-code gateway session
+  /// is available (the first attempt may have run before the grant existed).
+  Future<void> retrySysConfig(String baseUrl) async {
+    if (_isSysConfigLoaded) return;
+    _isSysConfigInFlight = false;
+    await _fetchSysConfig(baseUrl, _lastSysCookie);
   }
 
   Future<void> _handleSysConfigMessage(
@@ -1323,6 +1395,7 @@ class _NetworkMessageProcessor {
   Future<void> _fetchSysConfig(String baseUrl, String cookie) async {
     if (baseUrl.isEmpty) return;
     _isSysConfigInFlight = true;
+    _lastSysCookie = cookie;
     try {
       // Authx is injected by the AuthInterceptor.
       final response = await dioClient.dio.get(
@@ -1559,13 +1632,17 @@ class _NetworkMessageProcessor {
 
   String? _extractCookie(Map<String, dynamic> payload) {
     final direct = payload['cookie']?.toString();
-    if (direct != null && direct.isNotEmpty) return direct;
+    if (direct != null && direct.isNotEmpty) {
+      return direct;
+    }
     final headers = payload['headers'];
     if (headers is Map) {
       final lowered = headers.map((key, value) =>
           MapEntry(key.toString().toLowerCase(), value.toString()));
       final cookie = lowered['set-cookie'] ?? lowered['cookie'];
-      if (cookie != null && cookie.isNotEmpty) return cookie;
+      if (cookie != null && cookie.isNotEmpty) {
+        return cookie;
+      }
     }
     if (headers is String) {
       final lines = headers.split('\n');
@@ -1575,7 +1652,9 @@ class _NetworkMessageProcessor {
         final key = parts.first.trim().toLowerCase();
         final value = parts.sublist(1).join(':').trim();
         if (key == 'set-cookie' || key == 'cookie') {
-          if (value.isNotEmpty) return value;
+          if (value.isNotEmpty) {
+            return value;
+          }
         }
       }
     }

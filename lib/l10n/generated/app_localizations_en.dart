@@ -1337,6 +1337,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loginAuthFailed => 'Authentication failed';
 
   @override
+  String get loginAccessCodeInvalid => 'Incorrect access code';
+
+  @override
   String get loginFnIdEmpty => 'FN ID cannot be empty';
 
   @override

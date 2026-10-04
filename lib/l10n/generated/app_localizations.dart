@@ -2463,6 +2463,12 @@ abstract class AppLocalizations {
   /// **'认证失败'**
   String get loginAuthFailed;
 
+  /// Login error when the fnOS access-code gateway rejects the code.
+  ///
+  /// In zh, this message translates to:
+  /// **'访问码错误'**
+  String get loginAccessCodeInvalid;
+
   /// Validation error when resolving an empty FN ID.
   ///
   /// In zh, this message translates to:

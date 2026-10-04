@@ -64,6 +64,41 @@ class LoginJsInjectionBuilder {
     return document.querySelector('#password') || document.querySelector('input[name="password"]') || document.querySelector('input[type="password"]');
   }
 
+  function getAccessCodeInput() {
+    return document.querySelector('#access-code-input') || document.querySelector('input[name="access-code"]');
+  }
+
+  // Report the fnOS access code to the host so it can establish a native
+  // gateway session (GET /access_code_verify) for the NAS API requests.
+  function reportAccessCode() {
+    var input = getAccessCodeInput();
+    if (!input) return;
+    var value = (input.value || '').trim();
+    if (!value || value === window.__flynarwhal_last_access_code) return;
+    window.__flynarwhal_last_access_code = value;
+    callNative('CaptureAccessCode', JSON.stringify({ code: value }));
+  }
+
+  function bindAccessCodeCapture() {
+    var input = getAccessCodeInput();
+    if (!input) return;
+    if (!input.__flynarwhal_access_code_bound) {
+      input.__flynarwhal_access_code_bound = true;
+      input.addEventListener('change', reportAccessCode);
+      input.addEventListener('blur', reportAccessCode);
+    }
+    var form = input.closest('form');
+    if (form && !form.__flynarwhal_access_code_bound) {
+      form.__flynarwhal_access_code_bound = true;
+      form.addEventListener('submit', reportAccessCode);
+    }
+    var submitButton = document.querySelector('button[type="submit"]');
+    if (submitButton && !submitButton.__flynarwhal_access_code_bound) {
+      submitButton.__flynarwhal_access_code_bound = true;
+      submitButton.addEventListener('click', reportAccessCode);
+    }
+  }
+
   function triggerInput(input, value) {
     if (!input) return false;
     try {
@@ -272,6 +307,7 @@ class LoginJsInjectionBuilder {
   function injectLoginPage() {
     hookFetch();
     hookXhr();
+    bindAccessCodeCapture();
     if (window.location.href.indexOf('/login') !== -1) {
       ensureRememberPasswordCheckbox();
       bindLoginCapture();

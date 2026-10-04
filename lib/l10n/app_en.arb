@@ -1790,6 +1790,10 @@
   "@loginAuthFailed": {
     "description": "Fallback login error when the server rejects the token exchange."
   },
+  "loginAccessCodeInvalid": "Incorrect access code",
+  "@loginAccessCodeInvalid": {
+    "description": "Login error when the fnOS access-code gateway rejects the code."
+  },
   "loginFnIdEmpty": "FN ID cannot be empty",
   "@loginFnIdEmpty": {
     "description": "Validation error when resolving an empty FN ID."

@@ -1811,6 +1811,10 @@
   "@loginAuthFailed": {
     "description": "Fallback login error when the server rejects the token exchange."
   },
+  "loginAccessCodeInvalid": "访问码错误",
+  "@loginAccessCodeInvalid": {
+    "description": "Login error when the fnOS access-code gateway rejects the code."
+  },
   "loginFnIdEmpty": "FN ID 不能为空",
   "@loginFnIdEmpty": {
     "description": "Validation error when resolving an empty FN ID."
