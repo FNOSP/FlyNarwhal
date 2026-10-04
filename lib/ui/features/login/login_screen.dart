@@ -629,6 +629,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     if (method == 'CaptureAccessCode') {
       unawaited(_handleAccessCodeCaptured(params));
+      return;
+    }
+    if (method == 'ReportGateState') {
+      try {
+        final data = jsonDecode(params);
+        if (data is Map) {
+          _networkMessageProcessor?.reportWebViewGateState(
+            gated: data['gated'] == true,
+            cleared: data['cleared'] == true,
+          );
+        }
+      } catch (_) {}
     }
   }
 
@@ -1196,6 +1208,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               return null;
                             },
                           );
+                          controller.addJavaScriptHandler(
+                            handlerName: 'ReportGateState',
+                            callback: (arguments) {
+                              if (arguments.isNotEmpty) {
+                                _handleJsBridgeMessage(
+                                  'ReportGateState',
+                                  arguments.first.toString(),
+                                );
+                              }
+                              return null;
+                            },
+                          );
                         },
                         onLoadStop: (controller, url) async {
                           if (url == null) return;
@@ -1451,6 +1475,33 @@ class _NetworkMessageProcessor {
   bool _isSysConfigLoaded = false;
   String _lastSysCookie = '';
 
+  /// The WebView page is showing the fnOS access-code gate.
+  bool _isWebViewAccessCodeGated = false;
+
+  /// The WebView page cleared its own access-code gate.
+  bool _isWebViewGateCleared = false;
+
+  /// Signin URL held back until the WebView page clears its gateway gate.
+  String? _pendingSigninUrl;
+
+  /// Records the WebView page's access-code gate state, reported by the
+  /// in-page script. Navigating to `/signin` while the page is still gated
+  /// would reload the gate with an empty field. The page clears the gate by
+  /// running its own `/access_code_verify`; that is reported as `cleared`.
+  void reportWebViewGateState({required bool gated, required bool cleared}) {
+    if (gated) {
+      _isWebViewAccessCodeGated = true;
+    }
+    if (cleared) {
+      _isWebViewAccessCodeGated = false;
+      _isWebViewGateCleared = true;
+    }
+    final pending = _pendingSigninUrl;
+    if (pending == null || !_isWebViewGateCleared) return;
+    _pendingSigninUrl = null;
+    unawaited(loadUrl(pending));
+  }
+
   // Route network logs to NAS OAuth flow handlers
   Future<void> process({
     required String params,
@@ -1610,6 +1661,17 @@ class _NetworkMessageProcessor {
     }
     _isSysConfigLoaded = true;
     _isSysConfigInFlight = false;
+    // The fnOS page runs its own access-code gate in the WebView, and the
+    // WebView uses its own (incognito) cookie jar, so the native grant does
+    // not authorize the page. Navigating to /signin while the page is still
+    // gated reloads it back onto the access-code prompt with an empty field,
+    // forcing the user to re-enter the code. Wait for the page to clear its
+    // own gate (its /access_code_verify succeeded) before navigating.
+    if (_isWebViewAccessCodeGated && !_isWebViewGateCleared) {
+      _pendingSigninUrl = targetUrl;
+      return;
+    }
+    _pendingSigninUrl = null;
     await loadUrl(targetUrl);
   }
 

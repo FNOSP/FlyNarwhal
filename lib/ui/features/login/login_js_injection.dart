@@ -90,6 +90,14 @@ class LoginJsInjectionBuilder {
 
   function bindAccessCodeCapture() {
     var input = getAccessCodeInput();
+    // The fnOS page gates on its own access-code step. Report that the page
+    // is gated so the host holds its `/signin` navigation; the page clears
+    // the gate by itself (its own /access_code_verify), which the fetch hook
+    // reports as `ReportGateState{cleared:true}`.
+    if (input && !window.__flynarwhal_gate_reported) {
+      window.__flynarwhal_gate_reported = true;
+      callNative('ReportGateState', JSON.stringify({ gated: true, cleared: false }));
+    }
     if (!input) return;
     if (!input.__flynarwhal_access_code_bound) {
       input.__flynarwhal_access_code_bound = true;
@@ -287,6 +295,13 @@ class LoginJsInjectionBuilder {
       return originalFetch.apply(this, arguments).then(function(response) {
         if (requestUrl.indexOf('/sac/rpcproxy/v1/new-user-guide/status') !== -1) {
           sendNetworkLog({ type: 'Fetch', url: requestUrl, cookie: document.cookie || '', pageUrl: window.location.href || '' });
+        }
+        // The page ran its own access-code verification; once it succeeds the
+        // page's gateway session exists, so the host may navigate to /signin.
+        if (requestUrl.indexOf('/access_code_verify') !== -1) {
+          if (response.status >= 200 && response.status < 300) {
+            callNative('ReportGateState', JSON.stringify({ gated: false, cleared: true }));
+          }
         }
         if (requestUrl.indexOf('/oauthapi/authorize') === -1 && requestUrl.indexOf('/v/api/v1/sys/config') === -1) return response;
         response.clone().text().then(function(body) {
