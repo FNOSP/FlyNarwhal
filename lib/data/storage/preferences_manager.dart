@@ -1,5 +1,9 @@
 import 'dart:convert';
+import 'dart:ui' show Locale, PlatformDispatcher;
+
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../ui/settings/app_language.dart';
 import '../models/login_history.dart';
 
 class PreferencesManager {
@@ -27,12 +31,30 @@ class PreferencesManager {
 
   final SharedPreferences _prefs;
 
-  PreferencesManager(this._prefs);
+  PreferencesManager(this._prefs, {String Function()? languageFallback})
+      : _languageFallback = languageFallback ?? detectSystemLanguage;
+
+  /// 首次运行（该作用域下从未存过语言）时用于推断界面语言。
+  /// 测试可注入返回值，生产环境默认读系统语言。
+  final String Function() _languageFallback;
 
   /// 规范化用户 guid：未登录（空/仅空白）返回 null，表示使用全局/legacy 键。
   static String? normalizeGuid(String? userGuid) {
     final normalized = userGuid?.trim() ?? '';
     return normalized.isEmpty ? null : normalized;
+  }
+
+  /// 读系统语言并映射到界面语言三档之一。
+  static String detectSystemLanguage() =>
+      systemLanguageFromLocale(PlatformDispatcher.instance.locale);
+
+  /// 系统 [Locale] 到界面语言的映射：
+  /// 非 zh 一律英文；zh 带 Hant 或台港澳地区为繁体；其余 zh 为简体。
+  static String systemLanguageFromLocale(Locale locale) {
+    if (locale.languageCode != 'zh') return AppLanguage.en;
+    final isTraditional = locale.scriptCode == 'Hant' ||
+        const {'TW', 'HK', 'MO'}.contains(locale.countryCode);
+    return isTraditional ? AppLanguage.zhHant : AppLanguage.zhHans;
   }
 
   List<LoginHistory> getLoginHistory() {
@@ -119,14 +141,16 @@ class PreferencesManager {
     return _writeStringScoped(_keyUiFontScale, userGuid, value);
   }
 
-  // 界面语言：'zh-Hans' | 'zh-Hant' | 'en'，默认简体中文。
+  // 界面语言：'zh-Hans' | 'zh-Hant' | 'en'。
+  // 该作用域下未存过时按系统语言推断（仅首次运行）。
   String getLanguage({String? userGuid}) {
-    return _readStringScoped(
-      _keyLanguage,
-      userGuid,
-      defaultValue: 'zh-Hans',
-    );
+    final stored = _readStringScopedNullable(_keyLanguage, userGuid);
+    return stored ?? _languageFallback();
   }
+
+  /// 该作用域下是否已存过界面语言（用于区分首次运行与用户显式选择）。
+  bool hasStoredLanguage({String? userGuid}) =>
+      _readStringScopedNullable(_keyLanguage, userGuid) != null;
 
   Future<void> saveLanguage(String value, {String? userGuid}) {
     return _writeStringScoped(_keyLanguage, userGuid, value);
@@ -237,11 +261,16 @@ class PreferencesManager {
     String? userGuid, {
     required String defaultValue,
   }) {
+    return _readStringScopedNullable(rawKey, userGuid) ?? defaultValue;
+  }
+
+  /// 读作用域键，键不存在返回 null（用于区分「未设置」与「显式空值」）。
+  String? _readStringScopedNullable(String rawKey, String? userGuid) {
     final normalized = normalizeGuid(userGuid);
     if (normalized == null) {
-      return _prefs.getString(rawKey) ?? defaultValue;
+      return _prefs.getString(rawKey);
     }
-    return _prefs.getString('$normalized::$rawKey') ?? defaultValue;
+    return _prefs.getString('$normalized::$rawKey');
   }
 
   Future<void> _writeBoolScoped(String rawKey, String? userGuid, bool value) {

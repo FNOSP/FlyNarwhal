@@ -129,6 +129,7 @@ class UserSettingsMigrator {
   static const String _kNavigationDisplayMode = 'navigation_display_mode';
   static const String _kEpisodeListViewType = 'episode_list_view_type';
   static const String _kSmartSkipEnabled = 'smart_skip_enabled';
+  static const String _kLanguage = 'language';
 
   Future<void> _migratePreferencesManager(
     String guid,
@@ -153,6 +154,7 @@ class UserSettingsMigrator {
       failed,
     );
     await _migrateBool(guid, _kSmartSkipEnabled, migrated, skipped, failed);
+    await _migrateString(guid, _kLanguage, migrated, skipped, failed);
   }
 
   // ---- FlyNarwhalSettings ------------------------------------------------

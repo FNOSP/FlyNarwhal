@@ -485,7 +485,13 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           hasFlyNarwhalAuthCode:
               _flyNarwhalSettings.authCode?.trim().isNotEmpty ?? false,
           sslWhitelist: SslTrustManager.instance.persistedEntries.toList(),
-        ));
+        )) {
+    // 首次运行（该作用域无语言记录）时固化系统语言推断结果，
+    // 使后续系统语言变化不再影响已确定的界面语言。
+    if (!_prefs.hasStoredLanguage(userGuid: _userGuid)) {
+      unawaited(_prefs.saveLanguage(state.language, userGuid: _userGuid));
+    }
+  }
 
   final PreferencesManager _prefs;
   final FlyNarwhalSettings _flyNarwhalSettings;
