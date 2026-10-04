@@ -15,6 +15,11 @@ const Color subtitleHoverBackgroundColor = Color(0x1AFFFFFF);
 
 const double subtitleFlyoutWidth = 320;
 const double subtitleFlyoutPanelHeight = 390;
+// The track list reserves this much on the right and the scrollbar thumb is
+// nudged into that gutter (a negative cross-axis margin shifts it right), so
+// the thumb never paints over the subtitle rows. The gutter also covers the
+// thumb's hover-expanded width.
+const double subtitleFlyoutScrollbarOffset = 8;
 
 /// 最后一次滚动后隐藏滚动条的延迟。
 /// 对齐 web 端（ms-* 自定义滚动条）实测：滚动时加 `ms-track-show`，
@@ -231,57 +236,74 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
                           _onScrollActivity();
                           return false;
                         },
-                        child: Scrollbar(
-                          controller: _scrollController,
-                          thumbVisibility:
-                              widget.autoHideScrollbar ? _scrollbarVisible : true,
-                          child: ListView.builder(
+                        child: ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context)
+                              .copyWith(scrollbars: false),
+                          child: Scrollbar(
                             controller: _scrollController,
-                            padding: EdgeInsets.zero,
-                            itemCount: widget.subtitles.length + 1,
-                            itemBuilder: (context, index) {
-                              final key = _itemKeys.putIfAbsent(
-                                index,
-                                () => GlobalKey(),
-                              );
-                              if (index == 0) {
+                            thumbVisibility: widget.autoHideScrollbar
+                                ? _scrollbarVisible
+                                : true,
+                            style: const ScrollbarThemeData(
+                              crossAxisMargin: -subtitleFlyoutScrollbarOffset,
+                              hoveringCrossAxisMargin:
+                                  -subtitleFlyoutScrollbarOffset,
+                            ),
+                            child: ListView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.only(
+                                right: subtitleFlyoutScrollbarOffset,
+                              ),
+                              itemCount: widget.subtitles.length + 1,
+                              itemBuilder: (context, index) {
+                                final key = _itemKeys.putIfAbsent(
+                                  index,
+                                  () => GlobalKey(),
+                                );
+                                if (index == 0) {
+                                  return KeyedSubtree(
+                                    key: key,
+                                    child: _SubtitleItem(
+                                      key: const ValueKey('subtitle-item-off'),
+                                      title: l10n.playerSubtitleOff,
+                                      subtitle: '',
+                                      isSelected: widget.selectedSubtitleGuid ==
+                                              null ||
+                                          widget.selectedSubtitleGuid!.isEmpty,
+                                      onTap: () =>
+                                          widget.onSubtitleSelected(null),
+                                    ),
+                                  );
+                                }
+
+                                final subtitle = widget.subtitles[index - 1];
+                                final showPredownload =
+                                    _hasPredownloadButton(subtitle);
                                 return KeyedSubtree(
                                   key: key,
                                   child: _SubtitleItem(
-                                    key: const ValueKey('subtitle-item-off'),
-                                    title: l10n.playerSubtitleOff,
-                                    subtitle: '',
-                                    isSelected: widget.selectedSubtitleGuid == null ||
-                                        widget.selectedSubtitleGuid!.isEmpty,
-                                    onTap: () => widget.onSubtitleSelected(null),
+                                    key: ValueKey(
+                                        'subtitle-item-${subtitle.guid}'),
+                                    title: _buildTitle(l10n, subtitle),
+                                    subtitle: _buildSubtitle(subtitle),
+                                    isSelected: widget.selectedSubtitleGuid ==
+                                        subtitle.guid,
+                                    isExternal: subtitle.isExternal == 1,
+                                    showPredownloadSimilar: showPredownload,
+                                    onDelete: widget.onRequestDelete == null
+                                        ? null
+                                        : () => widget.onRequestDelete!
+                                            .call(subtitle),
+                                    onPredownloadSimilar: showPredownload
+                                        ? () => widget.onPredownloadSimilar!
+                                            .call(subtitle)
+                                        : null,
+                                    onTap: () => widget
+                                        .onSubtitleSelected(subtitle.guid),
                                   ),
                                 );
-                              }
-
-                              final subtitle = widget.subtitles[index - 1];
-                              final showPredownload = _hasPredownloadButton(subtitle);
-                              return KeyedSubtree(
-                                key: key,
-                                child: _SubtitleItem(
-                                  key: ValueKey('subtitle-item-${subtitle.guid}'),
-                                  title: _buildTitle(l10n, subtitle),
-                                  subtitle: _buildSubtitle(subtitle),
-                                  isSelected:
-                                      widget.selectedSubtitleGuid == subtitle.guid,
-                                  isExternal: subtitle.isExternal == 1,
-                                  showPredownloadSimilar: showPredownload,
-                                  onDelete: widget.onRequestDelete == null
-                                      ? null
-                                      : () => widget.onRequestDelete!.call(subtitle),
-                                  onPredownloadSimilar: showPredownload
-                                      ? () =>
-                                          widget.onPredownloadSimilar!.call(subtitle)
-                                      : null,
-                                  onTap: () =>
-                                      widget.onSubtitleSelected(subtitle.guid),
-                                ),
-                              );
-                            },
+                              },
+                            ),
                           ),
                         ),
                       ),
@@ -289,7 +311,8 @@ class _SubtitleSelectionPanelState extends State<SubtitleSelectionPanel> {
               if (widget.showDirectLinkSubtitleHint) ...[
                 const Divider(size: 1),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: Row(
                     children: [
                       Text(

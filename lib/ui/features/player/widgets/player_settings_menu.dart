@@ -34,6 +34,11 @@ const double _estimatedSettingsFlyoutHeight = 300;
 // track list scrolls once its items exceed the remaining space.
 const double _audioPanelHeaderHeight = 46;
 const double _audioPanelMaxListHeight = 330;
+// Scrollable lists reserve this much on the right and the scrollbar thumb is
+// nudged into that gutter (a negative cross-axis margin shifts it right), so
+// the thumb never paints over the list items. The gutter also covers the
+// thumb's hover-expanded width.
+const double _listScrollbarOffset = 8;
 
 // Skip intro/outro panel palette and metrics, mirroring the web player's
 // manual skip settings (semi-design dark theme).
@@ -907,6 +912,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
           devices: audioOutputDevices,
           selectedName: audioOutputDeviceName,
           onSelected: onAudioOutputDeviceChanged,
+          panelHeight: minContentHeight,
           onBack: () => onNavigate('AudioPassthrough'),
         );
       case 'WindowAspectRatio':
@@ -1396,50 +1402,58 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
         ConstrainedBox(
           constraints:
               const BoxConstraints(maxHeight: _audioPanelMaxListHeight),
-          child: Scrollbar(
-            controller: _scrollController,
-            thumbVisibility: true,
-            child: ListView(
-              key: const ValueKey('player-audio-list'),
+          child: ScrollConfiguration(
+            behavior:
+                ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            child: Scrollbar(
               controller: _scrollController,
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              children: [
-                ...audioList.map((audio) {
-                  final isSelected =
-                      _isSameAudioStream(currentAudioStream, audio);
-                  final audioDisplayTexts = buildPlayerAudioDisplayTexts(
-                    audio,
-                    widget.iso6391Map,
-                    widget.iso6392Map,
-                    unknownLabel: l10n.playerUnknown,
-                    defaultSuffixTemplate:
-                        l10n.playerAudioDefaultSuffix('{language}'),
-                  );
+              thumbVisibility: true,
+              style: const ScrollbarThemeData(
+                crossAxisMargin: -_listScrollbarOffset,
+                hoveringCrossAxisMargin: -_listScrollbarOffset,
+              ),
+              child: ListView(
+                key: const ValueKey('player-audio-list'),
+                controller: _scrollController,
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(right: _listScrollbarOffset),
+                children: [
+                  ...audioList.map((audio) {
+                    final isSelected =
+                        _isSameAudioStream(currentAudioStream, audio);
+                    final audioDisplayTexts = buildPlayerAudioDisplayTexts(
+                      audio,
+                      widget.iso6391Map,
+                      widget.iso6392Map,
+                      unknownLabel: l10n.playerUnknown,
+                      defaultSuffixTemplate:
+                          l10n.playerAudioDefaultSuffix('{language}'),
+                    );
 
-                  return KeyedSubtree(
-                    key: ValueKey(
-                      audio.guid.isNotEmpty
-                          ? 'player-audio-option-${audio.guid}'
-                          : 'player-audio-option-index-${audio.index}',
-                    ),
-                    child: _AudioItem(
-                      primaryText: audioDisplayTexts.primaryText,
-                      secondaryLeadingText:
-                          audioDisplayTexts.secondaryLeadingText,
-                      secondaryTrailingText:
-                          audioDisplayTexts.secondaryTrailingText,
-                      isSelected: isSelected,
-                      onClick: () {
-                        // Update selection immediately before async state
-                        // flows back.
-                        setState(() => _selectedAudioStream = audio);
-                        widget.onAudioSelected(audio);
-                      },
-                    ),
-                  );
-                }),
-              ],
+                    return KeyedSubtree(
+                      key: ValueKey(
+                        audio.guid.isNotEmpty
+                            ? 'player-audio-option-${audio.guid}'
+                            : 'player-audio-option-index-${audio.index}',
+                      ),
+                      child: _AudioItem(
+                        primaryText: audioDisplayTexts.primaryText,
+                        secondaryLeadingText:
+                            audioDisplayTexts.secondaryLeadingText,
+                        secondaryTrailingText:
+                            audioDisplayTexts.secondaryTrailingText,
+                        isSelected: isSelected,
+                        onClick: () {
+                          // Update selection immediately before async state
+                          // flows back.
+                          setState(() => _selectedAudioStream = audio);
+                          widget.onAudioSelected(audio);
+                        },
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
         ),
@@ -1534,12 +1548,18 @@ class _AudioDeviceSettingsScreen extends StatefulWidget {
   final List<AudioOutputOption> devices;
   final String selectedName;
   final void Function(String)? onSelected;
+
+  /// Content height of the parent flyout. Sizing this screen to it keeps the
+  /// popup from growing past the panel it was opened from, so extra devices
+  /// scroll inside the list instead of stretching the flyout.
+  final double? panelHeight;
   final VoidCallback onBack;
 
   const _AudioDeviceSettingsScreen({
     required this.devices,
     required this.selectedName,
     required this.onSelected,
+    required this.panelHeight,
     required this.onBack,
   });
 
@@ -1562,34 +1582,33 @@ class _AudioDeviceSettingsScreenState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final devices = widget.devices;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        PlayerSettingsHeader(
-          title: l10n.playerSettingsAudioOutputDevice,
-          onBack: widget.onBack,
-        ),
-        const SizedBox(height: 8),
-        if (devices.isEmpty)
-          Padding(
+    final panelHeight = widget.panelHeight;
+
+    final listArea = devices.isEmpty
+        ? Padding(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             child: Text(
               l10n.playerSettingsAudioOutputDeviceEmpty,
               style: const TextStyle(color: _defaultTextColor, fontSize: 13),
             ),
           )
-        else
-          ConstrainedBox(
-            constraints:
-                const BoxConstraints(maxHeight: _audioPanelMaxListHeight),
+        : ScrollConfiguration(
+            behavior:
+                ScrollConfiguration.of(context).copyWith(scrollbars: false),
             child: Scrollbar(
               controller: _scrollController,
               thumbVisibility: true,
+              style: const ScrollbarThemeData(
+                crossAxisMargin: -_listScrollbarOffset,
+                hoveringCrossAxisMargin: -_listScrollbarOffset,
+              ),
               child: ListView.builder(
                 key: const ValueKey('player-audio-device-list'),
                 controller: _scrollController,
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
+                // Inside a fixed panel the list takes the leftover height and
+                // scrolls; without a known panel height it sizes to its content.
+                shrinkWrap: panelHeight == null,
+                padding: const EdgeInsets.only(right: _listScrollbarOffset),
                 itemCount: devices.length,
                 itemBuilder: (context, index) {
                   final device = devices[index];
@@ -1607,9 +1626,31 @@ class _AudioDeviceSettingsScreenState
                 },
               ),
             ),
-          ),
+          );
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PlayerSettingsHeader(
+          title: l10n.playerSettingsAudioOutputDevice,
+          onBack: widget.onBack,
+        ),
+        const SizedBox(height: 8),
+        if (panelHeight == null)
+          ConstrainedBox(
+            constraints:
+                const BoxConstraints(maxHeight: _audioPanelMaxListHeight),
+            child: listArea,
+          )
+        else
+          Expanded(child: listArea),
       ],
     );
+
+    if (panelHeight == null) {
+      return content;
+    }
+    return SizedBox(height: panelHeight, child: content);
   }
 }
 
@@ -1665,7 +1706,7 @@ class _AudioItemState extends State<_AudioItem> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: textColor,
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
               ),
