@@ -222,9 +222,11 @@ class PlayerSettingsMenu extends StatefulWidget {
 
   /// Quark netdisk direct-play transport: on routes the raw CDN link through the
   /// local range proxy (分片直连), off lets mpv open the NAS /media/range link.
+  /// Only a Quark netdisk direct session can use it, so the entry is hidden for
+  /// every other source.
   final bool directLinkCdnRange;
   final void Function(bool enabled)? onDirectLinkCdnRangeChanged;
-  final String? directLinkCdnRangeDisabledReason;
+  final bool directLinkCdnRangeVisible;
   // Current decode mode: 'auto' | 'no' | 'auto-copy' | '<api>'.
   final String decodeMode;
   final void Function(String) onDecodeModeChanged;
@@ -278,7 +280,7 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.forceSdrDisabledReason,
     this.directLinkCdnRange = true,
     this.onDirectLinkCdnRangeChanged,
-    this.directLinkCdnRangeDisabledReason,
+    this.directLinkCdnRangeVisible = false,
     this.decodeMode = 'auto',
     required this.onDecodeModeChanged,
     this.audioPassthrough = false,
@@ -680,8 +682,7 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
           widget.onDirectLinkCdnRangeChanged?.call(value);
           _closeMenu();
         },
-        directLinkCdnRangeDisabledReason:
-            widget.directLinkCdnRangeDisabledReason,
+        directLinkCdnRangeVisible: widget.directLinkCdnRangeVisible,
         decodeMode: widget.decodeMode,
         onDecodeModeChanged: (mode) {
           _setPopupHovered(false);
@@ -788,7 +789,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final String? forceSdrDisabledReason;
   final bool directLinkCdnRange;
   final void Function(bool)? onDirectLinkCdnRangeChanged;
-  final String? directLinkCdnRangeDisabledReason;
+  final bool directLinkCdnRangeVisible;
   final String decodeMode;
   final void Function(String) onDecodeModeChanged;
   final bool audioPassthrough;
@@ -833,7 +834,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.forceSdrDisabledReason,
     required this.directLinkCdnRange,
     required this.onDirectLinkCdnRangeChanged,
-    required this.directLinkCdnRangeDisabledReason,
+    required this.directLinkCdnRangeVisible,
     required this.decodeMode,
     required this.onDecodeModeChanged,
     required this.audioPassthrough,
@@ -879,7 +880,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
           forceSdrDisabledReason: forceSdrDisabledReason,
           onForceSdrColorChanged: onForceSdrColorChanged,
           directLinkCdnRange: directLinkCdnRange,
-          directLinkCdnRangeDisabledReason: directLinkCdnRangeDisabledReason,
+          directLinkCdnRangeVisible: directLinkCdnRangeVisible,
           onDirectLinkCdnRangeChanged: onDirectLinkCdnRangeChanged,
           onBack: () => onNavigate('Main'),
         );
@@ -1119,7 +1120,7 @@ class _AdvancedSettingsScreen extends StatelessWidget {
   final String? forceSdrDisabledReason;
   final void Function(bool)? onForceSdrColorChanged;
   final bool directLinkCdnRange;
-  final String? directLinkCdnRangeDisabledReason;
+  final bool directLinkCdnRangeVisible;
   final void Function(bool)? onDirectLinkCdnRangeChanged;
   final VoidCallback onBack;
 
@@ -1131,7 +1132,7 @@ class _AdvancedSettingsScreen extends StatelessWidget {
     required this.forceSdrDisabledReason,
     required this.onForceSdrColorChanged,
     required this.directLinkCdnRange,
-    required this.directLinkCdnRangeDisabledReason,
+    required this.directLinkCdnRangeVisible,
     required this.onDirectLinkCdnRangeChanged,
     required this.onBack,
   });
@@ -1163,14 +1164,14 @@ class _AdvancedSettingsScreen extends StatelessWidget {
           onChanged: onForceSdrColorChanged,
           disabledReason: forceSdrDisabledReason,
         ),
-        PlayerSettingsToggleRow(
-          key: const ValueKey('player-advanced-direct-link-cdn-range'),
-          title: l10n.playerSettingsQuarkCdnSegment,
-          description: l10n.playerSettingsQuarkCdnSegmentDescription,
-          checked: directLinkCdnRange,
-          onChanged: onDirectLinkCdnRangeChanged,
-          disabledReason: directLinkCdnRangeDisabledReason,
-        ),
+        if (directLinkCdnRangeVisible)
+          PlayerSettingsToggleRow(
+            key: const ValueKey('player-advanced-direct-link-cdn-range'),
+            title: l10n.playerSettingsQuarkCdnSegment,
+            description: l10n.playerSettingsQuarkCdnSegmentDescription,
+            checked: directLinkCdnRange,
+            onChanged: onDirectLinkCdnRangeChanged,
+          ),
       ],
     );
   }

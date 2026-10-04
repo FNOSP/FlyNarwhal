@@ -3261,18 +3261,6 @@ abstract class AppLocalizations {
   /// **'当前视频为 SDR'**
   String get playerForceSdrDisabled;
 
-  /// Reason shown when the direct-link CDN range switch is disabled because playback is not a netdisk direct link.
-  ///
-  /// In zh, this message translates to:
-  /// **'当前不是网盘直连播放'**
-  String get playerDirectLinkCdnRangeNotDirect;
-
-  /// Reason shown when the direct-link CDN range switch is disabled because the cloud storage is not Quark.
-  ///
-  /// In zh, this message translates to:
-  /// **'仅支持夸克网盘'**
-  String get playerDirectLinkCdnRangeQuarkOnly;
-
   /// Label for the netdisk direct-link cloud playback mode.
   ///
   /// In zh, this message translates to:

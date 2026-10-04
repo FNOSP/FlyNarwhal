@@ -1808,14 +1808,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerForceSdrDisabled => 'This video is already SDR';
 
   @override
-  String get playerDirectLinkCdnRangeNotDirect =>
-      'This is not a netdisk direct-link playback';
-
-  @override
-  String get playerDirectLinkCdnRangeQuarkOnly =>
-      'Only Quark netdisk is supported';
-
-  @override
   String get playerCloudModeDirect => 'Netdisk direct link';
 
   @override

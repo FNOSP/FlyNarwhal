@@ -2349,14 +2349,6 @@
   "@playerForceSdrDisabled": {
     "description": "Reason shown when the force-SDR color switch is disabled because the video is already SDR."
   },
-  "playerDirectLinkCdnRangeNotDirect": "This is not a netdisk direct-link playback",
-  "@playerDirectLinkCdnRangeNotDirect": {
-    "description": "Reason shown when the direct-link CDN range switch is disabled because playback is not a netdisk direct link."
-  },
-  "playerDirectLinkCdnRangeQuarkOnly": "Only Quark netdisk is supported",
-  "@playerDirectLinkCdnRangeQuarkOnly": {
-    "description": "Reason shown when the direct-link CDN range switch is disabled because the cloud storage is not Quark."
-  },
   "playerCloudModeDirect": "Netdisk direct link",
   "@playerCloudModeDirect": {
     "description": "Label for the netdisk direct-link cloud playback mode."

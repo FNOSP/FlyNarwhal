@@ -1752,12 +1752,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerForceSdrDisabled => '当前视频为 SDR';
 
   @override
-  String get playerDirectLinkCdnRangeNotDirect => '当前不是网盘直连播放';
-
-  @override
-  String get playerDirectLinkCdnRangeQuarkOnly => '仅支持夸克网盘';
-
-  @override
   String get playerCloudModeDirect => '网盘直连播放';
 
   @override
@@ -4378,12 +4372,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get playerForceSdrDisabled => '目前影片為 SDR';
-
-  @override
-  String get playerDirectLinkCdnRangeNotDirect => '目前不是網盤直連播放';
-
-  @override
-  String get playerDirectLinkCdnRangeQuarkOnly => '僅支援夸克網盤';
 
   @override
   String get playerCloudModeDirect => '網盤直連播放';

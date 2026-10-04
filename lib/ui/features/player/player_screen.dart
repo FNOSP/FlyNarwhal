@@ -4518,15 +4518,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Only a Quark netdisk direct session routes through the CDN range proxy, so
-  /// the switch is a no-op everywhere else and must not restart those streams.
-  String? get _directLinkCdnRangeDisabledReason {
+  /// the switch is hidden for every other source.
+  bool get _showDirectLinkCdnRange {
     final cache = _playingInfoCache;
-    if (cache == null || !cache.isUseDirectLink)
-      return _l10n.playerDirectLinkCdnRangeNotDirect;
+    if (cache == null || !cache.isUseDirectLink) return false;
     final cloudType = cache.streamInfo?.cloudStorageInfo?.cloudStorageType;
-    if (!CloudStorageType.fromValue(cloudType).isQuarkPan)
-      return _l10n.playerDirectLinkCdnRangeQuarkOnly;
-    return null;
+    return CloudStorageType.fromValue(cloudType).isQuarkPan;
   }
 
   void _onDirectLinkCdnRangeChanged(bool enabled) {
@@ -4534,7 +4531,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     setState(() => _isDirectLinkCdnRange = enabled);
     unawaited(
         ref.read(playerSettingsManagerProvider).setDirectLinkCdnRange(enabled));
-    if (_directLinkCdnRangeDisabledReason != null) return;
     final player = _player;
     if (player == null) return;
     unawaited(_reopenPlaybackWithDirectLink(
@@ -6993,10 +6989,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               _forceSdrDisabledReason == null ? _onForceSdrColorChanged : null,
           forceSdrDisabledReason: _forceSdrDisabledReason,
           directLinkCdnRange: _isDirectLinkCdnRange,
-          onDirectLinkCdnRangeChanged: _directLinkCdnRangeDisabledReason == null
-              ? _onDirectLinkCdnRangeChanged
-              : null,
-          directLinkCdnRangeDisabledReason: _directLinkCdnRangeDisabledReason,
+          onDirectLinkCdnRangeChanged: _onDirectLinkCdnRangeChanged,
+          directLinkCdnRangeVisible: _showDirectLinkCdnRange,
           decodeMode: _decodeMode,
           onDecodeModeChanged: _onDecodeModeChanged,
           audioPassthrough: _isAudioPassthrough,
