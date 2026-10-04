@@ -214,7 +214,7 @@
   "@settingsPrivacyGitHubProxy": {
     "description": "Row heading for the GitHub asset proxy."
   },
-  "settingsPrivacyGitHubProxyCaption": "僅用於安裝檔下載，預設關閉",
+  "settingsPrivacyGitHubProxyCaption": "僅用於安裝檔下載",
   "@settingsPrivacyGitHubProxyCaption": {
     "description": "Caption for the GitHub proxy row."
   },

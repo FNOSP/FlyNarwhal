@@ -432,7 +432,7 @@ abstract class AppLocalizations {
   /// Caption for the GitHub proxy row.
   ///
   /// In zh, this message translates to:
-  /// **'仅用于安装包下载，默认关闭'**
+  /// **'仅用于安装包下载'**
   String get settingsPrivacyGitHubProxyCaption;
 
   /// Label for the proxy address field.

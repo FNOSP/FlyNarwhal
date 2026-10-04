@@ -214,7 +214,7 @@
   "@settingsPrivacyGitHubProxy": {
     "description": "Row heading for the GitHub asset proxy."
   },
-  "settingsPrivacyGitHubProxyCaption": "Used only for installer downloads; off by default",
+  "settingsPrivacyGitHubProxyCaption": "Used only for installer downloads",
   "@settingsPrivacyGitHubProxyCaption": {
     "description": "Caption for the GitHub proxy row."
   },

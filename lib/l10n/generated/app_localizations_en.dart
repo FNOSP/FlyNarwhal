@@ -196,7 +196,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsPrivacyGitHubProxyCaption =>
-      'Used only for installer downloads; off by default';
+      'Used only for installer downloads';
 
   @override
   String get settingsPrivacyProxyAddress => 'Proxy address';

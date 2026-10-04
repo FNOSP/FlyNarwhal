@@ -182,7 +182,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPrivacyGitHubProxy => 'GitHub 资源代理';
 
   @override
-  String get settingsPrivacyGitHubProxyCaption => '仅用于安装包下载，默认关闭';
+  String get settingsPrivacyGitHubProxyCaption => '仅用于安装包下载';
 
   @override
   String get settingsPrivacyProxyAddress => '代理地址';
@@ -2784,7 +2784,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get settingsPrivacyGitHubProxy => 'GitHub 資源代理';
 
   @override
-  String get settingsPrivacyGitHubProxyCaption => '僅用於安裝檔下載，預設關閉';
+  String get settingsPrivacyGitHubProxyCaption => '僅用於安裝檔下載';
 
   @override
   String get settingsPrivacyProxyAddress => '代理位址';
