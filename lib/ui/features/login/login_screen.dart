@@ -54,6 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _fnIdController = TextEditingController();
   final _accessCodeDialogController = TextEditingController();
   final _accessCodeFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
 
   bool _isHttps = false;
   bool _accessCodeDialogVisible = false;
@@ -82,7 +83,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _accessCodeFocusNode.addListener(_handleAccessCodeFocusChanged);
+    _accessCodeFocusNode.addListener(_syncImeEnglishOnly);
+    _passwordFocusNode.addListener(_syncImeEnglishOnly);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final history = ref.read(loginHistoryNotifierProvider);
       if (history.isNotEmpty) {
@@ -105,16 +107,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _passwordController.dispose();
     _fnIdController.dispose();
     _accessCodeDialogController.dispose();
-    _accessCodeFocusNode.removeListener(_handleAccessCodeFocusChanged);
+    _accessCodeFocusNode.removeListener(_syncImeEnglishOnly);
     _accessCodeFocusNode.dispose();
+    _passwordFocusNode.removeListener(_syncImeEnglishOnly);
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
-  /// Keeps the OS input method in English while the access-code field is
-  /// focused (and restores it afterwards) so a CJK IME cannot type into it.
-  void _handleAccessCodeFocusChanged() {
+  /// Keeps the OS input method in English while a credential field (the login
+  /// password or the access code) holds focus, restoring it afterwards, so a
+  /// CJK input method cannot be used to type into them.
+  void _syncImeEnglishOnly() {
+    final shouldForceEnglish =
+        _passwordFocusNode.hasFocus || _accessCodeFocusNode.hasFocus;
     unawaited(
-      const DesktopImeService().setEnglishOnly(_accessCodeFocusNode.hasFocus),
+      const DesktopImeService().setEnglishOnly(shouldForceEnglish),
     );
   }
 
@@ -344,9 +351,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final code = _accessCodeDialogController.text.trim();
       return code.isEmpty ? null : code;
     } finally {
-      // The dialog can close while the field is still focused, so always undo
-      // the English-only input mode here as well.
-      unawaited(const DesktopImeService().setEnglishOnly(false));
+      // The dialog can close while its field is still focused, so re-derive
+      // the input mode from the fields that actually hold focus.
+      _syncImeEnglishOnly();
     }
   }
 
@@ -454,6 +461,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required String placeholder,
     Widget? suffixIcon,
     VoidCallback? onSuffixTap,
+    FocusNode? focusNode,
     bool obscureText = false,
     TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
@@ -462,6 +470,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return GlassTextField(
       controller: controller,
       placeholder: placeholder,
+      focusNode: focusNode,
       obscureText: obscureText,
       keyboardType: keyboardType,
       onChanged: onChanged,
@@ -923,6 +932,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               controller: _passwordController,
                               placeholder: AppLocalizations.of(context)
                                   .loginPasswordLabel,
+                              focusNode: _passwordFocusNode,
                               obscureText: !_passwordVisible,
                               onChanged: (_) => _autoLoginFromHistory = false,
                               suffixIcon: Icon(
