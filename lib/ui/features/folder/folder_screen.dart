@@ -81,7 +81,14 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
     );
     _loadFolderInfo();
     _loadStaticTags();
-    _refreshBrowse();
+    // refreshWithQuery 会修改 MediaLibrary 的 provider state；在 initState
+    // （widget 构建阶段）里同步调用会被 Riverpod 拒绝
+    // （"Tried to modify a provider while the widget tree was building"），
+    // 导致这次带 parentGuid 的浏览请求被中断、文件夹首次进入时列表为空、
+    // 需要手动刷新。延后到首帧之后再发起。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refreshBrowse();
+    });
   }
 
   @override
@@ -103,7 +110,10 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
       });
       _loadFolderInfo();
       _loadStaticTags();
-      _refreshBrowse();
+      // 同 initState：刷新命令会修改 provider state，须避开构建阶段。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshBrowse();
+      });
     }
   }
 
