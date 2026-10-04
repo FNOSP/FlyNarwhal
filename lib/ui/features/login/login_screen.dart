@@ -505,19 +505,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_isProbeMode) {
       final baseUrl = _extractBaseUrlFromLogin(normalized);
       if (baseUrl == null) return;
-      final uri = Uri.tryParse(baseUrl);
-      if (uri == null || uri.host.isEmpty) return;
-      final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
-      _isProbeMode = false;
-      setState(() {
-        _showFnConnectWebView = false;
-      });
-      _disposeWebView();
-      _hostController.text = uri.host;
-      _portController.text = (uri.hasPort ? uri.port : 0).toString();
-      _isHttps = scheme == 'https';
-      _finalizeLogin();
+      _completeProbe(baseUrl);
     }
+  }
+
+  /// Finishes probe mode once the real base URL is known: hide the webview and
+  /// continue with the direct login using the form's credentials.
+  void _completeProbe(String baseUrl) {
+    final uri = Uri.tryParse(baseUrl);
+    if (uri == null || uri.host.isEmpty) return;
+    final scheme = uri.scheme.isEmpty ? 'https' : uri.scheme;
+    _isProbeMode = false;
+    setState(() {
+      _showFnConnectWebView = false;
+    });
+    _disposeWebView();
+    _hostController.text = uri.host;
+    _portController.text = (uri.hasPort ? uri.port : 0).toString();
+    _isHttps = scheme == 'https';
+    _finalizeLogin();
   }
 
   bool _handleBridgeMessageFromUrl(String url) {
@@ -620,6 +626,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         'LoginBridge',
         'access code session established origin="${result.baseUrl}"',
       );
+      if (_isProbeMode) {
+        // Probe mode only needs the real base URL. The access code was entered
+        // in the webview and captured into the gateway session, so finish the
+        // probe and log in with the form's credentials.
+        _completeProbe(result.baseUrl);
+        return;
+      }
       // The native sys/config fallback may already have run (and been rejected)
       // before the grant was ready; retry it now so the flow can continue.
       await _networkMessageProcessor?.retrySysConfig(result.baseUrl);
@@ -1234,15 +1247,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         'Login',
         'finalize login start: host="$host" port=$port isHttps=$_isHttps',
       );
-      final loggedIn = await _attemptDirectLogin(
-        host: host,
-        port: port,
-        username: username,
-        password: password,
-        displayHost: displayHost ?? _displayHost,
-        displayPort: displayPort ?? _displayPort,
-      );
-      if (!loggedIn) return;
+      // The FN ID / FN domain probe already ran in the webview: the access
+      // code (if any) was entered there and captured into the gateway session,
+      // so finish with a plain direct login using the form's credentials.
+      await ref.read(loginViewModelProvider.notifier).login(
+            host: host,
+            port: port,
+            username: username,
+            password: password,
+            isHttps: _isHttps,
+            rememberPassword: _rememberPassword,
+            isNasLogin: false,
+            fnIdEmptyMessage: AppLocalizations.of(context).loginFnIdEmpty,
+            displayHost: displayHost ?? _displayHost,
+            displayPort: displayPort ?? _displayPort,
+          );
       AppTalker.info('Login', 'finalize login success, navigate');
       final prefs = ref.read(preferencesManagerProvider);
       final token = prefs.getToken();

@@ -157,13 +157,22 @@ class AccessCodeSession {
       );
     }
 
+    final initialOrigin = _normalizeOrigin(initial.toString()) ?? '';
     final resolvedOrigin = _normalizeOrigin(current.toString()) ?? '';
     final cookie = _composeGrant(setCookies);
     if (cookie.isEmpty) {
       throw AccessCodeVerificationException('network', '访问码验证成功但未建立网关会话');
     }
+    // The grant is needed both on the origin the app talks to and on the
+    // origin that actually issued it (FN Connect bounces between the two).
     setAccessGrant(resolvedOrigin, cookie);
-    return AccessCodeSessionResult(baseUrl: resolvedOrigin, cookie: cookie);
+    if (initialOrigin.isNotEmpty && initialOrigin != resolvedOrigin) {
+      setAccessGrant(initialOrigin, cookie);
+    }
+    return AccessCodeSessionResult(
+      baseUrl: initialOrigin.isNotEmpty ? initialOrigin : resolvedOrigin,
+      cookie: cookie,
+    );
   }
 
   static Future<Response<dynamic>> _request(
@@ -172,6 +181,16 @@ class AccessCodeSession {
     String code,
     List<String> setCookies,
   ) async {
+    final headers = <String, String>{
+      'x-access-code': encodeAccessCode(code),
+      'x-access-source': 'web',
+    };
+    // The FN Connect relay only answers `/access_code_verify` when the request
+    // carries its relay cookie; without `mode=relay` the gateway 302s to the
+    // portal HTML instead of returning 204 + the `os-access-code` grant.
+    if (isFnConnectHost(uri.host)) {
+      headers['Cookie'] = 'mode=relay';
+    }
     try {
       final response = await dio.getUri<dynamic>(
         uri,
@@ -179,10 +198,7 @@ class AccessCodeSession {
           responseType: ResponseType.plain,
           followRedirects: false,
           validateStatus: (_) => true,
-          headers: {
-            'x-access-code': encodeAccessCode(code),
-            'x-access-source': 'web',
-          },
+          headers: headers,
         ),
       );
       final setCookie = response.headers.map['set-cookie'];
@@ -209,10 +225,29 @@ class AccessCodeSession {
     final target = source.resolve(location);
     final isWeb = target.scheme == 'http' || target.scheme == 'https';
     final isSameHost = source.host == target.host;
+    // FN Connect splits a NAS between its direct host
+    // (`<fnId>.5ddd.com`) and the relay portal (`5ddd.com`), and
+    // `/access_code_verify` legitimately bounces between the two. Treat the
+    // whole FN Connect family as one trust domain; anything else must stay
+    // same-host.
+    final isFnConnectPair =
+        isFnConnectHost(source.host) && isFnConnectHost(target.host);
     final isSecureTransition =
         !(source.scheme == 'https' && target.scheme == 'http');
-    if (!isWeb || !isSameHost || !isSecureTransition) return null;
+    if (!isWeb ||
+        !(isSameHost || isFnConnectPair) ||
+        !isSecureTransition) {
+      return null;
+    }
     return target;
+  }
+
+  static bool isFnConnectHost(String host) {
+    final value = host.toLowerCase();
+    return value == '5ddd.com' ||
+        value.endsWith('.5ddd.com') ||
+        value == 'fnos.net' ||
+        value.endsWith('.fnos.net');
   }
 
   static String _composeGrant(List<String> setCookies) {

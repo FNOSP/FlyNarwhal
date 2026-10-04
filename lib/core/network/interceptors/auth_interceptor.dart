@@ -49,7 +49,15 @@ class AuthInterceptor extends Interceptor {
     final grant = getAccessCookieHeader(_originOf(options));
     final explicitCookie = options.headers['Cookie']?.toString();
     final sessionCookie = getCookie?.call();
-    final mergedCookie = mergeCookies([grant, explicitCookie, sessionCookie]);
+    var mergedCookie = mergeCookies([grant, explicitCookie, sessionCookie]);
+    // The FN Connect relay requires `mode=relay` on every request; without it
+    // API paths are answered with the portal HTML page (and the OAuth token
+    // exchange never yields a token).
+    if (AccessCodeSession.isFnConnectHost(options.uri.host) &&
+        !mergedCookie.toLowerCase().contains('mode=relay')) {
+      mergedCookie =
+          mergedCookie.isEmpty ? 'mode=relay' : '$mergedCookie; mode=relay';
+    }
     if (mergedCookie.isNotEmpty) {
       options.headers['Cookie'] = mergedCookie;
     }
