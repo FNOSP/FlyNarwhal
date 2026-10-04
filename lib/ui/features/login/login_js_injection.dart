@@ -144,12 +144,22 @@ class LoginJsInjectionBuilder {
     }));
   }
 
-  function bindCapture(element, eventName) {
+  // fnOS re-dispatches change/click/submit on its login form on every render
+  // tick, so binding captureLogin directly to those events reports the form
+  // (including the plaintext password) several times per second. Only report
+  // events the user actually generated (`isTrusted`), plus the one scripted
+  // submit the auto-login path performs itself.
+  function onLoginEvent(event) {
+    if (event && event.isTrusted === false) return;
+    captureLogin();
+  }
+
+  function bindCapture(element, eventName, handler) {
     if (!element) return;
     var bindingKey = '__flynarwhal_' + eventName + '_bound';
     if (element[bindingKey]) return;
     element[bindingKey] = true;
-    element.addEventListener(eventName, captureLogin);
+    element.addEventListener(eventName, handler || onLoginEvent);
   }
 
   function ensureRememberPasswordCheckbox() {
