@@ -1,3 +1,4 @@
+import Carbon
 import Cocoa
 import FlutterMacOS
 import UniformTypeIdentifiers
@@ -41,6 +42,7 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
     registerLocalSubtitlePickerChannel(messenger: flutterViewController.engine.binaryMessenger)
     registerTopEdgeDimmerChannel(messenger: flutterViewController.engine.binaryMessenger)
+    registerImeChannel(messenger: flutterViewController.engine.binaryMessenger)
     preWarmSubtitlePicker()
 
     Self.disableNativeTitleBarDrag(for: flutterViewController.view)
@@ -415,6 +417,83 @@ class MainFlutterWindow: NSWindow {
         result(FlutterMethodNotImplemented)
       }
     }
+  }
+
+  // MARK: - English-only input method
+  //
+  // The access-code field must not accept CJK text, so while it is focused the
+  // Dart side asks us to switch the system input source to an ASCII-capable
+  // keyboard and to restore whatever the user had selected once it blurs.
+  private var isImeEnglishOnlyActive = false
+  private var savedImeInputSource: TISInputSource?
+
+  private func registerImeChannel(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "fly_narwhal/ime",
+      binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "setEnglishOnly" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      guard let enabled = (call.arguments as? [String: Any])?["enabled"] as? Bool else {
+        result(FlutterError(code: "INVALID_ARGS",
+                            message: "Missing 'enabled' bool.",
+                            details: nil))
+        return
+      }
+      self?.setEnglishOnly(enabled)
+      result(nil)
+    }
+  }
+
+  private func setEnglishOnly(_ enabled: Bool) {
+    if enabled {
+      guard !isImeEnglishOnlyActive else { return }
+      savedImeInputSource = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue()
+      guard let asciiSource = asciiCapableInputSource() else { return }
+      isImeEnglishOnlyActive = true
+      TISSelectInputSource(asciiSource)
+    } else {
+      guard isImeEnglishOnlyActive else { return }
+      isImeEnglishOnlyActive = false
+      if let saved = savedImeInputSource {
+        TISSelectInputSource(saved)
+      }
+      savedImeInputSource = nil
+    }
+  }
+
+  /// The ABC layout when available, otherwise any selectable ASCII-capable
+  /// keyboard so the switch still works on non-US systems.
+  private func asciiCapableInputSource() -> TISInputSource? {
+    let properties: [String: Any] = [
+      kTISPropertyInputSourceCategory as String: kTISCategoryKeyboardInputSource as Any,
+      kTISPropertyInputSourceIsASCIICapable as String: kCFBooleanTrue as Any,
+      kTISPropertyInputSourceIsSelectCapable as String: kCFBooleanTrue as Any,
+    ]
+    guard let list = TISCreateInputSourceList(properties as CFDictionary, false)?
+      .takeRetainedValue() else {
+      return nil
+    }
+    var fallback: TISInputSource?
+    for case let source as TISInputSource in list as NSArray {
+      if inputSourceID(of: source) == "com.apple.keylayout.ABC" {
+        return source
+      }
+      if fallback == nil {
+        fallback = source
+      }
+    }
+    return fallback
+  }
+
+  private func inputSourceID(of source: TISInputSource) -> String? {
+    guard let pointer = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else {
+      return nil
+    }
+    return Unmanaged<CFString>.fromOpaque(UnsafeRawPointer(pointer))
+      .takeUnretainedValue() as String
   }
 }
 

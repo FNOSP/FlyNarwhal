@@ -2,6 +2,9 @@
 
 #include <windows.h>
 
+#include <imm.h>
+
+#include <algorithm>
 #include <comdef.h>
 #include <knownfolders.h>
 #include <shlobj.h>
@@ -21,6 +24,9 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+// ImmGetContext / ImmSetConversionStatus live in imm32.
+#pragma comment(lib, "imm32.lib")
+
 namespace {
 
 constexpr const char kWindowDisplayFrameChannelName[] =
@@ -38,6 +44,8 @@ constexpr const char kReadJavaPreferencesMethod[] = "readJavaPreferences";
 constexpr const char kLocalSubtitlePickerChannelName[] =
     "fly_narwhal/local_subtitle_picker";
 constexpr const char kOpenLocalSubtitlesMethod[] = "openLocalSubtitles";
+constexpr const char kImeChannelName[] = "fly_narwhal/ime";
+constexpr const char kSetImeEnglishOnlyMethod[] = "setEnglishOnly";
 constexpr const UINT kLocalSubtitlePickerResultMessage = WM_APP + 1;
 constexpr const wchar_t kJavaPreferencesRegistryPath[] =
     L"Software\\JavaSoft\\Prefs";
@@ -482,6 +490,85 @@ flutter::EncodableMap ReadJavaPreferences() {
   return preferences;
 }
 
+// English-only input method control.
+//
+// The access-code field must not accept CJK text, so while it is focused the
+// Dart side asks us to switch the input method into its English (alphanumeric)
+// conversion mode and to restore the previous mode once the field blurs.
+struct ImeConversionSnapshot {
+  HWND window;
+  DWORD conversion;
+  DWORD sentence;
+  BOOL open;
+};
+
+// Only one FlutterWindow exists per process, so file-scope state is enough.
+std::vector<ImeConversionSnapshot> g_saved_ime_conversions;
+bool g_ime_english_only = false;
+
+std::vector<HWND> CollectImeCandidateWindows(HWND focused, HWND view,
+                                            HWND top_level) {
+  std::vector<HWND> windows;
+  for (HWND candidate : {focused, view, top_level}) {
+    if (candidate == nullptr) {
+      continue;
+    }
+    if (std::find(windows.begin(), windows.end(), candidate) ==
+        windows.end()) {
+      windows.push_back(candidate);
+    }
+  }
+  return windows;
+}
+
+void SetImeEnglishOnly(bool enabled, HWND top_level, HWND view) {
+  if (enabled) {
+    if (g_ime_english_only) {
+      return;
+    }
+    // The input context lives on whichever window the engine associates the
+    // IME with (usually the Flutter view), so try every plausible handle and
+    // keep the ones that actually own a context.
+    g_saved_ime_conversions.clear();
+    for (HWND window : CollectImeCandidateWindows(GetFocus(), view, top_level)) {
+      HIMC context = ImmGetContext(window);
+      if (context == nullptr) {
+        continue;
+      }
+      DWORD conversion = 0;
+      DWORD sentence = 0;
+      if (ImmGetConversionStatus(context, &conversion, &sentence)) {
+        g_saved_ime_conversions.push_back(
+            {window, conversion, sentence, ImmGetOpenStatus(context)});
+      }
+      // Closing the IME is what actually switches a TSF-based input method
+      // (Microsoft Pinyin and friends) to ASCII; setting the conversion mode
+      // to alphanumeric alone is a no-op for them.
+      ImmSetOpenStatus(context, FALSE);
+      ImmSetConversionStatus(context, IME_CMODE_ALPHANUMERIC, sentence);
+      ImmReleaseContext(window, context);
+    }
+    g_ime_english_only = true;
+    return;
+  }
+
+  if (!g_ime_english_only) {
+    return;
+  }
+  for (const ImeConversionSnapshot& snapshot : g_saved_ime_conversions) {
+    HIMC context = ImmGetContext(snapshot.window);
+    if (context == nullptr) {
+      continue;
+    }
+    // Re-open first so the restored conversion mode applies to an open IME.
+    ImmSetOpenStatus(context, snapshot.open);
+    ImmSetConversionStatus(context, snapshot.conversion, snapshot.sentence);
+    ImmReleaseContext(snapshot.window, context);
+  }
+  g_saved_ime_conversions.clear();
+  g_ime_english_only = false;
+}
+
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -625,6 +712,40 @@ bool FlutterWindow::OnCreate() {
             delete message_payload;
           }
         }).detach();
+      });
+
+  flutter::MethodChannel<> ime_channel(
+      flutter_controller_->engine()->messenger(), kImeChannelName,
+      &flutter::StandardMethodCodec::GetInstance());
+  ime_channel.SetMethodCallHandler(
+      [this](const flutter::MethodCall<>& call,
+             std::unique_ptr<flutter::MethodResult<>> result) {
+        if (call.method_name() != kSetImeEnglishOnlyMethod) {
+          result->NotImplemented();
+          return;
+        }
+
+        const auto* arguments =
+            std::get_if<flutter::EncodableMap>(call.arguments());
+        if (arguments == nullptr) {
+          result->Error("INVALID_ARGS", "Expected a map argument.");
+          return;
+        }
+        const auto enabled_entry =
+            arguments->find(flutter::EncodableValue("enabled"));
+        if (enabled_entry == arguments->end()) {
+          result->Error("INVALID_ARGS", "Missing 'enabled' key.");
+          return;
+        }
+        const auto* enabled = std::get_if<bool>(&enabled_entry->second);
+        if (enabled == nullptr) {
+          result->Error("INVALID_ARGS", "'enabled' must be a bool.");
+          return;
+        }
+
+        SetImeEnglishOnly(*enabled, GetHandle(),
+                          flutter_controller_->view()->GetNativeWindow());
+        result->Success();
       });
 
   SetChildContent(flutter_controller_->view()->GetNativeWindow());

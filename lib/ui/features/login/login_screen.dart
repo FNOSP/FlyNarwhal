@@ -20,6 +20,7 @@ import '../../shared/dialogs/app_dialog.dart';
 import '../../shared/toast.dart';
 
 import '../../../core/error/login_exception.dart';
+import '../../../core/input/desktop_ime_service.dart';
 import '../../../core/network/access_code_session.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/network/ssl/ssl_error_detector.dart';
@@ -52,6 +53,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   final _fnIdController = TextEditingController();
   final _accessCodeDialogController = TextEditingController();
+  final _accessCodeFocusNode = FocusNode();
 
   bool _isHttps = false;
   bool _accessCodeDialogVisible = false;
@@ -80,6 +82,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    _accessCodeFocusNode.addListener(_handleAccessCodeFocusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final history = ref.read(loginHistoryNotifierProvider);
       if (history.isNotEmpty) {
@@ -102,7 +105,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _passwordController.dispose();
     _fnIdController.dispose();
     _accessCodeDialogController.dispose();
+    _accessCodeFocusNode.removeListener(_handleAccessCodeFocusChanged);
+    _accessCodeFocusNode.dispose();
     super.dispose();
+  }
+
+  /// Keeps the OS input method in English while the access-code field is
+  /// focused (and restores it afterwards) so a CJK IME cannot type into it.
+  void _handleAccessCodeFocusChanged() {
+    unawaited(
+      const DesktopImeService().setEnglishOnly(_accessCodeFocusNode.hasFocus),
+    );
   }
 
   Future<bool> _populateFields(
@@ -285,46 +298,56 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final l10n = AppLocalizations.of(context);
     _accessCodeDialogController.clear();
     _accessCodeDialogVisible = false;
-    final action = await showAppDialog<String>(
-      context: context,
-      title: l10n.loginAccessCodeTitle,
-      content: StatefulBuilder(
-        builder: (context, setDialogState) => Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextBox(
-              key: const ValueKey('login-access-code-input'),
-              controller: _accessCodeDialogController,
-              obscureText: !_accessCodeDialogVisible,
-              onSubmitted: (_) =>
-                  Navigator.of(context, rootNavigator: true).pop('confirm'),
-              suffix: AppIconButton(
-                icon: Icon(
-                  _accessCodeDialogVisible
-                      ? FluentIcons.hide3
-                      : FluentIcons.view,
+    try {
+      final action = await showAppDialog<String>(
+        context: context,
+        title: l10n.loginAccessCodeTitle,
+        content: StatefulBuilder(
+          builder: (context, setDialogState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextBox(
+                key: const ValueKey('login-access-code-input'),
+                controller: _accessCodeDialogController,
+                focusNode: _accessCodeFocusNode,
+                obscureText: !_accessCodeDialogVisible,
+                // Access codes are plain ASCII; reject CJK/IME input so a
+                // Chinese input method can never fill this field.
+                inputFormatters: const [_AsciiOnlyTextInputFormatter()],
+                onSubmitted: (_) =>
+                    Navigator.of(context, rootNavigator: true).pop('confirm'),
+                suffix: AppIconButton(
+                  icon: Icon(
+                    _accessCodeDialogVisible
+                        ? FluentIcons.hide3
+                        : FluentIcons.view,
+                  ),
+                  onPressed: () => setDialogState(() {
+                    _accessCodeDialogVisible = !_accessCodeDialogVisible;
+                  }),
                 ),
-                onPressed: () => setDialogState(() {
-                  _accessCodeDialogVisible = !_accessCodeDialogVisible;
-                }),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(l10n.loginAccessCodeHint,
-                style: const TextStyle(fontSize: 12)),
-          ],
+              const SizedBox(height: 12),
+              Text(l10n.loginAccessCodeHint,
+                  style: const TextStyle(fontSize: 12)),
+            ],
+          ),
         ),
-      ),
-      secondaryButtonText: l10n.commonCancel,
-      primaryButtonText: l10n.commonConfirm,
-      primaryResult: 'confirm',
-      secondaryResult: 'cancel',
-      autoDismiss: true,
-    );
-    if (action != 'confirm') return null;
-    final code = _accessCodeDialogController.text.trim();
-    return code.isEmpty ? null : code;
+        secondaryButtonText: l10n.commonCancel,
+        primaryButtonText: l10n.commonConfirm,
+        primaryResult: 'confirm',
+        secondaryResult: 'cancel',
+        autoDismiss: true,
+      );
+      if (action != 'confirm') return null;
+      final code = _accessCodeDialogController.text.trim();
+      return code.isEmpty ? null : code;
+    } finally {
+      // The dialog can close while the field is still focused, so always undo
+      // the English-only input mode here as well.
+      unawaited(const DesktopImeService().setEnglishOnly(false));
+    }
   }
 
   Future<void> _openFnConnectWebView({
@@ -1352,6 +1375,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       onPrimaryPressed: () {},
       autoDismiss: true,
     );
+  }
+}
+
+/// Keeps a text field to printable ASCII, so CJK/IME input is simply dropped
+/// instead of being inserted.
+class _AsciiOnlyTextInputFormatter extends TextInputFormatter {
+  const _AsciiOnlyTextInputFormatter();
+
+  static final RegExp _printableAscii = RegExp(r'^[\x20-\x7E]*$');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return _printableAscii.hasMatch(newValue.text) ? newValue : oldValue;
   }
 }
 
