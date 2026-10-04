@@ -118,6 +118,8 @@ class AppTalker {
   }
 
   // Centralize all app logs through a single custom Talker log model.
+  // Secrets are masked here, at the one choke point every log passes through,
+  // so both the console output and the file history are covered.
   static void _log({
     required String tag,
     required String message,
@@ -128,7 +130,7 @@ class AppTalker {
     instance.logCustom(
       AppTaggedTalkerLog(
         tag: tag,
-        message: message,
+        message: _sanitizer.sanitize(message),
         level: level,
         exception: error,
         stackTrace: stackTrace,

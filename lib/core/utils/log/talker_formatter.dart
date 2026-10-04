@@ -1,8 +1,14 @@
 import 'package:talker/talker.dart';
 
+import 'talker_log_sanitizer.dart';
+
 /// Shared formatter for console and file outputs.
 class AppTalkerMessageFormatter {
   AppTalkerMessageFormatter._();
+
+  /// Masks credentials in every console line, whichever API produced it
+  /// (AppTalker, or TalkerDioLogger logging straight to the Talker instance).
+  static const TalkerLogSanitizer _sanitizer = TalkerLogSanitizer();
 
   static final AnsiPen _timePen = AnsiPen()..white();
   static final AnsiPen _tagPen = AnsiPen()..cyan();
@@ -12,7 +18,7 @@ class AppTalkerMessageFormatter {
     LogLevel level, {
     required bool enableColors,
   }) {
-    final normalizedMessage = _normalizeMessage(rawMessage);
+    final normalizedMessage = _sanitizer.sanitize(_normalizeMessage(rawMessage));
     final lines = normalizedMessage.split('\n');
     final firstLine = lines.first;
     final remainingLines = lines.skip(1).map((line) => '  $line').toList();
