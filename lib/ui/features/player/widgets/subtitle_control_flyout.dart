@@ -545,7 +545,7 @@ class _SubtitleAdjustmentPanel extends StatelessWidget {
             Row(
               children: [
                 AppIconButton(
-                  icon: const Icon(FluentIcons.back, size: 12),
+                  icon: const Icon(FluentIcons.chevron_left, size: 12),
                   onPressed: onBack,
                 ),
                 const SizedBox(width: 6),
