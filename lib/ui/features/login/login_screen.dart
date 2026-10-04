@@ -51,8 +51,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _fnIdController = TextEditingController();
+  final _accessCodeDialogController = TextEditingController();
 
   bool _isHttps = false;
+  bool _accessCodeDialogVisible = false;
   bool _rememberPassword = false;
   bool _isNasLogin = false;
   bool _showHistorySidebar = false;
@@ -99,6 +101,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _fnIdController.dispose();
+    _accessCodeDialogController.dispose();
     super.dispose();
   }
 
@@ -213,25 +216,115 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _displayHost = host.trim();
       _displayPort = port;
       AppTalker.info('Login', 'direct login start');
-      await ref.read(loginViewModelProvider.notifier).login(
-            host: host,
-            port: port,
-            username: username,
-            password: password,
-            isHttps: _isHttps,
-            rememberPassword: _rememberPassword,
-            isNasLogin: false,
-            fnIdEmptyMessage: AppLocalizations.of(context).loginFnIdEmpty,
-            fnId: null,
-            displayHost: _displayHost,
-            displayPort: _displayPort,
-          );
+      final loggedIn = await _attemptDirectLogin(
+        host: host,
+        port: port,
+        username: username,
+        password: password,
+        displayHost: _displayHost,
+        displayPort: _displayPort,
+      );
+      if (!loggedIn) return;
       AppTalker.info('Login', 'direct login success, navigate');
       if (mounted) context.go('/home');
     } catch (e) {
       AppTalker.warning('Login', 'direct login error: $e');
       _handleLoginError(e);
     }
+  }
+
+  /// Runs a direct login. When the server turns out to be access-code
+  /// protected, prompts for the code on the login screen and retries.
+  /// Returns true when logged in, false when the user dismissed the prompt.
+  Future<bool> _attemptDirectLogin({
+    required String host,
+    required int port,
+    required String username,
+    required String password,
+    required String displayHost,
+    required int displayPort,
+  }) async {
+    final notifier = ref.read(loginViewModelProvider.notifier);
+    final l10n = AppLocalizations.of(context);
+    String? accessCode;
+    while (true) {
+      try {
+        await notifier.login(
+          host: host,
+          port: port,
+          username: username,
+          password: password,
+          isHttps: _isHttps,
+          rememberPassword: _rememberPassword,
+          isNasLogin: false,
+          fnIdEmptyMessage: l10n.loginFnIdEmpty,
+          displayHost: displayHost,
+          displayPort: displayPort,
+          accessCode: accessCode,
+        );
+        return true;
+      } on AccessCodeRequiredException {
+        if (!mounted) return false;
+        final code = await _promptAccessCode();
+        if (code == null) return false;
+        accessCode = code;
+      } on AccessCodeVerificationException catch (e) {
+        if (!mounted) return false;
+        _showToast(e.isRejected
+            ? l10n.loginAccessCodeInvalid
+            : l10n.loginFailedCheckNetwork);
+        final code = await _promptAccessCode();
+        if (code == null) return false;
+        accessCode = code;
+      }
+    }
+  }
+
+  /// Prompts for the NAS access code, returning null when the user cancels.
+  Future<String?> _promptAccessCode() async {
+    final l10n = AppLocalizations.of(context);
+    _accessCodeDialogController.clear();
+    _accessCodeDialogVisible = false;
+    final action = await showAppDialog<String>(
+      context: context,
+      title: l10n.loginAccessCodeTitle,
+      content: StatefulBuilder(
+        builder: (context, setDialogState) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextBox(
+              key: const ValueKey('login-access-code-input'),
+              controller: _accessCodeDialogController,
+              obscureText: !_accessCodeDialogVisible,
+              onSubmitted: (_) =>
+                  Navigator.of(context, rootNavigator: true).pop('confirm'),
+              suffix: AppIconButton(
+                icon: Icon(
+                  _accessCodeDialogVisible
+                      ? FluentIcons.hide3
+                      : FluentIcons.view,
+                ),
+                onPressed: () => setDialogState(() {
+                  _accessCodeDialogVisible = !_accessCodeDialogVisible;
+                }),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(l10n.loginAccessCodeHint,
+                style: const TextStyle(fontSize: 12)),
+          ],
+        ),
+      ),
+      secondaryButtonText: l10n.commonCancel,
+      primaryButtonText: l10n.commonConfirm,
+      primaryResult: 'confirm',
+      secondaryResult: 'cancel',
+      autoDismiss: true,
+    );
+    if (action != 'confirm') return null;
+    final code = _accessCodeDialogController.text.trim();
+    return code.isEmpty ? null : code;
   }
 
   Future<void> _openFnConnectWebView({
@@ -1141,18 +1234,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         'Login',
         'finalize login start: host="$host" port=$port isHttps=$_isHttps',
       );
-      await ref.read(loginViewModelProvider.notifier).login(
-            host: host,
-            port: port,
-            username: username,
-            password: password,
-            isHttps: _isHttps,
-            rememberPassword: _rememberPassword,
-            isNasLogin: false,
-            fnIdEmptyMessage: AppLocalizations.of(context).loginFnIdEmpty,
-            displayHost: displayHost ?? _displayHost,
-            displayPort: displayPort ?? _displayPort,
-          );
+      final loggedIn = await _attemptDirectLogin(
+        host: host,
+        port: port,
+        username: username,
+        password: password,
+        displayHost: displayHost ?? _displayHost,
+        displayPort: displayPort ?? _displayPort,
+      );
+      if (!loggedIn) return;
       AppTalker.info('Login', 'finalize login success, navigate');
       final prefs = ref.read(preferencesManagerProvider);
       final token = prefs.getToken();

@@ -16,6 +16,15 @@ class AccessCodeVerificationException implements Exception {
   String toString() => 'AccessCodeVerificationException($reason): $message';
 }
 
+/// Raised when a NAS API answered with the access-code gateway HTML page
+/// instead of JSON, which means an access code is required first.
+class AccessCodeRequiredException implements Exception {
+  const AccessCodeRequiredException();
+
+  @override
+  String toString() => 'AccessCodeRequiredException';
+}
+
 /// Outcome of a successful access-code verification.
 class AccessCodeSessionResult {
   const AccessCodeSessionResult({required this.baseUrl, required this.cookie});
@@ -113,7 +122,14 @@ class AccessCodeSession {
     }
 
     final setCookies = <String>[];
-    var current = initial;
+    // `new URL('/access_code_verify', base)` from the Electron client: the
+    // gateway endpoint always lives at the origin root, regardless of any
+    // path on the supplied base URL.
+    var current = initial.replace(
+      path: '/access_code_verify',
+      query: null,
+      fragment: null,
+    );
     var response = await _request(dio, current, code, setCookies);
 
     var redirects = 0;

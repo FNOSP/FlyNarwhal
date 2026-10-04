@@ -2469,6 +2469,18 @@ abstract class AppLocalizations {
   /// **'访问码错误'**
   String get loginAccessCodeInvalid;
 
+  /// Title of the dialog prompting for the NAS access code.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入访问码'**
+  String get loginAccessCodeTitle;
+
+  /// Hint shown in the access-code dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'该服务器启用了访问码，请输入后继续。'**
+  String get loginAccessCodeHint;
+
   /// Validation error when resolving an empty FN ID.
   ///
   /// In zh, this message translates to:

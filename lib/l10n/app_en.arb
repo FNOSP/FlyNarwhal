@@ -1794,6 +1794,14 @@
   "@loginAccessCodeInvalid": {
     "description": "Login error when the fnOS access-code gateway rejects the code."
   },
+  "loginAccessCodeTitle": "Enter access code",
+  "@loginAccessCodeTitle": {
+    "description": "Title of the dialog prompting for the NAS access code."
+  },
+  "loginAccessCodeHint": "This server requires an access code to continue.",
+  "@loginAccessCodeHint": {
+    "description": "Hint shown in the access-code dialog."
+  },
   "loginFnIdEmpty": "FN ID cannot be empty",
   "@loginFnIdEmpty": {
     "description": "Validation error when resolving an empty FN ID."

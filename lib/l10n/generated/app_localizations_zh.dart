@@ -1288,6 +1288,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginAccessCodeInvalid => '访问码错误';
 
   @override
+  String get loginAccessCodeTitle => '请输入访问码';
+
+  @override
+  String get loginAccessCodeHint => '该服务器启用了访问码，请输入后继续。';
+
+  @override
   String get loginFnIdEmpty => 'FN ID 不能为空';
 
   @override
@@ -3911,6 +3917,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get loginAccessCodeInvalid => '存取碼錯誤';
+
+  @override
+  String get loginAccessCodeTitle => '請輸入存取碼';
+
+  @override
+  String get loginAccessCodeHint => '此伺服器啟用了存取碼，請輸入後繼續。';
 
   @override
   String get loginFnIdEmpty => 'FN ID 不能為空';

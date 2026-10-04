@@ -1340,6 +1340,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loginAccessCodeInvalid => 'Incorrect access code';
 
   @override
+  String get loginAccessCodeTitle => 'Enter access code';
+
+  @override
+  String get loginAccessCodeHint =>
+      'This server requires an access code to continue.';
+
+  @override
   String get loginFnIdEmpty => 'FN ID cannot be empty';
 
   @override
