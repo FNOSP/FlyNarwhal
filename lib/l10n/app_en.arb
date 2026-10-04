@@ -3121,6 +3121,30 @@
   "@playerSettingsAudio": {
     "description": "Player settings audio option label and audio screen title."
   },
+  "playerSettingsAudioPassthrough": "Audio passthrough",
+  "@playerSettingsAudioPassthrough": {
+    "description": "Audio screen top-right entry label and the audio-passthrough switch title."
+  },
+  "playerSettingsAudioPassthroughTitle": "Audio passthrough",
+  "@playerSettingsAudioPassthroughTitle": {
+    "description": "Header title of the audio-passthrough settings screen."
+  },
+  "playerSettingsAudioPassthroughDescription": "Send compressed audio (AC3/DTS/EAC3/TrueHD) as-is to an HDMI/S-PDIF receiver to decode. Applies only to original audio in direct-link playback; transcoded audio falls back to local decoding.",
+  "@playerSettingsAudioPassthroughDescription": {
+    "description": "Description under the audio-passthrough switch."
+  },
+  "playerSettingsAudioOutputDevice": "Output device",
+  "@playerSettingsAudioOutputDevice": {
+    "description": "Audio output device entry label and sub-page title."
+  },
+  "playerSettingsAudioOutputDeviceAuto": "Auto (default)",
+  "@playerSettingsAudioOutputDeviceAuto": {
+    "description": "Label of the automatic (system default) audio output device option."
+  },
+  "playerSettingsAudioOutputDeviceEmpty": "No audio output devices detected",
+  "@playerSettingsAudioOutputDeviceEmpty": {
+    "description": "Shown when mpv enumerates no audio output devices."
+  },
   "playerSettingsAdvancedTitle": "Advanced settings",
   "@playerSettingsAdvancedTitle": {
     "description": "Header title of the player advanced settings screen."

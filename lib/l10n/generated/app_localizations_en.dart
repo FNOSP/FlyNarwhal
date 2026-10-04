@@ -2357,6 +2357,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerSettingsAudio => 'Audio';
 
   @override
+  String get playerSettingsAudioPassthrough => 'Audio passthrough';
+
+  @override
+  String get playerSettingsAudioPassthroughTitle => 'Audio passthrough';
+
+  @override
+  String get playerSettingsAudioPassthroughDescription =>
+      'Send compressed audio (AC3/DTS/EAC3/TrueHD) as-is to an HDMI/S-PDIF receiver to decode. Applies only to original audio in direct-link playback; transcoded audio falls back to local decoding.';
+
+  @override
+  String get playerSettingsAudioOutputDevice => 'Output device';
+
+  @override
+  String get playerSettingsAudioOutputDeviceAuto => 'Auto (default)';
+
+  @override
+  String get playerSettingsAudioOutputDeviceEmpty =>
+      'No audio output devices detected';
+
+  @override
   String get playerSettingsAdvancedTitle => 'Advanced settings';
 
   @override

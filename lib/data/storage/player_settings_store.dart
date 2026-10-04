@@ -29,6 +29,12 @@ class PlayerSettingsStore {
   static const String _keyDirectLinkCdnRange = 'player_direct_link_cdn_range';
   // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | 'auto-unsafe'.
   static const String _keyDecodeMode = 'player_decode_mode';
+  // Compressed audio passthrough (S/PDIF / HDMI): hand the original bitstream
+  // (AC3/EAC3/DTS/DTS-HD/TrueHD) to the output device for an external receiver
+  // to decode, instead of decoding it to PCM locally.
+  static const String _keyAudioPassthrough = 'player_audio_passthrough';
+  // Selected mpv audio output device name ('auto' = follow system default).
+  static const String _keyAudioOutputDevice = 'player_audio_output_device';
   // Window geometry is persisted as geometric center + size (see
   // CenteredWindowBoundsCodec); legacy top-left keys under the same prefixes
   // are mirrored on write for downgrade compatibility.
@@ -151,8 +157,7 @@ class PlayerSettingsManager {
       : _userGuid = PreferencesManager.normalizeGuid(userGuid);
 
   String _scopedKey(String rawKey, {String? userGuid}) {
-    final effective =
-        PreferencesManager.normalizeGuid(userGuid) ?? _userGuid;
+    final effective = PreferencesManager.normalizeGuid(userGuid) ?? _userGuid;
     if (effective == null) {
       return rawKey;
     }
@@ -264,15 +269,16 @@ class PlayerSettingsManager {
   double getDanmakuFontSizeScale() =>
       _readDoubleScoped(PlayerSettingsStore._keyDanmakuFontSize, 1.0);
   Future<void> setDanmakuFontSizeScale(double fontSizeScale) =>
-      _writeDoubleScoped(PlayerSettingsStore._keyDanmakuFontSize, fontSizeScale);
+      _writeDoubleScoped(
+          PlayerSettingsStore._keyDanmakuFontSize, fontSizeScale);
 
   double getDanmakuSpeed() =>
       _readDoubleScoped(PlayerSettingsStore._keyDanmakuSpeed, 1.0);
   Future<void> setDanmakuSpeed(double speed) =>
       _writeDoubleScoped(PlayerSettingsStore._keyDanmakuSpeed, speed);
 
-  bool getDanmakuSyncPlaybackSpeed() => _readBoolScoped(
-      PlayerSettingsStore._keyDanmakuSyncPlaybackSpeed, false);
+  bool getDanmakuSyncPlaybackSpeed() =>
+      _readBoolScoped(PlayerSettingsStore._keyDanmakuSyncPlaybackSpeed, false);
   Future<void> setDanmakuSyncPlaybackSpeed(bool syncPlaybackSpeed) =>
       _writeBoolScoped(
         PlayerSettingsStore._keyDanmakuSyncPlaybackSpeed,
@@ -284,8 +290,7 @@ class PlayerSettingsManager {
   Future<void> setDanmakuDebugEnabled(bool debugEnabled) =>
       _writeBoolScoped(PlayerSettingsStore._keyDanmakuDebug, debugEnabled);
 
-  bool getAutoPlay() =>
-      _readBoolScoped(PlayerSettingsStore._keyAutoPlay, true);
+  bool getAutoPlay() => _readBoolScoped(PlayerSettingsStore._keyAutoPlay, true);
   Future<void> setAutoPlay(bool autoPlay) =>
       _writeBoolScoped(PlayerSettingsStore._keyAutoPlay, autoPlay);
 
@@ -345,6 +350,19 @@ class PlayerSettingsManager {
       _readBoolScoped(PlayerSettingsStore._keyForceSdrColor, false);
   Future<void> setForceSdrColor(bool enabled) =>
       _writeBoolScoped(PlayerSettingsStore._keyForceSdrColor, enabled);
+
+  /// Compressed audio passthrough; off by default so normal PCM output (and
+  /// simultaneous audio from other apps) keeps working.
+  bool getAudioPassthrough() =>
+      _readBoolScoped(PlayerSettingsStore._keyAudioPassthrough, false);
+  Future<void> setAudioPassthrough(bool enabled) =>
+      _writeBoolScoped(PlayerSettingsStore._keyAudioPassthrough, enabled);
+
+  /// Selected audio output device name; 'auto' follows the system default.
+  String getAudioOutputDevice() =>
+      _readStringScoped(PlayerSettingsStore._keyAudioOutputDevice, 'auto');
+  Future<void> setAudioOutputDevice(String name) =>
+      _writeStringScoped(PlayerSettingsStore._keyAudioOutputDevice, name);
 
   /// Defaults to on: the CDN range proxy is the current Quark direct-play path.
   bool getDirectLinkCdnRange() =>

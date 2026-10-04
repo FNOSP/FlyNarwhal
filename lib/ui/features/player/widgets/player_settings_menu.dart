@@ -57,6 +57,15 @@ class HwdecOption {
   const HwdecOption({required this.api, required this.label});
 }
 
+// An audio output device enumerated by mpv, shown in the 输出设备 sub-menu.
+// [name] is the value passed to `audio-device`; [label] is its friendly name.
+class AudioOutputOption {
+  final String name;
+  final String label;
+
+  const AudioOutputOption({required this.name, required this.label});
+}
+
 class PlayerAudioDisplayTexts {
   final String summaryText;
   final String primaryText;
@@ -219,6 +228,15 @@ class PlayerSettingsMenu extends StatefulWidget {
   // Current decode mode: 'auto' | 'no' | 'auto-copy' | '<api>'.
   final String decodeMode;
   final void Function(String) onDecodeModeChanged;
+  // Compressed audio passthrough (S/PDIF / HDMI): hand the original bitstream to
+  // an external receiver instead of decoding it to PCM.
+  final bool audioPassthrough;
+  final void Function(bool enabled)? onAudioPassthroughChanged;
+  // mpv audio output devices offered in the 输出设备 sub-menu, and the selected
+  // device name ('auto' = follow the system default).
+  final List<AudioOutputOption> audioOutputDevices;
+  final String audioOutputDeviceName;
+  final void Function(String name)? onAudioOutputDeviceChanged;
   // Hardware decoder APIs probed as usable, shown in 指定硬件解码器 sub-menu.
   final List<HwdecOption> availableHwdec;
   final Map<String, String>? iso6391Map;
@@ -263,6 +281,11 @@ class PlayerSettingsMenu extends StatefulWidget {
     this.directLinkCdnRangeDisabledReason,
     this.decodeMode = 'auto',
     required this.onDecodeModeChanged,
+    this.audioPassthrough = false,
+    this.onAudioPassthroughChanged,
+    this.audioOutputDevices = const [],
+    this.audioOutputDeviceName = 'auto',
+    this.onAudioOutputDeviceChanged,
     this.availableHwdec = const [],
     this.isFlyNarwhalServerAvailable = false,
     this.onFlyNarwhalConfigMissing,
@@ -287,6 +310,8 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
   bool _overlayRebuildScheduled = false;
   double? _mainSettingsMeasuredHeight;
   late bool _isAutoPlay;
+  late bool _isAudioPassthrough;
+  late String _audioOutputDeviceName;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -295,6 +320,8 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
   void initState() {
     super.initState();
     _isAutoPlay = widget.isAutoPlay;
+    _isAudioPassthrough = widget.audioPassthrough;
+    _audioOutputDeviceName = widget.audioOutputDeviceName;
     _animationController = AnimationController(
       duration: const Duration(milliseconds: _animationDurationMs),
       vsync: this,
@@ -344,6 +371,16 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
     if (autoPlayChanged) {
       _isAutoPlay = widget.isAutoPlay;
     }
+    final audioPassthroughChanged =
+        oldWidget.audioPassthrough != widget.audioPassthrough;
+    if (audioPassthroughChanged) {
+      _isAudioPassthrough = widget.audioPassthrough;
+    }
+    final audioOutputDeviceChanged =
+        oldWidget.audioOutputDeviceName != widget.audioOutputDeviceName;
+    if (audioOutputDeviceChanged) {
+      _audioOutputDeviceName = widget.audioOutputDeviceName;
+    }
     if (oldWidget.popupBottomOffset != widget.popupBottomOffset ||
         oldWidget.windowAspectRatio != widget.windowAspectRatio ||
         oldWidget.videoFillMode != widget.videoFillMode ||
@@ -352,6 +389,8 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
         oldWidget.decodeMode != widget.decodeMode ||
         oldWidget.forceH264DisabledReason != widget.forceH264DisabledReason ||
         oldWidget.forceSdrDisabledReason != widget.forceSdrDisabledReason ||
+        audioOutputDeviceChanged ||
+        audioPassthroughChanged ||
         autoPlayChanged) {
       _requestOverlayRebuild();
     }
@@ -649,6 +688,21 @@ class _PlayerSettingsMenuState extends State<PlayerSettingsMenu>
           widget.onDecodeModeChanged(mode);
           _closeMenu();
         },
+        audioPassthrough: _isAudioPassthrough,
+        // Keep the sub-page open so the switch reflects the new state in place.
+        onAudioPassthroughChanged: (value) {
+          _isAudioPassthrough = value;
+          _requestOverlayRebuild();
+          widget.onAudioPassthroughChanged?.call(value);
+        },
+        audioOutputDevices: widget.audioOutputDevices,
+        audioOutputDeviceName: _audioOutputDeviceName,
+        // Keep the device list open so the selection updates in place.
+        onAudioOutputDeviceChanged: (name) {
+          _audioOutputDeviceName = name;
+          _requestOverlayRebuild();
+          widget.onAudioOutputDeviceChanged?.call(name);
+        },
         availableHwdec: widget.availableHwdec,
         isFlyNarwhalServerAvailable: widget.isFlyNarwhalServerAvailable,
         onFlyNarwhalConfigMissing: widget.onFlyNarwhalConfigMissing,
@@ -737,6 +791,11 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final String? directLinkCdnRangeDisabledReason;
   final String decodeMode;
   final void Function(String) onDecodeModeChanged;
+  final bool audioPassthrough;
+  final void Function(bool)? onAudioPassthroughChanged;
+  final List<AudioOutputOption> audioOutputDevices;
+  final String audioOutputDeviceName;
+  final void Function(String)? onAudioOutputDeviceChanged;
   final List<HwdecOption> availableHwdec;
   // Whether the FlyNarwhal server is fully configured (URL + auth code)
   final bool isFlyNarwhalServerAvailable;
@@ -777,6 +836,11 @@ class _SettingsFlyoutContent extends StatelessWidget {
     required this.directLinkCdnRangeDisabledReason,
     required this.decodeMode,
     required this.onDecodeModeChanged,
+    required this.audioPassthrough,
+    required this.onAudioPassthroughChanged,
+    required this.audioOutputDevices,
+    required this.audioOutputDeviceName,
+    required this.onAudioOutputDeviceChanged,
     required this.availableHwdec,
     required this.isFlyNarwhalServerAvailable,
     required this.onFlyNarwhalConfigMissing,
@@ -826,6 +890,23 @@ class _SettingsFlyoutContent extends StatelessWidget {
           iso6392Map: iso6392Map,
           onBack: () => onNavigate('Main'),
           onAudioSelected: onAudioSelected,
+          onNavigateToPassthrough: () => onNavigate('AudioPassthrough'),
+        );
+      case 'AudioPassthrough':
+        return _AudioPassthroughSettingsScreen(
+          enabled: audioPassthrough,
+          onChanged: onAudioPassthroughChanged,
+          audioOutputDevices: audioOutputDevices,
+          audioOutputDeviceName: audioOutputDeviceName,
+          onNavigateToDevice: () => onNavigate('AudioDevice'),
+          onBack: () => onNavigate('Audio'),
+        );
+      case 'AudioDevice':
+        return _AudioDeviceSettingsScreen(
+          devices: audioOutputDevices,
+          selectedName: audioOutputDeviceName,
+          onSelected: onAudioOutputDeviceChanged,
+          onBack: () => onNavigate('AudioPassthrough'),
         );
       case 'WindowAspectRatio':
         return _WindowAspectRatioSettingsScreen(
@@ -1188,12 +1269,16 @@ class _AudioSettingsScreen extends StatefulWidget {
   final VoidCallback onBack;
   final void Function(AudioStream) onAudioSelected;
 
+  /// Opens the audio-passthrough sub-page from the header's top-right entry.
+  final VoidCallback onNavigateToPassthrough;
+
   const _AudioSettingsScreen({
     required this.playingInfoCache,
     required this.iso6391Map,
     required this.iso6392Map,
     required this.onBack,
     required this.onAudioSelected,
+    required this.onNavigateToPassthrough,
   });
 
   @override
@@ -1243,29 +1328,63 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: widget.onBack,
-                  child: Row(
-                    children: [
-                      const Icon(
-                        FluentIcons.chevron_left,
-                        size: 12,
-                        color: Colors.white,
+              Row(
+                children: [
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: widget.onBack,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            FluentIcons.chevron_left,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            l10n.playerSettingsAudio,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        l10n.playerSettingsAudio,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      key: const ValueKey('player-audio-passthrough-entry'),
+                      onTap: widget.onNavigateToPassthrough,
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              l10n.playerSettingsAudioOutputDevice,
+                              style: const TextStyle(
+                                color: _defaultTextColor,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            const Icon(
+                              FluentIcons.chevron_right,
+                              size: 12,
+                              color: _defaultTextColor,
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
               const SizedBox(height: 12),
               const Divider(),
@@ -1335,6 +1454,161 @@ class _AudioSettingsScreenState extends State<_AudioSettingsScreen> {
       return left.guid == right.guid;
     }
     return left.index == right.index;
+  }
+}
+
+/// Resolves a device name to its display label, falling back to the localized
+/// "auto" label or the raw name when the device is no longer enumerated.
+String _audioOutputLabel(
+  List<AudioOutputOption> devices,
+  String name,
+  AppLocalizations l10n,
+) {
+  for (final device in devices) {
+    if (device.name == name) {
+      return device.label;
+    }
+  }
+  if (name.isEmpty || name == 'auto') {
+    return l10n.playerSettingsAudioOutputDeviceAuto;
+  }
+  return name;
+}
+
+/// Audio-passthrough (S/PDIF / HDMI bitstream) settings sub-page, reached from
+/// the audio screen's top-right entry. The switch only takes effect for
+/// original bitstream audio (AC3/EAC3/DTS/DTS-HD/TrueHD) on a direct-link
+/// session; a transcoded (AAC) track falls back to normal PCM output.
+class _AudioPassthroughSettingsScreen extends StatelessWidget {
+  final bool enabled;
+  final void Function(bool)? onChanged;
+  final List<AudioOutputOption> audioOutputDevices;
+  final String audioOutputDeviceName;
+  final VoidCallback onNavigateToDevice;
+  final VoidCallback onBack;
+
+  const _AudioPassthroughSettingsScreen({
+    required this.enabled,
+    required this.onChanged,
+    required this.audioOutputDevices,
+    required this.audioOutputDeviceName,
+    required this.onNavigateToDevice,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PlayerSettingsHeader(
+          title: l10n.playerSettingsAudioOutputDevice,
+          onBack: onBack,
+        ),
+        const SizedBox(height: 8),
+        PlayerSettingsToggleRow(
+          key: const ValueKey('player-audio-passthrough-toggle'),
+          title: l10n.playerSettingsAudioPassthrough,
+          description: l10n.playerSettingsAudioPassthroughDescription,
+          checked: enabled,
+          onChanged: onChanged,
+        ),
+        const SizedBox(height: 6),
+        _SettingsMenuItem(
+          key: const ValueKey('player-audio-device-entry'),
+          title: l10n.playerSettingsAudioOutputDevice,
+          value: _audioOutputLabel(
+              audioOutputDevices, audioOutputDeviceName, l10n),
+          onClick: onNavigateToDevice,
+        ),
+      ],
+    );
+  }
+}
+
+/// Audio output device picker, reached from the audio-passthrough sub-page.
+/// The list is enumerated by mpv and includes an "auto" (system default) entry.
+class _AudioDeviceSettingsScreen extends StatefulWidget {
+  final List<AudioOutputOption> devices;
+  final String selectedName;
+  final void Function(String)? onSelected;
+  final VoidCallback onBack;
+
+  const _AudioDeviceSettingsScreen({
+    required this.devices,
+    required this.selectedName,
+    required this.onSelected,
+    required this.onBack,
+  });
+
+  @override
+  State<_AudioDeviceSettingsScreen> createState() =>
+      _AudioDeviceSettingsScreenState();
+}
+
+class _AudioDeviceSettingsScreenState
+    extends State<_AudioDeviceSettingsScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final devices = widget.devices;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PlayerSettingsHeader(
+          title: l10n.playerSettingsAudioOutputDevice,
+          onBack: widget.onBack,
+        ),
+        const SizedBox(height: 8),
+        if (devices.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: Text(
+              l10n.playerSettingsAudioOutputDeviceEmpty,
+              style: const TextStyle(color: _defaultTextColor, fontSize: 13),
+            ),
+          )
+        else
+          ConstrainedBox(
+            constraints:
+                const BoxConstraints(maxHeight: _audioPanelMaxListHeight),
+            child: Scrollbar(
+              controller: _scrollController,
+              thumbVisibility: true,
+              child: ListView.builder(
+                key: const ValueKey('player-audio-device-list'),
+                controller: _scrollController,
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: devices.length,
+                itemBuilder: (context, index) {
+                  final device = devices[index];
+                  return KeyedSubtree(
+                    key: ValueKey('player-audio-device-${device.name}'),
+                    child: _AudioItem(
+                      primaryText: device.label,
+                      secondaryLeadingText:
+                          device.name == 'auto' ? '' : device.name,
+                      secondaryTrailingText: '',
+                      isSelected: device.name == widget.selectedName,
+                      onClick: () => widget.onSelected?.call(device.name),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 

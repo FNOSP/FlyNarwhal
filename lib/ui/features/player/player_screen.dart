@@ -195,6 +195,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   StreamSubscription<Tracks>? _tracksSubscription;
   StreamSubscription<PlayerSkipAction>? _skipActionSubscription;
   StreamSubscription<VideoParams>? _videoParamsSubscription;
+  StreamSubscription<List<AudioDevice>>? _audioDeviceSubscription;
+  StreamSubscription<PlayerLog>? _audioPassthroughGuardSubscription;
 
   /// Latest decoded video size reported by the videoParams stream. Cloud
   /// direct-link streams can leave the player state's `width` null even after
@@ -279,6 +281,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _isDirectLinkCdnRange = true;
   // mpv hwdec decode mode: 'auto' | 'no' | 'auto-copy' | <concrete hwdec api>.
   String _decodeMode = 'auto';
+  // Compressed audio passthrough (S/PDIF / HDMI): hand the original bitstream
+  // (AC3/EAC3/DTS/DTS-HD/TrueHD) to an external receiver instead of decoding.
+  bool _isAudioPassthrough = false;
+  // Audio output devices enumerated by mpv, and the selected device name.
+  List<AudioDevice> _audioDevices = const [];
+  String _audioOutputDeviceName = 'auto';
   // Hardware decoders shown in the 指定硬件解码器 menu. Initialized with the
   // platform's known candidates so the menu is never empty, then refined by
   // the background probe once a file is loaded.
@@ -395,6 +403,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _isForceSdrColor = settingsManager.getForceSdrColor();
     _isDirectLinkCdnRange = settingsManager.getDirectLinkCdnRange();
     _decodeMode = settingsManager.getDecodeMode();
+    _isAudioPassthrough = settingsManager.getAudioPassthrough();
+    _audioOutputDeviceName = settingsManager.getAudioOutputDevice();
     _sessionCoordinator.forceH264 = _isForceH264;
     _sessionCoordinator.forceSdrColor = _isForceSdrColor;
     unawaited(_ensureSubtitleLanguageMapsLoaded());
@@ -452,6 +462,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!mounted || !identical(_player, player)) return;
     await _applyDecodeMode(player);
     if (!mounted || !identical(_player, player)) return;
+    await _applyAudioOutputDevice(player);
+    if (!mounted || !identical(_player, player)) return;
     _videoController = VideoController(player);
     _setupPlayerPlaybackListener();
     _setupPlayerPositionListener();
@@ -459,9 +471,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _setupPlayerDurationListener();
     _setupPlayerCompletedListener();
     _setupVideoParamsListener();
+    _setupPlayerAudioDeviceListener();
     _setupProviderListeners();
+    _setupAudioPassthroughGuard();
 
     await _loadAndPlayMedia();
+    if (!mounted || !identical(_player, player)) return;
+    // Enable passthrough only after the first open has succeeded. mpv aborts the
+    // whole playback when a forced audio device rejects bitstream passthrough
+    // while it sets up the audio output for the initial open, which left the
+    // video frozen on its first frame. A change made after playback started is
+    // applied without aborting the stream.
+    await _applyAudioPassthrough(player);
     if (mounted && identical(_player, player)) {
       _playerFocusNode.requestFocus();
     }
@@ -545,6 +566,119 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     await platform.setProperty('hwdec', _decodeMode);
+  }
+
+  /// Codecs handed to mpv's [audio-spdif]. mpv only passes a track through when
+  /// its codec matches one of these, so a transcoded (AAC) or PCM track silently
+  /// falls back to normal decoded output instead of going mute.
+  static const String _audioPassthroughCodecs = 'ac3,eac3,dts,dts-hd,truehd';
+
+  /// Toggles compressed audio passthrough (S/PDIF / HDMI). When on, mpv hands
+  /// the original bitstream to the output device for an external receiver to
+  /// decode instead of decoding it to PCM locally. Changing the property
+  /// re-initializes the audio output, so this also applies to a playing stream.
+  ///
+  /// Deliberately does not touch [audio-exclusive]: WASAPI shared mode already
+  /// carries a compressed bitstream, while forcing exclusive mode makes mpv
+  /// abort playback outright when the device refuses to open in exclusive mode
+  /// (observed as a permanently frozen first frame).
+  Future<void> _applyAudioPassthrough(Player player) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer) {
+      return;
+    }
+    await platform.setProperty(
+      'audio-spdif',
+      _isAudioPassthrough ? _audioPassthroughCodecs : '',
+    );
+  }
+
+  /// Applies the user's audio output device to mpv via the [audio-device]
+  /// property. Changing it re-initializes the audio output, so this takes
+  /// effect for the currently playing stream without reopening.
+  Future<void> _applyAudioOutputDevice(Player player) async {
+    if (player.platform is! NativePlayer) {
+      return;
+    }
+    // mpv aborts playback entirely when it cannot open a device that was
+    // *forced* through [audio-device] (it does not fall back on its own), so a
+    // persisted device that has since disappeared (unplugged HDMI/AVR, or a
+    // different machine) would freeze the very first frame. Only force a
+    // concrete device when mpv still enumerates it; otherwise fall back to the
+    // system default.
+    final requested = _audioOutputDeviceName;
+    final devices = await _resolveAvailableAudioDevices(player);
+    final resolved = (requested.isEmpty || requested == 'auto')
+        ? 'auto'
+        : (devices.any((device) => device.name == requested)
+            ? requested
+            : 'auto');
+    if (resolved != requested) {
+      _audioOutputDeviceName = resolved;
+      unawaited(
+        ref.read(playerSettingsManagerProvider).setAudioOutputDevice(resolved),
+      );
+    }
+    await player.setAudioDevice(AudioDevice(resolved, ''));
+  }
+
+  /// Returns the audio devices mpv currently exposes, waiting briefly for mpv
+  /// to publish its `audio-device-list` when it has not done so yet.
+  Future<List<AudioDevice>> _resolveAvailableAudioDevices(Player player) async {
+    final cached = player.state.audioDevices;
+    if (cached.isNotEmpty) {
+      return cached;
+    }
+    try {
+      return await player.stream.audioDevices
+          .firstWhere((devices) => devices.isNotEmpty)
+          .timeout(const Duration(milliseconds: 800));
+    } catch (_) {
+      return const <AudioDevice>[];
+    }
+  }
+
+  /// Watches mpv's audio-output initialization failures and falls back to
+  /// decoded audio.
+  ///
+  /// When the selected output device cannot carry a compressed bitstream, mpv
+  /// fails to create the passthrough audio output. Left alone that means the
+  /// user keeps the switch on but hears nothing, so drop the switch and restore
+  /// normal decoding instead.
+  void _setupAudioPassthroughGuard() {
+    _audioPassthroughGuardSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+    _audioPassthroughGuardSubscription = player.stream.log.listen((entry) {
+      if (!_isAudioPassthrough || !identical(_player, player)) return;
+      if (entry.level != 'error' && entry.level != 'fatal') return;
+      final text = entry.text;
+      if (!text.contains('Failed to initialize audio driver') &&
+          !text.contains('Received failure from audio thread')) {
+        return;
+      }
+      _onAudioPassthroughUnsupported(player);
+    });
+  }
+
+  void _onAudioPassthroughUnsupported(Player player) {
+    if (!_isAudioPassthrough || !identical(_player, player)) return;
+    _isAudioPassthrough = false;
+    if (mounted) {
+      setState(() {});
+    }
+    unawaited(
+      ref.read(playerSettingsManagerProvider).setAudioPassthrough(false),
+    );
+    final platform = player.platform;
+    if (platform is NativePlayer) {
+      unawaited(platform.setProperty('audio-spdif', ''));
+    }
+    AppTalker.warning(
+      'Player',
+      'audio passthrough unsupported by the selected output device; '
+          'fell back to decoded audio',
+    );
   }
 
   /// Probes which hardware decoders (hwdec APIs) actually work for the current
@@ -993,6 +1127,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       unawaited(_applyWindowAspectRatio());
     });
+  }
+
+  void _setupPlayerAudioDeviceListener() {
+    _audioDeviceSubscription?.cancel();
+    final player = _player;
+    if (player == null) return;
+    final devices = player.state.audioDevices;
+    if (devices.isNotEmpty) {
+      _audioDevices = devices;
+    }
+    _audioDeviceSubscription = player.stream.audioDevices.listen((devices) {
+      if (devices.isEmpty || _isSameAudioDevices(_audioDevices, devices)) {
+        return;
+      }
+      if (mounted) {
+        setState(() => _audioDevices = devices);
+      } else {
+        _audioDevices = devices;
+      }
+    });
+  }
+
+  static bool _isSameAudioDevices(List<AudioDevice> a, List<AudioDevice> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].name != b[i].name || a[i].description != b[i].description) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Output devices for the settings menu, normalized so an "auto" (system
+  /// default) entry always exists and is labelled in the current language.
+  List<AudioOutputOption> get _audioOutputOptions {
+    final autoLabel = _l10n.playerSettingsAudioOutputDeviceAuto;
+    final options = <AudioOutputOption>[
+      AudioOutputOption(name: 'auto', label: autoLabel),
+    ];
+    for (final device in _audioDevices) {
+      // mpv may also list its own "auto" pseudo-device; collapse it onto ours.
+      if (device.name == 'auto') continue;
+      final label =
+          device.description.isNotEmpty ? device.description : device.name;
+      options.add(AudioOutputOption(name: device.name, label: label));
+    }
+    return options;
   }
 
   bool get _shouldTrackDirectLinkEmbeddedSubtitles {
@@ -1537,8 +1718,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _iso6392Map,
     );
     final displayName = StringBuffer(languageName);
-    if (subtitle.isExternal == 1) displayName.write(_l10n.playerSubtitleExternalSuffix);
-    if (subtitle.isDefault == 1) displayName.write(_l10n.playerSubtitleDefaultSuffix);
+    if (subtitle.isExternal == 1)
+      displayName.write(_l10n.playerSubtitleExternalSuffix);
+    if (subtitle.isDefault == 1)
+      displayName.write(_l10n.playerSubtitleDefaultSuffix);
 
     final confirmed = await showAppDialog<bool>(
       context: context,
@@ -3997,9 +4180,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final origin =
         _isPipMode ? PlayerSeekOrigin.pipShortcut : PlayerSeekOrigin.keyboard;
     _scheduleCoalescedSeek(target, origin);
-    final label = milliseconds < 0
-        ? _l10n.playerSeekRewindTo
-        : _l10n.playerSeekForwardTo;
+    final label =
+        milliseconds < 0 ? _l10n.playerSeekRewindTo : _l10n.playerSeekForwardTo;
     ref.read(toastManagerProvider.notifier).showToast(
           _l10n.playerSeekTimeToast(label, formatDurationToDateTime(target)),
           style: ToastStyle.liquidGlass,
@@ -4183,10 +4365,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'toggle fullscreen failed',
       );
       if (mounted) {
-        ref
-            .read(toastManagerProvider.notifier)
-            .showToast(_l10n.playerToggleFullscreenFailed('$error'),
-                style: ToastStyle.liquidGlass, type: ToastType.failed);
+        ref.read(toastManagerProvider.notifier).showToast(
+            _l10n.playerToggleFullscreenFailed('$error'),
+            style: ToastStyle.liquidGlass,
+            type: ToastType.failed);
       }
     }
   }
@@ -4305,7 +4487,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String? get _forceSdrDisabledReason {
     final colorRangeType =
         _playingInfoCache?.currentVideoStream?.colorRangeType ?? '';
-    return colorRangeType.toLowerCase() == 'sdr' ? _l10n.playerForceSdrDisabled : null;
+    return colorRangeType.toLowerCase() == 'sdr'
+        ? _l10n.playerForceSdrDisabled
+        : null;
   }
 
   void _onForceH264Changed(bool enabled) {
@@ -4330,9 +4514,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// the switch is a no-op everywhere else and must not restart those streams.
   String? get _directLinkCdnRangeDisabledReason {
     final cache = _playingInfoCache;
-    if (cache == null || !cache.isUseDirectLink) return _l10n.playerDirectLinkCdnRangeNotDirect;
+    if (cache == null || !cache.isUseDirectLink)
+      return _l10n.playerDirectLinkCdnRangeNotDirect;
     final cloudType = cache.streamInfo?.cloudStorageInfo?.cloudStorageType;
-    if (!CloudStorageType.fromValue(cloudType).isQuarkPan) return _l10n.playerDirectLinkCdnRangeQuarkOnly;
+    if (!CloudStorageType.fromValue(cloudType).isQuarkPan)
+      return _l10n.playerDirectLinkCdnRangeQuarkOnly;
     return null;
   }
 
@@ -4356,6 +4542,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final player = _player;
     if (player != null) {
       unawaited(_applyDecodeMode(player));
+    }
+  }
+
+  void _onAudioPassthroughChanged(bool enabled) {
+    if (enabled == _isAudioPassthrough) return;
+    setState(() => _isAudioPassthrough = enabled);
+    unawaited(
+        ref.read(playerSettingsManagerProvider).setAudioPassthrough(enabled));
+    final player = _player;
+    if (player != null) {
+      unawaited(_applyAudioPassthrough(player));
+    }
+  }
+
+  void _onAudioOutputDeviceChanged(String name) {
+    if (name == _audioOutputDeviceName) return;
+    setState(() => _audioOutputDeviceName = name);
+    unawaited(
+        ref.read(playerSettingsManagerProvider).setAudioOutputDevice(name));
+    final player = _player;
+    if (player != null) {
+      unawaited(_applyAudioOutputDevice(player));
     }
   }
 
@@ -4554,10 +4762,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     final player = _player;
     if (player == null || !_isInitialized) {
-      ref
-          .read(toastManagerProvider.notifier)
-          .showToast(_l10n.playerNotReady,
-              style: ToastStyle.liquidGlass, type: ToastType.info);
+      ref.read(toastManagerProvider.notifier).showToast(_l10n.playerNotReady,
+          style: ToastStyle.liquidGlass, type: ToastType.info);
       return;
     }
 
@@ -4601,10 +4807,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         setState(() => _isPipMode = false);
         // PiP exit cleared the ratio lock; restore the player's setting.
         unawaited(_applyWindowAspectRatio());
-        ref
-            .read(toastManagerProvider.notifier)
-            .showToast(_l10n.playerEnterPipFailed('$error'),
-                style: ToastStyle.liquidGlass, type: ToastType.failed);
+        ref.read(toastManagerProvider.notifier).showToast(
+            _l10n.playerEnterPipFailed('$error'),
+            style: ToastStyle.liquidGlass,
+            type: ToastType.failed);
       }
     } finally {
       _isPipTransitioning = false;
@@ -4644,10 +4850,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'exit PiP failed',
       );
       if (mounted) {
-        ref
-            .read(toastManagerProvider.notifier)
-            .showToast(_l10n.playerExitPipFailed('$error'),
-                style: ToastStyle.liquidGlass, type: ToastType.failed);
+        ref.read(toastManagerProvider.notifier).showToast(
+            _l10n.playerExitPipFailed('$error'),
+            style: ToastStyle.liquidGlass,
+            type: ToastType.failed);
       }
     } finally {
       _isPipTransitioning = false;
@@ -4777,10 +4983,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (e is PlaybackSourceSuperseded || !isCurrent()) return;
       AppTalker.warning('Player', 'cloud direct quality switch failed: $e');
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
-        ref
-            .read(toastManagerProvider.notifier)
-            .showToast(_l10n.playerSwitchQualityFailed('$e'),
-                style: ToastStyle.liquidGlass, type: ToastType.failed);
+        ref.read(toastManagerProvider.notifier).showToast(
+            _l10n.playerSwitchQualityFailed('$e'),
+            style: ToastStyle.liquidGlass,
+            type: ToastType.failed);
         setState(() => _isLoading = false);
       }
     }
@@ -4901,10 +5107,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final label = mode == CloudPlayMode.direct
         ? _l10n.playerCloudModeDirect
         : _l10n.playerCloudModeNasProxy;
-    ref
-        .read(toastManagerProvider.notifier)
-        .showToast(_l10n.playerCloudModeSwitchedToast(label),
-            style: ToastStyle.liquidGlass, type: ToastType.success);
+    ref.read(toastManagerProvider.notifier).showToast(
+        _l10n.playerCloudModeSwitchedToast(label),
+        style: ToastStyle.liquidGlass,
+        type: ToastType.success);
 
     final switchToken = ++_cloudSwitchToken;
     final isCurrent = _capturePlaybackOperation();
@@ -5006,10 +5212,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             'Player',
             'NAS proxy play mode failed, falling back to direct: $e',
           );
-          ref
-              .read(toastManagerProvider.notifier)
-              .showToast(_l10n.playerCloudProxyFailedFallbackDirect,
-                  style: ToastStyle.liquidGlass, type: ToastType.info);
+          ref.read(toastManagerProvider.notifier).showToast(
+              _l10n.playerCloudProxyFailedFallbackDirect,
+              style: ToastStyle.liquidGlass,
+              type: ToastType.info);
           if (!_isCurrentCloudSwitch(switchToken)) return;
           final directEntered = await _enterCloudDirectMode(
             switchToken: switchToken,
@@ -5043,10 +5249,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         message: 'cloud play mode switch failed',
       );
       if (mounted && _isCurrentCloudSwitch(switchToken)) {
-        ref
-            .read(toastManagerProvider.notifier)
-            .showToast(_l10n.playerSwitchPlayModeFailed('$e'),
-                style: ToastStyle.liquidGlass, type: ToastType.failed);
+        ref.read(toastManagerProvider.notifier).showToast(
+            _l10n.playerSwitchPlayModeFailed('$e'),
+            style: ToastStyle.liquidGlass,
+            type: ToastType.failed);
         setState(() => _isLoading = false);
       }
     }
@@ -5298,10 +5504,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _playingInfoCache = cache;
       ref.read(playerViewModelProvider.notifier).updatePlayingInfo(cache);
       AppTalker.warning('Player', 'switch quality failed: $e');
-      ref
-          .read(toastManagerProvider.notifier)
-          .showToast(_l10n.playerSwitchQualityFailed('$e'),
-              style: ToastStyle.liquidGlass, type: ToastType.failed);
+      ref.read(toastManagerProvider.notifier).showToast(
+          _l10n.playerSwitchQualityFailed('$e'),
+          style: ToastStyle.liquidGlass,
+          type: ToastType.failed);
       setState(() => _isLoading = false);
     }
   }
@@ -5620,10 +5826,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           .read(playerViewModelProvider.notifier)
           .updatePlayingInfo(_playingInfoCache);
       AppTalker.warning('Player', 'switch subtitle failed: $e');
-      ref
-          .read(toastManagerProvider.notifier)
-          .showToast(_l10n.playerSubtitleSwitchFailed('$e'),
-              style: ToastStyle.liquidGlass, type: ToastType.failed);
+      ref.read(toastManagerProvider.notifier).showToast(
+          _l10n.playerSubtitleSwitchFailed('$e'),
+          style: ToastStyle.liquidGlass,
+          type: ToastType.failed);
       if (mounted) {
         setState(() {
           _isSubtitleSwitching = false;
@@ -5724,6 +5930,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _completedSubscription?.cancel();
     _tracksSubscription?.cancel();
     _videoParamsSubscription?.cancel();
+    _audioDeviceSubscription?.cancel();
+    _audioPassthroughGuardSubscription?.cancel();
     _skipActionSubscription?.cancel();
     _removeIntroSkipStateListener?.call();
     _introSkipController.dispose();
@@ -6662,7 +6870,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ? 'assets/images/danmu_open.svg'
                   : 'assets/images/danmu_close.svg',
               onPressed: () => unawaited(_onDanmakuTogglePressed()),
-              tooltip: danmakuState.isVisible ? _l10n.playerDanmakuClose : _l10n.playerDanmakuOpen,
+              tooltip: danmakuState.isVisible
+                  ? _l10n.playerDanmakuClose
+                  : _l10n.playerDanmakuOpen,
               size: 34,
               iconSize: 24,
             ),
@@ -6782,6 +6992,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           directLinkCdnRangeDisabledReason: _directLinkCdnRangeDisabledReason,
           decodeMode: _decodeMode,
           onDecodeModeChanged: _onDecodeModeChanged,
+          audioPassthrough: _isAudioPassthrough,
+          onAudioPassthroughChanged: _onAudioPassthroughChanged,
+          audioOutputDevices: _audioOutputOptions,
+          audioOutputDeviceName: _audioOutputDeviceName,
+          onAudioOutputDeviceChanged: _onAudioOutputDeviceChanged,
           availableHwdec: _availableHwdec,
           onSkipConfigChanged: (skipOpening, skipEnding) {
             unawaited(_saveSkipConfig(skipOpening, skipEnding));
@@ -6952,7 +7167,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final topPadding = _isMacOS && !_isFullscreen ? 12.0 : 6.0;
     final topBarContentHeight = _isMacOS ? 30.0 : 36.0;
     final topBarDragHeight = topPadding + topBarContentHeight;
-    final isWindows = !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+    final isWindows =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
     return SafeArea(
       child: SizedBox(
@@ -7610,9 +7826,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _showFeatureComingSoon(String feature) {
-    ref
-        .read(toastManagerProvider.notifier)
-        .showToast(_l10n.playerFeatureComingSoon(feature),
-            style: ToastStyle.liquidGlass, type: ToastType.info);
+    ref.read(toastManagerProvider.notifier).showToast(
+        _l10n.playerFeatureComingSoon(feature),
+        style: ToastStyle.liquidGlass,
+        type: ToastType.info);
   }
 }

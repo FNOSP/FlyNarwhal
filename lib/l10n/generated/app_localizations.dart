@@ -4197,6 +4197,42 @@ abstract class AppLocalizations {
   /// **'音频'**
   String get playerSettingsAudio;
 
+  /// Audio screen top-right entry label and the audio-passthrough switch title.
+  ///
+  /// In zh, this message translates to:
+  /// **'音频直通'**
+  String get playerSettingsAudioPassthrough;
+
+  /// Header title of the audio-passthrough settings screen.
+  ///
+  /// In zh, this message translates to:
+  /// **'音频直通'**
+  String get playerSettingsAudioPassthroughTitle;
+
+  /// Description under the audio-passthrough switch.
+  ///
+  /// In zh, this message translates to:
+  /// **'将 AC3/DTS/EAC3/TrueHD 等压缩音频流原样输出到 HDMI/S-PDIF 外接设备解码。仅对原始音轨的直链播放生效，转码音轨会自动回落为本地解码。'**
+  String get playerSettingsAudioPassthroughDescription;
+
+  /// Audio output device entry label and sub-page title.
+  ///
+  /// In zh, this message translates to:
+  /// **'输出设备'**
+  String get playerSettingsAudioOutputDevice;
+
+  /// Label of the automatic (system default) audio output device option.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动（默认）'**
+  String get playerSettingsAudioOutputDeviceAuto;
+
+  /// Shown when mpv enumerates no audio output devices.
+  ///
+  /// In zh, this message translates to:
+  /// **'未检测到可用的音频输出设备'**
+  String get playerSettingsAudioOutputDeviceEmpty;
+
   /// Header title of the player advanced settings screen.
   ///
   /// In zh, this message translates to:

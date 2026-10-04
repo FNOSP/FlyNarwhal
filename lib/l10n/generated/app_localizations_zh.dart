@@ -2280,6 +2280,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerSettingsAudio => '音频';
 
   @override
+  String get playerSettingsAudioPassthrough => '音频直通';
+
+  @override
+  String get playerSettingsAudioPassthroughTitle => '音频直通';
+
+  @override
+  String get playerSettingsAudioPassthroughDescription =>
+      '将 AC3/DTS/EAC3/TrueHD 等压缩音频流原样输出到 HDMI/S-PDIF 外接设备解码。仅对原始音轨的直链播放生效，转码音轨会自动回落为本地解码。';
+
+  @override
+  String get playerSettingsAudioOutputDevice => '输出设备';
+
+  @override
+  String get playerSettingsAudioOutputDeviceAuto => '自动（默认）';
+
+  @override
+  String get playerSettingsAudioOutputDeviceEmpty => '未检测到可用的音频输出设备';
+
+  @override
   String get playerSettingsAdvancedTitle => '高级设置';
 
   @override
@@ -4887,6 +4906,25 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get playerSettingsAudio => '音訊';
+
+  @override
+  String get playerSettingsAudioPassthrough => '音訊直通';
+
+  @override
+  String get playerSettingsAudioPassthroughTitle => '音訊直通';
+
+  @override
+  String get playerSettingsAudioPassthroughDescription =>
+      '將 AC3/DTS/EAC3/TrueHD 等壓縮音訊流原樣輸出到 HDMI/S-PDIF 外接裝置解碼。僅對原始音軌的直連播放生效，轉碼音軌會自動回落為本機解碼。';
+
+  @override
+  String get playerSettingsAudioOutputDevice => '輸出裝置';
+
+  @override
+  String get playerSettingsAudioOutputDeviceAuto => '自動（預設）';
+
+  @override
+  String get playerSettingsAudioOutputDeviceEmpty => '未偵測到可用的音訊輸出裝置';
 
   @override
   String get playerSettingsAdvancedTitle => '進階設定';
