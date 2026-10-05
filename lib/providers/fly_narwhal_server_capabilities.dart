@@ -9,6 +9,11 @@ import 'providers.dart';
 /// with the pre-0.7.0 contract.
 const String minServerVersionForModernContract = '0.7.0';
 
+/// The `/api/danmu/source-config` endpoints landed after 0.7.0 (in 0.11.0);
+/// versions up to 0.10.0 were never publicly released, so the gate is a strict
+/// "newer than 0.7.0" comparison.
+const String minServerVersionForDanmuSourceConfig = '0.7.0';
+
 /// What the connected FlyNarwhal server is known to support.
 ///
 /// An old server and an unreachable one are deliberately indistinguishable from
@@ -20,6 +25,7 @@ final class FlyNarwhalServerCapabilities {
     required this.versionKnown,
     required this.supportsWholeWorkDanmakuKey,
     required this.supportsSmartSkipConfig,
+    required this.supportsDanmuSourceConfig,
   });
 
   /// Unknown — the probe failed, timed out, or the server reported nothing.
@@ -27,7 +33,8 @@ final class FlyNarwhalServerCapabilities {
       : rawVersion = '',
         versionKnown = false,
         supportsWholeWorkDanmakuKey = false,
-        supportsSmartSkipConfig = false;
+        supportsSmartSkipConfig = false,
+        supportsDanmuSourceConfig = false;
 
   /// Version exactly as the server reported it, or `''` when unknown.
   final String rawVersion;
@@ -41,6 +48,10 @@ final class FlyNarwhalServerCapabilities {
   /// Server exposes `/api/analysis/smart-skip-config`.
   final bool supportsSmartSkipConfig;
 
+  /// Server exposes the runtime-editable `/api/danmu/source-config` endpoints
+  /// (dandanplay relay + third-party fallback servers).
+  final bool supportsDanmuSourceConfig;
+
   static FlyNarwhalServerCapabilities fromVersion(String version) {
     final trimmed = version.trim();
     if (trimmed.isEmpty || trimmed == '0.0.0') {
@@ -51,11 +62,17 @@ final class FlyNarwhalServerCapabilities {
           minServerVersionForModernContract,
         ) >=
         0;
+    final hasDanmuSourceConfig = FlyNarwhalServerUpdateNotifier.compareVersions(
+          trimmed,
+          minServerVersionForDanmuSourceConfig,
+        ) >
+        0;
     return FlyNarwhalServerCapabilities(
       rawVersion: trimmed,
       versionKnown: true,
       supportsWholeWorkDanmakuKey: isModern,
       supportsSmartSkipConfig: isModern,
+      supportsDanmuSourceConfig: hasDanmuSourceConfig,
     );
   }
 }

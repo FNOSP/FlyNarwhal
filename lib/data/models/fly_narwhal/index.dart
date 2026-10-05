@@ -1,5 +1,6 @@
 export 'analysis_status.dart';
 export 'analyze_request.dart';
+export 'danmu_source_config.dart';
 export 'danmaku.dart';
 export 'episode_segments_response.dart';
 export 'set_fn_base_url_request.dart';

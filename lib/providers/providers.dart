@@ -31,6 +31,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../ui/settings/app_language.dart';
 import '../ui/shared/toast.dart';
 import 'danmaku_controller.dart';
+import 'danmu_source_config_controller.dart';
 import 'fly_narwhal_connection_test_notifier.dart';
 import 'smart_analysis_controller.dart';
 import 'smart_analysis_status_controller.dart';
@@ -272,6 +273,16 @@ final flyNarwhalRemoteDataSourceProvider =
 final smartSkipConfigControllerProvider = StateNotifierProvider<
     SmartSkipConfigController, SmartSkipConfigState>((ref) {
   return SmartSkipConfigController(
+    ref.watch(flyNarwhalRemoteDataSourceProvider),
+    getL10n: () => lookupAppLocalizations(
+      AppLanguage.localeFromValue(ref.read(settingsProvider).language),
+    ),
+  );
+});
+
+final danmuSourceConfigControllerProvider = StateNotifierProvider<
+    DanmuSourceConfigController, DanmuSourceConfigState>((ref) {
+  return DanmuSourceConfigController(
     ref.watch(flyNarwhalRemoteDataSourceProvider),
     getL10n: () => lookupAppLocalizations(
       AppLanguage.localeFromValue(ref.read(settingsProvider).language),

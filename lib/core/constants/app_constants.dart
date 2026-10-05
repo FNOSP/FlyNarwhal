@@ -89,6 +89,11 @@ class ApiEndpoints {
       '/api/analysis/smart-skip-config';
   static const String flyNarwhalFnBaseUrl = '/api/config/fn-base-url';
   static const String flyNarwhalDanmaku = '/api/danmu/get';
+  static const String flyNarwhalDanmuSourceConfig = '/api/danmu/source-config';
+  static const String flyNarwhalDanmuSourceConfigDandan =
+      '/api/danmu/source-config/dandan';
+  static const String flyNarwhalDanmuSourceConfigFallback =
+      '/api/danmu/source-config/fallback';
 
   // Favorite & Watched
   static const String favorite = '/v/api/v1/item/favorite';

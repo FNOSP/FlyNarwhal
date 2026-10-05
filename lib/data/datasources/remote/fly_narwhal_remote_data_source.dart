@@ -163,6 +163,39 @@ class FlyNarwhalRemoteDataSource {
         data: request.toJson(), fromJsonT: (json) => json?.toString() ?? '');
   }
 
+  /// Reads the runtime-editable danmu source config (dandanplay relay +
+  /// fallback servers). Requires server > 0.7.0.
+  Future<ApiResult<SmartAnalysisResult<DanmuSourceConfig>>>
+      getDanmuSourceConfig() {
+    return _get(ApiEndpoints.flyNarwhalDanmuSourceConfig,
+        fromJsonT: (json) => DanmuSourceConfig.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Upserts the single dandanplay relay; an empty [url] disables the source.
+  Future<ApiResult<SmartAnalysisResult<String>>> saveDandanRelay({
+    required String url,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandan,
+        data: <String, dynamic>{'url': url},
+        fromJsonT: (json) => json?.toString() ?? '');
+  }
+
+  /// Inserts (no id) or updates (with id) one fallback server; the same call
+  /// carries the enable/disable toggle.
+  Future<ApiResult<SmartAnalysisResult<String>>> saveFallbackServer({
+    required DanmuFallbackServer server,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigFallback,
+        data: server.toJson(), fromJsonT: (json) => json?.toString() ?? '');
+  }
+
+  Future<ApiResult<SmartAnalysisResult<String>>> deleteFallbackServer(int id) {
+    return _delete(
+        '${ApiEndpoints.flyNarwhalDanmuSourceConfigFallback}/$id',
+        fromJsonT: (json) => json?.toString() ?? '');
+  }
+
   Future<ApiResult<Map<String, List<Danmaku>>>> getDanmaku(
       DanmakuRequest request) async {
     try {
@@ -237,6 +270,30 @@ class FlyNarwhalRemoteDataSource {
         error: error,
         stackTrace: stackTrace,
         message: 'POST 请求失败: $path',
+      );
+      return ResultFailure(_wrapFailureInfo(error));
+    }
+  }
+
+  Future<ApiResult<SmartAnalysisResult<T>>> _delete<T>(String path,
+      {required T Function(Object? json) fromJsonT}) async {
+    try {
+      final url = _buildFullUrl(path);
+      final response = await _dio.delete<String>(url,
+          options: Options(
+              headers: await _buildHeaders(signaturePath: path),
+              responseType: ResponseType.plain));
+      return Success(await _decodeSmartResult(
+        response.data ?? '',
+        fromJsonT,
+        requestPath: path,
+      ));
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'FlyNarwhal',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'DELETE 请求失败: $path',
       );
       return ResultFailure(_wrapFailureInfo(error));
     }

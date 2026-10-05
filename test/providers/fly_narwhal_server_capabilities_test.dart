@@ -9,12 +9,21 @@ void main() {
       expect(capabilities.rawVersion, '0.9.0');
       expect(capabilities.supportsWholeWorkDanmakuKey, isTrue);
       expect(capabilities.supportsSmartSkipConfig, isTrue);
+      expect(capabilities.supportsDanmuSourceConfig, isTrue);
+    });
+
+    test('the danmu source config ships after 0.7.0', () {
+      final capabilities =
+          FlyNarwhalServerCapabilities.fromVersion('0.11.0');
+      expect(capabilities.supportsDanmuSourceConfig, isTrue);
     });
 
     test('the threshold version itself is treated as modern', () {
       final capabilities = FlyNarwhalServerCapabilities.fromVersion('0.7.0');
       expect(capabilities.supportsWholeWorkDanmakuKey, isTrue);
       expect(capabilities.supportsSmartSkipConfig, isTrue);
+      // ...but 0.7.0 itself predates /api/danmu/source-config (strict >).
+      expect(capabilities.supportsDanmuSourceConfig, isFalse);
     });
 
     test('an older server falls back to the legacy contract', () {
@@ -22,6 +31,7 @@ void main() {
       expect(capabilities.versionKnown, isTrue);
       expect(capabilities.supportsWholeWorkDanmakuKey, isFalse);
       expect(capabilities.supportsSmartSkipConfig, isFalse);
+      expect(capabilities.supportsDanmuSourceConfig, isFalse);
     });
 
     test('a build suffix does not demote a modern version', () {
@@ -29,6 +39,8 @@ void main() {
           FlyNarwhalServerCapabilities.fromVersion('0.7.0-fnapp');
       expect(capabilities.supportsWholeWorkDanmakuKey, isTrue);
       expect(capabilities.supportsSmartSkipConfig, isTrue);
+      expect(capabilities.supportsDanmuSourceConfig, isFalse,
+          reason: 'suffix does not lift 0.7.0 above the strict threshold');
     });
 
     test('an empty or placeholder version is unknown, not modern', () {
@@ -38,6 +50,7 @@ void main() {
             reason: 'version="$version"');
         expect(capabilities.supportsWholeWorkDanmakuKey, isFalse);
         expect(capabilities.supportsSmartSkipConfig, isFalse);
+        expect(capabilities.supportsDanmuSourceConfig, isFalse);
       }
     });
 
@@ -47,6 +60,7 @@ void main() {
       expect(capabilities.rawVersion, isEmpty);
       expect(capabilities.supportsWholeWorkDanmakuKey, isFalse);
       expect(capabilities.supportsSmartSkipConfig, isFalse);
+      expect(capabilities.supportsDanmuSourceConfig, isFalse);
     });
   });
 }
