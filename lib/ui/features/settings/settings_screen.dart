@@ -21,6 +21,7 @@ import '../../shared/hover_tip.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/changelog_dialog.dart';
+import 'widgets/danmu_fallback_servers_dialog.dart';
 import 'widgets/shortcut_settings_dialog.dart';
 import 'widgets/smart_skip_config_dialog.dart';
 import 'widgets/ssl_whitelist_dialog.dart';
@@ -44,6 +45,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       TextEditingController();
   final TextEditingController _updateProxyUrlController =
       TextEditingController();
+  final TextEditingController _danmuDandanRelayController =
+      TextEditingController();
+  bool _danmuSourceConfigLoadRequested = false;
   bool _isFlyNarwhalAuthCodeVisible = false;
   List<String> _availableLogDates = const <String>[];
   String? _selectedLogDate;
@@ -64,6 +68,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (_availableLogDates.isNotEmpty) {
       _selectedLogDate = _availableLogDates.first;
     }
+  }
+
+  Future<void> _saveDanmuDandanRelay() async {
+    final l10n = AppLocalizations.of(context);
+    final ok = await ref
+        .read(danmuSourceConfigControllerProvider.notifier)
+        .saveDandanRelay(_danmuDandanRelayController.text);
+    if (!mounted) return;
+    final error = ref.read(danmuSourceConfigControllerProvider).actionError;
+    ref.read(toastManagerProvider.notifier).showToast(
+          ok ? l10n.danmuSourceSaved : (error ?? l10n.danmuSourceSaveFailed),
+          type: ok ? ToastType.success : ToastType.failed,
+          category: 'danmu-source-config',
+        );
   }
 
   void _openFlyNarwhalAuthCodeDialog() {
@@ -170,6 +188,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void dispose() {
     _flyNarwhalAuthCodeController.dispose();
     _updateProxyUrlController.dispose();
+    _danmuDandanRelayController.dispose();
     _flyNarwhalServerUrlController.dispose();
     _flyNarwhalServerUrlFocusNode.dispose();
     _scrollController.dispose();
@@ -184,6 +203,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final errorLogExporter = ref.watch(errorLogExporterProvider);
     final userInfoAsync = ref.watch(userInfoProvider);
     final connectionTestState = ref.watch(flyNarwhalConnectionTestProvider);
+    final danmuSourceState = ref.watch(danmuSourceConfigControllerProvider);
+
+    // Once the connected server is known to carry the danmu source config API,
+    // pull the stored values a single time per screen life so the dandan field
+    // can prefill with the current effective relay.
+    final supportsDanmuSourceConfig = ref
+            .watch(flyNarwhalServerCapabilitiesProvider)
+            .valueOrNull
+            ?.supportsDanmuSourceConfig ??
+        false;
+    if (supportsDanmuSourceConfig && !_danmuSourceConfigLoadRequested) {
+      _danmuSourceConfigLoadRequested = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(danmuSourceConfigControllerProvider.notifier).load();
+        }
+      });
+    }
+    // Mirror the server-side relay URL into the input without clobbering what
+    // the user is typing: only overwrite when the field still shows the
+    // previous stored value (or is empty).
+    ref.listen(danmuSourceConfigControllerProvider, (prev, next) {
+      final nextUrl = next.config.valueOrNull?.dandan.url ?? '';
+      final prevUrl = prev?.config.valueOrNull?.dandan.url;
+      final current = _danmuDandanRelayController.text;
+      if (nextUrl != prevUrl && (current.isEmpty || current == prevUrl)) {
+        _danmuDandanRelayController.text = nextUrl;
+      }
+    });
     final updateState = ref.watch(updateControllerProvider);
     final updateSettingsAsync = ref.watch(updateSettingsProvider);
     final updateSettings = updateSettingsAsync.asData?.value;
@@ -723,6 +771,86 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                           ),
                                         ),
                                       ),
+                                    // Danmu source config endpoints only exist
+                                    // on servers newer than 0.7.0.
+                                    if (supportsDanmuSourceConfig) ...[
+                                      CardExpanderItem(
+                                        key: const ValueKey(
+                                          'settings-fly-narwhal-dandan-source',
+                                        ),
+                                        icon: const Icon(FluentIcons.comment),
+                                        heading: Text(
+                                          l10n.settingsDanmuDandanSource,
+                                        ),
+                                        caption: Text(
+                                          l10n.settingsDanmuDandanSourceCaption,
+                                        ),
+                                        trailing: SizedBox(
+                                          width: 360,
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: TextBox(
+                                                  key: const ValueKey(
+                                                    'settings-danmu-dandan-relay-input',
+                                                  ),
+                                                  controller:
+                                                      _danmuDandanRelayController,
+                                                  placeholder:
+                                                      'https://api.danmaku.weeblify.app/ddp/v1',
+                                                  placeholderStyle: TextStyle(
+                                                    color: Colors.grey[130],
+                                                  ),
+                                                  onSubmitted: (_) =>
+                                                      _saveDanmuDandanRelay(),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              AppButton(
+                                                key: const ValueKey(
+                                                  'settings-danmu-dandan-relay-save',
+                                                ),
+                                                onPressed:
+                                                    danmuSourceState.isSaving
+                                                        ? null
+                                                        : _saveDanmuDandanRelay,
+                                                child: Text(
+                                                  l10n.danmuSourceSave,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      CardExpanderItem(
+                                        key: const ValueKey(
+                                          'settings-fly-narwhal-fallback-servers',
+                                        ),
+                                        icon: const Icon(FluentIcons.database),
+                                        heading: Text(
+                                          l10n.settingsDanmuFallbackServers,
+                                        ),
+                                        caption: Text(
+                                          l10n
+                                              .settingsDanmuFallbackServersCaption,
+                                        ),
+                                        trailing: AppButton(
+                                          key: const ValueKey(
+                                            'settings-danmu-fallback-open',
+                                          ),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  const DanmuFallbackServersDialog(),
+                                            );
+                                          },
+                                          child: Text(
+                                            l10n.danmuSourceConfigure,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),

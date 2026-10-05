@@ -4874,6 +4874,138 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'服务端智能分析片头片尾的参数'**
   String get settingsSmartSkipConfigCaption;
+
+  /// Heading of the dandanplay danmu source card in server settings.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹弹play 弹幕源'**
+  String get settingsDanmuDandanSource;
+
+  /// Caption under the dandanplay source card.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置弹弹play中转服务器，补充番剧弹幕；清空并保存即停用'**
+  String get settingsDanmuDandanSourceCaption;
+
+  /// Heading of the fallback danmu servers card.
+  ///
+  /// In zh, this message translates to:
+  /// **'兜底弹幕服务器'**
+  String get settingsDanmuFallbackServers;
+
+  /// Caption under the fallback servers card.
+  ///
+  /// In zh, this message translates to:
+  /// **'所有直连弹幕源为空时，按顺序尝试已启用的第三方服务器'**
+  String get settingsDanmuFallbackServersCaption;
+
+  /// Button that opens the fallback servers dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置'**
+  String get danmuSourceConfigure;
+
+  /// Save button in danmu source config UI.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存'**
+  String get danmuSourceSave;
+
+  /// Toast after a successful save.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存'**
+  String get danmuSourceSaved;
+
+  /// Toast after a successful delete.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除'**
+  String get danmuSourceDeleted;
+
+  /// Title of the fallback servers management dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'兜底弹幕服务器'**
+  String get danmuSourceFallbackDialogTitle;
+
+  /// Button to add a fallback server.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加服务器'**
+  String get danmuSourceFallbackAdd;
+
+  /// Sub-dialog title when editing a fallback server.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑服务器'**
+  String get danmuSourceFallbackEdit;
+
+  /// Placeholder of the name field.
+  ///
+  /// In zh, this message translates to:
+  /// **'名称（可选）'**
+  String get danmuSourceFallbackNameHint;
+
+  /// Placeholder of the URL field.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器地址'**
+  String get danmuSourceFallbackUrlHint;
+
+  /// Empty state of the fallback list.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无兜底服务器'**
+  String get danmuSourceFallbackEmpty;
+
+  /// Title of the delete confirmation dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除服务器'**
+  String get danmuSourceFallbackDeleteTitle;
+
+  /// Message of the delete confirmation dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除“{name}”吗？'**
+  String danmuSourceFallbackDeleteMessage(String name);
+
+  /// Destructive confirm button.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除'**
+  String get danmuSourceDelete;
+
+  /// Inline validation error for the URL field.
+  ///
+  /// In zh, this message translates to:
+  /// **'地址需以 http:// 或 https:// 开头'**
+  String get danmuSourceUrlInvalid;
+
+  /// Error when loading the config fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取弹幕源配置失败'**
+  String get danmuSourceLoadFailed;
+
+  /// Fallback error when saving fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存弹幕源配置失败'**
+  String get danmuSourceSaveFailed;
+
+  /// Fallback error when deleting fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除兜底服务器失败'**
+  String get danmuSourceDeleteFailed;
+
+  /// Label of the per-server enable toggle.
+  ///
+  /// In zh, this message translates to:
+  /// **'启用'**
+  String get danmuSourceEnabled;
 }
 
 class _AppLocalizationsDelegate

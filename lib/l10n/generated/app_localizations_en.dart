@@ -2727,4 +2727,74 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsSmartSkipConfigCaption =>
       'Server-side parameters for smart intro/outro analysis';
+
+  @override
+  String get settingsDanmuDandanSource => 'Dandanplay danmu source';
+
+  @override
+  String get settingsDanmuDandanSourceCaption =>
+      'Configure the dandanplay relay that supplements anime danmaku; save an empty value to disable';
+
+  @override
+  String get settingsDanmuFallbackServers => 'Fallback danmu servers';
+
+  @override
+  String get settingsDanmuFallbackServersCaption =>
+      'Third-party servers tried in order when every direct danmu source comes back empty';
+
+  @override
+  String get danmuSourceConfigure => 'Configure';
+
+  @override
+  String get danmuSourceSave => 'Save';
+
+  @override
+  String get danmuSourceSaved => 'Saved';
+
+  @override
+  String get danmuSourceDeleted => 'Deleted';
+
+  @override
+  String get danmuSourceFallbackDialogTitle => 'Fallback Danmu Servers';
+
+  @override
+  String get danmuSourceFallbackAdd => 'Add server';
+
+  @override
+  String get danmuSourceFallbackEdit => 'Edit server';
+
+  @override
+  String get danmuSourceFallbackNameHint => 'Name (optional)';
+
+  @override
+  String get danmuSourceFallbackUrlHint => 'Server URL';
+
+  @override
+  String get danmuSourceFallbackEmpty => 'No fallback servers yet';
+
+  @override
+  String get danmuSourceFallbackDeleteTitle => 'Delete server';
+
+  @override
+  String danmuSourceFallbackDeleteMessage(String name) {
+    return 'Delete \"$name\"?';
+  }
+
+  @override
+  String get danmuSourceDelete => 'Delete';
+
+  @override
+  String get danmuSourceUrlInvalid => 'URL must start with http:// or https://';
+
+  @override
+  String get danmuSourceLoadFailed => 'Failed to load danmu source config';
+
+  @override
+  String get danmuSourceSaveFailed => 'Failed to save danmu source config';
+
+  @override
+  String get danmuSourceDeleteFailed => 'Failed to delete the fallback server';
+
+  @override
+  String get danmuSourceEnabled => 'Enabled';
 }

@@ -2633,6 +2633,76 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsSmartSkipConfigCaption => '服务端智能分析片头片尾的参数';
+
+  @override
+  String get settingsDanmuDandanSource => '弹弹play 弹幕源';
+
+  @override
+  String get settingsDanmuDandanSourceCaption =>
+      '配置弹弹play中转服务器，补充番剧弹幕；清空并保存即停用';
+
+  @override
+  String get settingsDanmuFallbackServers => '兜底弹幕服务器';
+
+  @override
+  String get settingsDanmuFallbackServersCaption =>
+      '所有直连弹幕源为空时，按顺序尝试已启用的第三方服务器';
+
+  @override
+  String get danmuSourceConfigure => '配置';
+
+  @override
+  String get danmuSourceSave => '保存';
+
+  @override
+  String get danmuSourceSaved => '已保存';
+
+  @override
+  String get danmuSourceDeleted => '已删除';
+
+  @override
+  String get danmuSourceFallbackDialogTitle => '兜底弹幕服务器';
+
+  @override
+  String get danmuSourceFallbackAdd => '添加服务器';
+
+  @override
+  String get danmuSourceFallbackEdit => '编辑服务器';
+
+  @override
+  String get danmuSourceFallbackNameHint => '名称（可选）';
+
+  @override
+  String get danmuSourceFallbackUrlHint => '服务器地址';
+
+  @override
+  String get danmuSourceFallbackEmpty => '暂无兜底服务器';
+
+  @override
+  String get danmuSourceFallbackDeleteTitle => '删除服务器';
+
+  @override
+  String danmuSourceFallbackDeleteMessage(String name) {
+    return '确定删除“$name”吗？';
+  }
+
+  @override
+  String get danmuSourceDelete => '删除';
+
+  @override
+  String get danmuSourceUrlInvalid => '地址需以 http:// 或 https:// 开头';
+
+  @override
+  String get danmuSourceLoadFailed => '读取弹幕源配置失败';
+
+  @override
+  String get danmuSourceSaveFailed => '保存弹幕源配置失败';
+
+  @override
+  String get danmuSourceDeleteFailed => '删除兜底服务器失败';
+
+  @override
+  String get danmuSourceEnabled => '启用';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -5264,4 +5334,74 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get settingsSmartSkipConfigCaption => '伺服器智慧分析片頭片尾的參數';
+
+  @override
+  String get settingsDanmuDandanSource => '彈彈play 彈幕來源';
+
+  @override
+  String get settingsDanmuDandanSourceCaption =>
+      '設定彈彈play中繼伺服器，補充動畫彈幕；清空並儲存即停用';
+
+  @override
+  String get settingsDanmuFallbackServers => '備援彈幕伺服器';
+
+  @override
+  String get settingsDanmuFallbackServersCaption =>
+      '所有直連彈幕來源為空時，依序嘗試已啟用的第三方伺服器';
+
+  @override
+  String get danmuSourceConfigure => '設定';
+
+  @override
+  String get danmuSourceSave => '儲存';
+
+  @override
+  String get danmuSourceSaved => '已儲存';
+
+  @override
+  String get danmuSourceDeleted => '已刪除';
+
+  @override
+  String get danmuSourceFallbackDialogTitle => '備援彈幕伺服器';
+
+  @override
+  String get danmuSourceFallbackAdd => '新增伺服器';
+
+  @override
+  String get danmuSourceFallbackEdit => '編輯伺服器';
+
+  @override
+  String get danmuSourceFallbackNameHint => '名稱（選填）';
+
+  @override
+  String get danmuSourceFallbackUrlHint => '伺服器位址';
+
+  @override
+  String get danmuSourceFallbackEmpty => '尚無備援伺服器';
+
+  @override
+  String get danmuSourceFallbackDeleteTitle => '刪除伺服器';
+
+  @override
+  String danmuSourceFallbackDeleteMessage(String name) {
+    return '確定刪除「$name」？';
+  }
+
+  @override
+  String get danmuSourceDelete => '刪除';
+
+  @override
+  String get danmuSourceUrlInvalid => '位址需以 http:// 或 https:// 開頭';
+
+  @override
+  String get danmuSourceLoadFailed => '讀取彈幕來源設定失敗';
+
+  @override
+  String get danmuSourceSaveFailed => '儲存彈幕來源設定失敗';
+
+  @override
+  String get danmuSourceDeleteFailed => '刪除備援伺服器失敗';
+
+  @override
+  String get danmuSourceEnabled => '啟用';
 }
