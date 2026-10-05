@@ -5006,6 +5006,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'启用'**
   String get danmuSourceEnabled;
+
+  /// Warning when testing the relay with an empty address.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写弹弹play中转地址'**
+  String get danmuSourceRelayRequired;
+
+  /// Toast when the relay connectivity test passes.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹弹play中继连通'**
+  String get danmuSourceRelayReachable;
+
+  /// Toast when the relay connectivity test fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹弹play中继不可用'**
+  String get danmuSourceRelayUnreachable;
 }
 
 class _AppLocalizationsDelegate

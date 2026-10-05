@@ -2703,6 +2703,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get danmuSourceEnabled => '启用';
+
+  @override
+  String get danmuSourceRelayRequired => '请填写弹弹play中转地址';
+
+  @override
+  String get danmuSourceRelayReachable => '弹弹play中继连通';
+
+  @override
+  String get danmuSourceRelayUnreachable => '弹弹play中继不可用';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -5404,4 +5413,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get danmuSourceEnabled => '啟用';
+
+  @override
+  String get danmuSourceRelayRequired => '請輸入彈彈play中繼位址';
+
+  @override
+  String get danmuSourceRelayReachable => '彈彈play中繼可連線';
+
+  @override
+  String get danmuSourceRelayUnreachable => '彈彈play中繼無法連線';
 }

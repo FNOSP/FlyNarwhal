@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -47,7 +49,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       TextEditingController();
   final TextEditingController _danmuDandanRelayController =
       TextEditingController();
+  final FocusNode _danmuDandanRelayFocusNode = FocusNode();
   bool _danmuSourceConfigLoadRequested = false;
+  bool _isTestingDanmuDandanRelay = false;
   bool _isFlyNarwhalAuthCodeVisible = false;
   List<String> _availableLogDates = const <String>[];
   String? _selectedLogDate;
@@ -70,18 +74,71 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _saveDanmuDandanRelay() async {
-    final l10n = AppLocalizations.of(context);
+  /// Persists the dandan relay field (empty = disabled), mirroring the
+  /// server-address field's silent blur-save. The explicit button tests
+  /// connectivity instead of saving.
+  Future<bool> _saveDanmuDandanRelay() async {
     final ok = await ref
         .read(danmuSourceConfigControllerProvider.notifier)
         .saveDandanRelay(_danmuDandanRelayController.text);
-    if (!mounted) return;
-    final error = ref.read(danmuSourceConfigControllerProvider).actionError;
-    ref.read(toastManagerProvider.notifier).showToast(
-          ok ? l10n.danmuSourceSaved : (error ?? l10n.danmuSourceSaveFailed),
-          type: ok ? ToastType.success : ToastType.failed,
-          category: 'danmu-source-config',
+    return ok && mounted;
+  }
+
+  /// Saves the field, then probes the relay's public search endpoint
+  /// (`?path=/v2/search/anime`) directly — no signing needed, the relay is an
+  /// unauthenticated third party.
+  Future<void> _testDanmuDandanRelay() async {
+    final l10n = AppLocalizations.of(context);
+    final url = _danmuDandanRelayController.text.trim();
+    if (url.isEmpty) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.danmuSourceRelayRequired,
+            type: ToastType.warning,
+            category: 'danmu-source-config',
+          );
+      return;
+    }
+    setState(() => _isTestingDanmuDandanRelay = true);
+    try {
+      final saved = await _saveDanmuDandanRelay();
+      if (!saved || !mounted) return;
+      var reachable = false;
+      String? detail;
+      try {
+        final dio = Dio(BaseOptions(
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 15),
+          validateStatus: (_) => true,
+        ));
+        final response = await dio.get(
+          '$url${url.contains('?') ? '&' : '?'}path=${Uri.encodeComponent('/v2/search/anime?keyword=test')}',
         );
+        try {
+          final json = jsonDecode(response.data?.toString() ?? '');
+          reachable = json is Map &&
+              (json['errorCode'] == 0 || json['animes'] is List);
+          if (!reachable && json is Map) {
+            detail = 'errorCode=${json['errorCode']}';
+          }
+        } catch (_) {
+          detail = 'HTTP ${response.statusCode}';
+        }
+      } catch (error) {
+        detail = error.toString();
+      }
+      if (!mounted) return;
+      ref.read(toastManagerProvider.notifier).showToast(
+            reachable
+                ? l10n.danmuSourceRelayReachable
+                : '${l10n.danmuSourceRelayUnreachable}${detail == null ? '' : ' ($detail)'}',
+            type: reachable ? ToastType.success : ToastType.failed,
+            category: 'danmu-source-config',
+          );
+    } finally {
+      if (mounted) {
+        setState(() => _isTestingDanmuDandanRelay = false);
+      }
+    }
   }
 
   void _openFlyNarwhalAuthCodeDialog() {
@@ -189,6 +246,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _flyNarwhalAuthCodeController.dispose();
     _updateProxyUrlController.dispose();
     _danmuDandanRelayController.dispose();
+    _danmuDandanRelayFocusNode.dispose();
     _flyNarwhalServerUrlController.dispose();
     _flyNarwhalServerUrlFocusNode.dispose();
     _scrollController.dispose();
@@ -203,7 +261,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final errorLogExporter = ref.watch(errorLogExporterProvider);
     final userInfoAsync = ref.watch(userInfoProvider);
     final connectionTestState = ref.watch(flyNarwhalConnectionTestProvider);
-    final danmuSourceState = ref.watch(danmuSourceConfigControllerProvider);
 
     // Once the connected server is known to carry the danmu source config API,
     // pull the stored values a single time per screen life so the dandan field
@@ -796,26 +853,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                   ),
                                                   controller:
                                                       _danmuDandanRelayController,
+                                                  focusNode:
+                                                      _danmuDandanRelayFocusNode,
                                                   placeholder:
                                                       'https://api.danmaku.weeblify.app/ddp/v1',
                                                   placeholderStyle: TextStyle(
                                                     color: Colors.grey[130],
                                                   ),
+                                                  // Blur-save, same behavior
+                                                  // as the server address
+                                                  // field above.
                                                   onSubmitted: (_) =>
                                                       _saveDanmuDandanRelay(),
+                                                  onTapOutside: (_) {
+                                                    _danmuDandanRelayFocusNode
+                                                        .unfocus();
+                                                    _saveDanmuDandanRelay();
+                                                  },
                                                 ),
                                               ),
                                               const SizedBox(width: 8),
                                               AppButton(
                                                 key: const ValueKey(
-                                                  'settings-danmu-dandan-relay-save',
+                                                  'settings-danmu-dandan-relay-test',
                                                 ),
                                                 onPressed:
-                                                    danmuSourceState.isSaving
+                                                    _isTestingDanmuDandanRelay
                                                         ? null
-                                                        : _saveDanmuDandanRelay,
+                                                        : _testDanmuDandanRelay,
                                                 child: Text(
-                                                  l10n.danmuSourceSave,
+                                                  _isTestingDanmuDandanRelay
+                                                      ? l10n.settingsServerTesting
+                                                      : l10n.settingsServerTest,
                                                 ),
                                               ),
                                             ],

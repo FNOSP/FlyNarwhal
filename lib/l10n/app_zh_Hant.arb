@@ -3652,5 +3652,11 @@
   "danmuSourceDeleteFailed": "刪除備援伺服器失敗",
   "@danmuSourceDeleteFailed": { "description": "Fallback error when deleting fails." },
   "danmuSourceEnabled": "啟用",
-  "@danmuSourceEnabled": { "description": "Label of the per-server enable toggle." }
+  "@danmuSourceEnabled": { "description": "Label of the per-server enable toggle." },
+  "danmuSourceRelayRequired": "請輸入彈彈play中繼位址",
+  "@danmuSourceRelayRequired": { "description": "Warning when testing the relay with an empty address." },
+  "danmuSourceRelayReachable": "彈彈play中繼可連線",
+  "@danmuSourceRelayReachable": { "description": "Toast when the relay connectivity test passes." },
+  "danmuSourceRelayUnreachable": "彈彈play中繼無法連線",
+  "@danmuSourceRelayUnreachable": { "description": "Toast when the relay connectivity test fails." }
 }

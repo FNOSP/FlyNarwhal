@@ -3652,5 +3652,11 @@
   "danmuSourceDeleteFailed": "Failed to delete the fallback server",
   "@danmuSourceDeleteFailed": { "description": "Fallback error when deleting fails." },
   "danmuSourceEnabled": "Enabled",
-  "@danmuSourceEnabled": { "description": "Label of the per-server enable toggle." }
+  "@danmuSourceEnabled": { "description": "Label of the per-server enable toggle." },
+  "danmuSourceRelayRequired": "Enter the dandanplay relay URL",
+  "@danmuSourceRelayRequired": { "description": "Warning when testing the relay with an empty address." },
+  "danmuSourceRelayReachable": "Dandanplay relay reachable",
+  "@danmuSourceRelayReachable": { "description": "Toast when the relay connectivity test passes." },
+  "danmuSourceRelayUnreachable": "Dandanplay relay unreachable",
+  "@danmuSourceRelayUnreachable": { "description": "Toast when the relay connectivity test fails." }
 }

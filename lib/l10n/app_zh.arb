@@ -3823,5 +3823,11 @@
   "danmuSourceDeleteFailed": "删除兜底服务器失败",
   "@danmuSourceDeleteFailed": { "description": "Fallback error when deleting fails." },
   "danmuSourceEnabled": "启用",
-  "@danmuSourceEnabled": { "description": "Label of the per-server enable toggle." }
+  "@danmuSourceEnabled": { "description": "Label of the per-server enable toggle." },
+  "danmuSourceRelayRequired": "请填写弹弹play中转地址",
+  "@danmuSourceRelayRequired": { "description": "Warning when testing the relay with an empty address." },
+  "danmuSourceRelayReachable": "弹弹play中继连通",
+  "@danmuSourceRelayReachable": { "description": "Toast when the relay connectivity test passes." },
+  "danmuSourceRelayUnreachable": "弹弹play中继不可用",
+  "@danmuSourceRelayUnreachable": { "description": "Toast when the relay connectivity test fails." }
 }
