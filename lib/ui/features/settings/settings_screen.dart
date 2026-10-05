@@ -34,6 +34,24 @@ import 'package:fly_narwhal/ui/shared/semi_icons.dart';
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
+  /// Whether a relay probe response indicates a healthy ddp relay, plus a
+  /// failure detail for the toast. dio's default json responseType may have
+  /// already decoded the body into a Map — only jsonDecode raw Strings.
+  static (bool, String?) parseRelayProbe(dynamic raw, int? statusCode) {
+    try {
+      final json = raw is String ? jsonDecode(raw) : raw;
+      if (json is Map && (json['errorCode'] == 0 || json['animes'] is List)) {
+        return (true, null);
+      }
+      if (json is Map) {
+        return (false, 'errorCode=${json['errorCode']}');
+      }
+      return (false, 'HTTP $statusCode');
+    } catch (_) {
+      return (false, 'HTTP $statusCode');
+    }
+  }
+
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -113,16 +131,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         final response = await dio.get(
           '$url${url.contains('?') ? '&' : '?'}path=${Uri.encodeComponent('/v2/search/anime?keyword=test')}',
         );
-        try {
-          final json = jsonDecode(response.data?.toString() ?? '');
-          reachable = json is Map &&
-              (json['errorCode'] == 0 || json['animes'] is List);
-          if (!reachable && json is Map) {
-            detail = 'errorCode=${json['errorCode']}';
-          }
-        } catch (_) {
-          detail = 'HTTP ${response.statusCode}';
-        }
+        final (probeOk, probeDetail) = SettingsScreen.parseRelayProbe(
+          response.data,
+          response.statusCode,
+        );
+        reachable = probeOk;
+        detail = probeDetail;
       } catch (error) {
         detail = error.toString();
       }
