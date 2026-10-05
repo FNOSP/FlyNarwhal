@@ -98,6 +98,13 @@ class DanmuSourceConfigController
         _getL10n().danmuSourceDeleteFailed);
   }
 
+  /// Saves the dandanplay open-network credentials; both blank removes the
+  /// stored account (official channel off).
+  Future<bool> saveDandanAccount(DandanAccount account) {
+    return _mutate(() => _dataSource.saveDandanAccount(account: account),
+        _getL10n().danmuSourceSaveFailed);
+  }
+
   /// Runs one mutation; on success reloads the config so the UI mirrors the
   /// stored state, on failure records [actionError] for inline display.
   Future<bool> _mutate(

@@ -5024,6 +5024,60 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'弹弹play中继不可用'**
   String get danmuSourceRelayUnreachable;
+
+  /// Heading of the dandanplay open-network account card.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹弹play 官方账号'**
+  String get settingsDanmuDandanAccount;
+
+  /// Caption under the dandanplay account card.
+  ///
+  /// In zh, this message translates to:
+  /// **'填写 AppId/AppSecret 启用官方弹幕网络，曲库更全（含部分美剧）'**
+  String get settingsDanmuDandanAccountCaption;
+
+  /// Account card state when credentials are stored.
+  ///
+  /// In zh, this message translates to:
+  /// **'已配置'**
+  String get settingsDanmuDandanAccountConfigured;
+
+  /// Account card state when no credentials are stored.
+  ///
+  /// In zh, this message translates to:
+  /// **'未配置'**
+  String get settingsDanmuDandanAccountPrompt;
+
+  /// Title of the dandanplay account dialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹弹play 官方账号'**
+  String get danmuDandanAccountDialogTitle;
+
+  /// Hint telling where to register the app.
+  ///
+  /// In zh, this message translates to:
+  /// **'在 doc.dandanplay.com/open 免费申请应用获取 AppId/AppSecret'**
+  String get danmuDandanAccountHint;
+
+  /// Placeholder of the AppId field.
+  ///
+  /// In zh, this message translates to:
+  /// **'AppId'**
+  String get danmuDandanAccountAppIdHint;
+
+  /// Placeholder of the AppSecret field.
+  ///
+  /// In zh, this message translates to:
+  /// **'AppSecret'**
+  String get danmuDandanAccountAppSecretHint;
+
+  /// Button that deletes the stored credentials.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除'**
+  String get danmuDandanAccountClear;
 }
 
 class _AppLocalizationsDelegate

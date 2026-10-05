@@ -6,6 +6,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../data/storage/update_settings_store.dart';
+import '../../../data/models/fly_narwhal/index.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/fly_narwhal_server_capabilities.dart';
 import '../../../providers/providers.dart';
@@ -155,6 +156,84 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  /// Credentials dialog for the dandanplay open network. Saving persists both
+  /// fields; "Clear" saves blanks, which deletes the stored account server-side.
+  void _openDandanAccountDialog() {
+    final l10n = AppLocalizations.of(context);
+    final current = ref
+            .read(danmuSourceConfigControllerProvider)
+            .config
+            .valueOrNull
+            ?.dandanAccount ??
+        const DandanAccount();
+    final appIdController = TextEditingController(text: current.appId);
+    final appSecretController = TextEditingController(text: current.appSecret);
+    var secretVisible = false;
+
+    Future<void> save(DandanAccount account) async {
+      final ok = await ref
+          .read(danmuSourceConfigControllerProvider.notifier)
+          .saveDandanAccount(account);
+      if (ok && mounted) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              l10n.danmuSourceSaved,
+              type: ToastType.success,
+              category: 'danmu-source-config',
+            );
+        if (context.mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
+      }
+    }
+
+    showAppDialog(
+      context: context,
+      title: l10n.danmuDandanAccountDialogTitle,
+      content: StatefulBuilder(
+        builder: (context, setDialogState) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextBox(
+              key: const ValueKey('settings-danmu-account-appid'),
+              controller: appIdController,
+              placeholder: l10n.danmuDandanAccountAppIdHint,
+            ),
+            const SizedBox(height: 12),
+            TextBox(
+              key: const ValueKey('settings-danmu-account-secret'),
+              controller: appSecretController,
+              placeholder: l10n.danmuDandanAccountAppSecretHint,
+              obscureText: !secretVisible,
+              suffix: AppIconButton(
+                icon: Icon(secretVisible ? FluentIcons.hide3 : FluentIcons.view),
+                onPressed: () {
+                  setDialogState(() => secretVisible = !secretVisible);
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.danmuDandanAccountHint,
+              style: TextStyle(fontSize: 12, color: Colors.grey[130]),
+            ),
+          ],
+        ),
+      ),
+      primaryButtonText: l10n.danmuSourceSave,
+      secondaryButtonText: l10n.commonCancel,
+      tertiaryButtonText: l10n.danmuDandanAccountClear,
+      onPrimaryPressed: () => save(DandanAccount(
+        appId: appIdController.text.trim(),
+        appSecret: appSecretController.text.trim(),
+      )),
+      onTertiaryPressed: () => save(const DandanAccount()),
+    ).whenComplete(() {
+      appIdController.dispose();
+      appSecretController.dispose();
+    });
+  }
+
   void _openFlyNarwhalAuthCodeDialog() {
     final l10n = AppLocalizations.of(context);
     _flyNarwhalAuthCodeController.text =
@@ -275,6 +354,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final errorLogExporter = ref.watch(errorLogExporterProvider);
     final userInfoAsync = ref.watch(userInfoProvider);
     final connectionTestState = ref.watch(flyNarwhalConnectionTestProvider);
+    final danmuAccountConfigured = ref
+            .watch(danmuSourceConfigControllerProvider)
+            .config
+            .valueOrNull
+            ?.dandanAccount
+            .isConfigured ??
+        false;
 
     // Once the connected server is known to carry the danmu source config API,
     // pull the stored values a single time per screen life so the dandan field
@@ -903,6 +989,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                               ),
                                             ],
                                           ),
+                                        ),
+                                      ),
+                                      CardExpanderItem(
+                                        key: const ValueKey(
+                                          'settings-fly-narwhal-dandan-account',
+                                        ),
+                                        icon: const Icon(FluentIcons.contact),
+                                        heading: Text(
+                                          l10n.settingsDanmuDandanAccount,
+                                        ),
+                                        caption: Text(
+                                          danmuAccountConfigured
+                                              ? l10n
+                                                  .settingsDanmuDandanAccountConfigured
+                                              : l10n
+                                                  .settingsDanmuDandanAccountPrompt,
+                                        ),
+                                        trailing: AppButton(
+                                          key: const ValueKey(
+                                            'settings-danmu-dandan-account-open',
+                                          ),
+                                          onPressed: _openDandanAccountDialog,
+                                          child: Text(l10n.danmuSourceConfigure),
                                         ),
                                       ),
                                       CardExpanderItem(

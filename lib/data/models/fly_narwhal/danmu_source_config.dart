@@ -83,17 +83,44 @@ class DanmuFallbackServer {
   }
 }
 
+/// Dandanplay open-network application credentials (edited in the client
+/// settings; stored server-side in DANMU_SOURCE_CONFIG). Empty = the official
+/// channel is off and the dandan search uses the relay.
+class DandanAccount {
+  const DandanAccount({this.appId = '', this.appSecret = ''});
+
+  final String appId;
+  final String appSecret;
+
+  bool get isConfigured => appId.isNotEmpty && appSecret.isNotEmpty;
+
+  factory DandanAccount.fromJson(Map<String, dynamic> json) {
+    return DandanAccount(
+      appId: (json['app_id'] as String?)?.trim() ?? '',
+      appSecret: (json['app_secret'] as String?)?.trim() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'app_id': appId,
+        'app_secret': appSecret,
+      };
+}
+
 class DanmuSourceConfig {
   const DanmuSourceConfig({
     this.dandan = const DanmuDandanConfig(),
     this.fallbackServers = const [],
+    this.dandanAccount = const DandanAccount(),
   });
 
   final DanmuDandanConfig dandan;
   final List<DanmuFallbackServer> fallbackServers;
+  final DandanAccount dandanAccount;
 
   factory DanmuSourceConfig.fromJson(Map<String, dynamic> json) {
     final dandanJson = json['dandan'];
+    final accountJson = json['dandan_account'];
     final rawServers = json['fallback_servers'];
     return DanmuSourceConfig(
       dandan: dandanJson is Map<String, dynamic>
@@ -106,11 +133,15 @@ class DanmuSourceConfig {
                   DanmuFallbackServer.fromJson(Map<String, dynamic>.from(e)))
               .toList(growable: false)
           : const [],
+      dandanAccount: accountJson is Map<String, dynamic>
+          ? DandanAccount.fromJson(accountJson)
+          : const DandanAccount(),
     );
   }
 
   Map<String, dynamic> toJson() => {
         'dandan': dandan.toJson(),
         'fallback_servers': fallbackServers.map((e) => e.toJson()).toList(),
+        'dandan_account': dandanAccount.toJson(),
       };
 }

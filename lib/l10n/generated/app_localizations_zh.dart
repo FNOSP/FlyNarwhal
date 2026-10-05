@@ -2712,6 +2712,35 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get danmuSourceRelayUnreachable => '弹弹play中继不可用';
+
+  @override
+  String get settingsDanmuDandanAccount => '弹弹play 官方账号';
+
+  @override
+  String get settingsDanmuDandanAccountCaption =>
+      '填写 AppId/AppSecret 启用官方弹幕网络，曲库更全（含部分美剧）';
+
+  @override
+  String get settingsDanmuDandanAccountConfigured => '已配置';
+
+  @override
+  String get settingsDanmuDandanAccountPrompt => '未配置';
+
+  @override
+  String get danmuDandanAccountDialogTitle => '弹弹play 官方账号';
+
+  @override
+  String get danmuDandanAccountHint =>
+      '在 doc.dandanplay.com/open 免费申请应用获取 AppId/AppSecret';
+
+  @override
+  String get danmuDandanAccountAppIdHint => 'AppId';
+
+  @override
+  String get danmuDandanAccountAppSecretHint => 'AppSecret';
+
+  @override
+  String get danmuDandanAccountClear => '清除';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -5422,4 +5451,33 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get danmuSourceRelayUnreachable => '彈彈play中繼無法連線';
+
+  @override
+  String get settingsDanmuDandanAccount => '彈彈play 官方帳號';
+
+  @override
+  String get settingsDanmuDandanAccountCaption =>
+      '填寫 AppId/AppSecret 啟用官方彈幕網路，曲庫更全（含部分美劇）';
+
+  @override
+  String get settingsDanmuDandanAccountConfigured => '已設定';
+
+  @override
+  String get settingsDanmuDandanAccountPrompt => '未設定';
+
+  @override
+  String get danmuDandanAccountDialogTitle => '彈彈play 官方帳號';
+
+  @override
+  String get danmuDandanAccountHint =>
+      '在 doc.dandanplay.com/open 免費申請應用取得 AppId/AppSecret';
+
+  @override
+  String get danmuDandanAccountAppIdHint => 'AppId';
+
+  @override
+  String get danmuDandanAccountAppSecretHint => 'AppSecret';
+
+  @override
+  String get danmuDandanAccountClear => '清除';
 }

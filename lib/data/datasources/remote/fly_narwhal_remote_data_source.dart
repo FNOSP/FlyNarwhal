@@ -190,6 +190,15 @@ class FlyNarwhalRemoteDataSource {
         data: server.toJson(), fromJsonT: (json) => json?.toString() ?? '');
   }
 
+  /// Upserts the dandanplay open-network credentials; both blank deletes the
+  /// stored row (official channel off).
+  Future<ApiResult<SmartAnalysisResult<String>>> saveDandanAccount({
+    required DandanAccount account,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandanAccount,
+        data: account.toJson(), fromJsonT: (json) => json?.toString() ?? '');
+  }
+
   Future<ApiResult<SmartAnalysisResult<String>>> deleteFallbackServer(int id) {
     return _delete(
         '${ApiEndpoints.flyNarwhalDanmuSourceConfigFallback}/$id',

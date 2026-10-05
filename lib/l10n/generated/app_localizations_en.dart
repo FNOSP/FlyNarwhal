@@ -2806,4 +2806,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get danmuSourceRelayUnreachable => 'Dandanplay relay unreachable';
+
+  @override
+  String get settingsDanmuDandanAccount => 'Dandanplay official account';
+
+  @override
+  String get settingsDanmuDandanAccountCaption =>
+      'Enter AppId/AppSecret to enable the official danmaku network with a broader library (incl. some western shows)';
+
+  @override
+  String get settingsDanmuDandanAccountConfigured => 'Configured';
+
+  @override
+  String get settingsDanmuDandanAccountPrompt => 'Not configured';
+
+  @override
+  String get danmuDandanAccountDialogTitle => 'Dandanplay official account';
+
+  @override
+  String get danmuDandanAccountHint =>
+      'Register a free application at doc.dandanplay.com/open to get AppId/AppSecret';
+
+  @override
+  String get danmuDandanAccountAppIdHint => 'AppId';
+
+  @override
+  String get danmuDandanAccountAppSecretHint => 'AppSecret';
+
+  @override
+  String get danmuDandanAccountClear => 'Clear';
 }
