@@ -238,12 +238,18 @@ class _DanmuFallbackServersDialogState
               key: const ValueKey('settings-danmu-fallback-name-input'),
               controller: nameController,
               placeholder: l10n.danmuSourceFallbackNameHint,
+              // Faded placeholder (matches the settings page's other fields)
+              // so an untouched field doesn't read as already filled.
+              placeholderStyle: TextStyle(
+                color: Colors.grey[130],
+              ),
             ),
             const SizedBox(height: 12),
             TextBox(
               key: const ValueKey('settings-danmu-fallback-url-input'),
               controller: urlController,
-              placeholder: 'https://dmku.hls.one',
+              // No placeholder: a pre-typed URL looks filled-in at a glance
+              // and invites saving an accidental default.
               onChanged: (_) {
                 if (urlError.value) urlError.value = false;
               },
