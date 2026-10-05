@@ -26,12 +26,16 @@ class _DanmuFallbackServersDialogState
   @override
   void initState() {
     super.initState();
-    _loadIfNeeded();
-  }
-
-  void _loadIfNeeded() {
-    final controller = ref.read(danmuSourceConfigControllerProvider.notifier);
-    controller.load();
+    // load() flips the provider state on its first line; doing that
+    // synchronously in initState throws Riverpod's "modify a provider while
+    // the widget tree is building" because the settings screen is already
+    // watching this controller. Defer to after the frame, the same pattern the
+    // settings screen uses for its initial load.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(danmuSourceConfigControllerProvider.notifier).load();
+      }
+    });
   }
 
   @override
