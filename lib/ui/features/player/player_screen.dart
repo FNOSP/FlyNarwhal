@@ -1479,14 +1479,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   /// Whether the server's smart-skip *config* endpoint can be used. Servers
-  /// below 0.7.0 analyze segments but expose no config API, so the config entry
+  /// below 2.0.0 analyze segments but expose no config API, so the config entry
   /// must stay hidden there even though smart skip itself works.
   bool _smartSkipConfigAvailable(SettingsState settings) {
     if (!settings.flyNarwhalServerEnabled) return false;
     return ref
             .watch(flyNarwhalServerCapabilitiesProvider)
             .valueOrNull
-            ?.supportsSmartSkipConfig ??
+            ?.supportsModernContract ??
         false;
   }
 
@@ -3603,7 +3603,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ref.read(danmakuControllerProvider.notifier).loadDanmaku(
                 _buildDanmakuRequest(result.playInfo),
                 allowLegacyKeyFallback:
-                    !capabilities.supportsWholeWorkDanmakuKey,
+                    !capabilities.supportsModernContract,
               ),
         );
       } else {
@@ -6626,7 +6626,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       final loaded = await controller.loadDanmaku(
         _buildDanmakuRequest(playInfo),
-        allowLegacyKeyFallback: !capabilities.supportsWholeWorkDanmakuKey,
+        allowLegacyKeyFallback: !capabilities.supportsModernContract,
       );
       if (!mounted) return;
       if (loaded) {

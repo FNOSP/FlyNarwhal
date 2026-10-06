@@ -47,6 +47,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final TextEditingController _updateProxyUrlController =
       TextEditingController();
   bool _danmuSourceConfigLoadRequested = false;
+  bool _capabilitiesProbeRequested = false;
+  String? _lastProbedFlyNarwhalServerUrl;
   bool _isFlyNarwhalAuthCodeVisible = false;
   List<String> _availableLogDates = const <String>[];
   String? _selectedLogDate;
@@ -67,6 +69,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (_availableLogDates.isNotEmpty) {
       _selectedLogDate = _availableLogDates.first;
     }
+
+    // Ask the server for its version on entry, so the cards that only exist on
+    // 2.0.0-or-newer servers are drawn from a fresh answer rather than from
+    // whatever the last probe (possibly a different server) left behind.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _probeCapabilities());
+  }
+
+  /// Requests the server version unless the server isn't fully configured.
+  ///
+  /// The answer flips the 2.0.0-gated cards; it is deliberately not cached
+  /// across entries, because the server may have been updated or replaced.
+  void _probeCapabilities() {
+    final settings = ref.read(settingsProvider);
+    final baseUrl = settings.flyNarwhalServerBaseUrl;
+    if (!settings.flyNarwhalServerEnabled || baseUrl.isEmpty) {
+      return;
+    }
+    if (!settings.hasFlyNarwhalAuthCode) {
+      return;
+    }
+    if (baseUrl != _lastProbedFlyNarwhalServerUrl) {
+      _lastProbedFlyNarwhalServerUrl = baseUrl;
+      _capabilitiesProbeRequested = true;
+    }
+    if (!_capabilitiesProbeRequested || !mounted) {
+      return;
+    }
+    unawaited(probeFlyNarwhalServerCapabilities(ref));
   }
 
   /// One-line state of the two dandanplay sources for the settings card, e.g.
@@ -226,12 +256,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // Once the connected server is known to carry the danmu source config API,
     // pull the stored values a single time per screen life so the card summary
     // reflects the current sources without opening the dialog.
-    final supportsDanmuSourceConfig = ref
+    final supportsModernContract = ref
             .watch(flyNarwhalServerCapabilitiesProvider)
             .valueOrNull
-            ?.supportsDanmuSourceConfig ??
+            ?.supportsModernContract ??
         false;
-    if (supportsDanmuSourceConfig && !_danmuSourceConfigLoadRequested) {
+    if (supportsModernContract && !_danmuSourceConfigLoadRequested) {
       _danmuSourceConfigLoadRequested = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -246,6 +276,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final currentVersionAsync = ref.watch(currentAppVersionProvider);
     final canExportLogs =
         errorLogExporter.isSupported && _availableLogDates.isNotEmpty;
+
+    // A changed address, auth code or enable switch means the previously probed
+    // version belongs to a different server, so re-ask. Edits to unrelated
+    // settings leave the state untouched and trigger nothing.
+    ref.listen<SettingsState>(settingsProvider, (previous, next) {
+      if (previous == null) return;
+      final changed = previous.flyNarwhalServerEnabled !=
+              next.flyNarwhalServerEnabled ||
+          previous.flyNarwhalServerBaseUrl != next.flyNarwhalServerBaseUrl ||
+          previous.hasFlyNarwhalAuthCode != next.hasFlyNarwhalAuthCode;
+      if (changed) {
+        _probeCapabilities();
+      }
+    });
 
     ref.listen<AsyncValue<String?>>(
       flyNarwhalConnectionTestProvider,
@@ -739,7 +783,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         child: Text(l10n.settingsServerAuthCodePlaceholder),
                                       ),
                                     ),
-                                    // Servers below 0.7.0 analyze segments but
+                                    // Servers below 2.0.0 analyze segments but
                                     // expose no config API, so this card would
                                     // open onto a failing request.
                                     if (ref
@@ -747,7 +791,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                               flyNarwhalServerCapabilitiesProvider,
                                             )
                                             .valueOrNull
-                                            ?.supportsSmartSkipConfig ??
+                                            ?.supportsModernContract ??
                                         false)
                                       CardExpanderItem(
                                         key: const ValueKey(
@@ -779,8 +823,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         ),
                                       ),
                                     // Danmu source config endpoints only exist
-                                    // on servers newer than 0.7.0.
-                                    if (supportsDanmuSourceConfig) ...[
+                                    // on servers 2.0.0 or newer.
+                                    if (supportsModernContract) ...[
                                       CardExpanderItem(
                                         key: const ValueKey(
                                           'settings-fly-narwhal-dandan-source',

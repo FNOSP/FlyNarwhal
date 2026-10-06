@@ -3,16 +3,11 @@ import '../core/utils/log/app_talker.dart';
 import 'fly_narwhal_server_update_notifier.dart';
 import 'providers.dart';
 
-/// First server release that carries both the whole-work danmaku key (a movie's
-/// danmaku comes back under `default` instead of an episode ordinal) and the
-/// `/api/analysis/smart-skip-config` endpoint. Anything older must be talked to
-/// with the pre-0.7.0 contract.
-const String minServerVersionForModernContract = '0.7.0';
-
-/// The `/api/danmu/source-config` endpoints landed after 0.7.0 (in 0.11.0);
-/// versions up to 0.10.0 were never publicly released, so the gate is a strict
-/// "newer than 0.7.0" comparison.
-const String minServerVersionForDanmuSourceConfig = '0.7.0';
+/// First server release that carries the whole-work danmaku key (a movie's
+/// danmaku comes back under `default` instead of an episode ordinal), the
+/// `/api/analysis/smart-skip-config` endpoint and the `/api/danmu/source-config`
+/// endpoints. Anything older must be talked to with the pre-2.0.0 contract.
+const String minServerVersionForModernContract = '2.0.0';
 
 /// What the connected FlyNarwhal server is known to support.
 ///
@@ -23,34 +18,25 @@ final class FlyNarwhalServerCapabilities {
   const FlyNarwhalServerCapabilities({
     required this.rawVersion,
     required this.versionKnown,
-    required this.supportsWholeWorkDanmakuKey,
-    required this.supportsSmartSkipConfig,
-    required this.supportsDanmuSourceConfig,
+    required this.supportsModernContract,
   });
 
   /// Unknown — the probe failed, timed out, or the server reported nothing.
   const FlyNarwhalServerCapabilities.unknown()
       : rawVersion = '',
         versionKnown = false,
-        supportsWholeWorkDanmakuKey = false,
-        supportsSmartSkipConfig = false,
-        supportsDanmuSourceConfig = false;
+        supportsModernContract = false;
 
   /// Version exactly as the server reported it, or `''` when unknown.
   final String rawVersion;
 
   final bool versionKnown;
 
-  /// Server keys a whole-work danmaku response by `default` rather than by an
-  /// episode ordinal (where a movie lands on `1`).
-  final bool supportsWholeWorkDanmakuKey;
-
-  /// Server exposes `/api/analysis/smart-skip-config`.
-  final bool supportsSmartSkipConfig;
-
-  /// Server exposes the runtime-editable `/api/danmu/source-config` endpoints
-  /// (dandanplay relay + third-party fallback servers).
-  final bool supportsDanmuSourceConfig;
+  /// Server is 2.0.0 or newer: it keys a whole-work danmaku response by
+  /// `default` rather than by an episode ordinal (where a movie lands on `1`),
+  /// and exposes `/api/analysis/smart-skip-config` plus the runtime-editable
+  /// `/api/danmu/source-config` endpoints.
+  final bool supportsModernContract;
 
   static FlyNarwhalServerCapabilities fromVersion(String version) {
     final trimmed = version.trim();
@@ -62,17 +48,10 @@ final class FlyNarwhalServerCapabilities {
           minServerVersionForModernContract,
         ) >=
         0;
-    final hasDanmuSourceConfig = FlyNarwhalServerUpdateNotifier.compareVersions(
-          trimmed,
-          minServerVersionForDanmuSourceConfig,
-        ) >
-        0;
     return FlyNarwhalServerCapabilities(
       rawVersion: trimmed,
       versionKnown: true,
-      supportsWholeWorkDanmakuKey: isModern,
-      supportsSmartSkipConfig: isModern,
-      supportsDanmuSourceConfig: hasDanmuSourceConfig,
+      supportsModernContract: isModern,
     );
   }
 }
@@ -100,7 +79,7 @@ final flyNarwhalServerCapabilitiesProvider =
     final capabilities = FlyNarwhalServerCapabilities.fromVersion(version);
     AppTalker.info(
       'FlyNarwhalCapabilities',
-      '服务端版本 $version, 新契约=${capabilities.supportsSmartSkipConfig}',
+      '服务端版本 $version, 新契约=${capabilities.supportsModernContract}',
     );
     return capabilities;
   } catch (error) {

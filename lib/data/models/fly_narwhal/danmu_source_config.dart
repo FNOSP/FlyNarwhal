@@ -1,5 +1,5 @@
 /// Runtime-editable danmu source configuration served by
-/// `/api/danmu/source-config` (server > 0.7.0).
+/// `/api/danmu/source-config` (server >= 2.0.0).
 ///
 /// The server is the single source of truth — nothing here is mirrored into
 /// local preferences. Hand-written JSON codecs, matching the style of

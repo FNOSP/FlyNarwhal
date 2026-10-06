@@ -212,7 +212,7 @@ class PlayerSettingsMenu extends StatefulWidget {
   final bool isSmartAnalysisGloballyEnabled;
 
   /// Whether the server exposes the smart-skip config endpoint. Servers below
-  /// 0.7.0 analyze segments but have no config API, so the entry stays hidden
+  /// 2.0.0 analyze segments but have no config API, so the entry stays hidden
   /// there while smart skip itself remains usable.
   final bool isSmartSkipConfigAvailable;
   final bool isSavingSkipConfig;
@@ -781,7 +781,7 @@ class _SettingsFlyoutContent extends StatelessWidget {
   final Future<bool> Function(bool)? onSmartSkipEnabledChanged;
   final bool isSmartAnalysisGloballyEnabled;
 
-  /// Whether the server exposes the smart-skip config endpoint (>= 0.7.0).
+  /// Whether the server exposes the smart-skip config endpoint (>= 2.0.0).
   final bool isSmartSkipConfigAvailable;
   final bool isSavingSkipConfig;
   final bool isAutoPlay;
@@ -2130,7 +2130,7 @@ class _SkipConfigSettingsScreen extends StatefulWidget {
   final bool isFlyNarwhalServerAvailable;
   // Called when user tries to enable smart skip without full config
   final VoidCallback? onFlyNarwhalConfigMissing;
-  // Whether the server exposes the smart-skip config endpoint (>= 0.7.0).
+  // Whether the server exposes the smart-skip config endpoint (>= 2.0.0).
   final bool isSmartSkipConfigAvailable;
   // Opens the server-side smart skip analysis configuration screen.
   final VoidCallback? onNavigateToSmartSkipConfig;

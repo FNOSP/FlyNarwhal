@@ -51,9 +51,9 @@ void main() {
     final version = versionResult.dataOrNull?.data?.trim() ?? '';
     final capabilities = FlyNarwhalServerCapabilities.fromVersion(version);
     expect(
-      capabilities.supportsDanmuSourceConfig,
+      capabilities.supportsModernContract,
       isTrue,
-      reason: 'this live test needs a server newer than 0.7.0 (got $version)',
+      reason: 'this live test needs a server 2.0.0 or newer (got $version)',
     );
 
     final config = await _configOrFail(ds);

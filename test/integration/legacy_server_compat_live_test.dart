@@ -52,12 +52,11 @@ void main() {
     final capabilities = FlyNarwhalServerCapabilities.fromVersion(version);
     expect(capabilities.versionKnown, isTrue);
     expect(
-      capabilities.supportsWholeWorkDanmakuKey,
+      capabilities.supportsModernContract,
       isFalse,
-      reason: 'a pre-0.7.0 server keys a movie by the ordinal it was sent, '
+      reason: 'a pre-2.0.0 server keys a movie by the ordinal it was sent, '
           'so the whole-work key must stay off (version=$version)',
     );
-    expect(capabilities.supportsSmartSkipConfig, isFalse);
   });
 
   test('a movie request against the legacy server is keyed by its ordinal',

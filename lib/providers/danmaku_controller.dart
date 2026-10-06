@@ -309,7 +309,7 @@ class DanmakuController extends StateNotifier<DanmakuState> {
     if (!allowLegacyKeyFallback) {
       return const <Danmaku>[];
     }
-    // Pre-0.7.0 servers echo back the ordinal the request was made with, so a
+    // Pre-2.0.0 servers echo back the ordinal the request was made with, so a
     // movie asked for as episode 0 comes back under "0". They only fall back to
     // "1" when no episode number was sent at all.
     for (final legacyKey in const <String>['0', '1']) {

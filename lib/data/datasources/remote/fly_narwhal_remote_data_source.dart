@@ -164,7 +164,7 @@ class FlyNarwhalRemoteDataSource {
   }
 
   /// Reads the runtime-editable danmu source config (dandanplay relay +
-  /// fallback servers). Requires server > 0.7.0.
+  /// fallback servers). Requires server >= 2.0.0.
   Future<ApiResult<SmartAnalysisResult<DanmuSourceConfig>>>
       getDanmuSourceConfig() {
     return _get(ApiEndpoints.flyNarwhalDanmuSourceConfig,

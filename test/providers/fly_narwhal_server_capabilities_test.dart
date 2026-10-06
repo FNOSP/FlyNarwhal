@@ -3,44 +3,37 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FlyNarwhalServerCapabilities.fromVersion', () {
-    test('a modern server keeps the whole-work key and config endpoint', () {
-      final capabilities = FlyNarwhalServerCapabilities.fromVersion('0.9.0');
+    test('a newer server carries the modern contract', () {
+      final capabilities = FlyNarwhalServerCapabilities.fromVersion('2.1.0');
       expect(capabilities.versionKnown, isTrue);
-      expect(capabilities.rawVersion, '0.9.0');
-      expect(capabilities.supportsWholeWorkDanmakuKey, isTrue);
-      expect(capabilities.supportsSmartSkipConfig, isTrue);
-      expect(capabilities.supportsDanmuSourceConfig, isTrue);
+      expect(capabilities.rawVersion, '2.1.0');
+      expect(capabilities.supportsModernContract, isTrue);
     });
 
-    test('the danmu source config ships after 0.7.0', () {
-      final capabilities =
-          FlyNarwhalServerCapabilities.fromVersion('0.11.0');
-      expect(capabilities.supportsDanmuSourceConfig, isTrue);
-    });
-
-    test('the threshold version itself is treated as modern', () {
-      final capabilities = FlyNarwhalServerCapabilities.fromVersion('0.7.0');
-      expect(capabilities.supportsWholeWorkDanmakuKey, isTrue);
-      expect(capabilities.supportsSmartSkipConfig, isTrue);
-      // ...but 0.7.0 itself predates /api/danmu/source-config (strict >).
-      expect(capabilities.supportsDanmuSourceConfig, isFalse);
+    test('the threshold version itself counts as modern', () {
+      final capabilities = FlyNarwhalServerCapabilities.fromVersion('2.0.0');
+      expect(capabilities.supportsModernContract, isTrue);
     });
 
     test('an older server falls back to the legacy contract', () {
-      final capabilities = FlyNarwhalServerCapabilities.fromVersion('0.6.4');
-      expect(capabilities.versionKnown, isTrue);
-      expect(capabilities.supportsWholeWorkDanmakuKey, isFalse);
-      expect(capabilities.supportsSmartSkipConfig, isFalse);
-      expect(capabilities.supportsDanmuSourceConfig, isFalse);
+      for (final version in <String>['1.9.9', '0.11.0', '0.6.4']) {
+        final capabilities = FlyNarwhalServerCapabilities.fromVersion(version);
+        expect(capabilities.versionKnown, isTrue, reason: 'version="$version"');
+        expect(capabilities.supportsModernContract, isFalse,
+            reason: 'version="$version"');
+      }
+    });
+
+    test('a build suffix does not lift an old version over the threshold', () {
+      final capabilities =
+          FlyNarwhalServerCapabilities.fromVersion('1.9.9-fnapp');
+      expect(capabilities.supportsModernContract, isFalse);
     });
 
     test('a build suffix does not demote a modern version', () {
       final capabilities =
-          FlyNarwhalServerCapabilities.fromVersion('0.7.0-fnapp');
-      expect(capabilities.supportsWholeWorkDanmakuKey, isTrue);
-      expect(capabilities.supportsSmartSkipConfig, isTrue);
-      expect(capabilities.supportsDanmuSourceConfig, isFalse,
-          reason: 'suffix does not lift 0.7.0 above the strict threshold');
+          FlyNarwhalServerCapabilities.fromVersion('2.0.0-fnapp');
+      expect(capabilities.supportsModernContract, isTrue);
     });
 
     test('an empty or placeholder version is unknown, not modern', () {
@@ -48,9 +41,8 @@ void main() {
         final capabilities = FlyNarwhalServerCapabilities.fromVersion(version);
         expect(capabilities.versionKnown, isFalse,
             reason: 'version="$version"');
-        expect(capabilities.supportsWholeWorkDanmakuKey, isFalse);
-        expect(capabilities.supportsSmartSkipConfig, isFalse);
-        expect(capabilities.supportsDanmuSourceConfig, isFalse);
+        expect(capabilities.supportsModernContract, isFalse,
+            reason: 'version="$version"');
       }
     });
 
@@ -58,9 +50,7 @@ void main() {
       const capabilities = FlyNarwhalServerCapabilities.unknown();
       expect(capabilities.versionKnown, isFalse);
       expect(capabilities.rawVersion, isEmpty);
-      expect(capabilities.supportsWholeWorkDanmakuKey, isFalse);
-      expect(capabilities.supportsSmartSkipConfig, isFalse);
-      expect(capabilities.supportsDanmuSourceConfig, isFalse);
+      expect(capabilities.supportsModernContract, isFalse);
     });
   });
 }
