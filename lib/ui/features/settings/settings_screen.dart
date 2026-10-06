@@ -23,6 +23,7 @@ import 'widgets/card_expander_item.dart';
 import 'widgets/changelog_dialog.dart';
 import 'widgets/danmu_dandan_source_dialog.dart';
 import 'widgets/danmu_fallback_servers_dialog.dart';
+import 'widgets/segmented_slider.dart';
 import 'widgets/shortcut_settings_dialog.dart';
 import 'widgets/smart_skip_config_dialog.dart';
 import 'widgets/ssl_whitelist_dialog.dart';
@@ -54,6 +55,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String? _selectedLogDate;
   bool _isExportingLogs = false;
   String? _logExportErrorMessage;
+
+  /// 「字体大小」所在的行。改字号会让它上方所有行重新排版，用这个 key
+  /// 量出该行的位置，把滚动偏移补偿回去，避免它从指针下方跑掉。
+  final GlobalKey _fontScaleRowKey = GlobalKey();
+
+  /// 待补偿的字号切换：切换前该行在内容坐标中的位置和目标字号。
+  /// 等 build 观察到新字号真正排版生效后才消费。
+  ({double baselineOffsetInContent, String target})? _pendingFontScaleAnchor;
+
+  /// 补偿进行中：列表暂时沿用的缩放系数。
+  ///
+  /// 行高与字号不是线性关系（实测 0.85/1.0/1.25 对应 74/77/87px），位移
+  /// 只能等新排版量出来才知道；而 Flutter 的度量都在排版之后，所以
+  /// 「先量后补」必然晚一帧。让列表在补偿落地前保持旧字号排版，就根本
+  /// 不会产生那一帧的位移，也就没有可感知的跳动或闪烁。
+  double? _listFontScaleFactorForLayout;
 
   @override
   void initState() {
@@ -244,6 +261,71 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.dispose();
   }
 
+  /// 「字体大小」行顶部相对滚动内容原点的偏移。
+  double? _fontScaleRowOffsetInContent() {
+    final rowContext = _fontScaleRowKey.currentContext;
+    final scrollable = _scrollController.position.context.storageContext;
+    final rowBox = rowContext?.findRenderObject() as RenderBox?;
+    final viewportBox = scrollable.findRenderObject() as RenderBox?;
+    if (rowBox == null || viewportBox == null) return null;
+    // 该行在视口坐标系里的 y，加上已滚动距离即内容坐标。
+    final rowTopInViewport =
+        rowBox.localToGlobal(Offset.zero, ancestor: viewportBox).dy;
+    return rowTopInViewport + _scrollController.offset;
+  }
+
+  /// 切换字号：先记下该行当前在内容中的位置，等新排版生效后补偿滚动。
+  void _applyUiFontScale(SettingsNotifier settingsNotifier, String value) {
+    final before = _fontScaleRowOffsetInContent();
+    if (before != null) {
+      _pendingFontScaleAnchor = (
+        baselineOffsetInContent: before,
+        target: value,
+      );
+      // 列表先钉在旧字号上：这一帧不重排，行就不会动。
+      setState(() {
+        _listFontScaleFactorForLayout =
+            UiFontScale.factorFromValue(ref.read(settingsProvider).uiFontScale);
+      });
+    }
+    settingsNotifier.setUiFontScale(value);
+  }
+
+  /// [build] 排完版后调用：把新字号与滚动补偿放在同一帧一起生效。
+  ///
+  /// 补偿量 = 该行在内容坐标中的位移。用 jumpTo 而不是 correctBy：后者
+  /// 只是标记一次待处理的修正，需要下一轮 applyContentDimensions 才会
+  /// 生效，在布局之外调用不会有任何效果。
+  void _settleFontScaleAnchor() {
+    final pending = _pendingFontScaleAnchor;
+    if (pending == null) return;
+    // 新字号尚未生效，下一帧再试。
+    if (pending.target != ref.read(settingsProvider).uiFontScale) return;
+    _pendingFontScaleAnchor = null;
+    if (!mounted) return;
+    setState(() => _listFontScaleFactorForLayout = null);
+    if (!_scrollController.hasClients) return;
+    // 此刻列表仍按旧字号排版，量到的位移就是「换成新字号后会产生的位移」。
+    final oldLayoutOffset = _fontScaleRowOffsetInContent();
+    if (oldLayoutOffset == null) return;
+    // 下一帧按新字号重排后，把这段时间内新增的位移补回去。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final after = _fontScaleRowOffsetInContent();
+      if (after == null) return;
+      final delta = after - oldLayoutOffset;
+      if (delta == 0) return;
+      final position = _scrollController.position;
+      final target = (position.pixels + delta).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      if (target != position.pixels) {
+        _scrollController.jumpTo(target);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -276,6 +358,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final currentVersionAsync = ref.watch(currentAppVersionProvider);
     final canExportLogs =
         errorLogExporter.isSupported && _availableLogDates.isNotEmpty;
+
+    // 这一帧已按新字号排版，据此补偿滚动偏移，把「字体大小」那行钉回
+    // 原位。
+    if (_pendingFontScaleAnchor != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _settleFontScaleAnchor();
+      });
+    }
 
     // A changed address, auth code or enable switch means the previously probed
     // version belongs to a different server, so re-ask. Edits to unrelated
@@ -340,12 +430,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
               Expanded(
-                child: Scrollbar(
-                  controller: _scrollController,
-                  child: ListView(
+                // 切换字号时，这一帧的列表先按旧字号排版：整页不重排，
+                // 「字体大小」那一行自然不会位移。等 postFrame 里把滚动
+                // 偏移补偿好，下一帧两者一起生效，用户看不到中间态。
+                child: MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: TextScaler.linear(
+                      _listFontScaleFactorForLayout ??
+                          UiFontScale.factorFromValue(settings.uiFontScale),
+                    ),
+                  ),
+                  child: Scrollbar(
                     controller: _scrollController,
-                    primary: false,
-                    padding: EdgeInsets.zero,
+                    child: ListView(
+                      controller: _scrollController,
+                      primary: false,
+                      padding: EdgeInsets.zero,
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(top: 8, bottom: 24),
@@ -565,51 +665,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 ),
                               ),
                               CardExpanderItem(
+                                key: _fontScaleRowKey,
                                 icon: const Icon(FluentIcons.font_size),
                                 heading: Text(l10n.settingsGeneralFontSize),
                                 caption: Text(l10n.settingsGeneralFontSizeCaption),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(
-                                      width: 160,
-                                      child: Slider(
-                                        key: const ValueKey(
-                                          'settings-ui-font-scale',
-                                        ),
-                                        value: UiFontScale.indexFromValue(
-                                          settings.uiFontScale,
-                                        ).toDouble(),
-                                        min: 0,
-                                        max:
-                                            (UiFontScale.values.length - 1)
-                                                .toDouble(),
-                                        divisions:
-                                            UiFontScale.values.length - 1,
-                                        label: UiFontScale.labelFromValue(
-                                          settings.uiFontScale,
-                                          l10n,
-                                        ),
-                                        onChanged: (index) =>
-                                            settingsNotifier.setUiFontScale(
-                                          UiFontScale.valueFromIndex(
-                                            index.round(),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    SizedBox(
-                                      width: 20,
-                                      child: Text(
-                                        UiFontScale.labelFromValue(
-                                          settings.uiFontScale,
-                                          l10n,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                  ],
+                                trailing: SegmentedSlider<String>(
+                                  key: const ValueKey(
+                                    'settings-ui-font-scale',
+                                  ),
+                                  values: UiFontScale.values,
+                                  selected: settings.uiFontScale,
+                                  labelBuilder: (value) =>
+                                      UiFontScale.labelFromValue(value, l10n),
+                                  onChanged: (value) => _applyUiFontScale(
+                                    settingsNotifier,
+                                    value,
+                                  ),
                                 ),
                               ),
                               CardExpanderItem(
@@ -1097,6 +1168,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
               ),
+            ),
             ],
           ),
         ),
@@ -1327,3 +1399,4 @@ class _Header extends StatelessWidget {
     );
   }
 }
+
