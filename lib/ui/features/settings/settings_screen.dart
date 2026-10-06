@@ -382,8 +382,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // the user is typing: only overwrite when the field still shows the
     // previous stored value (or is empty).
     ref.listen(danmuSourceConfigControllerProvider, (prev, next) {
-      final nextUrl = next.config.valueOrNull?.dandan.url ?? '';
-      final prevUrl = prev?.config.valueOrNull?.dandan.url;
+      // A disabled relay reads as an empty field: the server keeps the stored
+      // address when the user clears it, so mirroring the raw url would
+      // instantly refill what they just deleted.
+      final nextDandan = next.config.valueOrNull?.dandan;
+      final prevDandan = prev?.config.valueOrNull?.dandan;
+      final nextUrl = (nextDandan != null && nextDandan.enabled) ? nextDandan.url : '';
+      final prevUrl = (prevDandan != null && prevDandan.enabled) ? prevDandan.url : '';
       final current = _danmuDandanRelayController.text;
       if (nextUrl != prevUrl && (current.isEmpty || current == prevUrl)) {
         _danmuDandanRelayController.text = nextUrl;
