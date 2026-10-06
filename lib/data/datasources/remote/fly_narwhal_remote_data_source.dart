@@ -172,13 +172,13 @@ class FlyNarwhalRemoteDataSource {
             Map<String, dynamic>.from(json as Map)));
   }
 
-  /// Upserts the single dandanplay relay; an empty [url] disables the source.
+  /// Upserts the single dandanplay relay. [enabled] is the switch; a blank
+  /// [url] with it on just leaves the source without an address.
   Future<ApiResult<SmartAnalysisResult<String>>> saveDandanRelay({
-    required String url,
+    required DanmuDandanConfig dandan,
   }) {
     return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandan,
-        data: <String, dynamic>{'url': url},
-        fromJsonT: (json) => json?.toString() ?? '');
+        data: dandan.toJson(), fromJsonT: (json) => json?.toString() ?? '');
   }
 
   /// Inserts (no id) or updates (with id) one fallback server; the same call
@@ -190,13 +190,33 @@ class FlyNarwhalRemoteDataSource {
         data: server.toJson(), fromJsonT: (json) => json?.toString() ?? '');
   }
 
-  /// Upserts the dandanplay open-network credentials; both blank deletes the
-  /// stored row (official channel off).
+  /// Upserts the dandanplay open-network credentials and their enable switch.
   Future<ApiResult<SmartAnalysisResult<String>>> saveDandanAccount({
     required DandanAccount account,
   }) {
     return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandanAccount,
         data: account.toJson(), fromJsonT: (json) => json?.toString() ?? '');
+  }
+
+  /// Picks which dandan channel is tried first; the server writes both rows so
+  /// exactly one of them holds priority 0.
+  Future<ApiResult<SmartAnalysisResult<String>>> setDandanPreferred({
+    required bool officialPreferred,
+  }) {
+    return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandanPreferred,
+        data: <String, dynamic>{'official_preferred': officialPreferred},
+        fromJsonT: (json) => json?.toString() ?? '');
+  }
+
+  /// Probes the official open API with [account]'s credentials (or the stored
+  /// ones when a field is blank). Returns the server-side result as
+  /// `{ok, detail}` — the signature can only be computed server-side.
+  Future<ApiResult<SmartAnalysisResult<Map<String, dynamic>>>>
+      testDandanAccount({required DandanAccount account}) {
+    return _post(ApiEndpoints.flyNarwhalDanmuSourceConfigDandanAccountTest,
+        data: account.toJson(),
+        fromJsonT: (json) =>
+            json is Map ? Map<String, dynamic>.from(json) : <String, dynamic>{});
   }
 
   Future<ApiResult<SmartAnalysisResult<String>>> deleteFallbackServer(int id) {

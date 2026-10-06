@@ -2639,7 +2639,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsDanmuDandanSourceCaption =>
-      '配置弹弹play中转服务器，补充番剧弹幕；清空并保存即停用';
+      '配置弹弹play官方服务与中转服务，可分别启用并指定优先使用的来源';
 
   @override
   String get settingsDanmuFallbackServers => '兜底弹幕服务器';
@@ -2714,33 +2714,74 @@ class AppLocalizationsZh extends AppLocalizations {
   String get danmuSourceRelayUnreachable => '弹弹play中继不可用';
 
   @override
-  String get settingsDanmuDandanAccount => '弹弹play 官方账号';
+  String get danmuDandanDialogTitle => '弹弹play 弹幕源';
 
   @override
-  String get settingsDanmuDandanAccountCaption =>
-      '填写 AppId/AppSecret 启用官方弹幕网络，曲库更全（含部分美剧）';
+  String get danmuDandanOfficialTitle => '官方服务';
 
   @override
-  String get settingsDanmuDandanAccountConfigured => '已配置';
+  String get danmuDandanOfficialCaption => '官方开放平台，弹幕更全（含部分美剧）';
 
   @override
-  String get settingsDanmuDandanAccountPrompt => '未配置';
+  String get danmuDandanRelayTitle => '中转服务';
 
   @override
-  String get danmuDandanAccountDialogTitle => '弹弹play 官方账号';
+  String get danmuDandanRelayCaption => '通过第三方 ddp 中转访问弹弹play';
 
   @override
-  String get danmuDandanAccountHint =>
+  String get danmuDandanEnable => '启用';
+
+  @override
+  String get danmuDandanPreferred => '首选';
+
+  @override
+  String get danmuDandanPreferredTooltip => '优先使用该来源搜索，无匹配结果时再尝试另一个';
+
+  @override
+  String get danmuDandanPreferredNeedsEnable => '需先启用该来源';
+
+  @override
+  String get danmuDandanOfficialAppIdHint => 'AppId';
+
+  @override
+  String get danmuDandanOfficialAppSecretHint => 'AppSecret';
+
+  @override
+  String get danmuDandanOfficialHint =>
       '在 doc.dandanplay.com/open 免费申请应用获取 AppId/AppSecret';
 
   @override
-  String get danmuDandanAccountAppIdHint => 'AppId';
+  String get danmuDandanRelayUrlHint => 'https://example.com/ddp/v1';
 
   @override
-  String get danmuDandanAccountAppSecretHint => 'AppSecret';
+  String get danmuDandanTest => '测试连通性';
 
   @override
-  String get danmuDandanAccountClear => '清除';
+  String get danmuDandanTesting => '测试中…';
+
+  @override
+  String get danmuDandanOfficialTestOk => '官方服务连通';
+
+  @override
+  String get danmuDandanOfficialTestFailed => '官方服务不可用';
+
+  @override
+  String get danmuDandanRelayTestOk => '中转服务连通';
+
+  @override
+  String get danmuDandanRelayTestFailed => '中转服务不可用';
+
+  @override
+  String get danmuDandanStatusEnabled => '已启用';
+
+  @override
+  String get danmuDandanStatusDisabled => '已停用';
+
+  @override
+  String get danmuDandanStatusPreferred => '优先';
+
+  @override
+  String get danmuDandanNoneEnabled => '未启用任何弹弹play来源';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -5378,7 +5419,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get settingsDanmuDandanSourceCaption =>
-      '設定彈彈play中繼伺服器，補充動畫彈幕；清空並儲存即停用';
+      '設定彈彈play官方服務與中繼服務，可分別啟用並指定優先使用的來源';
 
   @override
   String get settingsDanmuFallbackServers => '備援彈幕伺服器';
@@ -5453,31 +5494,72 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get danmuSourceRelayUnreachable => '彈彈play中繼無法連線';
 
   @override
-  String get settingsDanmuDandanAccount => '彈彈play 官方帳號';
+  String get danmuDandanDialogTitle => '彈彈play 彈幕來源';
 
   @override
-  String get settingsDanmuDandanAccountCaption =>
-      '填寫 AppId/AppSecret 啟用官方彈幕網路，曲庫更全（含部分美劇）';
+  String get danmuDandanOfficialTitle => '官方服務';
 
   @override
-  String get settingsDanmuDandanAccountConfigured => '已設定';
+  String get danmuDandanOfficialCaption => '官方開放平台，彈幕更全（含部分美劇）';
 
   @override
-  String get settingsDanmuDandanAccountPrompt => '未設定';
+  String get danmuDandanRelayTitle => '中繼服務';
 
   @override
-  String get danmuDandanAccountDialogTitle => '彈彈play 官方帳號';
+  String get danmuDandanRelayCaption => '透過第三方 ddp 中繼存取彈彈play';
 
   @override
-  String get danmuDandanAccountHint =>
+  String get danmuDandanEnable => '啟用';
+
+  @override
+  String get danmuDandanPreferred => '優先';
+
+  @override
+  String get danmuDandanPreferredTooltip => '優先使用該來源搜尋，無符合結果時再嘗試另一個';
+
+  @override
+  String get danmuDandanPreferredNeedsEnable => '需先啟用該來源';
+
+  @override
+  String get danmuDandanOfficialAppIdHint => 'AppId';
+
+  @override
+  String get danmuDandanOfficialAppSecretHint => 'AppSecret';
+
+  @override
+  String get danmuDandanOfficialHint =>
       '在 doc.dandanplay.com/open 免費申請應用取得 AppId/AppSecret';
 
   @override
-  String get danmuDandanAccountAppIdHint => 'AppId';
+  String get danmuDandanRelayUrlHint => 'https://example.com/ddp/v1';
 
   @override
-  String get danmuDandanAccountAppSecretHint => 'AppSecret';
+  String get danmuDandanTest => '測試連線';
 
   @override
-  String get danmuDandanAccountClear => '清除';
+  String get danmuDandanTesting => '測試中…';
+
+  @override
+  String get danmuDandanOfficialTestOk => '官方服務連線正常';
+
+  @override
+  String get danmuDandanOfficialTestFailed => '官方服務無法使用';
+
+  @override
+  String get danmuDandanRelayTestOk => '中繼服務連線正常';
+
+  @override
+  String get danmuDandanRelayTestFailed => '中繼服務無法使用';
+
+  @override
+  String get danmuDandanStatusEnabled => '已啟用';
+
+  @override
+  String get danmuDandanStatusDisabled => '已停用';
+
+  @override
+  String get danmuDandanStatusPreferred => '優先';
+
+  @override
+  String get danmuDandanNoneEnabled => '未啟用任何彈彈play來源';
 }

@@ -10,26 +10,46 @@ class DanmuDandanConfig {
   const DanmuDandanConfig({
     this.url = '',
     this.enabled = false,
+    this.priority,
   });
 
-  /// Effective ddp relay base URL; empty means the source is off.
+  /// Effective ddp relay base URL; empty means the source has no address.
   final String url;
 
+  /// Whether the relay is switched on. Independent of [url]: a blank address
+  /// with [enabled] true stores an unusable source rather than an off one.
   final bool enabled;
 
+  /// Search order against the official channel: 0 = preferred, 1 = fallback.
+  /// Null means the server has never been told — treat it as "official first".
+  final int? priority;
+
   factory DanmuDandanConfig.fromJson(Map<String, dynamic> json) {
+    final rawPriority = json['priority'];
     return DanmuDandanConfig(
       url: (json['url'] as String?)?.trim() ?? '',
       enabled: json['enabled'] == true,
+      priority: rawPriority is int
+          ? rawPriority
+          : int.tryParse(rawPriority?.toString() ?? ''),
     );
   }
 
-  Map<String, dynamic> toJson() => {'url': url, 'enabled': enabled};
+  Map<String, dynamic> toJson() => {
+        'url': url,
+        'enabled': enabled,
+        if (priority != null) 'priority': priority,
+      };
 
-  DanmuDandanConfig copyWith({String? url, bool? enabled}) {
+  DanmuDandanConfig copyWith({
+    String? url,
+    bool? enabled,
+    int? priority,
+  }) {
     return DanmuDandanConfig(
       url: url ?? this.url,
       enabled: enabled ?? this.enabled,
+      priority: priority ?? this.priority,
     );
   }
 }
@@ -84,27 +104,64 @@ class DanmuFallbackServer {
 }
 
 /// Dandanplay open-network application credentials (edited in the client
-/// settings; stored server-side in DANMU_SOURCE_CONFIG). Empty = the official
-/// channel is off and the dandan search uses the relay.
+/// settings; stored server-side in DANMU_SOURCE_CONFIG).
 class DandanAccount {
-  const DandanAccount({this.appId = '', this.appSecret = ''});
+  const DandanAccount({
+    this.appId = '',
+    this.appSecret = '',
+    this.enabled = false,
+    this.priority,
+  });
 
   final String appId;
   final String appSecret;
 
-  bool get isConfigured => appId.isNotEmpty && appSecret.isNotEmpty;
+  /// Whether the official channel is switched on. Independent of the
+  /// credentials: turning it off keeps the values for the next time.
+  final bool enabled;
+
+  /// Search order against the relay: 0 = preferred, 1 = fallback. Null means
+  /// the server has never been told — treat it as "official first".
+  final int? priority;
+
+  /// Both fields present, regardless of the switch.
+  bool get hasCredentials => appId.isNotEmpty && appSecret.isNotEmpty;
+
+  /// Actually usable: switched on with complete credentials.
+  bool get isActive => enabled && hasCredentials;
 
   factory DandanAccount.fromJson(Map<String, dynamic> json) {
+    final rawPriority = json['priority'];
     return DandanAccount(
       appId: (json['app_id'] as String?)?.trim() ?? '',
       appSecret: (json['app_secret'] as String?)?.trim() ?? '',
+      enabled: json['enabled'] == true,
+      priority: rawPriority is int
+          ? rawPriority
+          : int.tryParse(rawPriority?.toString() ?? ''),
     );
   }
 
   Map<String, dynamic> toJson() => {
         'app_id': appId,
         'app_secret': appSecret,
+        'enabled': enabled,
+        if (priority != null) 'priority': priority,
       };
+
+  DandanAccount copyWith({
+    String? appId,
+    String? appSecret,
+    bool? enabled,
+    int? priority,
+  }) {
+    return DandanAccount(
+      appId: appId ?? this.appId,
+      appSecret: appSecret ?? this.appSecret,
+      enabled: enabled ?? this.enabled,
+      priority: priority ?? this.priority,
+    );
+  }
 }
 
 class DanmuSourceConfig {

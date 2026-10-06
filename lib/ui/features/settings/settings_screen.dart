@@ -1,12 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:dio/dio.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../data/storage/update_settings_store.dart';
-import '../../../data/models/fly_narwhal/index.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/fly_narwhal_server_capabilities.dart';
 import '../../../providers/providers.dart';
@@ -24,6 +21,7 @@ import '../../shared/hover_tip.dart';
 import '../../shared/dialogs/app_dialog.dart';
 import 'widgets/card_expander_item.dart';
 import 'widgets/changelog_dialog.dart';
+import 'widgets/danmu_dandan_source_dialog.dart';
 import 'widgets/danmu_fallback_servers_dialog.dart';
 import 'widgets/shortcut_settings_dialog.dart';
 import 'widgets/smart_skip_config_dialog.dart';
@@ -34,24 +32,6 @@ import 'package:fly_narwhal/ui/shared/semi_icons.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
-
-  /// Whether a relay probe response indicates a healthy ddp relay, plus a
-  /// failure detail for the toast. dio's default json responseType may have
-  /// already decoded the body into a Map — only jsonDecode raw Strings.
-  static (bool, String?) parseRelayProbe(dynamic raw, int? statusCode) {
-    try {
-      final json = raw is String ? jsonDecode(raw) : raw;
-      if (json is Map && (json['errorCode'] == 0 || json['animes'] is List)) {
-        return (true, null);
-      }
-      if (json is Map) {
-        return (false, 'errorCode=${json['errorCode']}');
-      }
-      return (false, 'HTTP $statusCode');
-    } catch (_) {
-      return (false, 'HTTP $statusCode');
-    }
-  }
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -66,11 +46,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       TextEditingController();
   final TextEditingController _updateProxyUrlController =
       TextEditingController();
-  final TextEditingController _danmuDandanRelayController =
-      TextEditingController();
-  final FocusNode _danmuDandanRelayFocusNode = FocusNode();
   bool _danmuSourceConfigLoadRequested = false;
-  bool _isTestingDanmuDandanRelay = false;
   bool _isFlyNarwhalAuthCodeVisible = false;
   List<String> _availableLogDates = const <String>[];
   String? _selectedLogDate;
@@ -93,145 +69,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  /// Persists the dandan relay field (empty = disabled), mirroring the
-  /// server-address field's silent blur-save. The explicit button tests
-  /// connectivity instead of saving.
-  Future<bool> _saveDanmuDandanRelay() async {
-    final ok = await ref
-        .read(danmuSourceConfigControllerProvider.notifier)
-        .saveDandanRelay(_danmuDandanRelayController.text);
-    return ok && mounted;
+  /// One-line state of the two dandanplay sources for the settings card, e.g.
+  /// "官方服务 · 已启用（优先）  中转服务 · 已停用".
+  String _dandanSourceSummary(AppLocalizations l10n) {
+    final config =
+        ref.watch(danmuSourceConfigControllerProvider).config.valueOrNull;
+    if (config == null) return l10n.settingsDanmuDandanSourceCaption;
+    final account = config.dandanAccount;
+    final relay = config.dandan;
+    if (!account.enabled && !relay.enabled) {
+      return l10n.danmuDandanNoneEnabled;
+    }
+    // Mark the source the server will actually search first, not the stored
+    // priority: a preference stranded on a switched-off source is skipped.
+    final storedOfficialPreferred =
+        account.priority == 0 || (account.priority == null && relay.priority != 0);
+    final officialWins =
+        account.enabled && (storedOfficialPreferred || !relay.enabled);
+    return [
+      _dandanSourceState(
+          l10n, l10n.danmuDandanOfficialTitle, account.enabled, officialWins),
+      _dandanSourceState(
+          l10n, l10n.danmuDandanRelayTitle, relay.enabled, !officialWins),
+    ].join('  ');
   }
 
-  /// Saves the field, then probes the relay's public search endpoint
-  /// (`?path=/v2/search/anime`) directly — no signing needed, the relay is an
-  /// unauthenticated third party.
-  Future<void> _testDanmuDandanRelay() async {
-    final l10n = AppLocalizations.of(context);
-    final url = _danmuDandanRelayController.text.trim();
-    if (url.isEmpty) {
-      ref.read(toastManagerProvider.notifier).showToast(
-            l10n.danmuSourceRelayRequired,
-            type: ToastType.warning,
-            category: 'danmu-source-config',
-          );
-      return;
-    }
-    setState(() => _isTestingDanmuDandanRelay = true);
-    try {
-      final saved = await _saveDanmuDandanRelay();
-      if (!saved || !mounted) return;
-      var reachable = false;
-      String? detail;
-      try {
-        final dio = Dio(BaseOptions(
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 15),
-          validateStatus: (_) => true,
-        ));
-        final response = await dio.get(
-          '$url${url.contains('?') ? '&' : '?'}path=${Uri.encodeComponent('/v2/search/anime?keyword=test')}',
-        );
-        final (probeOk, probeDetail) = SettingsScreen.parseRelayProbe(
-          response.data,
-          response.statusCode,
-        );
-        reachable = probeOk;
-        detail = probeDetail;
-      } catch (error) {
-        detail = error.toString();
-      }
-      if (!mounted) return;
-      ref.read(toastManagerProvider.notifier).showToast(
-            reachable
-                ? l10n.danmuSourceRelayReachable
-                : '${l10n.danmuSourceRelayUnreachable}${detail == null ? '' : ' ($detail)'}',
-            type: reachable ? ToastType.success : ToastType.failed,
-            category: 'danmu-source-config',
-          );
-    } finally {
-      if (mounted) {
-        setState(() => _isTestingDanmuDandanRelay = false);
-      }
-    }
-  }
-
-  /// Credentials dialog for the dandanplay open network. Saving persists both
-  /// fields; "Clear" saves blanks, which deletes the stored account server-side.
-  void _openDandanAccountDialog() {
-    final l10n = AppLocalizations.of(context);
-    final current = ref
-            .read(danmuSourceConfigControllerProvider)
-            .config
-            .valueOrNull
-            ?.dandanAccount ??
-        const DandanAccount();
-    final appIdController = TextEditingController(text: current.appId);
-    final appSecretController = TextEditingController(text: current.appSecret);
-    var secretVisible = false;
-
-    Future<void> save(DandanAccount account) async {
-      final ok = await ref
-          .read(danmuSourceConfigControllerProvider.notifier)
-          .saveDandanAccount(account);
-      if (ok && mounted) {
-        ref.read(toastManagerProvider.notifier).showToast(
-              l10n.danmuSourceSaved,
-              type: ToastType.success,
-              category: 'danmu-source-config',
-            );
-        if (context.mounted) {
-          Navigator.of(context, rootNavigator: true).pop();
-        }
-      }
-    }
-
-    showAppDialog(
-      context: context,
-      title: l10n.danmuDandanAccountDialogTitle,
-      content: StatefulBuilder(
-        builder: (context, setDialogState) => Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextBox(
-              key: const ValueKey('settings-danmu-account-appid'),
-              controller: appIdController,
-              placeholder: l10n.danmuDandanAccountAppIdHint,
-            ),
-            const SizedBox(height: 12),
-            TextBox(
-              key: const ValueKey('settings-danmu-account-secret'),
-              controller: appSecretController,
-              placeholder: l10n.danmuDandanAccountAppSecretHint,
-              obscureText: !secretVisible,
-              suffix: AppIconButton(
-                icon: Icon(secretVisible ? FluentIcons.hide3 : FluentIcons.view),
-                onPressed: () {
-                  setDialogState(() => secretVisible = !secretVisible);
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              l10n.danmuDandanAccountHint,
-              style: TextStyle(fontSize: 12, color: Colors.grey[130]),
-            ),
-          ],
-        ),
-      ),
-      primaryButtonText: l10n.danmuSourceSave,
-      secondaryButtonText: l10n.commonCancel,
-      tertiaryButtonText: l10n.danmuDandanAccountClear,
-      onPrimaryPressed: () => save(DandanAccount(
-        appId: appIdController.text.trim(),
-        appSecret: appSecretController.text.trim(),
-      )),
-      onTertiaryPressed: () => save(const DandanAccount()),
-    ).whenComplete(() {
-      appIdController.dispose();
-      appSecretController.dispose();
-    });
+  String _dandanSourceState(
+      AppLocalizations l10n, String title, bool enabled, bool preferred) {
+    final state = enabled
+        ? l10n.danmuDandanStatusEnabled
+        : l10n.danmuDandanStatusDisabled;
+    return preferred && enabled
+        ? '$title · $state（${l10n.danmuDandanStatusPreferred}）'
+        : '$title · $state';
   }
 
   void _openFlyNarwhalAuthCodeDialog() {
@@ -338,8 +208,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void dispose() {
     _flyNarwhalAuthCodeController.dispose();
     _updateProxyUrlController.dispose();
-    _danmuDandanRelayController.dispose();
-    _danmuDandanRelayFocusNode.dispose();
     _flyNarwhalServerUrlController.dispose();
     _flyNarwhalServerUrlFocusNode.dispose();
     _scrollController.dispose();
@@ -354,17 +222,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final errorLogExporter = ref.watch(errorLogExporterProvider);
     final userInfoAsync = ref.watch(userInfoProvider);
     final connectionTestState = ref.watch(flyNarwhalConnectionTestProvider);
-    final danmuAccountConfigured = ref
-            .watch(danmuSourceConfigControllerProvider)
-            .config
-            .valueOrNull
-            ?.dandanAccount
-            .isConfigured ??
-        false;
 
     // Once the connected server is known to carry the danmu source config API,
-    // pull the stored values a single time per screen life so the dandan field
-    // can prefill with the current effective relay.
+    // pull the stored values a single time per screen life so the card summary
+    // reflects the current sources without opening the dialog.
     final supportsDanmuSourceConfig = ref
             .watch(flyNarwhalServerCapabilitiesProvider)
             .valueOrNull
@@ -378,22 +239,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
       });
     }
-    // Mirror the server-side relay URL into the input without clobbering what
-    // the user is typing: only overwrite when the field still shows the
-    // previous stored value (or is empty).
-    ref.listen(danmuSourceConfigControllerProvider, (prev, next) {
-      // A disabled relay reads as an empty field: the server keeps the stored
-      // address when the user clears it, so mirroring the raw url would
-      // instantly refill what they just deleted.
-      final nextDandan = next.config.valueOrNull?.dandan;
-      final prevDandan = prev?.config.valueOrNull?.dandan;
-      final nextUrl = (nextDandan != null && nextDandan.enabled) ? nextDandan.url : '';
-      final prevUrl = (prevDandan != null && prevDandan.enabled) ? prevDandan.url : '';
-      final current = _danmuDandanRelayController.text;
-      if (nextUrl != prevUrl && (current.isEmpty || current == prevUrl)) {
-        _danmuDandanRelayController.text = nextUrl;
-      }
-    });
     final updateState = ref.watch(updateControllerProvider);
     final updateSettingsAsync = ref.watch(updateSettingsProvider);
     final updateSettings = updateSettingsAsync.asData?.value;
@@ -945,77 +790,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                           l10n.settingsDanmuDandanSource,
                                         ),
                                         caption: Text(
-                                          l10n.settingsDanmuDandanSourceCaption,
-                                        ),
-                                        trailing: SizedBox(
-                                          width: 360,
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                child: TextBox(
-                                                  key: const ValueKey(
-                                                    'settings-danmu-dandan-relay-input',
-                                                  ),
-                                                  controller:
-                                                      _danmuDandanRelayController,
-                                                  focusNode:
-                                                      _danmuDandanRelayFocusNode,
-                                                  placeholder:
-                                                      'https://example.com/ddp/v1',
-                                                  placeholderStyle: TextStyle(
-                                                    color: Colors.grey[130],
-                                                  ),
-                                                  // Blur-save, same behavior
-                                                  // as the server address
-                                                  // field above.
-                                                  onSubmitted: (_) =>
-                                                      _saveDanmuDandanRelay(),
-                                                  onTapOutside: (_) {
-                                                    _danmuDandanRelayFocusNode
-                                                        .unfocus();
-                                                    _saveDanmuDandanRelay();
-                                                  },
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              AppButton(
-                                                key: const ValueKey(
-                                                  'settings-danmu-dandan-relay-test',
-                                                ),
-                                                onPressed:
-                                                    _isTestingDanmuDandanRelay
-                                                        ? null
-                                                        : _testDanmuDandanRelay,
-                                                child: Text(
-                                                  _isTestingDanmuDandanRelay
-                                                      ? l10n.settingsServerTesting
-                                                      : l10n.settingsServerTest,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      CardExpanderItem(
-                                        key: const ValueKey(
-                                          'settings-fly-narwhal-dandan-account',
-                                        ),
-                                        icon: const Icon(FluentIcons.contact),
-                                        heading: Text(
-                                          l10n.settingsDanmuDandanAccount,
-                                        ),
-                                        caption: Text(
-                                          danmuAccountConfigured
-                                              ? l10n
-                                                  .settingsDanmuDandanAccountConfigured
-                                              : l10n
-                                                  .settingsDanmuDandanAccountPrompt,
+                                          _dandanSourceSummary(l10n),
                                         ),
                                         trailing: AppButton(
                                           key: const ValueKey(
-                                            'settings-danmu-dandan-account-open',
+                                            'settings-danmu-dandan-open',
                                           ),
-                                          onPressed: _openDandanAccountDialog,
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) =>
+                                                  const DanmuDandanSourceDialog(),
+                                            );
+                                          },
                                           child: Text(l10n.danmuSourceConfigure),
                                         ),
                                       ),

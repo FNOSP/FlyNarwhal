@@ -57,28 +57,58 @@ void main() {
     );
 
     final config = await _configOrFail(ds);
-    final originalRelay = config.dandan.url;
+    final originalRelay = config.dandan;
 
     // 1) Dandan relay upsert: trailing slash must come back trimmed.
-    var save = await ds.saveDandanRelay(url: 'https://relay-test.example/ddp/v1/');
+    var save = await ds.saveDandanRelay(
+      dandan: const DanmuDandanConfig(
+        url: 'https://relay-test.example/ddp/v1/',
+        enabled: true,
+      ),
+    );
     expect(save.isSuccess && save.dataOrNull!.isSuccess(), isTrue);
     var cfg = await _configOrFail(ds);
     expect(cfg.dandan.url, 'https://relay-test.example/ddp/v1');
     expect(cfg.dandan.enabled, isTrue);
 
-    // 2) Blank URL disables the relay without losing it entirely.
-    save = await ds.saveDandanRelay(url: '');
+    // 2) Switching the relay off keeps its address — the switch, not an empty
+    //    field, is what disables a source now.
+    save = await ds.saveDandanRelay(
+      dandan: cfg.dandan.copyWith(enabled: false),
+    );
     expect(save.isSuccess && save.dataOrNull!.isSuccess(), isTrue);
     cfg = await _configOrFail(ds);
     expect(cfg.dandan.enabled, isFalse);
+    expect(cfg.dandan.url, 'https://relay-test.example/ddp/v1',
+        reason: 'disabling must not wipe the stored address');
 
-    // 3) Restore the original relay value.
-    save = await ds.saveDandanRelay(url: originalRelay);
+    // 3) Restore the original relay state.
+    save = await ds.saveDandanRelay(dandan: originalRelay.copyWith(enabled: true));
     expect(save.isSuccess && save.dataOrNull!.isSuccess(), isTrue);
     cfg = await _configOrFail(ds);
-    expect(cfg.dandan.url, originalRelay);
+    expect(cfg.dandan.url, originalRelay.url);
+    expect(cfg.dandan.enabled, isTrue);
 
-    // 4) Fallback server lifecycle: add → toggle off → rename → delete.
+    // 4) Preferred switch is mutual: setting one clears the other.
+    save = await ds.setDandanPreferred(officialPreferred: true);
+    expect(save.isSuccess && save.dataOrNull!.isSuccess(), isTrue);
+    cfg = await _configOrFail(ds);
+    expect(cfg.dandanAccount.priority, 0);
+    expect(cfg.dandan.priority, 1);
+
+    save = await ds.setDandanPreferred(officialPreferred: false);
+    expect(save.isSuccess && save.dataOrNull!.isSuccess(), isTrue);
+    cfg = await _configOrFail(ds);
+    expect(cfg.dandan.priority, 0);
+    expect(cfg.dandanAccount.priority, 1);
+
+    // Restore the original preference so the live server is left as found.
+    final restorePreferred = originalRelay.priority != 1;
+    save = await ds.setDandanPreferred(officialPreferred: restorePreferred);
+    expect(save.isSuccess && save.dataOrNull!.isSuccess(), isTrue);
+
+    // 5) Fallback server lifecycle: add → toggle off → rename → delete.
+    cfg = await _configOrFail(ds);
     final before = cfg.fallbackServers.length;
     save = await ds.saveFallbackServer(
       server: const DanmuFallbackServer(
@@ -126,7 +156,9 @@ void main() {
 
   test('an invalid relay URL is rejected with a validation message', () async {
     final ds = _dataSource();
-    final save = await ds.saveDandanRelay(url: 'ftp://relay.example');
+    final save = await ds.saveDandanRelay(
+      dandan: const DanmuDandanConfig(url: 'ftp://relay.example', enabled: true),
+    );
     // Transport succeeds; the business result must carry the failure.
     final smart = save.dataOrNull;
     if (save.isSuccess && smart != null) {

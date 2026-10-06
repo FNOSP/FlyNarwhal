@@ -4884,7 +4884,7 @@ abstract class AppLocalizations {
   /// Caption under the dandanplay source card.
   ///
   /// In zh, this message translates to:
-  /// **'配置弹弹play中转服务器，补充番剧弹幕；清空并保存即停用'**
+  /// **'配置弹弹play官方服务与中转服务，可分别启用并指定优先使用的来源'**
   String get settingsDanmuDandanSourceCaption;
 
   /// Heading of the fallback danmu servers card.
@@ -5025,59 +5025,143 @@ abstract class AppLocalizations {
   /// **'弹弹play中继不可用'**
   String get danmuSourceRelayUnreachable;
 
-  /// Heading of the dandanplay open-network account card.
+  /// Title of the merged dandanplay source dialog.
   ///
   /// In zh, this message translates to:
-  /// **'弹弹play 官方账号'**
-  String get settingsDanmuDandanAccount;
+  /// **'弹弹play 弹幕源'**
+  String get danmuDandanDialogTitle;
 
-  /// Caption under the dandanplay account card.
+  /// Heading of the official open-network card.
   ///
   /// In zh, this message translates to:
-  /// **'填写 AppId/AppSecret 启用官方弹幕网络，曲库更全（含部分美剧）'**
-  String get settingsDanmuDandanAccountCaption;
+  /// **'官方服务'**
+  String get danmuDandanOfficialTitle;
 
-  /// Account card state when credentials are stored.
+  /// Caption under the official card.
   ///
   /// In zh, this message translates to:
-  /// **'已配置'**
-  String get settingsDanmuDandanAccountConfigured;
+  /// **'官方开放平台，弹幕更全（含部分美剧）'**
+  String get danmuDandanOfficialCaption;
 
-  /// Account card state when no credentials are stored.
+  /// Heading of the relay card.
   ///
   /// In zh, this message translates to:
-  /// **'未配置'**
-  String get settingsDanmuDandanAccountPrompt;
+  /// **'中转服务'**
+  String get danmuDandanRelayTitle;
 
-  /// Title of the dandanplay account dialog.
+  /// Caption under the relay card.
   ///
   /// In zh, this message translates to:
-  /// **'弹弹play 官方账号'**
-  String get danmuDandanAccountDialogTitle;
+  /// **'通过第三方 ddp 中转访问弹弹play'**
+  String get danmuDandanRelayCaption;
 
-  /// Hint telling where to register the app.
+  /// Label of the per-source enable switch.
   ///
   /// In zh, this message translates to:
-  /// **'在 doc.dandanplay.com/open 免费申请应用获取 AppId/AppSecret'**
-  String get danmuDandanAccountHint;
+  /// **'启用'**
+  String get danmuDandanEnable;
+
+  /// Label of the mutually exclusive preferred-source switch.
+  ///
+  /// In zh, this message translates to:
+  /// **'首选'**
+  String get danmuDandanPreferred;
+
+  /// Explains what the preferred switch does.
+  ///
+  /// In zh, this message translates to:
+  /// **'优先使用该来源搜索，无匹配结果时再尝试另一个'**
+  String get danmuDandanPreferredTooltip;
+
+  /// Tooltip when the preferred switch is greyed out because the source is off.
+  ///
+  /// In zh, this message translates to:
+  /// **'需先启用该来源'**
+  String get danmuDandanPreferredNeedsEnable;
 
   /// Placeholder of the AppId field.
   ///
   /// In zh, this message translates to:
   /// **'AppId'**
-  String get danmuDandanAccountAppIdHint;
+  String get danmuDandanOfficialAppIdHint;
 
   /// Placeholder of the AppSecret field.
   ///
   /// In zh, this message translates to:
   /// **'AppSecret'**
-  String get danmuDandanAccountAppSecretHint;
+  String get danmuDandanOfficialAppSecretHint;
 
-  /// Button that deletes the stored credentials.
+  /// Hint telling where to register the app.
   ///
   /// In zh, this message translates to:
-  /// **'清除'**
-  String get danmuDandanAccountClear;
+  /// **'在 doc.dandanplay.com/open 免费申请应用获取 AppId/AppSecret'**
+  String get danmuDandanOfficialHint;
+
+  /// Placeholder of the relay address field.
+  ///
+  /// In zh, this message translates to:
+  /// **'https://example.com/ddp/v1'**
+  String get danmuDandanRelayUrlHint;
+
+  /// Connectivity test button on either source card.
+  ///
+  /// In zh, this message translates to:
+  /// **'测试连通性'**
+  String get danmuDandanTest;
+
+  /// Label of the test button while a probe runs.
+  ///
+  /// In zh, this message translates to:
+  /// **'测试中…'**
+  String get danmuDandanTesting;
+
+  /// Toast when the official API accepts the credentials.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方服务连通'**
+  String get danmuDandanOfficialTestOk;
+
+  /// Toast when the official credentials probe fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方服务不可用'**
+  String get danmuDandanOfficialTestFailed;
+
+  /// Toast when the relay probe passes.
+  ///
+  /// In zh, this message translates to:
+  /// **'中转服务连通'**
+  String get danmuDandanRelayTestOk;
+
+  /// Toast when the relay probe fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'中转服务不可用'**
+  String get danmuDandanRelayTestFailed;
+
+  /// Source state in the settings card summary.
+  ///
+  /// In zh, this message translates to:
+  /// **'已启用'**
+  String get danmuDandanStatusEnabled;
+
+  /// Source state in the settings card summary.
+  ///
+  /// In zh, this message translates to:
+  /// **'已停用'**
+  String get danmuDandanStatusDisabled;
+
+  /// Marks the preferred source in the settings card summary.
+  ///
+  /// In zh, this message translates to:
+  /// **'优先'**
+  String get danmuDandanStatusPreferred;
+
+  /// Summary shown when both dandan sources are off.
+  ///
+  /// In zh, this message translates to:
+  /// **'未启用任何弹弹play来源'**
+  String get danmuDandanNoneEnabled;
 }
 
 class _AppLocalizationsDelegate

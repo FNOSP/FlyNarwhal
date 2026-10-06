@@ -51,7 +51,18 @@ class DanmuSourceConfigController
         super(const DanmuSourceConfigState());
 
   Future<void> load() async {
-    state = state.copyWith(config: const AsyncLoading(), clearLoadError: true);
+    // Keep the values we already have as the loading state's data. A reload runs
+    // after every save, and dropping the data here blanks the dialog for the
+    // length of the round-trip — the user sees the cards they just toggled
+    // replace by a spinner and back, which reads as a flash.
+    final previous = state.config.valueOrNull;
+    state = state.copyWith(
+      config: previous == null
+          ? const AsyncLoading<DanmuSourceConfig>()
+          : const AsyncLoading<DanmuSourceConfig>()
+              .copyWithPrevious(AsyncData(previous)),
+      clearLoadError: true,
+    );
     try {
       final result = await _dataSource.getDanmuSourceConfig();
       result.when(
@@ -76,10 +87,17 @@ class DanmuSourceConfigController
     }
   }
 
-  /// Saves the dandanplay relay URL; an empty string disables the source.
-  Future<bool> saveDandanRelay(String url) {
-    return _mutate(() => _dataSource.saveDandanRelay(url: url.trim()),
+
+  /// Saves the dandanplay relay (address and enable switch together).
+  Future<bool> saveDandanRelay(DanmuDandanConfig dandan) {
+    return _mutate(() => _dataSource.saveDandanRelay(dandan: dandan),
         _getL10n().danmuSourceSaveFailed);
+  }
+
+  /// Switches the relay on or off, preserving its address and priority.
+  Future<bool> setDandanRelayEnabled(bool enabled) {
+    final current = _dandan ?? const DanmuDandanConfig();
+    return saveDandanRelay(current.copyWith(enabled: enabled));
   }
 
   /// Inserts (no id) or updates one fallback server, toggle included.
@@ -98,12 +116,56 @@ class DanmuSourceConfigController
         _getL10n().danmuSourceDeleteFailed);
   }
 
-  /// Saves the dandanplay open-network credentials; both blank removes the
-  /// stored account (official channel off).
+  /// Saves the dandanplay open-network credentials and their enable switch.
   Future<bool> saveDandanAccount(DandanAccount account) {
     return _mutate(() => _dataSource.saveDandanAccount(account: account),
         _getL10n().danmuSourceSaveFailed);
   }
+
+  /// Switches the official channel on or off. Turning it on over incomplete
+  /// credentials is allowed — the server stores it as unusable rather than
+  /// rejecting the switch, the same way a blank relay address behaves.
+  Future<bool> setDandanOfficialEnabled(bool enabled) {
+    final current = _dandanAccount ??
+        const DandanAccount();
+    return saveDandanAccount(current.copyWith(enabled: enabled));
+  }
+
+  /// Picks which channel is tried first. The server writes both rows in one
+  /// call, so the pair always agrees on an order.
+  Future<bool> setPreferredDandanSource({required bool officialPreferred}) {
+    return _mutate(
+        () => _dataSource.setDandanPreferred(
+            officialPreferred: officialPreferred),
+        _getL10n().danmuSourceSaveFailed);
+  }
+
+  /// Probes the official open API with the given credentials (blank fields fall
+  /// back to the stored ones). Returns the failure detail, or null on success.
+  Future<String?> testDandanAccount(DandanAccount account) async {
+    try {
+      final result = await _dataSource.testDandanAccount(account: account);
+      return result.when(
+        success: (smart) {
+          final data = smart.data;
+          if (data != null && data['ok'] == true) return null;
+          final detail = data?['detail']?.toString();
+          return (detail == null || detail.isEmpty)
+              ? _getL10n().danmuDandanOfficialTestFailed
+              : detail;
+        },
+        failure: (failure) => failure.displayMessage,
+      );
+    } catch (_) {
+      return _getL10n().danmuDandanOfficialTestFailed;
+    }
+  }
+
+  /// Current relay row, or null while the config has not loaded.
+  DanmuDandanConfig? get _dandan => state.config.valueOrNull?.dandan;
+
+  /// Current official-channel row, or null while the config has not loaded.
+  DandanAccount? get _dandanAccount => state.config.valueOrNull?.dandanAccount;
 
   /// Runs one mutation; on success reloads the config so the UI mirrors the
   /// stored state, on failure records [actionError] for inline display.

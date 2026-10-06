@@ -2733,7 +2733,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsDanmuDandanSourceCaption =>
-      'Configure the dandanplay relay that supplements anime danmaku; save an empty value to disable';
+      'Configure the dandanplay official and relay sources, enable them independently and pick which one is tried first';
 
   @override
   String get settingsDanmuFallbackServers => 'Fallback danmu servers';
@@ -2808,31 +2808,75 @@ class AppLocalizationsEn extends AppLocalizations {
   String get danmuSourceRelayUnreachable => 'Dandanplay relay unreachable';
 
   @override
-  String get settingsDanmuDandanAccount => 'Dandanplay official account';
+  String get danmuDandanDialogTitle => 'Dandanplay danmu source';
 
   @override
-  String get settingsDanmuDandanAccountCaption =>
-      'Enter AppId/AppSecret to enable the official danmaku network with a broader library (incl. some western shows)';
+  String get danmuDandanOfficialTitle => 'Official service';
 
   @override
-  String get settingsDanmuDandanAccountConfigured => 'Configured';
+  String get danmuDandanOfficialCaption =>
+      'The official open platform, with more danmaku (incl. some western shows)';
 
   @override
-  String get settingsDanmuDandanAccountPrompt => 'Not configured';
+  String get danmuDandanRelayTitle => 'Relay service';
 
   @override
-  String get danmuDandanAccountDialogTitle => 'Dandanplay official account';
+  String get danmuDandanRelayCaption =>
+      'Reach dandanplay through a third-party ddp relay';
 
   @override
-  String get danmuDandanAccountHint =>
+  String get danmuDandanEnable => 'Enable';
+
+  @override
+  String get danmuDandanPreferred => 'Preferred';
+
+  @override
+  String get danmuDandanPreferredTooltip =>
+      'Search this source first, falling back to the other only when it finds nothing';
+
+  @override
+  String get danmuDandanPreferredNeedsEnable => 'Enable this source first';
+
+  @override
+  String get danmuDandanOfficialAppIdHint => 'AppId';
+
+  @override
+  String get danmuDandanOfficialAppSecretHint => 'AppSecret';
+
+  @override
+  String get danmuDandanOfficialHint =>
       'Register a free application at doc.dandanplay.com/open to get AppId/AppSecret';
 
   @override
-  String get danmuDandanAccountAppIdHint => 'AppId';
+  String get danmuDandanRelayUrlHint => 'https://example.com/ddp/v1';
 
   @override
-  String get danmuDandanAccountAppSecretHint => 'AppSecret';
+  String get danmuDandanTest => 'Test connection';
 
   @override
-  String get danmuDandanAccountClear => 'Clear';
+  String get danmuDandanTesting => 'Testing…';
+
+  @override
+  String get danmuDandanOfficialTestOk => 'Official service reachable';
+
+  @override
+  String get danmuDandanOfficialTestFailed => 'Official service unavailable';
+
+  @override
+  String get danmuDandanRelayTestOk => 'Relay service reachable';
+
+  @override
+  String get danmuDandanRelayTestFailed => 'Relay service unavailable';
+
+  @override
+  String get danmuDandanStatusEnabled => 'enabled';
+
+  @override
+  String get danmuDandanStatusDisabled => 'disabled';
+
+  @override
+  String get danmuDandanStatusPreferred => 'preferred';
+
+  @override
+  String get danmuDandanNoneEnabled => 'No dandanplay source is enabled';
 }

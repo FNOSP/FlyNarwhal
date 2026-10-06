@@ -96,6 +96,10 @@ class ApiEndpoints {
       '/api/danmu/source-config/fallback';
   static const String flyNarwhalDanmuSourceConfigDandanAccount =
       '/api/danmu/source-config/dandan-account';
+  static const String flyNarwhalDanmuSourceConfigDandanPreferred =
+      '/api/danmu/source-config/dandan-preferred';
+  static const String flyNarwhalDanmuSourceConfigDandanAccountTest =
+      '/api/danmu/source-config/dandan-account/test';
 
   // Favorite & Watched
   static const String favorite = '/v/api/v1/item/favorite';

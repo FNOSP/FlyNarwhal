@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fly_narwhal/ui/features/settings/settings_screen.dart';
+import 'package:fly_narwhal/ui/features/settings/widgets/danmu_dandan_source_dialog.dart';
 
 /// Guards the relay connectivity probe against the dio double-decode bug:
 /// with the default json responseType the body arrives already parsed into a
@@ -12,13 +12,13 @@ void main() {
           {'animeId': 17617, 'animeTitle': '葬送的芙莉莲'},
         ],
       };
-      final (ok, detail) = SettingsScreen.parseRelayProbe(raw, 200);
+      final (ok, detail) = DanmuDandanSourceDialog.parseRelayProbe(raw, 200);
       expect(ok, isTrue, reason: 'dio auto-decoded body must pass: $detail');
       expect(detail, isNull);
     });
 
     test('accepts a raw JSON string with errorCode 0', () {
-      final (ok, _) = SettingsScreen.parseRelayProbe(
+      final (ok, _) = DanmuDandanSourceDialog.parseRelayProbe(
         '{"errorCode":0,"animes":[]}',
         200,
       );
@@ -26,7 +26,7 @@ void main() {
     });
 
     test('rejects an error envelope with its errorCode as detail', () {
-      final (ok, detail) = SettingsScreen.parseRelayProbe(
+      final (ok, detail) = DanmuDandanSourceDialog.parseRelayProbe(
         '{"errorCode":-412,"message":"banned"}',
         200,
       );
@@ -36,7 +36,7 @@ void main() {
 
     test('non-JSON bodies report the HTTP status', () {
       final (ok, detail) =
-          SettingsScreen.parseRelayProbe('<html>oops</html>', 502);
+          DanmuDandanSourceDialog.parseRelayProbe('<html>oops</html>', 502);
       expect(ok, isFalse);
       expect(detail, 'HTTP 502');
     });
