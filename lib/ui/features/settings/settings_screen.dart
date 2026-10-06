@@ -961,7 +961,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                                   focusNode:
                                                       _danmuDandanRelayFocusNode,
                                                   placeholder:
-                                                      'https://api.danmaku.weeblify.app/ddp/v1',
+                                                      'https://example.com/ddp/v1',
                                                   placeholderStyle: TextStyle(
                                                     color: Colors.grey[130],
                                                   ),
