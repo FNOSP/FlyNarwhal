@@ -3617,6 +3617,8 @@
   "@settingsDanmuFallbackServers": { "description": "Heading of the fallback danmu servers card." },
   "settingsDanmuFallbackServersCaption": "Third-party servers tried in order when every direct danmu source comes back empty",
   "@settingsDanmuFallbackServersCaption": { "description": "Caption under the fallback servers card." },
+  "settingsDanmuFallbackServersHelp": "When the server finds no danmaku for a video, it tries the third-party servers added here, in order. Add the URL of a dandanplay-compatible danmaku service (must start with http:// or https://); only enabled servers are tried.",
+  "@settingsDanmuFallbackServersHelp": { "description": "Hover tip explaining what to add and when fallback servers are used." },
   "danmuSourceConfigure": "Configure",
   "@danmuSourceConfigure": { "description": "Button that opens the fallback servers dialog." },
   "danmuSourceSave": "Save",

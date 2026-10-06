@@ -926,8 +926,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                           'settings-fly-narwhal-fallback-servers',
                                         ),
                                         icon: const Icon(FluentIcons.database),
-                                        heading: Text(
-                                          l10n.settingsDanmuFallbackServers,
+                                        heading: Row(
+                                          children: [
+                                            Text(
+                                              l10n.settingsDanmuFallbackServers,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            HoverTip(
+                                              tipText:
+                                                  l10n
+                                                      .settingsDanmuFallbackServersHelp,
+                                            ),
+                                          ],
                                         ),
                                         caption: Text(
                                           l10n

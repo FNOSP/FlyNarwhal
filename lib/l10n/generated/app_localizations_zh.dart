@@ -2649,6 +2649,10 @@ class AppLocalizationsZh extends AppLocalizations {
       '所有直连弹幕源为空时，按顺序尝试已启用的第三方服务器';
 
   @override
+  String get settingsDanmuFallbackServersHelp =>
+      '当服务端为影片找不到弹幕时，会按顺序依次尝试这里添加的第三方弹幕服务器。请填写兼容弹弹play协议的弹幕服务地址（以 http:// 或 https:// 开头的完整网址）；只有开启的服务器才会被尝试。';
+
+  @override
   String get danmuSourceConfigure => '配置';
 
   @override
@@ -5427,6 +5431,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get settingsDanmuFallbackServersCaption =>
       '所有直連彈幕來源為空時，依序嘗試已啟用的第三方伺服器';
+
+  @override
+  String get settingsDanmuFallbackServersHelp =>
+      '當伺服器為影片找不到任何彈幕時，會依這裡加入的順序嘗試第三方彈幕伺服器。請填入相容彈彈play協定的彈幕服務位址（以 http:// 或 https:// 開頭的完整網址），只有開啟的伺服器才會被嘗試。';
 
   @override
   String get danmuSourceConfigure => '設定';

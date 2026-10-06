@@ -2743,6 +2743,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Third-party servers tried in order when every direct danmu source comes back empty';
 
   @override
+  String get settingsDanmuFallbackServersHelp =>
+      'When the server finds no danmaku for a video, it tries the third-party servers added here, in order. Add the URL of a dandanplay-compatible danmaku service (must start with http:// or https://); only enabled servers are tried.';
+
+  @override
   String get danmuSourceConfigure => 'Configure';
 
   @override

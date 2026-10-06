@@ -3617,6 +3617,8 @@
   "@settingsDanmuFallbackServers": { "description": "Heading of the fallback danmu servers card." },
   "settingsDanmuFallbackServersCaption": "所有直連彈幕來源為空時，依序嘗試已啟用的第三方伺服器",
   "@settingsDanmuFallbackServersCaption": { "description": "Caption under the fallback servers card." },
+  "settingsDanmuFallbackServersHelp": "當伺服器為影片找不到任何彈幕時，會依這裡加入的順序嘗試第三方彈幕伺服器。請填入相容彈彈play協定的彈幕服務位址（以 http:// 或 https:// 開頭的完整網址），只有開啟的伺服器才會被嘗試。",
+  "@settingsDanmuFallbackServersHelp": { "description": "Hover tip explaining what to add and when fallback servers are used." },
   "danmuSourceConfigure": "設定",
   "@danmuSourceConfigure": { "description": "Button that opens the fallback servers dialog." },
   "danmuSourceSave": "儲存",
