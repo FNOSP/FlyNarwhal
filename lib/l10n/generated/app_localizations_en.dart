@@ -2744,7 +2744,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsDanmuFallbackServersHelp =>
-      'When the server finds no danmaku for a video, it tries the third-party servers added here, in order. Add the URL of a dandanplay-compatible danmaku service (must start with http:// or https://); only enabled servers are tried.';
+      'When the server finds no danmaku for a video, it tries the third-party servers added here, in order. Add the URL of a dandanplay-compatible danmaku service (must start with http:// or https://); only enabled servers are tried. If you don\'t have one, self-host the open source danmu_api or misaka_danmu_server and use the address you deploy.';
 
   @override
   String get danmuSourceConfigure => 'Configure';

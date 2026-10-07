@@ -4902,7 +4902,7 @@ abstract class AppLocalizations {
   /// Hover tip explaining what to add and when fallback servers are used.
   ///
   /// In zh, this message translates to:
-  /// **'当服务端为影片找不到弹幕时，会按顺序依次尝试这里添加的第三方弹幕服务器。请填写兼容弹弹play协议的弹幕服务地址（以 http:// 或 https:// 开头的完整网址）；只有开启的服务器才会被尝试。'**
+  /// **'当服务端为影片找不到弹幕时，会按顺序依次尝试这里添加的第三方弹幕服务器。请填写兼容弹弹play协议的弹幕服务地址（以 http:// 或 https:// 开头的完整网址）；只有开启的服务器才会被尝试。没有现成地址的话，可以在 NAS 上自行部署开源项目 danmu_api 或 misaka_danmu_server，再把部署好的地址填进来。'**
   String get settingsDanmuFallbackServersHelp;
 
   /// Button that opens the fallback servers dialog.
