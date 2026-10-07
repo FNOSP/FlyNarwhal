@@ -17,8 +17,9 @@ import '../../../shared/toast.dart';
 /// a mutually exclusive "preferred" switch picks which one the server searches
 /// first, falling back to the other only when it finds nothing.
 ///
-/// The server is the single source of truth — every switch goes through
-/// [DanmuSourceConfigController] and the config reloads afterwards.
+/// Edits are held in a local draft and only reach the server when the dialog's
+/// Save button is pressed; Cancel (and the barrier) leave the stored config
+/// untouched.
 class DanmuDandanSourceDialog extends ConsumerStatefulWidget {
   const DanmuDandanSourceDialog({super.key});
 
@@ -50,15 +51,18 @@ class _DanmuDandanSourceDialogState
   final TextEditingController _appIdController = TextEditingController();
   final TextEditingController _appSecretController = TextEditingController();
   final TextEditingController _relayUrlController = TextEditingController();
-  final FocusNode _relayUrlFocusNode = FocusNode();
+
+  /// Local copies of the two rows, seeded from the server config once it
+  /// loads. Switches and fields edit these; only Save writes them back.
+  DandanAccount _draftAccount = const DandanAccount();
+  DanmuDandanConfig _draftRelay = const DanmuDandanConfig();
 
   bool _secretVisible = false;
   bool _isTestingOfficial = false;
   bool _isTestingRelay = false;
-  bool _fieldsSynced = false;
+  bool _draftSynced = false;
 
-  /// Guards against a second save landing while one is in flight; the switches
-  /// stay enabled during a save so their appearance never flickers.
+  /// Guards against a second save landing while one is in flight.
   bool _saveInFlight = false;
 
   @override
@@ -81,7 +85,6 @@ class _DanmuDandanSourceDialogState
     _appIdController.dispose();
     _appSecretController.dispose();
     _relayUrlController.dispose();
-    _relayUrlFocusNode.dispose();
     super.dispose();
   }
 
@@ -90,19 +93,21 @@ class _DanmuDandanSourceDialogState
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(danmuSourceConfigControllerProvider);
     final config = state.config.valueOrNull;
-    if (config != null && !_fieldsSynced) {
+    if (config != null && !_draftSynced) {
       // The text fields have listeners (and this runs during build), so fill
       // them after the frame rather than mutating controllers mid-build.
-      _fieldsSynced = true;
+      _draftSynced = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        _draftAccount = config.dandanAccount;
+        _draftRelay = config.dandan;
         _appIdController.text = config.dandanAccount.appId;
         _appSecretController.text = config.dandanAccount.appSecret;
         _relayUrlController.text = config.dandan.url;
       });
     }
-    final account = config?.dandanAccount ?? const DandanAccount();
-    final relay = config?.dandan ?? const DanmuDandanConfig();
+    final account = _draftAccount;
+    final relay = _draftRelay;
 
     // The preferred switch is mutual: whichever row holds priority 0 owns it.
     // A null priority means the server was never told, which reads as
@@ -171,7 +176,9 @@ class _DanmuDandanSourceDialogState
                 ),
               ),
       ),
-      primaryButtonText: l10n.settingsAboutClose,
+      primaryButtonText: l10n.commonConfirm,
+      onPrimaryPressed: _save,
+      secondaryButtonText: l10n.commonCancel,
     );
   }
 
@@ -190,11 +197,10 @@ class _DanmuDandanSourceDialogState
       canPrefer: canPrefer,
       enableKey: const ValueKey('settings-danmu-official-enable'),
       preferredKey: const ValueKey('settings-danmu-official-preferred'),
-      onEnabledChanged: (value) => _mutate(() => ref
-          .read(danmuSourceConfigControllerProvider.notifier)
-          .setDandanOfficialEnabled(value)),
+      onEnabledChanged: (value) => setState(
+          () => _draftAccount = _draftAccount.copyWith(enabled: value)),
       onPreferredChanged: (value) =>
-          _setPreferred(officialPreferred: value),
+          _setDraftPreferred(officialPreferred: value),
       test: AppButton(
         key: const ValueKey('settings-danmu-official-test'),
         onPressed: (_isTestingOfficial || !account.enabled)
@@ -212,8 +218,6 @@ class _DanmuDandanSourceDialogState
             controller: _appIdController,
             placeholder: l10n.danmuDandanOfficialAppIdHint,
             placeholderStyle: TextStyle(color: Colors.grey[130]),
-            onSubmitted: (_) => _saveOfficial(),
-            onTapOutside: (_) => _saveOfficial(),
           ),
           const SizedBox(height: 8),
           TextBox(
@@ -222,8 +226,6 @@ class _DanmuDandanSourceDialogState
             placeholder: l10n.danmuDandanOfficialAppSecretHint,
             placeholderStyle: TextStyle(color: Colors.grey[130]),
             obscureText: !_secretVisible,
-            onSubmitted: (_) => _saveOfficial(),
-            onTapOutside: (_) => _saveOfficial(),
             suffix: AppIconButton(
               icon: Icon(_secretVisible ? FluentIcons.hide3 : FluentIcons.view),
               onPressed: () =>
@@ -255,11 +257,10 @@ class _DanmuDandanSourceDialogState
       canPrefer: canPrefer,
       enableKey: const ValueKey('settings-danmu-relay-enable'),
       preferredKey: const ValueKey('settings-danmu-relay-preferred'),
-      onEnabledChanged: (value) => _mutate(() => ref
-          .read(danmuSourceConfigControllerProvider.notifier)
-          .setDandanRelayEnabled(value)),
+      onEnabledChanged: (value) =>
+          setState(() => _draftRelay = _draftRelay.copyWith(enabled: value)),
       onPreferredChanged: (value) =>
-          _setPreferred(officialPreferred: !value),
+          _setDraftPreferred(officialPreferred: !value),
       test: AppButton(
         key: const ValueKey('settings-danmu-relay-test'),
         onPressed: (_isTestingRelay || !relay.enabled) ? null : _testRelay,
@@ -269,14 +270,8 @@ class _DanmuDandanSourceDialogState
       fields: TextBox(
         key: const ValueKey('settings-danmu-relay-url'),
         controller: _relayUrlController,
-        focusNode: _relayUrlFocusNode,
         placeholder: l10n.danmuDandanRelayUrlHint,
         placeholderStyle: TextStyle(color: Colors.grey[130]),
-        onSubmitted: (_) => _saveRelay(),
-        onTapOutside: (_) {
-          _relayUrlFocusNode.unfocus();
-          _saveRelay();
-        },
       ),
     );
   }
@@ -326,10 +321,6 @@ class _DanmuDandanSourceDialogState
               ToggleSwitch(
                 key: enableKey,
                 checked: enabled,
-                // Left interactive during a save on purpose: disabling on the
-                // global save flag flickered every switch on the card, not just
-                // the one being changed. _mutate ignores taps while a save is in
-                // flight, which is what the disabled state was standing in for.
                 onChanged: (value) => onEnabledChanged(value),
                 content: Text(l10n.danmuDandanEnable),
               ),
@@ -364,70 +355,83 @@ class _DanmuDandanSourceDialogState
     return cleaned.length <= 160 ? cleaned : '${cleaned.substring(0, 160)}…';
   }
 
-  Future<void> _mutate(Future<bool> Function() action) async {
-    // The switches stay interactive while a save is in flight (so their
-    // appearance does not flicker), which makes this guard the thing that keeps
-    // a double tap from firing two writes.
-    if (_saveInFlight) return;
+  /// Moves the "preferred" switch in the draft: whichever row the user picks
+  /// takes priority 0 and the other 1, mirroring the server-side pair write.
+  void _setDraftPreferred({required bool officialPreferred}) {
+    setState(() {
+      _draftAccount =
+          _draftAccount.copyWith(priority: officialPreferred ? 0 : 1);
+      _draftRelay = _draftRelay.copyWith(priority: officialPreferred ? 1 : 0);
+    });
+  }
+
+  /// Applies the draft to the server: the two rows first (each keeping the
+  /// stored priority), then the preference pair when it moved. On success the
+  /// dialog closes; on failure it stays open with the controller's inline
+  /// [DanmuSourceConfigState.actionError].
+  Future<void> _save() async {
+    if (_saveInFlight || !_draftSynced) return;
     _saveInFlight = true;
-    final l10n = AppLocalizations.of(context);
     try {
-      final ok = await action();
-      if (!ok || !mounted) return;
-      ref.read(toastManagerProvider.notifier).showToast(
-            l10n.danmuSourceSaved,
-            type: ToastType.success,
-            category: 'danmu-source-config',
-          );
+      final l10n = AppLocalizations.of(context);
+      final notifier =
+          ref.read(danmuSourceConfigControllerProvider.notifier);
+      final server =
+          ref.read(danmuSourceConfigControllerProvider).config.valueOrNull;
+      final serverAccount = server?.dandanAccount ?? const DandanAccount();
+      final serverRelay = server?.dandan ?? const DanmuDandanConfig();
+
+      final accountCandidate = _draftAccount.copyWith(
+        appId: _appIdController.text.trim(),
+        appSecret: _appSecretController.text.trim(),
+      );
+      final relayCandidate = _draftRelay.copyWith(
+        url: _relayUrlController.text.trim(),
+      );
+
+      var changed = false;
+      if (accountCandidate.appId != serverAccount.appId ||
+          accountCandidate.appSecret != serverAccount.appSecret ||
+          accountCandidate.enabled != serverAccount.enabled) {
+        if (!await notifier.saveDandanAccount(accountCandidate
+            .copyWith(priority: serverAccount.priority))) {
+          return;
+        }
+        changed = true;
+      }
+      if (relayCandidate.url != serverRelay.url ||
+          relayCandidate.enabled != serverRelay.enabled) {
+        if (!await notifier
+            .saveDandanRelay(relayCandidate.copyWith(priority: serverRelay.priority))) {
+          return;
+        }
+        changed = true;
+      }
+      if (_draftAccount.priority != serverAccount.priority ||
+          _draftRelay.priority != serverRelay.priority) {
+        if (!await notifier.setPreferredDandanSource(
+            officialPreferred: _draftAccount.priority == 0)) {
+          return;
+        }
+        changed = true;
+      }
+
+      if (!mounted) return;
+      if (changed) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              l10n.danmuSourceSaved,
+              type: ToastType.success,
+              category: 'danmu-source-config',
+            );
+      }
+      Navigator.of(context).pop();
     } finally {
       _saveInFlight = false;
     }
   }
 
-  Future<void> _setPreferred({required bool officialPreferred}) {
-    return _mutate(() => ref
-        .read(danmuSourceConfigControllerProvider.notifier)
-        .setPreferredDandanSource(officialPreferred: officialPreferred));
-  }
-
-  /// Persists the official credentials (and the current switch), so editing a
-  /// field and leaving it applies without a separate Save button.
-  Future<void> _saveOfficial() async {
-    final current = ref
-            .read(danmuSourceConfigControllerProvider)
-            .config
-            .valueOrNull
-            ?.dandanAccount ??
-        const DandanAccount();
-    final candidate = current.copyWith(
-      appId: _appIdController.text.trim(),
-      appSecret: _appSecretController.text.trim(),
-    );
-    if (candidate.appId == current.appId &&
-        candidate.appSecret == current.appSecret) {
-      return;
-    }
-    await _mutate(() => ref
-        .read(danmuSourceConfigControllerProvider.notifier)
-        .saveDandanAccount(candidate));
-  }
-
-  Future<void> _saveRelay() async {
-    final current = ref
-            .read(danmuSourceConfigControllerProvider)
-            .config
-            .valueOrNull
-            ?.dandan ??
-        const DanmuDandanConfig();
-    final address = _relayUrlController.text.trim();
-    if (address == current.url) return;
-    await _mutate(() => ref
-        .read(danmuSourceConfigControllerProvider.notifier)
-        .saveDandanRelay(current.copyWith(url: address)));
-  }
-
-  /// Saves the credentials first (the probe uses what is submitted), then asks
-  /// the server to sign a request — the signature cannot be computed here.
+  /// Probes the official open API with the credentials currently typed in —
+  /// testing never saves anything.
   Future<void> _testOfficial() async {
     final l10n = AppLocalizations.of(context);
     if (!mounted) return;
@@ -438,9 +442,17 @@ class _DanmuDandanSourceDialogState
         appSecret: _appSecretController.text.trim(),
         enabled: true,
       );
-      if (account.appId.isEmpty || account.appSecret.isEmpty) {
+      if (account.appId.isEmpty) {
         ref.read(toastManagerProvider.notifier).showToast(
-              l10n.danmuDandanOfficialTestFailed,
+              l10n.danmuSourceAppIdRequired,
+              type: ToastType.warning,
+              category: 'danmu-source-config',
+            );
+        return;
+      }
+      if (account.appSecret.isEmpty) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              l10n.danmuSourceAppSecretRequired,
               type: ToastType.warning,
               category: 'danmu-source-config',
             );
@@ -462,15 +474,15 @@ class _DanmuDandanSourceDialogState
     }
   }
 
-  /// Saves the address, then probes the relay's public search endpoint
-  /// (`?path=/v2/search/anime`) directly — no signing needed, the relay is an
-  /// unauthenticated third party.
+  /// Probes the relay's public search endpoint (`?path=/v2/search/anime`)
+  /// with the address currently typed in — no signing needed, the relay is an
+  /// unauthenticated third party, and testing never saves anything.
   Future<void> _testRelay() async {
     final l10n = AppLocalizations.of(context);
     final url = _relayUrlController.text.trim();
     if (url.isEmpty) {
       ref.read(toastManagerProvider.notifier).showToast(
-            l10n.danmuDandanRelayTestFailed,
+            l10n.danmuSourceRelayRequired,
             type: ToastType.warning,
             category: 'danmu-source-config',
           );
@@ -478,8 +490,6 @@ class _DanmuDandanSourceDialogState
     }
     setState(() => _isTestingRelay = true);
     try {
-      await _saveRelay();
-      if (!mounted) return;
       var reachable = false;
       String? detail;
       try {

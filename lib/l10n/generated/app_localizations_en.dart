@@ -2806,6 +2806,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get danmuSourceRelayRequired => 'Enter the dandanplay relay URL';
 
   @override
+  String get danmuSourceAppIdRequired => 'Enter the AppId';
+
+  @override
+  String get danmuSourceAppSecretRequired => 'Enter the AppSecret';
+
+  @override
   String get danmuSourceRelayReachable => 'Dandanplay relay reachable';
 
   @override

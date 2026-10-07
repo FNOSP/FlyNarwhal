@@ -78,7 +78,7 @@ class _SmartSkipConfigDialogState extends ConsumerState<SmartSkipConfigDialog> {
         maxWidth: 560,
         maxHeight: 520,
       ),
-      primaryButtonText: loggedIn ? l10n.smartSkipSave : null,
+      primaryButtonText: loggedIn ? l10n.commonConfirm : null,
       onPrimaryPressed: loggedIn ? _saveAndClose : null,
       secondaryButtonText: l10n.commonCancel,
       onSecondaryPressed: _cancel,

@@ -2712,6 +2712,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get danmuSourceRelayRequired => '请填写弹弹play中转地址';
 
   @override
+  String get danmuSourceAppIdRequired => '请填写 AppId';
+
+  @override
+  String get danmuSourceAppSecretRequired => '请填写 AppSecret';
+
+  @override
   String get danmuSourceRelayReachable => '弹弹play中继连通';
 
   @override
@@ -5494,6 +5500,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get danmuSourceRelayRequired => '請輸入彈彈play中繼位址';
+
+  @override
+  String get danmuSourceAppIdRequired => '請填寫 AppId';
+
+  @override
+  String get danmuSourceAppSecretRequired => '請填寫 AppSecret';
 
   @override
   String get danmuSourceRelayReachable => '彈彈play中繼可連線';

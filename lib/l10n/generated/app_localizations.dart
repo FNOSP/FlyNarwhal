@@ -5019,6 +5019,18 @@ abstract class AppLocalizations {
   /// **'请填写弹弹play中转地址'**
   String get danmuSourceRelayRequired;
 
+  /// Warning when testing the official service with an empty AppId.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写 AppId'**
+  String get danmuSourceAppIdRequired;
+
+  /// Warning when testing the official service with an empty AppSecret.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写 AppSecret'**
+  String get danmuSourceAppSecretRequired;
+
   /// Toast when the relay connectivity test passes.
   ///
   /// In zh, this message translates to:
