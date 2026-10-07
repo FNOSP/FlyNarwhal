@@ -4194,6 +4194,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           style: ToastStyle.liquidGlass,
           type: ToastType.info,
           category: 'seek',
+          coalesce: true,
         );
   }
 
@@ -4328,6 +4329,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           style: ToastStyle.liquidGlass,
           type: ToastType.info,
           category: 'volume',
+          coalesce: true,
         );
   }
 
@@ -4341,6 +4343,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'volume',
+            coalesce: true,
           );
     } else {
       final restoreVolume =
@@ -4351,6 +4354,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             style: ToastStyle.liquidGlass,
             type: ToastType.info,
             category: 'volume',
+            coalesce: true,
           );
     }
   }

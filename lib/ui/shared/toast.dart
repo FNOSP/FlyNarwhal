@@ -80,6 +80,12 @@ class ToastMessage {
   final ToastType type;
   final ToastStyle style;
   final Duration duration;
+
+  /// Identity of a coalescing toast, or null when the toast never coalesces.
+  ///
+  /// Only callers that pass `coalesce: true` set this; a toast carrying a
+  /// category for any other reason is inert and behaves like an uncategorised
+  /// one (it stacks instead of replacing).
   final String? category;
   final int revision;
 
@@ -155,12 +161,22 @@ class ToastManager extends StateNotifier<List<ToastMessage>> {
   final Uuid _uuid;
   int _nextRevision = 0;
 
+  /// Shows a toast.
+  ///
+  /// By default every call stacks a brand-new toast under the ones already on
+  /// screen, and [category] is merely a label with no effect. Pass
+  /// `coalesce: true` together with a [category] for transient feedback that
+  /// repeats the same slot: the repeat replaces the previous toast in place,
+  /// restarts its lifetime and keeps its position in the stack instead of
+  /// piling up a second bubble. Player seek and volume feedback are the only
+  /// callers that need this.
   void showToast(
     String message, {
     ToastType type = ToastType.success,
     ToastStyle style = ToastStyle.fluent,
     Duration duration = _defaultToastDuration,
     String? category,
+    bool coalesce = false,
   }) {
     final normalizedMessage = message.trim();
     if (normalizedMessage.isEmpty) {
@@ -169,9 +185,10 @@ class ToastManager extends StateNotifier<List<ToastMessage>> {
 
     final normalizedDuration =
         duration > Duration.zero ? duration : _defaultToastDuration;
-    final existingIndex = category == null
+    final coalescedCategory = coalesce ? category : null;
+    final existingIndex = coalescedCategory == null
         ? -1
-        : state.indexWhere((toast) => toast.category == category);
+        : state.indexWhere((toast) => toast.category == coalescedCategory);
 
     if (existingIndex >= 0) {
       final updatedToasts = [...state];
@@ -194,7 +211,7 @@ class ToastManager extends StateNotifier<List<ToastMessage>> {
         type: type,
         style: style,
         duration: normalizedDuration,
-        category: category,
+        category: coalescedCategory,
         revision: _takeNextRevision(),
       ),
     ]);
