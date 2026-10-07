@@ -2791,6 +2791,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get danmuSourceUrlInvalid => 'URL must start with http:// or https://';
 
   @override
+  String get danmuSourceUrlMissingHost =>
+      'The address is missing a host name; enter a full URL such as http://192.168.1.10:7732';
+
+  @override
+  String get danmuSourceUrlRequired => 'Enter the server address';
+
+  @override
+  String get danmuSourceUrlMalformed => 'The address format is invalid';
+
+  @override
   String get danmuSourceLoadFailed => 'Failed to load danmu source config';
 
   @override

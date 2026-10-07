@@ -4989,6 +4989,24 @@ abstract class AppLocalizations {
   /// **'地址需以 http:// 或 https:// 开头'**
   String get danmuSourceUrlInvalid;
 
+  /// Inline validation error when the URL has no host.
+  ///
+  /// In zh, this message translates to:
+  /// **'地址缺少主机名，请填写完整网址，例如 http://192.168.1.10:7732'**
+  String get danmuSourceUrlMissingHost;
+
+  /// Validation error when the URL field is empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写服务器地址'**
+  String get danmuSourceUrlRequired;
+
+  /// Validation error when the URL cannot be parsed.
+  ///
+  /// In zh, this message translates to:
+  /// **'地址格式不正确'**
+  String get danmuSourceUrlMalformed;
+
   /// Error when loading the config fails.
   ///
   /// In zh, this message translates to:

@@ -74,10 +74,25 @@ class _DanmuDandanSourceDialogState
     // watching this controller. Defer to after the frame, the same pattern the
     // fallback servers dialog uses.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        ref.read(danmuSourceConfigControllerProvider.notifier).load();
-      }
+      if (!mounted) return;
+      // The controller only clears actionError when the next mutation starts,
+      // so an error from a previous visit would otherwise reappear on entry.
+      ref.read(danmuSourceConfigControllerProvider.notifier).clearActionError();
+      ref.read(danmuSourceConfigControllerProvider.notifier).load();
     });
+  }
+
+  /// Surfaces a failed save as a toast. Errors used to be rendered inline
+  /// below the cards, which read as a broken row rather than a rejected input.
+  void _showActionError() {
+    final message =
+        ref.read(danmuSourceConfigControllerProvider.notifier).actionError;
+    if (message == null || message.isEmpty) return;
+    ref.read(toastManagerProvider.notifier).showToast(
+          message,
+          type: ToastType.failed,
+          category: 'danmu-source-config',
+        );
   }
 
   @override
@@ -167,11 +182,6 @@ class _DanmuDandanSourceDialogState
                       enabled: relay.enabled,
                       canPrefer: canPreferRelay,
                     ),
-                    if (state.actionError != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(_shortError(state.actionError!)),
-                      ),
                   ],
                 ),
               ),
@@ -395,6 +405,7 @@ class _DanmuDandanSourceDialogState
           accountCandidate.enabled != serverAccount.enabled) {
         if (!await notifier.saveDandanAccount(accountCandidate
             .copyWith(priority: serverAccount.priority))) {
+          if (mounted) _showActionError();
           return;
         }
         changed = true;
@@ -403,6 +414,7 @@ class _DanmuDandanSourceDialogState
           relayCandidate.enabled != serverRelay.enabled) {
         if (!await notifier
             .saveDandanRelay(relayCandidate.copyWith(priority: serverRelay.priority))) {
+          if (mounted) _showActionError();
           return;
         }
         changed = true;
@@ -411,6 +423,7 @@ class _DanmuDandanSourceDialogState
           _draftRelay.priority != serverRelay.priority) {
         if (!await notifier.setPreferredDandanSource(
             officialPreferred: _draftAccount.priority == 0)) {
+          if (mounted) _showActionError();
           return;
         }
         changed = true;

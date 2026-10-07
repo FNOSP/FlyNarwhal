@@ -167,8 +167,19 @@ class DanmuSourceConfigController
   /// Current official-channel row, or null while the config has not loaded.
   DandanAccount? get _dandanAccount => state.config.valueOrNull?.dandanAccount;
 
+  /// Drops a stale [actionError] without touching anything else.
+  ///
+  /// [_mutate] only clears the previous error when the *next* mutation starts,
+  /// so an error left by a failed save survives closing and reopening the
+  /// dialog. Callers clear it on entry so every open starts clean.
+  void clearActionError() {
+    if (state.actionError == null) return;
+    state = state.copyWith(clearActionError: true);
+  }
+
   /// Runs one mutation; on success reloads the config so the UI mirrors the
-  /// stored state, on failure records [actionError] for inline display.
+  /// stored state, on failure records [actionError] and returns false so the
+  /// caller can surface it (the dialog shows it as a toast).
   Future<bool> _mutate(
     Future<ApiResult<SmartAnalysisResult<String>>> Function() request,
     String fallbackError,
@@ -183,7 +194,7 @@ class DanmuSourceConfigController
           if (smart.isSuccess()) {
             ok = true;
           } else {
-            error = smart.msg;
+            error = _localizeServerError(smart.msg);
           }
         },
         failure: (failure) {
@@ -200,5 +211,30 @@ class DanmuSourceConfigController
     }
     state = state.copyWith(isSaving: false, actionError: error ?? fallbackError);
     return false;
+  }
+
+  /// The mutation error to show the user, or null when the last one succeeded.
+  String? get actionError => state.actionError;
+
+  /// Maps the server's URL-validation reasons to the user's language.
+  ///
+  /// The server answers with fixed English constants
+  /// (see `DanmuSourceConfigService.normalizeUrl`); showing them raw leaves
+  /// English text in a localized dialog. Unknown reasons pass through
+  /// untouched so a newly added server-side message is still diagnosable.
+  String _localizeServerError(String message) {
+    final l10n = _getL10n();
+    switch (message.trim()) {
+      case 'url is required':
+        return l10n.danmuSourceUrlRequired;
+      case 'url must start with http:// or https://':
+        return l10n.danmuSourceUrlInvalid;
+      case 'url is invalid':
+        return l10n.danmuSourceUrlMalformed;
+      case 'url host is invalid':
+        return l10n.danmuSourceUrlMissingHost;
+      default:
+        return message;
+    }
   }
 }

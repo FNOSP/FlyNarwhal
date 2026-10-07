@@ -32,10 +32,26 @@ class _DanmuFallbackServersDialogState
     // watching this controller. Defer to after the frame, the same pattern the
     // settings screen uses for its initial load.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        ref.read(danmuSourceConfigControllerProvider.notifier).load();
-      }
+      if (!mounted) return;
+      // A failed save leaves actionError behind, and the controller only
+      // clears it when the next mutation starts — so without this the error
+      // from a previous visit reappears on entry.
+      ref.read(danmuSourceConfigControllerProvider.notifier).clearActionError();
+      ref.read(danmuSourceConfigControllerProvider.notifier).load();
     });
+  }
+
+  /// Surfaces a failed mutation as a toast. Errors used to be rendered inline
+  /// under the list, which read as a broken row rather than a rejected input.
+  void _showActionError() {
+    final message =
+        ref.read(danmuSourceConfigControllerProvider.notifier).actionError;
+    if (message == null || message.isEmpty) return;
+    ref.read(toastManagerProvider.notifier).showToast(
+          message,
+          type: ToastType.failed,
+          category: 'danmu-source-config',
+        );
   }
 
   @override
@@ -92,11 +108,6 @@ class _DanmuFallbackServersDialogState
                               _serverRow(l10n, servers[index], state.isSaving),
                         ),
                       ),
-                    ),
-                  if (state.actionError != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(state.actionError!),
                     ),
                 ],
               ),
@@ -177,7 +188,10 @@ class _DanmuFallbackServersDialogState
     final ok = await ref
         .read(danmuSourceConfigControllerProvider.notifier)
         .toggleFallbackServer(server, enabled);
-    if (!ok) return;
+    if (!ok) {
+      if (mounted) _showActionError();
+      return;
+    }
     if (!mounted) return;
     ref.read(toastManagerProvider.notifier).showToast(
           l10n.danmuSourceSaved,
@@ -205,7 +219,11 @@ class _DanmuFallbackServersDialogState
     final ok = await ref
         .read(danmuSourceConfigControllerProvider.notifier)
         .deleteFallbackServer(id);
-    if (!ok || !mounted) return;
+    if (!ok) {
+      if (mounted) _showActionError();
+      return;
+    }
+    if (!mounted) return;
     ref.read(toastManagerProvider.notifier).showToast(
           l10n.danmuSourceDeleted,
           type: ToastType.success,
@@ -220,17 +238,18 @@ class _DanmuFallbackServersDialogState
     final urlController = TextEditingController(text: server?.url ?? '');
     // onPrimaryPressed lives outside the content builder's scope, so the
     // inline validation error travels through a notifier instead of
-    // StatefulBuilder's setState.
-    final urlError = ValueNotifier<bool>(false);
+    // StatefulBuilder's setState. Null means valid; otherwise it holds the
+    // message for the specific failure, since the field has more than one.
+    final urlError = ValueNotifier<String?>(null);
 
     final saved = await showAppDialog<bool>(
       context: context,
       title: server == null
           ? l10n.danmuSourceFallbackAdd
           : l10n.danmuSourceFallbackEdit,
-      content: ValueListenableBuilder<bool>(
+      content: ValueListenableBuilder<String?>(
         valueListenable: urlError,
-        builder: (context, hasUrlError, _) => Column(
+        builder: (context, urlErrorMessage, _) => Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -251,13 +270,13 @@ class _DanmuFallbackServersDialogState
               // No placeholder: a pre-typed URL looks filled-in at a glance
               // and invites saving an accidental default.
               onChanged: (_) {
-                if (urlError.value) urlError.value = false;
+                if (urlError.value != null) urlError.value = null;
               },
             ),
-            if (hasUrlError)
+            if (urlErrorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(l10n.danmuSourceUrlInvalid),
+                child: Text(urlErrorMessage),
               ),
           ],
         ),
@@ -267,10 +286,20 @@ class _DanmuFallbackServersDialogState
       secondaryResult: false,
       autoDismiss: false,
       onPrimaryPressed: () async {
+        // Mirrors DanmuSourceConfigService.normalizeUrl: the server answers
+        // "url must start with…" then "url host is invalid", so catching both
+        // here saves a round-trip and keeps the failure next to the field.
         final url = urlController.text.trim();
-        if (url.isEmpty ||
-            !(url.startsWith('http://') || url.startsWith('https://'))) {
-          urlError.value = true;
+        if (url.isEmpty) {
+          urlError.value = l10n.danmuSourceUrlRequired;
+          return;
+        }
+        if (!(url.startsWith('http://') || url.startsWith('https://'))) {
+          urlError.value = l10n.danmuSourceUrlInvalid;
+          return;
+        }
+        if ((Uri.tryParse(url)?.host ?? '').isEmpty) {
+          urlError.value = l10n.danmuSourceUrlMissingHost;
           return;
         }
         final candidate = DanmuFallbackServer(
@@ -284,7 +313,12 @@ class _DanmuFallbackServersDialogState
         final ok = await ref
             .read(danmuSourceConfigControllerProvider.notifier)
             .saveFallbackServer(candidate);
-        if (!ok) return;
+        if (!ok) {
+          // The editor stays open so the value can be corrected; the reason
+          // goes to a toast rather than the settings list behind the dialog.
+          if (mounted) _showActionError();
+          return;
+        }
         if (!mounted) return;
         Navigator.of(context, rootNavigator: true).pop(true);
       },

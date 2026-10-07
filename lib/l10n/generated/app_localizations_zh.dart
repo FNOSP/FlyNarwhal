@@ -2697,6 +2697,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get danmuSourceUrlInvalid => '地址需以 http:// 或 https:// 开头';
 
   @override
+  String get danmuSourceUrlMissingHost =>
+      '地址缺少主机名，请填写完整网址，例如 http://192.168.1.10:7732';
+
+  @override
+  String get danmuSourceUrlRequired => '请填写服务器地址';
+
+  @override
+  String get danmuSourceUrlMalformed => '地址格式不正确';
+
+  @override
   String get danmuSourceLoadFailed => '读取弹幕源配置失败';
 
   @override
@@ -5485,6 +5495,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get danmuSourceUrlInvalid => '位址需以 http:// 或 https:// 開頭';
+
+  @override
+  String get danmuSourceUrlMissingHost =>
+      '位址缺少主機名稱，請填寫完整網址，例如 http://192.168.1.10:7732';
+
+  @override
+  String get danmuSourceUrlRequired => '請填寫伺服器位址';
+
+  @override
+  String get danmuSourceUrlMalformed => '位址格式不正確';
 
   @override
   String get danmuSourceLoadFailed => '讀取彈幕來源設定失敗';
