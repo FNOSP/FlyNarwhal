@@ -71,6 +71,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// 等 build 观察到新字号真正排版生效后才消费。
   ({double baselineOffsetInContent, String target})? _pendingFontScaleAnchor;
 
+  /// 已解除钉住的补偿基准：等 release 那一帧真正按新字号排完版，再用它
+  /// 和 [baselineOffsetInContent] 的差值去改滚动偏移。
+  ///
+  /// 必须分成「记录基准 / 解除钉住 / 事后测量」三步，不能揉进一帧：
+  /// `setState` 只是把 element 标脏，并不当场重排；在同一帧紧接着量到的
+  /// 仍是旧字号的几何，差值恒为 0，补偿就成了空操作。
+  double? _fontScaleAnchorBaselineToSettle;
+
   /// 补偿进行中：列表暂时沿用的缩放系数。
   ///
   /// 行高与字号不是线性关系（实测 0.85/1.0/1.25 对应 74/77/87px），位移
@@ -319,13 +327,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     settingsNotifier.setUiFontScale(value);
   }
 
-  /// [build] 排完版后调用：把新字号与滚动补偿放在同一帧一起生效。
+  /// [build] 排完版后调用：新字号已进入设置，解除列表的钉住状态。
   ///
-  /// 补偿量 = 该行在内容坐标中的位移。这里先量一次旧排版下的位置，再让
-  /// [_listFontScaleFactorForLayout] 归位、同一帧内按新字号重新量一次并
-  /// 一次性补掉差额——不再往下排第二个 postFrame 去 jumpTo。多排一帧会
-  /// 让滚动位置的变更落在 MediaQuery 换掉之后的布局窗口里，正是把整页
-  /// 打进错误屏的那种重入。
+  /// 这里只负责两件事：记下「旧排版下该行的基准位置」，然后把
+  /// [_listFontScaleFactorForLayout] 归位——后者会让列表在**下一帧**才按
+  /// 新字号重排。真正的补偿因此交给 [_applyFontScaleScrollCorrection]
+  /// 在随后那一帧里完成。之所以不在这里直接量，是因为 `setState` 只是标脏，
+  /// 当场量到的还是旧字号的几何，差值恒为 0。
   void _settleFontScaleAnchor() {
     final pending = _pendingFontScaleAnchor;
     if (pending == null) return;
@@ -337,10 +345,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final oldLayoutOffset = _fontScaleRowOffsetInContent();
     setState(() => _listFontScaleFactorForLayout = null);
     if (!_scrollController.hasClients || oldLayoutOffset == null) return;
-    // 新字号这一帧已生效，量出新位置并一次性把差额补掉。
+    _fontScaleAnchorBaselineToSettle = oldLayoutOffset;
+    // 下一帧列表已按新字号重排，到那时再量、再补。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _applyFontScaleScrollCorrection();
+    });
+  }
+
+  /// 按新字号重排后的那一帧调用：量出该行的位移并一次性补掉。
+  void _applyFontScaleScrollCorrection() {
+    final baseline = _fontScaleAnchorBaselineToSettle;
+    if (baseline == null) return;
+    _fontScaleAnchorBaselineToSettle = null;
+    if (!mounted || !_scrollController.hasClients) return;
     final after = _fontScaleRowOffsetInContent();
     if (after == null) return;
-    final delta = after - oldLayoutOffset;
+    final delta = after - baseline;
     if (delta == 0) return;
     final position = _scrollController.position;
     final target = (position.pixels + delta).clamp(
