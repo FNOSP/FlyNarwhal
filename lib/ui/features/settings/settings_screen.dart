@@ -58,7 +58,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   /// 「字体大小」所在的行。改字号会让它上方所有行重新排版，用这个 key
   /// 量出该行的位置，把滚动偏移补偿回去，避免它从指针下方跑掉。
-  final GlobalKey _fontScaleRowKey = GlobalKey();
+  ///
+  /// 这里刻意用 [ValueKey] 而不是 [GlobalKey]：切换字号时 [MediaQuery] 的
+  /// textScaler 会整段换掉，列表子树随之重建。GlobalKey 会驱动框架去
+  /// inactive 队列里「认领」旧 element（[Element._retakeInactiveElement]），
+  /// 而这一步一旦与布局中的 LayoutBuilder 重入交错，就会命中
+  /// `_InactiveElements.remove` 的断言并把整页打进错误屏。同类型的 key
+  /// 既能让框架就地更新这一行，又不牵动 element 的跨父级迁移。
+  final Key _fontScaleRowKey = const ValueKey('settings-ui-font-scale-row');
 
   /// 待补偿的字号切换：切换前该行在内容坐标中的位置和目标字号。
   /// 等 build 观察到新字号真正排版生效后才消费。
@@ -262,16 +269,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   /// 「字体大小」行顶部相对滚动内容原点的偏移。
+  ///
+  /// 按 key 在视图里的子树中找这一行的 RenderBox，而不是靠 GlobalKey
+  /// 持有的 context——见 [_fontScaleRowKey] 上关于切换字号的说明。
   double? _fontScaleRowOffsetInContent() {
-    final rowContext = _fontScaleRowKey.currentContext;
+    final rowBox = _findFontScaleRowBox();
     final scrollable = _scrollController.position.context.storageContext;
-    final rowBox = rowContext?.findRenderObject() as RenderBox?;
     final viewportBox = scrollable.findRenderObject() as RenderBox?;
     if (rowBox == null || viewportBox == null) return null;
     // 该行在视口坐标系里的 y，加上已滚动距离即内容坐标。
     final rowTopInViewport =
         rowBox.localToGlobal(Offset.zero, ancestor: viewportBox).dy;
     return rowTopInViewport + _scrollController.offset;
+  }
+
+  /// 在列表子树里按 key 找到「字体大小」行的 RenderBox。
+  RenderBox? _findFontScaleRowBox() {
+    final viewport = _scrollController.position.context.storageContext;
+    if (!viewport.mounted) return null;
+    Element? found;
+    void visit(Element element) {
+      if (found != null) return;
+      if (element.widget.key == _fontScaleRowKey) {
+        found = element;
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    // 从视图往下找：列表内容不含别的同 key 子树，命中即目标行。
+    visit(viewport as Element);
+    return found?.renderObject as RenderBox?;
   }
 
   /// 切换字号：先记下该行当前在内容中的位置，等新排版生效后补偿滚动。
@@ -293,9 +321,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   /// [build] 排完版后调用：把新字号与滚动补偿放在同一帧一起生效。
   ///
-  /// 补偿量 = 该行在内容坐标中的位移。用 jumpTo 而不是 correctBy：后者
-  /// 只是标记一次待处理的修正，需要下一轮 applyContentDimensions 才会
-  /// 生效，在布局之外调用不会有任何效果。
+  /// 补偿量 = 该行在内容坐标中的位移。这里先量一次旧排版下的位置，再让
+  /// [_listFontScaleFactorForLayout] 归位、同一帧内按新字号重新量一次并
+  /// 一次性补掉差额——不再往下排第二个 postFrame 去 jumpTo。多排一帧会
+  /// 让滚动位置的变更落在 MediaQuery 换掉之后的布局窗口里，正是把整页
+  /// 打进错误屏的那种重入。
   void _settleFontScaleAnchor() {
     final pending = _pendingFontScaleAnchor;
     if (pending == null) return;
@@ -303,27 +333,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (pending.target != ref.read(settingsProvider).uiFontScale) return;
     _pendingFontScaleAnchor = null;
     if (!mounted) return;
-    setState(() => _listFontScaleFactorForLayout = null);
-    if (!_scrollController.hasClients) return;
-    // 此刻列表仍按旧字号排版，量到的位移就是「换成新字号后会产生的位移」。
+    // 此刻列表仍按旧字号排版，量到的位置就是补偿基准。
     final oldLayoutOffset = _fontScaleRowOffsetInContent();
-    if (oldLayoutOffset == null) return;
-    // 下一帧按新字号重排后，把这段时间内新增的位移补回去。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      final after = _fontScaleRowOffsetInContent();
-      if (after == null) return;
-      final delta = after - oldLayoutOffset;
-      if (delta == 0) return;
-      final position = _scrollController.position;
-      final target = (position.pixels + delta).clamp(
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      );
-      if (target != position.pixels) {
-        _scrollController.jumpTo(target);
-      }
-    });
+    setState(() => _listFontScaleFactorForLayout = null);
+    if (!_scrollController.hasClients || oldLayoutOffset == null) return;
+    // 新字号这一帧已生效，量出新位置并一次性把差额补掉。
+    final after = _fontScaleRowOffsetInContent();
+    if (after == null) return;
+    final delta = after - oldLayoutOffset;
+    if (delta == 0) return;
+    final position = _scrollController.position;
+    final target = (position.pixels + delta).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (target != position.pixels) {
+      _scrollController.jumpTo(target);
+    }
   }
 
   @override
