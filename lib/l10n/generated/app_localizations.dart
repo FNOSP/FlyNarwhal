@@ -297,6 +297,30 @@ abstract class AppLocalizations {
   /// **'自定义'**
   String get settingsGeneralCustomize;
 
+  /// Row heading for resetting the image cache.
+  ///
+  /// In zh, this message translates to:
+  /// **'重置图片缓存'**
+  String get settingsGeneralResetImageCache;
+
+  /// Caption for the reset image cache row.
+  ///
+  /// In zh, this message translates to:
+  /// **'清理已缓存的图片，浏览时将重新从服务端加载图片'**
+  String get settingsGeneralResetImageCacheCaption;
+
+  /// Button that clears the image cache.
+  ///
+  /// In zh, this message translates to:
+  /// **'重置'**
+  String get settingsGeneralResetImageCacheButton;
+
+  /// Toast shown after the image cache has been cleared.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片缓存已重置'**
+  String get settingsGeneralResetImageCacheSuccess;
+
   /// Toggle that enables the FlyNarwhal server features.
   ///
   /// In zh, this message translates to:

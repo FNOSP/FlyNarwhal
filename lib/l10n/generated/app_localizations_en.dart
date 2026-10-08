@@ -116,6 +116,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsGeneralCustomize => 'Customize';
 
   @override
+  String get settingsGeneralResetImageCache => 'Reset image cache';
+
+  @override
+  String get settingsGeneralResetImageCacheCaption =>
+      'Clear cached images; they will be loaded from the server again while browsing';
+
+  @override
+  String get settingsGeneralResetImageCacheButton => 'Reset';
+
+  @override
+  String get settingsGeneralResetImageCacheSuccess => 'Image cache reset';
+
+  @override
   String get settingsServerEnable => 'Enable the FlyNarwhal server';
 
   @override

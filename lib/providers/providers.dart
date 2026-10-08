@@ -1,7 +1,10 @@
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'dart:io';
 import '../core/config/runtime_configuration.dart';
 import '../core/config/secret_bridge_selector.dart';
 import '../core/network/dio_client.dart';
@@ -660,24 +663,42 @@ final userInfoProvider =
   );
 });
 
+const _imageCacheKey = 'fly_narwhal_memory_cache';
+
 final imageCacheManagerProvider = Provider<CacheManager>((ref) {
   const maxCacheBytes = 300 * 1024 * 1024;
   const maxCacheObjects = 100;
   return CacheManager(
     Config(
-      'fly_narwhal_memory_cache',
+      _imageCacheKey,
       maxNrOfCacheObjects: maxCacheObjects,
       repo: _InMemoryCacheInfoRepository(
         maxObjects: maxCacheObjects,
         maxBytes: maxCacheBytes,
       ),
-      fileSystem: IOFileSystem('fly_narwhal_memory_cache'),
+      fileSystem: IOFileSystem(_imageCacheKey),
       // Posters load over their own HttpClient, so they need the certificate
       // trust list applied here too.
       fileService: SslTrustAwareFileService(),
     ),
   );
 });
+
+/// Wipes every cached poster from disk.
+///
+/// [CacheManager.emptyCache] only removes files it can find through the cache
+/// info repository, and this app indexes objects in memory alone, so after a
+/// restart that repository is empty and the call deletes nothing. The cache
+/// directory is therefore removed directly.
+Future<void> clearImageCache(CacheManager cacheManager) async {
+  await cacheManager.emptyCache();
+  final directory = Directory(
+    p.join((await getTemporaryDirectory()).path, _imageCacheKey),
+  );
+  if (await directory.exists()) {
+    await directory.delete(recursive: true);
+  }
+}
 
 class LoggingCacheManager extends CacheManager {
   LoggingCacheManager(super.config);

@@ -111,6 +111,22 @@
   "@settingsGeneralCustomize": {
     "description": "Button that opens the shortcut dialog."
   },
+  "settingsGeneralResetImageCache": "Reset image cache",
+  "@settingsGeneralResetImageCache": {
+    "description": "Row heading for resetting the image cache."
+  },
+  "settingsGeneralResetImageCacheCaption": "Clear cached images; they will be loaded from the server again while browsing",
+  "@settingsGeneralResetImageCacheCaption": {
+    "description": "Caption for the reset image cache row."
+  },
+  "settingsGeneralResetImageCacheButton": "Reset",
+  "@settingsGeneralResetImageCacheButton": {
+    "description": "Button that clears the image cache."
+  },
+  "settingsGeneralResetImageCacheSuccess": "Image cache reset",
+  "@settingsGeneralResetImageCacheSuccess": {
+    "description": "Toast shown after the image cache has been cleared."
+  },
   "settingsServerEnable": "Enable the FlyNarwhal server",
   "@settingsServerEnable": {
     "description": "Toggle that enables the FlyNarwhal server features."

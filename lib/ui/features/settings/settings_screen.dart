@@ -55,6 +55,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String? _selectedLogDate;
   bool _isExportingLogs = false;
   String? _logExportErrorMessage;
+  bool _isResettingImageCache = false;
 
   /// 「字体大小」所在的行。改字号会让它上方所有行重新排版，用这个 key
   /// 量出该行的位置，把滚动偏移补偿回去，避免它从指针下方跑掉。
@@ -233,6 +234,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder: (context) => const SslWhitelistDialog(),
     );
+  }
+
+  Future<void> _resetImageCache() async {
+    if (_isResettingImageCache) {
+      return;
+    }
+
+    setState(() => _isResettingImageCache = true);
+
+    final l10n = AppLocalizations.of(context);
+    try {
+      await clearImageCache(ref.read(imageCacheManagerProvider));
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      if (!mounted) {
+        return;
+      }
+      ref
+          .read(toastManagerProvider.notifier)
+          .showToast(l10n.settingsGeneralResetImageCacheSuccess);
+    } finally {
+      if (mounted) {
+        setState(() => _isResettingImageCache = false);
+      }
+    }
   }
 
   Future<void> _exportErrorLogs() async {
@@ -744,6 +770,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                           const ShortcutSettingsDialog(),
                                     );
                                   },
+                                ),
+                              ),
+                              CardExpanderItem(
+                                icon: const Icon(FluentIcons.photo),
+                                heading: Text(
+                                  l10n.settingsGeneralResetImageCache,
+                                ),
+                                caption: Text(
+                                  l10n.settingsGeneralResetImageCacheCaption,
+                                ),
+                                trailing: AppButton(
+                                  key: const ValueKey(
+                                    'settings-reset-image-cache',
+                                  ),
+                                  onPressed: _isResettingImageCache
+                                      ? null
+                                      : _resetImageCache,
+                                  child: Text(
+                                    l10n.settingsGeneralResetImageCacheButton,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 4),

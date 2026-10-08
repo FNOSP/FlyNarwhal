@@ -109,6 +109,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsGeneralCustomize => '自定义';
 
   @override
+  String get settingsGeneralResetImageCache => '重置图片缓存';
+
+  @override
+  String get settingsGeneralResetImageCacheCaption => '清理已缓存的图片，浏览时将重新从服务端加载图片';
+
+  @override
+  String get settingsGeneralResetImageCacheButton => '重置';
+
+  @override
+  String get settingsGeneralResetImageCacheSuccess => '图片缓存已重置';
+
+  @override
   String get settingsServerEnable => '启用飞鲸服务端';
 
   @override
@@ -2907,6 +2919,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get settingsGeneralCustomize => '自訂';
+
+  @override
+  String get settingsGeneralResetImageCache => '重置圖片快取';
+
+  @override
+  String get settingsGeneralResetImageCacheCaption => '清理已快取的圖片，瀏覽時將重新從伺服器載入圖片';
+
+  @override
+  String get settingsGeneralResetImageCacheButton => '重置';
+
+  @override
+  String get settingsGeneralResetImageCacheSuccess => '圖片快取已重置';
 
   @override
   String get settingsServerEnable => '啟用飛鯨伺服器';

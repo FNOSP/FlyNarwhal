@@ -111,6 +111,22 @@
   "@settingsGeneralCustomize": {
     "description": "Button that opens the shortcut dialog."
   },
+  "settingsGeneralResetImageCache": "重置圖片快取",
+  "@settingsGeneralResetImageCache": {
+    "description": "Row heading for resetting the image cache."
+  },
+  "settingsGeneralResetImageCacheCaption": "清理已快取的圖片，瀏覽時將重新從伺服器載入圖片",
+  "@settingsGeneralResetImageCacheCaption": {
+    "description": "Caption for the reset image cache row."
+  },
+  "settingsGeneralResetImageCacheButton": "重置",
+  "@settingsGeneralResetImageCacheButton": {
+    "description": "Button that clears the image cache."
+  },
+  "settingsGeneralResetImageCacheSuccess": "圖片快取已重置",
+  "@settingsGeneralResetImageCacheSuccess": {
+    "description": "Toast shown after the image cache has been cleared."
+  },
   "settingsServerEnable": "啟用飛鯨伺服器",
   "@settingsServerEnable": {
     "description": "Toggle that enables the FlyNarwhal server features."
