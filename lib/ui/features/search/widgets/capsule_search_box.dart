@@ -332,8 +332,12 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
     // placeholder from being clipped at larger text sizes.
     final textScale = MediaQuery.textScalerOf(context).scale(1.0);
 
+    // Below 1.0 the width must not shrink with the text: the placeholder sits
+    // in fixed trailing chrome (icon + gap + padding) that the scale does not
+    // touch, so a shrunken capsule clips the tail of the localized string.
+    final widthScale = textScale < 1.0 ? 1.0 : textScale;
     final width = (_isFocused ? widget.expandedWidth : widget.collapsedWidth) *
-        textScale;
+        widthScale;
     final showBackground = _isHovered || _isFocused;
     final backgroundColor = showBackground
         ? theme.resources.controlFillColorDefault
