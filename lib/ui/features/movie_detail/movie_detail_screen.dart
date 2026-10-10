@@ -173,7 +173,27 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
 
   final _moreFlyoutController = FlyoutController();
   bool _thumbnailActionLoading = false;
-  String _lastThumbnailRefreshGuid = '';
+
+  /// Captured while the element is alive so teardown can stop the chain without
+  /// touching `ref` (see dispose). Re-captured whenever the media guid changes.
+  ThumbnailMenuController? _thumbnailMenuNotifier;
+  String _thumbnailMenuNotifierGuid = '';
+
+  /// The notifier for [guid], captured for teardown. Safe to call from build
+  /// paths and callbacks; the result outlives the element.
+  ThumbnailMenuController _thumbnailNotifierFor(String guid) {
+    if (_thumbnailMenuNotifierGuid != guid || _thumbnailMenuNotifier == null) {
+      _thumbnailMenuNotifier =
+          ref.read(thumbnailMenuControllerProvider(guid).notifier);
+      _thumbnailMenuNotifierGuid = guid;
+    }
+    return _thumbnailMenuNotifier!;
+  }
+
+  /// Read-only lookup that never re-points the teardown capture, for a guid
+  /// that is not (or no longer) the page's current media.
+  ThumbnailMenuController _thumbnailNotifier(String guid) =>
+      ref.read(thumbnailMenuControllerProvider(guid).notifier);
 
   @override
   void initState() {
@@ -181,8 +201,18 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     _initializeSelection();
   }
 
+  /// Stops this guid's thumbnail poll chain so the family provider does not keep
+  /// polling for a page that is gone. State survives (the provider is not
+  /// autoDispose), so re-entering the page resumes via refresh().
+  ///
+  /// Uses the notifier captured in initState rather than `ref.read`: `dispose`
+  /// runs after Riverpod has torn this element's `ref` down, so reading a
+  /// provider there throws. `notifyListeners: false` is equally essential —
+  /// teardown is a lifecycle phase where Riverpod forbids modifying providers,
+  /// and writing `state` there trips `_debugCanModifyProviders`.
   @override
   void dispose() {
+    _thumbnailMenuNotifier?.stopPolling(notifyListeners: false);
     _castScrollController.dispose();
     _moreFlyoutController.dispose();
     super.dispose();
@@ -251,19 +281,19 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     _refreshThumbnailMenuState();
   }
 
-  /// Load the sprite task state once per media so the 更多 menu can show
-  /// 已生成/重新生成 before the user triggers anything. Movies only for now.
+  /// Load the sprite task state for the current media so the 更多 menu can show
+  /// 已生成/重新生成 before the user triggers anything, and so re-entering the
+  /// page picks up a generation that is still running. Movies only for now.
   void _refreshThumbnailMenuState() {
     final item = widget.state.item;
     final guid = _currentMediaGuid;
     if (item == null || item.type == 'Episode' || guid.isEmpty) return;
-    if (guid == _lastThumbnailRefreshGuid) return;
-    _lastThumbnailRefreshGuid = guid;
+    // Deliberately not deduped on the guid: refresh() is idempotent and is the
+    // only thing that resumes a chain after the page was left and re-entered.
+    final notifier = _thumbnailNotifierFor(guid);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref
-          .read(thumbnailMenuControllerProvider(guid).notifier)
-          .refresh();
+      notifier.refresh();
     });
   }
 
@@ -367,6 +397,16 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     );
   }
 
+  /// True when the menu is offering 重新生成, i.e. a completed generation is
+  /// already on the server. Such a trigger must be forced: the server skips an
+  /// unchanged file, so without it the request is a no-op that still reports
+  /// success and the user never sees a new generation.
+  bool _thumbnailRegenerate(String guid) {
+    if (guid.isEmpty) return false;
+    final thumbState = ref.read(thumbnailMenuControllerProvider(guid));
+    return thumbState.status == ThumbnailTaskStatus.completed;
+  }
+
   Future<void> _generateThumbnails() async {
     final l10n = AppLocalizations.of(context);
     final settings = ref.read(settingsProvider);
@@ -408,9 +448,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
             );
         return;
       }
-      await ref
-          .read(thumbnailMenuControllerProvider(guid).notifier)
-          .trigger(filePath: filePath);
+      await _thumbnailNotifierFor(guid)
+          .trigger(filePath: filePath, force: _thumbnailRegenerate(guid));
     } finally {
       if (mounted) {
         setState(() => _thumbnailActionLoading = false);
@@ -804,6 +843,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   }
 
   void _onVideoStreamSelected(int index) {
+    final previousGuid = _currentMediaGuid;
     setState(() {
       _selectedVideoStreamIndex = index;
       if (widget.state.streamList != null &&
@@ -813,6 +853,14 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         _updateCurrentStreamSelections();
       }
     });
+    // Switching streams switches media, so the old guid's chain must stop and
+    // the new one must have its menu state loaded (it may already be running).
+    if (previousGuid != _currentMediaGuid) {
+      if (previousGuid.isNotEmpty) {
+        _thumbnailNotifier(previousGuid).stopPolling();
+      }
+      _refreshThumbnailMenuState();
+    }
   }
 
   Future<void> _handleToggleFavorite() async {
