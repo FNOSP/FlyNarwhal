@@ -1579,6 +1579,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             mediaGuid: cache?.currentVideoStream?.mediaGuid,
           ),
     );
+    _updatePlayerThumbnailContext();
+  }
+
+  /// Movies only: load sprite metadata once so the progress bar can resolve
+  /// hover previews. Episodes are covered later, mirroring the server scope.
+  void _updatePlayerThumbnailContext() {
+    final cache = _playingInfoCache;
+    final mediaGuid = cache?.currentVideoStream?.mediaGuid;
+    if (mediaGuid == null ||
+        mediaGuid.isEmpty ||
+        cache?.isEpisode == true ||
+        MediaType.tryParse(cache?.item?.type) == MediaType.episode) {
+      return;
+    }
+    unawaited(
+      ref.read(playerThumbnailControllerProvider(mediaGuid).notifier).init(),
+    );
   }
 
   Future<void> _handleSkipAction(PlayerSkipAction action) async {
@@ -6582,6 +6599,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Widget _buildProgressBar() {
     final bufferedProgressRatio = _bufferedProgressRatio;
+    final cache = _playingInfoCache;
+    final mediaGuid = cache?.currentVideoStream?.mediaGuid;
+    final thumbnailsReady = mediaGuid != null &&
+            mediaGuid.isNotEmpty &&
+            cache?.isEpisode != true
+        ? ref.watch(playerThumbnailControllerProvider(mediaGuid))?.isReady ??
+            false
+        : false;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) =>
@@ -6594,6 +6619,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         buffered: bufferedProgressRatio,
         segments: _resolvedSkipSegments.allSegmentMarkers,
         onSeek: _seekTo,
+        thumbnailResolver: thumbnailsReady
+            ? (hoverTime) => ref
+                .read(playerThumbnailControllerProvider(mediaGuid).notifier)
+                .previewAt(hoverTime)
+            : null,
       ),
     );
   }

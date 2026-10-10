@@ -24,6 +24,8 @@ import '../data/models/user_info.dart';
 import '../data/repositories/tag_repository_impl.dart';
 import '../data/storage/account_settings_store.dart';
 import '../data/storage/fly_narwhal_settings.dart';
+import '../data/storage/thumbnail_sprite_cache.dart';
+import '../data/models/fly_narwhal/index.dart';
 import '../data/storage/login_history_password_service.dart';
 import '../data/storage/player_settings_store.dart';
 import '../data/storage/preferences_manager.dart';
@@ -44,6 +46,8 @@ import 'smart_skip_settings_controller.dart';
 import 'skip_switches_controller.dart';
 import 'season_analysis_status_controller.dart';
 import 'episode_analysis_controller.dart';
+import 'thumbnail/thumbnail_menu_controller.dart';
+import 'thumbnail/player_thumbnail_controller.dart';
 import 'update_providers.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
@@ -400,6 +404,35 @@ final episodeAnalysisControllerProvider =
         (ref) {
   return EpisodeAnalysisController(
     ref.watch(flyNarwhalRemoteDataSourceProvider),
+  );
+});
+
+final thumbnailSpriteCacheProvider = Provider<ThumbnailSpriteCache>((ref) {
+  return ThumbnailSpriteCache();
+});
+
+final thumbnailDecodedSheetCacheProvider =
+    Provider<ThumbnailDecodedSheetCache>((ref) {
+  return ThumbnailDecodedSheetCache();
+});
+
+final thumbnailMenuControllerProvider = StateNotifierProvider.family<
+    ThumbnailMenuController, ThumbnailMenuState, String>((ref, guid) {
+  return ThumbnailMenuController(
+    ref.watch(flyNarwhalRemoteDataSourceProvider),
+    ref.watch(flyNarwhalSettingsProvider),
+    guid,
+  );
+});
+
+final playerThumbnailControllerProvider = StateNotifierProvider.family<
+    PlayerThumbnailController, ThumbnailMetadata?, String>((ref, mediaGuid) {
+  return PlayerThumbnailController(
+    ref.watch(flyNarwhalRemoteDataSourceProvider),
+    ref.watch(flyNarwhalSettingsProvider),
+    ref.watch(thumbnailSpriteCacheProvider),
+    ref.watch(thumbnailDecodedSheetCacheProvider),
+    mediaGuid,
   );
 });
 

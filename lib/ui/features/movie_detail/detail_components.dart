@@ -99,6 +99,10 @@ class DetailTags extends StatelessWidget {
   final Map<int, String> genresMap;
   final String? smartAnalysisStatusText;
 
+  /// Trickplay sprite task status, shown as the last "/"-separated tag
+  /// (movies only; null hides it).
+  final String? thumbnailStatusText;
+
   /// 剧集详情页（Web /v/tv/episode/:guid）的标签栏仅展示「年份 / 时长」，
   /// 不含评分、分级、类型、地区与媒体库名——与 Web 一致。
   final bool isEpisode;
@@ -110,6 +114,7 @@ class DetailTags extends StatelessWidget {
     this.iso3166Map = const {},
     this.genresMap = const {},
     this.smartAnalysisStatusText,
+    this.thumbnailStatusText,
     this.isEpisode = false,
   });
 
@@ -252,6 +257,22 @@ class DetailTags extends StatelessWidget {
         smartAnalysisStatusText!.isNotEmpty) {
       items.add(Text(
         l10n.movieDetailSmartAnalysisStatus(smartAnalysisStatusText!),
+        style: TextStyle(
+          color: FluentTheme.of(context)
+              .typography
+              .body
+              ?.color
+              ?.withValues(alpha: 0.8),
+          fontSize: 14,
+        ),
+      ));
+    }
+
+    if (!isEpisode &&
+        thumbnailStatusText != null &&
+        thumbnailStatusText!.isNotEmpty) {
+      items.add(Text(
+        l10n.movieDetailThumbnailStatus(thumbnailStatusText!),
         style: TextStyle(
           color: FluentTheme.of(context)
               .typography

@@ -5246,6 +5246,84 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'未启用任何弹弹play来源'**
   String get danmuDandanNoneEnabled;
+
+  /// Movie detail more-menu action to pre-generate progress-bar preview sprites.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成缩略图'**
+  String get movieDetailGenerateThumbnails;
+
+  /// Movie detail more-menu state while the sprite task waits in the server queue.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图排队中…'**
+  String get movieDetailThumbnailQueued;
+
+  /// Movie detail more-menu state while the server generates sprites.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图生成中…'**
+  String get movieDetailThumbnailGenerating;
+
+  /// Movie detail more-menu action shown when sprites already exist or the source file changed.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新生成缩略图'**
+  String get movieDetailThumbnailRegenerate;
+
+  /// Toast shown when the movie has no resolvable file path for sprite generation.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法获取视频文件路径'**
+  String get movieDetailThumbnailNoFile;
+
+  /// Persistent sprite-task status line on the movie detail page.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图预览：{status}'**
+  String movieDetailThumbnailStatus(String status);
+
+  /// Immediate feedback toast after triggering sprite generation.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图已加入生成队列'**
+  String get movieDetailThumbnailQueuedToast;
+
+  /// Success toast when sprite generation finishes.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图生成完成，播放时悬浮进度条即可预览'**
+  String get movieDetailThumbnailCompletedToast;
+
+  /// Failure toast with the server-provided reason.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图生成失败：{error}'**
+  String movieDetailThumbnailFailed(String error);
+
+  /// Failure toast when the server gave no reason.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩略图生成失败'**
+  String get movieDetailThumbnailFailedGeneric;
+
+  /// Short status value for the sprite status line when generation is done.
+  ///
+  /// In zh, this message translates to:
+  /// **'已生成'**
+  String get movieDetailThumbnailCompletedShort;
+
+  /// Short status value when sprites exist but the source file changed.
+  ///
+  /// In zh, this message translates to:
+  /// **'已生成，但影片文件已更新，建议重新生成'**
+  String get movieDetailThumbnailStale;
+
+  /// Short status value for the sprite status line when generation failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成失败'**
+  String get movieDetailThumbnailFailedShort;
 }
 
 class _AppLocalizationsDelegate

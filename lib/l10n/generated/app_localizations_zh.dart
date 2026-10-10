@@ -2830,6 +2830,49 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get danmuDandanNoneEnabled => '未启用任何弹弹play来源';
+
+  @override
+  String get movieDetailGenerateThumbnails => '生成缩略图';
+
+  @override
+  String get movieDetailThumbnailQueued => '缩略图排队中…';
+
+  @override
+  String get movieDetailThumbnailGenerating => '缩略图生成中…';
+
+  @override
+  String get movieDetailThumbnailRegenerate => '重新生成缩略图';
+
+  @override
+  String get movieDetailThumbnailNoFile => '无法获取视频文件路径';
+
+  @override
+  String movieDetailThumbnailStatus(String status) {
+    return '缩略图预览：$status';
+  }
+
+  @override
+  String get movieDetailThumbnailQueuedToast => '缩略图已加入生成队列';
+
+  @override
+  String get movieDetailThumbnailCompletedToast => '缩略图生成完成，播放时悬浮进度条即可预览';
+
+  @override
+  String movieDetailThumbnailFailed(String error) {
+    return '缩略图生成失败：$error';
+  }
+
+  @override
+  String get movieDetailThumbnailFailedGeneric => '缩略图生成失败';
+
+  @override
+  String get movieDetailThumbnailCompletedShort => '已生成';
+
+  @override
+  String get movieDetailThumbnailStale => '已生成，但影片文件已更新，建议重新生成';
+
+  @override
+  String get movieDetailThumbnailFailedShort => '生成失败';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -5658,4 +5701,47 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get danmuDandanNoneEnabled => '未啟用任何彈彈play來源';
+
+  @override
+  String get movieDetailGenerateThumbnails => '生成縮圖';
+
+  @override
+  String get movieDetailThumbnailQueued => '縮圖排隊中…';
+
+  @override
+  String get movieDetailThumbnailGenerating => '縮圖生成中…';
+
+  @override
+  String get movieDetailThumbnailRegenerate => '重新生成縮圖';
+
+  @override
+  String get movieDetailThumbnailNoFile => '無法取得影片檔案路徑';
+
+  @override
+  String movieDetailThumbnailStatus(String status) {
+    return '縮圖預覽：$status';
+  }
+
+  @override
+  String get movieDetailThumbnailQueuedToast => '縮圖已加入生成佇列';
+
+  @override
+  String get movieDetailThumbnailCompletedToast => '縮圖生成完成，播放時懸浮進度條即可預覽';
+
+  @override
+  String movieDetailThumbnailFailed(String error) {
+    return '縮圖生成失敗：$error';
+  }
+
+  @override
+  String get movieDetailThumbnailFailedGeneric => '縮圖生成失敗';
+
+  @override
+  String get movieDetailThumbnailCompletedShort => '已生成';
+
+  @override
+  String get movieDetailThumbnailStale => '已生成，但影片檔案已更新，建議重新生成';
+
+  @override
+  String get movieDetailThumbnailFailedShort => '生成失敗';
 }

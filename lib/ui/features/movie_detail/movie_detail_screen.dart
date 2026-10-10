@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:crypto/crypto.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +13,9 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_result.dart';
 import '../../../data/models/movie_detail_models.dart';
 import '../../../data/models/file_models.dart';
+import '../../../data/models/fly_narwhal/index.dart';
+import '../../../data/models/player_models.dart';
+import '../../../data/models/cloud_storage_type.dart';
 import '../../../data/utils/fn_data_convertor.dart';
 import '../../../domain/entities/media_type.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -19,6 +24,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import '../../../providers/global_refresh.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/file_providers.dart';
+import '../../../providers/thumbnail/thumbnail_menu_controller.dart';
 import '../../shared/common/app_load_error_view.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/common/fn_cached_image.dart';
@@ -165,6 +171,10 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   final ScrollController _castScrollController = ScrollController();
   bool _castScrollRestoreDone = false;
 
+  final _moreFlyoutController = FlyoutController();
+  bool _thumbnailActionLoading = false;
+  String _lastThumbnailRefreshGuid = '';
+
   @override
   void initState() {
     super.initState();
@@ -174,6 +184,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   @override
   void dispose() {
     _castScrollController.dispose();
+    _moreFlyoutController.dispose();
     super.dispose();
   }
 
@@ -237,6 +248,23 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     }
 
     _updateCurrentStreamSelections();
+    _refreshThumbnailMenuState();
+  }
+
+  /// Load the sprite task state once per media so the 更多 menu can show
+  /// 已生成/重新生成 before the user triggers anything. Movies only for now.
+  void _refreshThumbnailMenuState() {
+    final item = widget.state.item;
+    final guid = _currentMediaGuid;
+    if (item == null || item.type == 'Episode' || guid.isEmpty) return;
+    if (guid == _lastThumbnailRefreshGuid) return;
+    _lastThumbnailRefreshGuid = guid;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(thumbnailMenuControllerProvider(guid).notifier)
+          .refresh();
+    });
   }
 
   void _updateCurrentStreamSelections() {
@@ -284,6 +312,203 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
       return files.first.path;
     }
     return '';
+  }
+
+  // ── 「更多」菜单:生成缩略图 ─────────────────────────────────────
+
+  void _showMoreMenu() {
+    final l10n = AppLocalizations.of(context);
+    if (_moreFlyoutController.isOpen) {
+      _moreFlyoutController.close();
+      return;
+    }
+    final guid = _currentMediaGuid;
+    final thumbState = guid.isNotEmpty
+        ? ref.read(thumbnailMenuControllerProvider(guid))
+        : const ThumbnailMenuState();
+
+    final running = thumbState.status == ThumbnailTaskStatus.pending ||
+        thumbState.status == ThumbnailTaskStatus.inProgress;
+    final generated = thumbState.status == ThumbnailTaskStatus.completed;
+
+    String label;
+    if (running) {
+      label = thumbState.status == ThumbnailTaskStatus.pending
+          ? l10n.movieDetailThumbnailQueued
+          : l10n.movieDetailThumbnailGenerating;
+    } else if (generated) {
+      label = l10n.movieDetailThumbnailRegenerate;
+    } else {
+      label = l10n.movieDetailGenerateThumbnails;
+    }
+
+    final enabled = !running &&
+        !_thumbnailActionLoading &&
+        guid.isNotEmpty &&
+        _resolveCurrentFilePath().isNotEmpty;
+
+    _moreFlyoutController.showFlyout<void>(
+      placementMode: FlyoutPlacementMode.bottomRight,
+      builder: (flyoutContext) => MenuFlyout(
+        items: [
+          MenuFlyoutItem(
+            key: ValueKey('movie-detail-thumbnails-$guid'),
+            leading: const Icon(FluentIcons.photo, size: 16),
+            text: Text(label),
+            onPressed: enabled
+                ? () {
+                    Flyout.of(flyoutContext).close();
+                    _generateThumbnails();
+                  }
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _generateThumbnails() async {
+    final l10n = AppLocalizations.of(context);
+    final settings = ref.read(settingsProvider);
+    if (!settings.isFlyNarwhalServerAvailable) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            buildFlyNarwhalConfigWarning(
+              l10n,
+              missingUrl: settings.flyNarwhalServerBaseUrl.isEmpty,
+              missingAuthCode: !settings.hasFlyNarwhalAuthCode,
+            ),
+            type: ToastType.warning,
+            category: 'fly-narwhal-config',
+          );
+      return;
+    }
+    final guid = _currentMediaGuid;
+    final filePath = _resolveCurrentFilePath();
+    if (guid.isEmpty || filePath.isEmpty) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            l10n.movieDetailThumbnailNoFile,
+            type: ToastType.failed,
+          );
+      return;
+    }
+    // Optimistic feedback the moment the user clicks (same as smart analysis);
+    // the status listener coalesces the real "queued" toast into this one.
+    ref.read(toastManagerProvider.notifier).showToast(
+          l10n.movieDetailThumbnailQueuedToast,
+          type: ToastType.success,
+          category: 'movie-thumbnails:$guid:queued',
+          coalesce: true,
+        );
+    setState(() => _thumbnailActionLoading = true);
+    try {
+      if (await _isCloudOrStrmMedia(guid)) {
+        ref.read(toastManagerProvider.notifier).showToast(
+              l10n.smartAnalysisCloudOrStrmRejected,
+              type: ToastType.warning,
+            );
+        return;
+      }
+      await ref
+          .read(thumbnailMenuControllerProvider(guid).notifier)
+          .trigger(filePath: filePath);
+    } finally {
+      if (mounted) {
+        setState(() => _thumbnailActionLoading = false);
+      }
+    }
+  }
+
+  /// Cloud/STRM media cannot be sprite-generated server-side (same rule as
+  /// smart analysis). Failures answer false so the trigger still runs and the
+  /// server reports the real error.
+  void _showThumbnailStatusToast(
+    AppLocalizations l10n,
+    String guid,
+    ThumbnailMenuState? previous,
+    ThumbnailMenuState next,
+  ) {
+    final category = 'movie-thumbnails:$guid';
+    // A trigger that fails before reaching the queue (server unreachable,
+    // bad signature, …): surface the transport error once per new failure.
+    if (next.actionError != null && next.actionError != previous?.actionError) {
+      ref.read(toastManagerProvider.notifier).showToast(
+            next.actionError!,
+            type: ToastType.failed,
+            category: '$category:action',
+          );
+      return;
+    }
+    if (previous?.status == next.status) return;
+    switch (next.status) {
+      case ThumbnailTaskStatus.pending:
+        // Only toast when the task enters the queue from a terminal state (a
+        // fresh trigger); opening the page while a task already runs must not
+        // re-announce it every poll.
+        if (previous == null ||
+            previous.status == ThumbnailTaskStatus.none ||
+            previous.status.isTerminal) {
+          ref.read(toastManagerProvider.notifier).showToast(
+                l10n.movieDetailThumbnailQueuedToast,
+                type: ToastType.success,
+                category: '$category:queued',
+                coalesce: true,
+              );
+        }
+      case ThumbnailTaskStatus.completed:
+        ref.read(toastManagerProvider.notifier).showToast(
+              l10n.movieDetailThumbnailCompletedToast,
+              type: ToastType.success,
+              category: '$category:done',
+            );
+      case ThumbnailTaskStatus.failed:
+        ref.read(toastManagerProvider.notifier).showToast(
+              next.serverError?.isNotEmpty == true
+                  ? l10n.movieDetailThumbnailFailed(next.serverError!)
+                  : l10n.movieDetailThumbnailFailedGeneric,
+              type: ToastType.failed,
+              category: '$category:failed',
+            );
+      case ThumbnailTaskStatus.inProgress:
+      case ThumbnailTaskStatus.none:
+        break;
+    }
+  }
+
+  String _thumbnailStatusText(
+      AppLocalizations l10n, ThumbnailMenuState thumbState) {
+    switch (thumbState.status) {
+      case ThumbnailTaskStatus.pending:
+        return l10n.movieDetailThumbnailQueued;
+      case ThumbnailTaskStatus.inProgress:
+        return l10n.movieDetailThumbnailGenerating;
+      case ThumbnailTaskStatus.completed:
+        return thumbState.stale
+            ? l10n.movieDetailThumbnailStale
+            : l10n.movieDetailThumbnailCompletedShort;
+      case ThumbnailTaskStatus.failed:
+        return l10n.movieDetailThumbnailFailedShort;
+      case ThumbnailTaskStatus.none:
+        return '';
+    }
+  }
+
+  Future<bool> _isCloudOrStrmMedia(String mediaGuid) async {
+    try {
+      final token = ref.read(preferencesManagerProvider).getToken() ?? '';
+      final streamInfo = (await ref
+              .read(mediaRemoteDataSourceProvider)
+              .getStreamInfo(StreamRequest(
+                mediaGuid: mediaGuid,
+                ip: md5.convert(utf8.encode(token)).toString(),
+                header: Header(userAgent: [AppConstants.userAgent]),
+              )))
+          .getOrThrow();
+      return CloudStorageType.fromValue(
+        streamInfo.cloudStorageInfo?.cloudStorageType,
+      ).isKnown;
+    } catch (_) {
+      return false;
+    }
   }
 
   void _showAddNasSubtitleDialog(String mediaGuid) {
@@ -689,6 +914,30 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     // 渲染「剧名 · 季 · 集」面包屑 + 集标题的头部，并隐藏演职人员行。
     final isEpisode = item.type == 'Episode';
 
+    // Thumbnail sprite status feedback, mirroring the smart-analysis flow:
+    // toasts on queue/completion/failure so a background generation never
+    // runs silently. Movies only for now.
+    if (!isEpisode && _currentMediaGuid.isNotEmpty) {
+      ref.listen(thumbnailMenuControllerProvider(_currentMediaGuid),
+          (previous, next) {
+        _showThumbnailStatusToast(l10n, _currentMediaGuid, previous, next);
+      });
+    }
+
+    // Thumbnail status tag, appended to the metadata row (score / rating / …)
+    // as its last "/"-separated item; hidden for episodes, missing config, or
+    // when no task exists yet.
+    String? thumbnailStatusText;
+    if (!isEpisode &&
+        _currentMediaGuid.isNotEmpty &&
+        ref.watch(settingsProvider).isFlyNarwhalServerAvailable) {
+      final thumbState =
+          ref.watch(thumbnailMenuControllerProvider(_currentMediaGuid));
+      if (thumbState.status != ThumbnailTaskStatus.none) {
+        thumbnailStatusText = _thumbnailStatusText(l10n, thumbState);
+      }
+    }
+
     // Calculate total duration for progress bar
     final totalDuration = widget.state.streamList?.videoStreams
             .elementAtOrNull(_selectedVideoStreamIndex)
@@ -978,10 +1227,13 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                               onPressed: _handleToggleWatched,
                             ),
                             const SizedBox(width: 16),
-                            CircleIconButton(
-                              icon: FluentIcons.more,
-                              tooltip: l10n.actionMore,
-                              onPressed: () {},
+                            FlyoutTarget(
+                              controller: _moreFlyoutController,
+                              child: CircleIconButton(
+                                icon: FluentIcons.more,
+                                tooltip: l10n.actionMore,
+                                onPressed: _showMoreMenu,
+                              ),
                             ),
                           ],
                         ),
@@ -997,6 +1249,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                 iso3166Map: iso3166Map,
                                 genresMap: widget.state.genres,
                                 isEpisode: isEpisode,
+                                thumbnailStatusText: thumbnailStatusText,
                               ),
                               if (qualityAndSelectorRow != null) ...[
                                 const SizedBox(height: 8),

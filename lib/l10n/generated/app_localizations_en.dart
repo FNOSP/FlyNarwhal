@@ -2928,4 +2928,49 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get danmuDandanNoneEnabled => 'No dandanplay source is enabled';
+
+  @override
+  String get movieDetailGenerateThumbnails => 'Generate thumbnails';
+
+  @override
+  String get movieDetailThumbnailQueued => 'Thumbnails queued…';
+
+  @override
+  String get movieDetailThumbnailGenerating => 'Thumbnails generating…';
+
+  @override
+  String get movieDetailThumbnailRegenerate => 'Regenerate thumbnails';
+
+  @override
+  String get movieDetailThumbnailNoFile => 'Video file path is unavailable';
+
+  @override
+  String movieDetailThumbnailStatus(String status) {
+    return 'Thumbnail preview: $status';
+  }
+
+  @override
+  String get movieDetailThumbnailQueuedToast => 'Thumbnail generation queued';
+
+  @override
+  String get movieDetailThumbnailCompletedToast =>
+      'Thumbnails generated — hover the progress bar during playback to preview';
+
+  @override
+  String movieDetailThumbnailFailed(String error) {
+    return 'Thumbnail generation failed: $error';
+  }
+
+  @override
+  String get movieDetailThumbnailFailedGeneric => 'Thumbnail generation failed';
+
+  @override
+  String get movieDetailThumbnailCompletedShort => 'Generated';
+
+  @override
+  String get movieDetailThumbnailStale =>
+      'Generated, but the video file changed — regenerating is recommended';
+
+  @override
+  String get movieDetailThumbnailFailedShort => 'Failed';
 }

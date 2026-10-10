@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
@@ -148,6 +149,65 @@ class FlyNarwhalRemoteDataSource {
         parameters: <String, dynamic>{'user_guid': userGuid},
         fromJsonT: (json) => SmartSkipConfig.fromJson(
             Map<String, dynamic>.from(json as Map)));
+  }
+
+  Future<ApiResult<SmartAnalysisResult<ThumbnailMetadata>>>
+      generateThumbnails(ThumbnailGenerateRequest request) {
+    return _post(ApiEndpoints.flyNarwhalThumbnailGenerate,
+        data: request.toJson(),
+        fromJsonT: (json) => ThumbnailMetadata.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  Future<ApiResult<SmartAnalysisResult<ThumbnailMetadata>>>
+      getThumbnailStatus(String guid) {
+    return _get(ApiEndpoints.flyNarwhalThumbnailStatus,
+        parameters: <String, dynamic>{'guid': guid},
+        fromJsonT: (json) => ThumbnailMetadata.fromJson(
+            Map<String, dynamic>.from(json as Map)));
+  }
+
+  /// Raw sprite sheet bytes. The server answers plain JPEG (not a Result
+  /// envelope), so this bypasses the SmartAnalysisResult decode path entirely;
+  /// a non-200 (404 guards) maps to a failure the caller treats as "no preview".
+  Future<ApiResult<Uint8List>> fetchSpriteBytes({
+    required String guid,
+    required int index,
+    required int generation,
+  }) async {
+    const path = ApiEndpoints.flyNarwhalThumbnailSprite;
+    try {
+      final url = _buildFullUrl(path);
+      final parameters = <String, dynamic>{
+        'guid': guid,
+        'index': index,
+        'generation': generation,
+      };
+      final response = await _dio.get<List<int>>(url,
+          queryParameters: parameters,
+          options: Options(
+              headers: await _buildHeaders(
+                signaturePath: path,
+                parameters: parameters,
+              ),
+              responseType: ResponseType.bytes));
+      if (response.statusCode == 200 && response.data != null) {
+        return Success(Uint8List.fromList(response.data!));
+      }
+      return ResultFailure(FailureInfo(
+        message: 'sprite HTTP ${response.statusCode}',
+        code: response.statusCode ?? 0,
+        displayMessage: 'sprite HTTP ${response.statusCode}',
+      ));
+    } catch (error, stackTrace) {
+      AppTalker.error(
+        'FlyNarwhal',
+        error: error,
+        stackTrace: stackTrace,
+        message: 'GET sprite 失败: $path',
+      );
+      return ResultFailure(_wrapFailureInfo(error));
+    }
   }
 
   Future<ApiResult<SmartAnalysisResult<String>>> saveSmartSkipConfig({

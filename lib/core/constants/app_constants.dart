@@ -87,6 +87,12 @@ class ApiEndpoints {
   static const String flyNarwhalSegments = '/api/analysis/segments';
   static const String flyNarwhalSmartSkipConfig =
       '/api/analysis/smart-skip-config';
+  static const String flyNarwhalThumbnailGenerate =
+      '/api/analysis/thumbnails/generate';
+  static const String flyNarwhalThumbnailStatus =
+      '/api/analysis/thumbnails/status';
+  static const String flyNarwhalThumbnailSprite =
+      '/api/analysis/thumbnails/sprite';
   static const String flyNarwhalFnBaseUrl = '/api/config/fn-base-url';
   static const String flyNarwhalDanmaku = '/api/danmu/get';
   static const String flyNarwhalDanmuSourceConfig = '/api/danmu/source-config';
