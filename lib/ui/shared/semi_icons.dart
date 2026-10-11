@@ -38,6 +38,9 @@ class SemiIcons {
   static SvgPicture deleteVideo({double size = 16, Color? color}) =>
       _icon('delete_video', size, color);
 
+  static SvgPicture thumbnails({double size = 16, Color? color}) =>
+      _icon('thumbnails', size, color);
+
   static SvgPicture _icon(String name, double size, Color? color) {
     return SvgPicture.asset(
       '$_assetDir/$name.svg',

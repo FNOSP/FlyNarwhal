@@ -5256,13 +5256,13 @@ abstract class AppLocalizations {
   /// Movie detail more-menu state while the sprite task waits in the server queue.
   ///
   /// In zh, this message translates to:
-  /// **'缩略图排队中…'**
+  /// **'排队中'**
   String get movieDetailThumbnailQueued;
 
   /// Movie detail more-menu state while the server generates sprites.
   ///
   /// In zh, this message translates to:
-  /// **'缩略图生成中…'**
+  /// **'生成中'**
   String get movieDetailThumbnailGenerating;
 
   /// Movie detail more-menu action shown when sprites already exist or the source file changed.

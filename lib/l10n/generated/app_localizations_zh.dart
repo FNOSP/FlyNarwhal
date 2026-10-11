@@ -2835,10 +2835,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get movieDetailGenerateThumbnails => '生成缩略图';
 
   @override
-  String get movieDetailThumbnailQueued => '缩略图排队中…';
+  String get movieDetailThumbnailQueued => '排队中';
 
   @override
-  String get movieDetailThumbnailGenerating => '缩略图生成中…';
+  String get movieDetailThumbnailGenerating => '生成中';
 
   @override
   String get movieDetailThumbnailRegenerate => '重新生成缩略图';
@@ -5706,10 +5706,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get movieDetailGenerateThumbnails => '生成縮圖';
 
   @override
-  String get movieDetailThumbnailQueued => '縮圖排隊中…';
+  String get movieDetailThumbnailQueued => '排隊中';
 
   @override
-  String get movieDetailThumbnailGenerating => '縮圖生成中…';
+  String get movieDetailThumbnailGenerating => '生成中';
 
   @override
   String get movieDetailThumbnailRegenerate => '重新生成縮圖';

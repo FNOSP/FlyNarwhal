@@ -28,6 +28,7 @@ import '../../../providers/thumbnail/thumbnail_menu_controller.dart';
 import '../../shared/common/app_load_error_view.dart';
 import '../../shared/common/app_loading_progress_ring.dart';
 import '../../shared/common/fn_cached_image.dart';
+import '../../shared/semi_icons.dart';
 import 'detail_components.dart';
 import '../../shared/nas/add_nas_subtitle_dialog.dart';
 import '../../shared/dialogs/app_dialog.dart';
@@ -173,6 +174,11 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
 
   final _moreFlyoutController = FlyoutController();
   bool _thumbnailActionLoading = false;
+
+  /// Set when this page session starts a generation, so the completion toast
+  /// only fires for a run the user asked for — opening a detail page whose
+  /// sprites are already done must not announce it.
+  bool _thumbnailTriggeredHere = false;
 
   /// Captured while the element is alive so teardown can stop the chain without
   /// touching `ref` (see dispose). Re-captured whenever the media guid changes.
@@ -383,7 +389,10 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         items: [
           MenuFlyoutItem(
             key: ValueKey('movie-detail-thumbnails-$guid'),
-            leading: const Icon(FluentIcons.photo, size: 16),
+            leading: SemiIcons.thumbnails(
+              size: 16,
+              color: FluentTheme.of(context).typography.body?.color,
+            ),
             text: Text(label),
             onPressed: enabled
                 ? () {
@@ -450,6 +459,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
       }
       await _thumbnailNotifierFor(guid)
           .trigger(filePath: filePath, force: _thumbnailRegenerate(guid));
+      _thumbnailTriggeredHere = true;
     } finally {
       if (mounted) {
         setState(() => _thumbnailActionLoading = false);
@@ -494,6 +504,14 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
               );
         }
       case ThumbnailTaskStatus.completed:
+        // A task already finished when the page opened reports its first state
+        // as completed; only announce a run started from here.
+        if (!_thumbnailTriggeredHere &&
+            previous?.status != ThumbnailTaskStatus.pending &&
+            previous?.status != ThumbnailTaskStatus.inProgress) {
+          break;
+        }
+        _thumbnailTriggeredHere = false;
         ref.read(toastManagerProvider.notifier).showToast(
               l10n.movieDetailThumbnailCompletedToast,
               type: ToastType.success,

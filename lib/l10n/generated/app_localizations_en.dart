@@ -2933,10 +2933,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get movieDetailGenerateThumbnails => 'Generate thumbnails';
 
   @override
-  String get movieDetailThumbnailQueued => 'Thumbnails queued…';
+  String get movieDetailThumbnailQueued => 'Queued';
 
   @override
-  String get movieDetailThumbnailGenerating => 'Thumbnails generating…';
+  String get movieDetailThumbnailGenerating => 'Generating';
 
   @override
   String get movieDetailThumbnailRegenerate => 'Regenerate thumbnails';
