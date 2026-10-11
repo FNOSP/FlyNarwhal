@@ -132,6 +132,12 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
     // Intro role: jump to the end of the segment when the playhead sits in it.
     final introRole = _introRoleSegmentContaining(position);
     if (introRole != null &&
+        // A manual intro fallback must not be applied here. This hook runs the
+        // moment segments change — which, at session start, is before the
+        // server's analysis has reported the real intro — and the manual
+        // duration is usually far longer, so jumping to its end would overshoot
+        // the real intro. The manual segment still skips via a genuine crossing.
+        introRole.source != SkipSegmentSource.manual &&
         // Never auto-skip a segment this session already started at or past —
         // it was already watched. Mirrors the guard in [_crossedIntroRoleSegment].
         // Without it, a resume from past the intro (or an HLS/cloud reload that
@@ -287,6 +293,17 @@ class IntroSkipController extends StateNotifier<IntroSkipState> {
         continue;
       }
       if (previousPosition == null) {
+        // The session's very first position report is treated as a crossing so
+        // a resume that lands inside the intro still skips. Only trust a
+        // server-analyzed segment here: the manual intro fallback is resolved
+        // the instant the session starts, while the smart analysis result
+        // arrives a moment later and is usually far shorter, so acting on the
+        // manual value would carry the playhead well past the real intro. The
+        // manual segment still skips — just via a genuine crossing below,
+        // once playback actually enters it.
+        if (segment.source == SkipSegmentSource.manual) {
+          continue;
+        }
         return segment;
       }
       if (previousPosition <= segment.startMilliseconds &&
