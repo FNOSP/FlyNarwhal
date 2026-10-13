@@ -6,11 +6,13 @@ class PlaybackSourceSpec {
   final String playUri;
   final PlaybackTransport transport;
   final String? sourceError;
+  final int bitrate;
 
   const PlaybackSourceSpec({
     required this.playUri,
     this.transport = PlaybackTransport.standard,
     this.sourceError,
+    this.bitrate = 0,
   });
 }
 
