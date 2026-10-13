@@ -26,7 +26,7 @@ class SeasonListResponse {
   final String lan;
   @JsonKey(name: 'imdb_id')
   final String? imdbId;
-  @JsonKey(name: 'trim_id')
+  @JsonKey(name: 'trim_id', defaultValue: '')
   final String trimId;
   @JsonKey(name: 'tv_title')
   final String tvTitle;
@@ -37,9 +37,9 @@ class SeasonListResponse {
   final String title;
   final String type;
   final String? poster;
-  @JsonKey(name: 'poster_width')
+  @JsonKey(name: 'poster_width', defaultValue: 0)
   final int posterWidth;
-  @JsonKey(name: 'poster_height')
+  @JsonKey(name: 'poster_height', defaultValue: 0)
   final int posterHeight;
   @JsonKey(name: 'is_favorite')
   final int isFavorite;
