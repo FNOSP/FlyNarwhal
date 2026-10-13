@@ -88,6 +88,19 @@ final class ThumbnailSpriteCache {
     }
   }
 
+  /// Drop every cached sheet of every guid. Lives beside [purgeGuid] rather
+  /// than in the settings screen so the cache dir layout stays private to this
+  /// class.
+  Future<void> clear() async {
+    try {
+      final directory = await _directory();
+      if (directory == null) return;
+      await directory.delete(recursive: true);
+    } on Object {
+      // Best-effort cleanup; failures are ignored.
+    }
+  }
+
   Future<void> _evictIfNeeded(Directory directory) async {
     try {
       final entries = <File, int>{};
@@ -165,6 +178,19 @@ final class ThumbnailDecodedSheetCache {
     if (_images.length <= _maxEntries) return null;
     final oldestKey = _images.keys.first;
     return _images.remove(oldestKey);
+  }
+
+  /// Forget every entry without disposing the images.
+  ///
+  /// Disposing here would kill an image a preview is still painting: the
+  /// progress bar holds the [SpritePreview] it was last handed and keeps
+  /// drawing it until the next hover replaces it, and a settings-triggered
+  /// reset can land in that window. The caller disposes what it can prove is
+  /// off-screen; the rest is left to the GC.
+  Map<String, ui.Image> takeAll() {
+    final taken = Map<String, ui.Image>.from(_images);
+    _images.clear();
+    return taken;
   }
 
   void clear() {

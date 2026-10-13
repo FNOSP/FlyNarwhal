@@ -39,7 +39,9 @@ class PlayerThumbnailController extends StateNotifier<ThumbnailMetadata?> {
   final String _mediaGuid;
 
   final Set<int> _failedSheets = <int>{};
-  final Set<String> _inFlightPrefetch = <String>{};
+  /// `guid#generation#sheet` → the in-flight load of that sheet, so the main
+  /// hover path and the prefetcher share one fetch and one decode.
+  final Map<String, Future<ui.Image?>> _inFlightDecodes = {};
   ui.Image? _lastServedImage;
   int _requestToken = 0;
   bool _initialized = false;
@@ -89,6 +91,41 @@ class PlayerThumbnailController extends StateNotifier<ThumbnailMetadata?> {
       return _preview(cached, frame, metadata);
     }
 
+    final image = await _loadSheet(metadata, sheet);
+    if (image == null) return null;
+
+    // A long hover sweep may have moved on; drop stale resolutions so an old
+    // sheet never flashes under the cursor.
+    if (token != _requestToken) return null;
+
+    _lastServedImage = image;
+    _prefetchAdjacent(metadata, sheet);
+    return _preview(image, frame, metadata);
+  }
+
+  /// Resolve one sheet to a decoded image, sharing the work with any concurrent
+  /// caller for the same sheet.
+  ///
+  /// A hover sweep can hit the same sheet many times before the first fetch or
+  /// decode finishes; without this the disk miss repeats and each pass fires
+  /// its own request. The in-flight future is keyed per sheet so the main path
+  /// and the prefetch path also collapse onto one another.
+  Future<ui.Image?> _loadSheet(ThumbnailMetadata metadata, int sheet) {
+    final generation = metadata.generation;
+    final key = '$_mediaGuid#$generation#$sheet';
+    final pending = _inFlightDecodes[key];
+    if (pending != null) return pending;
+
+    final future = _resolveSheet(metadata, sheet).whenComplete(() {
+      _inFlightDecodes.remove(key);
+    });
+    _inFlightDecodes[key] = future;
+    return future;
+  }
+
+  Future<ui.Image?> _resolveSheet(ThumbnailMetadata metadata, int sheet) async {
+    final generation = metadata.generation;
+
     var bytes = await _spriteCache.readBytes(_mediaGuid, generation, sheet);
     if (bytes == null) {
       final fetched = await _remoteDataSource.fetchSpriteBytes(
@@ -105,21 +142,14 @@ class PlayerThumbnailController extends StateNotifier<ThumbnailMetadata?> {
       await _spriteCache.writeBytes(_mediaGuid, generation, sheet, data);
     }
 
-    // A long hover sweep may have moved on; drop stale resolutions so an old
-    // sheet never flashes under the cursor.
-    if (token != _requestToken) return null;
-
     final image = await _decode(bytes);
     if (image == null) {
       _failedSheets.add(sheet);
       return null;
     }
     _decodedCache.put(_mediaGuid, generation, sheet, image);
-    _lastServedImage = image;
     _evictProtectingDisplayed();
-    if (token != _requestToken) return null;
-    _prefetchAdjacent(metadata, sheet);
-    return _preview(image, frame, metadata);
+    return image;
   }
 
   /// Evict over-limit decoded sheets, but never dispose one a preview may
@@ -143,42 +173,8 @@ class PlayerThumbnailController extends StateNotifier<ThumbnailMetadata?> {
         continue;
       }
       final key = '$_mediaGuid#${metadata.generation}#$adjacent';
-      if (!_inFlightPrefetch.add(key)) continue;
-      unawaited(_prefetchSheet(metadata, adjacent, key));
-    }
-  }
-
-  Future<void> _prefetchSheet(
-      ThumbnailMetadata metadata, int sheet, String key) async {
-    try {
-      var bytes =
-          await _spriteCache.readBytes(_mediaGuid, metadata.generation, sheet);
-      if (bytes == null) {
-        final fetched = await _remoteDataSource.fetchSpriteBytes(
-          guid: _mediaGuid,
-          index: sheet,
-          generation: metadata.generation,
-        );
-        final data = fetched.dataOrNull;
-        if (data == null || data.isEmpty) {
-          _failedSheets.add(sheet);
-          return;
-        }
-        bytes = data;
-        await _spriteCache.writeBytes(_mediaGuid, metadata.generation, sheet, data);
-      }
-      if (_decodedCache.contains(_mediaGuid, metadata.generation, sheet)) {
-        return; // the user already reached it through the normal path
-      }
-      final image = await _decode(bytes);
-      if (image == null) {
-        _failedSheets.add(sheet);
-        return;
-      }
-      _decodedCache.put(_mediaGuid, metadata.generation, sheet, image);
-      _evictProtectingDisplayed();
-    } finally {
-      _inFlightPrefetch.remove(key);
+      if (_inFlightDecodes.containsKey(key)) continue;
+      unawaited(_loadSheet(metadata, adjacent));
     }
   }
 
@@ -187,13 +183,31 @@ class PlayerThumbnailController extends StateNotifier<ThumbnailMetadata?> {
     _requestToken++;
   }
 
+  /// Drop every decoded sheet, disposing all but the one the progress bar may
+  /// still be painting.
+  ///
+  /// Called when the on-disk sheets are being cleared (the settings page) and
+  /// when the sprites themselves were regenerated. [clear] would dispose the
+  /// live image too, which throws inside `drawImageRect` on the next frame;
+  /// [_lastServedImage] is the one image we know can still be on screen. It is
+  /// dropped from the cache without disposal and left to the GC.
+  void dropDecodedSheets() {
+    final taken = _decodedCache.takeAll();
+    for (final entry in taken.entries) {
+      if (!identical(entry.value, _lastServedImage)) {
+        entry.value.dispose();
+      }
+    }
+    _lastServedImage = null;
+  }
+
   /// Invalidate everything (e.g. the detail page regenerated the sprites).
   void invalidate() {
     _requestToken++;
     _initialized = false;
     _failedSheets.clear();
     state = null;
-    _decodedCache.clear();
+    dropDecodedSheets();
   }
 
   SpritePreview _preview(

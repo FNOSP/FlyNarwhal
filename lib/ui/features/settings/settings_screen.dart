@@ -270,10 +270,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() => _isResettingImageCache = true);
 
     final l10n = AppLocalizations.of(context);
+    final container = ProviderScope.containerOf(context);
     try {
       await clearImageCache(ref.read(imageCacheManagerProvider));
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
+      // Sprite sheets live in a separate on-disk cache, and their decoded
+      // copies are held by the per-media controllers, which dispose them
+      // safely (the in-memory image cache above knows nothing about either).
+      dropAllDecodedSpriteSheets(container);
+      await ref.read(thumbnailSpriteCacheProvider).clear();
       if (!mounted) {
         return;
       }

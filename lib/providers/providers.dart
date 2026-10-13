@@ -436,6 +436,25 @@ final playerThumbnailControllerProvider = StateNotifierProvider.family<
   );
 });
 
+/// Drops the decoded sprite sheets of every live player controller.
+///
+/// The controllers own the decoded images, so a reset has to go through them:
+/// the per-media caches cannot be enumerated, and disposing an image the
+/// progress bar is still painting throws inside `drawImageRect`.
+void dropAllDecodedSpriteSheets(ProviderContainer container) {
+  for (final element in container.getAllProviderElements()) {
+    final provider = element.origin;
+    final argument = provider.argument;
+    if (provider.from != playerThumbnailControllerProvider ||
+        argument is! String) {
+      continue;
+    }
+    container
+        .read(playerThumbnailControllerProvider(argument).notifier)
+        .dropDecodedSheets();
+  }
+}
+
 final danmakuControllerProvider =
     StateNotifierProvider<DanmakuController, DanmakuState>((ref) {
   final dataSource = ref.watch(flyNarwhalRemoteDataSourceProvider);
