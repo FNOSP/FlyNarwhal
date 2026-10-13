@@ -267,8 +267,25 @@ class _CapsuleSearchBoxState extends ConsumerState<CapsuleSearchBox>
     context.push(target);
   }
 
+  /// Whether an IME composition (preedit) is currently active in the field.
+  ///
+  /// While composing, the arrow keys belong to the input method's candidate
+  /// list: the OS keeps them for the IME and Flutter forwards them here anyway,
+  /// so consuming them would page the dropdown instead of the candidates.
+  bool get _isImeComposing {
+    final value = editableTextKey.currentState?.currentTextEditingValue;
+    return value != null && !value.composing.isCollapsed;
+  }
+
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    // Leave every key to the IME while a composition is in flight, so its
+    // candidate list keeps ↑/↓, Tab and Enter. Typing Latin text with an IME
+    // active is unaffected: a direct keystroke ends the composition before the
+    // key reaches us, so composing is collapsed by the time the list would move.
+    if (_isImeComposing) {
       return KeyEventResult.ignored;
     }
     final searchState = ref.read(searchProvider);
