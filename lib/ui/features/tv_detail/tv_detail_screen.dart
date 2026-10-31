@@ -353,6 +353,11 @@ class _TvDetailContentState extends ConsumerState<_TvDetailContent> {
       ),
     );
     for (final season in widget.state.seasonList) {
+      // Smart analysis of a season is also triggered from the season page
+      // (/tv/season/:guid), which owns its own toast listener. Both pages stay
+      // mounted under the shell route, so listening here as well would show
+      // every submission result twice.
+      if (ModalRoute.of(context)?.isCurrent == false) continue;
       ref.listen<AsyncValue<String>?>(
         smartAnalysisControllerProvider.select(
           (state) => state.submissionFor(
