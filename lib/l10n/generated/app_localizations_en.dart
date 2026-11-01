@@ -191,6 +191,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'The FlyNarwhal server is unreachable';
 
   @override
+  String settingsServerUpdateAvailable(String version) {
+    return 'A new FlyNarwhal server version $version is available. Update the server from the fnOS app center. If no update is listed there yet, please wait for the server to pass review.';
+  }
+
+  @override
   String settingsServerVersionProbeFailed(String error) {
     return 'Could not fetch the FlyNarwhal server version: $error';
   }

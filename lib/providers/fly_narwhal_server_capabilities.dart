@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/utils/log/app_talker.dart';
 import 'fly_narwhal_server_update_notifier.dart';
 import 'providers.dart';
+import 'update_providers.dart' show flyNarwhalServerUpdateAvailableProvider;
 
 /// First server release that carries the whole-work danmaku key (a movie's
 /// danmaku comes back under `default` instead of an episode ordinal), the
@@ -94,6 +95,14 @@ final class FlyNarwhalServerProbeResult {
   /// Why no version came back; null on success. A server that answers without
   /// a version counts too — the caller asked for a version and did not get one.
   final String? failure;
+
+  FlyNarwhalServerProbeResult toResult() {
+    if (failure != null || capabilities.versionKnown) return this;
+    return FlyNarwhalServerProbeResult(
+      capabilities: capabilities,
+      failure: serverReturnedNoVersion,
+    );
+  }
 }
 
 /// [FlyNarwhalServerProbeResult.failure] marker: the server answered but
@@ -103,39 +112,41 @@ const String serverReturnedNoVersion = '\u0000no-version';
 
 /// The single place the server version is read from.
 ///
-/// [flyNarwhalServerCapabilitiesProvider] watches this, so refreshing it here
-/// re-probes the server once and both the version-gated widgets and the caller
-/// that wants the failure see that same answer.
+/// [flyNarwhalServerCapabilitiesProvider] watches this, so the version-gated
+/// widgets redraw from whichever probe produced the latest answer.
 final serverVersionProbeProvider =
     FutureProvider<FlyNarwhalServerProbeResult>((ref) async {
-  final result = await _probeServerVersion(ref);
-  if (result.failure != null) {
-    return result;
-  }
-  if (!result.capabilities.versionKnown) {
-    return FlyNarwhalServerProbeResult(
-      capabilities: result.capabilities,
-      failure: serverReturnedNoVersion,
-    );
-  }
-  return result;
+  return (await _probeServerVersion(ref.container)).toResult();
 });
 
-/// Re-probes the server and also reports a failure the user should be told
-/// about. Shares one request with [flyNarwhalServerCapabilitiesProvider].
+/// Re-probes the server now and reports a failure the user should be told
+/// about.
+///
+/// Probes directly rather than refreshing [serverVersionProbeProvider]: that
+/// provider remembers the settings it first read, and a probe that ran before
+/// the settings loaded would keep answering "server not configured" forever.
 Future<FlyNarwhalServerProbeResult> probeFlyNarwhalServer(WidgetRef ref) async {
-  return ref.refresh(serverVersionProbeProvider.future);
+  final container = ProviderScope.containerOf(ref.context);
+  final result = await _probeServerVersion(container);
+  if (result.capabilities.versionKnown) {
+    await ref
+        .read(flyNarwhalServerUpdateAvailableProvider.notifier)
+        .check(result.capabilities.rawVersion);
+  }
+  return result.toResult();
 }
 
-Future<FlyNarwhalServerProbeResult> _probeServerVersion(Ref ref) async {
-  final settings = ref.watch(settingsProvider);
+Future<FlyNarwhalServerProbeResult> _probeServerVersion(
+  ProviderContainer container,
+) async {
+  final settings = container.read(settingsProvider);
   if (!settings.isFlyNarwhalServerAvailable) {
     return const FlyNarwhalServerProbeResult(
       capabilities: FlyNarwhalServerCapabilities.unknown(),
     );
   }
   final result =
-      await ref.watch(flyNarwhalRemoteDataSourceProvider).getVersion();
+      await container.read(flyNarwhalRemoteDataSourceProvider).getVersion();
   final failure = result.failureOrNull;
   if (failure != null) {
     final message = failure.displayMessage.isNotEmpty

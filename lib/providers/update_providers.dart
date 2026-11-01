@@ -20,6 +20,7 @@ import '../domain/update/repositories/update_repository.dart';
 import '../domain/update/services/update_asset_selector.dart';
 import '../domain/update/services/update_policy.dart';
 import '../l10n/generated/app_localizations.dart';
+import 'fly_narwhal_server_update_available_notifier.dart';
 import '../services/update/app_version_service.dart';
 import '../services/update/download_url_resolver.dart';
 import '../services/update/linux_package_identity.dart';
@@ -354,6 +355,24 @@ final flyNarwhalServerReleaseDataSourceProvider =
 /// listener instead of invalidating (and disposing) the notifier mid-flight.
 final flyNarwhalServerUpdateSettingsProvider = Provider<SettingsState>((ref) {
   return ref.watch(settingsProvider);
+});
+
+/// Reports a newer server release than the connected server runs, so the user
+/// can update it from the fnOS app center. Holds the new version, or null.
+///
+/// Enablement reads [flyNarwhalServerUpdateSettingsProvider] rather than
+/// watching it, so toggling the server does not rebuild the notifier.
+final flyNarwhalServerUpdateAvailableProvider = StateNotifierProvider<
+    FlyNarwhalServerUpdateAvailableNotifier,
+    String?>((ref) {
+  return FlyNarwhalServerUpdateAvailableNotifier(
+    fetchLatestRelease: () => ref
+        .read(flyNarwhalServerReleaseDataSourceProvider)
+        .fetchLatest(),
+    isEnabled: () => ref
+        .read(flyNarwhalServerUpdateSettingsProvider)
+        .isFlyNarwhalServerAvailable,
+  );
 });
 
 /// Coordinates the FlyNarwhal server self-update check and install flow.

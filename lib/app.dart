@@ -34,6 +34,8 @@ import 'data/storage/account_settings_store.dart';
 import 'data/storage/kmp_preferences_migration_service.dart';
 import 'data/storage/kmp_windows_preferences_reader.dart';
 import 'data/storage/update_settings_store.dart';
+import 'providers/fly_narwhal_server_capabilities.dart';
+import 'providers/fly_narwhal_server_update_available_notifier.dart';
 import 'providers/providers.dart';
 import 'providers/reporting_providers.dart';
 import 'providers/update_providers.dart';
@@ -356,6 +358,9 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
       // Instantiate the server-update notifier so its reactive triggers
       // (server enable, login change, manual check) are registered up front.
       ref.read(flyNarwhalServerUpdateProvider);
+      // Ask the server which version it runs at launch (when the server is
+      // enabled and configured) so a newer release can be announced.
+      unawaited(_checkServerUpdateAtLaunch());
       // Register the one-shot per-user settings migration listener before any
       // UI reads settings, so the first successful login migrates + clears the
       // global namespace exactly once.
@@ -364,6 +369,22 @@ class _UpdateSchedulerHostState extends ConsumerState<_UpdateSchedulerHost>
       _scheduler = scheduler;
       unawaited(_reportLaunch());
     });
+  }
+
+  /// Checks at launch whether the repository has a newer server release.
+  ///
+  /// Skipped when settings aren't loaded yet — the settings page runs the same
+  /// check on entry, so a user whose session lands late is still told.
+  Future<void> _checkServerUpdateAtLaunch() async {
+    if (!ref.read(settingsProvider).isFlyNarwhalServerAvailable) return;
+    final l10n = AppLocalizations.of(context);
+    await ref.read(serverVersionProbeProvider.future);
+    if (!mounted) return;
+    showServerUpdateAvailableToast(
+      ref,
+      l10n,
+      ref.read(flyNarwhalServerUpdateAvailableProvider),
+    );
   }
 
   Future<void> _reportLaunch() async {

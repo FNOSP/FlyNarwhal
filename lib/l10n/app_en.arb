@@ -205,7 +205,16 @@
   "@settingsServerUnreachable": {
     "description": "Message when the server cannot be reached."
   },
-  "settingsServerVersionProbeFailed": "Could not fetch the FlyNarwhal server version: {error}",
+    "settingsServerUpdateAvailable": "A new FlyNarwhal server version {version} is available. Update the server from the fnOS app center. If no update is listed there yet, please wait for the server to pass review.",
+  "@settingsServerUpdateAvailable": {
+    "description": "Toast telling the user the server has a newer release to install from the fnOS app center.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+"settingsServerVersionProbeFailed": "Could not fetch the FlyNarwhal server version: {error}",
   "@settingsServerVersionProbeFailed": {
     "description": "Toast shown when the settings page fails to fetch the server version on entry.",
     "placeholders": {

@@ -423,6 +423,12 @@ abstract class AppLocalizations {
   /// **'飞鲸服务端无法访问'**
   String get settingsServerUnreachable;
 
+  /// Toast telling the user the server has a newer release to install from the fnOS app center.
+  ///
+  /// In zh, this message translates to:
+  /// **'发现新的服务端版本「{version}」，请到飞牛应用中心更新飞鲸影视服务端，如发现应用中心没有更新的版本，请耐心等待服务端审核通过'**
+  String settingsServerUpdateAvailable(String version);
+
   /// Toast shown when the settings page fails to fetch the server version on entry.
   ///
   /// In zh, this message translates to:

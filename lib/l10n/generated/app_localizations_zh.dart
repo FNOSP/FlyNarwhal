@@ -177,6 +177,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsServerUnreachable => '飞鲸服务端无法访问';
 
   @override
+  String settingsServerUpdateAvailable(String version) {
+    return '发现新的服务端版本「$version」，请到飞牛应用中心更新飞鲸影视服务端，如发现应用中心没有更新的版本，请耐心等待服务端审核通过';
+  }
+
+  @override
   String settingsServerVersionProbeFailed(String error) {
     return '获取飞鲸服务端版本失败：$error';
   }
@@ -2992,6 +2997,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get settingsServerUnreachable => '飛鯨伺服器無法存取';
+
+  @override
+  String settingsServerUpdateAvailable(String version) {
+    return '發現新的伺服器版本「$version」，請到飛牛應用中心更新飛鯨影視伺服器，如發現應用中心沒有更新的版本，請耐心等待伺服器審核通過';
+  }
 
   @override
   String settingsServerVersionProbeFailed(String error) {

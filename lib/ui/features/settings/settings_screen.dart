@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../data/storage/update_settings_store.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../providers/fly_narwhal_server_capabilities.dart';
+import '../../../providers/fly_narwhal_server_update_available_notifier.dart';
 import '../../../providers/providers.dart';
 import '../../../providers/update_providers.dart';
 import '../../../providers/update_settings_provider.dart';
@@ -136,9 +137,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _runCapabilitiesProbe() async {
     final result = await probeFlyNarwhalServer(ref);
-    final failure = result.failure;
-    if (failure == null || !mounted) return;
+    if (!mounted) return;
     final l10n = AppLocalizations.of(context);
+    showServerUpdateAvailableToast(
+      ref,
+      l10n,
+      ref.read(flyNarwhalServerUpdateAvailableProvider),
+    );
+    final failure = result.failure;
+    if (failure == null) return;
     ref.read(toastManagerProvider.notifier).showToast(
           l10n.settingsServerVersionProbeFailed(
             failure == serverReturnedNoVersion
@@ -147,6 +154,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           type: ToastType.failed,
           category: 'fly-narwhal-version',
+          coalesce: true,
         );
   }
 
@@ -469,6 +477,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (changed) {
         _probeCapabilities();
       }
+    });
+
+    ref.listen<String?>(flyNarwhalServerUpdateAvailableProvider, (_, next) {
+      if (next != null) showServerUpdateAvailableToast(ref, l10n, next);
     });
 
     ref.listen<AsyncValue<String?>>(
