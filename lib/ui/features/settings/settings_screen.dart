@@ -113,6 +113,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   ///
   /// The answer flips the 2.0.0-gated cards; it is deliberately not cached
   /// across entries, because the server may have been updated or replaced.
+  /// A failed probe is reported with a toast — only the explicit test button
+  /// reports success, so silent background probes do not toast on every entry.
   void _probeCapabilities() {
     final settings = ref.read(settingsProvider);
     final baseUrl = settings.flyNarwhalServerBaseUrl;
@@ -129,7 +131,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (!_capabilitiesProbeRequested || !mounted) {
       return;
     }
-    unawaited(probeFlyNarwhalServerCapabilities(ref));
+    unawaited(_runCapabilitiesProbe());
+  }
+
+  Future<void> _runCapabilitiesProbe() async {
+    final result = await probeFlyNarwhalServer(ref);
+    final failure = result.failure;
+    if (failure == null || !mounted) return;
+    final l10n = AppLocalizations.of(context);
+    ref.read(toastManagerProvider.notifier).showToast(
+          l10n.settingsServerVersionProbeFailed(
+            failure == serverReturnedNoVersion
+                ? l10n.connectionTestNoVersion
+                : failure,
+          ),
+          type: ToastType.failed,
+          category: 'fly-narwhal-version',
+        );
   }
 
   /// One-line state of the two dandanplay sources for the settings card, e.g.

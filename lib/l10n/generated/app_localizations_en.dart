@@ -191,6 +191,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'The FlyNarwhal server is unreachable';
 
   @override
+  String settingsServerVersionProbeFailed(String error) {
+    return 'Could not fetch the FlyNarwhal server version: $error';
+  }
+
+  @override
   String get settingsPrivacySslTitle => 'Trusted SSL certificates';
 
   @override

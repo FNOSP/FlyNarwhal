@@ -423,6 +423,12 @@ abstract class AppLocalizations {
   /// **'飞鲸服务端无法访问'**
   String get settingsServerUnreachable;
 
+  /// Toast shown when the settings page fails to fetch the server version on entry.
+  ///
+  /// In zh, this message translates to:
+  /// **'获取飞鲸服务端版本失败：{error}'**
+  String settingsServerVersionProbeFailed(String error);
+
   /// Row heading for the trusted certificate list.
   ///
   /// In zh, this message translates to:

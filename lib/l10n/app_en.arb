@@ -205,6 +205,15 @@
   "@settingsServerUnreachable": {
     "description": "Message when the server cannot be reached."
   },
+  "settingsServerVersionProbeFailed": "Could not fetch the FlyNarwhal server version: {error}",
+  "@settingsServerVersionProbeFailed": {
+    "description": "Toast shown when the settings page fails to fetch the server version on entry.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsPrivacySslTitle": "Trusted SSL certificates",
   "@settingsPrivacySslTitle": {
     "description": "Row heading for the trusted certificate list."

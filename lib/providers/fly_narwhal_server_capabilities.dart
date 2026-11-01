@@ -62,30 +62,13 @@ final class FlyNarwhalServerCapabilities {
 /// any time, so a cached answer would silently keep talking the wrong contract
 /// until the app restarts. Callers that need a fresh answer refresh this
 /// provider before use.
+///
+/// The provider keeps the failure to itself: a probe that runs on its own
+/// (reading the version-gated cards) must not interrupt the user. Callers that
+/// need the failure refresh [serverVersionProbeProvider] instead.
 final flyNarwhalServerCapabilitiesProvider =
     FutureProvider<FlyNarwhalServerCapabilities>((ref) async {
-  final settings = ref.watch(settingsProvider);
-  if (!settings.isFlyNarwhalServerAvailable) {
-    return const FlyNarwhalServerCapabilities.unknown();
-  }
-  try {
-    final result =
-        await ref.watch(flyNarwhalRemoteDataSourceProvider).getVersion();
-    final version = result.dataOrNull?.data?.trim() ?? '';
-    if (version.isEmpty) {
-      AppTalker.warning('FlyNarwhalCapabilities', '服务端未返回版本号，按旧版处理');
-      return const FlyNarwhalServerCapabilities.unknown();
-    }
-    final capabilities = FlyNarwhalServerCapabilities.fromVersion(version);
-    AppTalker.info(
-      'FlyNarwhalCapabilities',
-      '服务端版本 $version, 新契约=${capabilities.supportsModernContract}',
-    );
-    return capabilities;
-  } catch (error) {
-    AppTalker.warning('FlyNarwhalCapabilities', '探测服务端版本失败，按旧版处理: $error');
-    return const FlyNarwhalServerCapabilities.unknown();
-  }
+  return (await ref.watch(serverVersionProbeProvider.future)).capabilities;
 });
 
 /// Probes the server version now, bypassing any previous result.
@@ -95,9 +78,86 @@ final flyNarwhalServerCapabilitiesProvider =
 Future<FlyNarwhalServerCapabilities> probeFlyNarwhalServerCapabilities(
   WidgetRef ref,
 ) async {
-  try {
-    return await ref.refresh(flyNarwhalServerCapabilitiesProvider.future);
-  } catch (_) {
-    return const FlyNarwhalServerCapabilities.unknown();
+  return (await ref.refresh(serverVersionProbeProvider.future)).capabilities;
+}
+
+/// One probe's outcome: the capabilities to apply, plus why the version could
+/// not be read, if it could not.
+final class FlyNarwhalServerProbeResult {
+  const FlyNarwhalServerProbeResult({
+    required this.capabilities,
+    this.failure,
+  });
+
+  final FlyNarwhalServerCapabilities capabilities;
+
+  /// Why no version came back; null on success. A server that answers without
+  /// a version counts too — the caller asked for a version and did not get one.
+  final String? failure;
+}
+
+/// [FlyNarwhalServerProbeResult.failure] marker: the server answered but
+/// reported no version, as opposed to not answering at all. Callers map it to
+/// their own localized text.
+const String serverReturnedNoVersion = '\u0000no-version';
+
+/// The single place the server version is read from.
+///
+/// [flyNarwhalServerCapabilitiesProvider] watches this, so refreshing it here
+/// re-probes the server once and both the version-gated widgets and the caller
+/// that wants the failure see that same answer.
+final serverVersionProbeProvider =
+    FutureProvider<FlyNarwhalServerProbeResult>((ref) async {
+  final result = await _probeServerVersion(ref);
+  if (result.failure != null) {
+    return result;
   }
+  if (!result.capabilities.versionKnown) {
+    return FlyNarwhalServerProbeResult(
+      capabilities: result.capabilities,
+      failure: serverReturnedNoVersion,
+    );
+  }
+  return result;
+});
+
+/// Re-probes the server and also reports a failure the user should be told
+/// about. Shares one request with [flyNarwhalServerCapabilitiesProvider].
+Future<FlyNarwhalServerProbeResult> probeFlyNarwhalServer(WidgetRef ref) async {
+  return ref.refresh(serverVersionProbeProvider.future);
+}
+
+Future<FlyNarwhalServerProbeResult> _probeServerVersion(Ref ref) async {
+  final settings = ref.watch(settingsProvider);
+  if (!settings.isFlyNarwhalServerAvailable) {
+    return const FlyNarwhalServerProbeResult(
+      capabilities: FlyNarwhalServerCapabilities.unknown(),
+    );
+  }
+  final result =
+      await ref.watch(flyNarwhalRemoteDataSourceProvider).getVersion();
+  final failure = result.failureOrNull;
+  if (failure != null) {
+    final message = failure.displayMessage.isNotEmpty
+        ? failure.displayMessage
+        : failure.message;
+    AppTalker.warning('FlyNarwhalCapabilities', '探测服务端版本失败，按旧版处理: $message');
+    return FlyNarwhalServerProbeResult(
+      capabilities: const FlyNarwhalServerCapabilities.unknown(),
+      failure: message,
+    );
+  }
+  final version = result.dataOrNull?.data?.trim() ?? '';
+  if (version.isEmpty) {
+    AppTalker.warning('FlyNarwhalCapabilities', '服务端未返回版本号，按旧版处理');
+    return const FlyNarwhalServerProbeResult(
+      capabilities: FlyNarwhalServerCapabilities.unknown(),
+    );
+  }
+  final capabilities = FlyNarwhalServerCapabilities.fromVersion(version);
+  AppTalker.info(
+    'FlyNarwhalCapabilities',
+    '服务端版本 $version, 新契约=${capabilities.supportsModernContract}',
+  );
+  return FlyNarwhalServerProbeResult(capabilities: capabilities);
 }

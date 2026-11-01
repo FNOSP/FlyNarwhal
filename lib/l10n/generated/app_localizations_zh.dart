@@ -177,6 +177,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsServerUnreachable => '飞鲸服务端无法访问';
 
   @override
+  String settingsServerVersionProbeFailed(String error) {
+    return '获取飞鲸服务端版本失败：$error';
+  }
+
+  @override
   String get settingsPrivacySslTitle => 'SSL 证书信任列表';
 
   @override
@@ -2987,6 +2992,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get settingsServerUnreachable => '飛鯨伺服器無法存取';
+
+  @override
+  String settingsServerVersionProbeFailed(String error) {
+    return '取得飛鯨伺服器版本失敗：$error';
+  }
 
   @override
   String get settingsPrivacySslTitle => 'SSL 憑證信任清單';
