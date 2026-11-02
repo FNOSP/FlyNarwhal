@@ -93,6 +93,7 @@ import '../../shared/window_caption.dart';
 
 enum _PlaybackIndicatorType { play, pause }
 
+
 class PlayerScreen extends ConsumerStatefulWidget {
   final String guid;
   final String? mediaGuid;
@@ -317,6 +318,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // must not leak resizes into the app window state used by other routes.
   Rect? _prePlayerWindowBounds;
   bool _prePlayerWasMaximized = false;
+  bool _prePlayerWasFullScreen = false;
+  // The app window was fullscreen when this player opened. Kept for the whole
+  // lifetime of the route: the leave-time restore clears the snapshot above,
+  // but dispose() still needs to know the window must stay fullscreen.
+  bool _appWasFullscreenOnEnter = false;
+  // True while the player runs inside a fullscreen Space that belongs to the
+  // app: fullscreen is the user's window form here, not the player's, so it
+  // must not be remembered as the player form or toggled on leave.
+  bool _playerUsesAppFullscreen = false;
   bool _windowPersistenceSuspended = false;
   bool _windowSessionCaptured = false;
   Timer? _playerWindowSizeSaveTimer;
@@ -5917,7 +5927,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_isDesktopPlatform()) {
       windowManager.removeListener(this);
       unawaited(_windowAspectRatioController.release());
-      unawaited(_fullscreenController.exitForRouteLeave());
+      unawaited(
+        _fullscreenController.exitForRouteLeave(
+          keepFullscreen: _appWasFullscreenOnEnter,
+        ),
+      );
       // Ensure the window is restored to its normal form when leaving while in
       // PiP mode so the next route is not stuck in a tiny borderless window,
       // then hand the window back to the app routes at its pre-player size.
@@ -7380,12 +7394,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // The player route owns the window ratio lock; release it so other
       // routes can resize the window freely again.
       await _windowAspectRatioController.release();
-      final isFullscreen = await _fullscreenController.exitForRouteLeave();
-      // Leaving the player always exits native fullscreen (the next route
-      // cannot be fullscreen), so the remembered player form must not claim
-      // fullscreen either: the app window is handed back in its own form.
-      // The player's own fullscreen form is preserved for the *next* video by
-      // _restorePlayerWindowBounds, which reads this flag before it clears.
+      // A player running inside the app's fullscreen Space hands the window
+      // back still fullscreen; otherwise native fullscreen is left here (the
+      // next route cannot be fullscreen), and the remembered player form
+      // alone brings the next video back to fullscreen.
+      final isFullscreen = await _fullscreenController.exitForRouteLeave(
+        keepFullscreen: _prePlayerWasFullScreen,
+      );
       await _restoreAppWindowSession();
       if (!mounted || _isFullscreen == isFullscreen) {
         return;
@@ -7409,11 +7424,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Claim the window session synchronously before any await so a disposed
     // predecessor can see the takeover and skip its own window restore.
     _windowSessionId = ++_windowSessionGeneration;
+    _playerUsesAppFullscreen = false;
     Rect? bounds;
     var wasMaximized = false;
+    var wasFullScreen = false;
     try {
       bounds = await windowManager.getBounds();
       wasMaximized = await windowManager.isMaximized();
+      // Entering the player from a fullscreen app window: leaving it must
+      // leave that fullscreen Space untouched instead of exiting and
+      // re-entering it (which strands the app's frozen frame in a second
+      // window on another Space).
+      wasFullScreen = await windowManager.isFullScreen();
     } catch (error, stackTrace) {
       AppTalker.error(
         'Player',
@@ -7427,6 +7449,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     _prePlayerWindowBounds = bounds;
     _prePlayerWasMaximized = wasMaximized;
+    _prePlayerWasFullScreen = wasFullScreen;
+    _appWasFullscreenOnEnter = wasFullScreen;
     _windowSessionCaptured = true;
     AppTalker.info(
       'WindowSession',
@@ -7444,8 +7468,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _isRestoringWindowSession = true;
     try {
       if (await windowManager.isFullScreen()) {
+        // The window is in the app's fullscreen Space (the video was opened
+        // from a fullscreen app window). Keep it there: leaving fullscreen
+        // here would move it to another Space and back, which strands the
+        // previous route's frozen frame behind a second window.
+        _playerUsesAppFullscreen = _prePlayerWasFullScreen;
         return;
       }
+      _playerUsesAppFullscreen = false;
       // The player remembers fullscreen as its own window form, like the
       // maximized one: leaving the player while fullscreen exits native
       // fullscreen (the next route cannot be fullscreen), so the remembered
@@ -7587,18 +7617,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     final appBounds = _prePlayerWindowBounds;
     final wasMaximized = _prePlayerWasMaximized;
+    final wasFullScreen = _prePlayerWasFullScreen;
     _prePlayerWindowBounds = null;
+    _prePlayerWasFullScreen = false;
 
     try {
-      await _fullscreenController.exitForRouteLeave();
-      // Native fullscreen exits animate; wait for the window to settle
-      // before restoring the captured bounds.
-      for (var attempt = 0;
-          attempt < 15 && await windowManager.isFullScreen();
-          attempt++) {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+      // When the app window was fullscreen before the player opened, the
+      // player shares that Space: leaving it must keep fullscreen instead of
+      // animating the window out of the Space and back in.
+      await _fullscreenController.exitForRouteLeave(
+        keepFullscreen: wasFullScreen,
+      );
+      if (!wasFullScreen) {
+        // Native fullscreen exits animate; wait for the window to settle
+        // before restoring the captured bounds.
+        for (var attempt = 0;
+            attempt < 15 && await windowManager.isFullScreen();
+            attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
       }
-      if (appBounds != null && !await windowManager.isFullScreen()) {
+      if (!wasFullScreen &&
+          appBounds != null &&
+          !await windowManager.isFullScreen()) {
         if (await windowManager.isMaximized()) {
           await windowManager.unmaximize();
           await Future<void>.delayed(const Duration(milliseconds: 16));
@@ -7698,7 +7739,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _isDesktopPlatform() &&
       !_isPipMode &&
       !_pipController.isPipMode &&
-      !_isRestoringWindowSession;
+      !_isRestoringWindowSession &&
+      !_playerUsesAppFullscreen;
 
   @override
   void onWindowMoved() {
